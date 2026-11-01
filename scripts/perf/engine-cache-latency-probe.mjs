@@ -25,12 +25,16 @@ if (output && !isMainThread && parentPort) {
       const expression = new RegExp(`\\b${name}\\b(?=[^;]*? from )`);
       if (!expression.test(source)) continue;
       source = source.replace(expression, `${name} as native_${name}`);
-      wrappers += `const ${name} = (...args) => globalThis[Symbol.for('${symbol}')]('${kind}.${name}', () => native_${name}(...args));\n`;
+      wrappers += `function ${name}(...args) { return globalThis[Symbol.for('${symbol}')]('${kind}.${name}', () => native_${name}(...args)); }\n`;
     }
-    // Include the shallow baseline projection in the diagnostic too. This span
-    // contains snapshot.serialize and must not be added to that nested total.
-    if (kind === 'snapshot') source = source.replace(/function baseBytes\(([^)]*)\) \{([\s\S]*?)^\}/m,
-      (_, args, body) => `function baseBytes(${args}) { return globalThis[Symbol.for('${symbol}')]('snapshot.baseBytes', () => {${body}}); }`);
+    // These spans contain native serialization and must not be added to its
+    // nested total. Unknown function names simply do not match older controls.
+    if (kind === 'snapshot') for (const name of ['baseBytes', 'planningBytes', 'referenceBound']) {
+      source = source.replace(new RegExp(`function ${name}\\(([^)]*)\\) \\{([\\s\\S]*?)^\\}`, 'm'),
+        (_, args, body) => `function ${name}(${args}) { return globalThis[Symbol.for('${symbol}')]('snapshot.${name}', () => {${body}}); }`);
+    }
+    if (kind === 'eligibility') source = source.replace(/function deserializePrivate\(([^)]*)\) \{([\s\S]*?)^\}/m,
+      (_, args, body) => `function deserializePrivate(${args}) { return globalThis[Symbol.for('${symbol}')]('eligibility.deserializePrivate', () => {${body}}); }`);
     return { ...result, source: source + '\n' + wrappers };
   } });
   const post = parentPort.postMessage.bind(parentPort);

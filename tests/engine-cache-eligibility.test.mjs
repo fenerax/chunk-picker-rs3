@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { serialize } from 'node:v8';
 import { spawnSync } from 'node:child_process';
-import { createEligibilityCache, createEligibilityBudget } from '../app/tasks/eligibility-cache.mjs';
+import { createEligibilityCache, createEligibilityBudget, eligibilityResultBytes } from '../app/tasks/eligibility-cache.mjs';
 
 const state = n => ({ schemaVersion: 1, revision: 7, rules: {}, tasks: [], history: [],
   members: [{ id: 'same', name: 'Player', unlocked: [String(10000 + n)], completedTasks: [], taskStatus: {} }] });
@@ -145,7 +146,7 @@ for (const mode of ['idle', 'small', 'oversized']) test(`compression failure pre
     import assert from 'node:assert/strict';
     import zlib from 'node:zlib';
     import { syncBuiltinESMExports } from 'node:module';
-    import { createEligibilityCache, createEligibilityBudget } from ${JSON.stringify(new URL('../app/tasks/eligibility-cache.mjs', import.meta.url).href)};
+    import { createEligibilityCache, createEligibilityBudget, eligibilityResultBytes } from ${JSON.stringify(new URL('../app/tasks/eligibility-cache.mjs', import.meta.url).href)};
     let attempts = 0;
     zlib.zstdCompressSync = () => { attempts++; throw Object.assign(new Error('Compression failed'), { code: 'ERR_ZSTD_GENERIC' }); };
     syncBuiltinESMExports();
@@ -202,4 +203,59 @@ test('large proofs preserve data, aliases and hidden facts before and after idle
   assert.ok(cache.bytes < before);
   assert.equal(budget.bytes, cache.bytes);
   read();
+});
+
+
+test('one picker keeps its newest proof raw within quota and sharing resumes compaction', async () => {
+  const budget = createEligibilityBudget({ byteLimit: 4 * 1024 * 1024, eligibilityByteLimit: 2 * 1024 * 1024 });
+  budget.admit({}, () => {}, { cost: 1, owner: 'picker:one' });
+  const cache = createEligibilityCache({ limit: 8, budget });
+  call(cache, 0, () => proof(0, 'first', 100000));
+  await new Promise(resolve => setImmediate(resolve));
+  const raw = cache.bytes; assert.ok(raw >= 100000, 'newest raw backing store stays fully charged');
+  const cold = call(cache, 1, () => proof(1, 'second', 100000));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(cache.bytes >= 100000 && cache.bytes < 2 * raw);
+  const warm = call(cache, 1, () => assert.fail('hot proof recomputed'));
+  assert.deepEqual(warm, cold); warm.tasks[0].record.label = 'changed';
+  assert.equal(call(cache, 1).tasks[0].record.label, 'second');
+  budget.admit({}, () => {}, { cost: 1, owner: 'picker:two' });
+  call(cache, 2, () => proof(2, 'third', 100000));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(cache.bytes < 100000, 'shared pickers compact every proof');
+  assert.equal(budget.bytes, cache.bytes + 2); assert.ok(budget.bytes <= budget.byteLimit);
+});
+
+
+test('raw proof decoding isolates every host view while preserving repeated view identity', () => {
+  const cache = createEligibilityCache({ byteLimit: 4 * 1024 * 1024 });
+  const result = proof(0, 'views', 100000), typed = new Uint16Array([11, 22]), data = new DataView(new ArrayBuffer(8));
+  data.setUint32(0, 123); result.tasks[0].record.views = [typed, typed, data, Buffer.from([3, 4])];
+  call(cache, 0, () => result);
+  const first = call(cache, 0), views = first.tasks[0].record.views;
+  assert.equal(views[0], views[1]); views[0][0] = 99; views[2].setUint32(0, 999); views[3][0] = 88;
+  const next = call(cache, 0).tasks[0].record.views;
+  assert.equal(next[0], next[1]); assert.deepEqual([...next[0]], [11, 22]);
+  assert.equal(next[2].getUint32(0), 123); assert.deepEqual([...next[3]], [3, 4]);
+});
+
+
+test('proof producer bounds include completion overlays on cold and compressed hits', async () => {
+  const producerBudget = createEligibilityBudget({ byteLimit: 8 * 1024 * 1024 });
+  const cache = createEligibilityCache({ budget: producerBudget });
+  const cold = producerBudget.measureResult(() => call(cache, 0, () => ({ tasks: Array.from({ length: 180 }, (_, i) => ({ id: `row-${i}`,
+    record: { text: ('漢' + 'slice '.repeat(100)).slice(1), wide: '漢字'.repeat(60) } })), metrics: {} })));
+  const bound = eligibilityResultBytes(cold);
+  assert.ok(bound >= serialize(cold).byteLength);
+  await new Promise(setImmediate);
+  const warm = producerBudget.measureResult(() => call(cache, 0, () => assert.fail('A proof hit must not recompute.')));
+  assert.ok(eligibilityResultBytes(warm) >= serialize(warm).byteLength);
+  assert.deepEqual(warm, cold);
+});
+
+test('measurement scope restores on failure and does not mark ordinary proof results', () => {
+  const budget = createEligibilityBudget({ byteLimit: 1024 * 1024 }), cache = createEligibilityCache({ budget });
+  assert.throws(() => budget.measureResult(() => { throw new Error('stop'); }), /stop/);
+  assert.equal(budget.measuringResult, false);
+  const result = call(cache, 0); assert.equal(eligibilityResultBytes(result), undefined);
 });

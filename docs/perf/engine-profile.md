@@ -2513,3 +2513,334 @@ The full npm test suite and full private correctness corpus were not rerun.
 
 Numeric evidence: [en7-cache-latency-reply-results.json](../../scripts/perf/en7-cache-latency-reply-results.json).
 Recommendation: **NEEDS-WORK**.
+
+## EN7 latency: sandbox, planning and area checks
+
+START `2f9ed9949095d90532352c771f335c7c26fae3ab`; reference `1c2a07cb584f7762c9f4bc4e5af5c8acc7220462`.
+
+Node v24.21.0. Five fresh interleaved reference/EN7 pairs per selected state, alternating A/B and B/A order. No test, checker or second calculator workload overlaps accepted timing trials. Two incomplete overlapping setup attempts were stopped and discarded. Diagnostic runs are separate from timing evidence.
+
+The seed-17 eight-state sample has manifest SHA-256 `18991b15ed60a0319dde3f836a69a7f688a6b9a7af22b4861c523ad9f98dd502`. Three sample positions, 0, 3 and 7, are frozen once under /tmp and reused on every side. Each fresh calculator prepares rules, then for each member evaluates play and full views before two planning requests, one ordinary sandbox draft and one area check. Header and body transport match the reference protocol; the requests bypass HTTP scheduler caches. Selected identities and result contents are never reported.
+
+Each cell below is the median [minimum–maximum] of five trial medians, in milliseconds. Planning includes a first index build and a repeat lookup; sandbox and area each have one request per member. Calculator process-tree peak RSS includes protocol adapter isolates and excludes the preparation driver.
+
+### Before
+
+| Sample position | Request | Reference ms | START ms | Difference |
+| ---: | --- | ---: | ---: | ---: |
+| 0 | chunk-planning | 278 [264–341] | 813 [715–841] | +192.8% |
+| 0 | sandbox | 3,015 [2,767–3,071] | 4,038 [3,966–4,187] | +33.9% |
+| 0 | area-check | 11,070 [9,903–12,446] | 14,274 [12,500–15,332] | +28.9% |
+| 3 | chunk-planning | 296 [281–358] | 796 [662–866] | +169.4% |
+| 3 | sandbox | 3,399 [3,054–3,627] | 4,342 [4,246–4,717] | +27.7% |
+| 3 | area-check | 8,254 [7,792–9,265] | 12,153 [11,443–13,261] | +47.2% |
+| 7 | chunk-planning | 173 [151–189] | 353 [347–406] | +103.8% |
+| 7 | sandbox | 1,958 [1,833–2,275] | 3,155 [3,146–3,275] | +61.1% |
+| 7 | area-check | 7,868 [7,473–9,183] | 9,389 [8,981–9,884] | +19.3% |
+
+All nine observed before gaps exceed 5%.
+
+### Profile and changes
+
+- Planning growth reserializes the baseline and full association graph. A separate diagnostic expands the bulk measurement from 48,382,766 to 104,088,245 bytes; its two member spans are 919–1,479 ms. The added native sizing pass dominates the planning regression.
+- Sandbox admission measures its hypothetical baseline before the projection exists, then measures it again after the projection and delta are assigned. The input state receives another full sizing pass. A diagnostic records 1,337 ms in these snapshot serializations, including the nested bulk spans.
+- A 146,885,017-byte planned complete snapshot and an 89,343,573-byte sandbox snapshot exceed the 201,326,592-byte per-picker ceiling together. Sandbox admission evicts the complete baseline. The following area check pays 283 ms for proof decompression, 2,251 ms for decoding, and 289 ms for snapshot sizing in the diagnostic. Key construction is 5–28 ms; queued compression is 41–107 ms. The raw-buffer copy fix is unchanged.
+
+`snapshot-cache.mjs` uses a conservative fixed-shape planning bound for immutable indexes registered by the worker. Weak references verify the baseline and map roots. Variable strings allow two bytes per UTF-16 unit plus framing; native measurements cover the literal property names. Object references and ID growth are bounded. Unknown formats, unregistered indexes and forced refreshes use joint native sizing. The complete cache reads its state owner from the deferred view context instead of retaining an additional state root after views materialize.
+
+`worker.mjs` registers newly built planning indexes, enables context-owned state for complete snapshots, and delays ordinary sandbox admission until its reusable projection and delta are ready. Ordinary drafts retain those UI graphs; detailed requests rehydrate a full hypothetical baseline when needed. Empty drafts continue to charge their owning complete snapshot. These small request-level choices require worker changes because the cache cannot infer whether full hypothetical work will be requested.
+
+The 384 MiB total, 128 MiB proof reservation, 256 MiB snapshot pool, 192 MiB per-picker ceiling and 512-entry limit are unchanged. The bound measures retained payload, not total V8 heap or RSS; compiled data, transfer states and active requests remain additional.
+
+Existing classified test files add independent native-byte checks, agreement between producer and validated sizing, forced-proof revocation, deferred state ownership, and ordinary-to-detailed sandbox result parity. No existing assertion, comparison exclusion or game rule changes.
+
+Numeric probes now recognize projection-only sandbox entries, include planning/reference-bound spans, and use hoisted native wrappers for startup-time sizing. The new request harness preserves frozen inputs outside the checkout; the optional CPU and loop diagnostics also write only under /tmp.
+
+### Verification completed before final timings
+
+| Check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| engine-cache-snapshot | 16 | 0 | 0 |
+| engine-cache-worker | 5 | 0 | 0 |
+| engine-cache-eligibility | 12 | 0 | 0 |
+| worker-timings | 18 | 0 | 0 |
+| multi-picker-capacity | 1 | 0 | 0 |
+| npm run test:quick | 2500 | 0 | 67 |
+| Public fixture preparation, 179 files / 3962 captures | 2073 | 0 | 2 |
+
+Application source fingerprint (worker, engine, snapshot-cache, eligibility-cache joined with NUL): `052efbe68125bc4a3ba9f1b72d3563e2fac84eea79455af21ce2b904264759c4`.
+
+### After and the 5% target
+
+| Sample position | Request | Reference ms | Revised ms | Difference | Within 5% |
+| ---: | --- | ---: | ---: | ---: | :---: |
+| 0 | chunk-planning | 308 [273–333] | 321 [319–389] | +4.2% | yes |
+| 0 | sandbox | 2,975 [2,852–3,116] | 2,865 [2,752–3,069] | -3.7% | yes |
+| 0 | area-check | 11,009 [9,739–11,555] | 11,702 [11,476–12,333] | +6.3% | no |
+| 3 | chunk-planning | 302 [285–344] | 321 [315–340] | +6.3% | no |
+| 3 | sandbox | 3,052 [2,969–3,202] | 2,980 [2,925–3,200] | -2.4% | yes |
+| 3 | area-check | 8,175 [8,136–8,434] | 8,874 [8,698–9,368] | +8.5% | no |
+| 7 | chunk-planning | 186 [163–214] | 181 [176–192] | -2.3% | yes |
+| 7 | sandbox | 2,094 [1,785–2,146] | 2,002 [1,966–2,298] | -4.4% | yes |
+| 7 | area-check | 8,292 [6,523–9,330] | 8,358 [6,513–8,410] | +0.8% | yes |
+
+**Six of nine comparisons meet the target; three do not.** Planning at position 3 is +6.3%; area checks at positions 0 and 3 are +6.3% and +8.5%. Ordinary sandbox meets the target at all three positions. No before gap was below 5%.
+
+Pooling the fifteen trial medians per request type gives the following additional summary. It does not replace the per-state gate. The after series has its own fresh reference trials.
+
+| Phase | Request | Reference ms | Candidate ms | Difference |
+| --- | --- | ---: | ---: | ---: |
+| before | chunk-planning | 278 [151–358] | 721 [347–866] | +159.6% |
+| before | sandbox | 3,015 [1,833–3,627] | 4,038 [3,146–4,717] | +33.9% |
+| before | area-check | 9,109 [7,473–12,446] | 12,153 [8,981–15,332] | +33.4% |
+| after | chunk-planning | 285 [163–344] | 319 [176–389] | +11.9% |
+| after | sandbox | 2,969 [1,785–3,202] | 2,865 [1,966–3,200] | -3.5% |
+| after | area-check | 8,434 [6,523–11,555] | 8,874 [6,513–12,333] | +5.2% |
+
+The cold evaluate control differs by +8.2%, +14.1% and −2.0% at the three positions. That control is retained in the numeric evidence; it is not used to excuse misses in the requested gate.
+
+The revised ordinary-request diagnostic has zero rejected admissions. The complete planned snapshot is charged at 158,619,841–158,948,441 bytes and the projection-only sandbox at 4,224,312–4,246,719 bytes, so an ordinary draft no longer evicts its baseline. Planning accounting still walks the evidence graph: 53–76 ms in the separate instrumented run. The following area requests show no snapshot sizing or proof decompression; they still serialize two proofs in 335–482 ms and run queued compression in 53–56 ms. CPU samples also show substantial engine work and garbage collection. These observations remove the original eviction explanation for the remaining area gap; they do not fully attribute its residual 6–9% difference. The raw buffer-copy fix remains unchanged.
+
+After-series median process-tree peak RSS is 3,098, 3,129 and 3,675 MiB for the three positions, against 3,413, 3,493 and 3,735 MiB for their references. Full ranges are in the numeric evidence.
+
+### Detailed sandbox check
+
+Five additional fresh interleaved pairs use one queried member while retaining the complete input state. Each sequence makes an ordinary draft, a detailed request with both prediction and planning, repeats that detailed request, and returns to the ordinary draft. One invalid reference setup was discarded before selecting a valid setup; no validation rule or input state was changed. All ten measured trials completed.
+
+| Request in sequence | Reference ms | Revised ms | Difference |
+| --- | ---: | ---: | ---: |
+| ordinary | 2,815 [2,648–2,936] | 2,945 [2,771–3,310] | +4.6% |
+| detail-first | 2,794 [2,712–3,231] | 9,041 [8,589–9,497] | +223.6% |
+| detail-repeat | 2,384 [1,380–3,022] | 13,868 [13,118–15,157] | +481.7% |
+| ordinary-after | 60 [57–86] | 6,728 [6,570–7,295] | +11074.8% |
+
+This check fails decisively. A separate final diagnostic charges the detailed snapshot at 231,269,835 bytes on its first detailed request and 230,824,186 on its repeat, above the unchanged 201,326,592-byte owner ceiling. The conservative planning bound contributes 103,027,895 bytes to each charge; this pessimistic bound makes detailed admission harder even though ordinary admission improves. Admitting the intermediate hypothetical graph first evicts the 157,080,602-byte complete baseline; adding planning then correctly rejects the oversized entry. The repeated request decodes three proofs in 6,874 ms, decompresses them in 734 ms and spends 1,397 ms in native snapshot serialization. The next ordinary draft decodes two proofs in 3,852 ms. Nested spans overlap and must not be added. This is retention/admission churn, not a change in draft key or game results.
+
+Detailed-sequence process-tree peak RSS, median [minimum–maximum]: reference 3,668 [3,602–3,984] MiB; revised 4,236 [4,211–4,260] MiB.
+
+### Capacity at 384 MiB
+
+The unchanged EN7 capacity harness runs three fresh trials per version and picker count, one cold and two warm rounds of all seven request kinds. Each trial's warm-round number is the median of its two round totals; the table then summarizes the three trial medians. Warm p95 is calculated over all warm requests within each trial. Only one calculator runs at a time. Source-input, dataset and harness hashes match between versions; compile cache is disabled for these performance runs.
+
+| Pickers | Metric | Reference | Revised |
+| ---: | --- | ---: | ---: |
+| 2 | compile ms | 1,729 [1,672–1,812] | 1,687 [1,683–1,869] |
+| 2 | warm round ms | 16,818 [15,901–18,345] | 7,587 [7,562–7,786] |
+| 2 | warm p95 ms | 5,326 [4,991–5,813] | 1,639 [1,482–1,783] |
+| 2 | peak worker RSS MiB | 2,199 [2,122–2,212] | 2,007 [1,990–2,050] |
+| 8 | compile ms | 1,745 [1,697–1,875] | 1,661 [1,601–1,662] |
+| 8 | warm round ms | 121,524 [120,946–124,967] | 61,670 [61,259–63,722] |
+| 8 | warm p95 ms | 4,755 [4,741–4,902] | 2,173 [2,171–2,243] |
+| 8 | peak worker RSS MiB | 2,429 [2,413–2,460] | 1,973 [1,951–1,975] |
+
+Two-picker warm rounds improve by 54.9%; eight-picker warm p95 improves by 54.3%. The multi-picker gain is retained. Maximum sampled charges are 237,039,655 bytes / 12 entries at two pickers and 336,351,503 bytes / 37 entries at eight, within 402,653,184 bytes / 512 entries. These are retained-payload charges; RSS is reported separately.
+
+### Correctness and disposition
+
+The private eight-state sample completes **216 comparisons, zero differences and zero errors**. All 16 public shards merge with full coverage: **4,067 states, 70,369 comparisons, 0 differences and 0 errors**. Manifest SHA-256: `881b78571688e613160a299e26124eea442dbfd70e3ed5c1cbe4374c0b9a8cda`.
+
+Focused tests: **52 pass, 0 fail**. The single final quick run: **2,500 pass, 0 fail, 67 skip**. Fixture preparation: **2,073 pass, 0 fail, 2 skip**. No full npm test run was made. The application source remains at the fingerprint above throughout these gates.
+
+The ordinary-request changes improve all initial gaps and preserve multi-picker gains, but the 5% target is missed and detailed sandbox remains much slower. A follow-up needs tighter planning accounting and an admission strategy that preserves reusable baseline/projection data when detailed graphs cannot fit. Moving accounting into the planning producer would require a change to app/tasks/chunk-planning-index.mjs, outside this brief's permitted app changes; it was not changed. The residual area gap also needs attribution.
+
+Numeric evidence: [en7-request-latency-results.json](../../scripts/perf/en7-request-latency-results.json). **Recommendation: NEEDS-WORK**.
+
+### Reproduction
+
+Use Node 24.20 or later and a copied save, its sibling dataset binding, the
+released packs and the matching game defaults. Set `RS3_DATASET=duo-legacy`,
+`RS3_TASK_WORKER_MODE=process`, `RS3_PACKS_DIR` and
+`RS3_GAME_DEFAULTS_FILE` as described by the private input README. Never open
+the source save directly. All measurement outputs and frozen inputs stay
+under `/tmp`.
+
+```sh
+export PATH=/opt/codex/cua_node/bin:$PATH
+node --version
+node scripts/perf/engine-request-latency.mjs \
+  --reference "$REFERENCE_WORKTREE" --candidate "$PWD" \
+  --data-dir "$COPIED_SAVE" --inputs /tmp/request-inputs \
+  --output /tmp/request-latency.json
+node scripts/perf/engine-cache-profile.mjs \
+  --app-dir "$VERSION_WORKTREE" --data-dir "$COPIED_SAVE" \
+  --counts 2,8 --runs 3 --rounds 2 --cache-bytes 402653184 \
+  --output /tmp/cache-capacity.json
+```
+
+The latency harness freezes three positions from the seed-17 eight-state
+sample once; reuse that inputs directory for the START and revised series.
+Its `--trial` mode accepts `--detailed` and an optional numeric `--member-slot` to follow an ordinary sandbox draft with
+first and repeated detailed requests, then another ordinary request.
+Run every timing series without other calculator, checker or
+test workloads.
+
+`engine-request-profile.mjs` is an optional `--import` preload for separate
+CPU, cache-span, admission and planning-loop diagnostics. Its trace and profile
+locations must be under `/tmp`. Instrumented runs never enter timing tables.
+
+## EN7 latency round 4: transactional admission and producer accounting
+
+START `2f9ed9949095d90532352c771f335c7c26fae3ab`; reference `1c2a07cb584f7762c9f4bc4e5af5c8acc7220462`. The previous round's staged work is retained above. Node v24.21.0; frozen five-file source SHA-256 `c3fef33517d6235c717945bab2fa162253370253c8ad54d0f0e5a79783b12cdd`. Source hash order: worker, engine, snapshot-cache, eligibility-cache, chunk-planning-index, UTF-8 joined with NUL.
+
+This round stages hypothetical snapshots without publishing intermediate graphs. Final admission preflights the owner, pool, total-byte and entry ceilings before eviction. Rejection preserves the complete baseline and previous draft. Sandbox caches release deferred full-view context and source state after projection; prediction owns a separately charged clone. A detailed entry that fits alone may replace the baseline; cached draft replies then use retained projections and deltas without rebuilding that baseline. When possible, only the baseline optional planning index is released after proving the combined charge fits. An entry above the unchanged 192 MiB owner ceiling is served uncached. Shared workers retain small ordinary projections.
+
+The planning producer accumulates fixed-shape wire bounds during construction. Every string receives a conservative two-byte bound, including Latin-1 slices that can keep two-byte backing in V8. The same counter runs in Node and the browser. Independent validation reads native encodings, and regression cases cover sliced strings, long wide strings and encoding-width boundaries. The producer uses string lengths and fixed framing costs without hashing or rewalking the evidence graph afterwards. Weak metadata verifies baseline and map roots; forced or unknown shapes retain native fallback. Prediction clone bounds reuse a measured immutable source plus changed top-level graphs, covering reference-ID widening. Native tests cover these bounds independently. Large temporary sizing buffers are released immediately after measurement; caller-owned buffers remain intact.
+
+One picker keeps its newest raw proof only when its complete backing store fits half the unchanged proof quota. Older proofs compact, and shared pickers retain full compaction. Raw decoding copies host views individually, preserving repeated-view identity and cache isolation, rather than copying the complete wire buffer. No ceiling is raised.
+
+### After: ordinary request types
+
+Five fresh interleaved A/B pairs at each frozen sample position, alternating pair order. Each cell is median [minimum–maximum] of five trial medians, in milliseconds. Accepted timing runs have no concurrent checker, test or second calculator.
+
+| Position | Request | Reference ms | Revised ms | Difference |
+| ---: | --- | ---: | ---: | ---: |
+| 0 | chunk-planning | 279 [264–360] | 294 [274–305] | +5.2% |
+| 0 | sandbox | 2,974 [2,915–3,011] | 3,122 [2,991–3,268] | +5.0% |
+| 0 | area-check | 10,084 [9,389–10,703] | 10,913 [10,700–11,160] | +8.2% |
+| 3 | chunk-planning | 284 [264–364] | 294 [289–304] | +3.5% |
+| 3 | sandbox | 2,977 [2,938–3,044] | 3,320 [3,170–3,473] | +11.5% |
+| 3 | area-check | 7,966 [7,243–8,481] | 8,451 [8,433–8,872] | +6.1% |
+| 7 | chunk-planning | 170 [156–188] | 158 [155–177] | -7.0% |
+| 7 | sandbox | 1,972 [1,826–2,012] | 2,233 [2,042–2,399] | +13.2% |
+| 7 | area-check | 8,081 [7,871–8,177] | 6,694 [6,546–7,772] | -17.2% |
+
+### After: detailed sandbox
+
+Five fresh interleaved pairs use the same valid setup and full input state as the prior round, with one queried member. An ordinary draft precedes these three requests.
+
+| Request | Reference ms | Revised ms | Difference |
+| --- | ---: | ---: | ---: |
+| detail-first | 3,179 [2,910–3,624] | 4,099 [3,183–4,460] | +28.9% |
+| detail-repeat | 2,512 [1,468–2,662] | 1,972 [1,471–2,233] | -21.5% |
+| ordinary-after | 66 [59–112] | 61 [58–71] | -7.3% |
+
+**6 of 12 comparisons meet the 5% target; 6 miss it.**
+
+### Capacity at 384 MiB
+
+Three fresh trials per side and count; one cold and two warm rounds of all seven request kinds. The warm-round value is each trial's median of its two round totals; warm p95 covers all warm requests in that trial. Peak RSS here is the worker's high-water mark, while the request harness records the whole calculator process tree. Matching input, dataset and harness hashes are retained in the numeric evidence.
+
+| Pickers | Metric | Reference | Revised |
+| ---: | --- | ---: | ---: |
+| 2 | warm round ms | 16,523 [16,335–16,963] | 7,744 [7,739–7,869] |
+| 2 | warm p95 ms | 5,252 [5,129–5,340] | 1,668 [1,563–1,810] |
+| 2 | peak worker RSS MiB | 2,166 [2,128–2,181] | 2,058 [1,963–2,095] |
+| 8 | warm round ms | 117,784 [115,445–119,925] | 62,769 [61,335–63,220] |
+| 8 | warm p95 ms | 4,636 [4,551–4,670] | 2,137 [2,083–2,172] |
+| 8 | peak worker RSS MiB | 2,427 [2,421–2,477] | 2,163 [2,143–2,191] |
+
+Maximum sampled charge at 2 pickers: 257,006,468 bytes / 12 entries.
+
+Maximum sampled charge at 8 pickers: 341,583,133 bytes / 38 entries.
+
+The limits remain 402,653,184 total bytes, 134,217,728 proof bytes, 268,435,456 snapshot bytes, 201,326,592 bytes per picker and 512 entries. These are retained-payload charges, not RSS.
+
+### Area profile evidence and limits
+
+Before changing the area path, separate reference/revised diagnostics reproduced the two gaps. The area requests contain no snapshot sizing, baseline decoding or raw-buffer-copy spans. At position 3, engine time is 9,055 → 9,743 ms and 3,065 → 3,402 ms; native proof serialization is 467 → 542 ms and 315 → 335 ms. The revised path also runs 49–54 ms of queued compression. CPU samples attribute most of the remaining difference to the engine fixed point: exclusive engine samples are 4,367 → 4,956 ms and 1,292 → 1,434 ms; GC samples are 1,817 → 1,777 ms and 1,122 → 1,026 ms. Position 0 also has increased engine and GC samples. Instrumented spans are not timing-table evidence, and nested spans are not additive.
+
+No area calculation or fixed-point engine code changed in this round. The earlier profiles locate substantial time in app/tasks/engine.mjs. They do not establish a single root cause or justify changing game rules. Final-source evidence below also finds remaining cache compression costs.
+
+### Checks
+
+Touched and related focused files ran one at a time before one final quick-suite run.
+
+| Check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| engine-cache-snapshot | 21 | 0 | 0 |
+| engine-cache-eligibility | 14 | 0 | 0 |
+| engine-cache-worker | 7 | 0 | 0 |
+| chunk-planning | 11 | 0 | 0 |
+| worker-timings | 18 | 0 | 0 |
+| multi-picker-capacity | 1 | 0 | 0 |
+| quick | 2509 | 0 | 67 |
+
+Final-source profiles identify 254–305 ms of hypothetical-baseline measurement on ordinary sandbox requests. Engine time is slightly lower than reference in those instrumented requests; decoding and buffer-copy spans are absent. This is still a cache sizing cost and the ordinary sandbox target remains unresolved on two samples.
+
+The detailed candidate is measured at 179,988,907 bytes before successful admission; it fits the unchanged 201,326,592-byte owner ceiling. It then evicts the 144,253,504-byte complete baseline, and subsequent draft hits do not rebuild it. Separate first-detail profiles show only 0.6 ms of reference-bound work, 0.2 ms of planning accounting, and raw proof decoding at 1,334 ms versus 1,318 ms reference. In accepted trials, median prediction time is 3,509 ms versus 2,683 ms and engine time is 1,791 ms versus 1,387 ms. Separate CPU samples show GC at 506 ms versus 407 ms. The first-detail residual is in prediction preparation/eligibility-hit execution and allocation, rather than repeated final admission or baseline rebuilding. These diagnostics identify locations and do not prove a single root cause.
+
+Final-source area diagnostics add an unresolved cache-path cost: proof compression totals 660 ms and 108 ms in the two candidate request windows. The first candidate window also has 365 ms of exclusive buffer-internal samples, while exclusive engine samples are 4,313 versus 4,179 ms and GC samples are 998 versus 1,206 ms. These samples indicate compression/allocation overhead in eligibility-cache.mjs, as well as engine execution. Span collection can include queued work between replies, so the compression total is not proven to be entirely on the request critical path. Snapshot sizing and baseline decoding spans remain absent. A safe compaction/admission policy meeting all latency targets is still unresolved; this round does not claim the area gap is wholly outside the cache files.
+
+The five-pair planning residual at position 0 is +5.2%; position 3 is +3.5% and position 7 is -7.0%. Producer accounting removes the repeated graph traversal, but one planning comparison still narrowly misses the target. No successful row compensates for a failed row.
+
+Private sample: **8 states, 188 comparisons, 0 differences, 0 errors**. Manifest SHA-256: `18991b15ed60a0319dde3f836a69a7f688a6b9a7af22b4861c523ad9f98dd502`.
+
+Public strict 16-shard merge: **4,067 states, 70,369 comparisons, 0 differences, 0 errors**. Manifest SHA-256: `881b78571688e613160a299e26124eea442dbfd70e3ed5c1cbe4374c0b9a8cda`.
+
+The private sample uses normal parallel comparison with the same eight-state manifest, default request caps and sequence length 8. It stays in one calculator batch; the earlier serial run split it into four two-state batches. Recorded comparisons are 188 versus 216 because prepare-rules deduplication and batch-level replay counts differ. No state or request type is excluded. Memory headroom was checked before enabling parallel calculators.
+
+Both correctness corpora are rerun because producer and proof-decoding code changed. Prior public fixture captures are reused; caps, sequence length, assertions and exclusions are unchanged. The public checker alone uses Node's compilation cache. Performance probes do not.
+
+Recommendation: **NEEDS-WORK**. Full numeric evidence: [en7-request-latency-results.json](../../scripts/perf/en7-request-latency-results.json).
+
+## EN7 latency final round: reuse proof sizing
+
+START `2f9ed9949095d90532352c771f335c7c26fae3ab`; reference `1c2a07cb584f7762c9f4bc4e5af5c8acc7220462`. Node v24.21.0; final five-file source SHA-256 `88c832ae608962a17880ee24feeb9fb1ed44e227a71f67684ff2ba07bd0284f6` (worker, engine, snapshot-cache, eligibility-cache, chunk-planning-index, UTF-8 joined with NUL). The previous staged work is preserved.
+
+This round changes caching and sizing only. A single-picker sandbox reuses the eligibility producer's existing native wire size, conservatively bounding reference-ID widening, UTF-16 alignment and completion-overlay growth. The worker records immutable engine roots before appending its collection/equipment rows; snapshot accounting measures those additions, projections and diagnostic tails separately. Shared roots/rows receive conservative reference charges. Unknown or forced measurements use native fallback. The independent diagnostic helper checks the producer charge against a full native floor, keeping strict ledger assertions. No ceiling changes.
+
+Wire measurement metadata is created only for a scoped sandbox-producing evaluation. The consumed wire reference is cleared after deriving its bound; metadata does not strongly retain buffers. Future prediction and area evaluations do not create this metadata. Shared-picker admission and compression policies are unchanged.
+
+### Focused profiles
+
+One state-7 sandbox request after its normal warm-up was profiled against START, reference, and the previous staged source. START spends 586 ms in snapshot serialization versus 135 ms for the staged source; the reference has no snapshot serialization. The producer-sizing pilot reduces snapshot base measurement from 137 to 32 ms. Its ordinary draft before detailed work measures at 43 ms. These are diagnostic runs, not accepted timing trials; the pilot precedes the final measurement-scope restriction, and both hashes are retained in the numeric evidence.
+
+For the first detailed request, the staged source spends 2,934 ms in prediction versus 2,207 ms reference; cache measurement is below 1 ms. The ordinary request already supplies the evaluated hypothetical baseline. The detailed reply additionally needs a validated frozen prediction input and its future evaluation, so that work cannot be moved after the response without withholding the requested prediction. No prediction result calculation changed.
+
+### Updated affected rows
+
+Five fresh interleaved reference/candidate pairs. Cells are milliseconds, median [minimum–maximum] across five trial medians. The normal request sequence is retained as warm-up; only affected rows are reported. Detailed repeat and following ordinary rows check that the admission fix remains warm. No other calculator, tests or checker ran alongside accepted timing trials.
+
+| State position | Request | Reference ms | Revised ms | Change |
+| ---: | --- | ---: | ---: | ---: |
+| 0 | sandbox | 2,866 [2,699–3,024] | 2,832 [2,703–2,908] | -1.2% |
+| 0 | area-check | 9,734 [9,219–10,196] | 11,077 [10,182–11,258] | +13.8% |
+| 3 | sandbox | 3,046 [2,830–3,188] | 3,029 [2,847–3,057] | -0.6% |
+| 3 | area-check | 7,653 [7,246–8,441] | 8,316 [7,555–8,744] | +8.7% |
+| 7 | sandbox | 1,915 [1,830–2,015] | 2,043 [1,980–2,170] | +6.7% |
+| 0 | detail-first | 3,113 [2,704–3,196] | 3,349 [2,650–4,069] | +7.6% |
+| 0 | detail-repeat | 1,645 [1,445–2,654] | 2,245 [1,394–2,668] | +36.5% |
+| 0 | ordinary-after | 83 [59–122] | 67 [51–98] | -19.6% |
+
+3 of 8 comparisons meet 5%; 5 remain above target.
+
+### Capacity probes, 384 MiB
+
+One new candidate probe at each count, with one cold and two warm rounds of all seven request types. Previous reference and candidate columns are the prior round's three-trial medians; the new column is one probe's median [range] of its two warm rounds. Input, dataset and harness hashes match the prior probes. These single probes can reveal a large trade, but cannot establish a small latency change statistically.
+
+| Pickers | Previous reference warm-round ms | Previous candidate ms | New candidate ms | New warm p95 ms | New peak worker RSS bytes |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 2 | 16,523 [16,335–16,963] | 7,744 [7,739–7,869] | 7,818 [7,601–8,035] | 1806 | 2117128192 |
+| 8 | 117,784 [115,445–119,925] | 62,769 [61,335–63,220] | 60,537 [60,421–60,654] | 2119 | 2183532544 |
+
+Maximum sampled charge at 2 pickers: 257738888 bytes / 12 entries.
+
+Maximum sampled charge at 8 pickers: 341581342 bytes / 38 entries.
+
+Limits remain 402,653,184 total bytes, 134,217,728 proof bytes, 268,435,456 snapshot bytes, 201,326,592 bytes per picker and 512 entries. Retained-payload accounting is distinct from process RSS.
+
+### Checks
+
+Focused files ran one at a time before one quick-suite run on the final source.
+
+| Check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| engine-cache-snapshot | 22 | 0 | 0 |
+| engine-cache-eligibility | 16 | 0 | 0 |
+| engine-cache-worker | 7 | 0 | 0 |
+| chunk-planning | 11 | 0 | 0 |
+| worker-timings | 18 | 0 | 0 |
+| multi-picker-capacity | 1 | 0 | 0 |
+| quick | 2512 | 0 | 67 |
+
+The full checkers were not rerun, as explicitly permitted for caching/sizing-only changes. The previous source passed the private sample (8 states, 188 comparisons, 0 differences/errors) and all 16 public shards (4,067 states, 70,369 comparisons, 0 differences/errors); those are prior validation, not newly claimed results. The current worker and accounting tests cover output parity, overlays, aliases, independent native bounds, forced fallback, rejected admissions and warm detailed/ordinary reuse.
+
+An ordinary what-if on the remaining slower samples takes up to about 128 ms longer. Producer sizing removes the duplicate large traversal, but remaining projection/serialization and allocation work still exceeds the target.
+
+The first detailed check after a fresh calculator takes about 0.24 s longer. Its prediction still needs validation and a future evaluation before it can be returned, and the existing ordinary baseline is already reused.
+
+A repeated detailed check has a 0.60 s slower median here. It still evaluates the future and decodes its proof before replying; the exact cause of the additional time remains unresolved.
+
+An area check on the remaining slower samples takes up to about 1343 ms longer. Earlier profiles locate engine execution, proof compression and allocation costs; this round leaves the shared compression policy unchanged to preserve the multi-picker behavior.
+
+Recommendation: **NEEDS-WORK**. Numeric evidence: [en7-request-latency-results.json](../../scripts/perf/en7-request-latency-results.json).
