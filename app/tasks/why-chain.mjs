@@ -47,10 +47,18 @@ export function buildWhyChain(result, definitions, selector, { maxDepth = 24, ma
     return node(`task:${row.id}`, row.label, 'task', depth, path, next => (row.blockers ?? []).map((blocker, index) =>
       requirement(row, blocker, index, depth + 1, next)), { taskId: row.id, mode: 'all', status: row.status });
   }
+  function resolveTaskReference(name, category) {
+    const label = plain(raw(name));
+    const candidates = rows.filter(row => row.category === category && (row.rawLabel === raw(name) || !row.rawLabel && row.label === label));
+    return { label, candidates, key: candidates.length ? JSON.stringify(candidates.map(row => row.id).sort()) : `unknown:${category}:${raw(name)}` };
+  }
+  function renderTaskReference(reference, depth, path) {
+    const { label, candidates, key } = reference;
+    return candidates.length ? group(label, 'any', candidates, task, depth, path)
+      : node(key, label, 'unknown', depth, path, () => [], { detail: 'No matching task is identified in this calculation.' });
+  }
   function taskReference(name, category, depth, path) {
-    const candidates = rows.filter(row => row.category === category && (row.rawLabel === raw(name) || !row.rawLabel && row.label === plain(raw(name))));
-    return candidates.length ? group(plain(raw(name)), 'any', candidates, task, depth, path)
-      : node(`unknown:${category}:${name}`, plain(raw(name)), 'unknown', depth, path, () => [], { detail: 'No matching task is identified in this calculation.' });
+    return renderTaskReference(resolveTaskReference(name, category), depth, path);
   }
   function location(id, depth, path) {
     const record = definitions.chunks?.[id] ?? {}, label = locationName(id);
@@ -122,8 +130,14 @@ export function buildWhyChain(result, definitions, selector, { maxDepth = 24, ma
           && (row.assignment || blocker.detail?.startsWith(`Requires ${plain(token)} (${category})`)));
         const refs = entries.flatMap(([token, category]) => {
           const { names, required } = expand(token, code.tasksPlus);
-          return [group(required > 1 ? `Need ${required} of these tasks` : 'Task prerequisite', 'any', names,
-            (name, d, p) => taskReference(name, category, d, p), depth + 1, next, required)];
+          // Legacy annotations can resolve to the same subject. Count that
+          // subject once, without lowering the authored distinct-count threshold.
+          const references = [...new Map(names.map(name => {
+            const reference = resolveTaskReference(name, category);
+            return [reference.key, reference];
+          })).values()];
+          return [group(required > 1 ? `Need ${required} of these tasks` : 'Task prerequisite', 'any', references,
+            renderTaskReference, depth + 1, next, required)];
         });
         for (const id of list(row.record?.CompletedTasks)) if (byId.has(id) && matching(byId.get(id).label, blocker)) refs.push(task(byId.get(id), depth + 1, next));
         return refs;
