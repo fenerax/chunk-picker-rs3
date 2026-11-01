@@ -108,7 +108,7 @@ export function buildActivityInfo(result, state, memberId, definitions = {}) {
   const masters = Object.entries(definitions.slayerMasterTasks ?? {}).map(([name, assignments]) => {
     const aliases = name.split('/');
     const method = slayerRows.find(row => /assignment|assignement|bounty/i.test(row.rawLabel) && (name === 'Death' ? /Reaper assignment/.test(row.rawLabel) : aliases.some(alias => row.record?.NPCs?.includes(alias) || row.rawLabel.includes(`~|${alias}|~`))));
-    const currentAccess = name === 'Death' ? null : currentSlayerMasterAccess(method, currentLevels, resolveAssignmentTasks);
+    const currentAccess = name === 'Death' ? null : currentSlayerMasterAccess(method, currentLevels, resolveAssignmentTasks, targetNow.npc);
     const tasks = Object.entries(assignments).map(([assignment, data]) => {
       const blockers = [], afterQuests = [], currentQuests = [];
       let currentUnlocked = name === 'Death' || currentLevelsKnown && currentAccess.status === 'available';

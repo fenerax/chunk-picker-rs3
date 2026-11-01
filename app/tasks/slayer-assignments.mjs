@@ -25,7 +25,7 @@ export function currentSlayerLevels(result, { f2p = true } = {}) {
 
 /** Intersect the planning method with personal, current master requirements.
  * An available method can still require training or an unfinished quest. */
-export function currentSlayerMasterAccess(method, levels, resolveTasks) {
+export function currentSlayerMasterAccess(method, levels, resolveTasks, npcNow) {
   if (method?.status !== 'available') return { status: 'unavailable', reasons: ['No verified assignment method is reachable.'] };
   const unmet = [], missing = [], record = method.record ?? {};
   for (const [skill, level] of Object.entries({ ...record.Skills, ...record.SkillsNeeded, ...(record.Level ? { Slayer: record.Level } : {}) })) {
@@ -37,6 +37,13 @@ export function currentSlayerMasterAccess(method, levels, resolveTasks) {
     if (candidates.some(row => row.personalCompleted)) continue;
     if (category === 'Quest' && candidates.length) unmet.push(`Complete ${[...new Set(candidates.map(questGroupName))].join(' or ')} yourself to use this master.`);
     else missing.push(`The prerequisite ${plainLabel(label)} cannot be checked right now.`);
+  }
+  // The master's location can carry its own quest gates, outside the method
+  // record: Chaeldar is in Zanaris (Lost City), Duradel's hut needs Shilo Village.
+  for (const npc of npcNow ? list(record.NPCs) : []) {
+    const place = npcNow(npc), name = npc.split('#')[0];
+    if (place.status === 'stuck') unmet.push(place.quests.length ? `Reaching ${name} needs ${place.quests.join(' and ')} finished.` : `${name} cannot be reached right now.`);
+    else if (place.status === 'unknown') missing.push(`Whether you can reach ${name} cannot be checked right now.`);
   }
   return { status: unmet.length ? 'unavailable' : missing.length ? 'unknown' : 'available', reasons: [...unmet, ...missing] };
 }
@@ -114,7 +121,7 @@ export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
     if (value.status === 'doable') memo.set(id, value);
     return value;
   }
-  return monster => {
+  const target = monster => {
     visits = 0;
     const locations = list(access.locations?.[`Monster:${monster}`]);
     return any(locations.map(location => {
@@ -134,6 +141,14 @@ export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
       return all(checks);
     }));
   };
+  // Same place proof for an NPC (a Slayer master), with its own source gates.
+  target.npc = npc => {
+    visits = 0;
+    const gates = definitions.taskUnlocks?.NPCs?.[npc];
+    return any(list(access.locations?.[`NPC:${npc}`]).map(location =>
+      all([checkPlace(location), requirements(gates?.[location] ?? gates?.[location.split('-')[0]])])));
+  };
+  return target;
 }
 
 const friendlyChance = chance => {

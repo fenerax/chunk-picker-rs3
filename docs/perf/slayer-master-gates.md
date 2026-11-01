@@ -26,12 +26,10 @@ unchanged; the new fixture is not a test entry point. No full `npm test` run.
 production process-worker results and public roll-pool calculations. The public
 workload repeats Combat 29/30/31 three times with full public definitions.
 
-For a copied save, add `--source <temporary-save-directory>` and set the matching
-`RS3_DATASET`, `RS3_PACKS_DIR`, `RS3_GAME_DEFAULTS_FILE`, and
-`RS3_TASK_WORKER_MODE=process`. A sibling dataset binding is required. The harness
-makes further temporary copies before opening the save and samples seven evenly
-spaced historical states plus the current state. Temporary copies are deleted.
-Only counts, hashes, durations and memory measurements are reported.
+Copied-save mode (`--source`) is disabled and always stops with `PRIVATE_DISABLED`:
+it started the server on a private copy, which can copy or create credentials.
+Compare private saves with a pure filesystem reader instead. Reports contain only
+counts, hashes, durations and memory measurements.
 
 Comparison normalizes timing fields and permits changes only to ordinary Slayer
 masters' `currentAccess`, current warnings, and assignments' `currentUnlocked`,
@@ -61,6 +59,10 @@ ran alongside the quick suite; these are diagnostics, not a speed claim.
 
 
 ## Private sample measurements
+
+Recorded before copied-save mode was disabled; the script can no longer reproduce
+this run. Both measurement sections also predate the master-location gate check
+added on 2026-11-01, which changes only `currentAccess` and current warnings.
 
 8 states, 16 member evaluations: 0 input differences, 0 stable-result differences,
 0 pool differences. 16 full-result differences contain only the allowed current

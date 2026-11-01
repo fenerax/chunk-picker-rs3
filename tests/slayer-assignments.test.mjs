@@ -23,7 +23,7 @@ function fixture() {
     challenges: { Quest: { [quest.rawLabel]: quest.record } }, slayerMasterTasks: { Jacquelyn: assignments }, codeItems: { slayerTasks: { ...Object.fromEntries(Object.entries(targets).map(([name, target]) => [name, { [target]: true }])), Cows: { Cow: true }, 'Cave bugs': { 'Cave bug': true }, 'Cave slimes': { 'Cave slime': true } } } };
   const result = { tasks: [master, quest], training: { Slayer: { level: 120 }, Combat: { level: 152 } }, access: {
     bases: ['10001'], areas: ['Lumbridge Catacombs'], monsters: Object.values(targets), entranceSources: { 'Lumbridge Catacombs': ['10001'] },
-    locations: Object.fromEntries(Object.values(targets).map(name => [`Monster:${name}`, [indoor.has(name) ? 'Lumbridge Catacombs' : '10001']])) } };
+    locations: { 'NPC:Jacquelyn': ['10001'], ...Object.fromEntries(Object.values(targets).map(name => [`Monster:${name}`, [indoor.has(name) ? 'Lumbridge Catacombs' : '10001']])) } } };
   const view = () => buildActivityInfo(result, state, 'a', definitions).slayer.masters[0];
   return { result, definitions, quest, master, view };
 }
@@ -90,7 +90,12 @@ test('area tasks, source gates, quest-gated sections and transitive entrances ne
     f.definitions.challenges.Quest[quest.rawLabel] = quest.record;
     const needs = { [quest.rawLabel]: 'Quest' };
     if (kind === 'source') f.definitions.taskUnlocks = { Monsters: { Duck: { '10001': needs } } };
-    else if (kind === 'section') f.definitions.questSections = { '10001': [quest.rawLabel] };
+    else if (kind === 'section') {
+      f.definitions.questSections = { '10001': [quest.rawLabel] };
+      // Keep the master outside the gated chunk: this case checks the target.
+      f.result.access.bases.push('10002'); f.definitions.chunks['10002'] = {};
+      f.result.access.locations['NPC:Jacquelyn'] = ['10002'];
+    }
     else {
       f.result.access.areas.push('Cave');
       f.definitions.chunks.Cave = { Connect: { '10001': kind === 'entrance' ? { Tasks: needs } : true } };
@@ -231,4 +236,32 @@ test('missing observations and unresolved master prerequisites supply no current
   assert.equal(higher().tasks[0].currentUnlocked, false);
   assert.match(higher().warnings.current.line, /availability is unknown/);
   assert.equal(higher().warnings.current.poolWeight, undefined);
+});
+
+test("a quest gate on the master's own location blocks current access until finished", () => {
+  for (const kind of ['area', 'source']) {
+    const f = masterGateFixture({ combat: 30 });
+    const higher = () => f.view().slayer.masters.find(master => master.name === 'Higher');
+    const quest = f.result.tasks.find(task => task.category === 'Quest');
+    assert.equal(higher().currentAccess.status, 'available', `${kind}: the open location adds no gate`);
+    if (kind === 'area') {
+      // Chaeldar's pattern: the master stands in an area unlocked by a quest (Zanaris, Lost City).
+      f.definitions.chunks['10001'].Connect = { 'Fixture hideout': true };
+      f.definitions.chunks['Fixture hideout'] = { Connect: { '10001': true } };
+      f.definitions.challenges.Nonskill = { 'Fixture hideout': { UnlocksArea: true, Tasks: { [f.questLabel]: 'Quest' } } };
+      f.result.access.areas = [...(f.result.access.areas ?? []), 'Fixture hideout'];
+      f.result.access.entranceSources['Fixture hideout'] = ['10001'];
+      f.result.access.locations['NPC:Higher'] = ['Fixture hideout'];
+    } else {
+      // Duradel's pattern: a quest gate on the NPC source itself.
+      f.definitions.taskUnlocks = { NPCs: { Higher: { '10001': [{ [f.questLabel]: 'Quest' }] } } };
+    }
+    assert.equal(higher().reachable, true, kind);
+    assert.equal(higher().currentAccess.status, 'unavailable', kind);
+    assert.equal(higher().tasks[0].currentUnlocked, false, kind);
+    assert.match(higher().warnings.current.line, /unavailable\. Reaching Higher needs Example gate finished\./, kind);
+    quest.personalCompleted = true;
+    assert.equal(higher().currentAccess.status, 'available', kind);
+    assert.equal(higher().warnings.current.poolWeight, 10, kind);
+  }
 });
