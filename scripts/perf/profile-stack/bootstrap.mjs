@@ -5,8 +5,17 @@ import path from 'node:path';
 const enabled=process.env.RS3_PROFILE==='1',directory=process.env.RS3_PROFILE_DIR;
 if(enabled&&directory) {
   const clock=()=>Number(process.hrtime.bigint())/1e6,processId=`${process.pid}-${threadId}`;
+  // Shares app/profile-spans.mjs's byte budget for this thread's trace file.
+  const maxBytes=Number(process.env.RS3_PROFILE_MAX_BYTES)>0?Number(process.env.RS3_PROFILE_MAX_BYTES):256*2**20;
+  const budget=globalThis[Symbol.for('rs3.profile.budget')]??={written:0,truncated:false};
   const emit=(phase,start,end,extra={})=>{
-    try{mkdirSync(directory,{recursive:true});appendFileSync(path.join(directory,`${processId}.jsonl`),JSON.stringify({kind:'startup',processId,phase,start,end,...extra})+'\n');}catch{}
+    if(budget.truncated)return;
+    try{
+      let line=JSON.stringify({kind:'startup',processId,phase,start,end,...extra})+'\n';
+      if(budget.written+Buffer.byteLength(line)>maxBytes){budget.truncated=true;line=JSON.stringify({kind:'truncated',processId,maxBytes})+'\n';}
+      budget.written+=Buffer.byteLength(line);
+      mkdirSync(directory,{recursive:true});appendFileSync(path.join(directory,`${processId}.jsonl`),line);
+    }catch{}
   };
   globalThis[Symbol.for('rs3.profile.startup')]=emit;
   emit('preload',clock(),clock(),{main:isMainThread});

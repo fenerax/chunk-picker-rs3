@@ -53,12 +53,13 @@ test('trace output stops at its byte limit with one truncation marker',async t=>
   const result=spawnSync(process.execPath,['--input-type=module','-e',`
     const p=await import('./app/profile-spans.mjs');
     for(let i=0;i<500;i++)p.emit({kind:'span',name:'x'.repeat(100),start:i,end:i});
-  `],{cwd:root,env:{...process.env,RS3_PROFILE:'1',RS3_PROFILE_DIR:dir,RS3_PROFILE_MAX_BYTES:'4096'},encoding:'utf8'});
+    globalThis[Symbol.for('rs3.profile.startup')]?.('late',0,1);
+  `],{cwd:root,env:{...process.env,RS3_PROFILE:'1',RS3_PROFILE_DIR:dir,RS3_PROFILE_MAX_BYTES:'4096',NODE_OPTIONS:`--import ${new URL('../scripts/perf/profile-stack/bootstrap.mjs',import.meta.url).href}`},encoding:'utf8'});
   assert.equal(result.status,0,result.stderr);
   const text=(await Promise.all((await readdir(dir)).map(file=>readFile(path.join(dir,file),'utf8')))).join('');
   assert.ok(Buffer.byteLength(text)<=4096+200,String(Buffer.byteLength(text)));
   const rows=text.trim().split('\n').map(JSON.parse);
-  assert.equal(rows.filter(r=>r.kind==='truncated').length,1);assert.equal(rows.at(-1).kind,'truncated');
+  assert.ok(rows.some(r=>r.kind==='startup'),'bootstrap rows share the file');assert.equal(rows.filter(r=>r.kind==='truncated').length,1);assert.equal(rows.at(-1).kind,'truncated');
 });
 test('coverage clips spans, ignores envelopes and partitions overlaps without double counting',()=>{
   const s=reconcile(10,30,[{layer:'server',name:'routing',start:0,end:100,envelope:true},{layer:'browser',name:'render',start:5,end:20},{layer:'engine',name:'evaluate',start:15,end:25}]);

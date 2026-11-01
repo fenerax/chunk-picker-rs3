@@ -14,18 +14,19 @@ const processId = `${process.pid}-${threadId}`;
 if (directory) try { mkdirSync(directory, { recursive: true }); } catch {}
 let sequence = 0;
 // Trace output is bounded per process so a long-running profiled server cannot fill the disk.
+// The startup bootstrap writes to the same file, so both share this budget object.
 const maxBytes = Number(process.env.RS3_PROFILE_MAX_BYTES) > 0 ? Number(process.env.RS3_PROFILE_MAX_BYTES) : 256 * 2 ** 20;
-let written = 0, truncated = false;
+const budget = globalThis[Symbol.for('rs3.profile.budget')] ??= { written: 0, truncated: false };
 export const now = () => Number(process.hrtime.bigint()) / 1e6;
 export const current = () => storage.getStore();
 export const capture = () => current() && { ...current() };
 const validId = value => typeof value === 'string' && /^[a-zA-Z0-9_.-]{1,120}$/.test(value);
 export function emit(value) {
-  if (!directory || truncated) return;
+  if (!directory || budget.truncated) return;
   try {
     let line = JSON.stringify({ processId, layer: role, ...value }) + '\n';
-    if (written + Buffer.byteLength(line) > maxBytes) { truncated = true; line = JSON.stringify({ processId, layer: role, kind: 'truncated', maxBytes }) + '\n'; }
-    written += Buffer.byteLength(line);
+    if (budget.written + Buffer.byteLength(line) > maxBytes) { budget.truncated = true; line = JSON.stringify({ processId, layer: role, kind: 'truncated', maxBytes }) + '\n'; }
+    budget.written += Buffer.byteLength(line);
     appendFileSync(path.join(directory, `${processId}.jsonl`), line);
   }
   catch { /* Diagnostics must never alter gameplay. */ }
