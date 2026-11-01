@@ -301,6 +301,39 @@ test('Advanced hides calculation details by default and follows the selected pla
   assert.equal(h.run('advanced()'), false); assert.equal(h.run('preferences().advanced'), false);
 });
 
+test('field labels target simple controls and an explicit inner control without labeling its wrapper', () => {
+  const h = harness();
+  const simple = h.run("field('Search', input('text'))");
+  assert.equal(simple.firstChild.htmlFor, simple.children[1].id);
+  const compound = h.run("(() => { const wrap = el('span'), choose = button('Choose', () => {}); choose.id = 'existing-choice'; wrap.append(choose); return field('Purpose', wrap, choose); })()");
+  assert.equal(compound.firstChild.htmlFor, 'existing-choice');
+  assert.equal(compound.firstChild.id, 'existing-choice-label');
+  assert.equal(compound.children[1].id, undefined);
+  assert.notEqual(h.run("field('Other', input('text')).firstChild.htmlFor"), simple.firstChild.htmlFor);
+});
+
+for (const legacy of [true, false]) test(`backup picker associates its button with purpose and changing filename (legacy=${legacy})`, async () => {
+  const h = harness();
+  h.context.backupLegacyFeature = legacy;
+  h.run('supportsFeature = () => backupLegacyFeature; backupDialog()');
+  const choose = h.find('button', 'Choose file…'), file = h.all().find(node => node.type === 'file');
+  const name = h.all().find(node => node.className === 'file-picker-name');
+  const label = h.all().find(node => node.htmlFor === choose.id);
+  assert.equal(label.textContent, legacy ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup');
+  assert.equal(choose.getAttribute('aria-labelledby'), `${choose.firstChild.id} ${label.id}`);
+  assert.equal(choose.getAttribute('aria-describedby'), name.id);
+  assert.equal(name.textContent, 'No file chosen');
+  assert.equal(file.tabIndex, -1);
+  let opened = 0; file.click = () => opened++;
+  await choose.emit('click'); assert.equal(opened, 1);
+  for (const filename of ['first.json', 'second.json.gz', undefined]) {
+    file.files = filename ? [{ name: filename }] : [];
+    await file.emit('change');
+    assert.equal(name.textContent, filename ?? 'No file chosen');
+    assert.equal(choose.getAttribute('aria-describedby'), name.id);
+  }
+});
+
 test('Advanced gates History commands and backup reports without removing the ordinary actions', () => {
   const h = harness(); h.run("state.history = [{ revision: 7, type: 'set-note', at: '2026-10-12T12:00:00Z', command: { type: 'set-note' } }]; renderHistory(state.history)");
   assert.ok(h.find('strong', 'set-note')); assert.ok(!h.find('summary', 'Change details'));
