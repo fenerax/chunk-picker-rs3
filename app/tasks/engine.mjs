@@ -1202,7 +1202,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     function proofEnvironment() {
       return { available: requirementNameAvailable, sources: sourceList, matches: matchesItemSources, get access() { return access; }, valid, levels, passive,
         observed: observedProgress, controls: playerControls, caps, anyAchievements, rules, ownLocation,
-        monsterGate: name => bossGateData.some(gate => gate.monsters?.includes(name)) ? 'boss-gates' : Object.hasOwn(definitions.slayerMonsters ?? {}, name) ? 'slayer-level' : null, slayerGate: task => slayerGates.has(task) };
+        monsterGate: name => bossGateData.some(gate => gate.monsters?.includes(name)) ? 'boss-gates' : Object.hasOwn(definitions.slayerMonsters ?? {}, name) ? 'slayer-level' : null, slayerGate: task => slayerGates.has(task),
+        // Usefulness waits are not compiled requirements; the proof reports them as a gap.
+        usefulGate: task => ['balloon', 'attunement', 'nexus', 'cannon'].includes(usefulGates.get(task)) };
     }
     function updateSkills() {
       let changed = false;

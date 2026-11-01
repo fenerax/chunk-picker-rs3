@@ -166,6 +166,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     if (processingTasks.has(task)) unsupported.push('processing');
     if (task.category === 'Slayer') unsupported.push('slayer-assignments');
     if (env.slayerGate?.(task)) unsupported.push('slayer-unlock');
+    if (env.usefulGate?.(task)) unsupported.push('useful-unlock');
     if (['QuestPointsNeeded', 'KudosNeeded', 'CombatScoreNeeded', 'TotalLevelNeeded', 'TotalVirtualLevelNeeded'].some(key => task.record[key] !== undefined)) unsupported.push('points');
     if (task.record.RequirementAlternatives || task.record.PersonalQuestProgress || task.personalAlternatives.length || task.dialogueSupply || task.sourceLocations.length || task.record.ClueTier || task.record.ConnectsSections) unsupported.push('special-requirements');
     for (const kind of unsupported) deps.push(gap(kind, `The picker can't show this ${kind.replaceAll('-', ' ')} step yet.`));

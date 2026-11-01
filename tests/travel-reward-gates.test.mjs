@@ -139,6 +139,17 @@ test('cannon shop rewards and conversions wait for a base cannon, while the drop
   for (const name of [gold, royale, upgrades]) assert.equal(row(result, name).status, 'available');
 });
 
+test('How? reports the usefulness wait as a gap instead of a complete proof', () => {
+  const data = fixture(); data.chunks[100].Spawn['Dwarf multicannon'] = true;
+  const engine = createTaskEngine(data, options);
+  const waiting = engine.how(state(), 'a', taskId('Extra', upgrades));
+  assert.equal(waiting.availability, 'available');
+  assert.notEqual(waiting.proofStatus, 'complete');
+  assert.ok(waiting.gaps.some(gap => gap.kind === 'useful-unlock'), JSON.stringify(waiting.gaps));
+  const allowed = engine.how(state(['100'], true), 'a', taskId('Extra', upgrades));
+  assert.ok(!allowed.gaps.some(gap => gap.kind === 'useful-unlock'), JSON.stringify(allowed.gaps));
+});
+
 test('an available cannon variant counts, but legacy conversion shop stock cannot open its own gate', () => {
   const data = fixture();
   assert.equal(row(run(data, state()), upgrades).status, 'blocked');
