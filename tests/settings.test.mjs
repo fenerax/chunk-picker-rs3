@@ -19,7 +19,10 @@ test('task-rule cutoff validation accepts consumed rates and denominators while 
 test('known task toggles are boolean, kill counts are positive integers and unknown rules remain declarative', () => {
   for (const { id, type } of metadata.taskRuleDefinitions) if (type === 'boolean') {
     for (const value of [true, false]) assert.equal(metadata.taskRuleValueError(id, value), null, id);
-    for (const value of ['true', 'false', 0, 1, null]) assert.match(metadata.taskRuleValueError(id, value), /boolean/, id);
+    // Ancient Effigies keeps accepting legacy primitives, as before it had a definition.
+    for (const value of ['true', 'false', 0, 1, null]) id === 'Ancient Effigies'
+      ? assert.equal(metadata.taskRuleValueError(id, value), null, id)
+      : assert.match(metadata.taskRuleValueError(id, value), /boolean/, id);
   }
   for (const value of [1, '16', '1e3', Number.MAX_SAFE_INTEGER]) assert.equal(metadata.taskRuleValueError('Kill X Amount', value), null);
   for (const value of [0, -1, 'banana', '1/16', true, Number.MAX_SAFE_INTEGER + 1]) assert.match(metadata.taskRuleValueError('Kill X Amount', value), /positive safe integer/);

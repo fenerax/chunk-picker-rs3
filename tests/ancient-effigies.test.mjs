@@ -11,7 +11,8 @@ import { createGroupState, validateState, applyCommand, exportBackup, importBack
 import { openStore } from '../app/storage/store.mjs';
 import { resolveTaskRules, taskRuleDefault, taskRuleEnabled } from '../app/tasks/rule-defaults.mjs';
 import { taskRuleDefinitions, taskRuleBehavior } from '../app/data/settings.mjs';
-import { buildRulesSections, rulesCatalogue, taskRuleValue, taskRuleAutomaticValue, planTaskRuleChange } from '../app/web/rules-model.mjs';
+import { buildRulesSections, rulesCatalogue, taskRuleValue, taskRuleAutomaticValue, planTaskRuleChange, profileCommands } from '../app/web/rules-model.mjs';
+import { normalizeOriginalMap } from '../app/integrations/original-sync.mjs';
 
 const items = ['Starved ancient effigy', 'Mimic kill token', 'Spirit sapphire', 'Spirit emerald', 'Spirit ruby'];
 const definitions = () => ({ chunks: { '1': { Monster: { 'Fixture monster': true } } },
@@ -89,7 +90,8 @@ for (const value of [undefined, true, false]) test(`old save is deep-equal and r
   roundTrips(loaded);
 });
 
-// Codex review r1, P2 1: legacy effigy values gain no taskRuleDiagnostics provenance.
+// Codex reviews r1 + r2 on #94: legacy effigy values are accepted as main accepted them:
+// no diagnostics at validation, presets copy them, and original-map sync reads them.
 for (const value of ['false', 0, null, 'true', 1]) test(`legacy effigy values stay deep-equal and release-preserved: ${JSON.stringify(value)}`, () => {
   const saved = fresh();
   saved.members[0].taskRules = { 'Ancient Effigies': value };
@@ -100,7 +102,13 @@ for (const value of ['false', 0, null, 'true', 1]) test(`legacy effigy values st
   assert.deepEqual(loaded, before);
   assert.equal(loaded.provenance?.taskRuleDiagnostics, undefined);
   assertPreserved(preservationReport(before), preservationReport(loaded));
-  assert.throws(() => applyCommand(loaded, { type: 'set-task-rule', memberId: 'a', ruleId: 'Ancient Effigies', value: 'false' }), /boolean/);
+  // A preset copies the saved personal rules into a full profile command.
+  const preset = applyCommand(loaded, profileCommands(loaded, ['a'], { Pouch: true })[0]);
+  assert.equal(preset.members[0].taskRules['Ancient Effigies'], value);
+  assert.equal(resolveTaskRules({}, {}, preset.members[0].taskRules)['Ancient Effigies'], ![false, 'false', 0].includes(value));
+  // Original Picker sync reads the same legacy value from a public map.
+  const source = normalizeOriginalMap({ chunks: { unlocked: { '100': '100' } }, rules: { 'Ancient-_-20Effigies': value } }, 'qxa');
+  assert.equal(source.taskRules['Ancient Effigies'], value);
 });
 
 for (const value of [undefined, true, false, 'false', 0, null]) test(`lazy default agrees across engine, access, collection and Settings: tertiary=${value}`, () => {

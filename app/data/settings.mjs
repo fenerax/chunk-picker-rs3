@@ -126,15 +126,15 @@ export function taskRuleValueError(id, value) {
   const number = typeof value === 'number' ? value : typeof value === 'string' && cutoffNumber.test(value.trim()) ? Number(value) : NaN;
   return Number.isSafeInteger(number) && number > 0 ? null : `Task rule ${id} must be a positive safe integer.`;
  }
+ // Saves, original maps and copied profiles from before the effigies switch may hold any
+ // primitive for this tag ('false', 0, null, ...). Main never checked it, and the lazy
+ // default reads it by truthiness, so it stays accepted everywhere. Settings writes booleans.
+ if (id === ANCIENT_EFFIGIES_RULE) return null;
  return taskRuleTypes.get(id) === 'boolean' && typeof value !== 'boolean' ? `Task rule ${id} must be boolean.` : null;
 }
 
 export function taskRuleDiagnostics(rules = {}, context = {}) {
- // Saves from before the effigies switch may hold legacy values for this tag
- // ('false', 0, null). They were never diagnosed, and the lazy default reads them
- // by truthiness, so validation must not add provenance for them. Commands still
- // require a boolean (validateTaskRule).
- return Object.entries(rules ?? {}).filter(([ruleId]) => ruleId !== ANCIENT_EFFIGIES_RULE).flatMap(([ruleId, value]) => {
+ return Object.entries(rules ?? {}).flatMap(([ruleId, value]) => {
   const error = taskRuleValueError(ruleId, value);
   return error ? [{ code: 'invalid-task-rule', ...context, ruleId, value, detail: `${error} The saved value is preserved for review; evaluation uses the rule default${Object.hasOwn(taskRuleCutoffDefaults, ruleId) ? ` (${taskRuleCutoffDefaults[ruleId]})` : ''}.` }] : [];
  });
