@@ -11,33 +11,6 @@ export default {
       "url": "https://runescape.wiki/w/Champion%27s_Challenge",
       "source": "The Goblin scroll is an existing Goblin drop; restore the missing distinct child while deduplicating Zombie."
     },
-    "ancientEffigies": {
-      "reviewedOn": "2026-11-01",
-      "method": "Pinned Wiki research supplied by the orchestrator; the effigy template renders no drop below combat level 20 without an explicit override.",
-      "quote": "Monsters under combat level 20 cannot drop effigies.",
-      "sources": [
-        {
-          "title": "Ancient effigies",
-          "url": "https://runescape.wiki/w/Ancient_effigies?oldid=37088939"
-        },
-        {
-          "title": "DropsLineEffigy",
-          "url": "https://runescape.wiki/w/Template%3ADropsLineEffigy?oldid=37167588"
-        },
-        {
-          "title": "Gelatinous abomination",
-          "url": "https://runescape.wiki/w/Gelatinous_abomination?oldid=37127204"
-        },
-        {
-          "title": "Crawling hand",
-          "url": "https://runescape.wiki/w/Crawling_hand?oldid=37142212"
-        },
-        {
-          "title": "Cave bug",
-          "url": "https://runescape.wiki/w/Cave_bug?oldid=37123987"
-        }
-      ]
-    },
     "ardougneHard": {
       "evidence": "Wiki revisions supplied and verified by the task owner; no fresh retrieval in this sandbox.",
       "tier": {
@@ -6762,66 +6735,6 @@ export default {
         "url": "https://runescape.wiki/w/Slayer_assignment/Laniakea",
         "source": "Undead assignment weight 4."
       }
-    },
-    {
-      "path": [
-        "skillItems",
-        "Slayer",
-        "Gelatinous abomination",
-        "Starved ancient effigy"
-      ],
-      "beforePresent": true,
-      "before": {
-        "1": "1/45000000"
-      },
-      "beforeRecordSha256": "94892d85d8ecef7124ab9a560f4fe1789be1d33b424a1f87da551cc85f984ce2",
-      "afterPresent": false,
-      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
-    },
-    {
-      "path": [
-        "skillItems",
-        "Slayer",
-        "Crawling hand",
-        "Starved ancient effigy"
-      ],
-      "beforePresent": true,
-      "before": {
-        "1": "1/5000000"
-      },
-      "beforeRecordSha256": "7e1ecd3ef66235828b60fb2923ae1cae2ded5375ac41aa73d547de0d56f24d8a",
-      "afterPresent": false,
-      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
-    },
-    {
-      "path": [
-        "skillItems",
-        "Slayer",
-        "Crawling hand#Burthorpe",
-        "Starved ancient effigy"
-      ],
-      "beforePresent": true,
-      "before": {
-        "1": "1/5000000"
-      },
-      "beforeRecordSha256": "7e1ecd3ef66235828b60fb2923ae1cae2ded5375ac41aa73d547de0d56f24d8a",
-      "afterPresent": false,
-      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
-    },
-    {
-      "path": [
-        "skillItems",
-        "Slayer",
-        "Cave bug#Level 11",
-        "Starved ancient effigy"
-      ],
-      "beforePresent": true,
-      "before": {
-        "1": "1/1800000"
-      },
-      "beforeRecordSha256": "e2e71beb3b969f2a2328bc1928744533eda9d0672bfe9f9d1bf5ecfc5ac7c991",
-      "afterPresent": false,
-      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
     },
     {
       "path": [

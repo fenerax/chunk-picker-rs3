@@ -16,7 +16,7 @@ The copied-save browser review covers all five sections at 1440px and 390px in d
 
 ## Inventory and authority
 
-The original source defines **27 top-level settings**, **4 nested neighbor options**, **6 setting categories**, **136 default rule entries**, **134 rule descriptions**, **20 rule categories**, **3 presets**, and **35 task-generating rule flags**. The union of defaults, descriptions, structure, presets, task-generating flags and direct literal `rules[...]` references in `reference/original-picker/index.js` / `reference/original-picker/worker.js` contains **152 distinct rule IDs**. This includes dormant and historical names; they are retained for completeness, not automatically activated. The authored catalogue adds Rare Drop Inclusive, Secondary Primary Inclusive, House storage tasks and Non-permanent BiS, making 156 IDs without changing retained declarations. The later Future Slayer unlocks and Ancient Effigies additions bring the current authored catalogue to 158 IDs. The metadata lives in `app/data/settings.mjs` and was extracted by a strict data-literal parser, with no network request or original application execution. `tests/settings.test.mjs` compares every exported source declaration with the retained source.
+The original source defines **27 top-level settings**, **4 nested neighbor options**, **6 setting categories**, **136 default rule entries**, **134 rule descriptions**, **20 rule categories**, **3 presets**, and **35 task-generating rule flags**. The union of defaults, descriptions, structure, presets, task-generating flags and direct literal `rules[...]` references in `reference/original-picker/index.js` / `reference/original-picker/worker.js` contains **152 distinct rule IDs**. This includes dormant and historical names; they are retained for completeness, not automatically activated. The authored catalogue adds Rare Drop Inclusive, Secondary Primary Inclusive, House storage tasks and Non-permanent BiS, making 156 IDs without changing retained declarations. The metadata lives in `app/data/settings.mjs` and was extracted by a strict data-literal parser, with no network request or original application execution. `tests/settings.test.mjs` compares every exported source declaration with the retained source.
 
 Three value domains must stay separate:
 
@@ -159,7 +159,7 @@ The current Chunk Rules panel exposes these shared rules and a searchable catalo
 
 ## Rule behavior classification
 
-The October 8 156-row catalogue contained **47 implemented-scope**, **76 category-gate**, **10 partial** and **23 retained-only** entries, counted from taskRuleDefinitions/taskRuleBehavior after the October 8 metadata refresh. Those historical counts describe consumer types, not a percentage of original feature parity. The generated-task implementations are now scoped consumers; retained-only controls remain disabled.
+The current 156-row catalogue contains **47 implemented-scope**, **76 category-gate**, **10 partial** and **23 retained-only** entries, counted from taskRuleDefinitions/taskRuleBehavior after the October 8 metadata refresh. These counts describe consumer types, not a percentage of original feature parity. The generated-task implementations are now scoped consumers; retained-only controls remain disabled.
 
 - **implemented-scope:** an authored consumer implements the specific behavior described in the final column. This does not assert all original special cases.
 - **category-gate:** the flag gates declared task rows carrying that exact Category tag. It does not establish original dynamic task synthesis, source expansion, ranking or UI parity. Counts are the full declarative catalogue, not available tasks on either private map.
@@ -221,8 +221,7 @@ Source locations identify the first direct literal reference in each source, whe
 | `Slayer Collection Log` | Collections / Collection Log | `false` | Must obtain items from the slayer collection log* | category-gate | Controls 257 declared task rows carrying this Category tag. Full upstream source/ranking behavior is not established. |  |
 | `Skilling Collection Log` | Collections / Collection Log | `false` | Must obtain items from the (hidden) skilling collection log* | category-gate | Controls 59 declared task rows carrying this Category tag. Full upstream source/ranking behavior is not established. |  |
 | `Archaeology Collections` | Collections | `false` | Must fill out all Archaeology collections* | category-gate | Controls 78 declared task rows carrying this Category tag. Full upstream source/ranking behavior is not established. |  |
-| `Universal Tertiary` | Item Sources | `false` | Allow universal tertiary drops (mimic tokens and spirit gems) to count towards chunk tasks | category-gate | Gates the Nonskill Universal tertiary prerequisite for mimic tokens and spirit sapphire, emerald and ruby sources. It no longer controls ancient effigies. Unset retains the existing automatic-on behavior. |  |
-| `Ancient Effigies` | Item Sources | `false` | Allow ancient effigies from universal tertiary drops to count towards chunk tasks | implemented-scope | Controls the universal prerequisite on starved ancient effigy sources and ordinary Slayer drop outputs. Four invalid low-combat sources are corrected independently; the Memory of Nomad reward stays independent of both switches. On first load, older saves copy each player’s effective Universal Tertiary value once; explicit Ancient Effigies values win. Fresh saves and Automatic use false. |  |
+| `Universal Tertiary` | Item Sources | `false` | Allow universal tertiary drops (mimic tokens, effigies, spirit gems) to count towards chunk tasks† | category-gate | Controls 1 declared task rows carrying this Category tag. Full upstream source/ranking behavior is not established. |  |
 | `Breeding Log` | Collections / Collection Log | `false` | Must fill out the Player-Owned Farm and Player-Owned Ranch breeding logs* | category-gate | Controls 118 declared task rows carrying this Category tag. Full upstream source/ranking behavior is not established. |  |
 | `Minigame` | Miscellaneous | `false` | Allow rewards obtained from and actvities inside minigames to count towards chunk tasks | implemented-scope | Filters declared minigame shops and gates tagged task rows. | `reference/original-picker/worker.js:895` (7) |
 | `Shortcut Task` | Agility | `false` | Allow Agility shortcuts to count as an Agility skill task | implemented-scope | Suppresses declared shortcut skill rows. |  |
@@ -374,175 +373,3 @@ The retained worker destructures **53 inputs** at `reference/original-picker/wor
 | `manualPrimary` | Authored engine reads legacy manual primary skill overrides. Activity Info edits a per-skill true/false/inherit primary declaration; automatic reachable methods remain when false. It does not edit arbitrary individual method formulas. |
 | `updateLevel` | Authored worker caches compilation and recomputes from state; original incremental update labels do not execute. |
 | `unconnectedAreas` | Retained reference/import semantics require specific resolver verification; no full original custom unconnected-area workflow is established. |
-
-
-## Ancient Effigies split — 2026-11-01
-
-Baseline: `e431da314b682946c27f601ec78f17eab8a790eb` (START), not the cached
-remote branch. Node 24.21.0. Branch: `rule/r1-effigies`.
-
-### Rule and source coverage
-
-The original `Universal Tertiary` Category appears on one Nonskill declaration,
-`Universal tertiary`. Five item-source lists refer to it: starved ancient
-effigies, mimic kill tokens, and spirit sapphire, emerald and ruby. The new
-Ancient Effigies switch replaces only the effigy prerequisite, preserving other
-requirements. The original Nonskill declaration and four other source lists
-keep their existing rule. Ordinary Slayer task outputs marked `Source: drop`
-also obey Ancient Effigies when expanding the universally gated effigy item.
-Other activity rewards retain their independent requirements.
-
-Fresh games use Ancient Effigies off. Older saves copy each player's effective
-Universal Tertiary value once, preserving explicit Ancient Effigies values.
-This includes the existing automatic-on behavior of an absent Universal
-Tertiary value. Per-player provenance prevents resets, reloads or restores from
-copying it again. Older full-member undo snapshots retain the migrated choice.
-
-The orchestrator supplied pinned Wiki research on 2026-11-01, resolving the
-previous source-classification blocker. [Ancient effigies, revision 37088939](https://runescape.wiki/w/Ancient_effigies?oldid=37088939)
-says: “Monsters under combat level 20 cannot drop effigies.”
-[The effigy template, revision 37167588](https://runescape.wiki/w/Template%3ADropsLineEffigy?oldid=37167588)
-checks that threshold unless there is an explicit roll override. The following
-four captured outputs incorrectly expanded below-threshold template calls.
-Guarded, unconditional data corrections remove their effigy entries from
-`skillItems.Slayer`, keeping their other loot and task identities intact:
-
-| Output table | Source revision |
-| --- | --- |
-| Gelatinous abomination | [37127204](https://runescape.wiki/w/Gelatinous_abomination?oldid=37127204) |
-| Crawling hand | [37142212](https://runescape.wiki/w/Crawling_hand?oldid=37142212) |
-| Crawling hand#Burthorpe | [37142212](https://runescape.wiki/w/Crawling_hand?oldid=37142212) |
-| Cave bug#Level 11 | [37123987](https://runescape.wiki/w/Cave_bug?oldid=37123987) |
-
-The corrections use the existing reference-overlay mechanism, including exact
-before-value hashes, idempotence, and drift rejection. No invalid-monster
-special cases were added to the engine.
-
-[Memory of Nomad, revision 37194143](https://runescape.wiki/w/Memory_of_Nomad?oldid=37194143)
-lists the effigy in the activity's reward table. This Nonskill reward remains
-independent of both switches. The new gate is restricted to the declared
-universal prerequisite and ordinary Slayer drop outputs; it is not a blanket
-item-name ban. In the full public workload with both switches off, the one
-remaining effigy source was this reward: zero monster-drop sources and zero
-Slayer task-drop sources remained.
-
-The help text retains the existing [starved effigy credit, revision 37124253](https://runescape.wiki/w/Starved_ancient_effigy?oldid=37124253).
-The research identifies 105 Slayer task-output declarations: four invalid
-sources and 101 ordinary tertiary sources, plus one exempt Nonskill reward.
-
-### Rate issues deferred by instruction
-
-These recorded values remain unchanged in this change:
-
-| Source | Recorded effigy rate | Research finding / revision |
-| --- | --- | --- |
-| Turoth | `1/16642` | Variant mismatch: base rates `1/38927` and `1/50000` for the two variants; [37153486](https://runescape.wiki/w/Turoth?oldid=37153486). |
-| Mighty banshee | `1/49999` | Apparent rounding difference from `1/50000`; [37144565](https://runescape.wiki/w/Mighty_banshee?oldid=37144565). |
-| Jelly | `1/49999` | Apparent rounding difference from `1/50000`; [37210900](https://runescape.wiki/w/Jelly?oldid=37210900). |
-| Cockatrice | `1/199999` | Apparent rounding difference from `1/200000`; [37209395](https://runescape.wiki/w/Cockatrice?oldid=37209395). |
-| Nodon hunter | `1/12499` | Apparent rounding difference from `1/12500`; [37142434](https://runescape.wiki/w/Nodon_hunter?oldid=37142434). |
-| Nodon artificer | `1/12499` | Apparent rounding difference from `1/12500`; [37142451](https://runescape.wiki/w/Nodon_artificer?oldid=37142451). |
-| Nodon guard | `1/12499` | Apparent rounding difference from `1/12500`; [37142439](https://runescape.wiki/w/Nodon_guard?oldid=37142439). |
-
-### Verification and differences
-
-The 16 affected test files passed 254 tests, with zero failures or skips.
-The final `npm run test:quick` passed 3,002 tests, failed zero, and retained
-68 existing skips (3,070 total). No full `npm test` was run. The new synthetic
-file is classified in `scripts/test-selection.mjs`. Coverage includes all four
-switch combinations, base drops, source-qualified and ordinary Slayer task
-outputs, the exempt reward, four unconditional data corrections, collection
-goals, fresh defaults, migration, reset, restore, undo and overlay application.
-
-`scripts/perf/effigy-comparison.mjs --catalogue --repeats 1` compared START and
-the candidate using tracked public definitions with all numeric chunks unlocked.
-Each combination evaluated 20,436 task rows. Raw hashes retain source-array
-order. Extra views record task availability, the first source used by the task
-explanation, order-independent effigy source multisets, and the estimator's
-chosen source with a uniform 60-second kill-time assumption.
-
-| Universal Tertiary | Ancient Effigies | Task rows added / removed / changed | Item rows added / removed / changed | Availability rows changed | First displayed source changed | Estimated source choice changed |
-| --- | --- | --- | --- | ---: | ---: | ---: |
-| Off | Off | 0 / 0 / 1 | 0 / 0 / 1 | 0 | 1 | 0 |
-| On | Off | 0 / 0 / 1 | 0 / 0 / 1 | 0 | 1 | 1 |
-| On | On | 0 / 0 / 1 | 0 / 0 / 1 | 0 | 1 | 0 |
-| Off | On | 0 / 0 / 1 | 0 / 0 / 1 | 0 | 1 | 1 |
-
-The changed rows are the effigy goal and item. Off/off changes come from the
-invalid captured source removal. On/off additionally excludes universal monster
-sources under Ancient Effigies. Off/on newly admits those sources independently
-of Universal Tertiary. The exempt activity keeps the goal obtainable in this
-all-chunks workload. Changes to the first displayed source against START remove
-the invalid source; they are part of the authorized data correction.
-
-For the both-on source-ORDER question, `--source-order-baseline` used an otherwise
-untouched START checkout with only the four data corrections applied. Compared
-with this correction-only reference, the rule split changes one task-source
-array and one item-source array in order only: zero source-multiset differences,
-zero availability differences, zero first-displayed-source differences and zero
-estimator-choice differences. The independent rule admits base sources earlier
-in the evaluation than the old Nonskill task prerequisite did.
-
-This order does not choose the How? witness or Every Drop alternative: the
-proof builder sorts source candidates and breaks equal costs by stable subject;
-collection selection sorts source labels. Two additional controlled source-order
-permutation checks passed for the actual How? witness and Every Drop selection.
-The expanded source list can list the same entries in a different order; it
-retains the same source membership. The task's lead explanation and selected
-routes remain unchanged by that ordering, as measured above.
-
-The private process-mode sample used seven evenly spaced retained snapshots
-plus the current snapshot. Both players were evaluated in every state. The
-migration produced 2 on values and 14 off values across 16 player-state pairs.
-Identical all-off inputs reused their already measured preservation result;
-there were 16 baseline evaluations and 18 candidate evaluations, including two
-additional off probes. Only counts and measurements are reported here.
-
-| Sample | Migrated: tasks added / removed / changed | Effigies off: tasks added / removed / changed |
-| --- | --- | --- |
-| 1 | 0 / 0 / 0 | 0 / 0 / 0 |
-| 2 | 0 / 0 / 0 | 0 / 0 / 0 |
-| 3 | 0 / 0 / 0 | 0 / 0 / 0 |
-| 4 | 0 / 0 / 0 | 0 / 0 / 0 |
-| 5 | 0 / 0 / 0 | 0 / 0 / 0 |
-| 6 | 0 / 0 / 0 | 0 / 0 / 0 |
-| 7 | 0 / 0 / 0 | 0 / 0 / 0 |
-| 8 | 0 / 0 / 0 | 0 / 0 / 0 |
-
-Each row aggregates both players. Presented tasks and items also had zero added,
-removed or changed rows in every private comparison.
-
-| Workload | START upper median, min–max | Candidate upper median, min–max | START / candidate sampled peak process-tree RSS |
-| --- | --- | --- | --- |
-| Public catalogue, four evaluations each | 42.814 s, 28.898–43.427 s | 43.905 s, 38.632–46.109 s | 3,010,936,832 / 3,008,004,096 bytes |
-| Private preservation, 16 evaluations each | 12.641 s, 2.674–17.048 s | 9.665 s, 2.044–14.128 s | 5,658,808,320 / 5,349,597,184 bytes |
-
-The harness reports the upper middle sample for an even sample count. These
-functional-comparison timings include concurrent verification work and different
-cache histories; they do not establish a speed change. Candidate private timing
-samples exclude the two extra off probes. RSS includes the comparison parent,
-retained sample states and calculator subprocesses, rather than representing a
-standalone production calculator footprint.
-
-### Changed files
-
-| File | Change |
-| --- | --- |
-| `app/data/settings.mjs` | New independent definition and revised Universal Tertiary description. |
-| `app/tasks/rule-defaults.mjs` | Ancient Effigies automatically defaults off. |
-| `app/core/state.mjs` | One-time per-player compatibility migration, restore and undo handling. |
-| `app/tasks/access.mjs` | Split the existing effigy base-source prerequisite. |
-| `app/tasks/engine.mjs` | Apply the new rule to source-qualified outputs and ordinary Slayer drops. |
-| `app/data/reference-corrections.2026-10-31.v1.mjs` | Four guarded invalid-source removals with pinned Wiki provenance. |
-| `app/web/rules-model.mjs` | Same-group independent controls, current descriptions and separate help credits. |
-| `scripts/perf/effigy-comparison.mjs` | Reproducible public/private counts, ordering diagnostics and resource measurements. |
-| `scripts/test-selection.mjs` | Classify the new quick test file. |
-| `tests/ancient-effigies.test.mjs` | Synthetic switches, source kinds, exemption, data correction and migration coverage. |
-| `tests/rule-explanations.test.mjs` | Check complete coverage including the new rule. |
-| `tests/settings.test.mjs` | Preserve the transcription digest and check the new authored default. |
-| `tests/state.private.test.mjs` | Account for fresh-save migration provenance. |
-| `tests/state.test.mjs` | Preserve migration provenance in the backup fixture. |
-| `docs/settings-audit.md` | Document both rules, citations, deferred rates and measured results. |
-
-The source-classification blocker is resolved. The rate issues above remain
-deferred by instruction. Recommendation: **MERGE-CANDIDATE**.

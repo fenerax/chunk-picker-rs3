@@ -59,8 +59,7 @@ function largeSyntheticState() {
   }));
   state.legacy = { maps: { 'synthetic-map-a': { chunkNotes: { '12341': 'Exact synthetic imported note' } } },
     gameplayMigration: { schemaVersion: 2, taskStatusProvenance: evidence, unresolved: [] } };
-  // Keep the Ancient Effigies marker: this save is not a pre-migration save.
-  state.provenance = { ...state.provenance, taskIdentityMigration: { schemaVersion: 1, archives: [{
+  state.provenance = { taskIdentityMigration: { schemaVersion: 1, archives: [{
     at: AT, reason: 'Synthetic historical identity boundary', tasks: structuredClone(state.tasks),
     members: structuredClone(state.members), history: structuredClone(state.history),
     identityRegistry: { schemaVersion: 1, entries: {}, aliases: { 'synthetic-old-id': state.tasks[0].id }, unresolved: [] },
@@ -104,9 +103,7 @@ test('large retained state saves preferences and chunk selection promptly withou
   const bytes = Buffer.byteLength(JSON.stringify(initialState));
   assert.ok(bytes >= 24 * 1024 * 1024, `Synthetic state must exercise the large-save regression (${bytes} bytes)`);
   const expectedDigest = retainedDigest(initialState);
-  // The browser drops only the bulky identity archive; small markers stay.
-  const { taskIdentityMigration: _archive, ...browserProvenance } = initialState.provenance;
-  const expectedBrowserDigest = retainedDigest({ ...initialState, provenance: browserProvenance });
+  const expectedBrowserDigest = retainedDigest({ ...initialState, provenance: {} });
   t.diagnostic(`Synthetic save: ${(bytes / 1024 / 1024).toFixed(1)} MiB, ${TASKS} tasks, ${ALIASES} aliases, ${STATUSES} statuses/member, ${HISTORY} sparse history events`);
   const dataDir = path.join(directory, 'data');
   // Missing challenges intentionally avoids task workers and full definition

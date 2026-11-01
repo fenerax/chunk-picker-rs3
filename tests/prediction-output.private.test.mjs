@@ -125,19 +125,13 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // map" reason. A complete leaf diff against main 2a76bfd changes only explanation,
 // hiddenReasons[0] and the new sourcePolicyRejections on those rows (9/9/6/0/9/0
 // leaves by mode); no status, item, access or prediction value changes.
-// Ancient Effigies 2026-11-01: the rule's save migration marks each member once, so
-// every prediction.state gains provenance.ancientEffigiesMigratedMembers. A complete
-// leaf diff against main 2a76bfd changes only that field in all six modes; no task,
-// item, access or prediction value, ordering or counter changes.
-// Combined 2026-11-01: both changes above together, recomputed on the merged tree. backlogs and
-// legacy-all equal the effigies-only hashes because the explanation change touches 0 leaves there.
 const expected = {
-  shared: 'b90153c8c98db2373848eef2505a35213db9801894ccc91dcc43959356992d77',
-  unshared: '9079cd7bab36ab826be4fc721d2916ba1d169fced1942f1336c66a3626603809',
-  'member-inclusive': 'a259d2b5ebc32740237f29cccd4743b63df5cdafa60f86036c61e53675df1f58',
-  backlogs: '5a0273ac76da4243e90423b24e4f1f8a57d3480cdbe1d244ad287370f4941dbe',
-  personal: 'c2b308f4c03bbe26b3c1004242b9b793465661b8d8db6087c6588fb5ea9244ea',
-  'legacy-all': 'acb507f13b3633ab887db304a7661216d224a7d80e884fae962a2425b7f156c6',
+  shared: 'f71e3d3a6d761c8832b5f3fcadf65fb76a42d673eb3fc6d8ae6f79e6bd61c2a9',
+  unshared: 'c08526cd3dd27d691c46071f70d8b2bf6e13862a7d6135fc12dfa1d6c5e45a7b',
+  'member-inclusive': 'fb997d6e41ac374bcf35e2046adb44014b2d16370690432127ea3047bf8c3f87',
+  backlogs: '4d09fe2e1557df80de0fda2007e64c215ed4852782fe744c1f2b896f3c08d816',
+  personal: 'bdaecf3fb234784e1821b651240b204fbc0579661cfdb8d66984b39991507c70',
+  'legacy-all': '69ce853874effbb7da38a1c557c03318e1a9d96ca147394ae18d7f2dbbf0fa07',
 };
 
 for (const [mode, golden] of Object.entries(expected)) test(`full prediction output retains baseline behavior: ${mode}`, () => {

@@ -89,7 +89,7 @@ test('backup round trip preserves nested raw gameplay, ownership and personal co
     notes: 'Investigate cave entrance', checked: { 'colliding-old-task-id': true },
     backlog: [{ category: 'quest', label: 'Keep exact old record', done: false }], nested: [null, 0, false, ''] } },
     chunks: { stickeredNotes: { '12341': 'Bring a hammer' } } } } };
-  original.provenance = { ...original.provenance, capturedAt: '2026-10-06', source: 'synthetic' };
+  original.provenance = { capturedAt: '2026-10-06', source: 'synthetic' };
   const envelope = exportBackup(freeze(original));
   const restored = importBackup(JSON.stringify(envelope));
   assert.deepEqual(restored, original);
