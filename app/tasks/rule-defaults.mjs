@@ -1,3 +1,4 @@
+import { UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
 import { taskRuleCutoffDefaults, taskRuleCategoryCounts, taskRuleParents } from '../data/settings.mjs';
 import { FUTURE_SLAYER_UNLOCKS_RULE } from '../data/slayer-unlock-gates.mjs';
 
@@ -41,6 +42,7 @@ export const taskRuleBooleanDefaults = Object.freeze({
 export function taskRuleDefault(id) {
   if (Object.hasOwn(taskRuleBooleanDefaults, id)) return taskRuleBooleanDefaults[id];
   if (Object.hasOwn(taskRuleCutoffDefaults, id)) return taskRuleCutoffDefaults[id];
+  if (id === UNKNOWN_DROP_RULE) return unknownDropRule.default;
   if (id === 'Kill X Amount') return 1;
   if (Object.hasOwn(taskRuleCategoryCounts, id) && taskRuleCategoryCounts[id]) return true;
   return undefined;

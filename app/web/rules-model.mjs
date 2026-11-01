@@ -5,6 +5,7 @@ import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
 import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
 import { loadRuleExplanations } from './rule-explanations.mjs';
+import { UNKNOWN_DROP_RULE, unknownDropExplanation } from '../data/settings.mjs';
 import { FUTURE_SLAYER_UNLOCKS_RULE, futureSlayerUnlocksExplanation } from '../data/slayer-unlock-gates.mjs';
 
 const own = (record, key) => Object.hasOwn(record ?? {}, key);
@@ -46,7 +47,7 @@ export const rulesCatalogue = loadRulesCatalogue(capturedCatalogue);
 if (rulesCatalogue.explanationsFile && !/^app\/data\/[a-z0-9.-]+\.json$/.test(rulesCatalogue.explanationsFile)) throw new TypeError('Invalid rule explanations path.');
 export const ruleExplanations = Object.freeze({
   ...(rulesCatalogue.explanationsFile ? loadRuleExplanations(await datasetJSON(rulesCatalogue.explanationsFile)) : {}),
-  ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation } }),
+  ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation, [UNKNOWN_DROP_RULE]: unknownDropExplanation } }),
 });
 
 /** Original copy and order are presentation data; current types stay registry-owned. */
@@ -62,7 +63,7 @@ export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
       ...(row.key === 'F2P' ? { sharedRuleId: 'content.f2p', scope: 'shared' } : {}) };
   }) }));
   // Authored additions join their original parent, without modifying retained metadata.
-  const presentationParents = { 'Rare Drop Inclusive': 'Rare Drop Amount', 'Secondary Primary Inclusive': 'Secondary Primary Amount' };
+  const presentationParents = { [UNKNOWN_DROP_RULE]: 'Rare Drop Amount', 'Rare Drop Inclusive': 'Rare Drop Amount', 'Secondary Primary Inclusive': 'Secondary Primary Amount' };
   for (const original of taskRuleDefinitions.filter(rule => !seen.has(rule.id))) {
     const definition = { ...original, parent: presentationParents[original.id] ?? original.parent };
     const section = definition.parent && sections.find(group => group.rules.some(rule => rule.id === definition.parent));
