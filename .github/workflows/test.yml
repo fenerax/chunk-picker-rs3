@@ -70,6 +70,7 @@ jobs:
           if-no-files-found: error
 
   differential:
+    # Avoid spending a separate runner on detectors/smoke when the main suite fails.
     needs: test
     uses: ./.github/workflows/differential.yml
 
@@ -112,7 +113,7 @@ jobs:
           if-no-files-found: error
 
   coverage:
-    needs: [test, windows]
+    needs: [test, windows, differential]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -132,6 +133,7 @@ jobs:
         env:
           RS3_COVERAGE_TEST_RESULT: ${{ needs.test.result }}
           RS3_COVERAGE_WINDOWS_RESULT: ${{ needs.windows.result }}
+          RS3_COVERAGE_DIFFERENTIAL_RESULT: ${{ needs.differential.result }}
         run: node scripts/ci/coverage-gate.mjs "${{ runner.temp }}/coverage"
 
   # Credentials and personal values: every file at the tested commit, plus each

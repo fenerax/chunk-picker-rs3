@@ -12,13 +12,18 @@ Commit the harness before acceptance. Resolve both calculator SHAs explicitly:
 sha=$(git rev-parse HEAD)
 node scripts/experiments/y03-fuzz-ci/supervise.mjs --profile smoke --reference-ref "$sha" --candidate-ref "$sha" --out /tmp/public-smoke
 node --test tests/y03-fuzz-ci.test.mjs
-node --test --test-concurrency=1 tests/y03-fuzz-ci-integration.test.mjs
+node scripts/test.mjs differential
 ```
 
 The first is the sole routine CI smoke: same committed calculator SHA, cold
 worker per request versus a retained warm worker. Quick tests contain generator,
 normalization, PRNG, shrinker and report validation checks, with no real workers.
-The explicit full-only integration file tests faults and lifecycle contracts.
+The differential-only integration file tests faults and lifecycle contracts.
+It runs in `.github/workflows/differential.yml`'s Detector integration step,
+outside both ordinary suites. Its native per-case report is required by the
+coverage gate alongside the Linux and Windows reports; skipped detectors are
+uncovered unless an exact reviewed exception applies. The differential job
+waits for the main test job to pass before consuming another hosted runner.
 Different committed implementations are supported by passing two local refs;
 missing objects, operations or dataset compatibility fail setup. No fetch or
 fallback to HEAD occurs. The separately committed harness SHA, calculator SHAs,

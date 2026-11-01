@@ -12,17 +12,29 @@ import { evaluateCoverage } from '../scripts/ci/coverage-gate.mjs';
 const files = ['tests/fixture.test.mjs'];
 const row = (status, name = ['fixture'], occurrence = 1) => ({ file: files[0], name, occurrence,
   key: JSON.stringify([files[0], name, occurrence]), kind: 'test', status, ...(status === 'skip' ? { reason: 'Requires Windows' } : {}) });
-const report = (lane, tests) => ({ schema: 'rs3-test-coverage-v1', lane, passed: true, files, completedFiles: files, tests,
-  fileResults: [{ file: files[0], passed: true, recordCount: tests.length,
+const report = (lane, tests, inventory = files) => ({ schema: 'rs3-test-coverage-v1', lane, passed: true, files: inventory, completedFiles: inventory, tests,
+  fileResults: [{ file: inventory[0], passed: true, recordCount: tests.length,
     counts: { tests: tests.length, suites: 0, passed: tests.filter(row => row.status === 'pass').length,
       skipped: tests.filter(row => row.status === 'skip').length, failed: 0, cancelled: 0, todo: 0 } }] });
+const differentialFiles = ['tests/detectors.test.mjs'];
+const detector = { ...row('pass'), file: differentialFiles[0], key: JSON.stringify([differentialFiles[0], ['fixture'], 1]) };
 const input = (linux = [row('skip')], win = [row('pass')]) => ({ ubuntu: report('test', linux), windows: report('windows', win),
+  differential: report('differential', [detector], differentialFiles), differentialFiles,
   files, windowsFiles: files, allowlist: { schema: 'rs3-coverage-allowlist-v1', tests: [] } });
 
 test('an exact Windows pass covers a Linux skip; Linux-only passes also count', () => {
   const result = evaluateCoverage(input([row('skip'), row('pass', ['Linux case'])]));
   assert.equal(result.passed, true);
-  assert.equal(result.covered, 2);
+  assert.equal(result.covered, 3);
+});
+
+test('differential passes count, but a detector skipped in its sole job remains uncovered', () => {
+  const data = input();
+  assert.equal(evaluateCoverage(data).passed, true);
+  data.differential = report('differential', [{ ...detector, status: 'skip', reason: 'Linux only' }], differentialFiles);
+  const result = evaluateCoverage(data);
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.uncovered.map(row => row.file), differentialFiles);
 });
 
 test('a skip on both OSes or absent on the other OS fails', () => {
@@ -78,6 +90,11 @@ test('missing, incomplete, failed, empty and malformed reports fail closed', () 
     data => { data.ubuntu.fileResults[0].recordCount++; },
     data => { data.ubuntu.fileResults[0].passed = false; },
     data => { data.ubuntu.tests[0].status = 'pass'; },
+    data => { data.differential = null; },
+    data => { data.differential.passed = false; },
+    data => { data.differential.files = []; },
+    data => { data.differential.completedFiles = []; },
+    data => { data.differential.fileResults[0].counts.tests++; },
   ];
   for (const corrupt of corruptions) {
     const data = input(); corrupt(data);
@@ -90,6 +107,7 @@ test('CLI checks disposable artifacts against the full inventory and refuses mis
   t.after(() => rm(directory, { recursive: true, force: true }));
   const allowances = JSON.parse(await readFile(new URL('../.github/coverage-allowlist.json', import.meta.url), 'utf8'));
   const inventory = (await discoverTests(undefined, 'full')).map(file => `tests/${file}`);
+  const differentialInventory = (await discoverTests(undefined, 'differential')).map(file => `tests/${file}`);
   const missingInputs = ['tests/skill-guides-extraction.test.mjs', 'tests/cache-resources-catalogue.test.mjs'];
   const make = (lane, expected) => {
     const tests = expected.flatMap(file => {
@@ -107,8 +125,10 @@ test('CLI checks disposable artifacts against the full inventory and refuses mis
       }) };
   };
   const ubuntu = make('test', inventory), windows = make('windows', windowsBoundTests.map(file => `tests/${file}`));
+  const differential = make('differential', differentialInventory);
   await writeFile(path.join(directory, 'test.json'), JSON.stringify(ubuntu));
   await writeFile(path.join(directory, 'windows.json'), JSON.stringify(windows));
+  await writeFile(path.join(directory, 'differential.json'), JSON.stringify(differential));
   const run = (extraEnv = {}) => spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/ci/coverage-gate.mjs', import.meta.url)), directory],
     { encoding: 'utf8', windowsHide: true, timeout: 30000, env: { ...process.env, ...extraEnv } });
   const failed = run();
@@ -127,7 +147,11 @@ test('CLI checks disposable artifacts against the full inventory and refuses mis
   for (const result of ['failure', 'cancelled', 'skipped']) {
     assert.equal(run({ RS3_COVERAGE_TEST_RESULT: result }).status, 1);
     assert.equal(run({ RS3_COVERAGE_WINDOWS_RESULT: result }).status, 1);
+    assert.equal(run({ RS3_COVERAGE_DIFFERENTIAL_RESULT: result }).status, 1);
   }
+  await rm(path.join(directory, 'differential.json'));
+  assert.equal(run().status, 1);
+  await writeFile(path.join(directory, 'differential.json'), JSON.stringify(differential));
   await rm(path.join(directory, 'windows.json'));
   assert.equal(run().status, 1);
 });

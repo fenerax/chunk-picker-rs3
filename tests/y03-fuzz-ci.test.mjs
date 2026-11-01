@@ -25,10 +25,11 @@ test('fixed public generator covers valid solo/duo saves, all sizes and nine wor
   assert.deepEqual(smoke.map(state => state.members[0].unlocked.length), [1, 2]);
 });
 
-test('real-process detector suite stays outside quick', () => {
+test('cheap units stay quick and real-process detectors run only in differential', () => {
   assert.equal(classifyTest('y03-fuzz-ci.test.mjs'), 'quick');
-  assert.equal(classifyTest('y03-fuzz-ci-integration.test.mjs'), 'full-only');
+  assert.equal(classifyTest('y03-fuzz-ci-integration.test.mjs'), 'differential-only');
   assert.deepEqual(selectTests(['y03-fuzz-ci.test.mjs', 'y03-fuzz-ci-integration.test.mjs']), ['y03-fuzz-ci.test.mjs']);
+  assert.deepEqual(selectTests(['y03-fuzz-ci.test.mjs', 'y03-fuzz-ci-integration.test.mjs'], 'full'), ['y03-fuzz-ci.test.mjs']);
 });
 
 test('PRNG and operation order replay exactly', () => {

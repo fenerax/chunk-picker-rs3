@@ -6,7 +6,7 @@ import { checkTestPorts } from './test-port-check.mjs';
 export const fullConcurrency = 6;
 export const concurrencyFor = (suite, env = process.env) => {
   const chosen = Number(env.RS3_TEST_CONCURRENCY);
-  return Number.isInteger(chosen) && chosen >= 1 && chosen <= 6 ? chosen : suite === 'full' ? fullConcurrency : 2;
+  return Number.isInteger(chosen) && chosen >= 1 && chosen <= 6 ? chosen : suite === 'full' ? fullConcurrency : suite === 'differential' ? 1 : 2;
 };
 export const adaptiveOptionsFor = (suite, env = process.env) => {
   const cap = concurrencyFor(suite, env);
@@ -328,7 +328,6 @@ const fullOnlyTests = new Set([
   "picker-properties.test.mjs",
   "setup-start-pool.test.mjs",
 
-  "y03-fuzz-ci-integration.test.mjs",
   "setup-guide-browser.test.mjs",
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
@@ -503,7 +502,6 @@ const fullOnlyTests = new Set([
 // still peak at 550 MiB or more on duo-legacy. They run first, alone, so three files at
 // once stay bounded by the ordinary files (top 12 at three at once: 1.45 GiB).
 export const soloTests = new Set([
-  "y03-fuzz-ci-integration.test.mjs",
   "activity.test.mjs",
   "area-check-server.private.test.mjs",
   "art-pack-server.test.mjs",
@@ -634,21 +632,27 @@ export function testRunPolicy(name) {
   return { solo: soloTests.has(name), ...(openF2PTests.has(name) ? { env: openF2PEnvironment } : {}) };
 }
 
+// Owned by .github/workflows/differential.yml, with a separate coverage report.
+// These files never run in the ordinary quick/full suites.
+export const differentialTests = new Set(['y03-fuzz-ci-integration.test.mjs']);
+
 export function classifyTest(name) {
   // Private-only cases split from a core file share that file's classification.
   const shared = name.replace(/\.private\.test\.mjs$/, '.test.mjs');
   if (shared !== name) return classifyTest(shared);
+  if (differentialTests.has(name)) return 'differential-only';
   if (quickTests.has(name)) return 'quick';
   if (fullOnlyTests.has(name) || fullOnlyPatterns.some(({ pattern }) => pattern.test(name))) return 'full-only';
   return null;
 }
 
 export function selectTests(names, suite = 'quick') {
-  if (!['quick', 'full'].includes(suite)) throw new Error('Suite must be quick or full');
+  if (!['quick', 'full', 'differential'].includes(suite)) throw new Error('Suite must be quick, full or differential');
   const files = [...names].filter(name => name.endsWith('.test.mjs')).sort();
   const unknown = files.filter(name => !classifyTest(name));
-  if (unknown.length) throw new Error('Unclassified tests: ' + unknown.join(', ') + '. Review scripts/test-selection.mjs and mark each quick or full-only.');
-  const selected = suite === 'full' ? files : files.filter(name => classifyTest(name) === 'quick');
+  if (unknown.length) throw new Error('Unclassified tests: ' + unknown.join(', ') + '. Review scripts/test-selection.mjs and mark each quick, full-only or differential-only.');
+  const selected = files.filter(name => suite === 'differential' ? classifyTest(name) === 'differential-only'
+    : suite === 'full' ? classifyTest(name) !== 'differential-only' : classifyTest(name) === 'quick');
   if (!selected.length) throw new Error('No tests selected for ' + suite);
   return selected;
 }
@@ -662,7 +666,7 @@ export async function discoverTests(directory = new URL('../tests/', import.meta
   const names = await readdir(directory);
   const selected = selectTests(names, suite);
   // A renamed or removed file must not leave a stale policy entry behind.
-  const stale = [...soloTests, ...openF2PTests].filter(name => !names.includes(name));
+  const stale = [...soloTests, ...openF2PTests, ...differentialTests].filter(name => !names.includes(name));
   if (stale.length) throw new Error('Run policy names missing tests: ' + stale.join(', ') + '. Update scripts/test-selection.mjs.');
   // Quick also audits full-only files so a port collision cannot hide there.
   await checkTestPorts(directory, names.filter(name => name.endsWith('.test.mjs') && !reviewedFixedPortTests.has(name)));
