@@ -1,3 +1,4 @@
+import { taskExplanation } from '../app/tasks/task-provenance.mjs';
 import { appendTaskClaim, createTaskClaimClock } from '../app/web/task-claims.mjs';
 import { observeScreenBars } from '../app/web/phone-layout.mjs';
 import { readScreenGraph, runScreenGraph } from './browser-screen-harness.mjs';
@@ -6,12 +7,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { buildWorld } from '../app/data/world.mjs';
-import { createGroupState } from '../app/core/state.mjs';
+import { applyCommand, createGroupState } from '../app/core/state.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
 import { futureSlayerUnlocksRule } from '../app/data/slayer-unlock-gates.mjs';
 import { createTaskFactsIndex, goalProgress } from '../app/core/progress.mjs';
 import { resolveTaskAlternatives } from '../app/core/task-alternatives.mjs';
 import { originalSettings, settingDefinitions, taskHowPreference } from '../app/data/settings.mjs';
+import { buildActivityInfo } from '../app/tasks/activity.mjs';
 import { createInfoPanels, createNoteEditor, reviewedNoteRevision } from '../app/web/info-panels.mjs';
 import { createChunkQuestList } from '../app/web/chunk-quest-filters.mjs';
 import { createMapTools, applyTheme } from '../app/web/map-tools.mjs';
@@ -90,6 +92,41 @@ test('uifix: starting guidance follows the selected unstarted member', () => {
   assert.equal(h.nodes.get('empty-map').hidden, false);
   h.run("memberId = state.members[0].id; renderState()"); assert.equal(h.nodes.get('empty-map').hidden, true);
   h.run("memberId = state.members[1].id; member().selected = ['12342']; renderState()"); assert.equal(h.nodes.get('empty-map').hidden, false);
+});
+
+for (const choices of [1, 2]) test(`first-start guidance yields to ${choices} pending choice(s) for the selected member`, () => {
+  const h = harness();
+  h.run(`member().pendingRoll = ['12341', '12342'].slice(0, ${choices}); renderState()`);
+  assert.equal(h.nodes.get('empty-map').hidden, true, 'The incompatible first-start card is hidden');
+  assert.equal(h.nodes.get('pending-panel').hidden, false);
+  assert.ok(h.find('button', 'Unlock Chunk 12341'));
+  assert.ok(h.find('button', 'Cancel roll'));
+  h.run("memberId = state.members[1].id; member().selected = ['12342']; renderState()");
+  assert.equal(h.nodes.get('empty-map').hidden, false, 'Another unstarted member retains guidance with manual selections');
+  assert.equal(h.nodes.get('pending-panel').hidden, true);
+  h.run('memberId = state.members[0].id; renderState()');
+  assert.equal(h.nodes.get('empty-map').hidden, true, 'Switching back restores pending guidance');
+});
+
+for (const action of ['Unlock Chunk 12341', 'Unlock Chunk 12342', 'Pick for me', 'Unlock both', 'Cancel roll'])
+test(`first-start guidance follows ${action}, undo and cancellation`, async () => {
+  const h = harness();
+  h.run("state.tasks = state.tasks.map(({ status, ...task }) => task); member().pendingRoll = ['12341', '12342']; renderState()");
+  h.route((path, body) => path.startsWith('/api/tasks') ? taskResult(h.run('state.revision')) : {
+    state: applyCommand(h.snapshot(), body.command, { world: h.context.initialWorld, random: () => 0 }), pools: {},
+  });
+  assert.equal(h.nodes.get('empty-map').hidden, true);
+  await h.click(action);
+  assert.equal(h.run('member().pendingRoll.length'), 0);
+  assert.equal(h.nodes.get('pending-panel').hidden, true);
+  assert.equal(h.run('member().unlocked.length'), action === 'Cancel roll' ? 0 : action === 'Unlock both' ? 2 : 1);
+  assert.equal(h.nodes.get('empty-map').hidden, action !== 'Cancel roll');
+  await h.run("command({ type: 'undo' })");
+  assert.equal(h.nodes.get('empty-map').hidden, true, 'Undo restores pending choices without first-start guidance');
+  assert.equal(h.nodes.get('pending-panel').hidden, false);
+  await h.click('Cancel roll');
+  assert.equal(h.nodes.get('empty-map').hidden, false, 'Cancellation restores ordinary first-start guidance');
+  assert.equal(h.nodes.get('pending-panel').hidden, true);
 });
 
 for (const clipped of [false, true]) test(`uifix: note search ${clipped ? 'expands a clipped note' : 'keeps a short note compact'}`, async () => {
@@ -194,7 +231,7 @@ test('saved chunk actions refresh while focused and keep an independent note dra
   h.adopt(next);
   assert.equal(h.context.document.activeElement, textarea);
   assert.equal(textarea.value, 'Keep this unsaved draft');
-  assert.ok(h.find('p', 'In roll pool (added by hand)'));
+  assert.ok(h.find('p', 'Saved hand selection'));
   assert.ok(h.find('button', 'Remove from roll pool'));
   assert.ok(!h.find('button', 'Add to roll pool'));
   const remove = h.find('button', 'Remove from roll pool'); remove.focus();
@@ -299,6 +336,39 @@ test('Advanced hides calculation details by default and follows the selected pla
   await h.run('engineDetails()'); assert.equal(h.nodes.get('tool-dialog').open, false);
   h.run("memberId = 'actor1'; applySession({ readOnly: true })");
   assert.equal(h.run('advanced()'), false); assert.equal(h.run('preferences().advanced'), false);
+});
+
+test('field labels target simple controls and an explicit inner control without labeling its wrapper', () => {
+  const h = harness();
+  const simple = h.run("field('Search', input('text'))");
+  assert.equal(simple.firstChild.htmlFor, simple.children[1].id);
+  const compound = h.run("(() => { const wrap = el('span'), choose = button('Choose', () => {}); choose.id = 'existing-choice'; wrap.append(choose); return field('Purpose', wrap, choose); })()");
+  assert.equal(compound.firstChild.htmlFor, 'existing-choice');
+  assert.equal(compound.firstChild.id, 'existing-choice-label');
+  assert.equal(compound.children[1].id, undefined);
+  assert.notEqual(h.run("field('Other', input('text')).firstChild.htmlFor"), simple.firstChild.htmlFor);
+});
+
+for (const legacy of [true, false]) test(`backup picker associates its button with purpose and changing filename (legacy=${legacy})`, async () => {
+  const h = harness();
+  h.context.backupLegacyFeature = legacy;
+  h.run('supportsFeature = () => backupLegacyFeature; backupDialog()');
+  const choose = h.find('button', 'Choose file…'), file = h.all().find(node => node.type === 'file');
+  const name = h.all().find(node => node.className === 'file-picker-name');
+  const label = h.all().find(node => node.htmlFor === choose.id);
+  assert.equal(label.textContent, legacy ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup');
+  assert.equal(choose.getAttribute('aria-labelledby'), `${choose.firstChild.id} ${label.id}`);
+  assert.equal(choose.getAttribute('aria-describedby'), name.id);
+  assert.equal(name.textContent, 'No file chosen');
+  assert.equal(file.tabIndex, -1);
+  let opened = 0; file.click = () => opened++;
+  await choose.emit('click'); assert.equal(opened, 1);
+  for (const filename of ['first.json', 'second.json.gz', undefined]) {
+    file.files = filename ? [{ name: filename }] : [];
+    await file.emit('change');
+    assert.equal(name.textContent, filename ?? 'No file chosen');
+    assert.equal(choose.getAttribute('aria-describedby'), name.id);
+  }
 });
 
 test('Advanced gates History commands and backup reports without removing the ordinary actions', () => {
@@ -1023,14 +1093,14 @@ test('Group Backlog and Completed share the owner chips, counts and disclosure r
   for (const [name, count] of [['All', 3], ['Player', 2], ['Reed', 2], ['Both', 1]]) {
     await h.click(name); await flush();
     assert.equal(h.nodes.get('completed-count').textContent, `(${count})`);
-    assert.equal(h.nodes.get('backlog-count').textContent, `(${count})`);
+    assert.equal(h.nodes.get('backlog-count').textContent, `(${count} unique task${count === 1 ? '' : 's'})`);
   }
   h.run("$('completed-details').open=true; renderTasks()");
   await flush();
   const row = h.nodes.get('completed-tasks').querySelector('.duo-task-row');
   assert.equal(row.dataset.owners, 'actor1,reed'); assert.equal(row.querySelector('.duo-task-owner').textContent, 'Both');
   h.run("$('group-view').checked=false; reconcileForegroundMode(); result=f.actor1; taskFactsCache=undefined; renderTasks()");
-  assert.equal(h.nodes.get('completed-count').textContent, '(2)'); assert.equal(h.nodes.get('backlog-count').textContent, '(2)');
+  assert.equal(h.nodes.get('completed-count').textContent, '(2)'); assert.equal(h.nodes.get('backlog-count').textContent, '(2 unique tasks)');
   assert.ok(!h.nodes.get('completed-tasks').querySelector('.duo-task-row'));
 });
 
@@ -1284,7 +1354,7 @@ test('active, completed and backlog views exclude preserved partner-only goals',
   doc.members[0].taskStatus = Object.fromEntries([own, partner].map(row => [row.id, { challengeCompleted: true, backlogged: true }])); h.adopt(doc);
   h.context.scopedResult = { ...taskResult(7), tasks: [own, partner], presentation: { tasks: [own, partner], alternatives: {} } }; h.run('result = scopedResult; renderTasks()');
   assert.ok(h.find('button', 'Own goal')); assert.ok(!h.find('button', 'Partner goal'));
-  assert.equal(h.nodes.get('completed-count').textContent, '(1)'); assert.equal(h.nodes.get('backlog-count').textContent, '(1)');
+  assert.equal(h.nodes.get('completed-count').textContent, '(1)'); assert.equal(h.nodes.get('backlog-count').textContent, '(1 unique task)');
   h.run("delete state.members[0].taskStatus['rs3:BiS:own'].backlogged; delete state.members[0].taskStatus['rs3:BiS:partner'].backlogged; document.getElementById('hide-completed').checked = false; renderTasks()");
   assert.ok(!h.find('button', 'Partner goal')); assert.equal(h.nodes.get('task-count').textContent, '1');
 });
@@ -1697,7 +1767,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false } 
     artStatusText, datasetStatusText, loadArtStatus: async () => null, installPictureFallbacks() {}, observeArtStatus: listener => listener(null),
     createActivityFilterControls: (collaborators, options) => createActivityFilterControls({ ...collaborators, storage: localStorage }, options), selectActivityRows,
     travelIntoChunk, createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
-    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
+    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, taskExplanation, catalogued, createRuleDescriber, savedTaskWhyResult, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
     selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, datasetSettings: settingDefinitions, taskHowPreference, appendTaskHow, createRulesPanel,
     taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createGamePlugin: () => ({ refresh: async () => {}, render() {}, open() {}, controls: () => ({}) }), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, projectTaskState, createOriginalSync,
     EventSource: class extends Node { constructor(url) { super(); this.url = url; eventSources.push(this); } },
@@ -2662,12 +2732,12 @@ test('Backlog toggles reason groups independently of Active search and restores 
   h.context.ResizeObserver = class { observe() {} }; h.map.setOverlay = () => {};
   h.run('sandbox.mount = () => {}; poolRanking.mount = () => {}');
   h.run("state.tasks = backlogRows; state.members[0].taskStatus = Object.fromEntries(backlogRows.map(row => [row.id, {backlogged:true,backlogReason:'Later'}])); result = backlogFixture; document.getElementById('task-filter').value = 'No active matches'; renderTasks(); bindControls()");
-  assert.equal(h.nodes.get('backlog-count').textContent, '(3)');
+  assert.equal(h.nodes.get('backlog-count').textContent, '(3 unique tasks)');
   h.nodes.get('backlog-details').open = true; await h.nodes.get('backlog-details').emit('toggle');
-  assert.ok(h.find('span', 'Later (3)')); assert.ok(!h.find('summary', 'Mining (2)'));
+  assert.ok(h.find('span', 'Later (3 unique tasks)')); assert.ok(!h.find('summary', 'Mining (2)'));
   const search = h.all().find(node => node.attributes['aria-label'] === 'Search backlog by name, skill or chunk');
   search.value = 'copper'; await search.emit('input');
-  assert.ok(h.find('span', 'Later (1)')); await h.click('Restore these');
+  assert.ok(h.find('span', 'Later (1 unique task)')); await h.click('Restore these');
   assert.equal(h.calls.length, 1);
   assert.deepEqual(h.calls[0].body, { requestId: 'v2.0.1.1', requestAck: 0, expectedRevision: 7, command: { type: 'clear-backlog', memberId: 'actor1', taskIds: ['custom:backlog-copper'] } });
 });
@@ -2677,7 +2747,7 @@ test('closed completed and backlog lists retain exact counts without constructin
   h.context.closed = { ...taskResult(7), tasks: [checked] };
   h.context.state.tasks.push(checked);
   h.run("state.members[0].taskStatus['custom:checked'] = {challengeCompleted:true,backlogged:true}; result=closed;renderTasks()");
-  assert.equal(h.nodes.get('completed-count').textContent, '(1)'); assert.equal(h.nodes.get('backlog-count').textContent, '(1)');
+  assert.equal(h.nodes.get('completed-count').textContent, '(1)'); assert.equal(h.nodes.get('backlog-count').textContent, '(1 unique task)');
   assert.equal(h.nodes.get('completed-tasks').children.length, 0); assert.equal(h.nodes.get('backlog-tasks').children.length, 0);
   h.run("document.getElementById('completed-details').open=true;renderTasks()");
   assert.ok(h.find('button', 'Closed checked row'));
@@ -3469,7 +3539,7 @@ test('thin foreground retains personal completed and backlog rows while duo acti
   await h.run('loadTasks()'); await flush();
   assert.deepEqual(activeLabels(h).sort(), ['Player goal', 'Reed goal', 'Shared goal']);
   assert.equal(h.nodes.get('completed-count').textContent, '(1)');
-  assert.equal(h.nodes.get('backlog-count').textContent, '(1)');
+  assert.equal(h.nodes.get('backlog-count').textContent, '(1 unique task)');
   assert.equal(h.run("taskListRows.get('completed-tasks')[0].id"), saved.id);
   assert.equal(h.run("taskListRows.get('backlog-tasks')[0].id"), saved.id);
 });
@@ -4042,4 +4112,118 @@ test('F4 backup preview feedback belongs to the selected file', async () => {
   assert.ok(h.find('button', 'Apply reviewed replacement'));
   assert.ok(!h.all().some(node => /gzip.*corrupt|corrupt.*gzip/i.test(node.textContent)));
   assert.ok(h.find('span', 'Independent feedback'));
+});
+
+for (const groupView of [false, true]) test(`map legend scopes roll numbers and saved selections after response adoption (${groupView ? 'group' : 'personal'})`, () => {
+  const h = hydratedMapHarness(), envelope = h.envelope(8);
+  envelope.state.rules['roll.selected'] = false;
+  envelope.state.members[0].selected = ['12341']; envelope.state.members[1].selected = ['12342'];
+  envelope.pools.actor1.eligible = [{ id: '12342', reasons: [] }];
+  h.context.envelope = envelope; h.context.groupView = groupView;
+  h.run("$('group-view').checked=groupView;adopt(envelope.state,envelope.pools,undefined,false)");
+  assert.deepEqual([...h.map.candidateRanks], [['12342', 1]]);
+  const text = node => typeof node === 'string' ? node : [node.textContent, ...node.children.map(text)].join(' ');
+  const legend = text(h.nodes.get('map-legend'));
+  assert.match(legend, /Player’s roll options \(numbered\)/);
+  assert.match(legend, /Player’s saved hand selections/);
+  assert.equal(legend.includes('Reed’s saved hand selections'), groupView);
+  assert.doesNotMatch(legend, /In roll pool/);
+  assert.equal(h.run('rollCandidateCount()'), 1);
+  assert.equal(h.nodes.get('pick').disabled, false); assert.equal(h.nodes.get('roll-two').disabled, true);
+  h.run("showChunk('12341')");
+  assert.ok(h.find('p', 'Saved hand selection'));
+  assert.ok(h.find('p', 'Outside Player’s current roll pool.'));
+  assert.ok(h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  h.run("showChunk('12342')");
+  assert.ok(h.find('p', 'Eligible for Player’s next roll.'));
+  h.run("applySession({readOnly:true,capabilities:{canWrite:false}});renderState();showChunk('12342')");
+  assert.equal(h.nodes.get('pick').disabled, true);
+  assert.ok(!h.find('button', 'Add to roll pool'));
+  assert.deepEqual([...h.map.candidateRanks], [['12342', 1]], 'Read-only permission never changes eligibility');
+  h.run("memberId='reed';renderState()");
+  assert.equal(h.map.candidateRanks.size, 0, 'Switching players adopts that player’s response membership');
+  assert.match(text(h.nodes.get('map-legend')), /Numbers show Reed’s current roll options/);
+  assert.equal(h.run('rollCandidateCount()'), 0);
+});
+
+test('disabled saved selection explanation survives absent excluded entries and later rule changes', () => {
+  const h = harness();
+  h.run("member().selected=['12341'];state.rules['roll.selected']=false;showChunk('12341')");
+  assert.ok(h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  const next = h.snapshot(); next.revision++; next.rules['roll.selected'] = true; h.adopt(next);
+  assert.ok(!h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  h.run("pool.excluded=[{id:'12341',reasons:[{ruleId:'state.blacklisted',detail:'Excluded'}]}];showChunk('12341')");
+  assert.ok(h.find('p', 'Outside Player’s current roll pool.'));
+  assert.ok(h.find('p', 'Set to never roll for this player.'));
+});
+
+test('actual task dialog shows the existing fallback diagnostic and expands Why with the same warning', async () => {
+  const h = harness();
+  const visible = { id: 'builtin:fallback', label: 'Fixture fallback', rawLabel: 'Fixture fallback', category: 'Mining', status: 'available',
+    explanation: 'All listed requirements are met.', record: {} };
+  const warning = 'Your saved task choice is unavailable. Showing Fixture fallback.';
+  h.context.fallbackTask = visible;
+  h.context.fallbackResult = { ...taskResult(7), tasks: [visible], presentation: { tasks: [visible], alternatives: {}, diagnostics: [
+    { kind: 'unavailable-task-alternative', chosen: visible.id, detail: warning },
+  ] } };
+  h.run('result = fullResult = fallbackResult; showTask(fallbackTask, true)');
+  assert.ok(h.all().some(node => node.textContent === `${visible.explanation} ${warning}`));
+  const why = h.all().find(node => node.className === 'icon-button task-why');
+  assert.ok(why); await why.emit('click'); await flush();
+  assert.ok(h.all().some(node => node.textContent?.includes(warning) || node.children?.includes(warning)));
+  assert.equal(why.getAttribute('aria-expanded'), 'true');
+});
+
+test('wired quest search renders mandatory-stage readiness from personal whole completion', async () => {
+  for (const completed of [false, true]) {
+    const h = harness(), state = h.snapshot();
+    const row = (id, title, step, record = {}) => ({ id, category: 'Quest', baseQuest: title,
+      rawLabel: `~|${title}|~ ${step}`, label: `${title} ${step}`, record, status: 'available', blockers: [] });
+    const stage = row('stage', 'Earlier', '5');
+    const whole = row('whole', 'Earlier', 'Complete the quest', { QuestPoints: 1, Tasks: { [stage.rawLabel]: 'Quest' } });
+    whole.personalCompleted = completed;
+    const finish = row('finish', 'Later', 'Complete the miniquest', { QuestPoints: 0, Tasks: { [stage.rawLabel]: 'Quest' } });
+    const full = { ...taskResult(7), tasks: [stage, whole, finish] };
+    full.activityInfo = buildActivityInfo(full, state, 'actor1');
+    await openQuestSearch(h, full);
+    await questSearchChip(h, 'Can do now').emit('click'); await flush();
+    assert.equal(searchLabels(h).includes(finish.label), completed);
+    assert.ok(h.calls.every(call => !call.body));
+    assert.deepEqual(h.snapshot(), state);
+  }
+});
+
+// Minimized public count contracts: no calculator or private catalogue inputs.
+test('count labels: percentage names its included-goal denominator and keeps search arithmetic', async () => {
+  const h = harness();
+  const tasks = Array.from({ length: 4 }, (_, i) => ({ id: `builtin:count-${i}`, label: `Count goal ${i}`, category: 'Mining', status: 'available' }));
+  h.context.countFixture = { ...taskResult(7), tasks, presentation: { tasks: tasks.slice(1), completedTasks: [tasks[0]] } };
+  h.run("state.tasks = countFixture.tasks; member().preferences.numTasksPercent = true; member().taskStatus = { 'builtin:count-0': { challengeCompleted: true } }; result = countFixture; $('hide-completed').checked = false; renderTasks()");
+  await h.run('taskRenderDone');
+  assert.equal(h.nodes.get('task-count').textContent, '25% complete · 1 of 4 included goals');
+  assert.equal(h.nodes.get('task-progress-help').hidden, false);
+  assert.match(await readFile(new URL('../app/web/index.html', import.meta.url), 'utf8'), /id="task-progress-help"[^>]*>[^<]*Hide completed, search/);
+  h.run("$('hide-completed').checked = true; $('completed-details').open = true; renderTasks()"); await h.run('taskRenderDone');
+  assert.equal(h.nodes.get('task-count').textContent, '0% complete · 0 of 3 included goals');
+  assert.equal(h.nodes.get('completed-count').textContent, '(1)');
+  h.run("$('hide-completed').checked = false; $('task-filter').value = 'Count goal 0'; renderTasks()"); await h.run('taskRenderDone');
+  assert.equal(h.nodes.get('task-count').textContent, '100% complete · 1 of 1 included goal');
+  h.run("$('task-filter').value = 'no match'; renderTasks()"); await h.run('taskRenderDone');
+  assert.equal(h.nodes.get('task-count').textContent, '0% complete · 0 of 0 included goals');
+  h.run("member().preferences.numTasksPercent = false; renderTasks()"); await h.run('taskRenderDone');
+  assert.equal(h.nodes.get('task-progress-help').hidden, true);
+});
+
+for (const anywhere of [false, true]) test(`count labels: ordinary pool and roll-anywhere scope (${anywhere})`, async () => {
+  const h = harness();
+  h.run(`member().preferences = { rollWarning: true, randomStartAlways: ${anywhere} }; statePools.actor1 = { eligible: [{ id: '12341' }] }; renderState()`);
+  assert.equal(h.run('rollCandidateCount()'), anywhere ? 2 : 1);
+  const labels = h.nodes.get('map-counts').children.map(node => node.children.filter(item => typeof item === 'string').join(''));
+  assert.ok(labels.includes(' chunks in Player’s ordinary roll pool'));
+  assert.equal(labels.includes(' roll-anywhere candidate chunks for Player'), anywhere);
+  await h.run('rollChunks(1)');
+  assert.ok(h.find('p', `Roll one chunk for Player from ${anywhere ? '2 roll-anywhere candidate chunks' : '1 chunks in their ordinary roll pool'}?`));
+  assert.equal(h.calls.length, 0, 'Opening confirmation never rolls');
+  h.run("closeDialog(); member().pendingRoll = ['12341']; renderState()");
+  assert.equal(h.nodes.get('pick').disabled, true);
 });

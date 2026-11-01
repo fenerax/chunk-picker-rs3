@@ -66,8 +66,10 @@ export function taskHowSteps(proof, { advanced = false, locationName = () => '' 
       const source = { spawn: 'item spawn', drop: `drop from ${node.sourceName}`, shop: `buy from ${node.sourceName}`, object: node.sourceName }[node.sourceKind];
       label = `Get ${node.subjectId}${purposes.has(id) ? ` (${purposes.get(id)})` : ''}${source ? ` — ${source}` : ''}${node.location ? ` in ${place(node.location, node.placeName)}` : ''}.`;
     } else if (node.kind === 'task' && node.taskLabel) {
+      // allOf contains the selected witnesses: every exported placement is needed.
+      // OR and count groups have already selected one sufficient set in the proof.
       const places = [...new Set(placements(node).map(child => place(child.location, child.placeName)))];
-      label = `${node.areaUnlock ? 'Get into ' : ''}${strip(node.taskLabel)}${node.instruction ? `: ${strip(node.instruction)}` : ''}${places.length && !node.areaUnlock ? ` — in ${places.join(' or ')}` : ''}.`;
+      label = `${node.areaUnlock ? 'Get into ' : ''}${strip(node.taskLabel)}${node.instruction ? `: ${strip(node.instruction)}` : ''}${places.length && !node.areaUnlock ? ` — in ${places.join(' and ')}` : ''}.`;
     }
     if (!advanced && node.kind === 'placement' && node.location && Object.values(nodes).some(parent => parent.kind === 'task' && !parent.areaUnlock && placements(parent).includes(node))) return;
     steps.push({ id, node, label });

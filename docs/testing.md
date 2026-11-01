@@ -14,9 +14,13 @@ npm test
 
 `npm run test:quick` selects reviewed small-fixture tests for state, commands,
 Undo, History, settings, tasks, planning and browser controllers. Fake DOM tests
-do not launch a browser. `npm test` selects every top-level `tests/*.test.mjs`
-file, including server, worker and large-data integration tests. Neither command
-is a substitute for trying the application in a real browser.
+do not launch a browser. `npm test` selects top-level `tests/*.test.mjs`
+files, including server, worker and large-data integration tests, except the
+explicit `differentialTests` inventory. Those detector cases run with
+`node scripts/test.mjs differential` in `.github/workflows/differential.yml`.
+The coverage gate requires that job's native per-case report as well as the
+Linux and Windows reports, so moving a test cannot silently drop its coverage.
+Neither ordinary command is a substitute for trying the application in a real browser.
 
 When testing inside a Linux container, run it with an init that reaps orphaned
 child processes (for example Docker's `--init` option). The full suite checks
@@ -76,8 +80,10 @@ npm test -- --list
 filename to `quickTests` after inspecting its imports and fixtures. Keep browser,
 performance, golden/reference comparison, large-data and server/worker tests
 full-only. Integration families have named patterns; the remaining full-only
-files are listed explicitly. A new file outside those patterns fails either
-command until it is classified, so additions cannot silently miss quick feedback.
+files are listed explicitly. Tests owned by the differential job belong in
+`differentialTests` and are excluded from quick and full. A new file outside those
+patterns fails every suite until it is classified, so additions cannot silently
+miss quick feedback.
 Quick entries take precedence over patterns, allowing a reviewed fake DOM or
 small-fixture test from an integration family to participate.
 

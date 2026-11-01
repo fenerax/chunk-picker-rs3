@@ -11,13 +11,13 @@ export function rankPoolRows(rows, skill = '') {
 }
 
 /** GET only reads saved summaries. A writable, settled view renews its own lease. */
-export function createPoolRankingClient(ctx) {
+function createPoolSummaryClient(ctx, interest) {
   const schedule = ctx.setTimeout ?? globalThis.setTimeout, cancel = ctx.clearTimeout ?? globalThis.clearTimeout;
   const now = ctx.now ?? Date.now;
-  const watchId = ctx.watchId ?? `pool_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('')}`;
+  const watchId = !interest ? undefined : ctx.watchId ?? `pool_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('')}`;
   let visible = false, key, timer, generation = 0, request, nextPollAt = 0, nextIntentAt = 0, registered;
   let writes = Promise.resolve();
-  const scopeKey = scope => `${scope.memberId}:${scope.revision}`;
+  const scopeKey = scope => JSON.stringify([scope.memberId, scope.revision, scope.pickerId, scope.datasetDigest, scope.candidatesKey]);
   const scope = () => ctx.scope();
   const readable = value => visible && !ctx.hidden() && !value.sandboxActive && !!value.memberId && Number.isSafeInteger(value.revision);
   const current = (value, token) => token === generation && readable(scope()) && scopeKey(scope()) === scopeKey(value);
@@ -43,6 +43,8 @@ export function createPoolRankingClient(ctx) {
     try {
       const response = await ctx.api(`/api/pool-ranking?memberId=${encodeURIComponent(value.memberId)}`, undefined, entry.controller.signal);
       if (!current(value, token) || response.memberId !== value.memberId || response.stateRevision !== value.revision) return;
+      if (value.pickerId !== undefined && response.pickerId !== value.pickerId
+        || value.datasetDigest !== undefined && response.datasetDigest !== value.datasetDigest) return;
       ctx.onUpdate(response);
     } catch (error) { if (current(value, token) && error.name !== 'AbortError') ctx.onError?.(error); }
     finally { if (request === entry) request = undefined; }
@@ -54,9 +56,9 @@ export function createPoolRankingClient(ctx) {
     if (key !== nextKey || !readable(value)) { stop(); key = nextKey; }
     if (!readable(value)) return;
     const time = now(), token = generation;
-    if (writable() && time >= nextIntentAt) {
+    if (interest && writable() && time >= nextIntentAt) {
       registered = value; nextIntentAt = time + HEARTBEAT_MS; write(value, true, token);
-    } else if (!writable() && registered) {
+    } else if (interest && !writable() && registered) {
       write(registered, false); registered = undefined; nextIntentAt = 0;
     }
     if (!request && time >= nextPollAt) { nextPollAt = time + POLL_MS; void poll(value, token); }
@@ -65,9 +67,18 @@ export function createPoolRankingClient(ctx) {
 
   return {
     refresh,
-    setVisible(on) { if (visible === on) return; visible = on; if (!on) stop(); else refresh(); },
+    setActive(on) { if (visible === on) return; visible = on; if (!on) stop(); else refresh(); },
     dispose() { visible = false; stop(); },
   };
+}
+
+/** Comparison owns leases; the map reader shares only its GET cadence and guards. */
+export function createPoolRankingClient(ctx) {
+  const client = createPoolSummaryClient(ctx, true);
+  return { ...client, setVisible: client.setActive };
+}
+export function createPassivePoolRankingClient(ctx) {
+  return createPoolSummaryClient(ctx, false);
 }
 
 export function createScreenPoolRanking(c) {

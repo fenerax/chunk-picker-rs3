@@ -1,4 +1,5 @@
 import { startingSectionLocations } from './cache-surface.mjs';
+import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { createTaskFactsIndex } from './progress-index.mjs';
@@ -12,11 +13,12 @@ import { applyChunkColourCommand, validateChunkColour, validateChunkColourName }
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
 import { validateTransportFacts } from './transport-access.mjs';
 import { transportRouteById } from '../data/transport-routes.mjs';
-import { taskRuleValueError, taskRuleDiagnostics } from '../data/settings.mjs';
-import { decodeLegacyText, resolveSavedTaskId, migrateTaskIdentities } from '../tasks/migration.mjs';
+import { ANCIENT_EFFIGIES_RULE, taskRuleValueError, taskRuleDiagnostics } from '../data/settings.mjs';
+import { decodeLegacyText, hasGameplayMigration, resolveSavedTaskId, migrateTaskIdentities } from '../tasks/migration.mjs';
 import { isPermanentId, legacyTaskId, lookupPermanentId } from '../tasks/identity.mjs';
 import { normalizeMembersStartOptions, membersStartPools, rollMembersStarts } from './members-start.mjs';
 import { SETUP_START, setupStartPools } from './setup-guide.mjs';
+import { createSurfaceEligibility } from './cache-surface.mjs';
 import { validateFinishLine, validateFinishLineItemId, validateFinishLineOverride, validateFinishLineText,
   validateFinishLineChange, restoreFinishLineChange, MAX_FINISH_LINE_CUSTOM_ITEMS, finishLineCommandTypes } from './finish-line.mjs';
 import { groupGoalCommandKeys, groupGoalCommandTypes, applyGroupGoalCommand, validateGroupGoals,
@@ -633,7 +635,99 @@ export function createGroupState(members = [], registry) {
   return validateState({ schemaVersion: SCHEMA_VERSION, revision: 0, rules: {},
     members: members.map(member => ({ sourceMapId: null, unlocked: [], selected: [], pendingRoll: [],
       blacklisted: [], completedTasks: [], teleports: [], ...member })),
-    tasks: [], history: [] }, registry);
+    tasks: [], history: [], provenance: { ancientEffigiesMigratedMembers: members.map(member => member.id) } }, registry);
+}
+
+// The migrated switch now exists at every older revision too, so a sparse
+// patch that created or removed this owner's taskRules dictionary describes no
+// change. Drop it; leaf patches already restore beneath a present dictionary.
+// Undone events and undo events are never replayed, so they stay as recorded.
+function dropTaskRuleContainerPatches(history, memberId) {
+  for (const event of history) {
+    const undo = event.undo;
+    if (!undo?.memberChanges || event.undoneRevision !== undefined || event.type === 'undo') continue;
+    undo.memberChanges = undo.memberChanges.map(change => change.id !== memberId ? change : { ...change,
+      changes: change.changes.filter(patch => !(patch.kind === 'object' && patch.path.length === 1 && patch.path[0] === 'taskRules')) })
+      .filter(change => change.changes.length);
+    if (!undo.memberChanges.length) delete undo.memberChanges;
+    // Creating an empty dictionary was this event's only personal change: undoing it now changes nothing.
+    if (!Object.keys(undo).length) delete event.undo;
+  }
+}
+
+// Restore archives keep the incoming provenance even when storage replaces
+// the outer provenance. A reset rule must stay Automatic after restore too.
+function effigiesProvenance(state) {
+  let provenance = state.provenance;
+  while (provenance && !provenance.ancientEffigiesMigratedMembers && provenance.restore?.incomingProvenance)
+    provenance = provenance.restore.incomingProvenance;
+  return provenance;
+}
+
+// Events up to the migration revision predate the new switch. Repairing them
+// is idempotent, so it also covers archived events hydrated later.
+function repairPreMigrationHistory(history, memberId, { revision, value, dropContainers }) {
+  const older = history.filter(event => event.revision <= revision);
+  if (dropContainers) dropTaskRuleContainerPatches(older, memberId);
+  // Old full-member undo snapshots predate the new switch. Keep the value
+  // chosen at migration when undoing an older, unrelated command.
+  for (const event of older) for (const snapshot of event.undo?.members ?? []) {
+    if (snapshot.id === memberId && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
+      snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: value };
+  }
+}
+
+function validEffigiesBoundary(boundary) {
+  return boundary && typeof boundary === 'object' && Number.isSafeInteger(boundary.revision) && boundary.revision >= 0
+    && (boundary.value === null || ['boolean', 'string', 'number'].includes(typeof boundary.value)) && (boundary.dropContainers === undefined || boundary.dropContainers === true);
+}
+
+// Before the sparse undo chain is checked: an archived event from before the
+// migration may still create the taskRules container the migration now fills.
+// Only the outer provenance shares this history's revision numbers. A
+// restore starts a new numbering, so archived incoming boundaries never apply.
+function repairArchivedEffigiesHistory(state) {
+  const boundaries = state.provenance?.ancientEffigiesMigration;
+  if (boundaries === undefined) return;
+  record(boundaries, 'provenance.ancientEffigiesMigration');
+  for (const [memberId, boundary] of Object.entries(boundaries)) {
+    if (!validEffigiesBoundary(boundary)) fail('Invalid Ancient effigies migration boundary');
+    repairPreMigrationHistory(state.history, memberId, boundary);
+  }
+}
+
+// Validation owns this copy. Remember each migrated owner so resetting the
+// new rule to Automatic never copies Universal Tertiary a second time.
+function migrateAncientEffigies(state) {
+  const provenance = effigiesProvenance(state);
+  const migrated = new Set(provenance?.ancientEffigiesMigratedMembers ?? []);
+  // A Map keeps member ids such as __proto__ as ordinary keys.
+  const boundaries = new Map(Object.entries(state.provenance?.ancientEffigiesMigration ?? {}));
+  for (const member of state.members) {
+    if (migrated.has(member.id)) continue;
+    const imported = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(
+      state.legacy?.maps?.[member.sourceMapId]?.rules ?? {}).map(([id, value]) => [decodeLegacyText(id), value]));
+    const rules = { ...imported, ...state.taskRules, ...member.taskRules };
+    let dropContainers = false;
+    if (!Object.hasOwn(rules, ANCIENT_EFFIGIES_RULE)) {
+      // Unknown category tags historically defaulted on, including this one.
+      const oldValue = rules['Universal Tertiary'] === undefined || ![false, 'false', 0].includes(rules['Universal Tertiary']);
+      member.taskRules = { ...member.taskRules, [ANCIENT_EFFIGIES_RULE]: oldValue };
+      dropContainers = true;
+    }
+    const effigies = member.taskRules?.[ANCIENT_EFFIGIES_RULE] ?? rules[ANCIENT_EFFIGIES_RULE];
+    const boundary = { revision: state.revision, value: effigies, ...(dropContainers ? { dropContainers } : {}) };
+    if (dropContainers) dropTaskRuleContainerPatches(state.history, member.id);
+    for (const event of state.history) for (const snapshot of event.undo?.members ?? []) {
+      if (snapshot.id === member.id && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
+        snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: effigies };
+    }
+    if (Number.isSafeInteger(state.revision)) boundaries.set(member.id, boundary);
+    migrated.add(member.id);
+  }
+  state.provenance = { ...state.provenance, ancientEffigiesMigratedMembers: [...migrated],
+    ...(boundaries.size ? { ancientEffigiesMigration: Object.fromEntries(boundaries) } : {}) };
+  return state;
 }
 
 export function validateState(state, registry) {
@@ -856,6 +950,7 @@ function validateStateCopy(copy, registry) {
       if (!target?.undo || target.undoneRevision !== event.revision) fail('History undo target is invalid');
     }
   }
+  repairArchivedEffigiesHistory(copy);
   // Check the remaining sparse undo chain against a private working copy.
   // Older snapshots have no after-value guards, but still form valid boundaries
   // for later sparse deltas. This catches stale/corrupt imported history before
@@ -916,7 +1011,7 @@ function validateStateCopy(copy, registry) {
       }
     }
   }
-  return copy;
+  return migrateAncientEffigies(copy);
 }
 
 export function exportBackup(state, registry) {
@@ -930,6 +1025,7 @@ export function importBackup(document, registry) {
   }
   record(backup, 'backup');
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
+  backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
   return validateState(backup.state, registry);
 }
@@ -1148,9 +1244,40 @@ function clearSelectedAfterUnlock(state, member, registry) {
   if (registryOrDefault(registry).resolve(state.rules)['roll.clearSelected']) member.selected = [];
 }
 
-function seedRandomStartSections(member, ids, world) {
-  for (const id of ids) for (const location of startingSectionLocations(world, id)) {
-    member.sectionOverrides = { ...(member.sectionOverrides ?? {}), [location]: true };
+// Start-only certificates, reviewed against exact boundary signatures and an
+// independently mapped reciprocal endpoint. These do not map saved selectors,
+// project resources, or make ordinary ownership an entry. See docs/qa/random-start-entry.md.
+const missingPolicyStartEntries = new Map([
+  ['9515', '9515-1000001'],
+  ['9771', '9771-1000001'],
+]);
+
+function missingRandomStartCorrespondence(world, id) {
+  const cache = world?.cacheWalking;
+  return !!cache && world.sectionTopology?.get(id)?.has('0') && !cache.fallback.has(id)
+    && !cache.legacyToComponents.has(`${id}-0`);
+}
+
+function randomStartHasEntry(world, id, member, settings) {
+  if (!missingRandomStartCorrespondence(world, id)) return true;
+  const entry = missingPolicyStartEntries.get(id);
+  return !!entry && world.cacheWalking.components.has(entry)
+    && createSurfaceEligibility(world, new Set([id]), member.sectionOverrides, { f2p: settings['content.f2p'] })(entry);
+}
+
+function knownRandomStartDestination(world, id, member, settings) {
+  knownRollDestination(world, id);
+  if (!randomStartHasEntry(world, id, member, settings)) fail(`Chunk ${id} has no certified random-start entry`);
+}
+
+export function seedRandomStartSections(member, ids, world) {
+  for (const id of ids) {
+    // SFIX1's seeds (section 1 and certified banks) first; a reviewed
+    // missing-policy entry only for a start with no other seed.
+    let locations = startingSectionLocations(world, id);
+    const missing = missingRandomStartCorrespondence(world, id) ? missingPolicyStartEntries.get(id) : undefined;
+    if (!locations.length && missing) locations = [missing];
+    for (const location of locations) member.sectionOverrides = { ...(member.sectionOverrides ?? {}), [location]: true };
   }
 }
 
@@ -1164,7 +1291,8 @@ function pendingOffer(state, member) {
   return ['random-start', 'roll'].includes(offer?.type) && JSON.stringify(offer.command.rolled) === JSON.stringify(member.pendingRoll) ? offer : undefined;
 }
 
-function hasRandomStartChoices(state, member) {
+export function hasRandomStartChoices(state, member) {
+  if (!member.pendingRoll?.length) return false;
   const offer = pendingOffer(state, member);
   return offer?.type === 'random-start' && offer.command.count === 2;
 }
@@ -1325,7 +1453,7 @@ function prepareUndo(state, undoRevision, registry) {
     const task = rows.get(id) ?? claimTaskRow(state, id); if (!task) fail(`Undo task claim references absent task: ${id}`); referenced.set(id, task);
   }
   validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: restored.rules,
-    members: restored.members, tasks: [...referenced.values()], history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
+    provenance: { ancientEffigiesMigratedMembers: state.members.map(member => member.id) }, members: restored.members, tasks: [...referenced.values()], history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
   if (restored.finishLine !== undefined) validateFinishLine(restored.finishLine, new Set(state.members.map(member => member.id)));
   if (restored.groupGoals !== undefined) validateGroupGoals(restored.groupGoals, new Set(state.members.map(member => member.id)));
   return { target, restored, skippedClaimIds };
@@ -1385,7 +1513,7 @@ function validateCommandGameplay(state, baseline, registry) {
     if (!task) fail(`Command task claim references absent task: ${id}`); referenced.set(id, task);
   }
   const checked = validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: state.rules,
-    members: state.members, tasks: [...referenced.values()], history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
+    provenance: { ancientEffigiesMigratedMembers: state.members.map(member => member.id) }, members: state.members, tasks: [...referenced.values()], history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
   const diagnostics = [...(checked.provenance?.taskRuleDiagnostics ?? []),
     ...(baseline.provenance?.taskRuleDiagnostics ?? []).filter(item => item.sourceMapId !== undefined)];
   if (JSON.stringify(diagnostics) !== JSON.stringify(baseline.provenance?.taskRuleDiagnostics ?? [])) {
@@ -2035,14 +2163,20 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const member = findMember(next, payload.memberId);
       if (payload.type === 'pick-for-me') {
         if (!member.pendingRoll.length) fail('No pending roll to pick from');
-        for (const id of member.pendingRoll) knownRollDestination(world, id);
+        const randomStart = hasRandomStartChoices(next, member);
+        const settings = registryOrDefault(registry).resolve(next.rules);
+        for (const id of member.pendingRoll) {
+          if (randomStart) knownRandomStartDestination(world, id, member, settings);
+          else knownRollDestination(world, id);
+        }
         payload.chunkId = sampleRoll(member.pendingRoll.map(id => ({ id })), 1, random)[0].id;
       }
       chunk(payload.chunkId, 'chunkId');
       if (!member.pendingRoll.includes(payload.chunkId)) fail(`${world?.chunks.get(payload.chunkId)?.name || `Chunk ${payload.chunkId}`} is not a pending roll choice for ${member.name || member.id}`);
       const randomStart = hasRandomStartChoices(next, member);
       if (randomStart && !world) fail('A world is required to unlock random start choices');
-      knownRollDestination(world, payload.chunkId);
+      if (randomStart) knownRandomStartDestination(world, payload.chunkId, member, registryOrDefault(registry).resolve(next.rules));
+      else knownRollDestination(world, payload.chunkId);
       returnUnpickedChoices(next, member, member.pendingRoll.filter(id => id !== payload.chunkId), registry);
       member.pendingRoll = [];
       member.unlocked.push(payload.chunkId);
@@ -2064,7 +2198,11 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const randomStart = hasRandomStartChoices(next, member);
       if (randomStart && !world) fail('A world is required to unlock random start choices');
       const choices = [...member.pendingRoll];
-      for (const id of choices) knownRollDestination(world, id);
+      const settings = registryOrDefault(registry).resolve(next.rules);
+      for (const id of choices) {
+        if (randomStart) knownRandomStartDestination(world, id, member, settings);
+        else knownRollDestination(world, id);
+      }
       member.unlocked.push(...choices); member.pendingRoll = [];
       if (!randomStart) addManualNeighbors(next, member, choices, world, registry);
       if (randomStart) seedRandomStartSections(member, choices, world);
@@ -2123,7 +2261,8 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const accessible = new Set(member.unlocked);
       const blacklisted = new Set(member.blacklisted);
       const pool = [...(world.surface ?? world.chunks.keys())].filter(id => BASE_CHUNK.test(id) && world.chunks.has(id) && world.walkable.has(id)
-        && !world.cacheWalking?.blockedRegions?.has(id) && (!settings['content.f2p'] || world.f2p.has(id)) && !accessible.has(id) && !blacklisted.has(id)).sort().map(id => ({ id }));
+        && !world.cacheWalking?.blockedRegions?.has(id) && (!settings['content.f2p'] || world.f2p.has(id)) && !accessible.has(id) && !blacklisted.has(id)
+        && randomStartHasEntry(world, id, member, settings)).sort().map(id => ({ id }));
       const ids = sampleRoll(pool, count, random).map(choice => choice.id);
       if (count === 2) payload.handSelected = ids.filter(id => member.selected.includes(id));
       member.selected = member.selected.filter(candidate => !ids.includes(candidate));

@@ -62,14 +62,19 @@ test('last-seen storage survives blocked storage and uses the linked player, not
 });
 
 function harness({ seen = 0, latest = event(3), own, history = [event(1), event(2, actor1.actor), latest] } = {}) {
+  const document = new EventTarget(); document.body = {}; document.documentElement = {}; document.defaultView = new EventTarget(); document.activeElement = document.body;
   class Node {
-    constructor(tag, text = '', className = '') { Object.assign(this, { tag, textContent: text, className, children: [], events: {}, hidden: true }); }
+    focus() { document.activeElement = this; document.dispatchEvent(new Event('focusin')); }
+    set disabled(value) { this._disabled = value; if (value && document.activeElement === this) document.activeElement = document.body; }
+    get disabled() { return this._disabled; }
+    constructor(tag, text = '', className = '') { Object.assign(this, { tag, textContent: text, className, children: [], events: {}, hidden: true, isConnected: true, ownerDocument: document }); }
     append(...nodes) { this.children.push(...nodes); }
     replaceChildren(...nodes) { this.children = nodes; }
     addEventListener(name, fn) { this.events[name] = fn; }
   }
   const el = (tag, text, cls) => new Node(tag, text, cls), button = (text, action, cls) => Object.assign(el('button', text, cls), { action });
   const state = { revision: 3, members: [{ id: 'actor1' }, { id: 'reed' }] }, calls = [], dialogs = [], timers = new Map();
+  const fallback = el('button'); fallback.hidden = false;
   const undoButton = el('button'), ownHost = el('span'), catchUpHost = el('section'), liveHost = el('section');
   const values = new Map([[seenRevisionKey(actor1, state.members), String(seen)]]);
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
@@ -77,8 +82,8 @@ function harness({ seen = 0, latest = event(3), own, history = [event(1), event(
   const controller = createDuoCoordination({ api: async () => { requests++; if (fail) throw Error('temporarily unavailable'); return snapshot; }, viewer: actor1, getState: () => state, lookups: () => names,
     el, button, openDialog: (title, ...children) => { dialogs.push({ title, children }); return dialogs.length; }, closeDialog: generation => calls.push({ close: generation }),
     command: async (command, revision) => calls.push({ command, revision }), openHistory: () => calls.push({ history: true }),
-    undoButton, ownHost, catchUpHost, liveHost, storage, now: () => clock, setTimer: fn => { const id = timers.size + 1; timers.set(id, fn); return id; }, clearTimer: id => timers.delete(id) });
-  return { controller, state, calls, dialogs, timers, undoButton, ownHost, catchUpHost, liveHost, values, setSnapshot: value => { snapshot = value; }, setClock: value => { clock = value; }, setFailure: value => { fail = value; }, requests: () => requests };
+    undoButton, undoFocusFallback: () => fallback, ownHost, catchUpHost, liveHost, storage, now: () => clock, setTimer: fn => { const id = timers.size + 1; timers.set(id, fn); return id; }, clearTimer: id => timers.delete(id) });
+  return { controller, state, calls, dialogs, timers, document, fallback, undoButton, ownHost, catchUpHost, liveHost, values, setSnapshot: value => { snapshot = value; }, setClock: value => { clock = value; }, setFailure: value => { fail = value; }, requests: () => requests };
 }
 const allNodes = node => [node, ...(node.children ?? []).flatMap(allNodes)];
 
@@ -162,4 +167,46 @@ test('a failed metadata request leaves a working Retry Undo button and does not 
   assert.equal([...h.values.values()][0], '1'); h.setFailure(false); await h.controller.undo();
   assert.equal(h.undoButton.disabled, false); assert.equal(h.undoButton.textContent, 'Undo'); assert.match(h.undoButton.title, /^Undo: Unlocked/);
   assert.equal(h.catchUpHost.hidden, false);
+});
+
+
+const undoSnapshot = (revision, canUndo = true) => ({ stateRevision: revision, history: [], latestUndo: { canUndo, undoRevision: 2, event: event(2, actor1.actor) } });
+
+test('toolbar Undo retains focus only after metadata for the current revision enables it', async () => {
+  const h = harness(); await h.controller.refresh(); h.undoButton.focus();
+  h.state.revision = 4; h.controller.render();
+  assert.equal(h.undoButton.disabled, true); assert.equal(h.document.activeElement, h.document.body);
+  h.setSnapshot(undoSnapshot(3)); await h.controller.refresh();
+  assert.equal(h.undoButton.disabled, true); assert.equal(h.document.activeElement, h.document.body);
+  h.setSnapshot(undoSnapshot(4)); await h.controller.refresh();
+  assert.equal(h.undoButton.disabled, false); assert.equal(h.document.activeElement, h.undoButton);
+  assert.equal(h.calls.length, 0);
+});
+
+test('exhausted Undo transfers focus to navigation and failed metadata offers focused Retry Undo', async () => {
+  for (const failure of [false, true]) {
+    const h = harness(); await h.controller.refresh(); h.undoButton.focus();
+    h.state.revision = 4; h.controller.render(); h.setSnapshot(undoSnapshot(4, false)); h.setFailure(failure);
+    await h.controller.refresh();
+    assert.equal(h.document.activeElement, failure ? h.undoButton : h.fallback);
+    assert.equal(h.undoButton.disabled, !failure);
+    if (failure) assert.equal(h.undoButton.textContent, 'Retry Undo');
+    assert.equal(h.calls.length, 0);
+  }
+});
+
+for (const action of ['keydown', 'pointerdown', 'mousedown', 'touchstart', 'focusin', 'blur', 'dispose', 'sandbox', 'hidden', 'removed']) test(`Undo focus wait is cancelled by ${action}`, async () => {
+  const h = harness(); await h.controller.refresh(); h.undoButton.focus();
+  h.state.revision = 4; h.controller.render();
+  if (action === 'blur') h.document.defaultView.dispatchEvent(new Event('blur'));
+  else if (action === 'dispose') h.controller.dispose();
+  else if (action === 'sandbox') { h.state.sandboxActive = true; h.controller.render(); h.state.sandboxActive = false; }
+  else if (action === 'hidden' || action === 'removed') {
+    if (action === 'hidden') h.undoButton.checkVisibility = () => false; else h.undoButton.isConnected = false;
+    h.setSnapshot(undoSnapshot(4)); await h.controller.refresh();
+    h.undoButton.checkVisibility = () => true; h.undoButton.isConnected = true;
+  } else h.document.dispatchEvent(new Event(action));
+  h.setSnapshot(undoSnapshot(4)); await h.controller.refresh();
+  assert.equal(h.undoButton.disabled, false); assert.equal(h.document.activeElement, h.document.body);
+  assert.equal(h.calls.length, 0);
 });

@@ -2,14 +2,57 @@
 export default {
   "schemaVersion": 1,
   "id": "reference-corrections",
-  "version": "2026-10-31.v1",
-  "reviewedOn": "2026-10-31",
+  "version": "2026-11-01.v2",
+  "reviewedOn": "2026-11-01",
   "provenance": {
     "referenceSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
     "method": "Exact reference-audit inventory and existing exported sources/outputs; no fuzzy runtime admission.",
     "championScrolls": {
       "url": "https://runescape.wiki/w/Champion%27s_Challenge",
       "source": "The Goblin scroll is an existing Goblin drop; restore the missing distinct child while deduplicating Zombie."
+    },
+    "ancientEffigies": {
+      "reviewedOn": "2026-11-01",
+      "method": "Pinned Wiki research supplied by the orchestrator; the effigy template renders no drop below combat level 20 without an explicit override.",
+      "quote": "Monsters under combat level 20 cannot drop effigies.",
+      "sources": [
+        {
+          "title": "Ancient effigies",
+          "url": "https://runescape.wiki/w/Ancient_effigies?oldid=37088939"
+        },
+        {
+          "title": "DropsLineEffigy",
+          "url": "https://runescape.wiki/w/Template%3ADropsLineEffigy?oldid=37167588"
+        },
+        {
+          "title": "Gelatinous abomination",
+          "url": "https://runescape.wiki/w/Gelatinous_abomination?oldid=37127204"
+        },
+        {
+          "title": "Crawling hand",
+          "url": "https://runescape.wiki/w/Crawling_hand?oldid=37142212"
+        },
+        {
+          "title": "Cave bug",
+          "url": "https://runescape.wiki/w/Cave_bug?oldid=37123987"
+        }
+      ]
+    },
+    "ardougneHard": {
+      "evidence": "Wiki revisions supplied and verified by the task owner; no fresh retrieval in this sandbox.",
+      "tier": {
+        "title": "Ardougne Achievements",
+        "revisionId": 36199598,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36199598",
+        "finding": "Hard has 17 required achievements. Artillery Strike is task 17; no optional tasks, exemptions or tier footnotes. Cloak rewards also require previous tiers."
+      },
+      "constituent": {
+        "title": "Artillery Strike",
+        "revisionId": 37053862,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37053862",
+        "achievementId": 502,
+        "finding": "Hard Ardougne achievements; requires Catapult Construction; members-only."
+      }
     }
   },
   "patches": [
@@ -6719,6 +6762,117 @@ export default {
         "url": "https://runescape.wiki/w/Slayer_assignment/Laniakea",
         "source": "Undead assignment weight 4."
       }
+    },
+    {
+      "path": [
+        "skillItems",
+        "Slayer",
+        "Gelatinous abomination",
+        "Starved ancient effigy"
+      ],
+      "beforePresent": true,
+      "before": {
+        "1": "1/45000000"
+      },
+      "beforeRecordSha256": "94892d85d8ecef7124ab9a560f4fe1789be1d33b424a1f87da551cc85f984ce2",
+      "afterPresent": false,
+      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
+    },
+    {
+      "path": [
+        "skillItems",
+        "Slayer",
+        "Crawling hand",
+        "Starved ancient effigy"
+      ],
+      "beforePresent": true,
+      "before": {
+        "1": "1/5000000"
+      },
+      "beforeRecordSha256": "7e1ecd3ef66235828b60fb2923ae1cae2ded5375ac41aa73d547de0d56f24d8a",
+      "afterPresent": false,
+      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
+    },
+    {
+      "path": [
+        "skillItems",
+        "Slayer",
+        "Crawling hand#Burthorpe",
+        "Starved ancient effigy"
+      ],
+      "beforePresent": true,
+      "before": {
+        "1": "1/5000000"
+      },
+      "beforeRecordSha256": "7e1ecd3ef66235828b60fb2923ae1cae2ded5375ac41aa73d547de0d56f24d8a",
+      "afterPresent": false,
+      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
+    },
+    {
+      "path": [
+        "skillItems",
+        "Slayer",
+        "Cave bug#Level 11",
+        "Starved ancient effigy"
+      ],
+      "beforePresent": true,
+      "before": {
+        "1": "1/1800000"
+      },
+      "beforeRecordSha256": "e2e71beb3b969f2a2328bc1928744533eda9d0672bfe9f9d1bf5ecfc5ac7c991",
+      "afterPresent": false,
+      "reason": "Invalid low-combat effigy source: Ancient effigies revision 37088939 excludes monsters below combat level 20; see provenance.ancientEffigies for source and template revisions."
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Ardougne Achievements#Hard|~ Complete the Hard Achievements",
+        "Tasks"
+      ],
+      "beforePresent": true,
+      "before": {
+        "~|Ardougne Achievements#Medium|~ Complete the Medium Achievements": "Diary",
+        "~|Ardougne Achievements#Hard|~ Blood Bank Withdrawal": "Diary",
+        "~|Ardougne Achievements#Hard|~ A Taste of the Exotic": "Diary",
+        "~|Ardougne Achievements#Hard|~ It's My Newt": "Diary",
+        "~|Ardougne Achievements#Hard|~ Monkey Business": "Diary",
+        "~|Ardougne Achievements#Hard|~ Who Wants to Watch the Watchtower?": "Diary",
+        "~|Ardougne Achievements#Hard|~ Living on a Prayer": "Diary",
+        "~|Ardougne Achievements#Hard|~ Vine-detta": "Diary",
+        "~|Ardougne Achievements#Hard|~ Get Your Stinking Hands Off Me": "Diary",
+        "~|Ardougne Achievements#Hard|~ It Just Croaked": "Diary",
+        "~|Ardougne Achievements#Hard|~ Not on My Watch": "Diary",
+        "~|Ardougne Achievements#Hard|~ Ourania Mania": "Diary",
+        "~|Ardougne Achievements#Hard|~ You're the Dirty Rascal": "Diary",
+        "~|Ardougne Achievements#Hard|~ Nice View": "Diary",
+        "~|Ardougne Achievements#Hard|~ Just Like That": "Diary",
+        "~|Ardougne Achievements#Hard|~ Shadow Boxing": "Diary",
+        "~|Ardougne Achievements#Hard|~ Brace Yourself": "Diary"
+      },
+      "beforeRecordSha256": "81c5034998254d3b93db352d58251d56f4c9359fc7396756ab3024eaefdbf59f",
+      "afterPresent": true,
+      "after": {
+        "~|Ardougne Achievements#Medium|~ Complete the Medium Achievements": "Diary",
+        "~|Ardougne Achievements#Hard|~ Blood Bank Withdrawal": "Diary",
+        "~|Ardougne Achievements#Hard|~ A Taste of the Exotic": "Diary",
+        "~|Ardougne Achievements#Hard|~ It's My Newt": "Diary",
+        "~|Ardougne Achievements#Hard|~ Monkey Business": "Diary",
+        "~|Ardougne Achievements#Hard|~ Who Wants to Watch the Watchtower?": "Diary",
+        "~|Ardougne Achievements#Hard|~ Living on a Prayer": "Diary",
+        "~|Ardougne Achievements#Hard|~ Vine-detta": "Diary",
+        "~|Ardougne Achievements#Hard|~ Get Your Stinking Hands Off Me": "Diary",
+        "~|Ardougne Achievements#Hard|~ It Just Croaked": "Diary",
+        "~|Ardougne Achievements#Hard|~ Not on My Watch": "Diary",
+        "~|Ardougne Achievements#Hard|~ Ourania Mania": "Diary",
+        "~|Ardougne Achievements#Hard|~ You're the Dirty Rascal": "Diary",
+        "~|Ardougne Achievements#Hard|~ Nice View": "Diary",
+        "~|Ardougne Achievements#Hard|~ Just Like That": "Diary",
+        "~|Ardougne Achievements#Hard|~ Shadow Boxing": "Diary",
+        "~|Ardougne Achievements#Hard|~ Brace Yourself": "Diary",
+        "~|Ardougne Achievements#Hard|~ Artillery Strike": "Diary"
+      },
+      "reason": "Restore required Hard task 17 (Artillery Strike), retaining all 16 other same-tier duties and the Medium prerequisite. See provenance.ardougneHard."
     }
   ]
 };

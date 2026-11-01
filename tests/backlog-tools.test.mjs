@@ -61,14 +61,14 @@ test('reason groups start folded, paint only when opened and retain per-player f
   const details = h.find('details'); assert.equal(details.open, false);
   details.open = true; await details.emit('toggle'); assert.deepEqual(h.painted, ['task:0', 'task:1']);
   h.render(); assert.equal(h.find('details').open, true);
-  h.member('reed'); h.render(); assert.equal(h.find('details').open, false); assert.ok(h.find('span', 'Waiting for Player (2)'));
+  h.member('reed'); h.render(); assert.equal(h.find('details').open, false); assert.ok(h.find('span', 'Waiting for Player (2 unique tasks)'));
   h.member('actor1'); h.render(); assert.equal(h.find('details').open, true);
 });
 
 test('group restore sends one revision-bound subset command, with matches only and personal search state', async () => {
   const h = harness(); h.render(); const input = h.find('input');
   await h.search('copper'); assert.strictEqual(h.find('input'), input, 'Search stays mounted while typing');
-  assert.ok(h.find('span', 'Later (1)'));
+  assert.ok(h.find('span', 'Later (1 unique task)'));
   await h.find('button', 'Restore these').emit('click');
   assert.deepEqual(h.calls, [{ payload: { type: 'clear-backlog', memberId: 'actor1', taskIds: ['task:0'] }, revision: 7 }]);
   h.member('reed'); h.render(); assert.equal(h.find('input').value, '');
@@ -110,7 +110,7 @@ test('view-only links retain search and readable folded groups without restore c
   assert.equal(walk(h.host).filter(node => node.tagName === 'BUTTON').length, 0);
   assert.equal(walk(h.target).filter(node => node.tagName === 'BUTTON').length, 0);
   const details = h.find('details'); details.open = true; await details.emit('toggle'); assert.equal(h.painted.length, 2);
-  await h.search('copper'); assert.ok(h.find('span', 'Later (1)')); assert.equal(h.calls.length, 0);
+  await h.search('copper'); assert.ok(h.find('span', 'Later (1 unique task)')); assert.equal(h.calls.length, 0);
   assert.ok(!h.host.textContent.includes('Restore these'));
 });
 

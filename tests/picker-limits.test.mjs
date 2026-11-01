@@ -94,7 +94,7 @@ test('cold-start leases enforce account and global bounds and release exactly on
   first(); first(); assert.ok(limits.coldStart(limits.scope(account, B))); second();
 });
 
-test('router refuses a second cold context before calling its factory, with retry advice', async t => {
+test('router waits a second cold context before calling its factory, preserving the cold lease', async t => {
   const gate = Promise.withResolvers(), entered = Promise.withResolvers();
   const pickerLimits = createPickerLimits({ coldStartsGlobal: 1 });
   const calls = [];
@@ -112,9 +112,9 @@ test('router refuses a second cold context before calling its factory, with retr
     await router.handle(request, response, { host: '127.0.0.1' }); return { status: response.statusCode, headers };
   }
   const first = send(A, 'one'); await entered.promise;
-  const refused = await send(B, 'two'); assert.equal(refused.status, 503); assert.ok(refused.headers.get('retry-after'));
+  const second = send(B, 'two'); await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(calls, [A]); gate.resolve(); assert.equal((await first).status, 200);
-  assert.equal((await send(B, 'two')).status, 200); assert.deepEqual(calls, [A, B]);
+  assert.equal((await second).status, 200); assert.deepEqual(calls, [A, B]);
 });
 
 

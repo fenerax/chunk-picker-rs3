@@ -84,7 +84,7 @@ export function createDuoBacklogView({ document, getState, getMemberId, getOwner
     if (open) requestLocations(allRows);
     const groups = selectDuoBacklogGroups(entries, state, memberId, ownerFilter, search.value, locationName, metadata), rows = groups.flatMap(group => group.tasks);
     const count = values => new Set(values.map(entry => entry.id)).size;
-    summary.textContent = search.value.trim() ? `${count(rows)} of ${count(allRows)} tasks` : `${count(allRows)} tasks`;
+    summary.textContent = `${search.value.trim() ? `${count(rows)} of ` : ''}${count(allRows)} unique task${count(allRows) === 1 ? '' : 's'} · ${rows.length} reason row${rows.length === 1 ? '' : 's'}. A task may appear under more than one reason.`;
     if (canEdit()) summary.textContent += ' · Undo brings restored tasks back.';
     if (canEdit() && search.value.trim()) summary.textContent += ' Restore listed ignores this search.';
     if (search.value.trim() && [...loads.values()].some(request => !request.failed)) summary.textContent += ' Loading chunk names…';
@@ -98,7 +98,7 @@ export function createDuoBacklogView({ document, getState, getMemberId, getOwner
     if (!open) return { rows, total: count(allRows) };
     if (!groups.length) target.append(el('p', search.value.trim() ? 'No backlogged tasks match your search.' : 'No backlogged tasks.', 'empty-list'));
     for (const group of groups) {
-      const section = el('section', undefined, 'backlog-group'), details = el('details'), heading = el('summary'), title = el('span', `${group.label} (${group.tasks.length})`, 'backlog-group-title'), body = el('div');
+      const section = el('section', undefined, 'backlog-group'), details = el('details'), heading = el('summary'), title = el('span', `${group.label} (${group.tasks.length} reason row${group.tasks.length === 1 ? '' : 's'})`, 'backlog-group-title'), body = el('div');
       heading.append(title); details.append(heading, body); section.append(details); target.append(section);
       let shown = 0;
       const more = button('Show more', () => { more.remove(); return paint(rowJobs(), generation); }); more.className = 'wide-button';

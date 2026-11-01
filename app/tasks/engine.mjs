@@ -1,10 +1,12 @@
+import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warnings.mjs';
+import { EARLY_TRAVEL_UNLOCKS_RULE, travelRewardKind, usefulTravelRecord, furnitureWorkbenches, nexusDestinationClauses, unlockLabel } from '../data/travel-reward-gates.mjs';
 import { createHowCapture } from './how-proof.mjs';
 import { eligibilityInputKey } from './eligibility-cache.mjs';
 import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
 import { importedXpAllocations, xpChoiceAllocation } from '../core/xp-choices.mjs';
-import { buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
+import { splitEffigyGate, buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { playerControlSkills, resolvePlayerControls } from '../core/player-controls.mjs';
 import { progressBelongsToMember, observedSkills } from '../core/game-progress.mjs';
@@ -40,6 +42,7 @@ import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
 import { slayerUnlockGate, slayerUnlockTaskName } from '../data/slayer-unlock-gates.mjs';
 import { evaluateSlayerUnlockGate } from './slayer-unlock-gates.mjs';
+import { canTrainAllPortSkills } from '../data/port-skills.mjs';
 import { withActivityTimingTags } from '../data/activity-timing.mjs';
 import { withPortsScrollRule } from '../data/ports-scroll-rules.mjs';
 import { compileDialogueSupply, dialogueSupplyBlocker, dialogueSupplyNote, dialoguePaymentText, compileFiniteRewards, finiteRewardPreview,
@@ -158,8 +161,8 @@ export function createTaskEngine(definitions, options = {}) {
       if (index.retainedResourceWorld) configureAutomaticTransport(index.retainedResourceWorld, baselineProvider);
     }
   };
-  const variant = (tasks, corrections, milestones) => {
-    const key = `${tasks}:${corrections}:${milestones}`;
+  const variant = (tasks, corrections, milestones, early = false) => {
+    const key = `${tasks}:${corrections}:${milestones}:${early}`;
     if (!variants.has(key)) {
       let data = definitions;
       if (corrections) {
@@ -167,20 +170,28 @@ export function createTaskEngine(definitions, options = {}) {
         data = applyMetadataCorrections(data, { corrections: catalogue.metadataCorrections ?? [] });
       }
       if (tasks) data = applySkillGuideTasks(data, { catalogue, includeInformationalMilestones: milestones });
-      variants.set(key, createCompiledTaskEngine(data, { ...baseOptions, metadataCorrections: false, equipmentCorrections: false }, accessIndexes));
+      variants.set(key, createCompiledTaskEngine(data, { ...baseOptions, metadataCorrections: false, equipmentCorrections: false, earlyTravelUnlocks: early }, accessIndexes));
       configureProviders();
     }
     return variants.get(key);
   };
-  const variantForRules = rules => variant(skillGuideTasks ?? rules?.[SKILL_GUIDE_TASKS_RULE] === true,
+  const variantForRules = (rules, early = false) => variant(skillGuideTasks ?? rules?.[SKILL_GUIDE_TASKS_RULE] === true,
     skillGuideCorrections ?? rules?.[SKILL_GUIDE_CORRECTIONS_RULE] === true,
-    skillGuideMilestones ?? rules?.[SKILL_GUIDE_MILESTONES_RULE] === true);
+    skillGuideMilestones ?? rules?.[SKILL_GUIDE_MILESTONES_RULE] === true, early);
+  const variantForMember = (state, memberId) => {
+    const member = state.members.find(member => member.id === memberId);
+    if (!member) throw new TypeError(`Unknown member: ${memberId}`);
+    const legacy = state.legacy?.maps?.[member?.sourceMapId]?.rules;
+    const rules = { ...(!hasGameplayMigration(state, member) ? legacy : {}), ...state.taskRules, ...member?.taskRules };
+    for (const { ruleId } of taskRuleDiagnostics(rules)) delete rules[ruleId];
+    return variantForRules(state.rules, rules[EARLY_TRAVEL_UNLOCKS_RULE] === true && taskRuleEnabled(rules, EARLY_TRAVEL_UNLOCKS_RULE));
+  };
   const initial = variant(skillGuideTasks === true, skillGuideCorrections === true, skillGuideMilestones === true);
   engine = Object.freeze({ datasetDigest: dataset?.digest, catalogue: initial.catalogue,
     prepare(rules) { variantForRules(rules).prepare(); },
-    how(state, memberId, taskId, options) { return variantForRules(state.rules).how(state, memberId, taskId, options); },
+    how(state, memberId, taskId, options) { return variantForMember(state, memberId).how(state, memberId, taskId, options); },
     evaluate(state, memberId, evaluateOptions) {
-      return variantForRules(state.rules).evaluate(state, memberId, evaluateOptions);
+      return variantForMember(state, memberId).evaluate(state, memberId, evaluateOptions);
     } });
   baselineProvider = { definitions, engine };
   configureProviders();
@@ -189,7 +200,7 @@ export function createTaskEngine(definitions, options = {}) {
 
 function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, cacheResources = false, resourceCatalogue, resourceSelectors,
   cacheArchaeology = false, archaeologyCatalogue, metadataCorrections = false, equipmentCorrections = false, cacheShops = false, shopCatalogue,
-  lodestones, transportRoutes, transportFactsByMember } = {}, accessIndexes = []) {
+  lodestones, transportRoutes, transportFactsByMember, earlyTravelUnlocks = false } = {}, accessIndexes = []) {
   if (!definitions || typeof definitions.challenges !== 'object') throw new TypeError('Task definitions need challenges.');
   definitions = applyCacheShops(definitions, { enabled: cacheShops, shops: shopCatalogue });
   if (metadataCorrections) definitions = applyMetadataCorrections(definitions);
@@ -212,7 +223,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   const code = definitions.codeItems ?? {};
   const compiled = [], byKey = new Map(), compileDiagnostics = [];
   for (const [category, entries] of Object.entries(definitions.challenges)) for (const [rawLabel, rawRecord] of Object.entries(entries)) {
-    const record = normalize(withPortsScrollRule(category, withActivityTimingTags(category, rawRecord, rawLabel), rawLabel));
+    const record = normalize(usefulTravelRecord(category, rawLabel, withPortsScrollRule(category, withActivityTimingTags(category, rawRecord, rawLabel), rawLabel), definitions, earlyTravelUnlocks));
     for (const field of ['Skills', 'SkillsNeeded', 'Requirements']) if (record[field]) {
       record[field] = Object.fromEntries(Object.entries(record[field]).map(([skill, level]) => {
         const canonical = canonicalSkills.get(skill.toLowerCase()) ?? (skill === 'Constituiton' ? 'Constitution' : skill);
@@ -250,6 +261,11 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     for (const [field, aliases] of [['Chunks','chunksPlus'], ['Items','itemsPlus'], ['Objects','objectsPlus'], ['NPCs','npcsPlus'], ['Monsters','monstersPlus'], ['Monster','monstersPlus'], ['Shops','shopsPlus'], ['Mix','mixPlus']]) {
       for (const token of array(record[field])) requirements.push({ field, ...compileAlias(token, code[aliases]) });
     }
+    if (travelRewardKind(category, rawLabel, record) === 'furniture') {
+      for (const requirement of requirements) if (requirement.field === 'Objects' && requirement.clean === 'Furniture workbench') {
+        requirement.alternatives = furnitureWorkbenches(Number(record.Level ?? 1));
+      }
+    }
     const dependencies = Object.entries(record.Tasks ?? {}).map(([label, cat]) => ({ category: cat, ...compileAlias(label, code.tasksPlus, false) }));
     const level = Number(record.Level ?? 1);
     const needs = { ...record.Requirements, ...record.SkillsNeeded, ...record.Skills };
@@ -272,6 +288,12 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         dependency, byKey.get(keyOf(dependency.category, name))?.record, any)));
     }
   }
+  const usefulGates = new Map(compiled.flatMap(task => {
+    const kind = travelRewardKind(task.category, task.rawLabel, task.record);
+    return !earlyTravelUnlocks && kind ? [[task, kind]] : [];
+  }));
+  const nexusDestinations = nexusDestinationClauses(definitions);
+  const cannonSetup = compiled.find(task => task.category === 'Ranged' && unlockLabel(task.rawLabel) === 'Setup a dwarf multicannon');
   const slayerGates = new Map(compiled.flatMap(task => {
     const gate = slayerUnlockGate(task.category, task.rawLabel, task.record);
     return gate ? [[task, gate]] : [];
@@ -293,7 +315,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   for (const [selector, requirements] of Object.entries(definitions.taskUnlocks?.Items ?? {})) {
     const [item, source] = selector.split('^');
     const list = outputGates.get(item) ?? [];
-    list.push({ source, requirements }); outputGates.set(item, list);
+    const split = item === 'Starved ancient effigy' ? splitEffigyGate(requirements) : { gate: requirements, effigies: false };
+    list.push({ source, requirements: split.gate, effigies: split.effigies }); outputGates.set(item, list);
   }
   const producers = new Map();
   const declaredOutputRoots = new Map();
@@ -775,10 +798,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (Object.hasOwn(source, 'probability')) return source.primary === true && passesRateCutoff(source.probability, rules, 'primary');
       return source.primary === true;
     };
-    const matchesItemSources = (list, record, category, itemName) => {
+    const matchesItemSources = (list, record, category, itemName, evidence) => {
       // Virtual outputs from an unselected processing candidate are conditional
       // multistep supplies, not ordinary output or equipment proof (worker:4457).
-      let allowMulti;
+      let allowMulti, rejectedMulti = false, rejectedCrafted = false;
       // Prayer recipes consume crafted materials (incense, urns, etc.). Wielding
       // restrictions apply to equipment/training rows, not those recipe inputs.
       const prayerRecipe = category === 'Prayer' && array(record?.Output).length > 0 && !definitions.equipment?.[itemName];
@@ -791,15 +814,24 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         if (source.processingMode === 'multi') {
           allowMulti ??= on(rules, 'Multi Step Processing', false)
             && !(['Extra', 'Nonskill'].includes(category) || (MONSTER_TRAINING.has(category) || ['Ranged', 'Prayer', 'Summoning', 'Necromancy'].includes(category)) && !record?.['Not Equip']);
-          if (!(allowMulti && Number(record?.Level ?? 1) >= source.producerLevel)) continue;
+          if (!(allowMulti && Number(record?.Level ?? 1) >= source.producerLevel)) { rejectedMulti = true; continue; }
         }
         const type = excludeCrafted || !nonShop || !channel ? sourceType(source) : null;
-        if (excludeCrafted && type === 'task' && PROCESSING.has(source.category)) continue;
+        if (excludeCrafted && type === 'task' && PROCESSING.has(source.category)) { rejectedCrafted = true; continue; }
         nonShop ||= !type.includes('shop');
         allowed ||= record.AllowedSources.includes(sourceName(source));
         channel ||= type.includes(record.Source);
         // Each constraint can be witnessed by a different admitted source.
         if (nonShop && allowed && channel) return true;
+      }
+      // Observe the same predicate only on the final explanation path. Each
+      // condition is witnessed independently; never require one source to pass all.
+      if (evidence) {
+        if (!allowed) evidence.push({ kind: 'allowed-sources', detail: `allowed sources: ${array(record.AllowedSources).map(plainLabel).join(', ')}` });
+        if (!nonShop) evidence.push({ kind: 'non-shop', detail: 'a non-shop source is required' });
+        if (!channel) evidence.push({ kind: 'source-channel', detail: `required source channel: ${record.Source}` });
+        if (rejectedCrafted) evidence.push({ kind: 'crafted-wielding', detail: 'Wield Crafted Items is off for this equipment or training requirement' });
+        if (rejectedMulti) evidence.push({ kind: 'conditional-processing', detail: 'conditional multistep supplies are not admitted for this requirement at its current level and processing settings' });
       }
       return false;
     };
@@ -902,6 +934,14 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         hasQuestTask: name => valid.has(slayerEntranceTasks.get(name)), slayerLevel: levels.Slayer,
       });
     }
+    function cannonAvailable() {
+      if (hasItem('Dwarf multicannon', {}, 'Extra') || cannonSetup && valid.has(cannonSetup.key)) return true;
+      // Legacy conversion stock is not a cannon supply by itself: accepting it
+      // would let a conversion open its own gate. Other admitted variant sources
+      // (for example a personal obtain record) do establish an available cannon.
+      return ['Gold dwarf multicannon', 'Royale cannon', 'Royale dwarf multicannon', 'Dwarven siege engine'].some(name =>
+        hasItem(name, {}, 'Extra') && sourceList(name).some(source => !sourceType(source).includes('shop') && source.processingMode !== 'multi'));
+    }
     function check(task, explain = false) {
       counters.checks++;
       if (!explain && staticBlocked.has(task)) return unavailableCheck;
@@ -929,9 +969,22 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }
       if (record.UnlocksArea && access.blockedAreas?.has(task.rawLabel)) add('access', explain ? `${task.rawLabel} is manually blocked by the current member.` : undefined);
       if (blocked) return explain ? blockers : unavailableCheck;
+      if (task.tags.includes('PortSkills') && !canTrainAllPortSkills(levels, caps)) {
+        add('training', explain ? 'These goals start when all twelve port skills can reach level 90.' : undefined);
+      }
       const slayerGate = slayerGates.get(task);
       if (slayerGate && !slayerGateStatus(task, slayerGate).open) {
         add('slayer-unlock', explain ? `Requires: ${slayerGate.condition}` : undefined);
+        if (!explain) return unavailableCheck;
+      }
+      const usefulGate = usefulGates.get(task);
+      const waiting = usefulGate === 'balloon' && !availableLocation('11060') ? 'Waiting until Entrana is reachable'
+        : usefulGate === 'attunement' && !['9011', '14659'].some(availableLocation) ? 'Waiting until a destination or the portal is unlocked'
+          : usefulGate === 'nexus' && nexusDestinations.some(clause => !clause.locations.some(availableLocation)) ? 'Waiting until a destination is unlocked'
+            : usefulGate === 'cannon' && !cannonAvailable()
+              ? 'Waiting until a cannon is available' : null;
+      if (waiting) {
+        add('useful-unlock', waiting);
         if (!explain) return unavailableCheck;
       }
       // Manual checks need in-game evidence, never inferred map or supply access.
@@ -1032,11 +1085,14 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         add('requirements', explain ? typeof record.RequirementAlternativesDescription === 'string' ? `Requires ${record.RequirementAlternativesDescription}` : `Requires one of: ${task.requirementAlternatives.map(clause => [
           ...clause.needs.map(([skill, required]) => `${skill} ${required}`),
           ...clause.points.map(([name, required]) => `${name === 'TotalLevelNeeded' ? 'total level' : name} ${required}`)
-        ].join(' and ')).join(' or ')}.` : undefined);
+        ].join(' and ')).map(clause => task.requirementAlternatives.length > 1 && clause.includes(' and ') ? `(${clause})` : clause).join(' or ')}.` : undefined);
       }
       if (record.ClueTier) {
         const clues = access.clues.get(record.ClueTier);
         if (!(typeof clues === 'number' ? clues > 0 : clues?.size > 0)) add('clue', explain ? `No accessible ${record.ClueTier} clue location.` : undefined);
+      }
+      if (explain && usefulGate === 'furniture' && blockers.some(blocker => ['items', 'objects', 'training', 'tasks', 'membership'].includes(blocker.kind))) {
+        blockers.unshift({ kind: 'useful-unlock', detail: 'Waiting until you can build it' });
       }
       return explain ? blockers : blocked ? unavailableCheck : availableCheck;
     }
@@ -1103,8 +1159,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         publicationReads?.set(key, present);
         return present;
       }));
-      for (const { source, requirements } of outputGates.get(name) ?? []) {
-        if (source === undefined || source === task.rawLabel || source?.endsWith('-source') && task.rawLabel.toLowerCase().includes(source.slice(0, -7).toLowerCase()) || source === '' && kind === 'drop') {
+      for (const { source, requirements, effigies } of outputGates.get(name) ?? []) {
+        if (source === undefined || source === task.rawLabel || source?.endsWith('-source') && task.rawLabel.toLowerCase().includes(source.slice(0, -7).toLowerCase()) || source === '' && (kind === 'drop' || effigies && kind === 'task' && task.category === 'Slayer' && task.record.Source === 'drop')) {
+          if (effigies && !on(rules, 'Ancient Effigies', false)) return false;
           if (!satisfies(requirements)) return false;
         }
       }
@@ -1161,7 +1218,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     function proofEnvironment() {
       return { available: requirementNameAvailable, sources: sourceList, matches: matchesItemSources, get access() { return access; }, valid, levels, passive,
         observed: observedProgress, controls: playerControls, caps, anyAchievements, rules, ownLocation,
-        monsterGate: name => bossGateData.some(gate => gate.monsters?.includes(name)) ? 'boss-gates' : Object.hasOwn(definitions.slayerMonsters ?? {}, name) ? 'slayer-level' : null, slayerGate: task => slayerGates.has(task) };
+        monsterGate: name => bossGateData.some(gate => gate.monsters?.includes(name)) ? 'boss-gates' : Object.hasOwn(definitions.slayerMonsters ?? {}, name) ? 'slayer-level' : null, slayerGate: task => slayerGates.has(task),
+        // Usefulness waits are not compiled requirements; the proof reports them as a gap.
+        usefulGate: task => ['balloon', 'attunement', 'nexus', 'cannon'].includes(usefulGates.get(task)) };
     }
     function updateSkills() {
       let changed = false;
@@ -1330,9 +1389,22 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
                 .every(selector => selector.locations.includes(location))) });
         }
       }
+      const sourcePolicyRejections = [];
+      for (const requirement of blockers.some(blocker => blocker.kind === 'items') ? task.itemRequirements : []) {
+        if (requirementAvailable(requirement, task)) continue;
+        for (const name of requirement.alternatives ?? [requirement.clean]) {
+          const supplies = sourceList(name), conditions = [];
+          if (!items.has(name) || !supplies.length || matchesItemSources(supplies, record, task.category, name, conditions) || !conditions.length) continue;
+          const local = supplies.some(ownSource);
+          sourcePolicyRejections.push({ item: name, local, conditions,
+            detail: `${plainLabel(name)} is available${local ? ' locally' : ''}, but its sources do not meet this task’s conditions: ${conditions.map(condition => condition.detail).join('; ')}.` });
+        }
+      }
       const filters = [];
       const own = obligation(task);
-      if (!own) filters.push('This task is outside the member’s own reachable map; partner access is a convenience.');
+      if (!own) filters.push(sourcePolicyRejections.some(reason => reason.local)
+        ? 'Local supplies do not meet this task’s source conditions.'
+        : 'This task is outside the member’s own reachable map; partner access is a convenience.');
       if (caps[task.category] && hideSkills) filters.push('Skills are hidden by the task rule.');
       if (task.category === 'Quest' && hideQuests) filters.push('Quests are hidden by the task rule.');
       if (task.category === 'Quest' && wholeQuests && record.QuestPoints === undefined && !record.ManualShow) filters.push('Quest tasks are configured to show whole completion tasks.');
@@ -1355,6 +1427,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const explanation = blockers.length ? blockers.map(value => value.detail).join(' ') : taskSources.length ? 'You can reach the required locations, item sources, prerequisite tasks and training methods.' : completed.has(task.id) ? 'You recorded completing this task in-game.' : 'All listed requirements are met.';
       const sourceEligible = !processingTasks.has(task) || admitted.has(task.id) || completedTask(task);
       const row = { id: task.id, label: task.label, rawLabel: task.rawLabel, category: task.category, obligation: own, level: task.level, primary: !!record.Primary, ...(!sourceEligible && !blockers.length ? { sourceEligible: false } : {}), primaryMethod: !!primaryEligible(task, blockers.length > 0) && (task.category !== 'Smithing' || smithingPrimary), status: blockers.some(value => value.kind === 'unsupported') ? 'unsupported' : blockers.length ? 'blocked' : 'available', blockers, sources: taskSources, explanation: [explanation, ...partnerTraining, ...partnerSupplies, ...(!sourceEligible && !blockers.length ? ['You can make this recipe, but your processing rules exclude its products from available supplies and training.'] : [])].join(' '), personalCompleted: recordedCompleted.has(task.id), challengeSatisfied: challengeSatisfied(task.id), hidden: filters.length > 0, hiddenReasons: filters, wiki: task.wiki, baseQuest: record.BaseQuest, record };
+      if (sourcePolicyRejections.length) {
+        row.sourcePolicyRejections = sourcePolicyRejections;
+        row.explanation += ` ${sourcePolicyRejections.map(reason => reason.detail).join(' ')}`;
+      }
       if (slayerGates.has(task)) row.slayerUnlockGate = slayerGateStatus(task, slayerGates.get(task));
       if (task.dialogueSupply) {
         row.dialogueSupply = structuredClone(task.dialogueSupply);
@@ -1390,7 +1466,12 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     processing = selectProcessingSources(rows, [...items].map(name => ({ name, sources: sourceList(name) })),
       Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { passiveLevel: passive[skill], primary: trained.has(skill),
         manualPrimary: playerControls.primaryOverrides[skill] === true }])), rules, definitions, serializedAccess, ordinaryProcessingInput);
+    for (const row of rows) if (row.sourceEligible === false && processing.sourceExclusions[row.id]) {
+      row.sourceExclusion = processing.sourceExclusions[row.id];
+      row.explanation = row.explanation.replace('You can make this recipe, but your processing rules exclude its products from available supplies and training.', row.sourceExclusion.detail);
+    }
     const result = { tasks: rows, houseStorage: { ...houseStorage, tasks: undefined }, playerControls, effectiveSlayerLock, slayerLockRelease, bossGates, access: serializedAccess, obligationAccess: serializeAccess(ownAccess), ownItems: [...ownItems].sort(), ownItemOrigins, partnerConnections: connections ?? { regions: [], byChunk: {} }, items: [...items].sort().map(name => ({ name, sources: sourceList(name) })), equipment, training: Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { level: levels[skill], cap: caps[skill], primary: trained.has(skill), passiveLevel: passive[skill], viaPartners: ownTraining.has(skill) ? [] : [...(trainingVia.get(skill) ?? [])], primaryOverride: playerControls.primaryOverrides[skill] ?? null, manualPrimary: playerControls.primaryOverrides[skill] === true, passiveOverride: playerControls.passiveLevels[skill] ?? null, maxOverride: playerControls.maxLevels[skill] ?? null, observedLevel: observedProgress[skill]?.level ?? null, observedXp: observedProgress[skill]?.xp ?? null, observedSource: observedProgress[skill]?.source ?? null, observedFetchedAt: observedProgress[skill]?.fetchedAt ?? null, observedRunescapeName: observedProgress[skill]?.runescapeName ?? null, observedCapabilityLevel: observedProgress[skill] ? Math.min(observedProgress[skill].level, caps[skill]) : null }])), points, metrics: { ...counters, elapsedMs: performance.now() - started, catalogueCount: compiled.length, availableCount: rows.filter(row => row.status === 'available' && row.obligation).length, unsupportedCount: unsupported }, diagnostics, coverage: { declaredTasks: compiled.length, supportedTasks: compiled.length - unsupported, unsupportedTasks: unsupported, supportedFields: [...KNOWN].filter(field => !['Categories', 'OutputVar'].includes(field)), unsupportedFields: ['Categories', 'OutputVar'], unsupportedRules: UNSUPPORTED_RULES, limitations: ['Some original highest-level task links and Best in Slot comparisons are still incomplete.', 'Some optional XP choices and special item sources are still incomplete. Tasks with unsupported requirements or unidentified sources are excluded.'] } };
+    addUnknownDropWarnings(rows, unknownDropContext(result, definitions, (source, row, name) => matchesItemSources([source], row.record, row.category, name), rules), rules);
     if (proof) Object.defineProperty(result, 'howProof', { value: proof.finish(howRequest.taskId, result, howRequest.context) });
     Object.defineProperty(result, 'processing', { value: processing });
     result.finiteRewards = rows.flatMap(row => row.finiteRewards ?? []);

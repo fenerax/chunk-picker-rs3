@@ -1,7 +1,11 @@
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
+import { masterGateFixture } from './fixtures/slayer-master-gates.mjs';
 import assert from 'node:assert/strict';
+import { buildActivityInfo } from '../app/tasks/activity.mjs';
 import { createInfoPanels } from '../app/web/info-panels.mjs';
+import { plainLabel } from '../app/tasks/engine.mjs';
+import { createScreenUi } from '../app/web/screen-ui.mjs';
 import { caveFixture } from './fixtures/why-chain.mjs';
 import { buildWhyChain } from '../app/tasks/why-chain.mjs';
 
@@ -45,6 +49,43 @@ function harness(preferences = {}, storage) {
   const openTraining = async () => { await panels.activityInfo(); const tile = walk(ui.nodes).find(node => node.tag === 'button' && node.attributes?.['aria-label']?.startsWith('Mining:')); assert.ok(tile, 'Mining tile'); await tile.events.click(); openDetails('Training assumptions'); };
   return { state, result, ui, panels, ctx: helpers, find, inputFor, openTraining, openDetails, nodes: () => walk(ui.nodes) };
 }
+
+test('Activity Info skill methods hide unmatched Wiki delimiters without changing task references or goals', async () => {
+  const controls = [
+    ['rs3:task:000038', 'Enter the Polar eagle eyrie|~', 'Enter the Polar eagle eyrie'],
+    ['missing-opening', 'Climb the wall|~', 'Climb the wall'],
+    ['missing-closing', 'Climb ~|the wall', 'Climb the wall'],
+    ['balanced', 'Climb ~|Example wall|~', 'Climb Example wall'],
+    ['variant', 'Climb ~|Example wall#North|~', 'Climb Example wall'],
+    ['alias', 'Climb ~|Walls|~[+]2', 'Climb Walls2'],
+    ['mixed', 'Climb ~|Example wall#North|~ then ~|the fence', 'Climb Example wall then the fence'],
+    ['literal', 'Climb | walk ~ rest', 'Climb | walk ~ rest'],
+  ];
+  for (const [id, rawLabel, displayed] of controls) {
+    const h = harness(), screen = {}; createScreenUi(screen); h.ctx.plain = screen.plain;
+    const task = { id, rawLabel, label: plainLabel(rawLabel), category: 'Agility', level: 35, primary: false,
+      status: 'blocked', obligation: true, personalCompleted: false, challengeSatisfied: false,
+      blockers: [{ kind: 'tasks', detail: 'Complete the prerequisite first.' }] };
+    Object.assign(h.result, { tasks: [task], training: { Agility: { level: 1, cap: 99 } }, presentation: { tasks: [] } });
+    h.result.activityInfo = buildActivityInfo(h.result, h.state, 'a');
+    const beforeState = structuredClone(h.state), beforeResult = structuredClone(h.result);
+    await h.panels.activityInfo();
+    const tile = h.nodes().find(node => node.attributes['aria-label']?.startsWith('Agility:'));
+    assert.ok(tile, id); await tile.events.click();
+    const name = h.nodes().find(node => node.className === 'method-name');
+    assert.equal(name.textContent, displayed, id);
+    assert.ok(h.find('span', 'Blocked'), id);
+    const goals = h.nodes().find(node => node.className === 'skill-stat' && node.children.some(child => child.textContent === 'active goals'));
+    assert.equal(goals.children[0].textContent, '0');
+    await name.events.click();
+    const summary = h.result.activityInfo.skills[0].blockedTasks[0];
+    assert.equal(h.ui.shownTasks[0], summary, 'opening keeps the original summary');
+    assert.equal(summary.id, id); assert.equal(summary.evidenceTaskId, id);
+    assert.equal(summary.label, task.label, 'only the button text is repaired');
+    assert.deepEqual(h.state, beforeState); assert.deepEqual(h.result, beforeResult);
+    assert.deepEqual(h.ui.attempts, []);
+  }
+});
 
 test('saved Slayer chains request full server evidence despite partial browser definitions; sandbox stays local', async () => {
   for (const sandbox of [false, true]) {
@@ -570,5 +611,51 @@ test('Slayer chances show before expansion, with exact weights in advanced detai
     assert.ok(h.find('p', 'Possible after The Blood Pact.'));
     const exact = h.find('p', "Planning: 15 / 60 assignment weight can't be done (25.00%); 0 / 60 can't be checked.");
     assert.equal(!!exact, advanced);
+  }
+});
+
+
+test('Activity Info renders whole-only mandatory-stage evidence through its Can do now chip', async () => {
+  for (const completed of [false, true]) {
+    const h = harness();
+    const row = (id, title, step, record = {}) => ({ id, category: 'Quest', baseQuest: title,
+      rawLabel: `~|${title}|~ ${step}`, label: `${title} ${step}`, record, status: 'available', blockers: [] });
+    const stage = row('stage', 'Earlier', '5');
+    const whole = row('whole', 'Earlier', 'Complete the quest', { QuestPoints: 1, Tasks: { [stage.rawLabel]: 'Quest' } });
+    whole.personalCompleted = completed;
+    const finish = row('finish', 'Later', 'Complete the miniquest', { QuestPoints: 0, Tasks: { [stage.rawLabel]: 'Quest' } });
+    h.result.tasks = [stage, whole, finish];
+    h.result.activityInfo = buildActivityInfo(h.result, h.state, 'a');
+    const before = structuredClone(h.state);
+    await h.panels.activityInfo('Quests');
+    const group = h.nodes().find(node => node.attributes['aria-label'] === 'Quest progress');
+    await group.children.find(node => node.tag === 'button' && node.textContent === 'Can do now').events.click();
+    assert.equal(h.nodes().some(node => node.tag === 'summary' && node.textContent.startsWith('Later ·')), completed);
+    if (completed) {
+      h.openDetails('Later ·');
+      assert.ok(h.find('strong', finish.label));
+      assert.ok(h.nodes().some(node => /Steps you marked done: 0\/1/.test(node.textContent)));
+    }
+    assert.deepEqual(h.ui.attempts, []);
+    assert.deepEqual(h.state, before);
+  }
+});
+
+test('rendered Slayer panel agrees with current master gate and denominator on engine results', async () => {
+  for (const combat of [29, 30, 31]) for (const advanced of [false, true]) {
+    const f = masterGateFixture({ combat }), h = harness({ advanced });
+    Object.assign(h.result, f.result, { activityInfo: f.view(), stateRevision: 7, memberId: 'a' });
+    await h.panels.activityInfo('Slayer');
+    h.openDetails('Higher ·');
+    const text = h.nodes().map(node => node.textContent).join(' ');
+    assert.match(text, /Higher · 1 of 1 assignments possible/);
+    const exact = "Right now: 0 / 10 assignment weight can't be done (0.00%); 0 / 10 can't be checked.";
+    // The lower master remains usable in the same rendered panel.
+    assert.equal(h.nodes().filter(node => node.textContent === exact).length, advanced && combat >= 30 ? 1 : 0);
+    if (combat < 30) {
+      assert.match(text, /Right now: this master is unavailable.*Combat 30/);
+      assert.equal(h.result.activityInfo.slayer.masters[1].warnings.current.poolWeight, undefined);
+    } else assert.doesNotMatch(text, /this master is unavailable/);
+    assert.deepEqual(h.ui.attempts, []);
   }
 });
