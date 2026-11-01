@@ -1,5 +1,23 @@
 import { datasetValue, datasetRuleDefinitions, datasetRuleRecords } from "../dataset-runtime.mjs";
 import { futureSlayerUnlocksRule, FUTURE_SLAYER_UNLOCKS_RULE } from './slayer-unlock-gates.mjs';
+export const EARLY_TRAVEL_UNLOCKS_RULE = 'Early Travel Unlocks';
+export const earlyTravelUnlocksRule = Object.freeze({
+  id: EARLY_TRAVEL_UNLOCKS_RULE, label: EARLY_TRAVEL_UNLOCKS_RULE,
+  description: 'Travel and reward unlocks can be chunk tasks before you can use them',
+  type: 'boolean', default: false, category: 'Miscellaneous',
+  difficultyMarker: 'extreme-supreme',
+});
+export const earlyTravelUnlocksExplanation = {
+  what: earlyTravelUnlocksRule.description,
+  example: 'With this off, balloon routes wait until you can reach Entrana. Cannon upgrades wait until a cannon is available.',
+  grindWarning: 'Turning this on can add rewards you cannot use yet. Furniture still needs its recipe requirements.',
+  sources: [
+    { title: 'Balloon transport system', url: 'https://runescape.wiki/w/Balloon_transport_system?oldid=36927642' },
+    { title: 'Furniture plans', url: 'https://runescape.wiki/w/Furniture_plans?oldid=37180541' },
+    { title: 'Dwarf multicannon', url: 'https://runescape.wiki/w/Dwarf_multicannon?oldid=37197227' },
+  ],
+};
+
 // Declarative metadata extracted from retained upstream index.js v6.9.68.
 // Never execute upstream scripts or copy these defaults over imported player rules.
 const freeze = value => { if (value && typeof value === "object") { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
@@ -40,7 +58,7 @@ export const taskHowPreference = Object.freeze({ id: 'showTaskHow', label: 'Show
 export const authoredSettingDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#authoredSettingDefinitions"), taskHowPreference]);
 const rulePositions = positions(originalRuleStructure);
 const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTaskRules");
-export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule]);
+export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule, earlyTravelUnlocksRule]);
 // Cutoff inputs are configuration even while their switch is off. KeyItem
 // Bosses deliberately sits outside Rare Drop's polarity (and is currently inert).
 export const independentTaskRuleControls = new Set([
@@ -109,6 +127,7 @@ const retainedRuleBehavior = datasetValue("app/data/settings.mjs#retainedRuleBeh
  * Never use original defaults as effective imported values: absence is inheritance.
  */
 export function taskRuleBehavior(id) {
+ if (id === EARLY_TRAVEL_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Lets travel and cannon rewards appear early. Furniture keeps its recipe requirements.' };
  if (id === FUTURE_SLAYER_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Includes eight Slayer Rewards before their monster, area or item is available.' };
  if (id === 'PvM Relics') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: no combat-relic goals are declared. Which combat relics should count has not been defined.' };
  if (id === 'All Droptables Nest') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: it has no matching nest-loot task. Custom inputs need both a matching loot task and an obtainable nest supply route.' };

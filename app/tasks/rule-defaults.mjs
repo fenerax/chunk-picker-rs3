@@ -1,4 +1,4 @@
-import { taskRuleCutoffDefaults, taskRuleCategoryCounts, taskRuleParents } from '../data/settings.mjs';
+import { taskRuleCutoffDefaults, taskRuleCategoryCounts, taskRuleParents, EARLY_TRAVEL_UNLOCKS_RULE } from '../data/settings.mjs';
 import { FUTURE_SLAYER_UNLOCKS_RULE } from '../data/slayer-unlock-gates.mjs';
 
 // Authored unset behavior, independent of captured upstream defaults or save
@@ -6,6 +6,7 @@ import { FUTURE_SLAYER_UNLOCKS_RULE } from '../data/slayer-unlock-gates.mjs';
 // contract by automatic-rule-defaults.test.mjs. Unknown category tags default on.
 export const taskRuleBooleanDefaults = Object.freeze({
   [FUTURE_SLAYER_UNLOCKS_RULE]: false,
+  [EARLY_TRAVEL_UNLOCKS_RULE]: false,
   // F2P is normalized from shared content.f2p, whose unset value is true.
   F2P: true, Skills: true, Quests: true, Achievement: true, Extra: true,
   Attack: true, Strength: true, Defence: true, Constitution: true, Ranged: true,
