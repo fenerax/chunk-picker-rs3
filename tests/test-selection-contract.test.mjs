@@ -44,7 +44,7 @@ test('timing failures redact player, administrator, overlay and bearer credentia
 test('full suite retains quick and full-only files and heavy families remain full-only', () => {
   const files = ['state.test.mjs', 'server.test.mjs', 'web-browser.test.mjs', 'perf-harness.test.mjs',
     'cache-game-data-items.test.mjs', 'original-parity.test.mjs', 'command-performance.test.mjs',
-    'duo-focus-browser.test.mjs', 'setup-guide-browser.test.mjs'];
+    'duo-focus-browser.test.mjs', 'setup-guide-browser.test.mjs', 'backup-file-browser.test.mjs'];
   assert.deepEqual(selectTests(files), ['state.test.mjs']);
   assert.deepEqual(selectTests(files, 'full'), [...files].sort());
   for (const name of files.slice(1)) assert.equal(classifyTest(name), 'full-only', name);

@@ -330,6 +330,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "backup-file-browser.test.mjs",
   "phone-controls-browser.test.mjs",
   "picker-properties.test.mjs",
   "setup-start-pool.test.mjs",
