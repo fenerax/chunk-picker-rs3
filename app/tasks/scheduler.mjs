@@ -76,7 +76,7 @@ function workerEvaluation(message) {
     get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } };
 }
 function validStateInput(state, input, stateInput, type) {
-  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
+  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
     && stateInput.stateJSON.byteLength > 0 && typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
     && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members)
     && state.members.length > 0 && state.members.every(member => member && typeof member.id === 'string' && member.id.length > 0)
@@ -583,6 +583,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     }
   }
   function storeEvaluation(key, revision, type, value, pickerId) {
+    if (type === 'how-task') return false; // Proofs have a separate small worker cache.
     const bytes = value.sandboxJSON ? value.sandboxJSON.length
       + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs, resultCache: value.resultCache }))
       : value.playJSON ? (value.resultJSON?.length ?? 0) + (value.duoJSON?.length ?? 0) + (value.duoSidebarJSON?.length ?? 0) + value.playJSON.length
@@ -951,6 +952,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         const value = cache.get(key); cache.delete(key); cache.set(key, value);
         return Promise.resolve(evaluationWith(value.value, { hit: true }));
       }
+      if (type === 'how-task' && [...pending.values()].some(entry => entry.type === type && entry.pickerId === pickerId && entry.memberId === memberId && entry.key !== key)) return Promise.reject(queueFull());
       let entry = pending.get(key), hit = !!entry;
       if (entry) {
         if (fairness && entry.waiters.size >= fairness.maxWaitersPerJob) { counts.rejected++; return Promise.reject(queueFull()); }

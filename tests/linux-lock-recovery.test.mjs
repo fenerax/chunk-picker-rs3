@@ -62,7 +62,7 @@ test('PID reuse and a previous boot prove that the recorded owner is gone', linu
 
 test('old-format, invalid and unreadable records cannot be taken over', linux, async t => {
   const { lock } = await fixture(t);
-  for (const record of [encode({ pid: 2147483647, startedAt: '2000-01-01' }), '{private invalid json', encode({ pid: 2147483647, processIdentity: 'unknown' })]) {
+  for (const record of ['', '{"pid":', encode({ pid: 2147483647, startedAt: '2000-01-01' }), '{private invalid json', encode({ pid: 2147483647, processIdentity: 'unknown' })]) {
     await writeFile(lock, record);
     await assert.rejects(exclusive(lock, () => assert.fail()), { code: 'EEXIST' });
     assert.equal(await readFile(lock, 'utf8'), record);

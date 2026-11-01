@@ -10,7 +10,7 @@ export function createScreenSettings(c) {
     const owner = c.state.members.find(item => item.id === id);
     return { ...originalSettings, theme: 'dark', roll2: true, taskSidebar: true, taskSearchbar: true, hideChecked: true,
       ...c.state.legacy?.maps?.[owner?.sourceMapId]?.settings,
-      advanced: false, ...owner?.preferences,
+      advanced: false, showTaskHow: true, ...owner?.preferences,
       ...(!c.canWrite() ? { advanced: false, info: true, recent: true, topButtons: true, chunkTasks: true, taskSidebar: true, taskSearchbar: true, ...c.viewerPreferences } : {}), ...c.mapDisplay?.sizes };
   }
 

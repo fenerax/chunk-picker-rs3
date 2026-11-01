@@ -70,8 +70,8 @@ applied personal observations are durable.
 
 HTTP 404/410 retire the RuneMetrics client for the process. DNS/refused/closed
 connection failures also use the closure message but can recover on a later
-request. JSON account errors remain account errors. The existing sunset date
-still disables RuneMetrics. Set `RS3_RUNEMETRICS_ENABLED=0` in the server's
+request. JSON account errors remain account errors. The announced date alone no
+longer disables RuneMetrics: it is used until it answers 404 or 410. Set `RS3_RUNEMETRICS_ENABLED=0` in the server's
 service environment and restart the service to disable it without a release.
 Other/unset values enable it until retirement. The routing option
 `runeMetricsEnabled` also accepts a runtime predicate; it is checked on each

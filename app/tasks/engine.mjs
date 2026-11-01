@@ -1,3 +1,5 @@
+import { createHowCapture } from './how-proof.mjs';
+import { eligibilityInputKey } from './eligibility-cache.mjs';
 import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
@@ -178,6 +180,7 @@ export function createTaskEngine(definitions, options = {}) {
   const initial = variant(skillGuideTasks === true, skillGuideCorrections === true, skillGuideMilestones === true);
   engine = Object.freeze({ datasetDigest: dataset?.digest, catalogue: initial.catalogue,
     prepare(rules) { variantForRules(rules).prepare(); },
+    how(state, memberId, taskId, options) { return variantForRules(state.rules).how(state, memberId, taskId, options); },
     evaluate(state, memberId, evaluateOptions) {
       return variantForRules(state.rules).evaluate(state, memberId, evaluateOptions);
     } });
@@ -391,7 +394,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     }
     evaluationPrepared = true;
   }
-  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
+  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true, howRequest } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
     const started = performance.now();
     const sourceMembershipBlocker = replay.membership.source, itemMembershipBlocker = replay.membership.item;
     const member = state.members.find(value => value.id === memberId);
@@ -505,6 +508,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         || progressBelongsToMember(member.questProgress[task.id], member)))
       .flatMap(task => [task.record.BaseQuest, plainLabel(task.rawLabel).replace(/ Complete the quest$/, '')].filter(Boolean));
     function admitTask(task) {
+      if (proof) proof.task(task, proofEnvironment());
       valid.add(task.key);
       let first = 0, last = validRows.length;
       while (first < last) {
@@ -528,6 +532,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // is neutral in the retained proof and applied only by the final overlay.
     const challengeSatisfied = () => false;
     for (const task of compiled) if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
+    const proof = howRequest ? createHowCapture({ state, memberId, definitions, byKey, completedTask, processingTasks, limits: howRequest.limits, deadline: howRequest.deadline }) : null;
+    if (proof) for (const task of compiled) if (completedTask(task)) proof.task(task);
     const discoveryRows = uniqueTaskKeys && discoveryTasks
       ? processingRowsForDiscovery.filter(task => !staticBlocked.has(task) || completedTask(task))
       : processingRowsForDiscovery;
@@ -561,6 +567,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       return typeof value === 'function' ? value.bind(target) : value;
     } });
     function memoAccess(index, evaluationState, ownerId, options = {}) {
+      if (proof) return calculateAccess(index, evaluationState, ownerId, { ...options, validTasks: options.validTasks ?? accessValidTasks, legacyRules: rules,
+        membershipChecks: replay.membership, transportMemo: replay.transportMemo,
+        proof: ownerId === memberId && index === accessIndex && !options.territory ? proof : undefined });
       const parentTasks = options.validTasks ?? accessValidTasks;
       const territory = value => value ? [[...value.bases], [...value.sections], value.transportNoop === true] : null;
       const key = JSON.stringify([ownerId, evaluationState.rules?.['access.transport'], options.collectSources !== false,
@@ -601,7 +610,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       // State and rules stay fixed throughout this evaluation. Only observed
       // task reads can affect the previous raw result; when a short-circuiting
       // gate changes, recompute and observe the newly visited dependencies.
-      cachedAccess = cachedAccess && sameTaskReads(cachedAccess) ? cachedAccess : replay.access.find(sameTaskReads);
+      cachedAccess = proof ? undefined : cachedAccess && sameTaskReads(cachedAccess) ? cachedAccess : replay.access.find(sameTaskReads);
       if (cachedAccess) {
         for (const key of cachedAccess.reads.keys()) observeCapabilityTask(key);
         ownAccess = copyAccess(cachedAccess.own);
@@ -614,7 +623,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       calculateFreshAccess();
       replay.accessEvaluations++;
       cachedAccess = { own: ownAccess, shared: access, connections, reads: accessTaskReads, order: accessTaskOrder };
-      replay.access.push(cachedAccess);
+      if (!proof) replay.access.push(cachedAccess);
       // Slayer restrictions and produced objects mutate only these copies.
       ownAccess = copyAccess(cachedAccess.own);
       access = cachedAccess.shared === cachedAccess.own ? ownAccess : copyAccess(cachedAccess.shared);
@@ -663,14 +672,14 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     function collectSources() {
       const view = baseItemSourceView(access);
       const entries = replay.base.get(view) ?? [];
-      let entry = entries.find(sameTaskReads);
+      let entry = proof ? undefined : entries.find(sameTaskReads);
       if (!entry) {
         const reads = new Map();
         const tasks = { has(key) { const present = observeCapabilityTask(key); reads.set(key, present); return present; } };
         entry = { reads, value: collectBaseItemSources(definitions, access, { validTasks: tasks, rules,
-          expansionCache: replay.expansions, membershipChecks: replay.membership }) };
+          expansionCache: replay.expansions, membershipChecks: replay.membership, proof }) };
         replay.baseCollections++;
-        entries.push(entry); replay.base.set(view, entries);
+        if (!proof) { entries.push(entry); replay.base.set(view, entries); }
       }
       for (const key of entry.reads.keys()) observeCapabilityTask(key);
       const ownObjects = JSON.stringify([...producedObjects.keys()].map(name => [name,
@@ -1151,10 +1160,15 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       remember();
       return changed;
     }
+    function proofEnvironment() {
+      return { available: requirementNameAvailable, sources: sourceList, matches: matchesItemSources, get access() { return access; }, valid, levels, passive,
+        observed: observedProgress, controls: playerControls, caps, anyAchievements, rules, ownLocation,
+        monsterGate: name => bossGateData.some(gate => gate.monsters?.includes(name)) ? 'boss-gates' : Object.hasOwn(definitions.slayerMonsters ?? {}, name) ? 'slayer-level' : null, slayerGate: task => slayerGates.has(task) };
+    }
     function updateSkills() {
       let changed = false;
       const seed = (skill, own = true, task) => {
-        if (!trained.has(skill)) { trained.add(skill); levels[skill] = caps[skill]; changed = true; }
+        if (!trained.has(skill)) { if (proof) proof.seed(skill, own, task, proofEnvironment()); trained.add(skill); levels[skill] = caps[skill]; changed = true; }
         if (own) ownTraining.add(skill);
         else {
           const locations = task?.requirements.flatMap(requirement => (requirement.alternatives ?? [requirement.clean]).flatMap(name => {
@@ -1221,6 +1235,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       let changed = true;
       const roundStart = counters.passes;
       while (changed && counters.passes - roundStart < compiled.length + 2) {
+        if (proof && (proof.expired() || howRequest.cancelled?.())) {
+          const error = new Error('Proof replay budget exceeded.');
+          error.proof = proof.finish(howRequest.taskId, { tasks: [] }, howRequest.context); throw error;
+        }
         counters.passes++; changed = false;
         obligationCache.clear();
         refreshAccess(); counters.accessPasses++;
@@ -1375,6 +1393,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { passiveLevel: passive[skill], primary: trained.has(skill),
         manualPrimary: playerControls.primaryOverrides[skill] === true }])), rules, definitions, serializedAccess, ordinaryProcessingInput);
     const result = { tasks: rows, houseStorage: { ...houseStorage, tasks: undefined }, playerControls, effectiveSlayerLock, slayerLockRelease, bossGates, access: serializedAccess, obligationAccess: serializeAccess(ownAccess), ownItems: [...ownItems].sort(), ownItemOrigins, partnerConnections: connections ?? { regions: [], byChunk: {} }, items: [...items].sort().map(name => ({ name, sources: sourceList(name) })), equipment, training: Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { level: levels[skill], cap: caps[skill], primary: trained.has(skill), passiveLevel: passive[skill], viaPartners: ownTraining.has(skill) ? [] : [...(trainingVia.get(skill) ?? [])], primaryOverride: playerControls.primaryOverrides[skill] ?? null, manualPrimary: playerControls.primaryOverrides[skill] === true, passiveOverride: playerControls.passiveLevels[skill] ?? null, maxOverride: playerControls.maxLevels[skill] ?? null, observedLevel: observedProgress[skill]?.level ?? null, observedXp: observedProgress[skill]?.xp ?? null, observedSource: observedProgress[skill]?.source ?? null, observedFetchedAt: observedProgress[skill]?.fetchedAt ?? null, observedRunescapeName: observedProgress[skill]?.runescapeName ?? null, observedCapabilityLevel: observedProgress[skill] ? Math.min(observedProgress[skill].level, caps[skill]) : null }])), points, metrics: { ...counters, elapsedMs: performance.now() - started, catalogueCount: compiled.length, availableCount: rows.filter(row => row.status === 'available' && row.obligation).length, unsupportedCount: unsupported }, diagnostics, coverage: { declaredTasks: compiled.length, supportedTasks: compiled.length - unsupported, unsupportedTasks: unsupported, supportedFields: [...KNOWN].filter(field => !['Categories', 'OutputVar'].includes(field)), unsupportedFields: ['Categories', 'OutputVar'], unsupportedRules: UNSUPPORTED_RULES, limitations: ['Some original highest-level task links and Best in Slot comparisons are still incomplete.', 'Some optional XP choices and special item sources are still incomplete. Tasks with unsupported requirements or unidentified sources are excluded.'] } };
+    if (proof) Object.defineProperty(result, 'howProof', { value: proof.finish(howRequest.taskId, result, howRequest.context) });
     Object.defineProperty(result, 'processing', { value: processing });
     result.finiteRewards = rows.flatMap(row => row.finiteRewards ?? []);
     replay.finalizations++;
@@ -1518,5 +1537,11 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
     return eligibilityCache.evaluate(state, memberId, options, () => computeEligibility(state, memberId, options));
   }
-  return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate });
+  function how(state, memberId, taskId, { limits, context, cancelled } = {}) {
+    state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
+    const howRequest = { taskId, limits, cancelled, deadline: performance.now() + Math.min(25000, limits?.replayMs ?? 20000), context: { datasetDigest: dataset?.digest ?? 'injected', capabilityInputKey: eligibilityInputKey(state, memberId), ...context } };
+    try { return computeEligibility(state, memberId, { reuseEligibility: false, howRequest }).howProof; }
+    catch (error) { if (error.proof) return error.proof; throw error; }
+  }
+  return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate, how });
 }

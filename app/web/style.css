@@ -1188,3 +1188,12 @@ progress.skill-meter::-moz-progress-bar{background:var(--gold);border-radius:var
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+
+/* Nested dependency disclosures retain the task dialog's native controls. */
+.why-chain{overflow-wrap:anywhere;min-width:0}
+.why-chain-list{padding-inline-start:12px;margin-block:8px;list-style:none}
+.why-chain-node{min-width:0;margin-block:8px}
+.why-chain-node p{margin-block:6px}
+.why-chain-node summary{cursor:pointer;min-height:32px;padding-block:6px}
+.why-chain-content{min-width:0}
+.why-chain-body>.error{margin-block:8px}

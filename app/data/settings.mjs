@@ -36,7 +36,8 @@ function positions(structure) {
 const settingPositions = positions(originalSettingStructure);
 const settingLabels = datasetValue("app/data/settings.mjs#settingLabels");
 export const settingDefinitions = datasetRuleDefinitions("app/data/settings.mjs#settingDefinitions");
-export const authoredSettingDefinitions = datasetRuleDefinitions("app/data/settings.mjs#authoredSettingDefinitions");
+export const taskHowPreference = Object.freeze({ id: 'showTaskHow', label: 'Show How?', type: 'boolean', default: true });
+export const authoredSettingDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#authoredSettingDefinitions"), taskHowPreference]);
 const rulePositions = positions(originalRuleStructure);
 const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTaskRules");
 export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule]);

@@ -28,6 +28,7 @@ export function createScreenPanels(c) {
     predictUnlock: c.predictUnlock, unlockable: id => c.canWrite() && !!c.world?.surface.has(String(id)) && !c.member().unlocked.includes(String(id)) };
 
   c.panelContext.canWriteMember = id => c.canWrite() && !c.sandbox.active && (!c.sessionMember || c.sessionMember === id);
+  c.panelContext.isSandbox = () => c.sandbox.active;
   c.panelContext.supportsFeature = c.supportsFeature;
   c.panelContext.streamSafe = c.streamSafe;
   c.gamePlugin = createGamePlugin(c);

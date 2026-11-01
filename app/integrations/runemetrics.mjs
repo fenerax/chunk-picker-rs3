@@ -1,7 +1,6 @@
 import { validateRuneScapeName, observedSkills } from '../core/game-progress.mjs';
 import { canonicalTitle } from './quest-mapping.mjs';
 import { previewProgressSnapshot } from './progress-preview.mjs';
-import { RUNE_METRICS_SUNSET_AT } from './progress-source-policy.mjs';
 
 export const RUNE_METRICS_SKILLS = observedSkills;
 export const RUNE_METRICS_CACHE_MS = 3 * 60 * 1000;
@@ -60,7 +59,7 @@ export function createRuneMetricsClient({ fetchImpl = globalThis.fetch, clock = 
   }
   return {
     async snapshot(member) {
-      if (retired || clock() >= RUNE_METRICS_SUNSET_AT) throw runeMetricsError('SOURCE_RETIRED', 'Levels sync from the game plugin now.', 410);
+      if (retired) throw runeMetricsError('SOURCE_RETIRED', 'Levels sync from the game plugin now.', 410);
       const name = validateRuneScapeName(member.runescapeName);
       const key = JSON.stringify([member.id, name.toLowerCase()]), cached = cache.get(key);
       if (cached && clock() - cached.savedAt < cacheMs) return { ...structuredClone(cached.snapshot), cached: true };
@@ -72,7 +71,7 @@ export function createRuneMetricsClient({ fetchImpl = globalThis.fetch, clock = 
         profileUrl.searchParams.set('user', name); profileUrl.searchParams.set('activities', '0');
         const questsUrl = new URL('https://apps.runescape.com/runemetrics/quests'); questsUrl.searchParams.set('user', name);
         const [profile, quests] = await Promise.all([endpoint(profileUrl, name, controller.signal), endpoint(questsUrl, name, controller.signal)]);
-        if (retired || clock() >= RUNE_METRICS_SUNSET_AT) throw runeMetricsError('SOURCE_RETIRED', 'Levels sync from the game plugin now.', 410);
+        if (retired) throw runeMetricsError('SOURCE_RETIRED', 'Levels sync from the game plugin now.', 410);
         if (!Array.isArray(profile?.skillvalues) || !Array.isArray(quests?.quests) || profile.skillvalues.some(row => !row || typeof row !== 'object') || quests.quests.some(row => !row || typeof row !== 'object')) {
           throw runeMetricsError('BAD_RESPONSE', 'RuneMetrics returned an unexpected profile or quest response.', 502);
         }

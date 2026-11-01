@@ -189,3 +189,23 @@ test('east Havenhythe has terrain-only region records without invented task reso
   }
   assert.ok(projectLegacySections(world, new Set(['11825-1000001'])).has('11825-2'));
 });
+
+
+test('the authored Kharid-et exterior policy settles component 1 for every F2P map without opening component 2', () => {
+  const id = '13361-1000001', component = world.cacheWalking.components.get(id);
+  assert.deepEqual(component.counts, { free: 2209, members: 1, unknown: 0 });
+  assert.equal(component.free, true);
+  assert.equal(component.membershipSource, 'wiki-section');
+  assert.equal(world.componentMembership.get('13361').get('1000001'), true);
+  assert.equal(world.sectionMembership.get('13361').get('1'), true);
+  assert.deepEqual(componentLocations(world, '13361-1'), [id]);
+  const state = stateFor(['13361'], { [id]: true });
+  assert.deepEqual(pool(state).map(row => row.id), ['13105', '13360', '13362']);
+  assert.deepEqual(pool({ ...state, rules: { 'content.f2p': false } }).map(row => row.id), ['13105', '13360', '13362', '13617']);
+  assert.equal(state.members[0].preferences, undefined, 'ordinary maps use the same membership policy');
+  assert.equal(createSurfaceEligibility(world, new Set(['13361']), {}, { f2p: true })('13361-1000002'), false);
+  assert.equal(createSurfaceEligibility(world, new Set(['13361']), { [id]: false }, { f2p: true })(id), false);
+  assert.equal(createSurfaceEligibility(world, new Set(['13361']), { '13361-1': false }, { f2p: true })(id), false);
+  const record = world.mapCorrections.find(row => row.chunk === '13361' && row.field === 'sectionF2p');
+  assert.match(record.evidenceUrl, /oldid=37215299$/);
+});

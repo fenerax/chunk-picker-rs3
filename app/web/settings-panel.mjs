@@ -1,13 +1,15 @@
 import { datasetStatusText } from './dataset-status.mjs';
-import { settingDefinitions } from './data/settings.mjs';
+import { settingDefinitions as datasetSettings, taskHowPreference } from './data/settings.mjs';
 import { createDeathSettings } from './death-settings.mjs';
 import { createMiningSettings } from './mining-settings.mjs';
 import { createWoodcuttingSettings } from './woodcutting-settings.mjs';
 import { createBankingSettings } from './banking-settings.mjs';
 import { artStatusText } from './art-status.mjs';
 
-export const implementedPreferences = new Set(['highvis', 'roll2', 'unpick', 'randomStartAlways', 'newTasks', 'recent', 'info', 'chunkTasks', 'topButtons', 'completedTaskColor', 'completedTaskStrikethrough', 'defaultStickerColor', 'cinematicRoll', 'startingChunk', 'theme', 'taskSidebar', 'allTasks', 'hideChecked', 'ids', 'numTasksPercent', 'shiftUnlock', 'rollWarning', 'unlockedBorderColor', 'defaultChunkinfo', 'taskSearchbar', 'hideAchievements']);
+const settingDefinitions = [...datasetSettings, taskHowPreference];
+export const implementedPreferences = new Set(['showTaskHow', 'highvis', 'roll2', 'unpick', 'randomStartAlways', 'newTasks', 'recent', 'info', 'chunkTasks', 'topButtons', 'completedTaskColor', 'completedTaskStrikethrough', 'defaultStickerColor', 'cinematicRoll', 'startingChunk', 'theme', 'taskSidebar', 'allTasks', 'hideChecked', 'ids', 'numTasksPercent', 'shiftUnlock', 'rollWarning', 'unlockedBorderColor', 'defaultChunkinfo', 'taskSearchbar', 'hideAchievements']);
 const settingCopy = {
+  showTaskHow: ['Show How?', 'Show a planning path when you open How? on an available task.'],
   theme: ['Theme', 'Choose the colours used throughout the picker.'],
   startingChunk: ['Starting flag', 'Choose the chunk marked as your starting point.'],
   roll2: ['Roll 2', 'Roll two chunks and keep one.'],
@@ -34,7 +36,7 @@ const settingCopy = {
 const sections = [
   { id: 'map', label: 'Map', ids: ['theme', 'startingChunk'] },
   { id: 'rolling', label: 'Rolling', ids: ['roll2', 'unpick', 'randomStartAlways', 'rollWarning', 'cinematicRoll', 'newTasks', 'shiftUnlock'] },
-  { id: 'tasks', label: 'Tasks', ids: ['chunkTasks', 'taskSidebar', 'taskSearchbar', 'hideChecked', 'completedTaskStrikethrough', 'completedTaskColor', 'numTasksPercent'] },
+  { id: 'tasks', label: 'Tasks', ids: ['chunkTasks', 'taskSidebar', 'taskSearchbar', 'showTaskHow', 'hideChecked', 'completedTaskStrikethrough', 'completedTaskColor', 'numTasksPercent'] },
   { id: 'panels', label: 'Panels', ids: ['info', 'defaultChunkinfo', 'recent', 'topButtons', 'allTasks', 'hideAchievements'] },
   { id: 'topbar', label: 'Top bar', ids: [] },
   { id: 'time', label: 'Time estimates', ids: [] },

@@ -241,7 +241,9 @@ test('full reference compiles uniquely and evaluates synthetic unlocked geograph
   for (const id of reviewedTaskIds) assert.equal(engine.catalogue.filter(task => task.id === id).length, 1, id);
   const requirementTasks = engine.catalogue.filter(task => task.id.startsWith('rs3:task:requirements-'));
   assert.equal(requirementTasks.length, 36, 'The 2026-10-31 requirements corrections add 36 prerequisite tasks.');
-  assert.equal(engine.catalogue.length, 20375 + colossi.length + buildHouseStorageCatalogue().length + reviewedTaskIds.length + requirementTasks.length);
+  const questFixTasks = engine.catalogue.filter(task => task.id.startsWith('rs3:task:qfix1-'));
+  assert.equal(questFixTasks.length, 11, 'The 2026-10-31 quest requirement corrections add 11 helper tasks.');
+  assert.equal(engine.catalogue.length, 20375 + colossi.length + buildHouseStorageCatalogue().length + reviewedTaskIds.length + requirementTasks.length + questFixTasks.length);
   assert.equal(new Set(engine.catalogue.map(task => task.id)).size, engine.catalogue.length);
   const a = member('a', ['12850','12594','12338','12853','11575']);
   const result = engine.evaluate(state([a]), 'a');

@@ -1,5 +1,257 @@
 # Multiplayer into main: final integration gate
 
+
+## Current gate: option absent against MAIN with G15 (2026-10-31)
+
+START: `977cc9e36b62d2f4e00d33fe6ceb17f5c2884b84`.
+MAIN: `18c5af810136e784519fb72a46f53c5e391d0a9a`.
+Both requested refs were fetched, branch `gates` was reset to START, and
+`git merge-base --is-ancestor origin/main HEAD` passed. Node **v24.21.0** was
+checked in every shell. This is the requested **step 3 only** rerun. No full
+suite, quick suite, routing-enabled gate or calculator-checker rerun was made;
+the orchestrator reports CI already passed on this START. Only this audit changes.
+
+**READY.** The earlier option-absent blocker used MAIN before G15. Current MAIN
+contains G15, and the core/progress-provider files behind those differences
+match START exactly. The previous 404-to-200 fallback and web-request differences
+are G15 behavior present on both sides, not a lane regression. The historical
+blocked dispositions below are superseded by this result.
+
+### Exact parity evidence
+
+| Check | MAIN | START | Differences / failures |
+| --- | --- | --- | --- |
+| API/auth/data literal inventory | 119 literals | All 119 retained | 0 missing |
+| Copied-save open, close, reopen, close | 772,989 bytes; 435 gameplay files | Same bytes and content-hash inventory | 0 save, reopen or content-hash differences |
+| Option-absent extended real-save HTTP | 16 responses, all 200 | 16 responses, all 200 | 0 status, raw-body, size or save differences |
+| Synthetic guarded-route matrix | 32 responses | 32 responses | 0 status or raw-body differences |
+| Nine focused test files | 109 passed, 0 failed, 0 skipped | 109 passed, 0 failed, 0 skipped | 0 failures, cancellations or TODOs |
+| Ordinary synthetic progress-sync traces | 8 traces | 8 traces | 0 byte differences |
+| Fresh live-plugin progress probe | 2 web requests | 2 web requests | 0 snapshot-byte differences |
+| Synthetic fallback `/api/runemetrics/preview` | 200, 2 upstream requests, 1 skill row | 200, 2 upstream requests, 1 skill row | 0 status or raw-body differences |
+
+The route matrix covers GET and POST with and without administrator authorization
+for `/api/operator/relink-code`, `/api/operator/service-snapshot`,
+`/api/picker/delete`, `/api/account/delete`, `/auth/claim`, `/auth/reclaim`,
+`/auth/reclaim/signin`, and `/auth/reclaim/done`. It verifies that the additional
+multiplayer route surface preserves option-absent responses. The static inventory
+is supporting coverage, not a semantic proof of every possible request.
+
+The nine focused files are `signin-server.test.mjs`, `signin-provider.test.mjs`,
+`backup-import-server.test.mjs`, `plugin-reads-server.test.mjs`,
+`game-plugin-routes.test.mjs`, `runemetrics-server.test.mjs`,
+`progress-sources.test.mjs`, `runemetrics.test.mjs`, and
+`progress-providers.test.mjs`. These exercise sign-in, saved-state/import/restore,
+backups, plugin endpoints and progress sync under each tree's normal test policy.
+They took **34.26 / 31.90 seconds** on MAIN / START. Sign-in remains off by default;
+registry and picker-limit creation remain conditional on `multiPicker`; this
+comparison omits that option entirely.
+
+### Real-save comparison method and counts
+
+Every server opened a temporary copy. The source remains **766,384 bytes**,
+SHA-256 `64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`.
+MAIN and START independently perform the same normal catalogue refresh and
+produce **772,989 bytes**, SHA-256
+`29cdb0ffbbcaeb43becf13560efd6ad29c13671d8b1776e6d017ca54ed837c5f`.
+Each result is stable after reopening; the **435-file** gameplay content-hash
+inventories match exactly, including retained history and backup contents.
+
+The extended HTTP comparison uses fresh copies of the same MAIN-prepared input,
+which gives both trials identical retained backup IDs. It compares full/play
+state, history, browser plugin status, session, gameplay export, backup listing,
+backup status, rules, the data-module route, both members' full/play tasks and
+native plugin status. The existing public compatibility harness was copied to
+scratch, restricted to option absent, and instrumented to retain response status.
+All response bytes remain intact. Its existing performance-clock preload and
+identical store clock are retained. It compares **170,530,354 response bytes per
+side**, with **0** status, body-hash, size or rewritten-save differences; the
+prepared source hash is unchanged. This is step 3 evidence, not a new claim about
+the routing-enabled or calculator gates on this START.
+
+### Targeted G15 probes and measurements
+
+Both revisions' fresh-plugin snapshots are **2,909 bytes**, SHA-256
+`9872123c87c9bb1b3e24c0f1784f12a3b4736144756bca3661b83ef5df8ddf81`.
+The synthetic fallback HTTP bodies are **531 bytes**, SHA-256
+`a23794f4e12cb302bfdb10765b0a0d07a862620570580c6781c48c5931ed5903`.
+The HTTP fixture supplies an identical fixed clock and UUID on both sides so
+preview IDs are deterministic; no response fields are removed or normalized.
+Both probes pass exact equality assertions, including the expected **200**
+fallback status. There is no remaining differing route or introducing commit
+to attribute.
+
+The existing ordinary sync comparison matches **71,755 bytes**, SHA-256
+`a29e471cddaf6d16792ecb05d3695535a77f62ee7e96523f6d0a811c15b6f3bd`.
+Seven synthetic repetitions give MAIN median **7.046 [5.601–7.837] ms** and START
+**6.274 [5.505–8.139] ms** (min–max), with combined-process peak RSS
+**84,252 KiB**. The real-save HTTP trials took **32.24 / 35.52 seconds**;
+harness-reported sampled process-tree RSS peaks were
+**1,604,743,168 / 1,472,499,712 bytes**, MAIN / START. Those one-sample compatibility
+observations include fixed clocks and some overlapping focused-test activity;
+they are not a performance or capacity conclusion. Memory was checked against
+the **16 GiB** limit before overlapping small synthetic checks.
+
+The private checkout has **0 changed files**; its source hash remains unchanged.
+No private inputs or response bodies were copied into the public repository.
+Temporary drivers and private copies were removed. Public sign-up remains off.
+All requested step 3 comparisons pass; no application change was necessary.
+
+MERGE-CANDIDATE
+
+READY
+
+
+## Previous gate rerun against pre-G15 MAIN (historical)
+
+START: `746766b55628b16431c6436c7cb16ba91e128f8e`.
+MAIN: `18c9ecdd8bf2df7cc03ee06fe9a3cff91b2dba3d`.
+The requested refs were fetched, local branch `gates` was created from the lane,
+and `git merge-base --is-ancestor origin/main HEAD` passed. All commands used
+Node **v24.21.0**. Nothing was pushed. This rerun changes only this audit.
+The earlier test and pack-input blockers below are superseded by these results.
+
+### Required full suite
+
+`npm test` ran once: **663 files, 6,137 passed, 0 failed, 140 skipped**, no
+cancellations or TODOs, in **533.69 seconds**. There were no failures requiring
+standalone attribution on MAIN, and no socket or PID-1 exceptions were needed.
+No application or test files changed, so the application-change quick-suite
+requirement did not apply; no additional full or quick run was made.
+
+### Real-duo checker and startup preservation
+
+The unchanged checker and reference adapter are pinned to
+`2856d0d8d19b49c4d36718bbb2cff1d61e080610` in temporary roots. Their application
+roots point directly to exact MAIN and START. Seed **17**, default request caps,
+sequence **8**, `limits.save: 1`, and serial reference/candidate calculators were
+used. As in the earlier multiplayer gate, routing selects the server preparation
+path; the adapter itself has no routing option. Each preparation was opened,
+closed, reopened and closed with process workers and identical fixed store time.
+
+| Routing in preparation | States | Comparisons | Differences | Errors | Duration (s) | Reported calculator peak RSS, MAIN / START (MiB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Absent | 1 | 36 | 0 | 0 | 388.72 | 5,423.21 / 5,837.71 |
+| Present | 1 | 36 | 0 | 0 | 395.70 | 5,666.72 / 5,261.17 |
+
+Both engine-version hashes, in both runs, are
+`3a137c4d14b5ea378ffdb32dcb4436ac6752a9e8de8f39f89c68d654d90c43eb`.
+Corpus manifest SHA-256, routing absent:
+`0a754d53948a192d45c868ecefc30779bc5d0aba374328a9c366d69b605dc0c4`;
+routing present:
+`99fbb6be87276d25cd3ac5c43ba77e3536b29d4e4029445e35affaafca17597c`.
+The inventories contain **415** retained states and **0** uncovered history
+revisions; only the current state is selected. This is the multiplayer gate,
+not a full-history engine gate. The manifest includes backup filenames; independent
+startup creates one random backup ID, so these inventory hashes differ despite
+**0 content-hash inventory differences**.
+
+The source is **766,384 bytes**, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`.
+Current MAIN performs a catalogue refresh. All four configurations produce the
+same **772,989-byte** result, SHA-256
+`29cdb0ffbbcaeb43becf13560efd6ad29c13671d8b1776e6d017ca54ed837c5f`.
+There are **0 cross-tree save differences** and **0 reopen differences** across
+all eight open/close cycles. The serialized source-to-MAIN comparison counts
+**37 additions, 0 removals and 23 changed values**; START is identical to MAIN.
+All **431** source gameplay files remain present; each prepared tree has **435**
+files, **4 added files, 0 missing source files and 1 changed source file**.
+The prepared gameplay trees have **0 content-hash inventory differences**;
+relative to the first preparation, each subsequent tree has **1 missing and
+1 extra path**, the generated backup ID, with **0 changed hashes at common paths**.
+The original private checkout has **0 changed files** and its source hash is
+unchanged. No private input entered this repository.
+
+### Extended HTTP gate
+
+The existing `scripts/perf/duo-compatibility.mjs --extended` ran against exact
+MAIN and START in both routing modes. Its source was the copied save after
+MAIN's normal refresh above, so every trial started with identical retained
+backup IDs. Fresh private copies were made for every trial. No response fields
+were removed or normalized; the existing performance-clock preload and identical
+store clock were used. The prepared source hash remained unchanged.
+
+| Routing | Paired responses | Response / size / save differences | Response bytes per side | MAIN / START duration (s) | Harness-reported sampled tree RSS, MAIN / START (MiB) |
+| --- | ---: | --- | ---: | ---: | ---: |
+| Absent | 16 | 0 / 0 / 0 | 170,530,354 | 30.41 / 29.80 | 1,532.68 / 1,448.73 |
+| Present | 15 | 0 / 0 / 0 | 170,530,196 | 29.76 / 30.85 | 1,447.63 / 1,533.89 |
+
+All four final saves remain **772,989 bytes** with the prepared source hash above.
+These are one-sample compatibility timings with fixed clocks, not performance
+medians or capacity measurements. Calculators were serial in the direct checker;
+the enabled HTTP workload used its normal pool within the checked **16 GiB** limit.
+
+### Option absent: passing coverage and a remaining difference
+
+The route inventory finds **119** API/auth/data literals in MAIN's server and
+**0 missing** from START's server/context/router helpers. This is supporting
+coverage, not semantic proof. Sign-in still defaults to off; registry and picker
+limits remain conditional on `multiPicker`, and the absent path dispatches to
+the legacy context. The extended gate above checks state, history, tasks,
+session, export, retained backups, backup status, rules, data-module and plugin
+reads with **0 differences**.
+
+Eight focused files ran separately on each tree under its normal test policy:
+`signin-server.test.mjs`, `signin-provider.test.mjs`,
+`backup-import-server.test.mjs`, `plugin-reads-server.test.mjs`,
+`game-plugin-routes.test.mjs`, `runemetrics-server.test.mjs`,
+`progress-sources.test.mjs`, and `runemetrics.test.mjs`.
+MAIN: **83 passed / 0 failed / 0 skipped**, **29.57 seconds**.
+START: **84 passed / 0 failed / 0 skipped**, **30.67 seconds**.
+These cover sign-in, save/import/restore, plugin endpoints and progress sync,
+but each tree's tests encode its own provider behavior.
+
+The existing synthetic `progress-sync-comparison.mjs` matches **8 traces**, with
+**0 byte differences**, **71,755 bytes**, SHA-256
+`a29e471cddaf6d16792ecb05d3695535a77f62ee7e96523f6d0a811c15b6f3bd`.
+Seven timing repetitions give MAIN median **6.674 [6.365–8.302] ms** and START
+**7.291 [6.031–10.385] ms** (brackets are min–max); combined-process peak RSS is
+**91,820 KiB**. This small synthetic path is not a real-pack footprint benchmark.
+
+However, exact option-absent parity with MAIN **does not hold**. Two additional
+synthetic comparisons reproduce G15 changes already present in START:
+
+- With a fresh live plugin observation, MAIN returns it without fetching the
+  web (**0 requests**); START fetches and overlays web data (**2 requests**).
+  Snapshot hashes differ: MAIN
+  `f0f9a2ab12335ea7b004d278cf74c99c969ab532718f6c0adb7cf41c17b15e36`, START
+  `16fdcf09750612c9d5423a238bc604236e6f4ff6eab9ad760ce16e7c4126c9cd`.
+- A synthetic HTTP `/api/runemetrics/preview` request, with no `multiPicker`,
+  receives a provider 404 and a configured synthetic Hiscores fallback.
+  MAIN returns **404** with **0** skill rows; START returns **200** with **1**.
+  Both make **2** upstream requests. This is **1 differing HTTP case**.
+  The probe uses the same default dataset as the progress-server tests; an
+  initial open-f2p setup refused this capability with **422 on both sides**
+  before any provider request and was not used as parity evidence.
+
+These differences follow `app/integrations/progress-sources.mjs` and the
+unconditional progress-client construction in the legacy context. They are
+existing G15 behavior, not a failing merge resolution. The previous gate used
+MAIN+G15 as its compatibility baseline; this task explicitly requires exact MAIN.
+No core/integration behavior or assertions were changed to hide the difference.
+
+### Historical disposition
+
+The inherited red-suite and missing-input blockers are closed: the full suite,
+both real-duo checker modes, and the extended HTTP gate all pass. **BLOCKED** on
+the requested exact-MAIN option-absent progress-sync guarantee.
+
+Required resolution: land the reviewed G15 behavior on MAIN through its owning
+change, or explicitly amend the gate brief to allow those provider differences,
+then rerun against the agreed baseline. G15 also changes
+`app/core/state.mjs`, `app/core/game-progress.mjs`, and
+`app/integrations/progress-sources.mjs`; those core/integration files are outside
+this multiplayer gate's ownership, so no G15 behavior repair was attempted here.
+Public sign-up
+remains disabled. Historical launch/operations deferrals below remain separate
+from this compatibility blocker.
+
+NEEDS-WORK
+
+BLOCKED
+
+## Previous gate record (historical)
+
 START: `3b1577232a6a51f77de168497ee6d03ff8096353`.
 LANE: `c325f31fb9812cfc6b44e9b08279e4af7ee60fd0`.
 MAIN: `a46ec91806327e01ef0e24d1f6947497b3a6c04b`.

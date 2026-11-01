@@ -1,3 +1,4 @@
+import { createWhyChainDisclosure } from './task-why-chain.mjs';
 import { createNoteEditor } from './info-panels.mjs';
 import { renderTaskEquipment } from './task-equipment.mjs';
 import { itemIcon } from './icons.mjs';
@@ -55,6 +56,11 @@ export function createScreenTaskDialogs(c) {
     const backlogBox = c.el('div', undefined, 'task-backlog-box');
     if (status.backlogged) backlogBox.append(c.el('p', status.backlogReason ? `Backlogged: ${status.backlogReason}` : 'Backlogged.', 'backlog-reason'), ...(c.canWrite() ? [c.button('Restore from backlog', () => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, backlogged: false }).then(() => c.closeDialog(generation)))] : []));
     else if (c.canWrite()) backlogBox.append(c.button('Backlog…', () => c.backlogForm(backlogBox, { ...task, id: commandTaskId }, () => c.closeDialog(generation), dialogMemberId), 'backlog-open'));
+    if (['blocked', 'unsupported'].includes(task.status) && !task.id.startsWith('custom:')) stack.append(createWhyChainDisclosure(c, { taskId: task.id }, {
+      memberId: dialogMemberId, revision: dialogRevision, advanced: c.advanced,
+      current: () => c.dialogCurrent(generation) && c.state.revision === dialogRevision,
+      ...(c.sandbox.active ? { result: detailResult, definitions: c.definitions } : {}),
+    }));
     stack.append(backlogBox);
     const completion = c.el('div', undefined, 'form-stack task-completion-controls');
     const challengeCheck = c.check(`Counts for our chunk challenge · ${name}`, !!status.challengeCompleted, value => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, challengeCompleted: value }));

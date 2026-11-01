@@ -64,15 +64,17 @@ test('the placeholder returns a calm unavailable state without fetching', async 
   assert.match(value.message, /RuneMetrics has closed.*game plugin/);
 });
 
-test('the sunset boundary skips RuneMetrics including a cached result', async t => {
-  let now = beforeSunset, calls = 0;
-  const sources = createProgressSources({ clock: () => now, runeMetrics: { fetchImpl: async url => { calls++; return legacyFetch(url); } } });
+test('RuneMetrics is still used after the announced date until it answers Gone', async t => {
+  let now = RUNE_METRICS_SUNSET_AT + 1000, calls = 0, gone = false;
+  const sources = createProgressSources({ clock: () => now, runeMetrics: { cacheMs: 0,
+    fetchImpl: async url => { calls++; return gone ? new Response('', { status: 410 }) : legacyFetch(url); } } });
   t.after(() => sources.close());
-  assert.equal((await sources.snapshot(owner)).source, 'runemetrics');
-  now = RUNE_METRICS_SUNSET_AT;
-  assert.equal((await sources.snapshot(owner)).available, false); assert.equal(calls, 2);
-  now++;
-  assert.equal((await sources.snapshot(owner)).available, false); assert.equal(calls, 2);
+  assert.equal((await sources.snapshot(owner)).source, 'runemetrics'); assert.equal(calls, 2);
+  gone = true; now++;
+  const closed = await sources.snapshot(owner);
+  assert.equal(closed.available, false); assert.match(closed.message, /RuneMetrics has closed/);
+  const fetched = calls;
+  assert.equal((await sources.snapshot(owner)).available, false); assert.equal(calls, fetched);
 });
 
 test('HTTP missing and Gone latch retirement; ordinary service failures keep their meaning', async t => {
@@ -88,13 +90,16 @@ test('HTTP missing and Gone latch retirement; ordinary service failures keep the
   }
 });
 
-test('the RuneMetrics adapter refuses cache and in-flight replies after the sunset', async t => {
-  let now = beforeSunset, release;
+test('the RuneMetrics adapter refuses an in-flight reply once an endpoint answers Gone', async t => {
+  let release;
   const gate = new Promise(resolve => { release = resolve; });
-  const client = createRuneMetricsClient({ clock: () => now, fetchImpl: async url => { await gate; return legacyFetch(url); } });
+  const client = createRuneMetricsClient({ clock: () => RUNE_METRICS_SUNSET_AT + 1000, fetchImpl: async url => {
+    if (url.pathname.endsWith('/quests')) return new Response('', { status: 410 });
+    await gate; return legacyFetch(url);
+  } });
   t.after(() => client.close());
   const request = client.snapshot(owner);
-  now = RUNE_METRICS_SUNSET_AT; release();
+  release();
   await assert.rejects(request, { code: 'SOURCE_RETIRED' });
   await assert.rejects(client.snapshot(owner), { code: 'SOURCE_RETIRED' });
 });

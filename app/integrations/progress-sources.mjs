@@ -5,7 +5,7 @@ export { createOfficialApiSource } from './official-api.mjs';
 import { createHiscoresSource } from './hiscores.mjs';
 import { canonicalTitle } from './quest-mapping.mjs';
 import { previewProgressSnapshot } from './progress-preview.mjs';
-import { RUNE_METRICS_SUNSET_AT, PLUGIN_PROGRESS_FRESH_MS, RUNE_METRICS_CLOSED_MESSAGE } from './progress-source-policy.mjs';
+import { PLUGIN_PROGRESS_FRESH_MS, RUNE_METRICS_CLOSED_MESSAGE } from './progress-source-policy.mjs';
 
 export { RUNE_METRICS_CLOSED_MESSAGE } from './progress-source-policy.mjs';
 
@@ -62,7 +62,7 @@ export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () =>
     async snapshot(member) {
       const plugin = () => mergePluginProgress(member, null, pluginSnapshot(member));
       const overlay = web => mergePluginProgress(member, web, pluginSnapshot(member));
-      let failure, closed = retired || !enabled() || clock() >= RUNE_METRICS_SUNSET_AT;
+      let failure, closed = retired || !enabled();
       const unavailable = { available: false, source: 'runemetrics', sourceLabel: 'RuneMetrics',
         message: RUNE_METRICS_CLOSED_MESSAGE };
       if (!member.runescapeName) return closed ? overlay(unavailable) : plugin() ?? {

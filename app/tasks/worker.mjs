@@ -1,4 +1,5 @@
 import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
+import { createHowCache } from './how-cache.mjs';
 import { startupPhase } from '../startup-timing.mjs';
 import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
@@ -55,6 +56,7 @@ const compileStarted = performance.now();
 const snapshotBudget = createWorkerCacheBudget(process.env.RS3_CALCULATOR_CACHE_BYTES === undefined ? undefined : Number(process.env.RS3_CALCULATOR_CACHE_BYTES));
 const engineOptions = { eligibilityBudget: snapshotBudget, dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue };
 const engine = createTaskEngine(definitions, engineOptions);
+const howCache = createHowCache();
 // Structured cloning removes the world's non-enumerable definitions/provider.
 // Worker roll predictions use the same compiled baseline as task evaluation.
 if (workerData.world) configureAutomaticTransport(workerData.world, { definitions, engine });
@@ -380,7 +382,7 @@ parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evalua
   requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
-      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
+      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId });
     }
     if (snapshotKey !== undefined) {
@@ -406,6 +408,16 @@ parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evalua
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
     } else if (type === 'roll-pool') result = timed(timingMs, 'rollPoolMs', () => rollPoolFor(state, memberId, draft ?? chunkId));
+    else if (type === 'how-task') {
+      if (typeof chunkId !== 'string' || !chunkId || chunkId.length > 512) throw new TypeError('Invalid How task subject.');
+      const key = JSON.stringify([pickerId, selectedDataset.digest, input, state.revision, memberId, chunkId, 1]);
+      result = howCache.get(key);
+      if (!result) {
+        result = timed(timingMs, 'howMs', () => engine.how(state, memberId, chunkId, { cancelled: abandoned, context: { datasetDigest: selectedDataset.digest } }));
+        if (!abandoned()) howCache.set(key, result);
+      }
+      if (abandoned()) result = { cancelled: true };
+    }
     else if (type === 'sandbox') result = sandboxFor(state, memberId, chunkId, timingMs, input, pickerId);
     else if (type === 'area-check') result = timed(timingMs, 'areaCheckMs', () => {
       const { baselineTaskIds, ...requested } = chunkId;
@@ -483,7 +495,7 @@ parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evalua
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
-const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'prepare-rules', 'roll-pool'];
+const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'prepare-rules', 'roll-pool'];
 const compileMs = performance.now() - compileStarted;
 startupPhase('worker:compiled');
 // The generated catalogue is large and shares completion families between rows.

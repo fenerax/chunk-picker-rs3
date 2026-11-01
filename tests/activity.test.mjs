@@ -50,15 +50,18 @@ test('primary methods respect secondary input rules, including normalized zero t
   assert.equal(buildActivityInfo({ tasks: [task], training: { Cooking: {} }, items: [{ name: 'Fish', sources: [{ kind: 'drop', probability: .0001 }] }] }, state, 'player2').skills[0].primaryMethods.length, 0);
 });
 
-test('Slayer planning fails closed for personal quests and unsupported assignment gates', () => {
+test('Slayer planning accepts available personal quests and fails closed for unsupported gates', () => {
   const assignment = row('Slayer', 'Receive a slayer assignment from ~|Jacquelyn|~', { Primary: true, NPCs: ['Jacquelyn'] });
   const quest = row('Quest', '~|The Blood Pact|~ Complete the quest', { QuestPoints: 1 }, { challengeSatisfied: true, personalCompleted: false });
   const definitions = { slayerMasterTasks: { Jacquelyn: { Bats: { CombatLevel: 15, Tasks: { [quest.rawLabel]: 'Quest' }, Weight: 10 }, Birds: { Weight: 10 }, Unknown: { OddGate: true, Weight: 10 } } }, codeItems: { slayerTasks: { Bats: { Bat: true }, Birds: { Chicken: true }, Unknown: { Bat: true } } } };
   const result = { tasks: [assignment, quest], training: { Combat: { level: 152 }, Slayer: { level: 5 } }, access: { monsters: ['Bat', 'Chicken'] } };
   let activity = buildActivityInfo(result, saved(), 'player2', definitions);
   assert.equal(activity.slayer.masters[0].reachable, true);
-  assert.equal(activity.slayer.masters[0].tasks[0].planningEligible, false);
-  assert.equal(activity.slayer.masters[0].tasks[0].blockers[0].kind, 'personal-completion');
+  assert.equal(activity.slayer.masters[0].tasks[0].planningEligible, true);
+  assert.deepEqual(activity.slayer.masters[0].tasks[0].afterQuests, ['The Blood Pact']);
+  assert.equal(activity.slayer.masters[0].tasks[0].currentUnlocked, false);
+  quest.status = 'blocked';
+  assert.equal(buildActivityInfo(result, saved(), 'player2', definitions).slayer.masters[0].tasks[0].planningEligible, false);
   assert.equal(activity.slayer.masters[0].tasks[1].planningEligible, true);
   assert.equal(activity.slayer.masters[0].tasks[2].blockers[0].kind, 'unsupported');
   quest.personalCompleted = true;

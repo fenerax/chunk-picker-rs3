@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { originalSettings, settingDefinitions } from '../app/data/settings.mjs';
+import { originalSettings, settingDefinitions, taskHowPreference } from '../app/data/settings.mjs';
 import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { createDeathSettings } from '../app/web/death-settings.mjs';
 import { createMiningSettings } from '../app/web/mining-settings.mjs';
@@ -26,7 +26,7 @@ function harness({ writable = true, storageFails = false, remembered = null, fai
   const el = (tag, text, className) => new Node(tag, text, className), title = el('h2');
   const ctx = {
     el, memberId: () => 'player1', state: () => saved, canWrite: () => writable, supportsFeature,
-    preferences: (id = 'player1') => ({ ...originalSettings, advanced: false, ...saved.members.find(owner => owner.id === id).preferences }),
+    preferences: (id = 'player1') => ({ ...originalSettings, advanced: false, showTaskHow: true, ...saved.members.find(owner => owner.id === id).preferences }),
     input: (type, value = '') => { const node = el('input'); node.type = type; node.value = String(value); return node; },
     select: (options, value) => { const node = el('select'); node.options = options; node.value = value; return node; },
     button: (text, action, className) => { const node = el('button', text, className); node.events.click = action; return node; },
@@ -37,7 +37,7 @@ function harness({ writable = true, storageFails = false, remembered = null, fai
     showError: error => errors.push(error),
     command: async command => { command = structuredClone(command); calls.push(command); if (failSave) throw Error('Save failed'); saved = applyCommand(saved, command); },
   };
-  const panel = runInNewContext(`${source}\ncreateSettingsPanel(ctx)`, { ctx, settingDefinitions: [...settingDefinitions, { id: 'futureOption', label: 'Future option', type: 'boolean' }], createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, artStatusText, datasetStatusText,
+  const panel = runInNewContext(`${source}\ncreateSettingsPanel(ctx)`, { ctx, taskHowPreference, datasetSettings: [...settingDefinitions, { id: 'futureOption', label: 'Future option', type: 'boolean' }], createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, artStatusText, datasetStatusText,
     localStorage: { getItem: key => { if (storageFails) throw Error('No storage'); return store.get(key); }, setItem: (key, value) => { if (storageFails) throw Error('No storage'); store.set(key, value); } } });
   const walk = node => node ? [node, ...node.children.flatMap(walk)] : [];
   const nodes = () => walk(content);

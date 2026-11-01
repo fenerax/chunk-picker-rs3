@@ -133,9 +133,9 @@ test('new browser modules are authenticated static assets',async t=>{
   }
 });
 
-test('after sunset the API returns a calm unavailable state without a preview token or state change', async t => {
+test('once RuneMetrics answers Gone the API returns a calm unavailable state without a preview token or state change', async t => {
   const { api } = await fixture(t, { progressSources: { clock: () => Date.parse('2026-11-10T00:00:00Z') },
-    fetchImpl: () => { throw new Error('RuneMetrics must not be requested'); } });
+    fetchImpl: async () => new Response('', { status: 410 }) });
   const before = (await (await api('/api/state')).json()).state;
   const response = await api('/api/runemetrics/preview', { memberId: 'player1' });
   assert.equal(response.status, 200);
