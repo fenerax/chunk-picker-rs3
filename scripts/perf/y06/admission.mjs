@@ -68,7 +68,7 @@ async function serverChild(){
       const begin=await request(base,'/auth/discord');assert.equal(begin.status,303);const auth=new URL(begin.headers.location),code=String(i+1);grants.set(code,String(100000+i));
       const login=await request(base,`/auth/discord/callback?state=${auth.searchParams.get('state')}&code=${code}`,begin.headers['set-cookie'][0].split(';')[0]);assert.equal(login.status,303,login.text);
       const cookie=login.headers['set-cookie'].find(s=>s.startsWith('duo_access=')).split(';')[0];let revision=0;
-      for(let k=0;k<=i;k++){const r=json(await request(base,'/api/command?view=play',cookie,{expectedRevision:revision,command:k===0?{type:'set-chunk',memberId:'owner',chunkId:chunks[i%chunks.length],status:'unlocked'}:{type:'set-note',memberId:'owner',chunkId:chunks[i%chunks.length],note:`synthetic-${i}`}}));revision=r.state.revision;}
+      for(let k=0;k<=i;k++){const r=json(await request(base,'/api/command?view=play-v1',cookie,{expectedRevision:revision,command:k===0?{type:'set-chunk',memberId:'owner',chunkId:chunks[i%chunks.length],status:'unlocked'}:{type:'set-note',memberId:'owner',chunkId:chunks[i%chunks.length],note:`synthetic-${i}`}}));revision=r.state.revision;}
       clients.push({index:i,cookie,revision,chunk:chunks[i%chunks.length],note:i?`synthetic-${i}`:undefined});
     }
     await app.close();base=await start(false);admission.length=factory.length=acquisitions.length=foreground.length=advisory.length=0;tracing?.reset();
@@ -90,7 +90,7 @@ async function trial(root,mode,seed,pair,seconds){
   let sampleError;const timer=setInterval(()=>{void sample().catch(e=>{sampleError=e;kill();});},50),deadline=setTimeout(kill,240000);let poll;
   try{
     const ready=await message('ready'),clients=ready.clients,rows=[];let requestId=0;
-    async function send(c,phase,type,body,extra={}){const route=type==='draft'?'/api/sandbox/evaluate':type==='tasks'?'/api/tasks?memberId=owner&view=play-v1':type==='unlock'?'/api/command?view=play':'/api/state?view=play';
+    async function send(c,phase,type,body,extra={}){const route=type==='draft'?'/api/sandbox/evaluate':type==='tasks'?'/api/tasks?memberId=owner&view=play-v1':type==='unlock'?'/api/command?view=play-v1':'/api/state?view=play-v1';
       const id=++requestId,r=await request(ready.base,route,c.cookie,body,{...extra,traceId:process.argv.includes('--trace')?id:undefined}),row={id,picker:c.index,phase,type,status:r.status,reason:reason(r),ms:r.ms,retry:!!extra.retry,lag:extra.lag??0};
       if(r.status===200){const v=JSON.parse(r.text);if(type==='state'||type==='unlock'){if(type==='unlock')c.revision++;assert.equal(v.state.revision,c.revision);const m=v.state.members[0];assert.equal(v.state.members.length,1);assert.equal(m.id,'owner');assert.ok(m.unlocked.includes(c.chunk));if(c.note)assert.equal(m.notes[c.chunk],c.note);}else{assert.equal(v.stateRevision,c.revision);assert.equal(v.memberId,'owner');if(type==='draft'){assert.equal(v.format,'sandbox-v1');assert.deepEqual(v.changes,body.changes);}}}
       rows.push(row);return r;}

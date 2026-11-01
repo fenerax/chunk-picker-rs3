@@ -461,11 +461,14 @@ test('owned readiness can defer the play body while retaining variant preparatio
   let variants=0;runtime.taskWorker.prepareRules=async()=>{variants++;};
   await a.prepare();assert.equal(variants,1);assert.equal(Object.hasOwn(timing,'stateResponseMs'),false);
   await command(a,note('after readiness'));
-  const lazy=await send(a,'/api/state?view=play');assert.equal(lazy.status,200);assert.equal(lazy.body.state.revision,1);
+  // The browser loads the compact play view; check that format, not the full state.
+  const lazy=await send(a,'/api/state?view=play-v1');assert.equal(lazy.status,200);assert.equal(lazy.body.format,'play-v1');
+  assert.equal(lazy.body.state.revision,1);
   assert.equal(lazy.body.state.members[0].notes['12341'],'after readiness');
   await a.close();const eager=await open('a',{prepareStateResponse:true,startupTimingMs:eagerTiming});await eager.prepare();
   assert.ok(Number.isFinite(eagerTiming.stateResponseMs));assert.equal(variants,2);
-  const ready=await send(eager,'/api/state?view=play');assert.deepEqual(ready.body.state,lazy.body.state);
+  // Deferred and eager preparation serve the same complete play envelope.
+  const ready=await send(eager,'/api/state?view=play-v1');assert.equal(ready.body.format,'play-v1');assert.deepEqual(ready.body,lazy.body);
 });
 
 // These calls enter the real authenticated picker route, with controllable
