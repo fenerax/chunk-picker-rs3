@@ -1,3 +1,4 @@
+import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warnings.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { equipmentTaskIdentity, selectEquipmentRecommendations, buildEquipmentCatalogue, equipmentMembersOnly, membersEquipmentRequirement } from './presentation.mjs';
 import { primaryEquipmentSource } from './rates.mjs';
@@ -453,6 +454,7 @@ export function evaluateEquipment(result, state, memberId, definitions = {}, { r
     const complete = owner => facts.get(owner.id).completedTasks?.includes(task.id) || facts.get(owner.id).taskStatus?.[task.id]?.challengeCompleted;
     task.challengeSatisfied = scope === 'all' ? owners.every(complete) : owners.some(complete);
   }
+  addUnknownDropWarnings([...tasks.values()], unknownDropContext(result, definitions, undefined, rules), rules);
   const uniqueDiagnostics = [...new Map(diagnostics.map(value => [JSON.stringify(value), value])).values()];
   return { tasks: [...tasks.values()].filter(task => selected.has(task.id)), catalogue: [...tasks.values()], loadouts, recommendations, alternatives, specialist, diagnostics: uniqueDiagnostics,
     coverage: { eligibleEquipment: eligibleCount, generatedTasks: selected.size, weaponStyles: loadouts.map(value => value.style), limitations: [
