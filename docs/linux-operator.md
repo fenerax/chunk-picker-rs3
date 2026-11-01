@@ -197,7 +197,11 @@ delivery. Route failed systemd jobs and age/disk warnings to an operator alert
 channel before cutover; this kit only reports through the journal.
 
 Restore requires a deliberately stopped unit and an empty data directory with
-no sibling binding. It verifies the manifest, tests a disposable copy with the
+no sibling binding. Directory paths are normalized lexically, as in the app:
+`/save`, `/save/` and `/save/.` all use `/save.dataset.json`. An existing
+canonical sibling binding causes refusal before probing or copying, even if
+the target directory is empty or absent. Linked paths remain refused.
+It verifies the manifest, tests a disposable copy with the
 selected release, then creates the binding and files exclusively and checks
 every restored byte. It refuses existing games. A partial restore remains
 stopped with maintenance evidence; inspect it and choose a new empty target.

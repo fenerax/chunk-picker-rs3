@@ -20,6 +20,8 @@ class Node {
   append(...nodes) { this.children.push(...nodes); }
   setAttribute(key, value) { this.attributes[key] = value; }
   addEventListener(key, callback) { this.events[key] = callback; }
+  querySelector(tag) { return walk(this).find(node => node.tag === tag); }
+  focus() { this.ownerDocument.activeElement = this; }
   contains(node) { return this === node || this.children.some(child => child instanceof Node && child.contains(node)); }
 }
 const walk = node => node ? [node, ...node.children.flatMap(walk)] : [];
@@ -29,11 +31,12 @@ function harness({ writable = true, sandbox = false, admin = false, data = { opt
   let state = initial ?? createGroupState([{ id: 'one', name: 'Ash' }, { id: 'two', name: 'Birch' }]);
   let content, title, generation = 0, open = false;
   const calls = [], errors = [], centred = [], dialog = new Node('dialog'), host = new Node('div');
-  const el = (tag, text, className) => new Node(tag, text, className);
+  const document = { activeElement: undefined };
+  const el = (tag, text, className) => Object.assign(new Node(tag, text, className), { ownerDocument: document });
   const ctx = {
     el, input: type => Object.assign(el('input'), { type, checked: false }),
     button: (label, click, className) => { const node = el('button', label, className); node.events.click = click; return node; },
-    openDialog: (text, node) => { title = text; content = node; host.children = [node]; open = true; return ++generation; },
+    openDialog: (text, node) => { if (content?.contains(document.activeElement)) document.activeElement = undefined; title = text; content = node; host.children = [node]; open = true; return ++generation; },
     closeDialog: () => { generation++; open = false; calls.push('close'); },
     dialogCurrent: value => value === generation && open, isDialogOpen: () => open, dialog, dialogContent: () => host,
     state: () => state, memberId: () => 'one', canWrite: () => writable, sandboxActive: () => sandbox, advanced: () => false,
@@ -51,7 +54,7 @@ function harness({ writable = true, sandbox = false, admin = false, data = { opt
   const pick = async label => { const control = choice(label); control.checked = true; await control.events.change(); };
   const commands = () => calls.filter(call => typeof call === 'object');
   const userClose = () => { open = false; dialog.events.close(); };
-  return { guide, ctx, calls, errors, centred, dialog, userClose, nodes, button, choice, pick, commands, step: () => content?.dataset.step, title: () => title,
+  return { guide, ctx, calls, errors, centred, dialog, document, userClose, nodes, button, choice, pick, commands, step: () => content?.dataset.step, title: () => title,
     isOpen: () => open, state: () => state, setState: value => { state = value; } };
 }
 
@@ -234,4 +237,44 @@ test('the last step lists visible main buttons and uses the existing invite flow
 test('the saved setupGuide preference accepts only its states', () => {
   for (const value of ['open', 'finished', 'skipped']) assert.equal(validatePreference('setupGuide', value), value);
   for (const value of ['done', true, '', null]) assert.throws(() => validatePreference('setupGuide', value), /First-time setup guide/);
+});
+
+
+test('explicit Next and Back focus the new step heading only when focus belonged to the old step', async () => {
+  const h = harness(); h.guide.open();
+  for (const label of ['Next', 'Back']) {
+    h.button(label).focus(); await h.button(label).events.click();
+    const heading = h.nodes().find(node => node.tag === 'h3');
+    assert.equal(h.document.activeElement, heading);
+    assert.equal(heading.tabIndex, -1, 'heading is focusable without adding a Tab stop');
+  }
+  const elsewhere = {}; h.document.activeElement = elsewhere;
+  await h.button('Next').events.click();
+  assert.equal(h.document.activeElement, elsewhere, 'a programmatic transition cannot steal focus from elsewhere');
+});
+
+test('loading starting banks does not defer focus or steal it back from a later choice', async () => {
+  const h = harness(); h.guide.open();
+  await h.button('Next').events.click();
+  let resolve;
+  h.ctx.api = () => new Promise(done => { resolve = done; });
+  h.button('Next').focus(); const loading = h.button('Next').events.click();
+  assert.equal(h.step(), 'start');
+  assert.equal(h.document.activeElement, h.nodes().find(node => node.tag === 'h3'));
+  const next = h.button('Next'); next.focus();
+  resolve({ data: { optionAF2PExtension: banks } }); await loading;
+  assert.equal(h.document.activeElement, next, 'passive bank-list completion leaves focus alone');
+});
+
+test('a stale starting-bank response cannot pull focus back after navigation or close', async () => {
+  for (const close of [false, true]) {
+    const h = harness(); h.guide.open(); await h.button('Next').events.click();
+    let resolve; h.ctx.api = () => new Promise(done => { resolve = done; });
+    h.button('Next').focus(); const loading = h.button('Next').events.click();
+    h.button('Next').focus(); await h.button('Next').events.click();
+    if (close) { h.userClose(); h.document.activeElement = {}; }
+    const focused = h.document.activeElement;
+    resolve({ data: { optionAF2PExtension: banks } }); await loading;
+    assert.equal(h.document.activeElement, focused);
+  }
 });
