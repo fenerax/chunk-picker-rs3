@@ -1,5 +1,5 @@
-// Compare the rule split against a pinned checkout. Private outputs contain
-// counts, hashes and measurements only; copied saves remain in temporary roots.
+// Compare the rule split against a pinned checkout using public inputs.
+// Private mode (--store) is disabled and fails before any save is read.
 import { parseArgs } from 'node:util';
 import { mkdtemp, cp, copyFile, readFile, writeFile, rm } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -67,6 +67,7 @@ async function internal(config) {
         rows.push(capture(result, estimateItemDrop));
       }
     } else {
+      throw Error('Private mode is disabled: it copied a save and started the server on it, which can copy or create credentials. Compare private saves with a pure filesystem reader instead.');
       const dataDir = path.join(config.run, 'game');
       await cp(config.store, dataDir, { recursive: true });
       await copyFile(config.store + '.dataset.json', dataDir + '.dataset.json');
@@ -121,6 +122,7 @@ const delta = (before, after) => ({ added: Object.keys(after).filter(key => !Obj
   changed: Object.keys(before).filter(key => Object.hasOwn(after, key) && before[key] !== after[key]).length });
 const difference = (before, after) => Object.fromEntries(Object.keys(before).map(key => [key, delta(before[key], after[key])]));
 async function main() {
+  if (values.store) throw Error('Private mode is disabled: it copied a save and started the server on it, which can copy or create credentials. Compare private saves with a pure filesystem reader instead.');
   if (values.internal) return internal(JSON.parse(await readFile(values.internal, 'utf8')));
   if (!values.baseline || !values.candidate || !values.out) throw Error('Use --baseline, --candidate and --out; optionally --catalogue for tracked public definitions or --store for eight private samples.');
   if (values.store && values['source-order-baseline']) throw Error('Source-order attribution uses public inputs only.');
