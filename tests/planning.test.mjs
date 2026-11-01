@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGroupState, applyCommand } from '../app/core/state.mjs';
+import { createGroupState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
-import { exportRuleProfile, previewRuleProfile, applyRuleProfile, predictChunk } from '../app/core/planning.mjs';
+import { exportRuleProfile, previewRuleProfile, applyRuleProfile, predictChunk, prepareChunkPrediction } from '../app/core/planning.mjs';
+import { randomStartFixture } from './fixtures/random-start.mjs';
 
 const now = () => '2026-10-07T12:00:00.000Z';
 function fixture() {
@@ -106,4 +107,90 @@ test('predictions reject unknown/cropped chunks and engines cannot mutate saved 
   assert.throws(() => predictChunk(state, 'actor1', '2', { world, engine: badEngine }), /surface/);
   assert.throws(() => predictChunk(state, 'actor1', '1-1', { world, engine: badEngine }), /base ID/);
   assert.deepEqual(state, before);
+});
+
+const availableTasks = result => result.tasks.filter(task => task.status === 'available' && !task.hidden && task.obligation !== false);
+
+test('a direct one-choice random start seeds section 1 and its owned-chunk prediction matches realized tasks', () => {
+  const { state, engine, world } = randomStartFixture();
+  const realized = applyCommand(state, { type: 'random-start', memberId: 'synthetic', count: 1 }, { world, now, random: () => 0 });
+  const [chunkId] = realized.members[0].unlocked;
+  assert.equal(realized.members[0].sectionOverrides[`${chunkId}-1`], true);
+  assert.equal(availableTasks(engine.evaluate(realized, 'synthetic')).length, 1);
+  const prediction = predictChunk(realized, 'synthetic', chunkId, { world, engine });
+  assert.deepEqual(prediction.result.tasks, engine.evaluate(realized, 'synthetic').tasks);
+  assert.deepEqual(prediction.delta.tasksAdded, []);
+});
+
+for (const edited of [false, true]) test(`random-start previews equal either accepted choice, pick-for-me and both choices (round trip ${edited})`, () => {
+  const { state, engine, world } = randomStartFixture();
+  const options = { world, now, random: () => 0 };
+  let offer = applyCommand(state, { type: 'random-start', memberId: 'synthetic', count: 2 }, options);
+  if (edited) {
+    offer = applyCommand(offer, { type: 'set-note', memberId: 'synthetic', chunkId: '12850', note: 'Synthetic note' }, options);
+    offer = applyCommand(offer, { type: 'set-preference', memberId: 'synthetic', preferenceId: 'theme', value: 'dark' }, options);
+    offer = importBackup(JSON.stringify(exportBackup(offer)));
+  }
+  const saved = structuredClone(offer), prepared = prepareChunkPrediction(offer);
+  const predictions = offer.members[0].pendingRoll.map(chunkId => prepared('synthetic', chunkId, { engine, world }));
+  for (const [index, chunkId] of offer.members[0].pendingRoll.entries()) {
+    const prediction = predictions[index];
+    assert.equal(prediction.delta.tasksAdded.length, 1, 'The split section task must appear in Preview');
+    for (const command of [
+      { type: 'unlock-selection', memberId: 'synthetic', chunkId },
+      { type: 'pick-for-me', memberId: 'synthetic' },
+    ]) {
+      const realized = applyCommand(offer, command, { ...options, random: () => index ? 0.999 : 0 });
+      const result = engine.evaluate(realized, 'synthetic');
+      assert.deepEqual(prediction.state.members, realized.members);
+      assert.deepEqual(prediction.result.tasks, result.tasks, 'Statuses, blockers and explanations match acceptance');
+      assert.deepEqual(prediction.result.access, result.access);
+      assert.deepEqual(prediction.delta.tasksAdded, availableTasks(result));
+      assert.deepEqual(prediction.delta.tasksChanged, result.tasks.filter(task => {
+        const before = engine.evaluate(offer, 'synthetic').tasks.find(row => row.id === task.id);
+        return task.obligation !== false && before && before.status !== task.status;
+      }).map(task => ({ id: task.id, label: task.label, beforeStatus: engine.evaluate(offer, 'synthetic').tasks.find(row => row.id === task.id).status, afterStatus: task.status })).sort((a, b) => a.id.localeCompare(b.id)));
+      assert.equal(prediction.state.revision, offer.revision);
+      assert.deepEqual(prediction.state.history, offer.history);
+      assert.ok(Object.isFrozen(prediction.state.members[0].sectionOverrides));
+      assert.deepEqual(importBackup(exportBackup(realized)).members, realized.members);
+    }
+  }
+  const both = applyCommand(offer, { type: 'unlock-both', memberId: 'synthetic' }, options);
+  assert.deepEqual(both.members[0].sectionOverrides, Object.assign({}, ...predictions.map(p => p.state.members[0].sectionOverrides)));
+  assert.deepEqual(availableTasks(engine.evaluate(both, 'synthetic')).map(row => row.id).sort(), predictions.flatMap(p => p.delta.tasksAdded.map(row => row.id)).sort());
+  assert.deepEqual(offer, saved, 'Prediction and acceptance never mutate the offered state');
+});
+
+test('ordinary offers and cancelled or undone random-start provenance do not seed hypothetical sections', () => {
+  const { state, engine, world } = randomStartFixture();
+  state.members[0].selected = ['12850', '12851'];
+  const options = { world, now, random: () => 0 };
+  const randomOffer = applyCommand(state, { type: 'random-start', memberId: 'synthetic', count: 2 }, options);
+  const cancelled = applyCommand(randomOffer, { type: 'cancel-roll', memberId: 'synthetic' }, options);
+  const undone = applyCommand(randomOffer, { type: 'undo' }, options);
+  for (const baseline of [state, cancelled, undone]) {
+    const offer = applyCommand(baseline, { type: 'roll', memberId: 'synthetic', count: 2 }, options);
+    for (const chunkId of offer.members[0].pendingRoll) {
+      const prediction = predictChunk(offer, 'synthetic', chunkId, { engine, world });
+      const realized = applyCommand(offer, { type: 'unlock-selection', memberId: 'synthetic', chunkId }, options);
+      assert.deepEqual(prediction.result.tasks, engine.evaluate(realized, 'synthetic').tasks);
+      assert.deepEqual(prediction.delta.tasksAdded, []);
+      assert.equal(prediction.state.members[0].sectionOverrides?.[`${chunkId}-1`], undefined);
+    }
+  }
+});
+
+test('an imported single remaining choice retains its recorded random-start seeding behavior', () => {
+  const { state, engine, world } = randomStartFixture();
+  state.revision = 1;
+  state.members[0].pendingRoll = ['12850'];
+  state.history = [{ id: 'revision-1', revision: 1, type: 'random-start', at: now(),
+    command: { type: 'random-start', memberId: 'synthetic', count: 2, rolled: ['12850'] } }];
+  const restored = importBackup(exportBackup(state));
+  const prediction = predictChunk(restored, 'synthetic', '12850', { engine, world });
+  const realized = applyCommand(restored, { type: 'unlock-selection', memberId: 'synthetic', chunkId: '12850' }, { world, now });
+  assert.equal(realized.members[0].sectionOverrides['12850-1'], true);
+  assert.equal(prediction.delta.tasksAdded.length, 1);
+  assert.deepEqual(prediction.result.tasks, engine.evaluate(realized, 'synthetic').tasks);
 });

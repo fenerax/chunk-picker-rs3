@@ -1,3 +1,5 @@
+import { taskExplanation } from '../tasks/task-provenance.mjs';
+import { appendTaskWhy, catalogued, createRuleDescriber } from './task-why.mjs';
 import { createWhyChainDisclosure } from './task-why-chain.mjs';
 import { createNoteEditor } from './info-panels.mjs';
 import { renderTaskEquipment } from './task-equipment.mjs';
@@ -45,7 +47,7 @@ export function createScreenTaskDialogs(c) {
     if (task.category === 'Quest') stack.append(mapSlot);
     stack.append(topSlot);
     const displayLevel = task.record?.RequirementAlternatives && task.level === 1 ? undefined : task.level;
-    const explanation = c.el('p', task.explanation || (progressive ? task.blockers?.[0]?.detail ?? '' : 'Custom task.'));
+    const explanation = c.el('p', taskExplanation(task, detailResult) || (progressive ? task.blockers?.[0]?.detail ?? '' : 'Custom task.'));
     const guidanceSlot = c.el('div', undefined, 'task-blocker-actions');
     const showGuidance = (full, result) => {
       const guidance = renderTaskBlockerGuidance(c, full, result ?? {}, { memberId: dialogMemberId, openTask: row => c.showTask(row, true, { ...review, memberId: dialogMemberId, result }) });
@@ -78,7 +80,7 @@ export function createScreenTaskDialogs(c) {
       if (full.category === 'Quest' && c.supportsFeature?.('quests') !== false) mapSlot.replaceChildren(c.questMap.controls({ task: full, guard: () => c.dialogCurrent(generation) }));
       const equipment = c.supportsFeature?.('equipment') === false ? null : renderTaskEquipment(full, fullResultValue, c.definitions.equipment, { document, iconLookup: itemIcon, advanced: c.advanced() });
       topSlot.replaceChildren(...(equipment ? [equipment] : []));
-      if (full.explanation) explanation.textContent = full.explanation;
+      if (full.explanation) explanation.textContent = taskExplanation(full, fullResultValue);
       showGuidance(full, fullResultValue);
       if (!asks && full.record?.Description) stack.prepend(c.el('p', c.plain(full.record.Description), 'task-asks'));
       bottomSlot.replaceChildren(...c.taskDetailSections(full, fullResultValue, () => generation, review));
@@ -103,6 +105,19 @@ export function createScreenTaskDialogs(c) {
   function taskDetailSections(task, detailResult, currentGeneration, review = {}) {
     const dialogMemberId = review.memberId ?? c.memberId;
     const nodes = [], selectedMember = c.memberId, dialogRevision = c.state.revision;
+    if (!task.id.startsWith('custom:')) {
+      const why = c.el('div', undefined, 'task-detail-why');
+      appendTaskWhy(why, task, { document, button: c.button, icon: c.icon, readOnly: !c.canWrite(),
+        openRule: ruleId => Promise.resolve(c.rulesDialog({ ruleId, memberId: dialogMemberId })).catch(c.showError),
+        load: async () => {
+          const describeRule = catalogued(await createRuleDescriber(c.taskDisplayState?.() ?? c.state, dialogMemberId));
+          if (c.state.revision !== dialogRevision || !c.dialogCurrent(currentGeneration())) throw new Error('The saved map changed. Open the task again.');
+          const place = key => c.world?.chunks.get(key) ?? c.world?.areas.get(key);
+          return { task, result: detailResult ?? { tasks: [task] }, describeRule,
+            locationName: id => c.plain((place(String(id)) ?? place(String(id).replace(/-\d+$/, '')))?.name ?? '') };
+        } });
+      nodes.push(why);
+    }
     const openTask = row => c.showTask(row, true, { ...review, memberId: dialogMemberId, result: detailResult });
     if (task.sources?.length) nodes.push(c.details('Sources and locations', c.sourceView(task.sources, detailResult, openTask)));
     const alternativesByTask = detailResult?.presentation?.alternatives ?? {};
