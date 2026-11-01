@@ -34,6 +34,8 @@ test('saved predictions are read once without recalculating, and summaries survi
   assert.equal(cache.read('input', 'reed', 2, ['12342'], () => { throw new Error('Should not read worker cache again'); }).checked, 1);
   assert.equal(reads, 1);
   assert.equal(cache.remember('old', 'reed', '12343', prediction()), false);
+  assert.equal(cache.read('new', 'reed', 3, ['12342']), undefined);
+  cache.sync('new');
   assert.equal(cache.read('new', 'reed', 3, ['12342']).checked, 0);
 });
 test('interest expires, multiple tabs stay independent, heartbeat does not count as new use', () => {
@@ -68,4 +70,15 @@ test('a complete pool larger than queue and summary budgets retains every count 
 test('pool summaries keep a space where task names had line breaks', () => {
   const row = summarizePoolPrediction('1', { delta: { tasksAdded: [{ category: 'Quest', label: 'One Piercing Note<br>Complete the quest' }] } });
   assert.deepEqual(row.examples, ['One Piercing Note Complete the quest']);
+});
+
+test('an old captured reader cannot clear a newer owner or prune its complete counts', () => {
+  const cache = createPoolRanking({ byteLimit: 1 });
+  cache.sync('B'); cache.read('B', 'reed', 2, ['1', '2']);
+  cache.remember('B', 'reed', '1', prediction());
+  cache.remember('B', 'reed', '2', prediction([{ category: 'Mining', label: 'Option' }]));
+  const before = cache.diagnostics();
+  assert.equal(cache.read('A', 'reed', 1, ['1']), undefined);
+  assert.deepEqual(cache.diagnostics(), before);
+  assert.equal(cache.read('B', 'reed', 2, ['1', '2']).checked, 2);
 });

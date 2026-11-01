@@ -883,11 +883,16 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             const captured = calculationState(), state = captured.state, memberId = query.get('memberId');
             if (!state.members.some(member => member.id === memberId)) throw httpError(400, 'Choose a known player to compare the roll pool.');
             const ids = await rankingPoolIds(state, memberId);
+            // Pool lookup can await a worker while a save advances the owner.
+            // Reject before reading: an old pool must never prune current counts.
+            if (captured.input !== taskFingerprint() || state.revision !== store.getInfo().revision) {
+              throw httpError(409, 'The saved map changed. Request the current roll pool.');
+            }
             // Like the map's pool membership, this read is available to viewers.
             // It only reads saved prediction deltas; no worker admission or touch.
             const ranking = poolRanking.read(captured.input, memberId, state.revision, ids,
               id => taskWorker?.peekPrediction(state, memberId, id, captured.input));
-            await json(request, response, 200, ranking); return;
+            await json(request, response, 200, { ...ranking, pickerId: identity.pickerId ?? (pickerRouting?.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id) ?? pickerId, datasetDigest: dataset.digest }); return;
           }
           if (route === '/api/task-why') {
             const query = new URL(request.url, 'http://localhost').searchParams;
@@ -1747,7 +1752,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         await sendCached(request, response, createRepresentation(dataset.bytes(key))); return;
       }
       else if (['/training/woodcutting-rates.mjs', '/training/woodcutting-rules.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'training'), route.slice('/training/'.length));
-      else if (route === '/pool-ranking.mjs') file = await containedFile(webRoot, 'pool-ranking.mjs');
+      else if (['/pool-ranking.mjs', '/map-availability.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/activity-filters.mjs', '/activity-view.mjs', '/activity-filters.css', '/chunk-quest-filters.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/bis-preferences.mjs', '/bis-recorded.mjs', '/bis-comparison-view.mjs', '/bis-compare.mjs', '/bis-results.mjs', '/bis-compare.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/task-why-chain.mjs') file = await containedFile(webRoot, 'task-why-chain.mjs');
