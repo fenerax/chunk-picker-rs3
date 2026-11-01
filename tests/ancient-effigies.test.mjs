@@ -4,7 +4,7 @@ import { createCollectionEngine } from '../app/tasks/collection.mjs';
 import referenceCorrections from '../app/data/reference-corrections.2026-10-31.v1.mjs';
 import { applyDefinitionOverlays } from '../app/data/definition-overlays.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createGroupState, validateState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
@@ -209,4 +209,58 @@ test('four low-combat effigy corrections remove only their invalid output, regar
     assert.equal(result.items.some(row => row.name === items[0]), false);
     assert.equal(result.items.some(row => row.name === 'Fixture ordinary drop'), true);
   }
+});
+
+test('archived pre-migration undo history is repaired when the store hydrates it', async t => {
+  const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-effigies-archive-'));
+  const world = { chunks: new Map([['100', { id: '100', name: 'Fixture chunk' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) };
+  const open = () => openStore({ dataDir, initialState: fresh(), world, retention: { backupDays: 90, historyEntries: 2 } });
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  let store = await open();
+  // Revision 1 creates the member's taskRules dictionary (a sparse container patch).
+  await store.command({ type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: false }, 0);
+  for (let revision = 1; revision < 7; revision++) await store.command({ type: 'set-note', memberId: 'a', chunkId: '100', note: 'Fixture note ' + revision }, revision);
+  assert.ok(store.getInfo().retention.historyArchives > 0, 'the taskRules event is archived');
+  await store.close();
+  // Make it a save from before the Ancient Effigies switch existed.
+  const file = path.join(dataDir, 'state.json'), saved = JSON.parse(await readFile(file, 'utf8'));
+  const body = saved.state ?? saved;
+  assert.equal(saved.storage, undefined, 'the fixture save keeps provenance inline');
+  delete body.provenance.ancientEffigiesMigratedMembers;
+  delete body.provenance.ancientEffigiesMigration;
+  for (const member of body.members) delete member.taskRules['Ancient Effigies'];
+  await writeFile(file, JSON.stringify(saved));
+  store = await open();
+  t.after(() => store.close());
+  assert.equal(store.getState().members[0].taskRules['Ancient Effigies'], false);
+  // Hydrating every archived event (backup/export/undo) must not fail validation.
+  const backup = await store.backup();
+  assert.equal(backup.state.members[0].taskRules['Ancient Effigies'], false);
+  // Undo back through the archived events, including the one that created taskRules.
+  let revision = store.getInfo().revision;
+  for (let i = 0; i < 7; i++) {
+    const target = (await store.backup()).state.history.filter(event => event.undo && event.undoneRevision === undefined && event.type !== 'undo').at(-1);
+    if (!target) break;
+    await store.command({ type: 'undo', undoRevision: target.revision }, revision);
+    revision = store.getInfo().revision;
+  }
+  assert.deepEqual(store.getState().members[0].taskRules, { 'Ancient Effigies': false });
+});
+
+test('an archived full-member snapshot keeps the migrated choice when it is undone', () => {
+  const saved = old(); saved.members[0].taskRules = { 'Universal Tertiary': true };
+  const snapshot = structuredClone(saved.members[0]);
+  saved.revision = 1; saved.members[0].notes = { '1': 'Fixture note' };
+  const archivedEvent = { id: 'revision-1', revision: 1, type: 'set-note', at: '2026-10-31T00:00:00.000Z', undo: { members: [snapshot] } };
+  // The active state is migrated without its archived event, as the store does at load.
+  const active = validateState(saved);
+  assert.equal(active.provenance.ancientEffigiesMigration.a.revision, 1);
+  const hydrated = validateState({ ...active, history: [structuredClone(archivedEvent)] });
+  assert.equal(hydrated.history[0].undo.members[0].taskRules['Ancient Effigies'], true);
+  const undone = applyCommand(hydrated, { type: 'undo' });
+  assert.equal(undone.members[0].notes, undefined);
+  assert.equal(undone.members[0].taskRules['Ancient Effigies'], true);
+  // Snapshots recorded after migration are never rewritten.
+  const reset = applyCommand(undone, { type: 'reset-task-rule', memberId: 'a', ruleId: 'Ancient Effigies' });
+  assert.equal(validateState(reset).members[0].taskRules['Ancient Effigies'], undefined);
 });

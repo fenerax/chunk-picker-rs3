@@ -654,36 +654,75 @@ function dropTaskRuleContainerPatches(history, memberId) {
   }
 }
 
-// Validation owns this copy. Remember each migrated owner so resetting the
-// new rule to Automatic never copies Universal Tertiary a second time.
-function migrateAncientEffigies(state) {
-  // Restore archives keep the incoming provenance even when storage replaces
-  // the outer provenance. A reset rule must stay Automatic after restore too.
+// Restore archives keep the incoming provenance even when storage replaces
+// the outer provenance. A reset rule must stay Automatic after restore too.
+function effigiesProvenance(state) {
   let provenance = state.provenance;
   while (provenance && !provenance.ancientEffigiesMigratedMembers && provenance.restore?.incomingProvenance)
     provenance = provenance.restore.incomingProvenance;
+  return provenance;
+}
+
+// Events up to the migration revision predate the new switch. Repairing them
+// is idempotent, so it also covers archived events hydrated later.
+function repairPreMigrationHistory(history, memberId, { revision, value, dropContainers }) {
+  const older = history.filter(event => event.revision <= revision);
+  if (dropContainers) dropTaskRuleContainerPatches(older, memberId);
+  // Old full-member undo snapshots predate the new switch. Keep the value
+  // chosen at migration when undoing an older, unrelated command.
+  for (const event of older) for (const snapshot of event.undo?.members ?? []) {
+    if (snapshot.id === memberId && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
+      snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: value };
+  }
+}
+
+function validEffigiesBoundary(boundary) {
+  return boundary && typeof boundary === 'object' && Number.isSafeInteger(boundary.revision) && boundary.revision >= 0
+    && ['boolean', 'string', 'number'].includes(typeof boundary.value) && (boundary.dropContainers === undefined || boundary.dropContainers === true);
+}
+
+// Before the sparse undo chain is checked: an archived event from before the
+// migration may still create the taskRules container the migration now fills.
+function repairArchivedEffigiesHistory(state) {
+  const boundaries = effigiesProvenance(state)?.ancientEffigiesMigration;
+  if (boundaries === undefined) return;
+  record(boundaries, 'provenance.ancientEffigiesMigration');
+  for (const [memberId, boundary] of Object.entries(boundaries)) {
+    if (!validEffigiesBoundary(boundary)) fail('Invalid Ancient effigies migration boundary');
+    repairPreMigrationHistory(state.history, memberId, boundary);
+  }
+}
+
+// Validation owns this copy. Remember each migrated owner so resetting the
+// new rule to Automatic never copies Universal Tertiary a second time.
+function migrateAncientEffigies(state) {
+  const provenance = effigiesProvenance(state);
   const migrated = new Set(provenance?.ancientEffigiesMigratedMembers ?? []);
+  const boundaries = { ...provenance?.ancientEffigiesMigration };
   for (const member of state.members) {
     if (migrated.has(member.id)) continue;
     const imported = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(
       state.legacy?.maps?.[member.sourceMapId]?.rules ?? {}).map(([id, value]) => [decodeLegacyText(id), value]));
     const rules = { ...imported, ...state.taskRules, ...member.taskRules };
+    let dropContainers = false;
     if (!Object.hasOwn(rules, ANCIENT_EFFIGIES_RULE)) {
       // Unknown category tags historically defaulted on, including this one.
       const oldValue = rules['Universal Tertiary'] === undefined || ![false, 'false', 0].includes(rules['Universal Tertiary']);
       member.taskRules = { ...member.taskRules, [ANCIENT_EFFIGIES_RULE]: oldValue };
-      dropTaskRuleContainerPatches(state.history, member.id);
+      dropContainers = true;
     }
-    // Old full-member undo snapshots predate the new switch. Keep the value
-    // chosen at migration when undoing an older, unrelated command.
     const effigies = member.taskRules?.[ANCIENT_EFFIGIES_RULE] ?? rules[ANCIENT_EFFIGIES_RULE];
+    const boundary = { revision: state.revision, value: effigies, ...(dropContainers ? { dropContainers } : {}) };
+    if (dropContainers) dropTaskRuleContainerPatches(state.history, member.id);
     for (const event of state.history) for (const snapshot of event.undo?.members ?? []) {
       if (snapshot.id === member.id && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
         snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: effigies };
     }
+    if (Number.isSafeInteger(state.revision)) boundaries[member.id] = boundary;
     migrated.add(member.id);
   }
-  state.provenance = { ...state.provenance, ancientEffigiesMigratedMembers: [...migrated] };
+  state.provenance = { ...state.provenance, ancientEffigiesMigratedMembers: [...migrated],
+    ...(Object.keys(boundaries).length ? { ancientEffigiesMigration: boundaries } : {}) };
   return state;
 }
 
@@ -907,6 +946,7 @@ function validateStateCopy(copy, registry) {
       if (!target?.undo || target.undoneRevision !== event.revision) fail('History undo target is invalid');
     }
   }
+  repairArchivedEffigiesHistory(copy);
   // Check the remaining sparse undo chain against a private working copy.
   // Older snapshots have no after-value guards, but still form valid boundaries
   // for later sparse deltas. This catches stale/corrupt imported history before
