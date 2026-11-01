@@ -191,12 +191,15 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   // itemsBetaAsLive is for a synthetic scratch save only: beta items then tick it as live ones would.
   const itemWorld = report => report.world?.beta === false || itemsBetaAsLive && report.world?.beta === true ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
   function itemRecord(player, world) {
-    const memory = itemMemory.get(player);
-    return world === 'live' ? itemStore.get(player) : memory?.world === world ? structuredClone(memory.record) : null;
+    const memory = itemMemory.get(player)?.get(world);
+    return world === 'live' ? itemStore.get(player) : memory ? structuredClone(memory) : null;
   }
   // Live records are saved; beta and unknown ones stay in memory. False when the write failed.
   async function keepItemRecord(player, world, record) {
-    if (world !== 'live') { itemMemory.set(player, { world, record }); return true; }
+    if (world !== 'live') {
+      const memory = itemMemory.get(player) ?? new Map();
+      memory.set(world, record); itemMemory.set(player, memory); return true;
+    }
     try { await itemStore.put(player, record); return true; }
     catch { log('Could not save plugin item evidence; the plugin will send it again.'); return false; }
   }
@@ -213,11 +216,21 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     }
     return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
   }
-  async function matchItems(player, report, record, world, unmapped) {
+  async function matchItems(player, report, record, world, unmapped, others = []) {
     const owner = member(player), dismissed = itemHandled.get(player);
-    const evidence = new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact]));
-    const result = matchGameItems({ evidence, task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: world === 'live',
-      handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: unmapped ?? [] });
+    // Prefer live rows when several environments support the same task. Match all
+    // records before publishing one review, so queued evidence cannot hide containers.
+    const results = [{ record, world }, ...others].sort((a, b) =>
+      ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
+      matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
+        task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: world === 'live',
+        handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: unmapped ?? [] }));
+    const ticks = results.flatMap(result => result.ticks), tickIds = new Set(ticks.map(row => row.taskId));
+    const unique = new Map();
+    for (const row of results.flatMap(result => result.rows)) if (!tickIds.has(row.taskId) && !unique.has(row.taskId)) unique.set(row.taskId, row);
+    const rows = [...unique.values()];
+    const result = { ...results[0], ticks, rows: rows.slice(0, ITEM_REVIEW_LIMIT),
+      more: results.reduce((sum, result) => sum + result.more, 0) + Math.max(0, rows.length - ITEM_REVIEW_LIMIT) };
     // null keeps the unmapped list from the last items report.
     if (unmapped === null) { const prior = liveReview(player)?.report; result.unmapped = prior?.unmappedItems ?? []; result.unmappedMore = prior?.unmappedItemsMore ?? 0; }
     if (result.ticks.length) {
@@ -260,28 +273,43 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const ack = { snapshot: value.snapshot, journal: itemAcks.get(player)?.journal ?? null };
     // The first look needs both containers; until then only the snapshot is acknowledged.
     if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
-    const record = saved ?? { baselineAt: now, items: {}, handled: [], journal: null }, fresh = !saved;
     const entries = [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])];
-    // Worn events the plugin saw while the picker was away; a new journal ID restarts the count.
-    const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
-    for (const [event, id, name] of value.journal.events) if (event > after) entries.push([id, name, true]);
-    // Tool belt entries name tools, not items: only reviewed name=value pairs become owned items.
-    // The rest aren't listed; a full belt is about 60 entries and would bury the review.
+    // Containers describe the delivery world. Journal events describe their own
+    // observation environment; legacy triples are unknown even in a live report.
+    const groups = new Map([[world, entries]]);
+    for (const [, , , origin = 'unknown'] of value.journal.events) {
+      const scope = itemsBetaAsLive && origin === 'beta' ? 'live' : origin;
+      if (!groups.has(scope)) groups.set(scope, []);
+    }
     for (const [name, level] of value.toolbelt ?? []) {
       const id = GAME_TOOLBELT.get(`${name}=${level}`);
       if (id !== undefined) entries.push([id, null, false]);
     }
-    const added = addEvidence(record, entries, now, fresh);
-    let changed = fresh || added.changed;
-    const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);
-    if (record.journal?.id !== value.journal.id || last > after) { record.journal = { id: value.journal.id, event: last }; changed = true; }
-    if (changed && !await keepItemRecord(player, world, record)) { itemAcks.set(player, ack); return; }
+    const records = [], unmapped = new Map();
+    // Save live evidence before acknowledging any of the report's journal events.
+    for (const scope of ['live', 'beta', 'unknown'].filter(scope => groups.has(scope))) {
+      const prior = scope === world ? saved : itemRecord(player, scope);
+      const record = prior ?? { baselineAt: now, items: {}, handled: [], journal: null };
+      const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
+      const scoped = groups.get(scope);
+      for (const [event, id, name, origin = 'unknown'] of value.journal.events) {
+        if (event > after && (itemsBetaAsLive && origin === 'beta' ? 'live' : origin) === scope) scoped.push([id, name, true]);
+      }
+      const added = addEvidence(record, scoped, now, !prior);
+      for (const row of added.unmapped) if (!unmapped.has(row.gameItemId)) unmapped.set(row.gameItemId, row);
+      const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);
+      const journalChanged = record.journal?.id !== value.journal.id || last > after;
+      record.journal = { id: value.journal.id, event: last };
+      if ((!prior || added.changed || journalChanged) && !await keepItemRecord(player, scope, record)) { itemAcks.set(player, ack); return; }
+      records.push({ record, world: scope });
+    }
+    const record = records.find(row => row.world === world).record;
     itemAcks.set(player, { snapshot: value.snapshot, journal: record.journal });
     // A container the plugin couldn't read keeps its last coin count.
     const coins = coinParts(player, world, record.bank?.coins ?? null);
     if (value.pouch) coins.pouch = coinCount(value.pouch, true);
     if (value.backpack) coins.backpack = coinCount(value.backpack);
-    await matchItems(player, report, record, world, added.unmapped);
+    await matchItems(player, report, record, world, [...unmapped.values()], records.filter(row => row.world !== world));
     await updateCoins(player, world);
   }
   // Bank parts arrive in order, part 1 first; a new part 1 replaces an unfinished set. Status
@@ -351,7 +379,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         nearby.push(row);
       }
     }
-    return { v: 1, accepts: ['achievements', 'items', 'toolbelt', 'pouch', 'bank'], achievements: achievementStatus(player), items: itemAcks.get(player) ?? null, bank: bankStatus(player), player: { id: player, name: owner.name }, chunkId: positionGameId(position), chunkName: chunk?.name ?? null,
+    return { v: 1, accepts: ['achievements', 'items', 'item-journal-world', 'toolbelt', 'pouch', 'bank'], achievements: achievementStatus(player), items: itemAcks.get(player) ?? null, bank: bankStatus(player), player: { id: player, name: owner.name }, chunkId: positionGameId(position), chunkName: chunk?.name ?? null,
       state: !position ? 'unknown' : stateOf(chunkId),
       activeTaskCount: taskRows.get(player)?.revision === revision && !taskRows.get(player).stale ? taskRows.get(player).rows.length : null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
       pickableCount: pool ? pool.eligible.length : null,

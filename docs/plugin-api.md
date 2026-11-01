@@ -93,8 +93,8 @@ pending proposals; send progress again after reconnecting.
 ### Completed achievements
 
 Read `accepts` in status before sending optional capability-gated fields. This
-picker advertises `["achievements", "items"]`. Send `achievements` or `items` only
-when it is listed.
+picker advertises `"achievements"`, `"items"` and optional extensions in `accepts`.
+Send `achievements` or `items` only when it is listed.
 An achievement part has the normal required report fields and optional `world`,
 but no `skills`, `quests` or `diagnostics`:
 
@@ -245,7 +245,7 @@ Send `items` only when status `accepts` lists `"items"`, in a report without
   "snapshot": "0123456789abcdef",
   "worn": [[4, 34830, 1, "Gud raider chainbody"]],
   "backpack": [[0, 857, 1, "Yew shortbow"]],
-  "journal": { "id": "aaaaaaaaaaaaaaaa", "events": [[1, 34830, "Gud raider chainbody"]] }
+  "journal": { "id": "aaaaaaaaaaaaaaaa", "events": [[1, 34830, "Gud raider chainbody", "live"]] }
 }
 ```
 
@@ -255,9 +255,29 @@ Send `items` only when status `accepts` lists `"items"`, in a report without
 a unique slot from 0 to 63, a game item ID from 0 to 1,000,000, a count of at
 least 1 and the game's item name, 1–80 characters without controls. The
 `journal` holds up to 32 worn observations the plugin made while the picker
-may not have been listening: `[eventId, itemId, name]` with strictly
-increasing positive event IDs. `journal.id` is 16 hex characters chosen when
-the plugin starts a journal; a new ID restarts event counting.
+may not have been listening. When `accepts` includes `"item-journal-world"`,
+use `[eventId, itemId, name, environment]`, where `environment` is `"live"`,
+`"beta"` or `"unknown"`. Capture it **when the wearing is observed**, using
+that observation's world, and retain it unchanged with the event through offline
+queues, lost replies, retries and world transitions. Missing observation-world
+information means `"unknown"`; never fill it from the later delivery world.
+The current report's `world` still describes its current containers and position.
+One journal can contain events from several environments. Event IDs must be
+strictly increasing positive integers across that journal, regardless of environment.
+`journal.id` is 16 hex characters chosen when the plugin starts a journal; a new
+ID restarts event counting, but does not change retained events' environments.
+The same journal ID/event ID must always retain the same item, name and environment.
+
+Legacy `[eventId, itemId, name]` triples are still accepted, as **unknown-world**
+evidence. They can produce labelled review rows, but cannot persist live owned/worn
+facts or automatically tick live goals, even in a live report. This includes old
+queued events after a sender upgrade: keep them unknown unless their observation
+environment was actually retained. Current live containers continue to work.
+Send four-field events only after observing `"item-journal-world"` in status;
+older receivers reject them. A sender requiring reliable historical live evidence
+must upgrade to retain and send the observation environment. This repository's
+simulator does not implement item journals; external game-client behavior has not
+been verified.
 
 The picker matches **numeric IDs only**, through a reviewed table in
 `app/integrations/game-items.mjs`. Each row was checked against the wiki
@@ -272,8 +292,9 @@ need worn evidence, from `worn` or the journal; noted IDs are never worn
 evidence. Source-specific tasks (collection rows such as "(Asgarnia &
 Misthalin) Obtain …", drops, crafts) are not in the table and never match.
 
-**Live owned items tick their BiS goals.** On a live world
-(`world.beta === false`), an owned match for an open BiS "Obtain" goal is
+**Live owned items tick their BiS goals.** For current live containers
+(`world.beta === false`) or a journal event explicitly observed on `"live"`, an
+owned match for an open BiS "Obtain" goal is
 applied at once through `apply-game-progress` `items`, in one History/Undo
 entry, and the goal is marked handled so Undo or an untick is not re-ticked by
 the next report. If that write fails, the matches fall back to review. Wear
@@ -292,7 +313,8 @@ set it. The proposal preview carries `items`,
 command records `member.itemProgress` (see the save schema). Apply and
 Dismiss mark every shown row handled so it is not offered again.
 
-Live-world evidence (`world.beta === false`) is saved in `plugin-items.json`
+Live-world evidence (current live containers or explicitly live journal events)
+is saved in `plugin-items.json`
 beside `plugin-achievements.json`, with the same atomic writes and corrupt-file
 archive. Per player it keeps `baselineAt`, reviewed `items` facts
 (`name`, `ownedAt`, `wornAt`, `first`), sorted `handled` task IDs (at most
@@ -302,10 +324,19 @@ The sidecar is outside the save, Undo and backups.
 
 Status `items` is null until the first items report, then exactly
 `{snapshot, journal}`: the last snapshot processed and the newest journal event
-stored (`null` before the first readable look). The plugin resends when its
-snapshot differs and drops journal events at or below the acknowledged event
-for the same journal ID. A live acknowledgement is sent only after the sidecar
-write succeeds.
+processed (`null` before the first readable look). The plugin resends when its
+snapshot differs or journal events remain unacknowledged, even if the containers
+have not changed. It drops journal events at or below the acknowledged event
+for the same journal ID. An acknowledgement covers all environments in the
+received journal prefix; it does not certify live provenance or a task tick.
+Any live evidence and its watermark must reach the sidecar before that prefix is
+acknowledged. If the write fails, the prior journal acknowledgement is retained
+for retry. Beta and unknown evidence is accepted into separate memory records,
+as before; it does not survive receiver restart without a retransmission. Legacy
+triples receive the same delivery acknowledgement after unknown-world handling.
+A lost reply must be retried with the original event environment, even after a
+world transition. No existing evidence or saves are reclassified by this change;
+actual sender exposure would need separate verification before any migration.
 
 ## GET /api/plugin/v1/status
 
@@ -315,7 +346,7 @@ No body or query parameters. Report and status return the same exact shape:
 {
   "v": 1,
   "player": { "id": "player1", "name": "Explorer 1" },
-  "accepts": ["achievements", "items"],
+  "accepts": ["achievements", "items", "item-journal-world", "toolbelt", "pouch", "bank"],
   "achievements": { "snapshot": "0123456789abcdef", "received": 1, "parts": 2 },
   "chunkId": "12850",
   "chunkName": "Lumbridge",

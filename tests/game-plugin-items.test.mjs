@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { validatePluginReport } from '../app/integrations/game-plugin.mjs';
 import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
@@ -25,12 +26,12 @@ const catalogue = [
 ];
 const items = ({ snapshot = '0123456789abcdef', worn = [], backpack = [], events = [], id = journalId } = {}) => ({ snapshot, worn, backpack, journal: { id, events } });
 
-async function fixture(t, { betaAsLive = false } = {}) {
+async function fixture(t, { betaAsLive = false, durable = false } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   let at = Date.parse('2026-10-22T12:00:00Z'), input, output, seq = 0, controller;
   const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false };
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]);
-  const store = {
+  let store = {
     getInfo: () => ({ revision: state.revision }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => null,
     command: async (command, expectedRevision) => {
       if (failing.command) throw new Error('Synthetic write failure');
@@ -40,6 +41,7 @@ async function fixture(t, { betaAsLive = false } = {}) {
   };
   let queue = Promise.resolve();
   async function start() {
+    if (durable) store = await openStore({ dataDir, initialState: state, taskCatalogue, retention: false, now: () => new Date(at).toISOString() });
     controller = await openGamePlugin({ dataDir, store, clock: () => at, world: { chunks: new Map() }, registry: { resolve: () => ({}) }, questMapping: new Map(),
       serializeMutation: operation => { const next = queue.then(operation); queue = next.catch(() => {}); return next; },
       bodyJSON: async () => input, json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; },
@@ -47,9 +49,9 @@ async function fixture(t, { betaAsLive = false } = {}) {
   }
   await start();
   const { key } = await controller.create(identity, { memberId: 'a', label: 'Synthetic plugin' });
-  t.after(async () => { await controller.close(); await rm(dataDir, { recursive: true, force: true }); });
+  t.after(async () => { await controller.close(); if (durable) await store.close(); await rm(dataDir, { recursive: true, force: true }); });
   async function send(value, beta = false, field = 'items') {
-    at += 1001; input = { v: 1, seq: ++seq, sentAt: new Date(at).toISOString(), position: { x: 50, z: 50, floor: 0 }, world: { id: beta ? 204 : 1, beta }, [field]: value };
+    at += 1001; input = { v: 1, seq: ++seq, sentAt: new Date(at).toISOString(), position: { x: 50, z: 50, floor: 0 }, ...(beta === null ? {} : { world: { id: beta ? 204 : 1, beta } }), ...(value === undefined ? {} : { [field]: value }) };
     const request = { method: 'POST', url: '/api/plugin/v1/report', headers: { authorization: `Bearer ${key}` } };
     await controller.handle(request, {}, { route: request.url, security: {} }); return output;
   }
@@ -59,9 +61,9 @@ async function fixture(t, { betaAsLive = false } = {}) {
     await store.command(review.command, preview.stateRevision); await controller.finish('a');
     return review.command;
   }
-  return { get controller() { return controller; }, get state() { return state; }, get at() { return at; }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
+  return { get controller() { return controller; }, get state() { return durable ? store.getState() : state; }, get at() { return at; }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
     sendBank: (value, beta = false) => send(value, beta, 'bank'),
-    review: () => controller.review(identity, 'a'), restart: async () => { await controller.close(); await start(); } };
+    review: () => controller.review(identity, 'a'), restart: async () => { await controller.close(); if (durable) await store.close(); await start(); } };
 }
 
 test('item reports are bounded, separate and keep unreadable containers as null', () => {
@@ -197,7 +199,7 @@ test('a Wear row left unticked stays handled and is not offered again', async t 
 
 test('beta snapshots never tick, stay in memory and are labelled; journal events count once per journal', async t => {
   const f = await fixture(t);
-  const status = await f.send(items({ backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']], events: [[1, CHAINBODY, 'Gud raider chainbody'], [2, CHAINBODY_NOTED, 'Gud raider chainbody']] }), true);
+  const status = await f.send(items({ backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']], events: [[1, CHAINBODY, 'Gud raider chainbody', 'beta'], [2, CHAINBODY_NOTED, 'Gud raider chainbody', 'beta']] }), true);
   assert.deepEqual(status.items.journal, { id: journalId, event: 2 });
   assert.equal(f.commands.length, 0, 'Beta items never tick');
   const rows = f.review().items;
@@ -205,7 +207,7 @@ test('beta snapshots never tick, stay in memory and are labelled; journal events
   assert.ok(rows.some(row => row.taskId === WEAR_TASK), 'A worn journal event is worn evidence');
   await assert.rejects(readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'), { code: 'ENOENT' });
   await f.controller.finish('a');
-  await f.send(items({ snapshot: '3323456789abcdef', backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']], events: [[1, CHAINBODY, 'Gud raider chainbody']] }), true);
+  await f.send(items({ snapshot: '3323456789abcdef', backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']], events: [[1, CHAINBODY, 'Gud raider chainbody', 'beta']] }), true);
   assert.equal(f.review().preview, null, 'Dismissed beta rows stay hidden for this run');
 });
 
@@ -338,4 +340,130 @@ test('coins on hand add pouch, backpack and bank on live worlds, only when the t
   assert.equal(coins(), 2000087194, 'An unreadable pouch keeps its last count; the bank adds in');
   assert.equal(writes(), 2);
   assert.doesNotThrow(() => validateState(f.state));
+});
+
+// Real durable store: the retained event must never borrow the delivery world's provenance.
+for (const format of ['legacy', 'scoped']) for (const mode of ['lost-beta-ack', 'offline-beta', 'rotated-retained-beta', 'unknown-origin', 'delivered-beta-ack', 'transition-clear', 'direct-beta', 'direct-live']) {
+  test(`durable journal environment isolation: ${mode} (${format})`, async t => {
+    const f = await fixture(t, { durable: true });
+    const event = [1, CHAINBODY, 'Synthetic worn item', ...(format === 'scoped' ? [mode === 'unknown-origin' ? 'unknown' : 'beta'] : [])];
+    const first = await f.send(items());
+    assert.deepEqual(first.items.journal, { id: journalId, event: 0 });
+    let pending = ['direct-beta', 'direct-live'].includes(mode) ? [] : [event], id = journalId;
+    if (mode === 'offline-beta') await f.send(undefined, true);
+    else if (mode === 'unknown-origin') await f.send(undefined, null);
+    else {
+      const ack = await f.send(items({ worn: [[0, CHAINBODY, 1, 'Synthetic worn item']], events: pending }), true);
+      assert.equal(ack.items.journal.event, pending.length);
+      if (mode === 'delivered-beta-ack' || mode === 'direct-beta') pending = [];
+      assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), false);
+    }
+    if (mode === 'transition-clear') { pending = []; id = 'bbbbbbbbbbbbbbbb'; }
+    if (mode === 'rotated-retained-beta') id = 'bbbbbbbbbbbbbbbb';
+    const live = mode === 'direct-live';
+    const ack = await f.send(items({ id, events: pending, worn: live ? [[0, CHAINBODY, 1, 'Synthetic worn item']] : [] }));
+    assert.equal(ack.items.journal.event, pending.length);
+    async function inspect() {
+      const state = f.state, member = state.members[0];
+      const disk = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).state.members[0];
+      const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
+      assert.equal(Boolean(record.items[CHAINBODY]?.ownedAt), live);
+      assert.equal(Boolean(record.items[CHAINBODY]?.wornAt), live);
+      assert.equal(member.completedTasks.includes(goal('000597')), live);
+      assert.equal(disk.completedTasks.includes(goal('000597')), live);
+      assert.equal(member.completedTasks.includes(WEAR_TASK), false);
+      assert.equal(disk.completedTasks.includes(WEAR_TASK), false);
+      assert.equal(member.itemProgress?.[goal('000597')]?.evidence ?? null, live ? 'owned' : null);
+      const history = state.history.filter(row => row.command?.items?.length);
+      assert.deepEqual(history.map(row => row.source), live ? ['game-plugin'] : []);
+      const rows = f.review().items ?? [];
+      assert.equal(rows.filter(row => row.taskId === WEAR_TASK && row.world === 'live').length, live ? 1 : 0);
+    }
+    await inspect();
+    if (pending.length && !live) assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === (format === 'legacy' || mode === 'unknown-origin' ? 'unknown' : 'beta')), 'Non-live evidence stays available for explicit review');
+    await f.restart();
+    await f.send(items({ id, events: pending }));
+    await inspect();
+    assert.deepEqual(f.warnings, []);
+  });
+}
+
+test('journal observation environments are validated independently of the report world', () => {
+  const base = { v: 1, seq: 1, sentAt: '2026-10-22T12:00:00.000Z', position: { x: 1, z: 1, floor: 0 } };
+  for (const origin of ['live', 'beta', 'unknown']) assert.doesNotThrow(() => validatePluginReport({ ...base,
+    items: items({ events: [[1, CHAINBODY, 'Synthetic item', origin]] }) }));
+  for (const tail of [[null], [false], [1], [{}], ['LIVE'], [''], ['live', 'extra']]) {
+    assert.throws(() => validatePluginReport({ ...base, items: items({ events: [[1, CHAINBODY, 'Synthetic item', ...tail]] }) }), error => error.status === 400);
+  }
+});
+
+for (const delivery of [false, true, null]) test(`qualified live journal survives delivery world ${delivery} and reopen`, async t => {
+  const f = await fixture(t, { durable: true });
+  const value = items({ events: [[1, CHAINBODY, 'Synthetic live item', 'live']] });
+  const status = await f.send(value, delivery);
+  assert.ok(status.accepts.includes('item-journal-world'));
+  assert.equal(status.items.journal.event, 1);
+  async function inspect() {
+    const member = f.state.members[0];
+    const disk = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).state.members[0];
+    const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
+    assert.ok(record.items[CHAINBODY].ownedAt && record.items[CHAINBODY].wornAt);
+    assert.equal(member.completedTasks.includes(goal('000597')), true);
+    assert.equal(disk.completedTasks.includes(goal('000597')), true);
+    assert.equal(member.completedTasks.includes(WEAR_TASK), false);
+    assert.equal(disk.completedTasks.includes(WEAR_TASK), false);
+    assert.equal(member.itemProgress[goal('000597')].evidence, 'owned');
+    assert.deepEqual(f.state.history.filter(row => row.command?.items?.length).map(row => row.source), ['game-plugin']);
+    assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), [[WEAR_TASK, 'live']]);
+  }
+  await inspect();
+  await f.send(value, delivery); // Lost reply: retransmission is idempotent.
+  await inspect();
+  await f.restart();
+  await f.send(items());
+  await inspect();
+});
+
+test('mixed-world journal queues keep both memory scopes and only live facts reach disk', async t => {
+  const f = await fixture(t, { durable: true });
+  const events = [[1, CHAINBODY, 'Synthetic beta item', 'beta'], [2, YEW_SHORTBOW, 'Synthetic live item', 'live'],
+    [3, BRONZE_DAGGER, 'Synthetic unknown item', 'unknown']];
+  for (let n = 0; n < 2; n++) {
+    const status = await f.send(items({ events }));
+    assert.equal(status.items.journal.event, 3);
+    const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
+    assert.deepEqual(Object.keys(record.items), [String(YEW_SHORTBOW)]);
+    assert.deepEqual(f.state.members[0].completedTasks, [goal('000dc1')]);
+    assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), [
+      [goal('000597'), 'beta'], [WEAR_TASK, 'beta'], [goal('0002ae'), 'unknown']]);
+  }
+  await f.restart();
+  await f.send(items({ events }));
+  assert.deepEqual(f.state.history.filter(row => row.command?.items?.length).map(row => row.source), ['game-plugin']);
+});
+
+test('live inventory wins over unknown journal proposals, including a failed automatic command', async t => {
+  const f = await fixture(t);
+  f.failing.command = true;
+  await f.send(items({ worn: [[0, CHAINBODY, 1, 'Synthetic live item']], events: [[1, CHAINBODY, 'Synthetic old item']] }));
+  assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), [[goal('000597'), 'live'], [WEAR_TASK, 'live']]);
+  f.failing.command = false;
+  await f.send(items());
+  assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), true);
+});
+
+test('a failed live sidecar write leaves journal evidence unacknowledged for retry', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items());
+  const file = path.join(f.dataDir, 'plugin-items.json'), backup = path.join(f.dataDir, 'synthetic-held-items.json');
+  await rename(file, backup); await mkdir(file);
+  const value = items({ events: [[1, CHAINBODY, 'Synthetic live item', 'live']] });
+  const failed = await f.send(value, true);
+  assert.equal(failed.items.journal.event, 0);
+  assert.deepEqual(f.state.members[0].completedTasks, []);
+  await rm(file, { recursive: true }); await rename(backup, file);
+  const retried = await f.send(value, true);
+  assert.equal(retried.items.journal.event, 1);
+  assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), true);
+  assert.equal(f.warnings.length, 1);
 });

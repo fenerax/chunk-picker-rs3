@@ -111,8 +111,8 @@ function validatePluginItems(body) {
   }
   let previous = 0;
   for (const event of value.journal.events) {
-    if (!Array.isArray(event) || event.length !== 3 || !Number.isSafeInteger(event[0]) || event[0] <= previous || !itemId(event[1]) || !itemName(event[2])) {
-      fail('Item journal events need increasing positive IDs, an item ID and a name.');
+    if (!Array.isArray(event) || ![3, 4].includes(event.length) || event.length === 4 && !['live', 'beta', 'unknown'].includes(event[3]) || !Number.isSafeInteger(event[0]) || event[0] <= previous || !itemId(event[1]) || !itemName(event[2])) {
+      fail('Item journal events need increasing positive IDs, an item ID, a name and optionally a live, beta or unknown observation environment.');
     }
     previous = event[0];
   }
