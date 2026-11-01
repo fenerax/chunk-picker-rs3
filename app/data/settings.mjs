@@ -1,5 +1,22 @@
 import { datasetValue, datasetRuleDefinitions, datasetRuleRecords } from "../dataset-runtime.mjs";
 import { futureSlayerUnlocksRule, FUTURE_SLAYER_UNLOCKS_RULE } from './slayer-unlock-gates.mjs';
+export const UNKNOWN_DROP_RULE = 'Kills before moving on from an unknown-rate drop';
+export const unknownDropRule = Object.freeze({
+  id: UNKNOWN_DROP_RULE, label: UNKNOWN_DROP_RULE, type: 'number', default: 3,
+  parent: 'Rare Drop', category: 'Miscellaneous',
+  description: 'Times the estimated drop rate. Shows when you can move on; never completes or skips a task.',
+});
+export const unknownDropExplanation = {
+  what: 'Sets the move-on figure for drops the wiki calls rare without giving a number. Other available ways to get the item remove the warning.',
+  example: 'At 3, a rare drop uses about 384 kills and a very rare drop uses about 3,000 kills.',
+  grindWarning: 'These are estimates. You can move on earlier or keep trying.',
+  sources: [
+    { title: 'Drop-rate style guide', url: 'https://runescape.wiki/w/RuneScape:Style_guide/Drop_tables?oldid=36460463' },
+    { title: 'DropsLine colour bands (arbitrary)', url: 'https://runescape.wiki/w/Module:DropsLine?oldid=37212317' },
+    { title: 'DropsLine documentation', url: 'https://runescape.wiki/w/Template:DropsLine?oldid=36897552' },
+  ],
+};
+
 // Declarative metadata extracted from retained upstream index.js v6.9.68.
 // Never execute upstream scripts or copy these defaults over imported player rules.
 const freeze = value => { if (value && typeof value === "object") { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
@@ -40,11 +57,11 @@ export const taskHowPreference = Object.freeze({ id: 'showTaskHow', label: 'Show
 export const authoredSettingDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#authoredSettingDefinitions"), taskHowPreference]);
 const rulePositions = positions(originalRuleStructure);
 const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTaskRules");
-export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule]);
+export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule, unknownDropRule]);
 // Cutoff inputs are configuration even while their switch is off. KeyItem
 // Bosses deliberately sits outside Rare Drop's polarity (and is currently inert).
 export const independentTaskRuleControls = new Set([
- 'Rare Drop Amount', 'Rare Drop Inclusive', 'Secondary Primary Amount',
+ UNKNOWN_DROP_RULE, 'Rare Drop Amount', 'Rare Drop Inclusive', 'Secondary Primary Amount',
  'Secondary Primary Inclusive', 'Kill X Amount', 'KeyItem Bosses',
 ]);
 export const taskRuleParents = Object.freeze(Object.fromEntries(taskRuleDefinitions
@@ -78,7 +95,7 @@ export function taskRuleCutoff(value) {
 
 export function taskRuleValueError(id, value) {
  if (Object.hasOwn(taskRuleCutoffDefaults, id)) return taskRuleCutoff(value) === null ? `Task rule ${id} must be an explicit probability a/b in (0, 1], a positive denominator (bare amounts always mean 1/X), or the documented zero sentinel.` : null;
- if (id === 'Kill X Amount') {
+ if (id === 'Kill X Amount' || id === UNKNOWN_DROP_RULE) {
   const number = typeof value === 'number' ? value : typeof value === 'string' && cutoffNumber.test(value.trim()) ? Number(value) : NaN;
   return Number.isSafeInteger(number) && number > 0 ? null : `Task rule ${id} must be a positive safe integer.`;
  }
@@ -109,6 +126,7 @@ const retainedRuleBehavior = datasetValue("app/data/settings.mjs#retainedRuleBeh
  * Never use original defaults as effective imported values: absence is inheritance.
  */
 export function taskRuleBehavior(id) {
+ if (id === UNKNOWN_DROP_RULE) return { status: 'implemented-scope', detail: 'Shows an estimated move-on kill count for unknown rare drops. Does not change sources or task completion.' };
  if (id === FUTURE_SLAYER_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Includes eight Slayer Rewards before their monster, area or item is available.' };
  if (id === 'PvM Relics') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: no combat-relic goals are declared. Which combat relics should count has not been defined.' };
  if (id === 'All Droptables Nest') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: it has no matching nest-loot task. Custom inputs need both a matching loot task and an obtainable nest supply route.' };
