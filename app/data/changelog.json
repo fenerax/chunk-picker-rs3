@@ -2,6 +2,42 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-01",
+      "title": "Five starting banks can roll again",
+      "items": [
+        "New runs starting at five banks had no chunks to roll. They now get their first chunks like every other start",
+        "One section near Kharid-et now counts as free-to-play, so free-to-play runs can roll it"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Clearer \"Why not?\" and a new \"How?\"",
+      "items": [
+        "\"Why not?\" follows a blocked task through the places, quests, training and supplies it needs, and keeps the alternatives visible",
+        "A new \"How?\" shows the steps that make an available task reachable. You can turn it off in Settings → Tasks → Show How?"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Slayer masters warn when their tasks can't be done",
+      "items": [
+        "Each Slayer master shows roughly how often its tasks can't be done, both right now and with your planned levels",
+        "Bats, Skeletons and Zombies assignments count as possible once The Blood Pact is done",
+        "Six Slayer assignment weights now match the RuneScape Wiki"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "18 quest requirements now match the RuneScape Wiki",
+      "items": [
+        "Boosts are allowed for Regicide, Shades of Mort'ton, three Recipe for Disaster subquests and Cold War's Thieving route",
+        "Barbarian Training: tuna needs Strength 35 instead of 55, and the spear and hasta steps accept the matching metals",
+        "Evil Dave no longer needs Cooking 25, and King's Ransom no longer needs a black full helm",
+        "Cold War accepts Thieving 15 or Zanaris, and raw cod or a ring of charos",
+        "Kili's Knowledge III now also needs Slayer 32 and the mogre flippers"
+      ]
+    },
+    {
       "date": "2026-10-31",
       "title": "Levels keep syncing when RuneMetrics closes",
       "items": [

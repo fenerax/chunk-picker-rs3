@@ -4,7 +4,18 @@ import { datasetValue } from "../dataset-runtime.mjs";
 const walkable = datasetValue("app/data/map-corrections.mjs#walkable");
 const mixed = datasetValue("app/data/map-corrections.mjs#mixed");
 
-export const MAP_CORRECTIONS = datasetValue("app/data/map-corrections.mjs#MAP_CORRECTIONS");
+const retainedMapCorrections = datasetValue("app/data/map-corrections.mjs#MAP_CORRECTIONS");
+// Keep authored fixes effective with released providers as well as tracked data.
+// The existing sectionF2p path settles mixed cache masks via a certified legacy
+// correspondence; it applies to every player, not just a setup-start command.
+export const MAP_CORRECTIONS = Object.freeze([...retainedMapCorrections,
+  ...(retainedMapCorrections.some(row => row.chunk === '13361' && row.section === '1' && row.field === 'sectionF2p') ? [] : [Object.freeze({
+    chunk: '13361', section: '1', field: 'sectionF2p', oldValue: null, newValue: true,
+    evidenceUrl: 'https://runescape.wiki/w/Bank_chest?oldid=37215299',
+    confidence: 'medium-high', date: '2026-11-01',
+    rationale: 'Kharid-et exterior surface bank chest 115427 at (3356,3198), plane 0, is mem=No (orchestrator Wiki check). Certified selector 13361-1 maps only component 1: 2209 free tiles and one coarse-mask members tile (3351,3159), the northeast corner of the 8x8 block (3344..3351,3152..3159). Its only walking exits go north/east to free tiles. The separate members pit remains component 2 and receives no override. Preserve raw counts; this is an authored geographic section policy, not a resource or start-only membership exception.',
+  })]),
+]);
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
