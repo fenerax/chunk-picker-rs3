@@ -47,6 +47,7 @@ export const quickTests = new Set([
   "linux-multi-picker.test.mjs",
   "linux-service-crash.test.mjs",
   "linux-lock-recovery.test.mjs",
+  "linux-lock-publication.test.mjs",
   "release-vps-additions.test.mjs",
   "online-snapshot.test.mjs",
   "progress-sources.test.mjs",
