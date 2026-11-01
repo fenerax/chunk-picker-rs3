@@ -119,16 +119,24 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // the six Legio monsters for Legiones. Dropping only bossGates reproduces rel31
 // 3b15772's stripped hashes in all six modes; the new hashes match CI run
 // 41166557018 (Linux) and Windows.
+// Rule explanations 2026-11-01: tasks hidden only because local sources fail the
+// task's source conditions (drop-only, non-shop, Wield Crafted Items) now say so and
+// list sourcePolicyRejections, instead of the wrong "outside the member's own reachable
+// map" reason. A complete leaf diff against main 2a76bfd changes only explanation,
+// hiddenReasons[0] and the new sourcePolicyRejections on those rows (9/9/6/0/9/0
+// leaves by mode); no status, item, access or prediction value changes.
 // Ancient Effigies 2026-11-01: the rule's save migration marks each member once, so
 // every prediction.state gains provenance.ancientEffigiesMigratedMembers. A complete
 // leaf diff against main 2a76bfd changes only that field in all six modes; no task,
 // item, access or prediction value, ordering or counter changes.
+// Combined 2026-11-01: both changes above together, recomputed on the merged tree. backlogs and
+// legacy-all equal the effigies-only hashes because the explanation change touches 0 leaves there.
 const expected = {
-  shared: 'ce0d0f105a42bac3482bf847d1512a4ab3b28a5b3dbd193ca8d9e2436f7db370',
-  unshared: 'f7f044bcb9b3412bf203d5fa3abb159e07c0696acb69131bcd6b83deef936271',
-  'member-inclusive': '85631ddabac7263d2df4bcab1dc6a707993c35f694b44200c9ec9f7bdb0d5d3d',
+  shared: 'b90153c8c98db2373848eef2505a35213db9801894ccc91dcc43959356992d77',
+  unshared: '9079cd7bab36ab826be4fc721d2916ba1d169fced1942f1336c66a3626603809',
+  'member-inclusive': 'a259d2b5ebc32740237f29cccd4743b63df5cdafa60f86036c61e53675df1f58',
   backlogs: '5a0273ac76da4243e90423b24e4f1f8a57d3480cdbe1d244ad287370f4941dbe',
-  personal: '9d46de4dc4925be0e9d3793689f15c76caefa6f1c362e610c3689e5bf70a5c67',
+  personal: 'c2b308f4c03bbe26b3c1004242b9b793465661b8d8db6087c6588fb5ea9244ea',
   'legacy-all': 'acb507f13b3633ab887db304a7661216d224a7d80e884fae962a2425b7f156c6',
 };
 

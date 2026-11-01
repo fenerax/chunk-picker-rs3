@@ -1,6 +1,7 @@
 // Focused START comparison, not a replacement for tools/calc-check.
 // Run this same file with --checkout for each revision, one process at a time.
-// --data-dir selects 8 copied save states; all outputs contain hashes/counts only.
+// --data-dir (copied save states) is disabled: it started the server on a private
+// copy, which can copy or create credentials. Public mode is unchanged.
 import { parseArgs } from 'node:util';
 import { readFile, writeFile, cp, copyFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -13,6 +14,8 @@ const { values } = parseArgs({ options: {
   'membership-frontier': { type: 'boolean', default: false },
   out: { type: 'string' }, 'data-dir': { type: 'string' }, runs: { type: 'string', default: '3' },
 } });
+export const PRIVATE_DISABLED = 'Private mode is disabled: it copied a save and started the server on it, which can copy or create credentials. Compare private saves with a pure filesystem reader instead.';
+if (values['data-dir']) throw Error(PRIVATE_DISABLED);
 const checkout = path.resolve(values.checkout), output = values.out && path.resolve(values.out);
 const runs = Number(values.runs);
 if (!output || !Number.isSafeInteger(runs) || runs < 1 || !path.relative(checkout, output).startsWith('..'))
