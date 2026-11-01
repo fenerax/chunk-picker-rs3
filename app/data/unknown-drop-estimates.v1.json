@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "wikiFacts": [
+    {
+      "title": "RuneScape:Style guide/Drop tables",
+      "revision": 36460463,
+      "url": "https://runescape.wiki/w/RuneScape:Style_guide/Drop_tables?oldid=36460463",
+      "fact": "Rarity words have no official numeric threshold; 100% is Always."
+    },
+    {
+      "title": "Module:DropsLine",
+      "revision": 37212317,
+      "url": "https://runescape.wiki/w/Module:DropsLine?oldid=37212317",
+      "fact": "Arbitrary display colour bands, lower bound inclusive.",
+      "bands": {
+        "common": {
+          "minimum": 0.0625
+        },
+        "uncommon": {
+          "minimum": 0.015625,
+          "maximumExclusive": 0.0625
+        },
+        "rare": {
+          "minimum": 0.00390625,
+          "maximumExclusive": 0.015625
+        },
+        "very rare": {
+          "maximumExclusive": 0.00390625
+        }
+      }
+    },
+    {
+      "title": "Template:DropsLine",
+      "revision": 36897552,
+      "url": "https://runescape.wiki/w/Template:DropsLine?oldid=36897552",
+      "fact": "Documentation describes rarity words in prose; Varies, Random and Once are special cases."
+    }
+  ],
+  "authoredEstimates": {
+    "common": {
+      "denominator": 8,
+      "warn": false
+    },
+    "uncommon": {
+      "denominator": 32,
+      "warn": false
+    },
+    "rare": {
+      "denominator": 128,
+      "warn": true
+    },
+    "very rare": {
+      "denominator": 1000,
+      "warn": true
+    }
+  },
+  "estimatePolicy": "Authored representative denominators, not official wiki thresholds. Very rare is an adjustable choice in an open-ended band. Estimates affect guidance only; unknown rates remain included.",
+  "noEstimate": [
+    "varies",
+    "random",
+    "once"
+  ]
+}

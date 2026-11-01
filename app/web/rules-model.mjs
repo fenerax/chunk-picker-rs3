@@ -1,10 +1,11 @@
 import { datasetJSON } from "../dataset-runtime.mjs";
 const capturedCatalogue = await datasetJSON("app/data/original-rules-ui.2026-10-08.v1.json");
-import { ANCIENT_EFFIGIES_RULE, taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls } from '../data/settings.mjs';
+import { ANCIENT_EFFIGIES_RULE, taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls, EARLY_TRAVEL_UNLOCKS_RULE, earlyTravelUnlocksExplanation } from '../data/settings.mjs';
 import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
 import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
 import { loadRuleExplanations } from './rule-explanations.mjs';
+import { UNKNOWN_DROP_RULE, unknownDropExplanation } from '../data/settings.mjs';
 import { FUTURE_SLAYER_UNLOCKS_RULE, futureSlayerUnlocksExplanation } from '../data/slayer-unlock-gates.mjs';
 
 const own = (record, key) => Object.hasOwn(record ?? {}, key);
@@ -60,7 +61,7 @@ export const ruleExplanations = Object.freeze({
       sources: effigySources,
     },
   } }) : {}),
-  ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation } }),
+  ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation, [UNKNOWN_DROP_RULE]: unknownDropExplanation, [EARLY_TRAVEL_UNLOCKS_RULE]: earlyTravelUnlocksExplanation } }),
 });
 
 /** Original copy and order are presentation data; current types stay registry-owned. */
@@ -76,7 +77,7 @@ export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
       ...(row.key === 'F2P' ? { sharedRuleId: 'content.f2p', scope: 'shared' } : {}) };
   }) }));
   // Authored additions join their original parent, without modifying retained metadata.
-  const presentationParents = { 'Rare Drop Inclusive': 'Rare Drop Amount', 'Secondary Primary Inclusive': 'Secondary Primary Amount' };
+  const presentationParents = { [UNKNOWN_DROP_RULE]: 'Rare Drop Amount', 'Rare Drop Inclusive': 'Rare Drop Amount', 'Secondary Primary Inclusive': 'Secondary Primary Amount' };
   for (const original of taskRuleDefinitions.filter(rule => !seen.has(rule.id))) {
     const definition = { ...original, parent: presentationParents[original.id] ?? original.parent };
     const section = definition.parent && sections.find(group => group.rules.some(rule => rule.id === definition.parent));

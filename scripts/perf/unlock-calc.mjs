@@ -219,7 +219,10 @@ async function instrument(scratch, appDir) {
   // Alias whole imported functions, preserving arguments and return identity.
   engine = replace(engine, 'buildAccessIndex, calculateAccess, collectBaseItemSources,', 'buildAccessIndex as rawBuildAccessIndex, calculateAccess as rawCalculateAccess, collectBaseItemSources as rawCollectBaseItemSources,', 'access imports');
   engine = replace(engine, 'isProcessingSourceTask, processingSkills, selectProcessingSources }', 'isProcessingSourceTask, processingSkills, selectProcessingSources as rawSelectProcessingSources }', 'processing import');
-  engine = replace(engine, 'return variantForRules(state.rules).evaluate(state, memberId, evaluateOptions);', 'return engineEvaluation(() => variantForRules(state.rules).evaluate(state, memberId, evaluateOptions));', 'engine evaluation');
+  // Newer engines pick the variant per member (personal rules); archived ones per group rules.
+  const evaluation = engine.includes('return variantForMember(state, memberId).evaluate(')
+    ? 'variantForMember(state, memberId).evaluate(state, memberId, evaluateOptions)' : 'variantForRules(state.rules).evaluate(state, memberId, evaluateOptions)';
+  engine = replace(engine, `return ${evaluation};`, `return engineEvaluation(() => ${evaluation});`, 'engine evaluation');
   // Match complete indentation so every resume anchor is independently unique.
   for (const [index, [anchor, replacement]] of [
     ['\n    let processing = evaluation.next().value;', '\n    let processing = step(evaluation);'],

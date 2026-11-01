@@ -1,5 +1,39 @@
 import { datasetValue, datasetRuleDefinitions, datasetRuleRecords } from "../dataset-runtime.mjs";
 import { futureSlayerUnlocksRule, FUTURE_SLAYER_UNLOCKS_RULE } from './slayer-unlock-gates.mjs';
+export const UNKNOWN_DROP_RULE = 'Kills before moving on from an unknown-rate drop';
+export const unknownDropRule = Object.freeze({
+  id: UNKNOWN_DROP_RULE, label: UNKNOWN_DROP_RULE, type: 'number', default: 3,
+  parent: 'Rare Drop', category: 'Miscellaneous',
+  description: 'Times the estimated drop rate. Shows when you can move on; never completes or skips a task.',
+});
+export const unknownDropExplanation = {
+  what: 'Sets the move-on figure for drops the wiki calls rare without giving a number. Other available ways to get the item remove the warning.',
+  example: 'At 3, a rare drop uses about 384 kills and a very rare drop uses about 3,000 kills.',
+  grindWarning: 'These are estimates. You can move on earlier or keep trying.',
+  sources: [
+    { title: 'Drop-rate style guide', url: 'https://runescape.wiki/w/RuneScape:Style_guide/Drop_tables?oldid=36460463' },
+    { title: 'DropsLine colour bands (arbitrary)', url: 'https://runescape.wiki/w/Module:DropsLine?oldid=37212317' },
+    { title: 'DropsLine documentation', url: 'https://runescape.wiki/w/Template:DropsLine?oldid=36897552' },
+  ],
+};
+export const EARLY_TRAVEL_UNLOCKS_RULE = 'Early Travel Unlocks';
+export const earlyTravelUnlocksRule = Object.freeze({
+  id: EARLY_TRAVEL_UNLOCKS_RULE, label: EARLY_TRAVEL_UNLOCKS_RULE,
+  description: 'Travel and reward unlocks can be chunk tasks before you can use them',
+  type: 'boolean', default: false, category: 'Miscellaneous',
+  difficultyMarker: 'extreme-supreme',
+});
+export const earlyTravelUnlocksExplanation = {
+  what: earlyTravelUnlocksRule.description,
+  example: 'With this off, balloon routes wait until you can reach Entrana. Cannon upgrades wait until a cannon is available.',
+  grindWarning: 'Turning this on can add rewards you cannot use yet. Furniture still needs its recipe requirements.',
+  sources: [
+    { title: 'Balloon transport system', url: 'https://runescape.wiki/w/Balloon_transport_system?oldid=36927642' },
+    { title: 'Furniture plans', url: 'https://runescape.wiki/w/Furniture_plans?oldid=37180541' },
+    { title: 'Dwarf multicannon', url: 'https://runescape.wiki/w/Dwarf_multicannon?oldid=37197227' },
+  ],
+};
+
 // Declarative metadata extracted from retained upstream index.js v6.9.68.
 // Never execute upstream scripts or copy these defaults over imported player rules.
 const freeze = value => { if (value && typeof value === "object") { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
@@ -49,12 +83,12 @@ const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTask
 export const taskRuleDefinitions = Object.freeze([
  ...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions").map(rule => rule.id === 'Universal Tertiary'
   ? Object.freeze({ ...rule, description: universalTertiaryDescription }) : rule),
- ancientEffigiesRule, futureSlayerUnlocksRule,
+ ancientEffigiesRule, futureSlayerUnlocksRule, unknownDropRule, earlyTravelUnlocksRule,
 ]);
 // Cutoff inputs are configuration even while their switch is off. KeyItem
 // Bosses deliberately sits outside Rare Drop's polarity (and is currently inert).
 export const independentTaskRuleControls = new Set([
- 'Rare Drop Amount', 'Rare Drop Inclusive', 'Secondary Primary Amount',
+ UNKNOWN_DROP_RULE, 'Rare Drop Amount', 'Rare Drop Inclusive', 'Secondary Primary Amount',
  'Secondary Primary Inclusive', 'Kill X Amount', 'KeyItem Bosses',
 ]);
 export const taskRuleParents = Object.freeze(Object.fromEntries(taskRuleDefinitions
@@ -88,7 +122,7 @@ export function taskRuleCutoff(value) {
 
 export function taskRuleValueError(id, value) {
  if (Object.hasOwn(taskRuleCutoffDefaults, id)) return taskRuleCutoff(value) === null ? `Task rule ${id} must be an explicit probability a/b in (0, 1], a positive denominator (bare amounts always mean 1/X), or the documented zero sentinel.` : null;
- if (id === 'Kill X Amount') {
+ if (id === 'Kill X Amount' || id === UNKNOWN_DROP_RULE) {
   const number = typeof value === 'number' ? value : typeof value === 'string' && cutoffNumber.test(value.trim()) ? Number(value) : NaN;
   return Number.isSafeInteger(number) && number > 0 ? null : `Task rule ${id} must be a positive safe integer.`;
  }
@@ -120,6 +154,8 @@ const retainedRuleBehavior = datasetValue("app/data/settings.mjs#retainedRuleBeh
  */
 export function taskRuleBehavior(id) {
  if (id === ancientEffigiesRule.id) return { status: 'implemented-scope', detail: 'Controls ancient effigy sources with the universal tertiary prerequisite. Other source requirements still apply.' };
+ if (id === UNKNOWN_DROP_RULE) return { status: 'implemented-scope', detail: 'Shows an estimated move-on kill count for unknown rare drops. Does not change sources or task completion.' };
+ if (id === EARLY_TRAVEL_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Lets travel and cannon rewards appear early. Furniture keeps its recipe requirements.' };
  if (id === FUTURE_SLAYER_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Includes eight Slayer Rewards before their monster, area or item is available.' };
  if (id === 'PvM Relics') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: no combat-relic goals are declared. Which combat relics should count has not been defined.' };
  if (id === 'All Droptables Nest') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: it has no matching nest-loot task. Custom inputs need both a matching loot task and an obtainable nest supply route.' };
