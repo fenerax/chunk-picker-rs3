@@ -22,6 +22,8 @@
 .helper-nav{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-3)}
 .helper-nav button{text-align:left;background:transparent;padding:var(--space-5) var(--space-5);border:var(--border-thin) solid transparent;min-height:44px;color:var(--muted)}
 .helper-nav button[aria-current=page]{background:var(--surface);border-color:var(--border);color:var(--surface-link,var(--link))}
+/* Keep the state marker when forced colors flatten backgrounds and borders. */
+@media(forced-colors:active){.helper-nav button[aria-current=page]{text-decoration:underline;text-decoration-thickness:var(--border-focus);text-underline-offset:.2em}}
 .helper-content{min-width:0}.helper-content h2{font:var(--weight-medium) var(--type-legacy-1-8rem)/var(--leading-legacy-1-15) var(--display);margin:0 0 var(--space-5)}.helper-content h3{font:var(--weight-medium) var(--type-title)/var(--leading-control) var(--display);margin:var(--space-legacy-2rem) 0 var(--space-5)}.helper-content h4{margin:var(--space-6) 0 var(--space-4)}
 .helper-content p{line-height:var(--leading-legacy-1-6);max-width:72ch}.helper-intro{color:var(--muted);margin-bottom:var(--space-legacy-1-7rem)}.helper-note,.helper-training-note,.helper-training-notes,.helper-training-progress,.helper-training-sources{color:var(--muted);font-size:var(--type-body);line-height:var(--leading-legacy-1-55)}
 .helper-form{display:flex;flex-wrap:wrap;align-items:end;gap:var(--space-6);margin:var(--space-7) 0;max-width:52rem}

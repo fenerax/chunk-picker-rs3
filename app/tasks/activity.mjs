@@ -4,7 +4,8 @@ import { passesRateCutoff } from './rates.mjs';
 import { achievementFamilyRequired } from './achievements.mjs';
 import { buildQuestReadiness, isWholeQuestTask, questGroupName } from './activity-readiness.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
-import { currentSlayerLevels, slayerTargetAccess, slayerStuckSummary } from './slayer-assignments.mjs';
+import { effectiveSectionOverrides } from '../core/rules.mjs';
+import { currentSlayerLevels, currentSlayerMasterAccess, slayerTargetAccess, slayerStuckSummary } from './slayer-assignments.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const on = (rules, key, fallback = true) => taskRuleEnabled(rules, key, fallback);
@@ -104,13 +105,15 @@ export function buildActivityInfo(result, state, memberId, definitions = {}) {
     const raw = value.split('--')[0];
     return byId.get(taskId(category, raw, definitions.challenges?.[category]?.[raw]));
   }).filter(Boolean);
-  const targetNow = slayerTargetAccess(result, definitions, resolveAssignmentTasks, currentLevels);
+  const confirmedSections = new Set(Object.entries(member ? effectiveSectionOverrides(state, member) : {}).filter(([, value]) => value === true).map(([id]) => id));
+  const targetNow = slayerTargetAccess(result, definitions, resolveAssignmentTasks, currentLevels, confirmedSections);
   const masters = Object.entries(definitions.slayerMasterTasks ?? {}).map(([name, assignments]) => {
     const aliases = name.split('/');
     const method = slayerRows.find(row => /assignment|assignement|bounty/i.test(row.rawLabel) && (name === 'Death' ? /Reaper assignment/.test(row.rawLabel) : aliases.some(alias => row.record?.NPCs?.includes(alias) || row.rawLabel.includes(`~|${alias}|~`))));
+    const currentAccess = name === 'Death' ? null : currentSlayerMasterAccess(method, currentLevels, resolveAssignmentTasks, targetNow.npc);
     const tasks = Object.entries(assignments).map(([assignment, data]) => {
       const blockers = [], afterQuests = [], currentQuests = [];
-      let currentUnlocked = true;
+      let currentUnlocked = name === 'Death' || currentLevelsKnown && currentAccess.status === 'available';
       if (!method || method.status !== 'available') blockers.push({ kind: 'master', detail: 'No verified way to get an assignment from this master is reachable.' });
       for (const [skill, level] of Object.entries({ ...data.Skills, ...(data.Level ? { Slayer: data.Level } : {}), ...(data.CombatLevel ? { Combat: data.CombatLevel } : {}) })) {
         if ((result.training?.[skill]?.level ?? 1) < level) blockers.push({ kind: 'training', detail: `${skill} ${level} exceeds reachable training.` });
@@ -145,9 +148,12 @@ export function buildActivityInfo(result, state, memberId, definitions = {}) {
     // Death's Soul Reaper rolls and replacement rules differ from ordinary Slayer.
     const warnings = method?.status === 'available' && name !== 'Death' ? {
       planning: slayerStuckSummary(name, tasks),
-      current: currentLevelsKnown ? slayerStuckSummary(name, tasks, true) : { line: 'Sync your levels to see your chances right now.' },
+      current: currentAccess.status === 'unavailable' ? { line: `Right now: this master is unavailable. ${currentAccess.reasons.join(' ')}` }
+        : !currentLevelsKnown ? { line: 'Sync your levels to see your chances right now.' }
+        : currentAccess.status === 'unknown' ? { line: `Right now: this master’s availability is unknown. ${currentAccess.reasons.join(' ')}` }
+        : slayerStuckSummary(name, tasks, true),
     } : null;
-    return { name, method: method ? summarize(method) : null, reachable: method?.status === 'available', tasks, warnings,
+    return { name, ...(currentAccess ? { currentAccess } : {}), method: method ? summarize(method) : null, reachable: method?.status === 'available', tasks, warnings,
       eligibleCount: tasks.filter(task => task.planningEligible).length, totalCount: tasks.length };
   });
   return { memberId, skills, quests, questStates, achievements,
