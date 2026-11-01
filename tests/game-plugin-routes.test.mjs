@@ -236,3 +236,49 @@ test('invalid plugin key sidecars fail startup and release the gameplay director
   app = await createServer(options); await app.listen();
   assert.ok(app.address().port > 0);
 });
+
+
+test('HTTP item journals retain observation worlds across lost replies and reopen', async t => {
+  const goal = 'rs3:goal:equipment:000597', wear = 'rs3:task:000b41', item = 34830;
+  const initialState = createGroupState([{ id: 'actor1', name: 'Synthetic player' }]);
+  initialState.tasks.push({ id: goal, category: 'BiS', label: 'Synthetic Obtain goal' }, { id: wear, category: 'Skill', label: 'Synthetic Wear task' });
+  const f = await fixture(t, { initialState }), created = await f.create();
+  const journal = 'aaaaaaaaaaaaaaaa', event = [1, item, 'Synthetic beta item', 'beta'];
+  const items = (events, worn = []) => ({ snapshot: '0123456789abcdef', worn, backpack: [], journal: { id: journal, events } });
+  async function send(seq, events, beta = false, worn = []) {
+    const response = await f.plugin('/api/plugin/v1/report', created.key, report(seq, { world: { id: beta ? 204 : 1, beta }, items: items(events, worn) }));
+    assert.equal(response.status, 200); return response.json();
+  }
+  assert.equal((await send(0, [])).items.journal.event, 0);
+  assert.equal((await send(1, [event], true, [[0, item, 1, 'Synthetic beta item']])).items.journal.event, 1);
+  const replay = await send(2, [event]); // Beta response was lost; sender keeps its event.
+  assert.ok(replay.accepts.includes('item-journal-world'));
+  assert.equal(replay.items.journal.event, 1);
+  async function inspect(live) {
+    const member = f.app.store.getState().members[0];
+    const disk = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).state.members[0];
+    const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.actor1;
+    assert.equal(Boolean(record.items[item]?.ownedAt), live);
+    assert.equal(Boolean(record.items[item]?.wornAt), live);
+    assert.equal(member.completedTasks.includes(goal), live);
+    assert.equal(disk.completedTasks.includes(goal), live);
+    assert.equal(member.completedTasks.includes(wear), false);
+    assert.equal(disk.completedTasks.includes(wear), false);
+    assert.equal(member.itemProgress?.[goal]?.evidence ?? null, live ? 'owned' : null);
+    const history = f.app.store.getState().history.filter(row => row.command?.items?.length);
+    assert.deepEqual(history.map(row => row.source), live ? ['game-plugin'] : []);
+    const preview = await (await f.admin('/api/game-plugin/review?memberId=actor1')).json();
+    assert.deepEqual(preview.items.map(row => [row.taskId, row.world]), live ? [[wear, 'live']] : [[goal, 'beta'], [wear, 'beta']]);
+  }
+  await inspect(false);
+  const invalid = await f.plugin('/api/plugin/v1/report', created.key, report(3, { items: items([[2, item, 'Synthetic item', 'invalid']]) }));
+  assert.equal(invalid.status, 400);
+  await f.restart();
+  await send(4, [event]);
+  await inspect(false);
+  await send(5, [event, [2, item, 'Synthetic live item', 'live']]);
+  await inspect(true);
+  await f.restart();
+  await send(6, []);
+  await inspect(true);
+});

@@ -94,7 +94,7 @@ test('existing v1 fields retain START values for finished tasks and a pending ro
     here: [], all: [{ id: 'active', label: 'active', category: 'Skills' }], allFrom: 0, hereCount: 0, allCount: 1 });
   assert.equal(done.allCount, 1);
   const { rollChoice, pendingRoll, ...status } = await f.call('status');
-  assert.deepEqual(status, { v: 1, accepts: ['achievements', 'items', 'toolbelt', 'pouch', 'bank'], achievements: null, items: null, bank: null,
+  assert.deepEqual(status, { v: 1, accepts: ['achievements', 'items', 'item-journal-world', 'toolbelt', 'pouch', 'bank'], achievements: null, items: null, bank: null,
     player: { id: 'a', name: 'Player a' }, chunkId: null, chunkName: null, state: 'unknown', activeTaskCount: 1,
     unlockedChunkCount: 1, pendingProgress: false, seenAt: null, nearby: null, pickableCount: null,
     partners: [{ name: 'Player b', chunkId: null, chunkName: null, seenAt: null }] });
