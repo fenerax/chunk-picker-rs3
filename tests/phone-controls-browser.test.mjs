@@ -69,6 +69,35 @@ for (const [label, name] of [
       await settle();
       assert.equal(await browser.evaluate('innerWidth'), width);
       assert.equal(await browser.evaluate("matchMedia('(pointer:coarse)').matches"), phone);
+      if (phone) {
+        const checkHeader = async () => {
+          assert.equal(await browser.evaluate('innerWidth'), width, 'header text must not expand the mobile viewport');
+          assert.equal(await browser.evaluate('document.documentElement.scrollWidth'), width, 'header text must not overflow the page');
+          for (const index of [1, 2]) {
+            const b = await probe(`#member-switch button:nth-child(${index})`);
+            assert.ok(b && b.width >= 44 && b.height >= 44, 'preserve player-switch touch targets');
+            assert.ok(b.visibleWidth >= b.width - 1 && b.ownsCenter && b.ownsEdges, 'each player switch must remain visible and tappable');
+          }
+        };
+        await checkHeader();
+        if (label === 'long' && width === 320) {
+          // Inspector CSS bypasses the page's inline-style CSP. Exercise wider
+          // metrics on every OS, then remove the override before navigation.
+          await browser.send('DOM.enable');
+          await browser.send('CSS.enable');
+          const { frameTree } = await browser.send('Page.getFrameTree');
+          const { styleSheetId } = await browser.send('CSS.createStyleSheet', { frameId: frameTree.frame.id });
+          try {
+            await browser.send('CSS.setStyleSheetText', { styleSheetId,
+              text: '.member-switch button { font-family: monospace !important; letter-spacing: 1px !important; }' });
+            await settle();
+            await checkHeader();
+          } finally {
+            await browser.send('CSS.setStyleSheetText', { styleSheetId, text: '' });
+            await settle();
+          }
+        }
+      }
       const tap = async selector => {
         const b = await probe(selector);
         assert.ok(b && b.visibleWidth >= 1 && b.visibleHeight >= 1 && b.ownsCenter, `${selector} must own a visible native tap point: ${JSON.stringify(b)}`);

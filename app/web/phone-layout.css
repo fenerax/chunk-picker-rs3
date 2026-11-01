@@ -7,6 +7,9 @@
   .phone-layout .topbar { flex-wrap:wrap;gap:var(--space-2) var(--space-4); }
   .phone-layout #save-status { order:1;margin-left:auto;max-width:100%;white-space:normal; }
   .phone-layout .player-controls { order:3;flex-basis:100%;padding-left:0;border-left:0;justify-content:space-between;gap:var(--space-4); }
+  /* Share the row so a long name cannot squeeze its partner's text offscreen. */
+  .phone-layout .member-switch { min-width:0;max-width:100%; }
+  .phone-layout .member-switch button { flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
   :is(#update-banner,#notice,#backup-status-notice,#sandbox-banner,#duo-catchup,#duo-live) { padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
   .phone-layout .workspace { display:block;height:calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height));min-height:0; }
   .phone-layout .map-panel { height:100%; }
