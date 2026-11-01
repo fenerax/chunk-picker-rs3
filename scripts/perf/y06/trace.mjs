@@ -44,6 +44,9 @@ export function createTrace(root){
       s=replace(s,'entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type,',`entry = { _y06Trace:${g}.current(), _y06Stage:${g}.stage(), releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type,`);
       s=replace(s,'const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);',`const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer); ${g}.job(entry);`);
     }else if(name==='app/picker-context.mjs'){
+      s=replace(s,'const saved = await store.getStateSnapshot({ view });',`const saved = await ${g}.measure('stateProjection', () => store.getStateSnapshot({ view }));`);
+      s=replace(s,'await sendCached(request, response, await stateRepresentation(view, info)); return;',`await ${g}.measure('stateSend', async () => { const body = await ${g}.measure('stateBody', () => stateRepresentation(view, info)); return sendCached(request, response, body); }); return;`);
+
       for(const [field,start] of [['storeMs','storeStarted'],['authMs','authStarted'],['variantMs','started'],['stateResponseMs','started']]){
         const needle=`startupTimingMs.${field} = performance.now() - ${start};`;
         s=replace(s,needle,`${needle} ${g}.component('${field}',startupTimingMs.${field});`);

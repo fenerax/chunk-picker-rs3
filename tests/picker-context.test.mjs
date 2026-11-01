@@ -468,7 +468,7 @@ test('owned readiness can defer the play body while retaining variant preparatio
   await a.close();const eager=await open('a',{prepareStateResponse:true,startupTimingMs:eagerTiming});await eager.prepare();
   assert.ok(Number.isFinite(eagerTiming.stateResponseMs));assert.equal(variants,2);
   // Deferred and eager preparation serve the same complete play envelope.
-  const ready=await send(eager,'/api/state?view=play-v1');assert.equal(ready.body.format,'play-v1');assert.deepEqual(ready.body,lazy.body);
+  const ready=await send(eager,'/api/state?view=play-v1');assert.equal(ready.status,200);assert.equal(ready.body.format,'play-v1');assert.deepEqual(ready.body,lazy.body);
 });
 
 // These calls enter the real authenticated picker route, with controllable

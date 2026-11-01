@@ -1965,6 +1965,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let activationPending;
   const context = {
     pickerId, store,
+    getRetentionCounts: () => ({ requests: requests.size, jobs: jobs.size, bodies: bodyRequests.size,
+      clients: clients.size + clientCredentials.size, responses: responseCache.size, responseBytes: responseCache.bytes,
+      savedResults: savedTaskResults.size, readiness: readinessPrepared ? 1 : 0, store: store ? 1 : 0 }),
     withEmptyDefault(work) {
       return serializeMutation(() => {
         if (closed || store.getInfo().revision !== 0) throw httpError(409, 'This sign-in already has gameplay.');
@@ -2119,7 +2122,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         while (requests.size) await Promise.allSettled([...requests]);
         await mutationQueue;
         await claimCleanupRun;
-        await readinessPrepared;
+        await readinessPrepared; readinessPrepared = undefined;
+        startupWarmup = undefined;
         unsubscribe(); unsubscribeWorker?.(); unsubscribeResidency?.(); unsubscribePredictions?.();
         await overlays.close();
         await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), gamePlugin.close()]);

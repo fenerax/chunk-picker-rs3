@@ -1205,6 +1205,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     getDiagnostics() {
       return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, deadlineMs, firstCalculationDeadlineMs,
         oldestWaitMs: queue.length ? idleClock.now() - queue[0].queuedAt : 0 }, counts: { ...counts },
+      retainedWork: { pending: pending.size, cancellationGrace: cancelledGrace ? 1 : 0,
+        stateInputs: [...pending.values()].filter(entry => entry.state || entry.stateInput).length },
       cache: { entries: cache.size, limit: cacheLimit, byteLimit: cacheByteLimit, bytes: [...cache.values()].reduce((sum, value) => sum + value.bytes, 0) },
       prewarm: { ...warmCounts, pending: warmQueue.length, active: active?.warm ? 1 : 0, limit: maxPrewarmQueue },
       ranking: { pending: warmQueue.filter(entry => entry.warm && entry.purpose === 'ranking').length,
