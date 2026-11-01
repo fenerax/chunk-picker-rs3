@@ -177,7 +177,7 @@
         <div id="map-display-content" class="map-display-content"></div>
         <footer class="map-display-footer"><button id="map-display-reset" type="button">Reset sizes</button><span>Drag to try a size</span></footer>
       </section>
-      <div class="map-dock" aria-label="Map information">
+      <div class="map-dock" role="region" aria-label="Map information">
         <div class="map-dock-panels">
       <section id="pending-panel" class="floating-panel" hidden aria-label="Pending roll choices"></section>
       <section id="pool-ranking-panel" class="floating-panel pool-ranking-panel" hidden aria-labelledby="pool-ranking-title">
@@ -226,7 +226,7 @@
       <div id="task-engine-status" role="status">Loading tasks…</div>
       <div id="active-tasks" class="task-list"></div>
       <details id="backlog-details"><summary>Backlog <span id="backlog-count"></span></summary><div id="backlog-actions" class="backlog-actions"></div><div id="backlog-tasks" class="task-list"></div></details>
-      <details id="completed-details"><summary>Completed Tasks <span id="completed-count"></span><button id="completed-review" class="list-copy-button" type="button">Review all</button></summary><div id="completed-tasks" class="task-list"></div></details>
+      <details id="completed-details"><summary>Completed Tasks <span id="completed-count"></span></summary><button id="completed-review" class="list-copy-button" type="button">Review all</button><div id="completed-tasks" class="task-list"></div></details>
       <details data-usage="tasks:accessible-areas"><summary data-usage="tasks:accessible-areas:disclosure">Accessible Areas</summary><div id="accessible-areas"></div></details>
       <button id="custom-task-open" class="wide-button">Add custom task</button>
     </aside>

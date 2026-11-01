@@ -29,7 +29,7 @@ export function createScreenCustomTasks(c) {
         if (fields.level !== undefined) validateControlLevel(fields.level);
         save.disabled = true;
         await c.command(saved ? { type: 'update-task', taskId: saved.id, task: fields }
-          : { type: 'add-task', task: { id: `custom:${c.browserUUID()}`, category: skill.value || 'Custom', ...fields } }, revision, undefined, current);
+          : { type: 'add-task', task: { id: `custom:${c.browserUUID()}`, category: skill.value || 'Custom', ...fields } }, revision, undefined, current, undefined, () => { if (current()) c.closeDialog(generation); });
         c.closeDialog(generation);
       } catch (failure) { if (current()) { error.textContent = failure.status === 409 ? 'Another save arrived first. Close this form and reopen the task to review its latest details.' : failure.message; error.hidden = false; save.disabled = false; } }
     });
@@ -48,7 +48,7 @@ export function createScreenCustomTasks(c) {
     const confirm = c.button('Delete task', async () => {
       if (!current() || confirm.disabled) return;
       confirm.disabled = true;
-      try { await c.command({ type: 'delete-task', taskId: saved.id }, revision, undefined, current); c.closeDialog(generation); }
+      try { await c.command({ type: 'delete-task', taskId: saved.id }, revision, undefined, current, undefined, () => { if (current()) c.closeDialog(generation); }); c.closeDialog(generation); }
       catch (error) { if (current()) { confirm.disabled = false; if (error.status === 409) error.message = 'Another save arrived first. Close this confirmation and reopen the task to review its latest details.'; c.showError(error); } }
     }, 'danger-link');
     stack.append(confirm, c.button('Cancel', () => c.closeDialog(generation)));

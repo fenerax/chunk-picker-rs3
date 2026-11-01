@@ -10,11 +10,12 @@ export function chunkNotesForSearch(members) {
   return notes;
 }
 
-export function matchingSearchChunks(index, notes, query, areas = new Map()) {
+export function matchingSearchChunks(index, notes, query, areas = new Map(), surface) {
   query = query.toLowerCase().trim();
   return index.filter(entry => !query || entry.search.includes(query) || notes.get(entry.id)?.some(note => note.search.includes(query)))
-    .sort((a, b) => Number(b.id.toLowerCase() === query) - Number(a.id.toLowerCase() === query)
-      || Number(b.name?.toLowerCase().trim() === query) - Number(a.name?.toLowerCase().trim() === query)
+    .sort((a, b) => Number(!!query && b.id.toLowerCase() === query) - Number(!!query && a.id.toLowerCase() === query)
+      || Number(!!query && b.name?.toLowerCase().trim() === query) - Number(!!query && a.name?.toLowerCase().trim() === query)
+      || (surface ? Number(surface.has(b.id)) - Number(surface.has(a.id)) : 0)
       || Number(areas.has(a.id)) - Number(areas.has(b.id)));
 }
 

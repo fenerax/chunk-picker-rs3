@@ -143,3 +143,19 @@ test('a stale dialog close cannot change the current focus destination', async t
   h.c.closeDialog(); await Promise.resolve();
   assert.equal(h.document.activeElement, h.opener);
 });
+
+
+test('F4 phone map names a region with semantics that allow naming', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const html = await readFile(new URL('../app/web/index.html', import.meta.url), 'utf8');
+  const dock = html.match(/<[^>]+class="map-dock"[^>]*>/)?.[0];
+  assert.ok(dock); assert.match(dock, /role="region"/); assert.match(dock, /aria-label="Map information"/);
+});
+
+test('F4 Completed Tasks review is outside its interactive summary', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const html = await readFile(new URL('../app/web/index.html', import.meta.url), 'utf8');
+  const details = html.match(/<details id="completed-details">([\s\S]*?)<\/details>/)?.[1];
+  assert.ok(details); assert.doesNotMatch(details.match(/<summary>([\s\S]*?)<\/summary>/)[1], /<(?:button|input|a)\b/);
+  assert.match(details, /<button id="completed-review"/);
+});

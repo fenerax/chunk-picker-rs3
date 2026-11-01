@@ -54,7 +54,8 @@ export function createScreenMap(c) {
       const actions = c.el('div', undefined, 'pending-actions');
       actions.append(c.button('Pick for me', () => c.acceptRoll({ type: 'pick-for-me', memberId: c.memberId })));
       if (c.member().pendingRoll.length > 1) actions.append(c.button('Unlock both', () => c.acceptRoll({ type: 'unlock-both', memberId: c.memberId })));
-      actions.append(c.button('Cancel roll', () => c.command({ type: 'cancel-roll', memberId: c.memberId }), 'cancel-roll')); if (c.canWrite()) pending.append(actions);
+      actions.append(c.button('Cancel roll', () => c.acceptRoll({ type: 'cancel-roll', memberId: c.memberId }), 'cancel-roll')); if (c.canWrite()) pending.append(actions);
+      for (const button of pending.querySelectorAll('button')) if (button.className !== 'choice-view') button.disabled = c.rollBusy;
     }
     c.$('recent-panel').hidden = !c.preferences().recent || !!c.member().pendingRoll.length;
     c.$('recent-content').replaceChildren(c.mapTools.recentPanel());

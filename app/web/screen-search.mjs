@@ -117,7 +117,7 @@ export function createSearchDialog(c) {
         if (renderedMode === 'Chunks') await c.ensureChunkSearch();
         if (!ready()) return;
         if (renderedMode === 'Chunks') {
-          entries = matchingSearchChunks(c.chunkSearch, notes, query, c.world.areas).map(({ id, name }) => {
+          entries = matchingSearchChunks(c.chunkSearch, notes, query, c.world.areas, c.world.surface).map(({ id, name }) => {
             const surface = c.world.surface?.has(id) ?? c.world.chunks.has(id);
             const owners = c.state.members.filter(owner => owner.unlocked.includes(id)).map(owner => owner.name);
             const matchedNotes = renderedQuery ? (notes.get(id) ?? []).filter(note => note.search.includes(renderedQuery)) : [];

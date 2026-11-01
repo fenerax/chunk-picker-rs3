@@ -120,8 +120,9 @@ export function createScreenDialogs(c) {
     if (statusLine) content.prepend(statusLine);
     const file = c.input('file'); file.accept = '.json,.json.gz,application/json,application/gzip'; const preview = c.el('div');
     const progress = c.el('p', '', 'status-detail'); progress.setAttribute('role', 'status'); progress.setAttribute('aria-live', 'polite');
+    const previewError = c.el('p', '', 'status-detail'); previewError.setAttribute('role', 'alert'); previewError.hidden = true;
     const cancel = c.button('Cancel preview', () => { invalidatePreview(); progress.textContent = 'Preview cancelled.'; previewButton.focus?.(); }); cancel.hidden = true;
-    const invalidatePreview = () => { previewRequest++; previewController?.abort(); previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; progress.textContent = ''; preview.replaceChildren(); };
+    const invalidatePreview = () => { previewRequest++; previewController?.abort(); previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; progress.textContent = ''; previewError.textContent = ''; previewError.hidden = true; preview.replaceChildren(); };
     // Admins replace both maps or one player's; an invite that owns a player restores only that map.
     const scopes = c.sessionAdmin ? [{ value: '', label: 'Both maps (whole save)' }, ...c.state.members.map(member => ({ value: member.id, label: `Only ${member.name}’s map` }))] : [];
     const scope = scopes.length ? c.select(scopes, '') : null;
@@ -132,7 +133,7 @@ export function createScreenDialogs(c) {
     const scopedMember = () => owner ? null : c.sessionAdmin ? scope.value || null : c.sessionMember;
     const read = async (document, generation = c.dialogGeneration, request = ++previewRequest, backupId) => {
       if (reading || submitting) return;
-      reading = true; previewButton.disabled = true; preview.replaceChildren(); cancel.hidden = false;
+      reading = true; previewButton.disabled = true; previewError.textContent = ''; previewError.hidden = true; preview.replaceChildren(); cancel.hidden = false;
       const controller = new AbortController(); previewController = controller;
       const stage = text => { if (previewController === controller && c.dialogCurrent(generation) && request === previewRequest) progress.textContent = text; };
       stage(backupId !== undefined ? 'Checking replacement…' : 'Preparing backup…');
@@ -156,7 +157,7 @@ export function createScreenDialogs(c) {
         finally { submitting = false; if (c.dialogCurrent(generation)) { previewButton.disabled = false; file.disabled = false; if (scope) scope.disabled = false; } }
       });
       preview.append(apply); stage('Replacement ready to review.');
-      } catch (error) { if (error.name !== 'AbortError' && c.dialogCurrent(generation) && request === previewRequest) { progress.textContent = 'Preview failed. Try again.'; c.showError(error); } }
+      } catch (error) { if (error.name !== 'AbortError' && c.dialogCurrent(generation) && request === previewRequest) { progress.textContent = 'Preview failed. Try again.'; previewError.textContent = `${error.message || String(error)} Choose a full backup downloaded with Download full backup above.`; previewError.hidden = false; } }
       finally { if (previewController === controller) { previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; } }
     };
     const retained = c.el('div', undefined, 'form-stack'); retained.append(c.button('Browse previous saves', async () => {
@@ -182,7 +183,7 @@ export function createScreenDialogs(c) {
     else if (scope) content.append(c.field('Replace', scope));
     else content.append(c.el('p', `Restoring here replaces only ${ownName}’s map. The other map, shared rules and History stay, and Undo can reverse it.`, 'status-detail'));
     const previewButton = c.button(legacyImport ? 'Preview import / restore' : 'Preview restore', () => read());
-    content.append(c.field(legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup', filePicker(file)), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, progress, cancel, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
+    content.append(c.field(legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup', filePicker(file)), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, progress, previewError, cancel, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
     c.$('tool-dialog')?.addEventListener('close', () => { previewController?.abort(); }, { once: true });
   }
 
