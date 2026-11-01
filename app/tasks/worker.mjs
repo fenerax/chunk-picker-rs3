@@ -197,8 +197,11 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs) {
   let evaluations = 0;
   const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs }) };
   return timed(timingMs, 'predictionMs', () => {
-    snapshot.predict ??= prepareChunkPrediction(state, registry);
-    return snapshot.predict(memberId, chunkId, { world: workerData.world, engine: planningEngine });
+    if (snapshot.predictionRevision !== state.revision) {
+      snapshot.predict = prepareChunkPrediction(state, registry);
+      snapshot.predictionRevision = state.revision;
+    }
+    return snapshot.predict(memberId, chunkId, { world: rollWorld, engine: planningEngine });
   });
 }
 function chunkPlanningFor(snapshot, chunkId) {
