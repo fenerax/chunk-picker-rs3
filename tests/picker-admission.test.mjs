@@ -90,7 +90,8 @@ function routerFixture(t,{openGate,handleGate,maxOpenContexts=3}={}){
 const id=n=>'p_'+n.toString(16).padStart(32,'0');
 test('twenty cold pickers progress through six owned slots, retaining isolation and the residency bound',async t=>{
   let peak=0;
-  const f=routerFixture(t,{openGate:async()=>{peak=Math.max(peak,f.calls.length-f.closed.length);}});
+  // Seven open contexts leave six owned slots, the bound the assertion checks.
+  const f=routerFixture(t,{maxOpenContexts:7,openGate:async()=>{peak=Math.max(peak,f.calls.length-f.closed.length);}});
   // Count actual close boundaries using the fixture's closed list.
   const outcomes=[];
   for(let round=0;round<3;round++){
