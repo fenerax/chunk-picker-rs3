@@ -98,3 +98,10 @@ Final `npm test`: 2,480 tests, 2,479 passed, zero failures and one existing
 generated-PNG check skipped. This includes local-storage failures, frame batching,
 saved-control races, Sandbox, viewer controls, font/flag bounds, sticker overflow,
 and revealing cached skill artwork without a request. Prediction goldens are unchanged.
+
+## New task options
+
+Map display also has an opt-in **New task options** layer. It reads saved
+comparison/preview addition counts for the selected player's current roll pool
+without starting predictions. Checked zero and unknown counts have distinct
+markers. See [the semantics, verification and measurements](map-availability.md).

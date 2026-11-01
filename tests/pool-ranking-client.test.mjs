@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPoolRankingClient, rankPoolRows } from '../app/web/pool-ranking.mjs';
+import { createPoolRankingClient, createPassivePoolRankingClient, rankPoolRows } from '../app/web/pool-ranking.mjs';
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
@@ -15,13 +15,14 @@ test('comparison opens on private HTTP origins where randomUUID is unavailable',
   } finally { Object.defineProperty(globalThis, 'crypto', original); }
 });
 
-function harness({ api, viewer = false } = {}) {
+function harness({ api, viewer = false, passive = false } = {}) {
   let time = 0, timerId = 0;
-  const state = { memberId: 'actor1', revision: 7, sandboxActive: false, hidden: false, settled: false };
+  const state = { memberId: 'actor1', revision: 7, sandboxActive: false, pickerId: 'picker-a', datasetDigest: 'dataset-a', candidatesKey: '1,2', hidden: false, settled: false };
   const timers = new Map(), requests = [], updates = [], errors = [];
-  const response = () => ({ memberId: state.memberId, stateRevision: state.revision, total: 2, checked: 0, rows: [] });
-  const client = createPoolRankingClient({
-    scope: () => ({ memberId: state.memberId, revision: state.revision, sandboxActive: state.sandboxActive }),
+  const response = () => ({ memberId: state.memberId, stateRevision: state.revision, pickerId: state.pickerId, datasetDigest: state.datasetDigest, total: 2, checked: 0, rows: [] });
+  const client = (passive ? createPassivePoolRankingClient : createPoolRankingClient)({
+    scope: () => ({ memberId: state.memberId, revision: state.revision, sandboxActive: state.sandboxActive,
+      ...(passive ? { pickerId: state.pickerId, datasetDigest: state.datasetDigest, candidatesKey: state.candidatesKey } : {}) }),
     canWrite: () => !viewer, foregroundSettled: () => state.settled, hidden: () => state.hidden,
     watchId: 'test_tab', now: () => time,
     setTimeout: (action, delay) => { const id = ++timerId; timers.set(id, { action, time: time + delay }); return id; },
@@ -112,4 +113,33 @@ test('total and skill sorts place unchecked rows last without turning unknown co
   assert.deepEqual(rankPoolRows(rows).map(row => row.id), ['3', '2', '10', '5']);
   assert.deepEqual(rankPoolRows(rows, 'Mining').map(row => row.id), ['10', '2', '3', '5']);
   assert.equal(rows[0].id, '5');
+});
+
+test('passive map polling only requests saved summaries, without leases or predictions', async () => {
+  const h = harness({ passive: true }); h.state.settled = true;
+  h.client.setActive(true); await flush(); await h.advance(31000);
+  assert.equal(h.requests.length, 32);
+  assert.ok(h.requests.every(row => row.body === undefined && row.path.startsWith('/api/pool-ranking?')));
+  assert.equal(h.updates.length, 32);
+  h.client.setActive(false); await h.advance(10000);
+  assert.equal(h.requests.length, 32); h.client.dispose();
+});
+
+test('passive reads reject late member, revision, picker, dataset, membership and generation responses', async () => {
+  for (const field of ['memberId', 'revision', 'pickerId', 'datasetDigest', 'candidatesKey', 'generation']) {
+    const pending = [];
+    const h = harness({ passive: true, api: (entry, response) => {
+      const task = deferred(); pending.push({ ...task, value: response() }); return task.promise;
+    } });
+    h.client.setActive(true);
+    if (field === 'generation') { h.client.setActive(false); h.client.setActive(true); }
+    else { h.state[field] = field === 'revision' ? 8 : 'changed'; h.client.refresh(); }
+    assert.equal(h.requests[0].signal.aborted, true, field);
+    pending[0].resolve(pending[0].value); await flush(); assert.equal(h.updates.length, 0, field);
+    pending[1].resolve(pending[1].value); await flush(); assert.equal(h.updates.length, 1, field);
+    await h.advance(1000);
+    pending[2].resolve({ ...pending[2].value, datasetDigest: 'wrong' }); await flush();
+    assert.equal(h.updates.length, 1, field);
+    h.client.dispose();
+  }
 });
