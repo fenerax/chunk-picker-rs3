@@ -186,6 +186,14 @@ export async function scenarioControl(action, name) {
 }
 export function installWorker(port, handler) {
   const run = workerHandler(handler);
+  // Replies (they carry evaluationMs) record their send time and serialization span here,
+  // so the worker's reply line stays byte-identical for scripts/perf/unlock-calc.mjs.
+  const post = port.postMessage.bind(port);
+  port.postMessage = (message, ...rest) => {
+    if (!current() || message?.evaluationMs === undefined) return post(message, ...rest);
+    message._profileReplySentAt = now();
+    return span('worker.messageSerialization', () => post(message, ...rest));
+  };
   port.on('message', message => {
     if (!message._rs3ProfileControl) return run(message);
     void control(message).then(result => port.postMessage({ _rs3ProfileReply: message._rs3ProfileControl, ...result }));

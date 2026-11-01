@@ -30,6 +30,8 @@ test('real server and process calculator retain results with profiling on and of
         const rows=(await Promise.all((await readdir(`${scratch}/trace`)).map(f=>readFile(`${scratch}/trace/${f}`,'utf8')))).join('').trim().split('\n').map(JSON.parse);
         assert.ok(rows.some(r=>r.profileId==='tasks'&&r.layer==='engine'&&r.name==='eligibility'));
         assert.ok(rows.some(r=>r.profileId==='proof'&&r.layer==='engine'&&r.name==='howMs'));
+        assert.ok(rows.some(r=>r.profileId==='tasks'&&r.name==='worker.messageSerialization'),'reply serialization span');
+        assert.ok(rows.some(r=>r.profileId==='tasks'&&r.name==='worker.message.return'),'reply transfer span');
         if(mode==='cpu'){
           assert.ok(rows.some(r=>r.kind==='cpu'&&r.layer==='engine'&&r.profile.samples.length));
           assert.ok(rows.some(r=>r.kind==='cpu'&&r.layer==='relay'&&r.profile.samples.length));

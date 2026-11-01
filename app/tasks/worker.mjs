@@ -82,10 +82,10 @@ const derivedIds = new Set([...equipmentCatalogue, ...collectionEngine.catalogue
 const sandboxCatalogue = [...engine.catalogue, ...equipmentCatalogue, ...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue];
 const sandboxTaskIndexes = new WeakMap();
 const progressRequests = new WeakMap();
-const timed = PROFILE_ENABLED ? (timingMs, stage, operation) => rawTimed(timingMs, stage, () => profile.span(stage, operation)) : rawTimed;
-function rawTimed(timingMs, stage, operation) {
+// Keep this head byte-identical: scripts/perf/unlock-calc.mjs patches it for heap sampling.
+function timed(timingMs, stage, operation) {
   const started = performance.now();
-  try { return operation(); }
+  try { return PROFILE_ENABLED ? profile.span(stage, operation) : operation(); }
   finally {
     if (timingMs) timingMs[stage] = (timingMs[stage] ?? 0) + performance.now() - started;
     const progress = progressRequests.get(timingMs), time = performance.now();
@@ -333,13 +333,14 @@ async function deathEstimates(state, memberId, chunkIds, timingMs, request, inpu
 
 const requests = new Map();
 const serializedStateSizes = new WeakMap();
-const sharedJSON = PROFILE_ENABLED ? value => profile.span('worker.resultSerialization', () => rawSharedJSON(value)) : rawSharedJSON;
-function rawSharedJSON(value) {
+function sharedJSON(value) {
   const bytes = Buffer.from(JSON.stringify(value));
   const shared = new SharedArrayBuffer(bytes.length);
   Buffer.from(shared).set(bytes);
   return shared;
 }
+// Wrapped by reassignment so the declaration above stays byte-identical for scripts/perf/unlock-calc.mjs.
+if (PROFILE_ENABLED) { const raw = sharedJSON; sharedJSON = value => profile.span('worker.resultSerialization', () => raw(value)); }
 function compressUnlockReuse(value) {
   value.gzipJSONPrefixMetadata = {};
   value.gzipJSONPrefixes = Object.fromEntries(['playJSON', 'duoJSON', 'duoSidebarJSON'].map(key => {
@@ -492,9 +493,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         ...(duoSidebarProjection && duoSidebarJSON ? { duoSidebarJSON } : {}), cancelled: !!result.cancelled }
       : { result };
     timingMs.totalMs = performance.now() - started;
-    const message = { id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs };
-    if (PROFILE_ENABLED) { message._profileReplySentAt = profile.now(); profile.span('worker.messageSerialization', () => parentPort.postMessage(message)); }
-    else parentPort.postMessage(message);
+    parentPort.postMessage({ id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs });
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
