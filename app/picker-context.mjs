@@ -57,7 +57,7 @@ import { projectPlayState, projectPlayResult, PLAY_VIEW } from './play-view.mjs'
 import { projectBrowserState } from './web/browser-state.mjs';
 import { projectDuoPlayResult, projectDuoInspectionJSON, DUO_INSPECTION_VIEW } from './duo-play-view.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
-import { createRepresentation, sendRepresentation, createResponseCache, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
+import { createRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
 import { crc32, deflateRawSync } from 'node:zlib';
 import { normalizeSandboxRequest, sandboxTaskCatalogue, applySandboxChanges } from './sandbox.mjs';
 import { normalizeAreaCheckRequest } from './tasks/area-check.mjs';
@@ -241,7 +241,13 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     for (const member of state.members) values.push([member.id, await evaluatedRollPool(state, member.id)]);
     return { state: projectBrowserState(state), pools: Object.fromEntries(values.map(([id, value]) => [id, value.pool])), values: new Map(values) };
   };
-  const responseCache = createResponseCache({ maxEntries: 32, maxBytes: 48 * 1024 * 1024 });
+  // Enable explicitly after measuring the deployment's full-state cache misses.
+  const gzipFullStateParts = process.env.RS3_FULL_STATE_GZIP_PARTS === '1';
+  const responseBudget = 48 * 1024 * 1024;
+  const responseCache = createResponseCache({ maxEntries: 32, maxBytes: responseBudget });
+  const stateResponseBuilds = createStateResponseBuilds();
+  const stateResponses = new Set();
+  const stateResponseLeases = createResponseLeases({ maxBytes: responseBudget });
   const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024 });
   const poolRanking = createPoolRanking(), rankingPools = new Map();
   let rankingPoolInput, rankingLeaseTimer;
@@ -284,6 +290,53 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       cached = responseCache.set(key, createRepresentation(Buffer.from(`{"state":${saved.stateJSON},"pools":${JSON.stringify(saved.pools)},"store":${JSON.stringify(info)}${view ? ',"format":"play-v1","schemaVersion":1' : ''}}`)));
     }
     return cached;
+  }
+  async function gzipStateRepresentation(info, signal) {
+    signal.throwIfAborted();
+    const key = `state:${info.revision}:full`, gzipKey = `${key}:gzip`;
+    const cached = responseCache.get(key) ?? responseCache.get(gzipKey);
+    if (cached) return cached;
+    const result = await stateResponseBuilds.run(key, async buildSignal => {
+      const saved = await store.getStateSnapshot({});
+      buildSignal.throwIfAborted();
+      // Pool preparation may span a commit. Retry with a fresh info envelope,
+      // but never combine bytes from two revisions or hold a queued capture.
+      if (saved.revision !== info.revision) return undefined;
+      const parts = ['{"state":', ...saved.stateJSONParts, ',"pools":', JSON.stringify(saved.pools), ',"store":', JSON.stringify(info), '}'];
+      const size = parts.reduce((sum, part) => sum + Buffer.byteLength(part), 0);
+      if (size <= responseBudget) return responseCache.set(key, createRepresentation(Buffer.from(parts.join(''))));
+      // Bound retained input references in the new path as well as output. Field
+      // serialization and the store's existing immutable strings remain live.
+      if (size > 256 * 1024 * 1024) throw Object.assign(httpError(503, 'Full-state response exceeds its gzip input budget. Try another encoding.'), { retryAfter: 1 });
+      const representation = await createGzipRepresentation(parts, { signal: buildSignal, maxBytes: responseBudget });
+      buildSignal.throwIfAborted();
+      // A commit during compression may still serve this coherent capture, but
+      // should not reinsert its obsolete revision after a cache clear/eviction.
+      if (store.getInfo().revision === info.revision) responseCache.set(gzipKey, representation);
+      return representation;
+    }, signal);
+    return result ?? gzipStateRepresentation(store.getInfo(), signal);
+  }
+  async function sendState(request, response, view, info) {
+    if (!gzipFullStateParts || view || negotiateEncoding(request.headers['accept-encoding']) !== 'gzip') {
+      await sendCached(request, response, await stateRepresentation(view, info)); return;
+    }
+    const controller = new AbortController();
+    const disconnect = () => { if (!response.writableFinished) controller.abort(); };
+    stateResponses.add(response);
+    response.once('close', disconnect);
+    if (response.destroyed) controller.abort();
+    try {
+      const representation = await gzipStateRepresentation(info, controller.signal);
+      controller.signal.throwIfAborted();
+      // Install both listeners before end(): close without finish must release
+      // the captured response too (including slow consumers and shutdown).
+      const release = representation.encoding === 'gzip' ? stateResponseLeases.retain(representation) : () => {};
+      let settle;
+      const sent = new Promise(resolve => { settle = resolve; response.once('finish', resolve); response.once('close', resolve); });
+      try { await sendCached(request, response, representation); await sent; }
+      finally { response.off('finish', settle); response.off('close', settle); release(); }
+    } finally { response.off('close', disconnect); stateResponses.delete(response); }
   }
   async function viewEnvelope(state, view) {
     const { values, ...envelope } = await stateEnvelope(state);
@@ -753,7 +806,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       schedulingClock.clearTimeout(prewarmTimer);
       calculationSnapshot = undefined; store.releaseTaskCaches();
       clearImmediate(claimCleanupImmediate); claimCleanupImmediate = undefined;
-      responseCache.clear(); runtime.staticCache.clear(); sandboxPools.clear();
+      stateResponseBuilds.clear(); responseCache.clear(); runtime.staticCache.clear(); sandboxPools.clear();
       runtime.releaseReferences();
       identityLookup = undefined; identityLookupRevision = -1; trainingSourceIndex = undefined;
     }
@@ -930,7 +983,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           if (route === '/api/state') {
             const view = viewFor(request), info = store.getInfo();
             if (!identity.readOnly && request.method === 'GET' && foregroundCompletedRevision < info.revision && lastUnchangedTaskRevision !== info.revision) awaitForeground(info.revision);
-            await sendCached(request, response, await stateRepresentation(view, info)); return;
+            await sendState(request, response, view, info); return;
           }
           if (route === '/api/dataset-status') { await json(request, response, 200, dataset.status()); return; }
           if (route === '/api/dataset-runtime') { await sendCached(request, response, cachedValue(`dataset-runtime:${dataset.digest}`, () => browserDataset)); return; }
@@ -1920,6 +1973,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     },
     fenceDeletion() {
       closed = true;
+      stateResponseBuilds.close();
+      for (const response of stateResponses) response.destroy();
       // These sockets belong only to the fenced picker. Do not let unfinished
       // network bodies keep its durable deletion drain alive.
       for (const request of bodyRequests) if (!request.complete) request.destroy();
@@ -1972,7 +2027,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           await openSidecars();
           reportActivationTiming(liveSwap?.onActivationTiming, 'app.sidecarsOpen', phaseStarted);
           if (closed) throw new Error('Standby activation was cancelled by shutdown.');
-          responseCache.clear(); sandboxPools.clear(); rankingPools.clear(); calculationSnapshot = undefined;
+          stateResponseBuilds.clear(); responseCache.clear(); sandboxPools.clear(); rankingPools.clear(); calculationSnapshot = undefined;
           handover.cancelFreeze();
           schedulePredictions(10000);
           return store.getInfo();
@@ -2034,6 +2089,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     close() {
       if (closePromise) return closePromise;
       closed = true;
+      stateResponseBuilds.close();
+      for (const response of stateResponses) response.destroy();
       idleMemory.close();
       clearImmediate(claimCleanupImmediate); claimCleanupImmediate = undefined;
       notifyForeground();
@@ -2056,7 +2113,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), gamePlugin.close()]);
         progressClient.close(); originalSyncClient?.close();
         while (jobs.size) await Promise.allSettled([...jobs]);
-        responseCache.clear(); sandboxPools.clear(); rollPoolCache = undefined;
+        stateResponseBuilds.clear(); responseCache.clear(); sandboxPools.clear(); rollPoolCache = undefined;
         poolRanking.clear(); rankingPools.clear(); savedTaskResults.clear();
         runeMetricsPreviews.clear(); originalSyncPreviews.clear();
         identityLookup = undefined; calculationSnapshot = undefined;
