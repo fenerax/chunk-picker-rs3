@@ -1,4 +1,4 @@
-import { applyCommand, validateState } from './state.mjs';
+import { applyCommand, validateState, hasRandomStartChoices, seedRandomStartSections } from './state.mjs';
 import { createRuleRegistry } from './rules.mjs';
 
 export const RULE_PROFILE_FORMAT = 'rs3-chunk-rule-profile';
@@ -122,7 +122,7 @@ export function predictChunk(state, memberId, chunkId, { world, engine, registry
   return predictionFromBaseline(freeze(validateState(state, registry)), memberId, chunkId, { world, engine });
 }
 
-function predictionFromBaseline(baseline, memberId, chunkId, { engine }) {
+function predictionFromBaseline(baseline, memberId, chunkId, { engine, world }) {
   memberOf(baseline, memberId);
   const sandbox = { ...baseline, members: baseline.members.map(member => ({ ...member })) };
   const target = memberOf(sandbox, memberId);
@@ -130,6 +130,7 @@ function predictionFromBaseline(baseline, memberId, chunkId, { engine }) {
   target.selected = target.selected.filter(id => id !== chunkId);
   target.blacklisted = target.blacklisted.filter(id => id !== chunkId);
   if (target.pendingRoll.includes(chunkId)) {
+    if (hasRandomStartChoices(baseline, target)) seedRandomStartSections(target, [chunkId], world);
     target.selected = [...new Set([...target.selected, ...target.pendingRoll.filter(id => id !== chunkId)])];
     target.pendingRoll = [];
   }

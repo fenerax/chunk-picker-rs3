@@ -93,8 +93,8 @@ export function createBacklogView({ document, getState, getMemberId, canEdit, co
     if (open) requestLocations(allRows, revision, memberId);
     const groups = selectBacklogGroups(tasks, status, search.value, locationName, metadata?.scope === scope ? metadata.index : undefined), rows = groups.flatMap(group => group.tasks);
     summary.textContent = search.value.trim()
-      ? `${rows.length} of ${allRows.length} tasks${canEdit() ? ' · Restore these uses matching tasks.' : ''}`
-      : `${allRows.length} tasks${canEdit() ? ' · Undo brings restored tasks back.' : ''}`;
+      ? `${rows.length} of ${allRows.length} unique task${allRows.length === 1 ? '' : 's'}${canEdit() ? ' · Restore these uses matching tasks.' : ''}`
+      : `${allRows.length} unique task${allRows.length === 1 ? '' : 's'}${canEdit() ? ' · Undo brings restored tasks back.' : ''}`;
     if (loading?.scope === scope && search.value.trim()) summary.textContent += loading.failed ? ' Chunk search could not load.' : ' Loading chunk names…';
     actions.replaceChildren();
     if (loading?.scope === scope && loading.failed && search.value.trim()) actions.append(button('Retry chunk search', () => { loading = undefined; onChange(); }));
@@ -108,7 +108,7 @@ export function createBacklogView({ document, getState, getMemberId, canEdit, co
     if (!groups.length) target.append(el('p', search.value.trim() ? 'No backlogged tasks match your search.' : 'No backlogged tasks.', 'empty-list'));
     const expanded = folds.get(memberId) ?? new Set(); folds.set(memberId, expanded);
     for (const group of groups) {
-      const section = el('section', undefined, 'backlog-group'), details = el('details'), heading = el('summary'), title = el('span', `${group.label} (${group.tasks.length})`, 'backlog-group-title'), body = el('div');
+      const section = el('section', undefined, 'backlog-group'), details = el('details'), heading = el('summary'), title = el('span', `${group.label} (${group.tasks.length} unique task${group.tasks.length === 1 ? '' : 's'})`, 'backlog-group-title'), body = el('div');
       heading.append(title); heading.setAttribute('aria-label', title.textContent);
       details.append(heading, body); section.append(details); target.append(section);
       let shown = 0;

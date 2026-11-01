@@ -816,6 +816,8 @@ dialog:has(.rules-panel){width:min(1100px,calc(100vw - 2rem));height:min(850px,c
 .tab-bar .tab:hover{color:var(--panel-text,var(--text));filter:none}
 .tab-bar .tab[aria-selected=true]{color:var(--panel-text,var(--text));border-bottom-color:var(--gold)}
 .tab-bar .tab:focus-visible{outline-offset:var(--border-legacy--2px)}
+/* Keep the state marker when forced colors flatten backgrounds and borders. */
+@media(forced-colors:active){.tab-bar .tab[aria-selected=true]{text-decoration:underline;text-decoration-thickness:var(--border-focus);text-underline-offset:.2em}}
 .tab-panel{font-size:var(--type-body);min-height:3rem}
 .tab-panel>details>summary{display:none}
 .tab-panel>details.chunk-section{border-top:0;margin-top:0;padding-top:0}

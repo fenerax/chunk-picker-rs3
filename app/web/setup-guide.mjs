@@ -153,23 +153,37 @@ export function createSetupGuide(ctx) {
     } else body.append(el('p', 'Ask whoever runs the picker to send them a player link from Admin → Invite links.'));
   }
 
-  function render(index) {
+  function navigate(index) {
+    // Only explicit step navigation transfers focus. Capture ownership before
+    // replacing the focused control; never wait for starting-bank data to load.
+    const focusStep = ctx.isDialogOpen?.() && root?.contains(root.ownerDocument?.activeElement);
+    return render(index, focusStep);
+  }
+
+  function render(index, focusStep = false) {
     if (!allowed()) return;
     const step = STEPS[index], node = el('div', undefined, 'setup-guide'), body = el('div', undefined, 'setup-guide-body');
     node.dataset.step = step;
     node.append(el('p', `Step ${index + 1} of ${STEPS.length} · For ${member()?.name ?? 'you'}`, 'setup-guide-progress'), body);
     const actions = el('div', undefined, 'setup-guide-actions');
     actions.append(button('Skip setup', () => dismiss('skipped'), 'setup-guide-skip'));
-    if (index > 0) actions.append(button('Back', () => render(index - 1)));
-    actions.append(index < STEPS.length - 1 ? button('Next', () => render(index + 1), 'primary-action') : button('Finish', () => dismiss('finished'), 'primary-action'));
+    if (index > 0) actions.append(button('Back', () => navigate(index - 1)));
+    actions.append(index < STEPS.length - 1 ? button('Next', () => navigate(index + 1), 'primary-action') : button('Finish', () => dismiss('finished'), 'primary-action'));
     node.append(actions);
     root = node; settled = false;
     const generation = ctx.openDialog('Setup guide', node);
     const current = () => root === node && (ctx.dialogCurrent?.(generation) ?? true);
+    let pending;
     if (step === 'roll') rollStep(body);
     else if (step === 'theme') themeStep(body);
-    else if (step === 'start') return startStep(body, current);
+    else if (step === 'start') pending = startStep(body, current);
     else tourStep(body);
+    if (focusStep && current()) {
+      const heading = body.querySelector('h3');
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+    return pending;
   }
 
   function open() {

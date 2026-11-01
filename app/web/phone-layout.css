@@ -7,6 +7,9 @@
   .phone-layout .topbar { flex-wrap:wrap;gap:var(--space-2) var(--space-4); }
   .phone-layout #save-status { order:1;margin-left:auto;max-width:100%;white-space:normal; }
   .phone-layout .player-controls { order:3;flex-basis:100%;padding-left:0;border-left:0;justify-content:space-between;gap:var(--space-4); }
+  /* Share the row so a long name cannot squeeze its partner's text offscreen. */
+  .phone-layout .member-switch { min-width:0;max-width:100%; }
+  .phone-layout .member-switch button { flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
   :is(#update-banner,#notice,#backup-status-notice,#sandbox-banner,#duo-catchup,#duo-live) { padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
   /* Let the document scroll the bars away when they leave too little room for
      map controls and results. Reserve the fixed tabs in native focus scrolling. */
@@ -19,8 +22,9 @@
   .phone-map-primary { position:absolute;z-index:5;top:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));display:flex;gap:var(--space-2);align-items:start;pointer-events:none; }
   .phone-map-primary button { font-size:var(--type-sm);padding:var(--space-2) var(--space-3);background:transparent;color:var(--panel-text,var(--text)); }
   .phone-map-primary button:hover { background:var(--surface); }
-  .phone-map-primary #phone-roll-host { min-width:0; }
-  .phone-map-primary #pick { background:var(--gold);color:var(--on-gold);font-weight:var(--weight-bold);overflow-wrap:anywhere; }
+  /* Let long player labels wrap in the space beside the fixed Controls group. */
+  .phone-map-primary #phone-roll-host { min-width:0;flex:0 1 auto; }
+  .phone-map-primary #pick { background:var(--gold);color:var(--on-gold);font-weight:var(--weight-bold);max-width:100%;overflow-wrap:anywhere; }
   .phone-map-primary #pick:hover { background:var(--gold-strong); }
   :root[data-read-only=true] :is(#phone-roll-host,#phone-undo-host,.toolbar-roll) { display:none; }
   .phone-layout .map-toolbar::-webkit-scrollbar { display:block;height:6px; }

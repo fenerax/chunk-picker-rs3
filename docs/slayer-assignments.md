@@ -21,6 +21,14 @@ only when all relevant combat skills are observed; planning ceilings, passive
 training settings and level limits never supply missing current levels. Without
 current levels the panel says “Sync your levels to see your chances right now.”
 
+The master must also be usable right now: its own Combat and Slayer thresholds
+must be met by recorded levels, and its quest prerequisites must be personally
+completed. A reachable planning method alone does not establish current access.
+An unmet master gate shows “this master is unavailable”; an unverified prerequisite
+shows “availability is unknown”. Neither case supplies a current weight denominator
+or currently unlocked assignments. Planning availability stays unchanged, including
+masters reachable after training or available quests. Death remains excluded.
+
 Target checks follow serialized monster locations, source task gates, area
 unlock tasks, quest-gated sections and entrance gates. An unfinished quest blocks
 that route right now; another independently usable target can still qualify.

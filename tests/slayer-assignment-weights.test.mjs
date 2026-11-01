@@ -1,4 +1,7 @@
 import test from 'node:test';
+import { createTaskEngine } from '../app/tasks/engine.mjs';
+import { buildActivityInfo } from '../app/tasks/activity.mjs';
+import { masterGateFixture } from './fixtures/slayer-master-gates.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { applyDefinitionOverlays } from '../app/data/definition-overlays.mjs';
@@ -30,4 +33,23 @@ test('six reviewed assignment weights apply through the core correction overlay 
   }
   assert.equal(JSON.stringify(raw.slayerMasterTasks), original);
   assert.equal(applyDefinitionOverlays(effective, [overlay]), effective);
+});
+
+
+test('public full definitions reject a Combat-30 master below its threshold and admit it exactly', () => {
+  const definitions = prepareTaskDefinitions(JSON.parse(readFileSync(new URL('../rs3-chunkpicker-chunkinfo-export.json', import.meta.url))), selectedDataset);
+  definitions.chunks['10001'] = { NPC: { Vannaka: 1 }, Monster: { Spider: 1 } };
+  const engine = createTaskEngine(definitions);
+  for (const combat of [29, 30, 31]) {
+    const { state } = masterGateFixture({ combat, slayer: 1 });
+    const result = engine.evaluate(state, 'a');
+    const master = buildActivityInfo(result, state, 'a', definitions).slayer.masters.find(master => master.name === 'Vannaka');
+    assert.equal(master.reachable, true);
+    assert.equal(master.tasks.some(task => task.currentUnlocked && task.currentStatus === 'doable'), combat >= 30);
+    assert.equal(master.currentAccess.status, combat < 30 ? 'unavailable' : 'available');
+    if (combat < 30) {
+      assert.equal(master.warnings.current.poolWeight, undefined);
+      assert.match(master.warnings.current.line, /unavailable.*Combat 30/);
+    } else assert.ok(master.warnings.current.poolWeight > 0);
+  }
 });

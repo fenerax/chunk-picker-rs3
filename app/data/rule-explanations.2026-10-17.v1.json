@@ -1088,15 +1088,15 @@
       ]
     },
     "PortSkills": {
-      "what": "Allows a level-90 adventurer-unlock goal for each of the twelve listed port skills you can train. It does not stop after the first skill that lets you run voyages.",
-      "example": "Unlocking the Tengu through Agility 90 can remain a goal even after another skill already permits port voyages.",
+      "what": "Requires all twelve port skills to be within reach of level 90 before any of their adventurer goals become chunk tasks.",
+      "example": "If eleven port skills can reach 90 and the last cannot, none of these goals is required yet.",
       "sources": [
         {
           "title": "Player-owned port",
-          "url": "https://runescape.wiki/w/Player-owned_port?oldid=37203306"
+          "url": "https://runescape.wiki/w/Player-owned_port?oldid=37218482"
         }
       ],
-      "grindWarning": "This can require several separate skills at 90 rather than a single port-entry skill."
+      "grindWarning": "Once all twelve are within reach, each skill has its own level-90 goal."
     },
     "Titles": {
       "what": "Allows listed title-unlock goals when their recorded requirements are reachable. Other rules can still exclude titles tied to particular activities.",
@@ -1536,9 +1536,17 @@
       ]
     },
     "Timegated": {
-      "what": "Allows listed tasks with daily, weekly, monthly or other time restrictions. The picker checks declared requirements but does not wait out their real-world timers.",
+      "what": "Requires listed tasks that take repeated visits over weeks, including farm upgrades and port voyages. With this off, these are not chunk tasks; a single short growth cycle does not count.",
       "example": "Constructing a monthly God Statue can become a Construction method when its Distraction and Diversion rule and location also allow it.",
       "sources": [
+        {
+          "title": "Player-owned farm",
+          "url": "https://runescape.wiki/w/Player-owned_farm?oldid=37110514"
+        },
+        {
+          "title": "Player-owned port",
+          "url": "https://runescape.wiki/w/Player-owned_port?oldid=37218482"
+        },
         {
           "title": "God Statues",
           "url": "https://runescape.wiki/w/God_Statues?oldid=37193709"

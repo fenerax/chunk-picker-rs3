@@ -3,6 +3,8 @@ import { UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
 import { taskRuleValueError } from '../data/settings.mjs';
 import { parseDropRate } from './rates.mjs';
 import { processingSkills } from './processing.mjs';
+import { relaxesAchievementDependency } from './achievements.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const contexts = new WeakMap();
@@ -41,7 +43,10 @@ export function unknownDropEstimate(source) {
  */
 export function unknownDropContext(result, definitions = {}, allowedSource, rules = {}) {
   if (contexts.has(result)) return contexts.get(result);
-  const sourceAllowed = allowedSource ?? (() => true);
+  // The engine's consumer matcher admits virtual outputs only for the right
+  // category and producer/consumer levels. Without that proof keep them out of
+  // ordinary supplies; cached warning rows below retain the admitted cost.
+  const sourceAllowed = allowedSource ?? (source => source.processingMode !== 'multi');
   const nodes = [], items = new Map(), tasks = new Map(), keys = new Map();
   const node = () => { const value = { value: Infinity, parents: new Set(), deps: [], read: () => Infinity }; nodes.push(value); return value; };
   const configure = (target, deps, read) => { target.deps = deps; target.read = read; for (const dep of deps) dep.parents.add(target); };
@@ -50,9 +55,9 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
   const aliases = definitions.codeItems?.itemsPlus ?? {};
   function choices(token, registry = aliases) {
     const clean = String(token).replaceAll('*', ''), match = /^(.*\[\+\])(?:x(\d+))?$/.exec(clean);
-    if (!match) return { names: [clean], count: 1 };
+    if (!match) return { names: [clean], count: 1, alias: false };
     const key = Object.hasOwn(registry, match[1]) ? match[1] : Object.keys(registry).find(key => key.toLowerCase() === match[1].toLowerCase());
-    return { names: list(registry[key] ?? clean), count: Number(match[2] ?? 1) };
+    return { names: list(registry[key] ?? clean), count: Number(match[2] ?? 1), alias: true };
   }
   function sourceNode(source) {
     // Task outputs and task rewards both depend on their producing task. A
@@ -64,16 +69,29 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
     configure(target, producer ? [producer] : [], () => Math.max(estimate, producer?.value ?? 0));
     return target;
   }
+  // The engine waives some diary tiers (Show Diary Tasks Any, Combat Mastery);
+  // a waived prerequisite costs nothing here either.
+  const anyAchievements = taskRuleEnabled(rules, 'Show Diary Tasks Any', false);
+  const free = () => { const value = node(); configure(value, [], () => 0); return value; };
   const sourceNodes = new WeakMap(), wieldNodes = new Map();
   for (const item of items.values()) {
+    for (const source of item.sources ?? []) sourceNodes.set(source, sourceNode(source));
+    // Virtual outputs can supply a particular task, but are not standalone
+    // collection or equipment proof.
     const sources = (item.sources ?? []).filter(source => source.processingMode !== 'multi');
-    const deps = sources.map(source => { const target = sourceNode(source); sourceNodes.set(source, target); return target; });
+    const deps = sources.map(source => sourceNodes.get(source));
     configure(item.node, deps, () => deps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
     // Equipment with Wield Crafted Items off admits no processing-task source
     // (the engine's equipment policy), so a recipe is no alternative there.
     const wieldDeps = sources.filter(source => !craftedSource(source)).map(source => sourceNodes.get(source));
     const wield = node(); configure(wield, wieldDeps, () => wieldDeps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
     wieldNodes.set(item.name, wield);
+  }
+  function itemChoice(name, row) {
+    const sources = (items.get(name)?.sources ?? []).filter(source => sourceAllowed(source, row, name));
+    const deps = sources.map(source => sourceNodes.get(source)), choice = node();
+    configure(choice, deps, () => deps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
+    return choice;
   }
   for (const { row, node: target } of tasks.values()) {
     // Eligibility-cache copies retain the engine's source-policy proof in the
@@ -84,31 +102,41 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
     }
     const groups = list(row.record?.Items).map(token => {
       const { names, count } = choices(token);
-      const deps = names.map(name => {
-        const item = items.get(name);
-        // Match the caller's source policy before accepting an alternative.
-        const sources = (item?.sources ?? []).filter(source => source.processingMode !== 'multi' && sourceAllowed(source, row, name));
-        const deps = sources.map(source => sourceNodes.get(source)).filter(Boolean), choice = node();
-        configure(choice, deps, () => deps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
-        return choice;
-      });
-      return { deps, count };
+      return { deps: names.map(name => itemChoice(name, row)), count };
     });
-    const dependencies = Object.entries(row.record?.Tasks ?? {}).map(([label, category]) => {
-      const { names, count } = choices(label, definitions.codeItems?.tasksPlus ?? {});
-      return { deps: names.map(name => {
-        const task = tasks.get(keys.get(`${category}\0${String(name).split('--')[0]}`));
-        if (!task?.row.personalCompleted) return task?.node;
+    const dependencies = Object.entries(row.record?.Tasks ?? {}).flatMap(([label, category]) => {
+      const { names, count, alias } = choices(label, definitions.codeItems?.tasksPlus ?? {});
+      const dependency = { category, token: String(label), alias };
+      const rawNames = [...new Set(names.map(name => String(name).split('--')[0]))];
+      const self = name => category === row.category && name === (row.rawLabel ?? row.label);
+      // All-self links are annotations; mixed aliases must still satisfy their
+      // count using distinct, reachable non-self prerequisites, as in check().
+      if (rawNames.every(self)) return [];
+      return [{ deps: rawNames.filter(name => !self(name)).map(name => {
+        const task = tasks.get(keys.get(`${category}\0${name}`));
+        if (task && relaxesAchievementDependency(row.category, row.record ?? {}, dependency, task.row.record, anyAchievements)) return free();
+        if (!task?.row.personalCompleted) return task?.row.status === 'available' ? task.node : undefined;
         // A completed prerequisite needs no new acquisition. Its recipe still
         // needs supplies when used as a producer of additional items.
-        const completed = node(); configure(completed, [], () => 0); return completed;
-      }).filter(Boolean), count };
-    }).filter(group => group.deps.length);
+        return free();
+      }).filter(Boolean), count }];
+    });
     groups.push(...dependencies);
+    const payments = (row.dialogueSupply ?? row.record?.DialogueSupply)?.paymentAlternatives;
+    if (payments) {
+      const clauses = payments.map(clause => {
+        const deps = Object.keys(clause).map(name => itemChoice(name, row)), payment = node();
+        // Payment quantities do not change this one-drop move-on hint. The
+        // engine requires every payment item in one reachable clause.
+        configure(payment, deps, () => deps.reduce((cost, dep) => Math.max(cost, dep.value), 0));
+        return payment;
+      });
+      groups.push({ deps: clauses, count: 1 });
+    }
     const deps = groups.flatMap(group => group.deps);
     configure(target, deps, () => {
-      // Conditional alternatives need a selected proof before claiming reliance.
-      if (row.record?.RequirementAlternatives || row.record?.PersonalRequirementAlternatives) return 0;
+      // Skill/point and personal-completion alternatives are separate gates;
+      // neither replaces unconditional Items, Tasks or dialogue payments.
       return groups.reduce((cost, group) => Math.max(cost, group.deps.map(dep => dep.value).sort((a, b) => a - b)[group.count - 1] ?? Infinity), 0);
     });
   }

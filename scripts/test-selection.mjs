@@ -15,10 +15,15 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "perf-private-guards.test.mjs",
   "unknown-drop-warnings.test.mjs",
+  "completion-codec.test.mjs",
   "completion-truth-table.test.mjs",
   "collection-boundaries.test.mjs",
   "roll-boundaries.test.mjs",
+
+  "task-rule-explanations.test.mjs",
+  "timegated-port-skills.test.mjs",
   "travel-reward-gates.test.mjs",
   "quest-requirements-corrections.test.mjs",
   "task-how.test.mjs",
@@ -49,6 +54,7 @@ export const quickTests = new Set([
   "registry.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
+  "linux-recovery-paths.test.mjs",
   "linux-multi-picker.test.mjs",
   "linux-service-crash.test.mjs",
   "linux-lock-recovery.test.mjs",
@@ -240,6 +246,7 @@ export const quickTests = new Set([
   "manual-checks.test.mjs",
   "map-capture.test.mjs",
   "map-display-panel.test.mjs",
+  "map-availability.test.mjs",
   "map-activity-layer-model.test.mjs",
   "map-activity-layer-renderer.test.mjs",
   "map-activity-layers.test.mjs",
@@ -321,8 +328,10 @@ const fullOnlyPatterns = [
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
   "short-height-browser.test.mjs",
+  "phone-controls-browser.test.mjs",
   "picker-properties.test.mjs",
   "setup-start-pool.test.mjs",
+  "setup-guide-browser.test.mjs",
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
   "roll-pool-worker.test.mjs",
@@ -402,6 +411,7 @@ const fullOnlyTests = new Set([
   "display-world.test.mjs",
   "divination-integration.test.mjs",
   "duo-coordination.test.mjs",
+  "duo-focus-browser.test.mjs",
   "duo-tasks.test.mjs",
   "engine.test.mjs",
   "f2p-equipment-membership.test.mjs",
@@ -552,6 +562,7 @@ export const soloTests = new Set([
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
   "short-height-browser.test.mjs",
+  "completion-codec.test.mjs",
   "phase1-acceptance.test.mjs",
   "phase1-acceptance-crash.test.mjs",
   "picker-audit-b.test.mjs",
@@ -578,6 +589,7 @@ export const openF2PTests = new Set([
   "backup-watchdog-server.test.mjs",
   "chunk-colours-server.test.mjs",
   "duo-server.test.mjs",
+  "duo-focus-browser.test.mjs",
   "eligibility-reuse.test.mjs",
   "frontdoor-ingress.test.mjs",
   "game-plugin-mapping.test.mjs",

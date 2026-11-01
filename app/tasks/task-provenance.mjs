@@ -67,6 +67,17 @@ export function setStanding(task, result) {
   return { name, preferred: task.status === 'available', over };
 }
 
+/** Existing choice diagnostics apply to the chosen fallback, never its peers. */
+export function taskWarnings(task, result = {}) {
+  return (result.presentation?.diagnostics ?? []).filter(reason =>
+    reason.kind === 'unavailable-task-alternative' && reason.chosen === task.id);
+}
+
+/** Shared by the actual dialog and Why; choice resolution stays in presentation. */
+export function taskExplanation(task, result) {
+  return [task.explanation, ...taskWarnings(task, result).map(reason => reason.detail)].filter(Boolean).join(' ');
+}
+
 /**
  * describeRule(id) returns { label, section, on, source } for a rule the Rules
  * screen knows, or undefined for tags that are not player-facing rules.
@@ -105,6 +116,8 @@ export function explainTask(task, { result = { tasks: [] }, describeRule = () =>
     ...(task.slayerUnlockGate ? { slayerUnlockGate: task.slayerUnlockGate } : {}),
     sources, rareDrop: rare ? { label: rareDrop.label ?? 'Rare Drop', amount } : undefined,
     hidden: reasons.filter(reason => reason !== 'Task is not available.'),
+    conditions: [...(task.sourcePolicyRejections ?? []), ...(task.sourceExclusion ? [task.sourceExclusion] : [])],
+    warnings: taskWarnings(task, result),
     summary: (decisive.length ? decisive : rules).slice(0, 2).map(rule => rule.label).join(' and ') || undefined,
   };
 }
