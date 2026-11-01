@@ -49,6 +49,7 @@ export const quickTests = new Set([
   "registry.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
+  "linux-recovery-paths.test.mjs",
   "linux-multi-picker.test.mjs",
   "linux-service-crash.test.mjs",
   "linux-lock-recovery.test.mjs",
