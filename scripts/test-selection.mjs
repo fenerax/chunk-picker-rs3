@@ -325,6 +325,7 @@ const fullOnlyPatterns = [
 const fullOnlyTests = new Set([
   "picker-properties.test.mjs",
   "setup-start-pool.test.mjs",
+  "setup-guide-browser.test.mjs",
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
   "roll-pool-worker.test.mjs",
