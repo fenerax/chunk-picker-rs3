@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { masterGateFixture } from './fixtures/slayer-master-gates.mjs';
 import assert from 'node:assert/strict';
 import { buildActivityInfo } from '../app/tasks/activity.mjs';
 import { currentSlayerLevels } from '../app/tasks/slayer-assignments.mjs';
@@ -22,7 +23,7 @@ function fixture() {
     challenges: { Quest: { [quest.rawLabel]: quest.record } }, slayerMasterTasks: { Jacquelyn: assignments }, codeItems: { slayerTasks: { ...Object.fromEntries(Object.entries(targets).map(([name, target]) => [name, { [target]: true }])), Cows: { Cow: true }, 'Cave bugs': { 'Cave bug': true }, 'Cave slimes': { 'Cave slime': true } } } };
   const result = { tasks: [master, quest], training: { Slayer: { level: 120 }, Combat: { level: 152 } }, access: {
     bases: ['10001'], areas: ['Lumbridge Catacombs'], monsters: Object.values(targets), entranceSources: { 'Lumbridge Catacombs': ['10001'] },
-    locations: Object.fromEntries(Object.values(targets).map(name => [`Monster:${name}`, [indoor.has(name) ? 'Lumbridge Catacombs' : '10001']])) } };
+    locations: { 'NPC:Jacquelyn': ['10001'], ...Object.fromEntries(Object.values(targets).map(name => [`Monster:${name}`, [indoor.has(name) ? 'Lumbridge Catacombs' : '10001']])) } } };
   const view = () => buildActivityInfo(result, state, 'a', definitions).slayer.masters[0];
   return { result, definitions, quest, master, view };
 }
@@ -89,7 +90,12 @@ test('area tasks, source gates, quest-gated sections and transitive entrances ne
     f.definitions.challenges.Quest[quest.rawLabel] = quest.record;
     const needs = { [quest.rawLabel]: 'Quest' };
     if (kind === 'source') f.definitions.taskUnlocks = { Monsters: { Duck: { '10001': needs } } };
-    else if (kind === 'section') f.definitions.questSections = { '10001': [quest.rawLabel] };
+    else if (kind === 'section') {
+      f.definitions.questSections = { '10001': [quest.rawLabel] };
+      // Keep the master outside the gated chunk: this case checks the target.
+      f.result.access.bases.push('10002'); f.definitions.chunks['10002'] = {};
+      f.result.access.locations['NPC:Jacquelyn'] = ['10002'];
+    }
     else {
       f.result.access.areas.push('Cave');
       f.definitions.chunks.Cave = { Connect: { '10001': kind === 'entrance' ? { Tasks: needs } : true } };
@@ -165,4 +171,117 @@ test('changing assignment display tables leaves engine planning task results unc
   assert.deepEqual(after.tasks, before.tasks);
   assert.deepEqual(after.training, before.training);
   assert.deepEqual(after.presentation?.tasks, before.presentation?.tasks);
+});
+
+
+test('current master Combat 29/30/31 gates intersect shared assignments without changing planning', () => {
+  for (const combat of [29, 30, 31]) {
+    const f = masterGateFixture({ combat });
+    assert.equal(currentSlayerLevels(f.result, { f2p: false }).Combat, combat);
+    const before = structuredClone(f.result), masters = f.view().slayer.masters;
+    const higher = masters.find(master => master.name === 'Higher');
+    assert.equal(higher.reachable, true);
+    assert.equal(higher.warnings.planning.poolWeight, 10);
+    assert.equal(higher.currentAccess.status, combat < 30 ? 'unavailable' : 'available');
+    assert.equal(higher.tasks[0].currentUnlocked, combat >= 30);
+    assert.equal(higher.warnings.current.poolWeight ?? null, combat < 30 ? null : 10);
+    assert.equal(masters.filter(master => master.tasks[0].currentUnlocked && master.tasks[0].currentStatus === 'doable').length, combat < 30 ? 1 : 2);
+    if (combat < 30) assert.match(higher.warnings.current.line, /unavailable.*Combat 30/);
+    assert.deepEqual(f.result, before);
+  }
+});
+
+test('master-only Slayer and personal quest gates do not borrow planning or another player completion', () => {
+  const low = masterGateFixture({ combat: 30, slayer: 9 });
+  const higher = f => f.view().slayer.masters.find(master => master.name === 'Higher');
+  assert.equal(higher(low).currentAccess.status, 'unavailable');
+  assert.equal(higher(low).tasks[0].currentUnlocked, false);
+  assert.match(higher(low).warnings.current.line, /Slayer 10/);
+  const f = masterGateFixture({ combat: 30, quest: true });
+  const quest = f.result.tasks.find(task => task.category === 'Quest');
+  assert.equal(quest.status, 'available');
+  assert.equal(higher(f).reachable, false, 'The engine already blocks the pending master quest');
+  assert.equal(higher(f).tasks[0].currentUnlocked, false);
+  // Also exercise a projected planning-available method: current access must
+  // independently require personal completion rather than trust that status.
+  f.result.tasks.find(task => task.rawLabel === f.higher).status = 'available';
+  quest.challengeSatisfied = true;
+  assert.equal(higher(f).reachable, true);
+  assert.equal(higher(f).tasks[0].planningEligible, true);
+  assert.equal(higher(f).currentAccess.status, 'unavailable');
+  assert.match(higher(f).warnings.current.line, /Complete Example gate yourself/);
+  quest.personalCompleted = true;
+  assert.equal(higher(f).currentAccess.status, 'available');
+  assert.equal(higher(f).warnings.current.poolWeight, 10);
+  assert.equal(higher(f).tasks[0].currentStatus, 'doable');
+});
+
+test('missing observations and unresolved master prerequisites supply no current denominator', () => {
+  const f = masterGateFixture({ combat: 30 });
+  const higher = () => f.view().slayer.masters.find(master => master.name === 'Higher');
+  delete f.result.training.Constitution.observedLevel;
+  assert.equal(higher().currentAccess.status, 'unknown');
+  assert.equal(higher().tasks[0].currentUnlocked, false);
+  assert.equal(higher().warnings.current.poolWeight, undefined);
+  assert.match(higher().warnings.current.line, /Sync your levels/);
+  f.result.training.Constitution = observation(28);
+  delete f.result.training.Slayer.observedLevel;
+  assert.equal(higher().currentAccess.status, 'unknown');
+  assert.equal(higher().tasks[0].currentUnlocked, false);
+  assert.match(higher().warnings.current.line, /Sync your levels/);
+  f.result.training.Slayer = observation(10);
+  const method = f.result.tasks.find(task => task.rawLabel === f.higher);
+  method.record.Tasks = { 'Unresolved gate': 'Quest' };
+  assert.equal(higher().currentAccess.status, 'unknown');
+  assert.equal(higher().tasks[0].currentUnlocked, false);
+  assert.match(higher().warnings.current.line, /availability is unknown/);
+  assert.equal(higher().warnings.current.poolWeight, undefined);
+});
+
+test("a quest gate on the master's own location blocks current access until finished", () => {
+  for (const kind of ['area', 'source']) {
+    const f = masterGateFixture({ combat: 30 });
+    const higher = () => f.view().slayer.masters.find(master => master.name === 'Higher');
+    const quest = f.result.tasks.find(task => task.category === 'Quest');
+    assert.equal(higher().currentAccess.status, 'available', `${kind}: the open location adds no gate`);
+    if (kind === 'area') {
+      // Chaeldar's pattern: the master stands in an area unlocked by a quest (Zanaris, Lost City).
+      f.definitions.chunks['10001'].Connect = { 'Fixture hideout': true };
+      f.definitions.chunks['Fixture hideout'] = { Connect: { '10001': true } };
+      f.definitions.challenges.Nonskill = { 'Fixture hideout': { UnlocksArea: true, Tasks: { [f.questLabel]: 'Quest' } } };
+      f.result.access.areas = [...(f.result.access.areas ?? []), 'Fixture hideout'];
+      f.result.access.entranceSources['Fixture hideout'] = ['10001'];
+      f.result.access.locations['NPC:Higher'] = ['Fixture hideout'];
+    } else {
+      // Duradel's pattern: a quest gate on the NPC source itself.
+      f.definitions.taskUnlocks = { NPCs: { Higher: { '10001': [{ [f.questLabel]: 'Quest' }] } } };
+    }
+    assert.equal(higher().reachable, true, kind);
+    assert.equal(higher().currentAccess.status, 'unavailable', kind);
+    assert.equal(higher().tasks[0].currentUnlocked, false, kind);
+    assert.match(higher().warnings.current.line, /unavailable\. Reaching Higher needs Example gate finished\./, kind);
+    quest.personalCompleted = true;
+    assert.equal(higher().currentAccess.status, 'available', kind);
+    assert.equal(higher().warnings.current.poolWeight, 10, kind);
+  }
+});
+test("a section the player confirmed proves the master's location; its own gates still apply", () => {
+  const f = masterGateFixture({ combat: 30 });
+  const higher = () => f.view().slayer.masters.find(master => master.name === 'Higher');
+  const quest = f.result.tasks.find(task => task.category === 'Quest');
+  // Duradel's and Turael's pattern: a split chunk whose section has no listed neighbour.
+  f.definitions.chunks['10001'].Sections = { 1: {}, 2: {} };
+  f.definitions.sections = { 10001: { 1: [] } };
+  f.result.access.sections = [...(f.result.access.sections ?? []), '10001-1'];
+  f.result.access.locations['NPC:Higher'] = ['10001-1'];
+  assert.equal(higher().currentAccess.status, 'unknown', 'an unconfirmed section has no route proof');
+  f.state.members[0].sectionOverrides = { '10001-1': false };
+  assert.equal(higher().currentAccess.status, 'unknown', 'a section marked unreachable proves nothing');
+  f.state.members[0].sectionOverrides = { '10001-1': true };
+  assert.equal(higher().currentAccess.status, 'available');
+  assert.equal(higher().warnings.current.poolWeight, 10);
+  f.definitions.taskUnlocks = { NPCs: { Higher: { '10001': [{ [f.questLabel]: 'Quest' }] } } };
+  assert.equal(higher().currentAccess.status, 'unavailable', 'the source gate still applies in a confirmed section');
+  quest.personalCompleted = true;
+  assert.equal(higher().currentAccess.status, 'available');
 });

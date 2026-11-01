@@ -95,6 +95,10 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     if (!invite || invite.revoked || invite.admin || invite.viewer || (requireMember && !invite.memberId)) throw failure(409, 'This player invite is no longer available.');
     return invite;
   }
+  function canContinueInvite(invite, identity) {
+    return mode === 'optional' && !!invite && !invite.revoked && !invite.admin && !invite.viewer &&
+      !invite.claimedAccountId && identity?.kind !== 'account' && !identity?.pickerId;
+  }
   function inviteRequired(response) {
     page(response, { providers, heading: 'Invite required', message: 'This account has no membership yet. Open a player invite link to join this game.' }, 403);
   }
@@ -265,7 +269,9 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         if (!configured.has(name) || !entry || entry.provider !== name || query.getAll('state').length !== 1 || !equal(query.get('state'), entry.state)) throw failure(400, 'This sign-in request has expired. Start again; if you were joining, reopen the invite link.');
         if (query.has('error')) {
           if (entry.inviteId || entry.reclaimCode) put(request, response, entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : { inviteId: entry.inviteId });
-          page(response, { providers, heading: 'Sign-in cancelled', message: 'You can try signing in again.' }, 400); return true;
+          const invite = entry.inviteId ? invites.get(entry.inviteId) : undefined;
+          page(response, { providers, heading: 'Sign-in cancelled', message: 'You can try signing in again.',
+            continueInvite: canContinueInvite(invite, identity) }, 400); return true;
         }
         const code = query.get('code');
         if (query.getAll('code').length !== 1 || !code || code.length > 4096 || /[\u0000-\u0020\u007f]/.test(code)) throw failure(400, 'Sign-in could not be completed. Please try again.');
@@ -352,12 +358,12 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         put(request, response, { inviteId: invite.id });
         if (!invite.memberId) {
           page(response, { heading: 'Player invite', message: 'Ask the admin to choose a player for this invite before signing in',
-            continueInvite: mode === 'optional' && !invite.claimedAccountId, help: false });
+            continueInvite: canContinueInvite(invite), help: false });
           return true;
         }
         page(response, { providers, heading: identity?.kind === 'account' ? 'Join this game' : 'Sign in to join',
           message: identity?.kind === 'account' ? 'Claim this player invite with your signed-in account.' : 'Sign in to keep your player access on this browser and other devices.',
-          claim: identity?.kind === 'account', continueInvite: mode === 'optional' && !invite.claimedAccountId && identity?.kind !== 'account' });
+          claim: identity?.kind === 'account', continueInvite: canContinueInvite(invite, identity) });
       } else {
         take(request, response);
         page(response, { providers, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' });
