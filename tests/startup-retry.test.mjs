@@ -173,6 +173,32 @@ test('a body stalled after its first chunk is cancelled and retried after 35 sec
   assert.deepEqual(await loading, payload); assert.equal(calls, 2); assert.equal(time.pending(), 0);
 });
 
+test('a response without a body stream gets the full header window instead of the inactivity window', async () => {
+  const time = clock(); let signal, finish;
+  const loading = readStartupJSON('/synthetic', { ...time,
+    fetch: async (_path, options) => {
+      signal = options.signal;
+      return { ok: true, status: 200, headers: new Headers(), json: () => new Promise(resolve => { finish = resolve; }) };
+    }, onRetry: () => assert.fail('a healthy download must not retry'),
+  });
+  await time.advance(0); await time.advance(100000);
+  assert.equal(signal.aborted, false, 'no progress events, so 35 seconds of silence is not a stall');
+  finish(payload);
+  assert.deepEqual(await loading, payload); assert.equal(time.pending(), 0);
+});
+
+test('a failed response whose body stalls still honours its status and Retry-After', async () => {
+  const time = clock(); let calls = 0; const delays = [];
+  const loading = readStartupJSON('/synthetic', { ...time,
+    fetch: async () => ++calls > 1 ? Response.json(payload) : new Response(new ReadableStream({ start() {} }),
+      { status: 503, headers: { 'Retry-After': '60' } }),
+    sleep: async delay => { delays.push(delay); }, onRetry() {}, random: () => 0.5,
+  });
+  await time.advance(0); await time.advance(35000);
+  assert.deepEqual(await loading, payload); assert.equal(calls, 2);
+  assert.deepEqual(delays, [60000]);
+});
+
 test('retry jitter varies within bounds, never falls below one second, and preserves Retry-After', async () => {
   for (const random of [0, 0.5, 1]) {
     let calls = 0; const delays = [];

@@ -5,7 +5,8 @@ export async function withStartupTimeout(request, { signal, timeoutMs = 150000, 
   setTimer = globalThis.setTimeout, clearTimer = globalThis.clearTimeout } = {}) {
   if (signal?.aborted) throw abandoned();
   const controller = new AbortController();
-  let timer, abort, arm;
+  // A failed response's status and Retry-After must survive a body stall.
+  let timer, abort, arm, responseMeta = {};
   const deadline = new Promise((_, reject) => {
     abort = () => { reject(abandoned()); controller.abort(); };
     signal?.addEventListener('abort', abort, { once: true });
@@ -13,7 +14,7 @@ export async function withStartupTimeout(request, { signal, timeoutMs = 150000, 
       if (controller.signal.aborted) return;
       clearTimer(timer);
       timer = setTimer(() => {
-        reject(new Error('The picker took too long to respond.'));
+        reject(Object.assign(new Error('The picker took too long to respond.'), responseMeta));
         controller.abort();
       }, ms);
     };
@@ -21,10 +22,13 @@ export async function withStartupTimeout(request, { signal, timeoutMs = 150000, 
   });
   const readJSON = async response => {
     if (controller.signal.aborted) throw abandoned();
+    if (!response.ok) responseMeta = { status: response.status, retryAfterMs: startupRetryAfter(response) };
+    // Without a body stream there is no progress to watch, so allow the whole
+    // header window for the transfer instead of the inactivity window.
+    if (!response.body?.getReader) { arm(Math.max(bodyTimeoutMs, timeoutMs)); return response.json(); }
     arm(bodyTimeoutMs);
     // Native fetch exposes decoded chunks, so progress extends the inactivity
     // window regardless of the body's total size or download time.
-    if (!response.body?.getReader) return response.json();
     const reader = response.body.getReader(), decoder = new TextDecoder();
     const cancel = () => { void reader.cancel().catch(() => {}); };
     controller.signal.addEventListener('abort', cancel, { once: true });
