@@ -424,7 +424,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       const key = JSON.stringify([pickerId, selectedDataset.digest, input, state.revision, memberId, chunkId, 1]);
       result = howCache.get(key);
       if (!result) {
-        result = timed(timingMs, 'howMs', () => engine.how(state, memberId, chunkId, { cancelled: abandoned, context: { datasetDigest: selectedDataset.digest } }));
+        const baseline = snapshots.get(JSON.stringify(calculationKey(state, memberId, input)))?.baseline;
+        result = timed(timingMs, 'howMs', () => engine.how(state, memberId, chunkId, { cancelled: abandoned, baseline, context: { datasetDigest: selectedDataset.digest } }));
         if (!abandoned()) howCache.set(key, result);
       }
       if (abandoned()) result = { cancelled: true };
