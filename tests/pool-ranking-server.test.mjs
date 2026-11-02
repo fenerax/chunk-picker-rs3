@@ -135,7 +135,10 @@ test('a pool read held across an HTTP save rejects its captured owner before ret
   await f.get(`/api/predict?memberId=reed&chunkId=${current.rows[0].id}`);
   const checked = await f.get('/api/pool-ranking?memberId=reed');
   assert.ok(checked.checked >= 1);
-  const before = await f.get('/api/diagnostics');
+  // Preview can answer before its producer finishes the partner reply; let that
+  // requested work settle so the snapshot measures the reads below alone.
+  const before = await until(() => f.get('/api/diagnostics'), value => !value.predictionLane.queue.active
+    && !value.predictionLane.queue.depth && !value.predictionLane.retainedWork.pending);
   for (let i = 0; i < 3; i++) assert.deepEqual((await f.get('/api/pool-ranking?memberId=reed')).rows, checked.rows);
   const after = await f.get('/api/diagnostics');
   assert.deepEqual(after.predictionLane, before.predictionLane);
