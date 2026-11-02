@@ -34,7 +34,15 @@ test('HTTP reads use the picker prediction cache and retained completion history
   assert.deepEqual((await request('/api/diagnostics')).predictionLane, before.predictionLane);
   const baseline = await request('/api/tasks?memberId=a');
   const prediction = await request(`/api/predict?memberId=a&chunkId=${ids[1]}`);
-  const ready = await request('/api/diagnostics');
+  // Preview can answer before its producer finishes preparing the partner reply.
+  // Let that requested work settle so the snapshot below measures reads alone.
+  let ready;
+  for (const deadline = Date.now() + 10000; ; await delay(20)) {
+    ready = await request('/api/diagnostics');
+    const lane = ready.predictionLane;
+    if (!lane.queue.active && !lane.queue.depth && !lane.retainedWork.pending) break;
+    assert.ok(Date.now() < deadline, `Preview producer did not settle: ${JSON.stringify(lane.queue)}`);
+  }
   const status = await request('/api/plugin/v1/status', plugin);
   const summary = status.pendingRoll[0].summary;
   assert.ok(summary); assert.equal(Object.values(summary.newTasks).reduce((a, b) => a + b, 0), prediction.delta.tasksAdded.length);
