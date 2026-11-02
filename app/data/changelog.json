@@ -2,6 +2,28 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-02",
+      "title": "Reconnects by itself after an update",
+      "items": [
+        "If the picker is updating or the connection drops while the page opens, it now keeps retrying and loads on its own, so you no longer need to reload",
+        "A slow first load is no longer cut off part way through"
+      ]
+    },
+    {
+      "date": "2026-11-02",
+      "title": "Small fixes",
+      "items": [
+        "The new-updates dot on More now sits centred over the dropdown arrow, on computers and phones"
+      ]
+    },
+    {
+      "date": "2026-11-02",
+      "title": "Behind the scenes",
+      "items": [
+        "Fixed a rare crash in the calculator workers"
+      ]
+    },
+    {
       "date": "2026-11-01",
       "title": "Ancient effigies have their own switch",
       "items": [
