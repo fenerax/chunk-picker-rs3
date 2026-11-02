@@ -1,3 +1,4 @@
+import { createViewCache } from '../app/web/browser-state.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -128,7 +129,7 @@ test('MP13: browser startup renders the owned roster with neutral dataset defaul
   const session = (await f.send('/api/session', cookie)).json();
   const source = async name => (await readFile(new URL('../app/web/' + name, import.meta.url), 'utf8'))
     .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
-  const c = runInNewContext(await source('screen-context.mjs') + '\ncreateScreenContext();', { selectedDataset: payload });
+  const c = runInNewContext(await source('screen-context.mjs') + '\ncreateScreenContext();', { selectedDataset: payload, createViewCache });
   assert.equal(c.owners.length, 0);
   const noop = () => {}, node = { addEventListener: noop, append: noop, setAttribute: noop };
   const panel = () => ({ start: noop, setSession: noop, refresh: noop });
@@ -137,7 +138,7 @@ test('MP13: browser startup renders the owned roster with neutral dataset defaul
     api: async route => route === '/api/state' ? loaded : route === '/api/rules' ? { definitions: [] } : {},
     applySession: noop, taskIconPainter: { settle: noop }, categoryIconPainter: { settle: noop },
     gamePlugin: { refresh: noop }, bindControls: noop, connectEvents: () => { connected = true; },
-    saved: noop, loadTasks: noop, supportsFeature: () => false, applyDatasetControls: noop,
+    saved: noop, loadTasks: noop, paintStartupView: noop, supportsFeature: () => false, applyDatasetControls: noop,
     adopt: state => { c.state = state; rendered = true; assert.equal(c.owners[0].id, state.members[0].id); assert.equal(c.owners[0].name, 'Player 1'); } });
   runInNewContext(await source('screen-startup.mjs') + '\ncreateScreenStartup(c);', { c, document: {}, globalThis: {}, AbortController, retryStartupRead, setStartupSession,
     createFeedback: panel, createUpdates: panel, createBackupStatus: panel, createAccountPanel: panel,

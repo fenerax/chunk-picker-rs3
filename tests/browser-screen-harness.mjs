@@ -1,3 +1,4 @@
+import { createViewCache, replaceView } from '../app/web/browser-state.mjs';
 import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import { retryStartupRead, withStartupTimeout, showStartupRetry, startupRetryAfter, setStartupSession } from '../app/startup-read.mjs';
@@ -50,6 +51,8 @@ export async function readScreenGraph() {
 }
 
 export function runScreenGraph(context, modules) {
+  context.createViewCache ??= () => createViewCache({ storage: null });
+  context.replaceView ??= replaceView;
   context.setStartupSession ??= setStartupSession;
   // Keep dataset selection explicit in this VM, like the other browser collaborators.
   context.selectedDataset ??= { capabilities: {}, gameDefaults: { members: [

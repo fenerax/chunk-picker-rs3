@@ -2,6 +2,39 @@ import { requestError } from './live-swap-client.mjs';
 
 // Main-screen loading; shared values and callbacks live in the explicit screen context.
 export function createScreenLoading(c) {
+  function rememberStartupView(value) {
+    if (!c.state || value.memberId !== c.memberId || value.stateRevision !== c.state.revision || c.sandbox.active) return;
+    const ids = new Set(value.presentation?.tasks?.map(row => row.id) ?? []);
+    const tasks = value.tasks.filter(row => ids.has(row.id)).slice(0, 60).map(({ id, label, category }) => ({ id, label, category }));
+    c.viewCache.remember('startup', 'shell', c.state.revision, {
+      memberId: c.memberId, revision: c.state.revision, tasks,
+      unlocked: c.member().unlocked.length, pool: c.statePools[c.memberId]?.eligible.length ?? 0,
+    });
+  }
+  function renderStartupTasks(saved) {
+    const query = (c.$('task-filter')?.value ?? '').toLowerCase().trim();
+    c.$('active-tasks').replaceChildren(...saved.tasks.filter(task => !query || `${task.label} ${task.category}`.toLowerCase().includes(query)).map(task => {
+      const row = c.el('div', undefined, 'task-row'), body = c.el('div', undefined, 'task-body'), content = c.el('div');
+      const icon = c.el('span', '', 'task-icon'); icon.setAttribute('aria-hidden', 'true');
+      content.append(c.el('span', c.plain(task.label), 'task-label-button'), c.el('span', c.plain(task.category), 'task-meta'));
+      body.append(icon, content); row.append(c.el('span'), body); return row;
+    }));
+  }
+  async function paintStartupView() {
+    const token = c.viewCache.token();
+    await c.viewCache.hydrate();
+    if (!c.viewCache.current(token) || c.state) return;
+    const saved = c.viewCache.peek('startup', 'shell', Number.MAX_SAFE_INTEGER)?.value;
+    if (!saved || saved.memberId !== c.memberId) return;
+    c.startupSnapshot = { value: saved, memberId: c.memberId, token };
+    const status = c.$('task-engine-status');
+    status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    status.textContent = `Updating… · Last known save, revision ${saved.revision}`;
+    c.$('map-counts').textContent = `${saved.unlocked} chunks unlocked · ${saved.pool} in roll pool · Updating…`;
+    renderStartupTasks(saved);
+    c.perfMark('cached-shell-shown');
+  }
+  Object.assign(c, { rememberStartupView, paintStartupView, renderStartupTasks });
   c.taskEngineCount = value => `${value.metrics.availableCount.toLocaleString()} possible tasks${c.duoEnabled?.() ? ` for ${c.member().name}` : ''}`;
   // Only the current gameplay epoch matters. A contiguous proof can span any
   // number of display saves without storing or forgetting individual edges.
@@ -214,8 +247,10 @@ export function createScreenLoading(c) {
     c.taskController?.abort(); const controller = new AbortController(); c.taskController = controller;
     const request = ++c.taskRequest, requestedMember = c.memberId;
     c.taskInFlight = true; c.taskLoadError = undefined;
+    const cached = c.viewCache?.peek('play', projection ?? 'personal', c.state.revision);
+    if (!c.result && cached?.value.memberId === c.memberId) { c.shownResult = cached.value; c.renderTasks(); }
     c.$('task-engine-status').textContent = !c.canWrite() ? 'Loading saved tasks…' : ['sleeping', 'waking', 'starting'].includes(c.taskHealth?.status)
-      ? 'Waking up the task calculator…' : c.result ? 'Updating tasks…' : 'Calculating tasks…';
+      ? 'Waking up the task calculator…' : c.result || c.shownResult?.memberId === c.memberId ? 'Updating… · Last known tasks' : 'Calculating tasks…';
     try { const foregroundResponse = c.fetchSavedTasks(requestedMember, c.state.revision, projection, controller.signal); c.startDuoTaskLoad(true); const value = await foregroundResponse; if (!await c.alignTaskResult(value, requestedMember, () => request === c.taskRequest && (!projection || c.duoEnabled()), controller.signal)) { if (request === c.taskRequest && requestedMember === c.memberId) c.scheduleTasks(); return; } await c.acceptTaskResult(value); if (request !== c.taskRequest || requestedMember !== c.memberId || value.stateRevision !== c.state.revision) return; c.$('task-engine-status').replaceChildren(c.el('span', c.taskEngineCount(value)), ...(c.advanced() ? [c.button('Details', c.engineDetails)] : [])); if (c.taskHealth && !c.taskHealth.ready) c.workerStatus(c.taskHealth); } catch (error) { if (request === c.taskRequest && error.code === 'TASK_RESULTS_UNAVAILABLE') { c.$('task-engine-status').replaceChildren(c.el('span', c.viewerTaskWait())); return; } if (request === c.taskRequest && error.name !== 'AbortError') c.showTaskLoadError(error); }
     finally { if (c.taskController === controller) c.taskInFlight = false; }
   }
@@ -343,6 +378,7 @@ export function createScreenLoading(c) {
       c.normalPlayResults.set(value.memberId, value);
     }
     c.duoResults().remember(value);
+    c.viewCache?.remember('play', value.projection ?? 'personal', c.state.revision, value);
     c.result = value; c.renderTasks(); c.refreshBossGates?.();
     let rendering, painted;
     do { rendering = c.taskRenderDone; painted = await rendering; } while (rendering !== c.taskRenderDone && c.result === value);
@@ -352,6 +388,7 @@ export function createScreenLoading(c) {
     c.perfMark('tasks-shown', { revision: value.stateRevision, memberId: value.memberId,
       cache: { hit: value.cache?.hit === true, ...(Number.isFinite(value.cache?.evaluationMs) ? { evaluationMs: value.cache.evaluationMs } : {}),
         ...(Number.isFinite(value.cache?.requestMs) ? { requestMs: value.cache.requestMs } : {}), timingMs } });
+    c.rememberStartupView?.(value);
     c.deathChunks.refresh();
     if (c.chunkId && !c.$('chunk-info').hidden && !c.$('chunk-content').contains(document.activeElement)) c.showChunk(c.chunkId);
   }

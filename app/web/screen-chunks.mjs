@@ -1,3 +1,4 @@
+import { replaceView } from './browser-state.mjs';
 import { interiorCandidates, interiorPanel } from './interior-view.mjs';
 import { bindStickerFlyout } from './sticker-picker.mjs';
 import { createScreenChunkNotes } from './screen-chunk-notes.mjs';
@@ -315,15 +316,27 @@ export function createScreenChunks(c) {
     const box = c.el('div', undefined, 'form-stack'), outcome = c.el('div', undefined, 'unlock-preview'), requested = c.memberId, sandboxScope = c.sandbox.signature(), actorScope = predictionActorScope();
     outcome.append(c.el('p', 'Working out what this chunk would add…', 'status-detail'));
     box.append(outcome, ...(c.sandbox.active ? [] : [c.deathChunks.panel(id)]));
-    c.predictUnlock(id).then(value => {
-      if (!outcome.isConnected || c.chunkId !== id || c.memberId !== requested || c.sandbox.signature() !== sandboxScope || predictionActorScope() !== actorScope) return;
-      if (value.memberId !== c.memberId || !c.compatibleTaskRevision(value.stateRevision)) { outcome.replaceChildren(c.el('p', 'The map changed while this was calculating.', 'status-detail'), c.button('Recalculate', () => outcome.parentElement?.replaceWith(c.unlockPreview(id)))); return; }
+    const revision = c.state.revision, token = c.viewCache?.token(), key = JSON.stringify([requested, id]);
+    const current = () => outcome.isConnected && c.chunkId === id && c.memberId === requested && c.sandbox.signature() === sandboxScope
+      && predictionActorScope() === actorScope && (!c.viewCache || c.viewCache.current(token));
+    const hint = c.el('p', '', 'status-detail'); hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
+    hint.hidden = true; box.prepend(hint);
+    const display = value => {
       const added = value.delta.tasksAdded, groups = new Map();
       for (const task of added) { if (!groups.has(task.category)) groups.set(task.category, []); groups.get(task.category).push(task); }
       outcome.replaceChildren(c.el('p', added.length ? `${added.length} new possible task${added.length === 1 ? '' : 's'}` : 'No new possible tasks', 'unlock-count'));
       for (const [category, tasks] of groups) outcome.append(c.el('h4', `${category} (${tasks.length})`, 'content-heading'), c.list(tasks.map(task => c.plain(task.label))));
       if (value.delta.itemsAdded?.length || value.delta.areasAdded?.length) { const additions = c.el('div'); if (value.delta.itemsAdded?.length) additions.append(c.el('h4', 'Items'), c.list(value.delta.itemsAdded.map(item => c.plain(typeof item === 'string' ? item : item.name ?? item.label)))); if (value.delta.areasAdded?.length) additions.append(c.el('h4', 'Areas'), c.list(value.delta.areasAdded.map(area => c.plain(c.world.areas.get(typeof area === 'string' ? area : area.id)?.name ?? (typeof area === 'string' ? area : area.name ?? area.label))))); if (c.advanced()) additions.append(c.jsonPreview({ items: value.delta.itemsAdded, areas: value.delta.areasAdded })); outcome.append(c.details('New items and areas', additions)); }
-    }).catch(error => { if (outcome.isConnected) outcome.replaceChildren(c.el('p', error.message || String(error), 'error'), c.button('Retry preview', () => box.replaceWith(c.unlockPreview(id)))); });
+    };
+    const cached = !c.sandbox.active && c.viewCache?.peek('preview', key, revision);
+    if (cached) { display(cached.value); hint.hidden = false; hint.textContent = 'Updating… · Last known preview'; }
+    c.predictUnlock(id).then(value => {
+      if (!current()) return;
+      if (value.memberId !== c.memberId || !c.compatibleTaskRevision(value.stateRevision)) { hint.textContent = ''; outcome.replaceChildren(c.el('p', 'The map changed while this was calculating.', 'status-detail'), c.button('Recalculate', () => outcome.parentElement?.replaceWith(c.unlockPreview(id)))); return; }
+      if (!c.sandbox.active) c.viewCache?.remember('preview', key, c.state.revision, value);
+      if (!cached || JSON.stringify(cached.value) !== JSON.stringify(value)) replaceView(outcome, () => display(value));
+      hint.textContent = ''; hint.hidden = true;
+    }).catch(error => { if (current()) { hint.textContent = cached ? 'Could not update · Last known preview' : ''; outcome.replaceChildren(c.el('p', error.message || String(error), 'error'), c.button('Retry preview', () => box.replaceWith(c.unlockPreview(id)))); } });
     return box;
   }
 

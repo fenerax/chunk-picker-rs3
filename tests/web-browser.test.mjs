@@ -2545,7 +2545,7 @@ test('foreground APIs use play views and detail requests coalesce without replac
 });
 
 function startupHarness() {
-  const h = harness(), loaded = h.snapshot(); let indexedChunks = 0;
+  const h = harness(), loaded = h.snapshot(), startupPreferences = new Map(); let indexedChunks = 0;
   const display = { chunks: { '12341': { toJSON() { indexedChunks++; return { Object: { 'Unique ore': 1 } }; } }, '12342': {} } };
   Object.assign(h.context, { createInvites: () => ({ loadSession: async () => ({}), open: async () => {} }),
     createAccountPanel: () => ({ setSession() {}, open() {} }),
@@ -2553,7 +2553,7 @@ function startupHarness() {
     createOverlayPanel: () => ({ open: async () => {} }),
     loadTerrainManifest: async () => null, loadMapInformation: async () => null, loadArtStatus: () => new Promise(() => {}),
     hydrateDisplayWorld, createRuleRegistryFromDefinitions: () => createRuleRegistry(),
-    ChunkMap: class { constructor(options) { h.context.mapOptions = options; return h.map; } }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    ChunkMap: class { constructor(options) { h.context.mapOptions = options; return h.map; } }, localStorage: { getItem: key => startupPreferences.get(key) ?? null, setItem: (key, value) => startupPreferences.set(key, value), removeItem: key => startupPreferences.delete(key) },
     ResizeObserver: class { observe() {} } });
   h.map.setOverlay = () => {}; h.context.document.addEventListener = () => {};
   const worldPayload = projectDisplayWorld(h.context.initialWorld);
@@ -2573,6 +2573,7 @@ function startupHarness() {
 test('startup fetches display definitions without waiting for hung artwork, leaving full evidence deferred', async () => {
   const fixture = startupHarness(), { h } = fixture;
   await h.run('start()'); await flush();
+  assert.equal(h.context.localStorage.getItem('duo-member'), 'actor1', 'startup remembers the actual roster selection for the next cached first paint');
   const held = []; h.context.recordMenu = (...args) => held.push(args);
   h.run('chunkMenu = (...args) => recordMenu(...args)');
   h.context.mapOptions.onChunkHold('12341', { clientX: 120, clientY: 180 });
@@ -2581,7 +2582,9 @@ test('startup fetches display definitions without waiting for hung artwork, leav
   h.context.document.documentElement.classList = { contains: () => false };
   assert.equal(h.context.mapOptions.canChunkHold(), true, 'viewers can open a read-only menu by holding');
   h.run('applySession({admin:true, readOnly:false, capabilities:{canWrite:true}})');
-  assert.equal(h.run('state.revision'), 7); assert.equal(h.run('result.stateRevision'), 7);
+  assert.equal(h.run('state.revision'), 7); assert.equal(h.run('result'), undefined, 'permission changes invalidate cached calculations');
+  await h.run('loadTasks()');
+  assert.equal(h.run('result.stateRevision'), 7);
   assert.equal(fixture.indexedChunks(), 0); assert.equal(h.run('chunkSearch'), undefined); assert.equal(h.run('chunkSearchRequest'), undefined);
   assert.equal(h.run('definitionsAreFull'), false);
   assert.ok(h.calls.some(call => call.requestPath === '/api/definitions?view=display-v1'));
@@ -4268,4 +4271,84 @@ for (const anywhere of [false, true]) test(`count labels: ordinary pool and roll
   assert.equal(h.calls.length, 0, 'Opening confirmation never rolls');
   h.run("closeDialog(); member().pendingRoll = ['12341']; renderState()");
   assert.equal(h.nodes.get('pick').disabled, true);
+});
+
+test('instant screens: Preview shows old answers as updating and replaces them with a fresh empty answer', async () => {
+  const h = harness(), response = deferred();
+  h.run("viewCache.configure(['synthetic','actor1']); viewCache.remember('preview',JSON.stringify(['actor1','12341']),6,{memberId:'actor1',stateRevision:6,delta:{tasksAdded:[{label:'Old synthetic preview',category:'Extra'}],itemsAdded:[],areasAdded:[]}})");
+  h.route(() => response.promise);
+  h.run("chunkTab='unlock'; showChunk('12341')");
+  assert.ok(h.find('li', 'Old synthetic preview'));
+  assert.ok(h.find('p', 'Updating… · Last known preview'));
+  response.resolve({ memberId: 'actor1', stateRevision: 7, delta: { tasksAdded: [], itemsAdded: [], areasAdded: [] } }); await flush();
+  assert.ok(h.find('p', 'No new possible tasks'));
+  assert.ok(!h.find('li', 'Old synthetic preview'));
+  assert.equal(h.run("viewCache.peek('preview',JSON.stringify(['actor1','12341']),7).value.delta.tasksAdded.length"), 0);
+});
+
+test('instant screens: backlog and task notes update immediately, then roll back on refusal', async () => {
+  for (const edit of [{ backlogged: true, backlogReason: 'later' }, { note: 'pending note' }]) {
+    const h = harness(), response = deferred();
+    h.route(() => response.promise); h.context.edit = edit;
+    const saving = h.run("command({type:'set-task-status',memberId:'actor1',taskId:'custom:note',...edit})");
+    const refused = assert.rejects(saving, /refusal/i);
+    const projected = JSON.parse(h.run("JSON.stringify(taskDisplayState().members[0].taskStatus['custom:note'])"));
+    const original = h.snapshot().members[0].taskStatus['custom:note'];
+    await flush(); response.resolve({ ok: false, status: 422, value: { message: 'Synthetic refusal' } }); await refused;
+    assert.deepEqual(projected, { ...original, ...edit });
+    assert.deepEqual(JSON.parse(h.run("JSON.stringify(taskDisplayState().members[0].taskStatus['custom:note'])")), original);
+  }
+});
+
+test('instant screens: a roll saves while its baseline calculator is still pending', async () => {
+  const h = harness(), baseline = deferred(), saved = deferred();
+  h.run('state.members[0].preferences.newTasks=true');
+  let reads = 0;
+  h.route(path => path.startsWith('/api/tasks') ? ++reads === 1 ? baseline.promise : taskResult(8) : saved.promise);
+  const rolling = h.run("acceptRoll({type:'unlock-selection',memberId:'actor1',chunkId:'12342'})");
+  await flush();
+  assert.ok(h.calls.some(call => call.body?.command?.type === 'unlock-selection'));
+  const next = h.snapshot(); next.revision = 8; saved.resolve({ state: next, pools: {} }); await flush();
+  assert.equal(h.run('rollBusy'), false, 'calculator does not freeze roll controls after saving');
+  h.run('settingsPanels.settings()'); baseline.resolve(taskResult(7)); await rolling;
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Settings');
+});
+
+test('instant screens: stale task details remain marked until the current status replaces them', async () => {
+  const h = harness(), response = deferred();
+  const old = { id: 'builtin:stale', label: 'Synthetic stale goal', category: 'Extra', status: 'available' };
+  h.context.oldDetailsTask = old; h.context.actor1Result = taskResult(7);
+  h.run("shownResult={...actor1Result,format:'play-v1',memberId:'actor1',stateRevision:6,tasks:[oldDetailsTask]}; result=undefined");
+  h.route(() => response.promise); h.run('showTask(oldDetailsTask)');
+  assert.equal(h.find('p', 'Updating… · Last known task details').hidden, false);
+  await flush();
+  response.resolve({ ...taskResult(7), tasks: [{ ...old, status: 'blocked', explanation: 'Current synthetic blocker' }] }); await flush(); await flush();
+  assert.ok(h.find('p', 'Extra · blocked')); assert.ok(h.find('p', 'Current synthetic blocker'));
+  assert.equal(h.find('p', 'Updating… · Last known task details').hidden, true);
+});
+
+test('instant screens: authoritative hydration keeps the cached first paint until fresh tasks arrive', async () => {
+  const h = harness();
+  h.run("startupSnapshot={token:viewCache.token(),memberId:'actor1',value:{tasks:[{id:'builtin:startup',label:'Cached startup goal',category:'Extra'}]}}; result=undefined; renderTasks()");
+  assert.ok(h.find('span', 'Cached startup goal'));
+  const next = h.snapshot(); next.revision = 8; h.adopt(next);
+  assert.ok(h.find('span', 'Cached startup goal'), 'state hydration leaves no blank task interval');
+  h.run("$('task-filter').value='does not match'; renderTasks()"); assert.ok(!h.find('span', 'Cached startup goal'), 'cached first-paint search is usable');
+  h.run("$('task-filter').value=''; renderTasks()"); assert.ok(h.find('span', 'Cached startup goal'));
+  h.context.freshStartup = taskResult(8); await h.run('acceptTaskResult(freshStartup)');
+  assert.equal(h.run('startupSnapshot'), undefined); assert.ok(!h.find('span', 'Cached startup goal'), 'fresh empty results remove the old answer');
+});
+
+test('instant screens: two roll choices remain usable while task calculations are pending', async () => {
+  const h = harness(), calculation = deferred();
+  h.run("member().preferences={newTasks:true,cinematicRoll:false}; statePools.actor1={eligible:[{id:'12341'},{id:'12342'}]}");
+  const next = h.snapshot(); next.revision = 8; next.members[0].pendingRoll = ['12341', '12342'];
+  h.route(path => path === '/api/command' ? { state: next, pools: {} } : calculation.promise);
+  let settled = false; const rolling = h.run('rollChunks(2,true)').then(() => { settled = true; });
+  await flush();
+  try {
+    assert.equal(settled, true, 'the roll does not wait for an unused task comparison');
+    const choices = h.nodes.get('pending-panel').querySelectorAll('button');
+    assert.ok(choices.length > 0); assert.ok(choices.every(button => !button.disabled));
+  } finally { calculation.resolve(taskResult(8)); await rolling; }
 });

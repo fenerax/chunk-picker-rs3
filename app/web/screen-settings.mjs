@@ -22,12 +22,24 @@ export function createScreenSettings(c) {
   }
 
   function applySession(session) {
+    const previousSession = c.viewSession, token = c.viewCache?.token();
+    c.viewSession = session;
     c.preferenceSignature = undefined;
     c.sessionReadOnly = session.readOnly === true || session.canWrite === false || session.capabilities?.canWrite === false;
     c.sessionAdmin = !c.sessionReadOnly && session.adminAvailable !== false && session.admin === true;
     c.$('admin-tools').hidden = !c.sessionAdmin;
     if (!c.sessionAdmin) c.$('admin-tools').open = false;
     c.sessionMember = session.memberId ?? null;
+    if (c.memberId) c.syncViewCache?.();
+    if (previousSession && token !== c.viewCache?.token()) {
+      c.taskRequest++; c.taskController?.abort();
+      c.startupSnapshot = undefined;
+      c.result = c.shownResult = c.fullResult = undefined; c.taskFactsCache = undefined;
+      for (const map of [c.normalPlayResults, c.planningResults, c.predictions, c.duoDetails]) map?.clear();
+      c.duoResultCache = c.duoInspectionCache = undefined; c.lastDuoResults = []; c.lastDuoInspectionResults = [];
+      c.closeDialog?.();
+      if (c.state) { c.renderTasks?.(); c.poolRanking?.refresh(); c.syncPredictionIntents?.(); }
+    }
     c.streamSafe.sessionReady();
     document.documentElement.dataset.readOnly = String(c.sessionReadOnly);
     if (c.sessionReadOnly) {

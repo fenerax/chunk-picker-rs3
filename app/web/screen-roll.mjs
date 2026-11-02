@@ -21,6 +21,15 @@ export function createScreenRoll(c) {
     return [...c.world.surface].filter(id => c.world.walkable.has(id) && (!settings['content.f2p'] || c.world.f2p.has(id)) && !unlocked.has(id) && !blocked.has(id)).length;
   }
 
+  function rollBaseline() {
+    if (!c.preferences().newTasks) return Promise.resolve(null);
+    const memberId = c.memberId, revision = c.state.revision;
+    if (c.result?.memberId === memberId && c.result.stateRevision === revision) return Promise.resolve(c.result);
+    // This comparison is display-only. Start it before the command, but never
+    // wait for a calculator before saving the roll or adopt its superseded rows.
+    return c.fetchSavedTasks(memberId, revision, c.foregroundProjection()).then(value => value.memberId === memberId && value.stateRevision === revision ? value : null).catch(() => null);
+  }
+
   async function rollChunks(count, confirmed = false) {
     if (!c.canWrite()) return;
     const owner = c.member(), candidates = c.rollCandidateCount();
@@ -38,10 +47,12 @@ export function createScreenRoll(c) {
     c.rollBusy = true;
     c.renderRollControls();
     try {
-      const before = c.preferences().newTasks ? await c.ensureResult() : null;
+      const baseline = count === 1 ? rollBaseline() : Promise.resolve(null);
       const response = await c.command({ type: rollType, memberId: rollingMemberId, count });
+      c.rollBusy = false; c.renderRollControls();
       const picks = response.state.history.at(-1)?.command?.rolled ?? [];
       if (rollingMemberId === c.memberId && fancy && picks.length) await c.presentRoll(picks, rollingName);
+      const before = await baseline;
       if (before && count === 1 && rollingMemberId === c.memberId) await c.newTaskPopup(before, generation);
     }
     catch (error) { c.showError(error); }
@@ -91,8 +102,10 @@ export function createScreenRoll(c) {
     const generation = c.dialogGeneration;
     c.rollBusy = true; c.renderState();
     try {
-      const before = payload.type !== 'cancel-roll' && c.preferences().newTasks ? await c.ensureResult() : null;
+      const baseline = payload.type === 'cancel-roll' ? Promise.resolve(null) : rollBaseline();
       await c.command(payload);
+      c.rollBusy = false; c.renderRollControls();
+      const before = await baseline;
       if (before && payload.memberId === c.memberId) await c.newTaskPopup(before, generation);
     } finally { c.rollBusy = false; c.renderState(); }
   }

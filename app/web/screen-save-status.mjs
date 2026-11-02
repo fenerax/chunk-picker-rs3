@@ -94,13 +94,14 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     for (const controller of requests) controller.abort();
     for (const dispose of disposers) safe(dispose);
     disposers.clear();
+    c.viewCache?.clear();
     c.sessionReadOnly = true;
     c.taskRequest++; c.taskRenderGeneration++; c.dialogGeneration++;
     c.taskController?.abort(); clearTimeout(c.syncTimer);
     c.usage?.stop(); c.backupStatus?.dispose(); c.gamePlugin?.dispose?.();
     c.closeDialog?.(); c.disposeAccessSections?.();
     for (const value of Object.values(c)) if (value instanceof Map || value instanceof Set) value.clear();
-    for (const name of ['state', 'result', 'fullResult', 'shownResult', 'world', 'definitions', 'registry', 'memberId', 'pool', 'taskFactsCache', 'duoResultCache', 'duoInspectionCache', 'earlyTaskLoad', 'foregroundTaskLoad', 'pendingGameplayAttempt', 'chunkSearch', 'shownChunkSignature']) c[name] = undefined;
+    for (const name of ['startupSnapshot', 'state', 'result', 'fullResult', 'shownResult', 'world', 'definitions', 'registry', 'memberId', 'pool', 'taskFactsCache', 'duoResultCache', 'duoInspectionCache', 'earlyTaskLoad', 'foregroundTaskLoad', 'pendingGameplayAttempt', 'chunkSearch', 'shownChunkSignature']) c[name] = undefined;
     c.viewerPreferences = {}; c.statePools = {}; c.pendingChunkChanges = []; c.lastDuoResults = [];
     c.refreshSaveRecovery?.();
     for (const node of globalThis.document?.querySelectorAll?.('.workspace, #chunk-info, #dialog-content, #pending-panel, #recent-content, #group-goals') ?? []) node.replaceChildren();

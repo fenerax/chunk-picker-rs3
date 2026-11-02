@@ -75,13 +75,13 @@ export function createScreenTasks(c) {
   function taskRow(task) {
     const facts = c.taskFacts(task), row = c.el('div', undefined, 'task-row'); row.dataset.completed = facts.group;
     row.dataset.taskId = task.id; row.dataset.focusTask = soloTaskFocusKey(task);
-    const checkbox = c.input('checkbox'); checkbox.dataset.taskControl = 'complete'; checkbox.checked = facts.personal; checkbox.disabled = !c.canWrite(); checkbox.setAttribute('aria-label', `Mark ${c.plain(task.label)} done for ${c.member().name}`); checkbox.title = 'Counts for our chunk challenge. Record personal in-game completion in task details.'; checkbox.addEventListener('change', async () => { if (!c.canWrite()) { checkbox.checked = c.taskFacts(task).personal; return; } checkbox.disabled = true; try { await c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, challengeCompleted: checkbox.checked }); } catch (error) { checkbox.checked = c.taskFacts(task).personal; c.showError(error); } finally { checkbox.disabled = !c.canWrite(); } });
+    const checkbox = c.input('checkbox'); checkbox.dataset.taskControl = 'complete'; checkbox.checked = facts.personal; checkbox.disabled = !c.canWrite(); checkbox.setAttribute('aria-label', `Mark ${c.plain(task.label)} done for ${c.member().name}`); checkbox.title = 'Counts for our chunk challenge. Record personal in-game completion in task details.'; checkbox.addEventListener('change', async () => { if (!c.canWrite()) { checkbox.checked = c.taskFacts(task).personal; return; } try { await c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, challengeCompleted: checkbox.checked }); } catch (error) { checkbox.checked = c.taskFacts(task).personal; c.showError(error); } finally { checkbox.disabled = !c.canWrite(); } });
     const content = c.el('div'), label = c.button(task.label, () => c.showTask(task), 'task-label-button'); label.dataset.taskControl = 'open'; content.append(label);
     appendTaskPin(document, label, c.taskPins ? c.taskPins(task) : isTaskPinned(task, { state: c.state, memberId: c.memberId }));
     if (c.sandbox.isNewTask(task.id)) content.append(c.el('span', 'new', 'sandbox-new'));
     if (task.level && !(task.record?.RequirementAlternatives && task.level === 1) && !(task.generated && task.category === 'BiS')) content.append(c.el('span', `Level ${task.level}${task.primary ? ' · Primary method' : ''}`, 'task-meta'));
     if (facts.group) content.append(c.el('span', `Done by ${facts.completedBy.map(id => c.state.members.find(item => item.id === id)?.name || id).join(' and ')}`, 'task-meta'));
-    const taskState = c.member().taskStatus?.[task.id] ?? {};
+    const taskState = taskDisplayState().members.find(owner => owner.id === c.memberId)?.taskStatus?.[task.id] ?? {};
     const completed = facts.group || facts.personal;
     if (completed || (!taskState.backlogged && task.status === 'available')) appendTaskClaim({ document, host: content, task, completed,
       readOnly: !c.canWrite(), getState: () => c.state, getMemberId: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember, command: c.command, showError: c.showError,
@@ -89,7 +89,7 @@ export function createScreenTasks(c) {
     if (taskState.backlogged && taskState.backlogReason) content.append(c.el('span', `Backlogged: ${taskState.backlogReason}`, 'task-meta backlog-reason'));
     c.appendCustomTaskEdit(content, task);
     // In the Backlog list the backlog itself is the reason; don't repeat it as a blocker.
-    if (task.status !== 'available' && !c.member().taskStatus?.[task.id]?.backlogged) content.append(c.el('span', task.blockers?.[0]?.detail || 'Needs review', 'blocked-reason'));
+    if (task.status !== 'available' && !taskState.backlogged) content.append(c.el('span', task.blockers?.[0]?.detail || 'Needs review', 'blocked-reason'));
     const body = c.el('div', undefined, 'task-body'); c.taskIconPainter.append(body, task);
     body.append(content);
     row.append(c.canWrite() ? checkbox : c.el('span', facts.personal ? 'Done' : 'Not done', 'task-completion-status'), body);
@@ -168,14 +168,14 @@ export function createScreenTasks(c) {
 
   function renderBacklog(tasks, jobs = [], generation = c.taskRenderGeneration) {
     if (c.duoEnabled()) {
-      c.duoBacklogView ??= createDuoBacklogView({ document, getState: () => c.state, getMemberId: () => c.memberId,
+      c.duoBacklogView ??= createDuoBacklogView({ document, getState: taskDisplayState, getMemberId: () => c.memberId,
         getOwnerFilter: () => c.duoView().filter(), enabled: c.duoEnabled,
         canEdit: () => c.canWrite() && c.duoEnabled() && c.duoRowsReady, command: (...args) => c.command(...args), showError: c.showError,
         onChange: () => c.renderTasks(), locationName: id => (c.world?.chunks.get(id) ?? c.world?.areas.get(id))?.name ?? id,
         loadTasks: id => c.api(`/api/backlog-search?memberId=${encodeURIComponent(id)}`), row: entry => c.duoView().row(entry, { backlogged: true }), paint: (...args) => c.paintTaskJobs(...args) });
       return c.duoBacklogView.render(c.$('backlog-actions'), c.$('backlog-tasks'), tasks, { open: c.$('backlog-details').open, jobs, generation });
     }
-    c.backlogView ??= createBacklogView({ document, getState: () => c.state, getMemberId: () => c.memberId,
+    c.backlogView ??= createBacklogView({ document, getState: taskDisplayState, getMemberId: () => c.memberId,
       canEdit: () => c.canWrite() && !c.sandbox.active, command: (...args) => c.command(...args), showError: c.showError,
       onChange: () => c.renderTasks(), locationName: id => (c.world?.chunks.get(id) ?? c.world?.areas.get(id))?.name ?? id,
       loadTasks: id => c.api(`/api/backlog-search?memberId=${encodeURIComponent(id)}`), row: task => c.taskRow(task), paint: (...args) => c.paintTaskJobs(...args) });
@@ -264,8 +264,10 @@ export function createScreenTasks(c) {
   // The explanation reads the full result only when a player opens it.
   function appendWhy(row, task, ownerId = c.memberId) {
     if (isCustomTask(task)) return;
-    appendTaskHow(row, task, { document, button: c.button, readOnly: !c.canWrite(), enabled: c.preferences().showTaskHow !== false,
-      scope: () => JSON.stringify([c.state.revision, c.memberId, ownerId, c.sandbox.signature(), c.preferences().showTaskHow !== false]),
+    const cacheOptions = { cache: c.viewCache, cacheKey: JSON.stringify([ownerId, task.id]), revision: () => c.state.revision,
+      scope: () => JSON.stringify([c.state.revision, c.memberId, c.viewCache?.token(), c.sandbox.signature()]) };
+    appendTaskHow(row, task, { ...cacheOptions, document, button: c.button, readOnly: !c.canWrite(), enabled: c.preferences().showTaskHow !== false,
+      scope: () => JSON.stringify([c.state.revision, c.memberId, ownerId, c.sandbox.signature(), c.viewCache?.token(), c.preferences().showTaskHow !== false]),
       advanced: () => c.preferences().advanced, locationName: placeName,
       load: async (value, signal) => {
         if (c.preferences().showTaskHow === false) throw new Error('How is off in Settings > Tasks.');
@@ -276,7 +278,7 @@ export function createScreenTasks(c) {
         return proof;
       } });
     const openRule = ruleId => Promise.resolve(c.rulesDialog({ ruleId, memberId: ownerId })).catch(c.showError);
-    appendTaskWhy(row, task, { document, button: c.button, icon: c.icon, openRule, readOnly: !c.canWrite(), load: async value => {
+    appendTaskWhy(row, task, { ...cacheOptions, document, button: c.button, icon: c.icon, openRule, readOnly: !c.canWrite(), load: async value => {
       const revision = c.state.revision, selected = c.memberId;
       let result;
       if (c.canWrite()) result = await c.ensureDuoDetails(ownerId, false, false);
@@ -289,7 +291,9 @@ export function createScreenTasks(c) {
         result = saved.format === 'play-v1' ? savedTaskWhyResult(saved, c.definitions) : saved;
       }
       const describeRule = catalogued(await createRuleDescriber(taskDisplayState(), ownerId));
-      return { task: result.tasks.find(item => item.id === value.id) ?? value, result, describeRule, locationName: placeName };
+      const detailed = result.tasks.find(item => item.id === value.id);
+      if (!detailed) throw new Error('This task is no longer in the current calculation. Refresh Tasks.');
+      return { task: detailed, result, describeRule, locationName: placeName };
     } });
   }
 
@@ -404,6 +408,15 @@ export function createScreenTasks(c) {
   }
 
   function renderTasks() {
+    // Hydrating authoritative state must not erase the inert first paint while
+    // its calculator is still pending. Keep filtering usable in this interval.
+    if (typeof c.startupSnapshot !== 'undefined' && c.startupSnapshot) {
+      const saved = c.startupSnapshot;
+      if (!c.result && saved.memberId === c.memberId && c.viewCache.current(saved.token)) {
+        c.renderStartupTasks(saved.value); c.taskRenderDone = Promise.resolve(true); return;
+      }
+      c.startupSnapshot = undefined;
+    }
     c.taskFocus?.capture();
     c.groupGoals?.render();
     if (typeof c.reconcileForegroundMode === 'function') c.reconcileForegroundMode();
@@ -415,13 +428,14 @@ export function createScreenTasks(c) {
     if (c.taskListDepthScope !== depthScope) { c.taskListDepthScope = depthScope; c.taskListDepths = undefined; }
     if (c.result?.memberId === c.memberId) c.shownResult = c.result;
     const view = c.result ?? (typeof c.shownResult !== 'undefined' && c.shownResult?.memberId === c.memberId ? c.shownResult : undefined);
+    if (view && view.stateRevision !== c.state.revision && !c.sandbox.active) c.$('task-engine-status').textContent = 'Updating… · Last known tasks';
     const countLine = c.$('task-engine-status').firstChild;
     if (view?.metrics && view.memberId === c.memberId && view.stateRevision === c.state.revision && / possible tasks/.test(countLine?.textContent)) {
       countLine.textContent = c.taskEngineCount(view) + (countLine.textContent.match(/ · .*/)?.[0] ?? '');
     }
     c.map.setConnections?.(view?.partnerConnections);
     c.renderLegend();
-    const filter = c.$('task-filter').value.toLowerCase().trim(), status = c.member().taskStatus ?? {};
+    const filter = c.$('task-filter').value.toLowerCase().trim(), status = taskDisplayState().members.find(owner => owner.id === c.memberId)?.taskStatus ?? {};
     const known = new Set(view?.tasks.map(task => task.id) ?? []);
     const completedIds = new Set(c.member().completedTasks);
     const extras = c.state.tasks.filter(task => !known.has(task.id) && !isCustomTask(task) && (Object.hasOwn(status, task.id) || completedIds.has(task.id))).map(task => ({ ...task, status: 'unsupported', blockers: [{ kind: 'unsupported', detail: 'Preserved imported task; it has no current availability result.' }], explanation: 'Preserved imported task.' }));
