@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-11-02",
+      "title": "How? and Preview answer sooner",
+      "items": [
+        "The How? panel now answers several times faster",
+        "The first Preview for a roll shows up a few seconds sooner"
+      ]
+    },
+    {
+      "date": "2026-11-02",
       "title": "Quicker to pick up after a quiet spell",
       "items": [
         "After about 10 minutes without use, the picker has to restart its task calculator. That restart now takes about half as long, so your task list comes back a few seconds sooner"
