@@ -362,7 +362,7 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
     if (signal?.aborted) abort();
   }), maxReadAttempts = 30, maxReadRetryMs = 45000 } = {}) {
   const cooldowns = new Map();
-  const read = async (path, options) => {
+  const read = async (path, options, readJSON) => {
     const key = path.split('?')[0], pending = cooldowns.get(key);
     if (options?.signal?.aborted) throw Object.assign(new Error('Request abandoned.'), { name: 'AbortError' });
     if (pending && pending.until > now()) throw requestError(pending.response, { code: pending.code }, pending.until - now());
@@ -376,7 +376,7 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
     const delay = retryAfterMs(response, now());
     if ([429, 503].includes(response.status) && delay > 0) cooldowns.set(key, { response: { status: response.status }, until: now() + delay });
     let value;
-    try { value = await response.json(); }
+    try { value = await (readJSON ? readJSON(response) : response.json()); }
     catch (error) {
       if (error.name === 'AbortError') throw error;
       if (response.ok) throw new Error('The response was interrupted or unreadable. Try again.');
@@ -392,12 +392,12 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
   // Only the picker's own restart answers retry by themselves. A busy server,
   // other errors and lost connections stay single-dispatch for the player.
   const restarting = (status, code) => status === 503 && ['PICKER_WARMING', 'PICKER_UPDATING'].includes(code);
-  return async (path, options, { retry = true } = {}) => {
+  return async (path, options, { retry = true, readJSON } = {}) => {
     const retryable = !options?.method || ['GET', 'HEAD'].includes(options.method.toUpperCase());
     const deadline = now() + maxReadRetryMs;
     for (let attempt = 1; ; attempt++) {
       let result, error;
-      try { result = await read(path, options); }
+      try { result = await read(path, options, readJSON); }
       catch (failure) { if (failure.name === 'AbortError' || !restarting(failure.status, failure.code)) throw failure; error = failure; }
       if (!retry || !retryable || attempt >= maxReadAttempts || now() >= deadline || result && !restarting(result.response.status, result.value.code)) {
         if (error) throw error;

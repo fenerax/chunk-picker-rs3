@@ -48,20 +48,39 @@ install a general fallback for failed JavaScript asset delivery.
 
 ## Change
 
-- `app/startup-read.mjs` supplies a 35-second deadline covering fetch and body
-  consumption, aborts timed-out requests, and races the deadline even when a
-  transport ignores abort. Late answers cannot complete the abandoned startup
-  attempt.
+- `app/startup-read.mjs` supplies a 150-second header deadline. The scheduler's
+  first cold calculation allows 120 seconds (`app/tasks/scheduler.mjs`); the
+  extra 30 seconds leaves room for request handling and delivery. After headers,
+  JSON reads use a separate 35-second inactivity window, reset by every nonempty
+  decoded body chunk. There is no total body deadline: a healthy 375 KB Brotli
+  response taking 47 seconds at 8 KB/s, or a longer trickling response, can finish.
+  Timeout or cancellation aborts the transport and cancels the body reader. A
+  raced deadline also bounds transports that ignore abort, and late answers
+  cannot complete an abandoned startup attempt.
 - Bootstrap reads retry network/unreadable responses, 429 and server errors
-  for as long as the document remains open. Delays are 1, 2, 4, 8, 16, then
-  30 seconds; a longer Retry-After in seconds or HTTP-date form takes priority.
+  for as long as the document remains open. Base delays are 1, 2, 4, 8, 16, then
+  30 seconds, with independent ±20% jitter clamped to 1–30 seconds. A longer
+  Retry-After in seconds or HTTP-date form remains a minimum, including values
+  larger than a browser timer can hold (the wait is split into timer-sized parts).
   Commands keep their existing durable outbox behavior.
 - The screen bootstrap owns retries instead of nesting the old bounded reader
   retry loop. It retries individual reads rather than re-running UI factories.
   A terminal error cancels the parallel startup reads.
+- Startup passes its chunk-aware JSON reader through the shared API reader.
+  Multi-picker scoped fetches retain abort forwarding through these body reads;
+  startup releases the connection in `finally` after success, failure or timeout.
+  Ordinary fetches still detach at headers: callers can ignore their bodies,
+  and a dispatched unload keepalive must survive document retirement. The
+  post-read identity check also refuses streamed results after retirement when
+  a transport ignores cancellation.
 - Updating/warming errors show "Updating, retrying…"; other transient failures
-  show "Connecting, retrying…". A 401/403 shows sign-in and invitation recovery.
-  Existing multi-picker identity retirement still reloads the document.
+  show "Connecting, retrying…". A 401/403 offers sign-in only for a writable
+  account whose already-loaded `/api/session` has `signIn.mode` set to
+  `optional` or `required`. Invitation and view-only sessions, sign-in-off
+  sessions (which normally omit `signIn`), and failures before session loading
+  tell the user to reopen their invitation link or ask the administrator for a
+  new one, without an `/auth/signin` link. No additional access-mode request is
+  needed. Existing multi-picker identity retirement still reloads the document.
 - Artwork no longer blocks startup and its optional request is bounded.
 - No screen context fields or renderer cache inputs were added.
 
@@ -82,18 +101,21 @@ fail 1
 Error: Game data could not be loaded. Reload the picker.
 ```
 
-After the change:
+After the review fixes:
 
 ```text
-tests 6
-pass 6
+tests 9
+pass 9
 fail 0
 ```
 
 The focused cases also cover repeated failures beyond the old retry budget,
 network errors, 502/504, longer Retry-After values, hung headers and bodies,
-cancellation and authentication recovery. Synthetic deadlines keep these cases
-well below the 120-second per-test limit; the file completed in about 4 seconds.
+cancellation, jitter bounds and authentication recovery for both access modes.
+A synthetic clock verifies headers arriving at 149 seconds, followed by a
+210-second trickling body with no retry, and a mid-body stall retried after
+35 seconds of inactivity. These clocks keep the tests below the 120-second
+per-test limit.
 
 The existing screen VM harness verifies each of the five startup API endpoints
 can return 503 once, then recover, paint tasks and open exactly one stream
@@ -101,7 +123,16 @@ without duplicating UI listeners. It also verifies hung artwork does not block
 startup. Session tests verify a timed-out shared check can be tried again and
 preserves updating status and Retry-After.
 
-A scratch browser replay using the real open-f2p app and Player 1 observed:
+The multi-picker regression runs the real shared screen API through scoped
+fetch and native fetch against a synthetic loopback HTTP server. It receives a
+partial JSON body, triggers inactivity expiry, asserts the actual transport
+signal is aborted before retrying, observes the server response close, and
+recovers on the second request. Separate checks preserve ordinary header-time
+cleanup and unread keepalive responses. The screen VM also checks that session
+access mode reaches a subsequent state-403 recovery panel.
+
+The original implementation's scratch browser replay using the real open-f2p
+app and Player 1 observed (before these review fixes):
 
 - Dataset bootstrap: `503, 503, 200`, followed by map, Player 1, rendered tasks
   and "Saved", without reloading.
@@ -110,12 +141,17 @@ A scratch browser replay using the real open-f2p app and Player 1 observed:
 - Startup 401: one request, "Sign-in required", a visible recovery panel and
   `/auth/signin` link; no endless retry.
 
-Relevant test files were run sequentially at BelowNormal priority. No full
-suite was run. The original screen file passed 365 tests; its subsequent
-startup-focused run passed 8 tests including the added endpoint cases.
-Startup retry, request failures, picker browser session, live-swap client,
-browser module graph and test selection files also passed.
-Artwork fallback tests passed all 9 cases.
+Review-fix verification runs only these files, one at a time at BelowNormal
+priority, with synthetic data and scratch outputs inside this worktree:
+
+| File | Pass | Fail | Skipped |
+| --- | ---: | ---: | ---: |
+| `tests/startup-retry.test.mjs` | 9 | 0 | 0 |
+| `tests/web-browser.test.mjs` | 371 | 0 | 0 |
+| `tests/picker-browser-session.test.mjs` | 36 | 0 | 0 |
+| `tests/request-failures.test.mjs` | 10 | 0 | 0 |
+
+The full suite and a new Playwright/browser replay were not run for these fixes.
 
 ## Remaining uncertainty
 

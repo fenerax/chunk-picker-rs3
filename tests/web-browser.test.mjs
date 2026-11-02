@@ -1,5 +1,5 @@
 import { taskExplanation } from '../app/tasks/task-provenance.mjs';
-import { retryStartupRead, showStartupRetry } from '../app/startup-read.mjs';
+import { retryStartupRead, showStartupRetry, showStartupError } from '../app/startup-read.mjs';
 import { appendTaskClaim, createTaskClaimClock } from '../app/web/task-claims.mjs';
 import { observeScreenBars } from '../app/web/phone-layout.mjs';
 import { readScreenGraph, runScreenGraph } from './browser-screen-harness.mjs';
@@ -2608,6 +2608,21 @@ test(`startup retries ${path} before opening its single live stream`, async () =
   assert.equal(h.eventSources.length, 1, 'only start the stream after the state and map are ready');
   assert.equal(h.run('result.stateRevision'), 7, 'tasks paint after recovery');
   assert.equal(h.nodes.get('feedback-open').events.click.length, 1, 'retry reads without re-registering UI');
+});
+
+test('startup remembers the session access mode for a subsequent state refusal', async () => {
+  for (const [mode, kind] of [['off', 'invite'], ['optional', 'account']]) {
+    const { h, route } = startupHarness();
+    h.context.createInvites = () => ({ loadSession: read => read('/api/session'), open: async () => {} });
+    h.route(requested => requested === '/api/session' ? { kind, signIn: { mode } }
+      : requested === '/api/state' ? { ok: false, status: 403, value: {} } : route(requested));
+    await assert.rejects(h.run('start()'), error => {
+      showStartupError(error, h.context.document); return error.status === 403;
+    });
+    const panel = h.nodes.get('startup-error');
+    assert.equal(panel.children.some(node => node.href === '/auth/signin'), mode === 'optional');
+    assert.equal(h.nodes.get('save-status').textContent, mode === 'optional' ? 'Sign-in required' : 'Access required');
+  }
 });
 
 test('full equipment evidence waits for parallel coalesced definitions before publishing', async () => {

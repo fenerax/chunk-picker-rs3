@@ -1,6 +1,6 @@
 import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
-import { retryStartupRead, withStartupTimeout, showStartupRetry, startupRetryAfter } from '../app/startup-read.mjs';
+import { retryStartupRead, withStartupTimeout, showStartupRetry, startupRetryAfter, setStartupSession } from '../app/startup-read.mjs';
 import { readFile } from 'node:fs/promises';
 import { runInContext, Script } from 'node:vm';
 import * as customTasks from '../app/web/custom-tasks-model.mjs';
@@ -50,6 +50,7 @@ export async function readScreenGraph() {
 }
 
 export function runScreenGraph(context, modules) {
+  context.setStartupSession ??= setStartupSession;
   // Keep dataset selection explicit in this VM, like the other browser collaborators.
   context.selectedDataset ??= { capabilities: {}, gameDefaults: { members: [
     { id: 'actor1', name: 'Player', mapId: 'bbb' }, { id: 'reed', name: 'Reed', mapId: 'aaa' },

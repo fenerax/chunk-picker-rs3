@@ -28,9 +28,9 @@ export function observeArtStatus(listener) {
 export async function loadArtStatus(fetcher = globalThis.fetch) {
   return pending ??= (async () => {
     try {
-      const value = await withStartupTimeout(async signal => {
+      const value = await withStartupTimeout(async (signal, readJSON) => {
         const response = await fetcher('/api/art-status', { credentials: 'same-origin', cache: 'no-store', signal });
-        return response.ok ? response.json() : null;
+        return response.ok ? readJSON(response) : null;
       });
       if (value) return setArtStatus(value);
     } catch { /* Older/offline servers keep their existing picture resolution. */ }
