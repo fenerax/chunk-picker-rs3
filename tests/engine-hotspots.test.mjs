@@ -134,12 +134,14 @@ test('a newly satisfied source gate outside access does not repeat raw access co
   const definitions = { chunks: { 100: { Object: { Tree: 1 } }, 200: { Object: { Ore: 1 } } },
     challenges: { Extra: { Consume: { Items: ['Key'] } }, Nonskill: { 'Make key': { Output: 'Key' } } },
     taskUnlocks: { Objects: { Tree: treeLocations, Ore: { 200: { 'Make key': 'Nonskill' } } } } };
-  const engine = createTaskEngine(definitions, options(value => value));
+  // Count from construction: the access index is built lazily on first evaluation,
+  // so its single raw read belongs to the total either way.
   reachableGateReads = 0;
+  const engine = createTaskEngine(definitions, options(value => value));
   const result = engine.evaluate(state(), 'm');
   assert.equal(result.metrics.passes, 3);
   assert.equal(result.metrics.accessPasses, 3);
-  assert.equal(reachableGateReads, 2); // One direct admission and one task-source scan.
+  assert.equal(reachableGateReads, 3); // One index build, one direct admission and one task-source scan.
   assert(result.access.objects.includes('Tree'));
   assert(!result.access.objects.includes('Ore'));
   assert.equal(result.tasks.find(row => row.label === 'Consume').status, 'available');
