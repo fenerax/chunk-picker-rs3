@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openChrome, sleep, until } from '../scripts/perf/cdp.mjs';
+import { openChrome, until } from '../scripts/perf/cdp.mjs';
 import { findChrome } from '../scripts/ci/gallery-support.mjs';
 
 // An actual application, native dialog and browser input on a fresh public save.
@@ -56,11 +56,36 @@ for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
         await browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
       }
     };
-    const inside = () => evaluate(`(() => { const dialog = document.getElementById('tool-dialog'), active = document.activeElement, r = active.getBoundingClientRect(); return dialog.open && dialog.matches(':modal') && dialog.contains(active) && active.checkVisibility() && r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight && document.hasFocus(); })()`);
+    const inside = async () => {
+      const probe = await evaluate(`(() => {
+        const dialog = document.getElementById('tool-dialog'), active = document.activeElement, r = active.getBoundingClientRect();
+        return { checks: { open: dialog.open, modal: dialog.matches(':modal'), inside: dialog.contains(active),
+          visible: active.checkVisibility(), sized: r.width > 0 && r.height > 0, inViewport: r.top >= 0 && r.bottom <= innerHeight,
+          foreground: document.hasFocus() }, active: { tag: active.tagName, id: active.id } };
+      })()`);
+      const focused = Object.values(probe.checks).every(Boolean);
+      if (!focused) t.diagnostic(`Focus observation: ${JSON.stringify(probe)}`);
+      return focused;
+    };
+    // Native focus/visibility changes and the application's scroll observer finish
+    // on rendering frames, independently of the CDP command's response.
+    const painted = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
     const step = expected => until(() => evaluate(`document.querySelector('.setup-guide')?.dataset.step === ${JSON.stringify(expected)}`), 10000);
-    await browser.send('Page.navigate', { url: server.inviteUrl });
+    // Module loading is navigation work; wait for its event before timing setup.
+    const loaded = Promise.withResolvers();
+    const onLoad = event => { if (event.method === 'Page.loadEventFired') loaded.resolve(); };
+    browser.listeners.add(onLoad);
+    try {
+      await browser.send('Page.navigate', { url: server.inviteUrl });
+      await loaded.promise;
+    } finally { browser.listeners.delete(onLoad); }
     await step('roll');
     await browser.send('Page.bringToFront');
+    await evaluate(`new Promise(resolve => {
+      const focused = () => { if (document.hasFocus()) { window.removeEventListener('focus', focused); resolve(true); } };
+      window.addEventListener('focus', focused); focused();
+    })`);
+    await painted();
     equal(await inside(), true, 'initial native open focuses inside');
     await afterCloseEvent(() => activate(button('Skip setup')));
     await until(() => evaluate(`!document.getElementById('tool-dialog').open`));
@@ -71,7 +96,7 @@ for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
       await activate(`document.getElementById('settings-open')`);
       await until(() => evaluate(`!!(${button('Setup guide…')})`));
       await afterCloseEvent(() => activate(button('Setup guide…')));
-      await step('roll');
+      await step('roll'); await painted();
       equal(await inside(), true, 'reopening focuses inside');
     };
     await reopen();
@@ -79,12 +104,12 @@ for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
     const observations = [], delays = [];
     for (const [label, expected] of [['Next', 'theme'], ['Back', 'roll'], ['Next', 'theme'], ['Next', 'start'], ['Next', 'tour'], ['Back', 'start'], ['Next', 'tour']]) {
       // Keep the removed focused control to verify the replacement, then make no
-      // more input for 300 ms: a follow-up Tab must not mask lost focus.
+      // more input before the rendering frames: a follow-up Tab must not mask lost focus.
       await evaluate(`window.oldSetupRoot = document.querySelector('.setup-guide')`);
       await activate(button(label));
       await step(expected);
       const started = performance.now();
-      await sleep(300);
+      await painted();
       delays.push(performance.now() - started);
       observations.push(await inside() && await evaluate(`document.activeElement === document.querySelector('.setup-guide-body > h3')`));
       equal(await evaluate(`window.originalSetupDialog === document.getElementById('tool-dialog') && !window.oldSetupRoot.isConnected`), true, `same modal, old step removed: ${label} -> ${expected}`);
@@ -110,7 +135,7 @@ for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
     equal(state.members[0].preferences.setupGuide, 'finished', 'reopened skip and Escape preserve the earlier finish');
     equal(state.history.filter(row => row.type === 'set-preference').length, 2, 'navigation sends no gameplay commands');
     const sorted = delays.toSorted((a, b) => a - b);
-    t.diagnostic(`Delayed focus: ${observations.filter(Boolean).length}/${observations.length}; observation ms median=${sorted[3].toFixed(1)}, range=${sorted[0].toFixed(1)}–${sorted.at(-1).toFixed(1)}`);
+    t.diagnostic(`Painted focus: ${observations.filter(Boolean).length}/${observations.length}; observation ms median=${sorted[3].toFixed(1)}, range=${sorted[0].toFixed(1)}–${sorted.at(-1).toFixed(1)}`);
     equal(observations.every(Boolean), true, 'Next and Back keep visible focus inside the current native modal without further input');
   });
 }

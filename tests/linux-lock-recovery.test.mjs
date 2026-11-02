@@ -73,18 +73,25 @@ test('old-format, invalid and unreadable records cannot be taken over', linux, a
   await assert.rejects(exclusive(lock, () => assert.fail()), { code: 'EEXIST' });
 });
 
-test('concurrent reclaimers admit at most one operation', linux, async t => {
+test('concurrent reclaimers admit at most one operation while the winner holds the lock', { ...linux, timeout: 15000 }, async t => {
   const { lock } = await fixture(t);
   const [, start] = (await processIdentity(process.pid)).split(':');
   await writeFile(lock, encode({ pid: process.pid, processIdentity: '00000000-0000-0000-0000-000000000000:' + start }));
   let release, entered;
   const barrier = new Promise(resolve => { release = resolve; });
   const ready = new Promise(resolve => { entered = resolve; });
-  const calls = Array.from({ length: 8 }, () => exclusive(lock, async () => { entered(); await barrier; return 'ran'; }, { skipBusy: true }));
-  await ready;
-  // Keep the winner active until the other contenders have observed its lock.
-  await new Promise(resolve => setTimeout(resolve, 50)); release();
-  const results = await Promise.all(calls);
+  const others = Promise.withResolvers();
+  let settled = 0;
+  t.after(() => release());
+  const calls = Array.from({ length: 8 }, () => exclusive(lock, async () => { entered(); await barrier; return 'ran'; }, { skipBusy: true })
+    .finally(() => { if (++settled === 7) others.resolve(); }));
+  const all = Promise.all(calls);
+  try {
+    await ready;
+    // Every loser must finish observing the held lock, however slowly it runs.
+    await others.promise;
+  } finally { release(); }
+  const results = await all;
   assert.equal(results.filter(value => value === 'ran').length, 1);
 });
 

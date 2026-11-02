@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import { spec } from 'node:test/reporters';
 
 if (process.argv.includes('--help')) {
-  console.log('Usage: node scripts/test.mjs [quick|full|differential] [--list]\nFull starts at 2 files and adapts up to 6; quick caps at 2; differential defaults to 1. RS3_TEST_CONCURRENCY (1-6) sets the cap. Every admission reserves 1 GiB per active worker above a 4 GiB free-memory floor.');
+  console.log('Usage: node scripts/test.mjs [quick|full|differential|engine-differential] [--list]\nFull starts at 2 files and adapts up to 6; quick caps at 2; differential suites default to 1. RS3_TEST_CONCURRENCY (1-6) sets the cap. Every admission reserves 1 GiB per active worker above a 4 GiB free-memory floor.');
 } else {
   const { discoverTests, adaptiveOptionsFor } = await import('./test-selection.mjs');
   const suite = process.argv[2] ?? 'full';
