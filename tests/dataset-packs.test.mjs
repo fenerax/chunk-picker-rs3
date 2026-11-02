@@ -7,6 +7,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
+import { Worker } from 'node:worker_threads';
+import { once } from 'node:events';
 import { resolveDataset, decodeDatasetValue, decodeParsedDatasetValue, encodeDatasetValue } from '../app/datasets.mjs';
 import { loadDatasetInputs } from '../app/dataset-bootstrap.mjs';
 import { writeScaledCompanion, SCALED_PATHS } from '../scripts/perf/scale-dataset.mjs';
@@ -89,6 +91,47 @@ test('changed pack files, profiles and selections are refused at load and at use
   await writeFile(definitions, Buffer.from(bytes.toString().replace(/[a-z]/, 'q')));
   assert.throws(() => dataset.verifiedBytes(SCALED_PATHS.definitions), error => error.code === 'DATASET_PACK_INVALID');
   await refused(loadDatasetInputs(dataset));
+});
+
+test('worker gzip validation requires main-thread receipts for the exact hashed inputs', async () => {
+  const made = await companion(), dataset = await resolveDataset(options(made));
+  const selection = { ...dataset.workerSelection(), datasetId: 'duo-legacy' };
+  assert.deepEqual(selection.validatedGzipInputs, dataset.files.filter(file => file.path.endsWith('.json.gz'))
+    .map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })));
+  const run = async input => {
+    const source = `
+      import { parentPort, workerData } from 'node:worker_threads';
+      import zlib from 'node:zlib';
+      import { syncBuiltinESMExports } from 'node:module';
+      zlib.gunzipSync = () => { throw new Error('Worker attempted native decompression'); };
+      syncBuiltinESMExports();
+      const { resolveDataset } = await import(${JSON.stringify(new URL('../app/datasets.mjs', import.meta.url).href)});
+      try { const dataset = await resolveDataset(workerData); parentPort.postMessage({ digest: dataset.digest }); }
+      catch (error) { parentPort.postMessage({ code: error.code, message: error.message }); }
+    `;
+    const worker = new Worker(new URL('data:text/javascript,' + encodeURIComponent(source)), { workerData: input });
+    try { return (await once(worker, 'message'))[0]; }
+    finally { await worker.terminate(); }
+  };
+  assert.deepEqual(await run(selection), { digest: dataset.digest });
+  for (const validatedGzipInputs of [undefined, [], [{ ...selection.validatedGzipInputs[0], sha256: '0'.repeat(64) }],
+    [{ ...selection.validatedGzipInputs[0], bytes: selection.validatedGzipInputs[0].bytes + 1 }]]) {
+    assert.equal((await run({ ...selection, validatedGzipInputs })).code, 'DATASET_PACK_INVALID');
+  }
+  assert.equal((await run({ ...selection, digest: '0'.repeat(64) })).code, 'DATASET_PACK_INVALID');
+  // A receipt cannot bypass the worker's file read/hash check after validation.
+  const filename = dataFile(made, SCALED_PATHS.gzipCatalogue), bytes = await readFile(filename);
+  const changed = Buffer.from(bytes); changed[changed.length - 1] ^= 1;
+  await writeFile(filename, changed);
+  assert.equal((await run(selection)).code, 'DATASET_PACK_INVALID');
+});
+
+test('main-thread resolution always checks gzip syntax even with supplied receipts', async () => {
+  const made = await companion({ edit: (relative, bytes) => relative === SCALED_PATHS.gzipCatalogue
+    ? gzipSync(Buffer.from('{"broken":')) : bytes });
+  const filename = dataFile(made, SCALED_PATHS.gzipCatalogue), bytes = await readFile(filename);
+  await refused(resolveDataset(options(made, { validatedGzipInputs: [{ path: SCALED_PATHS.gzipCatalogue,
+    bytes: bytes.length, sha256: sha(bytes) }] })));
 });
 
 test('the in-place snapshot decoder matches the copying decoder, including refusals', () => {

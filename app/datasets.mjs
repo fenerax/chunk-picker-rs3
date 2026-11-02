@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { gunzipSync } from 'node:zlib';
+import { isMainThread } from 'node:worker_threads';
 import { safeArtFile, packRelative, PACK_VERSION } from './packs.mjs';
 import { loadGameDefaults } from './game-defaults.mjs';
 import { loadDatasetProfile } from './dataset-profile.mjs';
@@ -175,7 +176,7 @@ async function readSelection(selectionPath) {
     return JSON.parse(checked.data.toString('utf8'));
   } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
-async function loadPack(packsDir, choice, kind) {
+async function loadPack(packsDir, choice, kind, validatedGzipInputs) {
   const root = path.resolve(packsDir, choice.id, choice.version);
   const checked = await inspectFile(root, { path: 'pack.json', sha256: choice.sha256 }, true, DATASET_LIMITS.manifestBytes);
   if (checked.bytes > DATASET_LIMITS.manifestBytes) fail();
@@ -199,7 +200,15 @@ async function loadPack(packsDir, choice, kind) {
     const snapshot = record.path === manifest.catalogues.values;
     const { data: payload, ...checked } = await inspectFile(root, record, gzip || snapshot, DATASET_LIMITS.fileBytes,
       record.kind === 'input' && !gzip ? createJsonSyntaxCheck() : null);
-    if (gzip) checkJsonSyntax(gunzipSync(payload, { maxOutputLength: DATASET_LIMITS.fileBytes }));
+    if (gzip) {
+      if (isMainThread) checkJsonSyntax(gunzipSync(payload, { maxOutputLength: DATASET_LIMITS.fileBytes }));
+      // inspectFile hashed the actual bytes against this manifest record.
+      // Only the main-thread provider issues these receipts after gunzip and
+      // JSON syntax validation. Never construct a decoder in a terminable
+      // worker (including the thread inside a process-mode calculator).
+      else if (!validatedGzipInputs?.some(input => input.path === record.path
+        && input.bytes === record.bytes && input.sha256 === record.sha256)) fail();
+    }
     if (snapshot) snapshotBytes = payload;
     opened.set(record.path, { ...checked, record });
   }
@@ -241,8 +250,10 @@ export async function resolveDataset(options = {}) {
     if (packed) {
       if (options.legacyMetadataSnapshots !== undefined) fail();
       if (!receipt.rulesText) fail();
-      const data = await loadPack(packsDir, receipt.data, 'data'); mark('data-pack');
-      const text = await loadPack(packsDir, receipt.rulesText, 'rules-text'); mark('rules-pack');
+      const validatedGzipInputs = options.validatedGzipInputs;
+      if (!isMainThread && (!digestPattern.test(options.digest ?? '') || !Array.isArray(validatedGzipInputs))) fail();
+      const data = await loadPack(packsDir, receipt.data, 'data', validatedGzipInputs); mark('data-pack');
+      const text = await loadPack(packsDir, receipt.rulesText, 'rules-text', validatedGzipInputs); mark('rules-pack');
       if (data.manifest.ruleContractHash !== text.manifest.ruleContractHash || !plain(data.manifest.capabilities) || !plain(data.manifest.environment)) fail();
       environment = datasetEnvironment(data.manifest.environment); capabilities = datasetCapabilities(environment);
       if (JSON.stringify(capabilities) !== JSON.stringify(data.manifest.capabilities)) fail();
@@ -399,6 +410,8 @@ export async function resolveDataset(options = {}) {
         if (!Object.hasOwn(trackedValues, key)) fail(); return trackedValues[key];
       },
       workerSelection: () => ({ root, packsDir, selection: structuredClone(receipt ?? { schemaVersion: 1, data: null }), mapAssetsDir, gameDataDir, environment, digest,
+        ...(packed ? { validatedGzipInputs: files.filter(file => file.kind === 'input' && file.path.endsWith('.json.gz'))
+          .map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })) } : {}),
         ...(catalogue.definitionOverlays?.length ? { definitionOverlays: catalogue.definitionOverlays } : {}),
         ...(installed ? { profilePath: installed.profilePath, profileSha256: installed.profileSha256 } : {}),
         ...(!packed ? { legacyMetadataFiles, legacyMetadataSnapshots, legacyMetadataMapAssetsDir: operatorMapAssetsDir ?? null } : {}) }),

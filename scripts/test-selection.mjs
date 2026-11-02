@@ -337,6 +337,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "worker-native-zlib.test.mjs",
   "calculator-bundle-worker.test.mjs",
   "calc-check.test.mjs",
   "short-height-browser.test.mjs",

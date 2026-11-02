@@ -905,10 +905,16 @@ test('native prediction prepares both owners from the fresh saved fixed point an
   for (const [memberId, prepared] of [['actor1', prediction.unlockReuse], ['reed', prediction.partnerUnlockReuse]]) {
     assert.equal(prepared.memberId, memberId); assert.equal(prepared.sourceRevision, before.revision);
     assert.equal(prepared.taskInputKey, taskReuseInputKey(after));
+    assert.equal(prepared.gzipJSONPrefixes, undefined, 'terminable workers send only raw projections');
+    assert.equal(prepared.gzipJSONPrefixMetadata, undefined);
+    const cache = createUnlockResultCache({ limit: 2, byteLimit: 1024 * 1024 });
+    assert.ok(cache.admit(prepared));
+    const retained = cache.get(prepared.taskInputKey, memberId, before.revision + 1);
     for (const key of ['playJSON', 'duoJSON', 'duoSidebarJSON']) {
       const rawPrefix = Buffer.from(prepared[key]).subarray(0, -1);
-      assert.deepEqual(prepared.gzipJSONPrefixMetadata[key], { crc32: crc32(rawPrefix), rawLength: rawPrefix.length });
-      assert.deepEqual(gunzipSync(Buffer.from(prepared.gzipJSONPrefixes[key]), { finishFlush: zlibConstants.Z_SYNC_FLUSH }), rawPrefix);
+      assert.deepEqual(retained.gzipJSONPrefixMetadata[key], { crc32: crc32(rawPrefix), rawLength: rawPrefix.length });
+      assert.deepEqual(retained.gzipJSONPrefixes[key], gzipSync(rawPrefix, { level: 1, finishFlush: zlibConstants.Z_SYNC_FLUSH }));
+      assert.deepEqual(retained[key], Buffer.from(prepared[key]));
     }
     const calculated = await send({ type: 'evaluate', state: after, memberId }); assert.equal(calculated.error, undefined);
     const play = { ...projectPlayResult(calculated.result), taskLocations: projectMapTaskLocations(definitions, calculated.result, world) };
