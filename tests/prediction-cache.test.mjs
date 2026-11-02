@@ -563,3 +563,30 @@ test('a prewarm refill does not cancel a coalesced warm job that already served 
   assert.equal(worker.requests()[1].chunkId, '12343');
   worker.finish(result);
 });
+
+test('a note edit keeps a served early Preview producer preparing its partner', async t => {
+  const { scheduler, prediction, predict } = await fixture(t);
+  const operation = predict(); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  await operation;
+  assert.equal(scheduler.retireWarmPrediction(), false);
+  assert.equal(worker.terminated, false);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 1);
+  worker.finish(result);
+});
+
+test('a cancelled served Preview producer yields its only calculator to another picker', async t => {
+  const physical = factory();
+  const scheduler = await createTaskScheduler({ workerFactory: physical.create, maxCalculators: 1 });
+  t.after(() => scheduler.close());
+  const operation = scheduler.evaluate(state(), 'actor1', 'predict', '12342', 'preview', 'gameplay');
+  await until(() => physical.workers[0]?.requests().length === 1);
+  const worker = physical.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  await operation;
+  scheduler.cancelPicker('legacy-shared');
+  const other = scheduler.evaluate(state(), 'actor1', 'evaluate', undefined, 'other', 'gameplay', undefined, [], 'full', undefined, 'foreground', false, 'p_' + 'b'.repeat(32));
+  other.catch(() => {});
+  await until(() => physical.workers.some(candidate => candidate.requests().some(message => message.type === 'evaluate')));
+});
