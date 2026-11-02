@@ -238,7 +238,10 @@ async function instrument(scratch, appDir) {
     '\n        const passStarted = performance.now(), beforeChecks = counters.checks, beforeDependencies = counters.dependencyChecks;\n        counters.passes++; changed = false;', 'inner fixed-point pass start');
   engine = replace(engine, '        if (discoveryExpanded) { changed = true; discoveryExpanded = false; }\n      }\n      updatePoints();',
     '        if (discoveryExpanded) { changed = true; discoveryExpanded = false; }\n        fixedPointPass(passStarted, beforeChecks, beforeDependencies, counters, blockedCheckCount, projectOnly, changed, valid.size);\n      }\n      updatePoints();', 'inner fixed-point pass end');
-  engine = replace(engine, '    const rows = compiled.map(task => {\n      const blockers', '    const provenanceStarted = performance.now();\n    const rows = compiled.map(task => {\n      const blockers', 'provenance start');
+  // How projects only its subject row since perf/p6-how; older engines map every compiled task.
+  const rowsAnchor = ['    const rows = (proofSubject ? [proofSubject] : compiled).map(task => {\n      const blockers',
+    '    const rows = compiled.map(task => {\n      const blockers'].find(anchor => engine.includes(anchor)) ?? 'const rows = <missing>';
+  engine = replace(engine, rowsAnchor, '    const provenanceStarted = performance.now();\n' + rowsAnchor, 'provenance start');
   engine = replace(engine, '    const equipment = [];\n    const houseStorage', '    addDuration("taskProvenanceMs", provenanceStarted);\n    const equipment = [];\n    const houseStorage', 'provenance end');
   engine = replace(engine, '    const diagnostics = [...compileDiagnostics,', '    const diagnosticsStarted = performance.now();\n    const diagnostics = [...compileDiagnostics,', 'diagnostics start');
   engine = replace(engine, '    const ownItemOrigins = ownItemQueries.filter', '    addDuration("diagnosticsMs", diagnosticsStarted);\n    const ownItemOrigins = ownItemQueries.filter', 'diagnostics end');
