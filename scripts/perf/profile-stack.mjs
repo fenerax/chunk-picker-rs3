@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { fork } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, access } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, open, readdir, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -142,6 +142,24 @@ async function repetition(options, run) {
     await rm(scratch,{recursive:true,force:true});
   }
 }
+// Bound JSON strings to one array item; full captures can exceed V8's string limit.
+export async function writeReport(file, report) {
+  const handle = await open(file, 'w');
+  try {
+    await handle.writeFile('{');
+    let first = true;
+    for (const [key, value] of Object.entries(report)) {
+      if (value === undefined) continue;
+      await handle.writeFile((first ? '' : ',') + JSON.stringify(key) + ':'); first = false;
+      if (Array.isArray(value)) {
+        await handle.writeFile('[');
+        for (let i = 0; i < value.length; i++) await handle.writeFile((i ? ',' : '') + (JSON.stringify(value[i]) ?? 'null'));
+        await handle.writeFile(']');
+      } else await handle.writeFile(JSON.stringify(value));
+    }
+    await handle.writeFile('}');
+  } finally { await handle.close(); }
+}
 export async function main(args=process.argv.slice(2)) {
   const [major,minor]=process.versions.node.split('.').map(Number);if(major<24||major===24&&minor<20)throw new Error('Node 24.20+ required');
   const options=parse(args);
@@ -164,13 +182,13 @@ export async function main(args=process.argv.slice(2)) {
     const runStarted=now(); const result=await repetition(options,run); report.runDurationsMs.push(now()-runStarted);report.clicks.push(...result.clicks);report.clocks.push(...result.clocks.map(clock=>({...clock,run})));
     report.startupEvents.push(...result.startupEvents.map(event=>({...event,run})));
     report.summary=summarize(report.clicks); report.complete=run===options.runs;
-    await writeFile(path.join(options.out,'profile.json'),JSON.stringify(report));
+    await writeReport(path.join(options.out,'profile.json'),report);
     const view={...report,clicks:report.clicks.map(c=>({...c,cpu:c.cpu.map(v=>v.top),traceEvents:undefined}))};
     await writeFile(path.join(options.out,'report.html'),html(view));
   }
   } catch(error) {
     report.complete=false;report.failure={completedScenarios:report.clicks.length,error:error.name};
-    await writeFile(path.join(options.out,'profile.json'),JSON.stringify(report));
+    await writeReport(path.join(options.out,'profile.json'),report);
     throw error;
   }
   console.log(JSON.stringify(report.summary));
