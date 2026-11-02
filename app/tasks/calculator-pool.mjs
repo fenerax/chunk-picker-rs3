@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 
 // One server owns the physical calculators. Lanes borrow a slot for one job;
 // even a retiring calculator holds its slot until termination has completed.
-export function createCalculatorPool({ limit, workerFactory, workerData, idleMs = 600000, startupDeadlineMs = 30000 }) {
+export function createCalculatorPool({ limit, workerFactory, workerData, onReady, idleMs = 600000, startupDeadlineMs = 30000 }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false;
   const diagnostics = () => ({ limit, resident: slots.size, peak, active: [...slots].filter(slot => slot.owner).length,
@@ -21,7 +21,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, idleMs 
     slot.timer.unref?.();
   }
   function allocate(pendingOwner) {
-    const slot = { worker: workerFactory(workerData(!ready)), ready: false, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
+    const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
     slots.add(slot); peak = Math.max(peak, slots.size);
     slot.initial = new Promise((resolve, reject) => { slot.resolve = resolve; slot.reject = reject; });
     // Later slots report failure through their owner, not an unobserved promise.
@@ -44,6 +44,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, idleMs 
       if (slot.stopping) return;
       if (message.type === 'ready') {
         if (ready?.datasetDigest !== undefined && message.datasetDigest !== ready.datasetDigest) { fail(new Error('Calculator dataset mismatch.')); return; }
+        onReady?.(message);
         clearTimeout(slot.startupTimer); slot.pendingOwner = undefined; slot.ready = true;
         ready ??= message;
         slot.resolve(ready); idle(slot); pump(); return;

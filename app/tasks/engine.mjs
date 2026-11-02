@@ -174,7 +174,7 @@ export function createTaskEngine(definitions, options = {}) {
         data = applyMetadataCorrections(data, { corrections: catalogue.metadataCorrections ?? [] });
       }
       if (tasks) data = applySkillGuideTasks(data, { catalogue, includeInformationalMilestones: milestones });
-      variants.set(key, createCompiledTaskEngine(data, { ...baseOptions, metadataCorrections: false, equipmentCorrections: false, eligibilityBudget, earlyTravelUnlocks: early }, accessIndexes));
+      variants.set(key, createCompiledTaskEngine(data, { ...baseOptions, metadataCorrections: false, equipmentCorrections: false, eligibilityBudget, earlyTravelUnlocks: early }, accessIndexes, configureProviders));
       configureProviders();
     }
     return variants.get(key);
@@ -204,7 +204,7 @@ export function createTaskEngine(definitions, options = {}) {
 
 function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, cacheResources = false, resourceCatalogue, resourceSelectors,
   cacheArchaeology = false, archaeologyCatalogue, metadataCorrections = false, equipmentCorrections = false, cacheShops = false, shopCatalogue,
-  lodestones, transportRoutes, transportFactsByMember, eligibilityBudget, earlyTravelUnlocks = false } = {}, accessIndexes = []) {
+  lodestones, transportRoutes, transportFactsByMember, eligibilityBudget, earlyTravelUnlocks = false } = {}, accessIndexes = [], configureProviders = () => {}) {
   if (!definitions || typeof definitions.challenges !== 'object') throw new TypeError('Task definitions need challenges.');
   definitions = applyCacheShops(definitions, { enabled: cacheShops, shops: shopCatalogue });
   if (metadataCorrections) definitions = applyMetadataCorrections(definitions);
@@ -217,12 +217,23 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   const accessBranches = Object.entries(definitions).filter(([key]) => key !== 'challenges');
   accessBranches.push(['challenges.Nonskill', definitions.challenges.Nonskill]);
   const environment = `${dataset?.digest ?? 'injected'}:${cacheWalking}:${cacheResources}:${cacheArchaeology}`;
-  let accessIndex = accessIndexes.find(entry => entry.environment === environment && entry.branches.length === accessBranches.length
-    && entry.branches.every(([key, value], index) => key === accessBranches[index][0] && value === accessBranches[index][1]))?.index;
-  if (!accessIndex) {
-    accessIndex = buildAccessIndex(definitions, { dataset, cacheWalking, cacheResources, resourceCatalogue, resourceSelectors,
-      cacheArchaeology, archaeologyCatalogue, lodestones, transportRoutes, transportFactsByMember });
-    accessIndexes.push({ branches: accessBranches, environment, index: accessIndex });
+  let accessIndex;
+  const entrances = new Map();
+  function prepareAccess() {
+    if (accessIndex) return;
+    accessIndex = accessIndexes.find(entry => entry.environment === environment && entry.branches.length === accessBranches.length
+      && entry.branches.every(([key, value], index) => key === accessBranches[index][0] && value === accessBranches[index][1]))?.index;
+    if (!accessIndex) {
+      accessIndex = buildAccessIndex(definitions, { dataset, cacheWalking, cacheResources, resourceCatalogue, resourceSelectors,
+        cacheArchaeology, archaeologyCatalogue, lodestones, transportRoutes, transportFactsByMember });
+      accessIndexes.push({ branches: accessBranches, environment, index: accessIndex });
+    }
+    for (const [from, edges] of accessIndex.reverse) for (const edge of edges) {
+      const list = entrances.get(edge.to) ?? [];
+      if (!list.includes(from)) list.push(from);
+      entrances.set(edge.to, list);
+    }
+    configureProviders();
   }
   const code = definitions.codeItems ?? {};
   const compiled = [], byKey = new Map(), compileDiagnostics = [];
@@ -309,12 +320,6 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     'objects', 'npcs', 'monsters', 'shops', 'possibleAreas']);
   const emptyProcessingAccess = Object.freeze({});
   const uniqueTaskKeys = compiled.length === byKey.size;
-  const entrances = new Map();
-  for (const [from, edges] of accessIndex.reverse) for (const edge of edges) {
-    const list = entrances.get(edge.to) ?? [];
-    if (!list.includes(from)) list.push(from);
-    entrances.set(edge.to, list);
-  }
   const outputGates = new Map();
   for (const [selector, requirements] of Object.entries(definitions.taskUnlocks?.Items ?? {})) {
     const [item, source] = selector.split('^');
@@ -357,6 +362,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   }
   function prepareEvaluation() {
     if (evaluationPrepared) return;
+    // Identity-only variants need no geography. Build it only when a variant
+    // is actually prepared/evaluated, still sharing exact matching branches.
+    prepareAccess();
     // The initial variant may be used only for its identity catalogue. Runtime
     // metadata belongs to variants actually selected for prepare/evaluation.
     const itemMembership = new Map(), membershipOutputRoots = new Map();

@@ -1,0 +1,833 @@
+{
+  "schemaVersion": 1,
+  "start": "c185bd7c932d96642506b10c3c0935fb689b7d02",
+  "candidate": "94b144f057a4e6b2794959ed6c73bea293c54eca",
+  "node": "v24.21.0",
+  "mode": "process",
+  "cpuQuota": 4,
+  "memoryLimitBytes": 17179869184,
+  "datasetDigest": "3768ecbd4197cab2f42241ebd631904d2871bded05858a0bcb535eeba0b1898f",
+  "stateSha256": "64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc",
+  "cells": {
+    "baseline": [
+      {
+        "readyMs": 13734.328479000002,
+        "lists": [
+          {
+            "elapsedMs": 31406.744758,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 36993.20018,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1097736192,
+          "workerPeak": 1600868352,
+          "parentIdle": 997806080,
+          "workerIdle": 1370329088
+        }
+      },
+      {
+        "readyMs": 5969.678502999999,
+        "lists": [
+          {
+            "elapsedMs": 15779.334719999999,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 20890.263719000002,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1166913536,
+          "workerPeak": 1751113728,
+          "parentIdle": 998154240,
+          "workerIdle": 1371549696
+        }
+      },
+      {
+        "readyMs": 6024.363268000001,
+        "lists": [
+          {
+            "elapsedMs": 16459.503352,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 21741.989568999998,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1162915840,
+          "workerPeak": 1753620480,
+          "parentIdle": 996511744,
+          "workerIdle": 1362153472
+        }
+      },
+      {
+        "readyMs": 6144.557016000001,
+        "lists": [
+          {
+            "elapsedMs": 15291.871433000002,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 20464.741441,
+            "bytes": 33455827,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1190191104,
+          "workerPeak": 1741475840,
+          "parentIdle": 996941824,
+          "workerIdle": 1370386432
+        }
+      },
+      {
+        "readyMs": 7854.914403999999,
+        "lists": [
+          {
+            "elapsedMs": 19270.963603,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 25235.543715999996,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1125908480,
+          "workerPeak": 1723289600,
+          "parentIdle": 990801920,
+          "workerIdle": 1359802368
+        }
+      }
+    ],
+    "file": [
+      {
+        "seedReadyMs": 6952.0578829999995,
+        "readyMs": 3203.51958,
+        "lists": [
+          {
+            "elapsedMs": 14428.537625,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 58657.769842999995,
+            "bytes": 33455822,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1140453376,
+          "workerPeak": 1718939648,
+          "parentIdle": 1070170112,
+          "workerIdle": 1387954176
+        }
+      },
+      {
+        "seedReadyMs": 6720.371545000001,
+        "readyMs": 3310.0448020000003,
+        "lists": [
+          {
+            "elapsedMs": 15171.183533,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 21347.002165,
+            "bytes": 33455821,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1131438080,
+          "workerPeak": 1732440064,
+          "parentIdle": 1041932288,
+          "workerIdle": 1408229376
+        }
+      },
+      {
+        "seedReadyMs": 27578.160148000003,
+        "readyMs": 3933.852730999999,
+        "lists": [
+          {
+            "elapsedMs": 14388.090928000005,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 19915.30824099999,
+            "bytes": 33455827,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1137012736,
+          "workerPeak": 1744252928,
+          "parentIdle": 1047179264,
+          "workerIdle": 1411137536
+        }
+      },
+      {
+        "seedReadyMs": 5927.1245,
+        "readyMs": 2638.8993139999984,
+        "lists": [
+          {
+            "elapsedMs": 12977.591096,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 18070.245013000003,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1135480832,
+          "workerPeak": 1738502144,
+          "parentIdle": 1045696512,
+          "workerIdle": 1403363328
+        }
+      },
+      {
+        "seedReadyMs": 6017.738773000001,
+        "readyMs": 2624.8962520000023,
+        "lists": [
+          {
+            "elapsedMs": 12043.253979000001,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 16464.481206000004,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1139470336,
+          "workerPeak": 1727107072,
+          "parentIdle": 1049919488,
+          "workerIdle": 1391042560
+        }
+      }
+    ],
+    "memory": [
+      {
+        "readyMs": 3811.197905000001,
+        "lists": [
+          {
+            "elapsedMs": 14434.094575,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 20374.914829999998,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1228189696,
+          "workerPeak": 1743794176,
+          "parentIdle": 1134174208,
+          "workerIdle": 1424490496
+        }
+      },
+      {
+        "readyMs": 3892.1416229999995,
+        "lists": [
+          {
+            "elapsedMs": 17541.214886,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 23572.292919,
+            "bytes": 33455821,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1227390976,
+          "workerPeak": 1727086592,
+          "parentIdle": 1132802048,
+          "workerIdle": 1393885184
+        }
+      },
+      {
+        "readyMs": 3165.2777069999993,
+        "lists": [
+          {
+            "elapsedMs": 12818.833555,
+            "bytes": 26378723,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 17933.215806,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1230356480,
+          "workerPeak": 1746960384,
+          "parentIdle": 1159860224,
+          "workerIdle": 1416806400
+        }
+      },
+      {
+        "readyMs": 3723.2514759999995,
+        "lists": [
+          {
+            "elapsedMs": 15520.583399999998,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 20720.877472,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1230467072,
+          "workerPeak": 1762963456,
+          "parentIdle": 1135751168,
+          "workerIdle": 1430982656
+        }
+      },
+      {
+        "readyMs": 4255.0817609999995,
+        "lists": [
+          {
+            "elapsedMs": 15975.508853999998,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 21637.257009,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1157173248,
+          "workerPeak": 1742798848,
+          "parentIdle": 1085833216,
+          "workerIdle": 1422708736
+        }
+      }
+    ],
+    "filePrototype": [
+      {
+        "readyMs": 2917.8543069999996,
+        "lists": [
+          {
+            "elapsedMs": 13148.723759999999,
+            "bytes": 26378724,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 18366.773041,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1200484352,
+          "workerPeak": 1733349376,
+          "parentIdle": 1130270720,
+          "workerIdle": 1495707648
+        }
+      },
+      {
+        "readyMs": 2737.9477389999993,
+        "lists": [
+          {
+            "elapsedMs": 13917.367596,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 19442.672840000003,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1208295424,
+          "workerPeak": 1734610944,
+          "parentIdle": 1137975296,
+          "workerIdle": 1487622144
+        }
+      },
+      {
+        "readyMs": 3040.754092000001,
+        "lists": [
+          {
+            "elapsedMs": 13069.795299,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 18597.412790999995,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1200869376,
+          "workerPeak": 1727639552,
+          "parentIdle": 1130491904,
+          "workerIdle": 1483046912
+        }
+      },
+      {
+        "readyMs": 2650.355741000001,
+        "lists": [
+          {
+            "elapsedMs": 12171.767357,
+            "bytes": 26378717,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 17057.159404,
+            "bytes": 33455821,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1207721984,
+          "workerPeak": 1723191296,
+          "parentIdle": 1137246208,
+          "workerIdle": 1479110656
+        }
+      },
+      {
+        "readyMs": 2876.8539459999993,
+        "lists": [
+          {
+            "elapsedMs": 13597.189445999998,
+            "bytes": 26378716,
+            "taskCount": 20544,
+            "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78"
+          },
+          {
+            "elapsedMs": 18836.302061000002,
+            "bytes": 33455828,
+            "taskCount": 20560,
+            "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135"
+          }
+        ],
+        "rss": {
+          "parentPeak": 1260466176,
+          "workerPeak": 1758515200,
+          "parentIdle": 1160798208,
+          "workerIdle": 1515106304
+        }
+      }
+    ],
+    "noCollectionCache": [
+      {
+        "readyMs": 2754.0181979999998,
+        "lists": [],
+        "rss": {
+          "parentPeak": 868929536,
+          "workerPeak": 447520768,
+          "parentIdle": 868929536,
+          "workerIdle": 447520768
+        }
+      },
+      {
+        "readyMs": 4033.9329430000016,
+        "lists": [],
+        "rss": {
+          "parentPeak": 882294784,
+          "workerPeak": 454590464,
+          "parentIdle": 881696768,
+          "workerIdle": 454590464
+        }
+      },
+      {
+        "readyMs": 3049.495768999999,
+        "lists": [],
+        "rss": {
+          "parentPeak": 869384192,
+          "workerPeak": 448913408,
+          "parentIdle": 869515264,
+          "workerIdle": 448913408
+        }
+      },
+      {
+        "readyMs": 2875.547085,
+        "lists": [],
+        "rss": {
+          "parentPeak": 867823616,
+          "workerPeak": 449601536,
+          "parentIdle": 867823616,
+          "workerIdle": 449601536
+        }
+      },
+      {
+        "readyMs": 3010.8691450000006,
+        "lists": [],
+        "rss": {
+          "parentPeak": 809160704,
+          "workerPeak": 460627968,
+          "parentIdle": 809160704,
+          "workerIdle": 460627968
+        }
+      }
+    ],
+    "fullReady": [
+      {
+        "readyMs": 4849.641613999998,
+        "lists": [],
+        "rss": {
+          "parentPeak": 1171759104,
+          "workerPeak": 890568704,
+          "parentIdle": 1076232192,
+          "workerIdle": 849637376
+        }
+      },
+      {
+        "readyMs": 6492.069648999999,
+        "lists": [],
+        "rss": {
+          "parentPeak": 1234497536,
+          "workerPeak": 959148032,
+          "parentIdle": 1138794496,
+          "workerIdle": 906551296
+        }
+      },
+      {
+        "readyMs": 5019.412627,
+        "lists": [],
+        "rss": {
+          "parentPeak": 1232416768,
+          "workerPeak": 953311232,
+          "parentIdle": 1133625344,
+          "workerIdle": 913637376
+        }
+      },
+      {
+        "readyMs": 8478.313062,
+        "lists": [],
+        "rss": {
+          "parentPeak": 1161621504,
+          "workerPeak": 940568576,
+          "parentIdle": 1138388992,
+          "workerIdle": 892809216
+        }
+      },
+      {
+        "readyMs": 4789.40164,
+        "lists": [],
+        "rss": {
+          "parentPeak": 1172840448,
+          "workerPeak": 933240832,
+          "parentIdle": 1077063680,
+          "workerIdle": 904597504
+        }
+      }
+    ],
+    "coldBaseline": [
+      {
+        "seedReadyMs": 6963.259234,
+        "readyMs": 9181.356875,
+        "lists": [],
+        "rss": {
+          "parentPeak": 992460800,
+          "workerPeak": 809877504,
+          "parentIdle": 992460800,
+          "workerIdle": 770580480
+        }
+      },
+      {
+        "seedReadyMs": 6824.206401999999,
+        "readyMs": 6620.705000000002,
+        "lists": [],
+        "rss": {
+          "parentPeak": 991379456,
+          "workerPeak": 840790016,
+          "parentIdle": 991379456,
+          "workerIdle": 790921216
+        }
+      },
+      {
+        "seedReadyMs": 6708.160266000001,
+        "readyMs": 6899.629785999998,
+        "lists": [],
+        "rss": {
+          "parentPeak": 995106816,
+          "workerPeak": 836231168,
+          "parentIdle": 991260672,
+          "workerIdle": 775995392
+        }
+      },
+      {
+        "seedReadyMs": 7252.020109000001,
+        "readyMs": 7559.681415000001,
+        "lists": [],
+        "rss": {
+          "parentPeak": 954982400,
+          "workerPeak": 845312000,
+          "parentIdle": 954982400,
+          "workerIdle": 785137664
+        }
+      },
+      {
+        "seedReadyMs": 5717.811059000001,
+        "readyMs": 6318.108049,
+        "lists": [],
+        "rss": {
+          "parentPeak": 994328576,
+          "workerPeak": 833716224,
+          "parentIdle": 990416896,
+          "workerIdle": 802664448
+        }
+      }
+    ]
+  },
+  "componentMeasurements": {
+    "syntax": [
+      {
+        "syntaxMs": 703.3855000000008,
+        "syntaxBytes": 158446370,
+        "syntaxChunks": 196,
+        "valuesMs": 45.66308300000014
+      },
+      {
+        "syntaxMs": 709.0636350000003,
+        "syntaxBytes": 158446370,
+        "syntaxChunks": 196,
+        "valuesMs": 46.066740999999865
+      },
+      {
+        "syntaxMs": 671.0592959999985,
+        "syntaxBytes": 158446370,
+        "syntaxChunks": 196,
+        "valuesMs": 44.18979599999989
+      },
+      {
+        "syntaxMs": 890.2855949999988,
+        "syntaxBytes": 158446370,
+        "syntaxChunks": 196,
+        "valuesMs": 63.06381099999999
+      },
+      {
+        "syntaxMs": 712.6369159999999,
+        "syntaxBytes": 158446370,
+        "syntaxChunks": 196,
+        "valuesMs": 43.56980599999997
+      }
+    ],
+    "collection": [
+      {
+        "bytes": 85781633,
+        "serializeMs": 539.1725590000005,
+        "deserializeMs": [
+          888.4548070000001,
+          632.8260579999996,
+          582.0147170000009,
+          705.3703189999997,
+          650.2701620000007
+        ]
+      },
+      {
+        "bytes": 85781633,
+        "serializeMs": 445.66169999999875,
+        "deserializeMs": [
+          1007.9393380000001,
+          558.0859330000003,
+          562.8890169999995,
+          689.6396519999998,
+          764.2158380000001
+        ]
+      },
+      {
+        "bytes": 85781633,
+        "serializeMs": 460.9270379999998,
+        "deserializeMs": [
+          926.7549079999999,
+          899.6174259999998,
+          631.7612859999999,
+          569.9980369999994,
+          613.9511380000004
+        ]
+      },
+      {
+        "bytes": 85781633,
+        "serializeMs": 492.6666839999998,
+        "deserializeMs": [
+          1560.942223,
+          740.0633710000002,
+          595.4928469999995,
+          634.130529,
+          694.6355889999995
+        ]
+      },
+      {
+        "bytes": 85781633,
+        "serializeMs": 395.4897940000001,
+        "deserializeMs": [
+          673.902083,
+          535.0613880000001,
+          511.19956699999966,
+          695.5615820000003,
+          572.8578440000001
+        ]
+      }
+    ]
+  },
+  "equivalence": [
+    {
+      "slot": 1,
+      "taskCount": 20544,
+      "sha256": "984a731fa7d9a74140697b01a51b64db7d7494355d56c6efe11ca78df1fbec78",
+      "comparisons": 5,
+      "differences": 0
+    },
+    {
+      "slot": 2,
+      "taskCount": 20560,
+      "sha256": "6e773611c6a8bebd4c0c2bb672daebd01d280347c07b762eedb2d41b40153135",
+      "comparisons": 5,
+      "differences": 0
+    }
+  ],
+  "validation": {
+    "targeted": {
+      "files": 43,
+      "tests": 385,
+      "suites": 0,
+      "passed": 385,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "topLevel": 385
+    },
+    "fuzz": [
+      {
+        "commits": [
+          "c185bd7c932d96642506b10c3c0935fb689b7d02",
+          "94b144f057a4e6b2794959ed6c73bea293c54eca"
+        ],
+        "complete": false,
+        "requestPairs": 0,
+        "replayPairs": 0,
+        "differences": 0,
+        "errors": 1,
+        "exitCode": 11,
+        "durationMs": 13914.094417,
+        "requestMs": 5000,
+        "wallMs": 110000,
+        "failureKinds": [
+          "timeout"
+        ]
+      },
+      {
+        "commits": [
+          "c185bd7c932d96642506b10c3c0935fb689b7d02",
+          "94b144f057a4e6b2794959ed6c73bea293c54eca"
+        ],
+        "complete": false,
+        "requestPairs": 0,
+        "replayPairs": 0,
+        "differences": 0,
+        "errors": 1,
+        "exitCode": 11,
+        "durationMs": 9672.365086000002,
+        "requestMs": 5000,
+        "wallMs": 110000,
+        "failureKinds": [
+          "timeout"
+        ]
+      },
+      {
+        "commits": [
+          "c185bd7c932d96642506b10c3c0935fb689b7d02",
+          "c185bd7c932d96642506b10c3c0935fb689b7d02"
+        ],
+        "complete": false,
+        "requestPairs": 29,
+        "replayPairs": 21,
+        "differences": 0,
+        "errors": 1,
+        "exitCode": 15,
+        "durationMs": 110092.73913399999,
+        "requestMs": 5000,
+        "wallMs": 110000,
+        "failureKinds": [
+          "budget"
+        ]
+      }
+    ],
+    "quick": {
+      "files": 343,
+      "tests": 3478,
+      "passed": 3410,
+      "failed": 0,
+      "skipped": 68,
+      "cancelled": 0,
+      "todo": 0,
+      "durationMs": 666904.8848100001
+    }
+  }
+}

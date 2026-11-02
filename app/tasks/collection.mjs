@@ -104,11 +104,12 @@ export function selectCollectionGoals(presentation, state, memberId) {
  * completionGroup indexes shared potential completion IDs. Family arrays are
  * sent once per result, never repeated across every alternative source row.
  */
-export function createCollectionEngine(definitions, { dataset, cacheShops = dataset?.capabilities.cacheShops ?? false, shopCatalogue } = {}) {
+export function createCollectionEngine(definitions, { dataset, cacheShops = dataset?.capabilities.cacheShops ?? false, shopCatalogue,
+  prepared, onPrepared } = {}) {
   if (dataset) requireSelectedDataset(dataset);
   definitions = applyCacheShops(definitions, { enabled: cacheShops, shops: shopCatalogue });
   if (!definitions || typeof definitions !== 'object') throw new TypeError('Collection definitions are required');
-  const tables = definitions.codeItems?.dropTables ?? {}, channels = [], catalogue = new Map(), families = new Map();
+  const tables = definitions.codeItems?.dropTables ?? {}, channels = prepared?.channels ?? [], catalogue = prepared?.catalogue ?? new Map(), families = new Map();
   // The authored entity registry is immutable. Each exact subject is resolved
   // once, rather than normalizing the same source/item for every objective.
   const entityIds = new Map();
@@ -182,57 +183,59 @@ export function createCollectionEngine(definitions, { dataset, cacheShops = data
     }
     channels.push(channel);
   }
-  for (const [name, table] of entries(definitions.drops)) addChannel({ kind: 'drop', name, display: displaySource(name), every: true, all: true }, table);
-  for (const node of Object.values(definitions.chunks ?? {})) {
-    for (const record of [node, ...Object.values(node.Sections ?? {})]) for (const name of Object.keys(record.Monster ?? {})) monsters.add(name);
-  }
-  for (const values of Object.values(definitions.codeItems?.monstersPlus ?? {})) for (const name of list(values)) if (typeof name === 'string') monsters.add(name);
-  for (const name of monsters) kill(name);
-  for (const [category, tasks] of entries(definitions.challenges)) for (const [rawLabel, record] of entries(tasks)) {
-    if (category === 'Nonskill' && /^Bird nest \(.+\) loot$/.test(rawLabel) && definitions.skillItems?.Nonskill?.[rawLabel]) {
-      const name = rawLabel.slice(0, -5);
-      addChannel({ kind: 'nest', name, display: displaySource(name), taskId: permanentTaskId(category, rawLabel, record), rawLabel, category, record, every: false, all: true, nest: true }, definitions.skillItems.Nonskill[rawLabel]);
+  if (!prepared) {
+    for (const [name, table] of entries(definitions.drops)) addChannel({ kind: 'drop', name, display: displaySource(name), every: true, all: true }, table);
+    for (const node of Object.values(definitions.chunks ?? {})) {
+      for (const record of [node, ...Object.values(node.Sections ?? {})]) for (const name of Object.keys(record.Monster ?? {})) monsters.add(name);
     }
-    for (const output of list(record.Output)) {
-      const table = definitions.skillItems?.[category]?.[output] ?? tables[output];
-      const taskId = permanentTaskId(category, rawLabel, record);
-      if (record.Source === 'shop') {
-        const shop = /~\|([^|]+)\|~/.exec(rawLabel)?.[1];
-        if (shop) {
-          const items = table ? Object.keys(table) : [output];
-          for (const item of items) if (typeof item === 'string' && !item.includes('^^')) {
-            const name = clean(item), raw = `${shop}: ~|${name}|~`;
-            const row = goal(raw, 'all-shops', { kind: 'task-shop', name: shop }, name);
-            channels.push({ kind: 'task-shop', taskId, rawLabel, category, record, name: shop, item: name, raw, id: row.id });
+    for (const values of Object.values(definitions.codeItems?.monstersPlus ?? {})) for (const name of list(values)) if (typeof name === 'string') monsters.add(name);
+    for (const name of monsters) kill(name);
+    for (const [category, tasks] of entries(definitions.challenges)) for (const [rawLabel, record] of entries(tasks)) {
+      if (category === 'Nonskill' && /^Bird nest \(.+\) loot$/.test(rawLabel) && definitions.skillItems?.Nonskill?.[rawLabel]) {
+        const name = rawLabel.slice(0, -5);
+        addChannel({ kind: 'nest', name, display: displaySource(name), taskId: permanentTaskId(category, rawLabel, record), rawLabel, category, record, every: false, all: true, nest: true }, definitions.skillItems.Nonskill[rawLabel]);
+      }
+      for (const output of list(record.Output)) {
+        const table = definitions.skillItems?.[category]?.[output] ?? tables[output];
+        const taskId = permanentTaskId(category, rawLabel, record);
+        if (record.Source === 'shop') {
+          const shop = /~\|([^|]+)\|~/.exec(rawLabel)?.[1];
+          if (shop) {
+            const items = table ? Object.keys(table) : [output];
+            for (const item of items) if (typeof item === 'string' && !item.includes('^^')) {
+              const name = clean(item), raw = `${shop}: ~|${name}|~`;
+              const row = goal(raw, 'all-shops', { kind: 'task-shop', name: shop }, name);
+              channels.push({ kind: 'task-shop', taskId, rawLabel, category, record, name: shop, item: name, raw, id: row.id });
+            }
           }
         }
+        if (!table) continue;
+        let every = false, all = false, subrule, name = output, display = displaySource(output), nest = false;
+        if (category === 'Slayer' && rawLabel.includes('Slay ')) { every = true; all = true; }
+        if (category === 'Thieving') { every = !record['Hide drops']; all = true; subrule = 'Every Drop Thieving'; display = `[Thieving] ${display}`; }
+        if (category === 'Hunter') {
+          name = output.replaceAll(' jar', ''); display = displaySource(name);
+          if (rawLabel.includes('impling')) { every = true; all = true; subrule = 'Every Drop Implings'; }
+          else if (rawLabel.includes('Big Game Hunter')) { every = true; subrule = 'Every Drop BGH'; }
+          else if (/bakami|orokami/.test(rawLabel)) all = true;
+        }
+        if (category === 'Nonskill' && /^Bird nest \(.+\) loot$/.test(rawLabel) && !definitions.skillItems?.Nonskill?.[rawLabel]) { all = true; nest = true; name = rawLabel.slice(0, -5); display = displaySource(name); }
+        if (every || all) addChannel({ kind: 'task', name, display, taskId, rawLabel, category, record, every, all, subrule, nest }, table);
       }
-      if (!table) continue;
-      let every = false, all = false, subrule, name = output, display = displaySource(output), nest = false;
-      if (category === 'Slayer' && rawLabel.includes('Slay ')) { every = true; all = true; }
-      if (category === 'Thieving') { every = !record['Hide drops']; all = true; subrule = 'Every Drop Thieving'; display = `[Thieving] ${display}`; }
-      if (category === 'Hunter') {
-        name = output.replaceAll(' jar', ''); display = displaySource(name);
-        if (rawLabel.includes('impling')) { every = true; all = true; subrule = 'Every Drop Implings'; }
-        else if (rawLabel.includes('Big Game Hunter')) { every = true; subrule = 'Every Drop BGH'; }
-        else if (/bakami|orokami/.test(rawLabel)) all = true;
-      }
-      if (category === 'Nonskill' && /^Bird nest \(.+\) loot$/.test(rawLabel) && !definitions.skillItems?.Nonskill?.[rawLabel]) { all = true; nest = true; name = rawLabel.slice(0, -5); display = displaySource(name); }
-      if (every || all) addChannel({ kind: 'task', name, display, taskId, rawLabel, category, record, every, all, subrule, nest }, table);
+    }
+    for (const [shop, stock] of entries(definitions.shopItems)) for (const [item, value] of entries(stock)) if (value !== false && !item.includes('^^')) {
+      const name = clean(item), raw = `${shop}: ~|${name}|~`, row = goal(raw, 'all-shops', { kind: 'shop', name: shop }, name);
+      channels.push({ kind: 'shop', name: shop, item: name, raw, id: row.id });
+    }
+    for (const selector of Object.keys(definitions.taskUnlocks?.Shops ?? {})) {
+      const split = selector.indexOf('^'); if (split < 1) continue;
+      const shop = selector.slice(0, split), item = selector.slice(split + 1); if (!item || item.includes('^^')) continue;
+      const name = clean(item), raw = `${shop}: ~|${name}|~`, row = goal(raw, 'all-shops', { kind: 'shop', name: shop }, name);
+      channels.push({ kind: 'shop', name: shop, item: name, raw, id: row.id });
     }
   }
-  for (const [shop, stock] of entries(definitions.shopItems)) for (const [item, value] of entries(stock)) if (value !== false && !item.includes('^^')) {
-    const name = clean(item), raw = `${shop}: ~|${name}|~`, row = goal(raw, 'all-shops', { kind: 'shop', name: shop }, name);
-    channels.push({ kind: 'shop', name: shop, item: name, raw, id: row.id });
-  }
-  for (const selector of Object.keys(definitions.taskUnlocks?.Shops ?? {})) {
-    const split = selector.indexOf('^'); if (split < 1) continue;
-    const shop = selector.slice(0, split), item = selector.slice(split + 1); if (!item || item.includes('^^')) continue;
-    const name = clean(item), raw = `${shop}: ~|${name}|~`, row = goal(raw, 'all-shops', { kind: 'shop', name: shop }, name);
-    channels.push({ kind: 'shop', name: shop, item: name, raw, id: row.id });
-  }
   duplicateAliases.clear();
-  const completionGroups = new Map([...families].map(([name, ids]) => [name, Object.freeze([...ids])]));
+  const completionGroups = prepared?.completionGroups ?? new Map([...families].map(([name, ids]) => [name, Object.freeze([...ids])]));
   const completionById = new Map();
   for (const ids of completionGroups.values()) for (const id of ids) completionById.set(id, ids);
   // Keep potential family membership available before any evaluated view has
@@ -241,6 +244,7 @@ export function createCollectionEngine(definitions, { dataset, cacheShops = data
     if (completionById.has(row.id)) row.completionIds = completionById.get(row.id);
     return Object.freeze(row);
   }));
+  onPrepared?.({ channels, catalogue, completionGroups });
 
   function evaluate(state, memberId, result, { obligationQueries = [] } = {}) {
     const facts = new Map(state.members.map(owner => [owner.id, projectMemberTaskFacts(state, owner, catalogueRows)]));
