@@ -1,3 +1,5 @@
+import { readStartupJSON, showStartupError } from './startup-read.mjs';
+
 // One immutable provider per process/isolate. Resolve it before any dependent
 // module materializes identities, rules or indexes. Packs contain data only.
 const node = typeof process !== 'undefined' && !!process.versions?.node;
@@ -12,9 +14,7 @@ export let selectedDataset = await (async () => {
     return resolveDataset(workerData?.datasetSelection ?? {});
   }
   // About 3 MB of game data: revalidate so an unchanged copy costs a 304, not a download on every load.
-  const response = await fetch('/data/dataset-runtime.json', { credentials: 'same-origin', cache: 'no-cache' });
-  if (!response.ok) throw new Error('Game data could not be loaded. Reload the picker.');
-  const payload = await response.json();
+  const payload = await readStartupJSON('/data/dataset-runtime.json').catch(error => { showStartupError(error); throw error; });
   const decode = value => {
     if (value?.$datasetType === 'Undefined') return undefined;
     if (value?.$datasetType === 'Set') return new Set(value.entries.map(decode));
@@ -35,12 +35,8 @@ export let selectedDataset = await (async () => {
       const route = key.startsWith('app/data/') ? `/data/${key.slice('app/data/'.length)}`
         : key === 'app/web/gallery-fixture-data.json' ? '/gallery-fixture-data.json'
           : `/api/dataset-input?key=${encodeURIComponent(key)}`;
-      if (!cache.has(key)) cache.set(key, fetch(`${route}${route.includes('?') ? '&' : '?'}digest=${payload.dataset.digest}`, {
-        credentials: 'same-origin', cache: 'no-cache',
-      }).then(async result => {
-        if (!result.ok) throw new Error('Game data changed. Reload the picker.');
-        return result.json();
-      }));
+      if (!cache.has(key)) cache.set(key, readStartupJSON(`${route}${route.includes('?') ? '&' : '?'}digest=${payload.dataset.digest}`)
+        .catch(error => { cache.delete(key); showStartupError(error); throw error; }));
       return cache.get(key);
     },
   });

@@ -44,6 +44,7 @@ function launch({ remembered = null, session = { admin: false, memberId: 'reed' 
     createOverlayPanel: () => ({ open: async () => { overlays.opens++; } }),
     $: id => { if (!controls.has(id)) controls.set(id, { addEventListener(type, callback) { this[type] = callback; }, append() {} }); return controls.get(id); }, el: () => ({ setAttribute() {} }), button() {}, input() {}, field() {}, openDialog() {}, dialogCurrent() {},
     loadTerrainManifest: async () => null, loadArtStatus: async () => null, installPictureFallbacks() {}, observeArtStatus: listener => listener(null), hydrateDisplayWorld: data => data, createRuleRegistryFromDefinitions: rules => rules,
+    startup: new AbortController(), setStartupSession() {}, read: route => context.api(route),
     showError: error => errors.push(error),
     localStorage: { getItem: key => { if (key === 'picker.viewer-preferences') return null; assert.equal(key, 'duo-member'); if (storageBlocked) throw new Error('Blocked'); return remembered; } },
   });

@@ -2,9 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { createServer } from 'node:http';
+import { createScreenCommands } from '../app/web/screen-commands.mjs';
 import { createLiveSwapCommandClient, commandOutboxKey } from '../app/web/live-swap-client.mjs';
 import { createBackupUpload } from '../app/web/backup-transfer.mjs';
 import { createAccountPanel } from '../app/web/account-panel.mjs';
+import { withStartupTimeout, startupRetryAfter, retryStartupRead } from '../app/startup-read.mjs';
 
 const sources = await Promise.all(['screen-save-status'].map(name => readFile(new URL(`../app/web/${name}.mjs`, import.meta.url), 'utf8')));
 const scopeA = 'p_' + 'a'.repeat(32), scopeB = 'p_' + 'b'.repeat(32);
@@ -18,7 +21,7 @@ function storage() {
 }
 const response = (value = {}, status = 200) => ({ ok: status < 400, status, json: async () => value });
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
-function fixture({ local = storage(), tab = storage(), initial = session(), transport } = {}) {
+function fixture({ local = storage(), tab = storage(), initial = session(), transport, sessionTransport } = {}) {
   const notices = [], calls = [], listeners = {}, timers = [], disposed = [], rendered = { text: 'old view', replaceChildren() { this.text = ''; } };
   let current = initial, status = 200, reloads = 0, offline = false;
   const c = { state: { revision: 7, members: [{ id: 'owner' }] }, result: { memberId: 'owner', stateRevision: 7 },
@@ -28,14 +31,14 @@ function fixture({ local = storage(), tab = storage(), initial = session(), tran
     usage: { stop: () => disposed.push('usage'), refreshPreference() {} }, backupStatus: { dispose: () => disposed.push('backup') },
     closeDialog: () => disposed.push('dialog'), refreshSaveRecovery: () => disposed.push('recovery'), taskController: { abort: () => disposed.push('tasks') },
   };
-  const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout, console,
+  const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout, console, withStartupTimeout, startupRetryAfter,
     document: { querySelectorAll: () => [rendered], addEventListener: (type, listener) => { listeners[`document:${type}`] = listener; } },
     localStorage: local, sessionStorage: tab, addEventListener: (type, listener) => { listeners[type] = listener; },
   });
   const exports = vm.runInContext(`(() => { ${sources.join('\n').replace(/^import .*\n/gm, '').replace(/^export /gm, '')}\nreturn { createScreenPickerSession, gameStorage, configurePickerStorage, clearPickerStorage }; })()`, context);
   exports.createScreenPickerSession(c, { fetch: async (path, options) => {
     calls.push({ path, options });
-    if (path === '/api/session') { if (offline) throw new Error('Offline'); return response(current, status); }
+    if (path === '/api/session') { if (sessionTransport) return sessionTransport(options); if (offline) throw new Error('Offline'); return response(current, status); }
     return transport ? transport(path, options) : response({ state: { revision: 7 } });
   }, storage: () => local, tabStorage: () => tab, notify: text => notices.push(text),
     location: { reload: () => { reloads++; } }, schedule: callback => { timers.push(callback); return 1; }, cancel: () => disposed.push('poll') });
@@ -130,6 +133,88 @@ test('network failure checking session fails closed without deleting queued work
   assert.equal(f.calls.filter(call => call.path === '/api/command').length, 0);
   assert.equal(f.tab.getItem(prefix(scopeA) + commandOutboxKey), 'retained');
   assert.equal(f.c.panelContext.pickerSession.stopped, false);
+});
+
+test('a hung shared session preflight times out so startup can check again', async () => {
+  let calls = 0, deadline, firstSignal;
+  const f = fixture({ sessionTransport: ({ signal }) => {
+    if (++calls === 1) { firstSignal = signal; return new Promise(() => {}); }
+    return response(session());
+  } });
+  f.context.withStartupTimeout = work => withStartupTimeout(work, {
+    setTimer: callback => { deadline = callback; return 1; }, clearTimer() {},
+  });
+  const checking = f.c.panelContext.pickerSession.check();
+  await new Promise(resolve => setImmediate(resolve)); deadline();
+  await assert.rejects(checking, /too long/);
+  assert.equal(firstSignal.aborted, true);
+  await f.c.panelContext.pickerSession.fetch('/api/state');
+  assert.equal(calls, 2); assert.equal(f.c.panelContext.pickerSession.stopped, false);
+});
+
+test('session preflight preserves updating status and Retry-After for startup', async () => {
+  const f = fixture({ sessionTransport: () => ({ ...response({ code: 'PICKER_UPDATING' }, 503), headers: new Headers({ 'Retry-After': '60' }) }) });
+  await assert.rejects(f.c.panelContext.pickerSession.fetch('/api/state'), { status: 503, code: 'PICKER_UPDATING', retryAfterMs: 60000 });
+});
+
+test('multi-picker startup aborts the actual stalled body transport before retrying', async t => {
+  let requests = 0, closed;
+  const disconnected = new Promise(resolve => { closed = resolve; });
+  const server = createServer((_req, res) => {
+    if (++requests > 1) return res.end('{"ready":true}');
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.write('{"ready":');
+    res.on('close', closed);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
+  const signals = [], f = fixture({ transport: (path, options) => {
+    signals.push(options.signal);
+    return fetch(`http://127.0.0.1:${server.address().port}${path}`, options);
+  } });
+  Object.assign(f.c, { canWrite: () => true, sandbox: { active: false }, $: () => null });
+  createScreenCommands(f.c);
+  let deadline, bodyStarted;
+  const readingBody = new Promise(resolve => { bodyStarted = resolve; });
+  const loading = retryStartupRead((signal, readJSON) => f.c.api('/api/state', undefined, signal, { retryRead: false, readJSON }), {
+    setTimer: (callback, ms) => { deadline = callback; if (ms === 35000) bodyStarted(); return 1; }, clearTimer() {},
+    sleep: async () => { assert.equal(signals[0].aborted, true, 'abort reaches native fetch, not just the outer startup signal'); }, onRetry() {},
+  });
+  await readingBody; await new Promise(resolve => setImmediate(resolve));
+  assert.equal(signals[0].aborted, false); deadline();
+  assert.deepEqual(await loading, { ready: true });
+  await disconnected;
+  assert.equal(requests, 2); assert.equal(signals[0].aborted, true);
+  assert.equal(f.c.panelContext.pickerSession.stopped, false);
+});
+
+test('ordinary scoped fetches still detach after headers, including unread unload responses', async () => {
+  const signals = [], f = fixture({ transport: (_path, options) => { signals.push(options.signal); return response(); } });
+  const controller = new AbortController();
+  await f.c.panelContext.pickerSession.fetch('/api/state', { signal: controller.signal });
+  controller.abort();
+  assert.equal(signals[0].aborted, false, 'ordinary response lifetime is unchanged');
+  await f.c.panelContext.pickerSession.fetch('/api/usage', { method: 'POST', keepalive: true });
+  f.c.panelContext.pickerSession.stop();
+  assert.equal(signals[1].aborted, false, 'retirement must not cancel the dispatched unload flush');
+});
+
+test('streamed startup data cannot publish after picker retirement even if transport ignores abort', async () => {
+  let stream, signal, bodyStarted;
+  const readingBody = new Promise(resolve => { bodyStarted = resolve; });
+  const f = fixture({ transport: (_path, options) => {
+    signal = options.signal;
+    return new Response(new ReadableStream({ start(controller) { stream = controller; } }));
+  } });
+  Object.assign(f.c, { canWrite: () => true, sandbox: { active: false }, $: () => null });
+  createScreenCommands(f.c);
+  const loading = withStartupTimeout((signal, readJSON) => f.c.api('/api/state', undefined, signal, { retryRead: false, readJSON }), {
+    setTimer: (_callback, ms) => { if (ms === 35000) bodyStarted(); return 1; }, clearTimer() {},
+  });
+  const rejected = assert.rejects(loading, { name: 'AbortError' });
+  await readingBody; f.c.panelContext.pickerSession.stop();
+  assert.equal(signal.aborted, true);
+  stream.enqueue(new TextEncoder().encode('{"state":{"revision":7}}')); stream.close();
+  await rejected; assert.equal(f.c.state, undefined);
 });
 
 test('every game request and stream carries its trusted routing selector', async () => {

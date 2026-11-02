@@ -1802,7 +1802,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/top-bar-buttons.mjs', '/top-bar.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/banking-settings.mjs', '/banking-display.mjs', '/banking.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/training/mining-rates.mjs', '/training/mining-rules.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'training'), route.slice('/training/'.length));
-      else if (route === '/dataset-runtime.mjs') file = await containedFile(path.join(ROOT, 'app'), 'dataset-runtime.mjs');
+      else if (['/dataset-runtime.mjs', '/startup-read.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app'), route.slice(1));
       else if (route === '/data/dataset-runtime.json') {
         await sendCached(request, response, cachedValue(`dataset-runtime:${dataset.digest}`, () => browserDataset)); return;
       }

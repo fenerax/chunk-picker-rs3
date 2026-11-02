@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
+import { retryStartupRead, setStartupSession } from '../app/startup-read.mjs';
 import { createStreamSafe } from '../app/web/stream-safe.mjs';
 import { createScreenControls, handleScreenEscape } from '../app/web/screen-controls.mjs';
 import { controlUsageId } from '../app/web/usage-client.mjs';
@@ -84,7 +85,9 @@ test('Invite links, Accounts, Account and OBS overlays retain their startup dial
   c.api = async () => { throw stop; }; c.applySession = session => { c.sessionAdmin = session.admin; };
   c.panelContext = {};
   const panel = () => ({ start() {}, setSession() {} });
-  runInNewContext(source + '\ncreateScreenStartup(c);', { c, document: globalThis.document, globalThis: {},
+  runInNewContext(source + '\ncreateScreenStartup(c);', { c, document: globalThis.document, globalThis: {}, AbortController, setStartupSession,
+    // The stop error ends startup at its first read instead of retrying it.
+    retryStartupRead: (request, options) => retryStartupRead(request, { ...options, onRetry: error => { throw error; } }),
     createFeedback: panel, createUpdates: panel, createBackupStatus: panel,
     createInvites: () => ({ loadSession: async () => ({ admin: true }), open: async () => opened.push('Invite links') }),
     createAccountPanel: () => ({ setSession() {}, open: () => opened.push('Account') }),

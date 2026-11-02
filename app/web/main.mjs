@@ -31,6 +31,7 @@ import { createScreenPhoneLayout } from './screen-phone-layout.mjs';
 import { createXpChoices } from './lamp-choices.mjs';
 import { createScreenUsage } from './screen-usage.mjs';
 import { createScreenSetupGuide } from './setup-guide.mjs';
+import { showStartupError } from '../startup-read.mjs';
 
 // Feature factories register callbacks before startup uses them. No module imports a peer.
 const screen = createScreenContext();
@@ -69,4 +70,4 @@ createScreenPhoneLayout(screen);
 createScreenSetupGuide(screen);
 screen.applyDatasetControls();
 
-screen.start().catch(error => { screen.$('startup-error').hidden = false; screen.$('startup-error').replaceChildren(screen.el('h2', 'Could not open the picker'), screen.el('p', error.message), screen.button('Retry', () => location.reload())); screen.saved('Load failed', true); });
+screen.start().catch(showStartupError);

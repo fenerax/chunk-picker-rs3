@@ -73,8 +73,8 @@ export function createScreenCommands(c) {
         if (error.name !== 'AbortError' && !/\/preview$/.test(path) && !error.status) error.message = 'The save could not be confirmed. It may already have arrived. Check History before repeating the change.';
         throw error;
       }) : undefined;
-    const { response, value } = sent ?? await readRequest(requestPath, body === undefined ? { signal } : typeof body.toBackupRequest === 'function'
-      ? { ...await body.toBackupRequest(), signal } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }).catch(error => {
+    const { response, value } = sent ?? await readRequest(requestPath, body === undefined ? { signal, keepBodySignal: Boolean(commandOptions?.readJSON) } : typeof body.toBackupRequest === 'function'
+      ? { ...await body.toBackupRequest(), signal } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }, { retry: commandOptions?.retryRead !== false, readJSON: commandOptions?.readJSON }).catch(error => {
         // Reviewed imports and original-sync use one-shot preview tokens rather
         // than action receipts. Never encourage blind replay after a lost reply.
         if (body !== undefined && error.name !== 'AbortError' && !error.status
@@ -83,6 +83,7 @@ export function createScreenCommands(c) {
         }
         throw error;
       });
+    if (c.panelContext?.pickerSession?.stopped) throw Object.assign(new Error('The picker changed.'), { name: 'AbortError' });
     const provisionalTaskState = /^\/api\/tasks(?:\?|$)/.test(path) && typeof c.hasProvisionalTasks === 'function' && c.hasProvisionalTasks();
     if (!provisionalTaskState && path !== '/api/prediction-intent' && value.state && (response.status === 409 || /^\/api\/(?:state|command|runemetrics\/apply|restore|import|member-restore)$/.test(path))) c.stateIsPlayView = value.format === 'play-v1';
     if (!response.ok) {

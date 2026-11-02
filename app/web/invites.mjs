@@ -8,9 +8,9 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
   dialog.addEventListener('close', () => { if (!dialog.open) { clearSecret(); disposeRows?.(); disposeRows = undefined; } });
   dialog.addEventListener('cancel', clearSecret);
 
-  async function loadSession() {
+  async function loadSession(read = api) {
     menuButton.hidden = true;
-    const session = await api('/api/session');
+    const session = await read('/api/session');
     menuButton.hidden = session.adminAvailable === false || session.admin !== true;
     return session;
   }

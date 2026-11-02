@@ -1,4 +1,5 @@
 import { canSaveAddress } from './save-address.mjs';
+import { withStartupTimeout, startupRetryAfter } from '../startup-read.mjs';
 
 // Live synchronization reports shared revisions; only the local attempt can
 // clear a refused change or finish an in-flight save.
@@ -113,14 +114,19 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     if (!session?.multiPicker) return;
     active();
     if (accountAction) throw new Error('An account change is in progress. Try again after it finishes.');
-    if (!checking) checking = (async () => {
-      const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
+    if (!checking) checking = withStartupTimeout(async (signal, readJSON) => {
+      const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal });
       active();
       if ([401, 403].includes(response.status)) { reload(); throw abandoned(); }
-      if (!response.ok) throw new Error('Could not check the active account. Try again.');
-      const next = await response.json(); active();
+      if (!response.ok) {
+        let value; try { value = await readJSON(response); } catch {}
+        throw Object.assign(new Error('Could not check the active account. Try again.'), {
+          status: response.status, code: value?.code, retryAfterMs: startupRetryAfter(response),
+        });
+      }
+      const next = await readJSON(response); active();
       if (!next.multiPicker || identity(next) !== signature) { reload(); throw abandoned(); }
-    })().finally(() => { checking = undefined; });
+    }).finally(() => { checking = undefined; });
     return checking;
   }
   async function scopedFetch(path, options, transport = fetch) {
@@ -128,10 +134,13 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     // Unload flushes must dispatch before teardown: skip the preflight. The
     // picker header still binds them, and the server refuses a changed session.
     if (options?.keepalive) active(); else { await check(); active(); }
-    const controller = new AbortController(), abort = () => controller.abort();
+    const controller = new AbortController();
+    const detach = () => { requests.delete(controller); options?.signal?.removeEventListener('abort', abort); };
+    const abort = () => { controller.abort(); detach(); };
     options?.signal?.addEventListener('abort', abort, { once: true });
     if (options?.signal?.aborted) abort();
     requests.add(controller);
+    let retain = false;
     try {
       const headers = new Headers(options?.headers); headers.set('X-Picker-Id', session.pickerRoute ?? session.pickerId);
       const response = await transport(path, { ...options, headers, signal: controller.signal });
@@ -143,8 +152,12 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
         const read = response[method].bind(response);
         response[method] = async () => { const value = await read(); active(); return value; };
       }
+      // Ordinary callers may ignore the body (including unload keepalives).
+      // Startup owns its signal until the complete body read settles, and aborts
+      // it in finally, so retaining this listener cannot outlive the attempt.
+      retain = options?.keepBodySignal === true && Boolean(options.signal) && !options.signal.aborted;
       return response;
-    } finally { requests.delete(controller); options?.signal?.removeEventListener('abort', abort); }
+    } finally { if (!retain) detach(); }
   }
   function initialize(value) {
     if (!value.multiPicker) return;

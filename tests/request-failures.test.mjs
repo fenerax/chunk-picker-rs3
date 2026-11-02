@@ -54,3 +54,14 @@ test('an aborted read stays silent and an unreadable success gives recovery guid
   await assert.rejects(read('/api/tasks', { signal: aborted.signal }), { name: 'AbortError' }); assert.equal(calls, 0);
   await assert.rejects(read('/api/tasks'), /interrupted or unreadable/);
 });
+
+test('startup can own read retries without losing a session preflight Retry-After', async () => {
+  const error = Object.assign(new Error('Updating'), { status: 503, code: 'PICKER_UPDATING', retryAfterMs: 60000 });
+  const read = createRequestReader({ fetch: async () => { throw error; }, sleep: async () => assert.fail('startup owns the delay') });
+  await assert.rejects(read('/api/state', {}, { retry: false }), { status: 503, code: 'PICKER_UPDATING', retryAfterMs: 60000 });
+  let calls = 0;
+  const warming = createRequestReader({ fetch: async () => { calls++; return response(503, { code: 'PICKER_UPDATING' }); },
+    sleep: async () => assert.fail('startup owns the delay') });
+  assert.equal((await warming('/api/session', {}, { retry: false })).response.status, 503);
+  assert.equal(calls, 1);
+});

@@ -11,7 +11,7 @@ const apiSource = screenFunctionSource(await readScreenGraph(), 'api');
 const payload = () => ({memberId:'reed',stateRevision:7,tasks:[{id:'custom:one',label:'Saved goal'}],metrics:{availableCount:1}});
 function harness(response, canWrite = false) {
   const context=createContext({canWrite:()=>canWrite,sandbox:{active:false},state:{revision:8},fetch:async()=>response,
-    readRequest:createRequestReader({fetch:async()=>response}),requestError,feedback:{begin:()=>()=>{}},calculationLabel:()=>'',memberId:'reed',duoEnabled:()=>false});
+    readRequest:createRequestReader({fetch:async()=>response}),requestError,feedback:{begin:()=>()=>{}},calculationLabel:()=>'',memberId:'reed',duoEnabled:()=>false,panelContext:{}});
   runInContext(apiSource,context); return context;
 }
 
