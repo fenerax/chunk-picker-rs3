@@ -7,9 +7,9 @@ export class Failure extends Error {
   constructor(kind, detail = {}) { super(kind); this.kind = kind; this.code = EXIT[kind]; this.detail = detail; }
 }
 export class Client {
-  constructor(root, mode, scratch, limits, observe = () => {}) {
+  constructor(root, mode, scratch, limits, observe = () => {}, bridge = new URL('./bridge.mjs', import.meta.url)) {
     this.limits = limits; this.peakRSSBytes = 0; this.currentRSSBytes = 0; this.durations = [];
-    this.child = fork(fileURLToPath(new URL('./bridge.mjs', import.meta.url)), [root, mode, scratch], {
+    this.child = fork(fileURLToPath(bridge), [root, mode, scratch], {
       cwd: scratch, execArgv: ['--max-old-space-size=256'], serialization: 'advanced', stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
     });
     this.closed = new Promise(resolve => this.child.once('close', resolve));

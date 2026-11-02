@@ -6,7 +6,7 @@ import { checkTestPorts } from './test-port-check.mjs';
 export const fullConcurrency = 6;
 export const concurrencyFor = (suite, env = process.env) => {
   const chosen = Number(env.RS3_TEST_CONCURRENCY);
-  return Number.isInteger(chosen) && chosen >= 1 && chosen <= 6 ? chosen : suite === 'full' ? fullConcurrency : suite === 'differential' ? 1 : 2;
+  return Number.isInteger(chosen) && chosen >= 1 && chosen <= 6 ? chosen : suite === 'full' ? fullConcurrency : ['differential', 'engine-differential'].includes(suite) ? 1 : 2;
 };
 export const adaptiveOptionsFor = (suite, env = process.env) => {
   const cap = concurrencyFor(suite, env);
@@ -16,6 +16,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
   "prepared-collection.test.mjs",
+  "q2-diff-engine.test.mjs",
   "startup-retry.test.mjs",
   "multi-picker-capacity.test.mjs",
   "calculator-bundle.test.mjs",
@@ -670,11 +671,15 @@ export function testRunPolicy(name) {
 // Owned by .github/workflows/differential.yml, with a separate coverage report.
 // These files never run in the ordinary quick/full suites.
 export const differentialTests = new Set(['y03-fuzz-ci-integration.test.mjs']);
+// Explicit opt-in: keep Q2's full-corpus detectors out of the existing five-minute
+// y03 detector step and the scheduled deep campaign.
+export const engineDifferentialTests = new Set(['q2-diff-engine-integration.test.mjs']);
 
 export function classifyTest(name) {
   // Private-only cases split from a core file share that file's classification.
   const shared = name.replace(/\.private\.test\.mjs$/, '.test.mjs');
   if (shared !== name) return classifyTest(shared);
+  if (engineDifferentialTests.has(name)) return 'engine-differential-only';
   if (differentialTests.has(name)) return 'differential-only';
   if (quickTests.has(name)) return 'quick';
   if (fullOnlyTests.has(name) || fullOnlyPatterns.some(({ pattern }) => pattern.test(name))) return 'full-only';
@@ -682,12 +687,13 @@ export function classifyTest(name) {
 }
 
 export function selectTests(names, suite = 'quick') {
-  if (!['quick', 'full', 'differential'].includes(suite)) throw new Error('Suite must be quick, full or differential');
+  if (!['quick', 'full', 'differential', 'engine-differential'].includes(suite)) throw new Error('Suite must be quick, full, differential or engine-differential');
   const files = [...names].filter(name => name.endsWith('.test.mjs')).sort();
   const unknown = files.filter(name => !classifyTest(name));
-  if (unknown.length) throw new Error('Unclassified tests: ' + unknown.join(', ') + '. Review scripts/test-selection.mjs and mark each quick, full-only or differential-only.');
-  const selected = files.filter(name => suite === 'differential' ? classifyTest(name) === 'differential-only'
-    : suite === 'full' ? classifyTest(name) !== 'differential-only' : classifyTest(name) === 'quick');
+  if (unknown.length) throw new Error('Unclassified tests: ' + unknown.join(', ') + '. Review scripts/test-selection.mjs and mark each quick, full-only, differential-only or engine-differential-only.');
+  const selected = files.filter(name => suite === 'engine-differential' ? classifyTest(name) === 'engine-differential-only'
+    : suite === 'differential' ? classifyTest(name) === 'differential-only'
+    : suite === 'full' ? ['quick', 'full-only'].includes(classifyTest(name)) : classifyTest(name) === 'quick');
   if (!selected.length) throw new Error('No tests selected for ' + suite);
   return selected;
 }
@@ -701,7 +707,7 @@ export async function discoverTests(directory = new URL('../tests/', import.meta
   const names = await readdir(directory);
   const selected = selectTests(names, suite);
   // A renamed or removed file must not leave a stale policy entry behind.
-  const stale = [...soloTests, ...openF2PTests, ...differentialTests].filter(name => !names.includes(name));
+  const stale = [...soloTests, ...openF2PTests, ...differentialTests, ...engineDifferentialTests].filter(name => !names.includes(name));
   if (stale.length) throw new Error('Run policy names missing tests: ' + stale.join(', ') + '. Update scripts/test-selection.mjs.');
   // Quick also audits full-only files so a port collision cannot hide there.
   await checkTestPorts(directory, names.filter(name => name.endsWith('.test.mjs') && !reviewedFixedPortTests.has(name)));
