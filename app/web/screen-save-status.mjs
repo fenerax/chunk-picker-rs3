@@ -1,4 +1,5 @@
 import { canSaveAddress } from './save-address.mjs';
+import { withStartupTimeout, startupRetryAfter } from '../startup-read.mjs';
 
 // Live synchronization reports shared revisions; only the local attempt can
 // clear a refused change or finish an in-flight save.
@@ -113,14 +114,19 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     if (!session?.multiPicker) return;
     active();
     if (accountAction) throw new Error('An account change is in progress. Try again after it finishes.');
-    if (!checking) checking = (async () => {
-      const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
+    if (!checking) checking = withStartupTimeout(async signal => {
+      const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal });
       active();
       if ([401, 403].includes(response.status)) { reload(); throw abandoned(); }
-      if (!response.ok) throw new Error('Could not check the active account. Try again.');
+      if (!response.ok) {
+        let value; try { value = await response.json(); } catch {}
+        throw Object.assign(new Error('Could not check the active account. Try again.'), {
+          status: response.status, code: value?.code, retryAfterMs: startupRetryAfter(response),
+        });
+      }
       const next = await response.json(); active();
       if (!next.multiPicker || identity(next) !== signature) { reload(); throw abandoned(); }
-    })().finally(() => { checking = undefined; });
+    }).finally(() => { checking = undefined; });
     return checking;
   }
   async function scopedFetch(path, options, transport = fetch) {

@@ -1,4 +1,5 @@
 import { taskExplanation } from '../app/tasks/task-provenance.mjs';
+import { retryStartupRead, showStartupRetry } from '../app/startup-read.mjs';
 import { appendTaskClaim, createTaskClaimClock } from '../app/web/task-claims.mjs';
 import { observeScreenBars } from '../app/web/phone-layout.mjs';
 import { readScreenGraph, runScreenGraph } from './browser-screen-harness.mjs';
@@ -2543,28 +2544,34 @@ test('foreground APIs use play views and detail requests coalesce without replac
   assert.equal(h.calls[0].options.cache, undefined);
 });
 
-test('startup fetches display definitions and leaves chunk search and full evidence deferred', async () => {
+function startupHarness() {
   const h = harness(), loaded = h.snapshot(); let indexedChunks = 0;
   const display = { chunks: { '12341': { toJSON() { indexedChunks++; return { Object: { 'Unique ore': 1 } }; } }, '12342': {} } };
   Object.assign(h.context, { createInvites: () => ({ loadSession: async () => ({}), open: async () => {} }),
     createAccountPanel: () => ({ setSession() {}, open() {} }),
     createAccountsPanel: () => ({ setSession() {}, open: async () => {} }),
     createOverlayPanel: () => ({ open: async () => {} }),
-    loadTerrainManifest: async () => null, loadMapInformation: async () => null,
+    loadTerrainManifest: async () => null, loadMapInformation: async () => null, loadArtStatus: () => new Promise(() => {}),
     hydrateDisplayWorld, createRuleRegistryFromDefinitions: () => createRuleRegistry(),
     ChunkMap: class { constructor(options) { h.context.mapOptions = options; return h.map; } }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     ResizeObserver: class { observe() {} } });
   h.map.setOverlay = () => {}; h.context.document.addEventListener = () => {};
   const worldPayload = projectDisplayWorld(h.context.initialWorld);
-  h.route(async path => {
+  const route = async path => {
     if (path === '/api/state') return { format: 'play-v1', state: loaded, pools: {} };
     if (path === '/api/definitions') return display;
     if (path === '/api/rules') return { definitions: [] };
     if (path === '/api/display-world') return worldPayload;
     if (path.startsWith('/api/tasks?')) return { ...taskResult(7), format: 'play-v1' };
     throw new Error(`Unexpected startup request ${path}`);
-  });
+  };
+  h.route(route);
   h.run('state=undefined;definitions=undefined;world=undefined;map=undefined;result=undefined;chunkSearch=undefined');
+  return { h, route, indexedChunks: () => indexedChunks };
+}
+
+test('startup fetches display definitions without waiting for hung artwork, leaving full evidence deferred', async () => {
+  const fixture = startupHarness(), { h } = fixture;
   await h.run('start()'); await flush();
   const held = []; h.context.recordMenu = (...args) => held.push(args);
   h.run('chunkMenu = (...args) => recordMenu(...args)');
@@ -2575,12 +2582,32 @@ test('startup fetches display definitions and leaves chunk search and full evide
   assert.equal(h.context.mapOptions.canChunkHold(), true, 'viewers can open a read-only menu by holding');
   h.run('applySession({admin:true, readOnly:false, capabilities:{canWrite:true}})');
   assert.equal(h.run('state.revision'), 7); assert.equal(h.run('result.stateRevision'), 7);
-  assert.equal(indexedChunks, 0); assert.equal(h.run('chunkSearch'), undefined); assert.equal(h.run('chunkSearchRequest'), undefined);
+  assert.equal(fixture.indexedChunks(), 0); assert.equal(h.run('chunkSearch'), undefined); assert.equal(h.run('chunkSearchRequest'), undefined);
   assert.equal(h.run('definitionsAreFull'), false);
   assert.ok(h.calls.some(call => call.requestPath === '/api/definitions?view=display-v1'));
   assert.ok(!h.calls.some(call => call.requestPath === '/api/definitions' || call.requestPath === '/api/tasks?memberId=actor1'));
-  await h.run('ensureChunkSearch()'); assert.equal(indexedChunks, 1);
+  await h.run('ensureChunkSearch()'); assert.equal(fixture.indexedChunks(), 1);
   assert.ok(h.run("chunkSearch.find(row=>row.id==='12341').search.includes('unique ore')"));
+});
+
+for (const path of ['/api/session', '/api/state', '/api/definitions', '/api/rules', '/api/display-world'])
+test(`startup retries ${path} before opening its single live stream`, async () => {
+  const { h, route } = startupHarness(); let calls = 0;
+  h.context.createInvites = () => ({ loadSession: read => read('/api/session'), open: async () => {} });
+  // Use synthetic timers for backoff; other screen timer ownership stays intact.
+  h.context.retryStartupRead = (request, options) => retryStartupRead(request, { ...options,
+    setTimer: h.context.setTimeout, clearTimer: h.context.clearTimeout,
+    sleep: async () => { assert.equal(h.eventSources.length, 0); }, onRetry: error => showStartupRetry(error, h.context.document) });
+  h.route(async requested => {
+    if (requested === path && ++calls === 1) return { ok: false, status: 503, value: { code: 'PICKER_UPDATING' } };
+    if (requested === '/api/session') return {};
+    return route(requested);
+  });
+  await h.run('start()'); await flush();
+  assert.equal(calls, 2); assert.equal(h.run('state.revision'), 7);
+  assert.equal(h.eventSources.length, 1, 'only start the stream after the state and map are ready');
+  assert.equal(h.run('result.stateRevision'), 7, 'tasks paint after recovery');
+  assert.equal(h.nodes.get('feedback-open').events.click.length, 1, 'retry reads without re-registering UI');
 });
 
 test('full equipment evidence waits for parallel coalesced definitions before publishing', async () => {

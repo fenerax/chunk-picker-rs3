@@ -74,7 +74,7 @@ export function createScreenCommands(c) {
         throw error;
       }) : undefined;
     const { response, value } = sent ?? await readRequest(requestPath, body === undefined ? { signal } : typeof body.toBackupRequest === 'function'
-      ? { ...await body.toBackupRequest(), signal } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }).catch(error => {
+      ? { ...await body.toBackupRequest(), signal } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }, { retry: commandOptions?.retryRead !== false }).catch(error => {
         // Reviewed imports and original-sync use one-shot preview tokens rather
         // than action receipts. Never encourage blind replay after a lost reply.
         if (body !== undefined && error.name !== 'AbortError' && !error.status

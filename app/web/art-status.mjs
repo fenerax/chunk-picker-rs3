@@ -1,3 +1,5 @@
+import { withStartupTimeout } from '../startup-read.mjs';
+
 // Picture availability affects presentation only. These values never enter saves,
 // access calculations or command payloads.
 const skills = new Set('agility archaeology attack constitution construction cooking crafting defence divination dungeoneering farming firemaking fishing fletching herblore hunter invention magic mining necromancy prayer ranged runecrafting slayer smithing strength summoning thieving woodcutting'.split(' '));
@@ -26,8 +28,11 @@ export function observeArtStatus(listener) {
 export async function loadArtStatus(fetcher = globalThis.fetch) {
   return pending ??= (async () => {
     try {
-      const response = await fetcher('/api/art-status', { credentials: 'same-origin', cache: 'no-store' });
-      if (response.ok) return setArtStatus(await response.json());
+      const value = await withStartupTimeout(async signal => {
+        const response = await fetcher('/api/art-status', { credentials: 'same-origin', cache: 'no-store', signal });
+        return response.ok ? response.json() : null;
+      });
+      if (value) return setArtStatus(value);
     } catch { /* Older/offline servers keep their existing picture resolution. */ }
     return status;
   })();

@@ -1,5 +1,6 @@
 import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
+import { retryStartupRead, withStartupTimeout, showStartupRetry, startupRetryAfter } from '../app/startup-read.mjs';
 import { readFile } from 'node:fs/promises';
 import { runInContext, Script } from 'node:vm';
 import * as customTasks from '../app/web/custom-tasks-model.mjs';
@@ -81,6 +82,10 @@ export function runScreenGraph(context, modules) {
   context.calculationLabel ??= calculationLabel;
   context.createRequestReader ??= options => createRequestReader({ ...options, now: () => context.Date?.now() ?? Date.now() });
   context.requestError ??= requestError;
+  context.startupRetryAfter ??= startupRetryAfter;
+  context.withStartupTimeout ??= (request, options) => withStartupTimeout(request, { ...options, setTimer: context.setTimeout, clearTimer: context.clearTimeout });
+  context.retryStartupRead ??= (request, options) => retryStartupRead(request, { ...options, setTimer: context.setTimeout, clearTimer: context.clearTimeout,
+    onRetry: error => showStartupRetry(error, context.document) });
   context.createMapAvailability ??= createMapAvailability;
   context.createMapActivityLayers ??= createMapActivityLayers;
   context.createTaskFocus ??= createTaskFocus;

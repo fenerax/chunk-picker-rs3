@@ -1,4 +1,5 @@
 import { gameStorage } from './screen-save-status.mjs';
+import { retryStartupRead } from '../startup-read.mjs';
 import { createFeedback } from './feedback.mjs';
 import { createBackupStatus } from './backup-status.mjs';
 import { createUpdates } from './updates.mjs';
@@ -35,6 +36,8 @@ export function createScreenStartup(c) {
     if (c.preferences().info) { if (!c.$('chunk-info').hidden && c.chunkId === id) c.$('chunk-close').click(); else c.showChunk(id); }
   }
   async function start() {
+    const startup = new AbortController();
+    const read = path => retryStartupRead(signal => c.api(path, undefined, signal, { retryRead: false }), { signal: startup.signal });
     feedbackSessionReady = false;
     // Feedback: what the sender is looking at helps reproduce bugs.
     const feedbackPanel = createFeedback({ api: c.api, el: c.el, button: c.button, input: c.input, field: c.field, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, notice: c.notice, isAdmin: () => c.sessionAdmin, advanced: () => Boolean(c.state) && c.advanced(),
@@ -64,16 +67,17 @@ export function createScreenStartup(c) {
     c.$('accounts-open')?.addEventListener('click', () => { if (c.sessionAdmin) void accounts.open().catch(c.showError); });
     const overlayPanel = createOverlayPanel({ api: c.api, el: c.el, button: c.button, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, dialog: c.$('tool-dialog'), members: () => c.state?.members ?? [] });
     c.$('overlays-open')?.addEventListener('click', () => { if (c.sessionAdmin) void overlayPanel.open().catch(c.showError); });
-    const viewerSession = invites.loadSession().then(session => { if (session.multiPicker) c.panelContext?.pickerSession.initialize(session); c.applySession(session); account.setSession(session); accounts.setSession(session); if (c.$('overlays-open')) c.$('overlays-open').hidden = !c.sessionAdmin; feedbackSessionReady = true; c.backupStatus.start(); feedbackPanel.setSession(session); feedbackPanel.start(); return session; });
+    const viewerSession = invites.loadSession(read).then(session => { if (session.multiPicker) c.panelContext?.pickerSession.initialize(session); c.applySession(session); account.setSession(session); accounts.setSession(session); if (c.$('overlays-open')) c.$('overlays-open').hidden = !c.sessionAdmin; feedbackSessionReady = true; c.backupStatus.start(); feedbackPanel.setSession(session); feedbackPanel.start(); return session; });
     globalThis.addEventListener?.('pagehide', () => feedbackPanel.pause());
     globalThis.addEventListener?.('pageshow', event => { if (event.persisted) { c.streamSafe.refreshFromStorage(); feedbackPanel.start(); } });
     c.$('invites-open').addEventListener('click', () => invites.open().catch(c.showError));
     const activeSession = await viewerSession;
-    if (activeSession.multiPicker) c.panelContext?.pickerSession.registerStop(() => feedbackPanel.stop());
-    const artwork = loadArtStatus();
+    if (activeSession.multiPicker) c.panelContext?.pickerSession.registerStop(() => { startup.abort(); feedbackPanel.stop(); });
+    // Artwork is optional presentation. It must never hold the map's first paint.
+    void loadArtStatus();
     const terrainManifest = c.supportsFeature?.('mapMetadata') === false ? Promise.resolve(null) : loadTerrainManifest();
-    const [loaded, data, rules, displayWorld, session] = await Promise.all([c.api('/api/state'), c.api('/api/definitions?view=display-v1'), c.api('/api/rules'), c.api('/api/display-world'), viewerSession]);
-    await artwork;
+    const [loaded, data, rules, displayWorld, session] = await Promise.all([read('/api/state'), read('/api/definitions?view=display-v1'), read('/api/rules'), read('/api/display-world'), viewerSession])
+      .catch(error => { startup.abort(); throw error; });
     installPictureFallbacks(document);
     const pictureNotice = c.el('p', undefined, 'art-status'); pictureNotice.setAttribute('role', 'status');
     c.$('map-stage').append(pictureNotice);
