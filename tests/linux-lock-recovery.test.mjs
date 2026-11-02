@@ -5,8 +5,6 @@ import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
-import fs from 'node:fs';
-import { syncBuiltinESMExports } from 'node:module';
 import { mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { exclusive, encode, json } from '../scripts/linux/files.mjs';
 import { processIdentity } from '../scripts/linux/start-check.mjs';
@@ -96,40 +94,6 @@ test('concurrent reclaimers admit at most one operation while the winner holds t
   const results = await all;
   assert.equal(results.filter(value => value === 'ran').length, 1);
 });
-
-for (const skipBusy of [false, true]) {
-  test(`a busy lock that vanishes during its owner read is refused: skipBusy=${skipBusy}`, { ...linux, timeout: 15000 }, async t => {
-    const { lock } = await fixture(t);
-    const entered = Promise.withResolvers(), release = Promise.withResolvers();
-    const reading = Promise.withResolvers(), resume = Promise.withResolvers();
-    t.after(() => { release.resolve(); resume.resolve(); });
-    const owner = exclusive(lock, async () => { entered.resolve(); await release.promise; });
-    await entered.promise;
-    const read = fs.promises.readFile;
-    let pause = true, ran = false;
-    const mock = t.mock.method(fs.promises, 'readFile', async (file, ...args) => {
-      if (file === lock && pause) {
-        pause = false; reading.resolve(); await resume.promise;
-      }
-      return read(file, ...args);
-    });
-    syncBuiltinESMExports();
-    t.after(() => { mock.mock.restore(); syncBuiltinESMExports(); });
-    // Pause after recovery observes the live lock, while it holds the guard.
-    // Releasing the owner now makes the actual owner read return ENOENT.
-    const next = exclusive(lock, () => { ran = true; return 'ran'; }, { skipBusy })
-      .then(value => ({ value }), error => ({ error }));
-    await reading.promise;
-    release.resolve(); await owner;
-    resume.resolve();
-    const outcome = await next;
-    assert.equal(ran, false, 'a vanished busy lock cannot admit a second operation');
-    if (skipBusy) assert.deepEqual(outcome, { value: { skipped: true } });
-    else assert.equal(outcome.error?.code, 'EEXIST');
-    // A fresh invocation can still acquire the now-free lock.
-    assert.equal(await exclusive(lock, () => 'fresh'), 'fresh');
-  });
-}
 
 test('health CLI quietly skips a recent busy lock and fails with one static line after 30 minutes', linux, async t => {
   const { lock, root } = await fixture(t), config = path.join(root, 'operator.json');

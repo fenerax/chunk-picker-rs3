@@ -45,16 +45,10 @@ Incomplete exploratory batches with four burners are excluded from these results
   clock to the old test fails before the panel is ready.
 - `tests/linux-lock-recovery.test.mjs`: a fixed 50 ms hold can expire before the
   other seven contenders settle. Hold the winner until those promises settle.
-  Add two controlled owner-read regressions, for ordinary and `skipBusy` calls.
-- `scripts/linux/files.mjs`: a real admission race accompanied the timing issue.
-  After observing an existing lock, recovery treated `ENOENT` during its owner
-  read as permission to retry acquisition. An owner releasing during that read
-  could admit another operation. Retry only after this invocation actually moves
-  a proven-dead owner's record. Otherwise ordinary calls report `EEXIST` and
-  health calls skip; a fresh invocation can acquire the released lock.
-  Both new regression cases fail against START and pass after this change.
-  This follows `docs/linux-operator.md`: only a proven-dead owner permits recovery;
-  unreadable records stay busy. No overlapping critical sections were observed.
+  The lock code is unchanged. A Cloud draft also refused a lock that vanished
+  during a contender's owner read, but review showed that was a serial
+  re-acquire after the owner released, not overlapping critical sections, and
+  refusing it could fail a daily backup with `EEXIST`. It was dropped.
 - `tests/opaque.test.mjs` does not exist in the test tree. The recovery scenario
   in `tests/postmerge-retry-policy.test.mjs` generates it in a temporary repository
   and deliberately makes its synthetic runner fail once, then pass on retry.
