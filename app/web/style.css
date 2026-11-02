@@ -292,7 +292,7 @@ details[open]>summary::before{transform:rotate(45deg)}
 .topbar nav button,.topbar nav .more-tools-menu a,.more-tools>summary{background:transparent;color:var(--panel-muted,var(--muted));padding:var(--space-3) var(--space-4);font-size:var(--type-body);border-radius:var(--radius-sm)}
 .topbar nav button:hover,.topbar nav .more-tools-menu a:hover,.more-tools>summary:hover,.more-tools[open]>summary{background:var(--surface);color:var(--surface-text,var(--text));filter:none}
 .more-tools{position:relative}
-.more-tools>summary{display:flex;align-items:center;position:relative}
+.more-tools>summary{display:flex;align-items:center;position:relative;--summary-pad-x:var(--space-4)}
 .more-tools>summary::before{display:none}
 .more-tools>summary::after{content:"";display:inline-block;width:.38em;height:.38em;margin:0 0 var(--space-legacy-0-18em) var(--space-legacy-0-5em);border:solid currentColor;border-width:0 var(--border-check) var(--border-check) 0;transform:rotate(45deg);opacity:.7}
 .more-tools-menu{position:absolute;top:calc(100% + .45rem);right:0;min-width:230px;display:flex;flex-direction:column;gap:var(--space-legacy-1px);padding:var(--space-3);background:var(--panel);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow)}
@@ -304,8 +304,11 @@ details[open]>summary::before{transform:rotate(45deg)}
 .more-tools-menu a:hover{background:var(--surface)}
 .menu-heading{margin:var(--space-2) 0 0;padding:var(--space-4) var(--space-4) var(--space-1);border-top:var(--border-thin) solid var(--hairline);font-size:var(--type-xs);font-weight:var(--weight-bold);letter-spacing:.1em;text-transform:uppercase;color:var(--panel-muted,var(--muted))}
 .more-tools-menu>.menu-heading:first-child,:root[data-read-only=true] #about-heading{margin-top:0;padding-top:var(--space-2);border-top:0}
-/* Unread news shows on the closed More button too. */
-.more-tools:has(#whats-new-open.has-news)>summary::before{display:block;content:"";position:absolute;top:.25rem;right:.2rem;width:.42rem;height:.42rem;border-radius:var(--radius-circle);background:var(--gold)}
+/* Unread news shows on the closed More button too, centred over the chevron:
+   summary padding (--summary-pad-x mirrors it per breakpoint) + half the
+   chevron's box (.38em content-box + its right border) - half the dot. Margin and border reset the
+   generic details>summary::before arrow, whose margin pushed the dot left. */
+.more-tools:has(#whats-new-open.has-news)>summary::before{display:block;content:"";position:absolute;margin:0;border:0;top:.25rem;right:calc(var(--summary-pad-x) + .19em + var(--border-check) / 2 - .21rem);width:.42rem;height:.42rem;border-radius:var(--radius-circle);background:var(--gold)}
 #save-status{order:3;display:inline-flex;align-items:center;gap:var(--space-3);font-size:var(--type-sm);padding:var(--space-2) var(--space-1);white-space:nowrap;color:var(--panel-muted,var(--muted))}
 #save-status::before{content:"";width:.45rem;height:.45rem;border-radius:var(--radius-circle);background:var(--muted)}
 #save-status[data-status=saved]::before{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
@@ -659,6 +662,7 @@ dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px
   .player-controls{order:3;flex-basis:100%;padding-left:0;border-left:0;justify-content:space-between}
   .topbar nav{flex-wrap:wrap;gap:var(--space-2);justify-content:space-between}
   .topbar nav button,.topbar nav .more-tools-menu a,.more-tools>summary{font-size:var(--type-sm);min-height:36px;padding:var(--space-3) var(--space-3)}
+  .more-tools>summary{--summary-pad-x:var(--space-3)}
   #save-status{order:1;margin-left:auto}
   /* The More button wraps to the left on phones: anchor its menu to the top bar, full width. */
   .topbar{position:relative}

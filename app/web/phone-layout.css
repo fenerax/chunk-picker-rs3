@@ -59,6 +59,9 @@
   #phone-tools .more-tools { width:100%;position:relative; }
   #phone-tools nav>details>summary { display:flex;align-items:center;justify-content:center;gap:var(--space-3); }
   #phone-tools .more-tools>summary { font-size:var(--type-base);background:var(--surface);color:var(--surface-text,var(--text)); }
+  /* The phone row centres label and chevron, so the unread dot follows the chevron in the flow and
+     a negative margin (gap + half the chevron + half the dot) pulls it back over the chevron. */
+  #phone-tools .more-tools:has(#whats-new-open.has-news)>summary::before { position:static;order:1;align-self:flex-start;margin-left:calc(-1 * (var(--space-3) + .19em + var(--border-check) / 2 + .21rem)); }
   #phone-tools .more-tools-menu { position:static;min-width:0;width:100%;margin-top:var(--space-3);box-shadow:none; }
   #phone-tools .more-tools-menu button { white-space:normal; }
   #phone-map-summary { display:flex;flex-direction:column;gap:var(--space-5);margin-top:var(--space-6); }
