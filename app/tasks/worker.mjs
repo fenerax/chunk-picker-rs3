@@ -29,12 +29,16 @@ import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { serialize } from 'node:v8';
+import { preparedCollectionKey, decodePreparedCollection, encodePreparedCollection, readPreparedCollectionFile } from './prepared-collection.mjs';
 
 const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
 startupPhase('worker:modules');
 // Definitions compile once in this isolated worker. Evaluation never runs on
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
 if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
+const preparationKey = workerData.collectPreparedCollection || workerData.preparedCollection || workerData.preparedCollectionFile ? preparedCollectionKey(workerData) : undefined;
+let collectionEntry = workerData.preparedCollection, collectionFile = workerData.preparedCollectionFile;
+delete workerData.preparedCollection; delete workerData.preparedCollectionFile;
 const definitions = prepareWorkerDefinitions(takeDefinitions(), selectedDataset, workerData.preparedDatasetStages, workerData.datasetOptions);
 // Parse once and drop the transfer input. A process worker owns the only other
 // copy of those bytes, which would otherwise stay resident for its lifetime.
@@ -72,13 +76,23 @@ const generatedTaskCatalogue = Object.entries(guideDefinitions.challenges).flatM
     return ordinaryTaskIds.has(id) ? [] : [{ id, label: plainLabel(rawLabel), category, rawLabel,
       kind: 'task', aliases: [legacyTaskId(category, rawLabel)] }];
   }));
-const collectionEngine = createCollectionEngine(definitions, { dataset: selectedDataset });
+let collectionPreparation, collectionEngine;
+function getCollectionEngine() {
+  if (!collectionEngine) {
+    const prepared = decodePreparedCollection(collectionEntry ?? readPreparedCollectionFile(collectionFile, preparationKey), preparationKey);
+    collectionEntry = undefined; collectionFile = undefined;
+    collectionEngine = createCollectionEngine(definitions, { dataset: selectedDataset, prepared,
+      onPrepared: workerData.collectPreparedCollection ? value => { collectionPreparation = value; } : undefined });
+  }
+  return collectionEngine;
+}
 const registry = createRuleRegistry(workerData.extraRules ?? []);
 const equipmentCatalogue = buildEquipmentCatalogue(definitions), equipmentNames = Object.keys(definitions.equipment ?? {});
 const equipmentById = new Map(equipmentCatalogue.map((row, index) => [row.id, equipmentNames[index]]));
 const houseStorageCatalogue = engine.catalogue.filter(row => row.kind === 'house-storage').map(({ slotId, ...identity }) => identity);
-const derivedIds = new Set([...equipmentCatalogue, ...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue].map(row => row.id));
-const sandboxCatalogue = [...engine.catalogue, ...equipmentCatalogue, ...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue];
+let derivedIds, sandboxCatalogue;
+const getDerivedIds = () => derivedIds ??= new Set([...equipmentCatalogue, ...getCollectionEngine().catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue].map(row => row.id));
+const getSandboxCatalogue = () => sandboxCatalogue ??= [...engine.catalogue, ...equipmentCatalogue, ...getCollectionEngine().catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue];
 const sandboxTaskIndexes = new WeakMap();
 const progressRequests = new WeakMap();
 // Keep this head byte-identical: scripts/perf/unlock-calc.mjs patches it for heap sampling.
@@ -94,6 +108,7 @@ function timed(timingMs, stage, operation) {
   }
 }
 function evaluateCore(state, memberId, timingMs, cacheSizing = false) {
+  const collectionEngine = getCollectionEngine();
   const member = state.members.find(owner => owner.id === memberId), savedIds = [...new Set([...Object.keys(member?.taskStatus ?? {}), ...member?.completedTasks ?? []])];
   const evaluate = () => engine.evaluate(state, memberId, { ownItemQueries: savedIds.filter(id => equipmentById.has(id)).map(id => equipmentById.get(id)) });
   const result = timed(timingMs, 'engineMs', () => cacheSizing ? snapshotBudget.measureResult(evaluate) : evaluate());
@@ -141,7 +156,7 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSiz
   // must not be resurrected by the browser's unresolved-import fallback.
   const ownSaved = new Set(result.collectionPlanning.obligationIds), ownItems = new Set(result.ownItemOrigins);
   const savedIds = new Set([...Object.keys(member.taskStatus ?? {}), ...member.completedTasks ?? []]);
-  result.tasks.push(...state.tasks.filter(task => savedIds.has(task.id) && derivedIds.has(task.id) && !present.has(task.id)).map(task => {
+  result.tasks.push(...state.tasks.filter(task => savedIds.has(task.id) && getDerivedIds().has(task.id) && !present.has(task.id)).map(task => {
     const own = ownSaved.has(task.id) || ownItems.has(equipmentById.get(task.id));
     const detail = own ? 'The defining source is on this member’s own map; current requirements, rules or backlog prevent an active goal.' : 'No defining source on this member’s own reachable map.';
     return { ...task, obligation: own, hidden: !own, hiddenReasons: own ? [] : ['Outside your own reachable map.'], status: 'blocked', explanation: detail, blockers: [{ kind: 'access', detail }], sources: [] };
@@ -192,10 +207,10 @@ const rollPools = createRollPoolCache(rollWorld, registry, { inputKey: taskReuse
 function rollPoolFor(state, memberId, draft) {
   if (draft !== undefined) {
     let taskIndex = sandboxTaskIndexes.get(state);
-    if (!taskIndex) { taskIndex = sandboxTaskCatalogue(state, sandboxCatalogue); sandboxTaskIndexes.set(state, taskIndex); }
+    if (!taskIndex) { taskIndex = sandboxTaskCatalogue(state, getSandboxCatalogue()); sandboxTaskIndexes.set(state, taskIndex); }
     const normalized = normalizeSandboxRequest({ memberId, baseRevision: state.revision, ...draft },
-      { state, world: rollWorld, catalogue: sandboxCatalogue, taskIndex });
-    state = applySandboxChanges(state, memberId, normalized.changes, sandboxCatalogue, taskIndex);
+      { state, world: rollWorld, catalogue: getSandboxCatalogue(), taskIndex });
+    state = applySandboxChanges(state, memberId, normalized.changes, getSandboxCatalogue(), taskIndex);
   }
   return rollPools.get(state, memberId) ?? rollPools.set(state, memberId, {
     pool: evaluateRollPool(rollWorld, state, memberId, registry),
@@ -229,9 +244,9 @@ const sandboxCache = createSnapshotCache(sandboxSnapshots, snapshotBudget, {
 });
 function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-shared') {
   let taskIndex = sandboxTaskIndexes.get(state);
-  if (!taskIndex) { taskIndex = sandboxTaskCatalogue(state, sandboxCatalogue); sandboxTaskIndexes.set(state, taskIndex); }
+  if (!taskIndex) { taskIndex = sandboxTaskCatalogue(state, getSandboxCatalogue()); sandboxTaskIndexes.set(state, taskIndex); }
   const normalized = timed(timingMs, 'sandboxInputMs', () => normalizeSandboxRequest(
-    { memberId, baseRevision: state.revision, ...draft }, { state, world: workerData.world, catalogue: sandboxCatalogue, taskIndex }));
+    { memberId, baseRevision: state.revision, ...draft }, { state, world: workerData.world, catalogue: getSandboxCatalogue(), taskIndex }));
   // A cached draft already owns its projection and delta. Do not rebuild a
   // current-state baseline merely to answer a hypothetical cache hit.
   const empty = !normalized.changes.unlockChunks.length && !normalized.changes.lockChunks.length
@@ -249,7 +264,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
   const priorDraft = draftSnapshot, hypotheticalHit = !!draftSnapshot;
   const detailed = normalized.previewChunkId !== undefined || normalized.planningChunkId !== undefined;
   if (!draftSnapshot || detailed && !draftSnapshot.baseline) {
-    const hypothetical = applySandboxChanges(state, memberId, normalized.changes, sandboxCatalogue, taskIndex);
+    const hypothetical = applySandboxChanges(state, memberId, normalized.changes, getSandboxCatalogue(), taskIndex);
     draftSnapshot = { ...draftSnapshot, state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs, cacheSizing: snapshotBudget.pickerOwners <= 1 }) };
   }
   // Build all optional fields off-ledger. A rejected candidate must leave the
@@ -259,7 +274,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
     sandboxCache.stage(key, draftSnapshot, undefined, pickerId);
   }
   const hypothetical = empty ? state : draftSnapshot.state ?? (normalized.previewChunkId !== undefined && (!draftSnapshot.predict || draftSnapshot.predictionRevision !== state.revision)
-    ? applySandboxChanges(state, memberId, normalized.changes, sandboxCatalogue, taskIndex) : undefined);
+    ? applySandboxChanges(state, memberId, normalized.changes, getSandboxCatalogue(), taskIndex) : undefined);
   const result = draftSnapshot.baseline;
   // Cached projections outlive display-only revisions; stamp the caller's.
   const output = { format: SANDBOX_FORMAT, memberId, stateRevision: state.revision, changes: normalized.changes,
@@ -497,20 +512,25 @@ else parentPort.on('message', handleMessage);
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
 const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'prepare-rules', 'roll-pool'];
-const compileMs = performance.now() - compileStarted;
-startupPhase('worker:compiled');
 // The generated catalogue is large and shares completion families between rows.
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
 setImmediate(() => {
+  // A replacement that omits the catalogue needs no collection graph until
+  // its first calculation. The initial foreground still publishes all IDs.
+  if (!workerData.omitReadyCatalogue || workerData.collectPreparedCollection) getCollectionEngine();
+  const preparation = collectionPreparation ? { preparedCollection: encodePreparedCollection(preparationKey, collectionPreparation) } : {};
+  collectionPreparation = undefined;
+  const compileMs = performance.now() - compileStarted;
+  startupPhase('worker:compiled');
   if (PROFILE_ENABLED) profile.startup('calculator.initialize', profileBodyStarted, profile.now());
-  // Advisory workers still compile/use every local catalogue. Only their
-  // unused ready payload is suppressed by the scheduler's explicit opt-out.
+  // Omission changes only the handshake. Every operation still obtains the
+  // same complete catalogue through the lazy accessors when it needs it.
   if (workerData.omitReadyCatalogue === true) {
-    parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, supports, compileMs });
+    parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, supports, compileMs, ...preparation });
     return;
   }
-  const dynamicCatalogueBytes = serialize([...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue]);
+  const dynamicCatalogueBytes = serialize([...getCollectionEngine().catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue]);
   parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, supports,
-    catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue], dynamicCatalogueBytes, compileMs });
+    catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue], dynamicCatalogueBytes, compileMs, ...preparation });
 });

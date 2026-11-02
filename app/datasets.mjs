@@ -11,6 +11,7 @@ import { loadGameDefaults } from './game-defaults.mjs';
 import { loadDatasetProfile } from './dataset-profile.mjs';
 import { checkedBatches } from './checked-batches.mjs';
 import { createJsonSyntaxCheck, checkJsonSyntax } from './dataset-json-check.mjs';
+import { inputValidationKey } from './preparation-key.mjs';
 
 export const DATASET_CONTRACT = Object.freeze({ datasetId: 'duo-legacy', datasetContractVersion: 1, identityNamespace: 'rs3', coordinateSystem: 'surface-grid-v1', corePackApi: 1 });
 export const DATASET_OVERLAY_ORDER = Object.freeze({
@@ -176,7 +177,7 @@ async function readSelection(selectionPath) {
     return JSON.parse(checked.data.toString('utf8'));
   } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
-async function loadPack(packsDir, choice, kind, validatedGzipInputs) {
+async function loadPack(packsDir, choice, kind, validatedGzipInputs, validatedJsonInputs) {
   const root = path.resolve(packsDir, choice.id, choice.version);
   const checked = await inspectFile(root, { path: 'pack.json', sha256: choice.sha256 }, true, DATASET_LIMITS.manifestBytes);
   if (checked.bytes > DATASET_LIMITS.manifestBytes) fail();
@@ -198,8 +199,10 @@ async function loadPack(packsDir, choice, kind, validatedGzipInputs) {
     // tree or input bytes. The values snapshot is parsed from this same read.
     const gzip = record.kind === 'input' && record.path.endsWith('.json.gz');
     const snapshot = record.path === manifest.catalogues.values;
+    const syntaxChecked = !isMainThread && validatedJsonInputs?.some(input => input?.path === record.path
+      && input.bytes === record.bytes && input.sha256 === record.sha256);
     const { data: payload, ...checked } = await inspectFile(root, record, gzip || snapshot, DATASET_LIMITS.fileBytes,
-      record.kind === 'input' && !gzip ? createJsonSyntaxCheck() : null);
+      record.kind === 'input' && !gzip && !syntaxChecked ? createJsonSyntaxCheck() : null);
     if (gzip) {
       if (isMainThread) checkJsonSyntax(gunzipSync(payload, { maxOutputLength: DATASET_LIMITS.fileBytes }));
       // inspectFile hashed the actual bytes against this manifest record.
@@ -251,9 +254,14 @@ export async function resolveDataset(options = {}) {
       if (options.legacyMetadataSnapshots !== undefined) fail();
       if (!receipt.rulesText) fail();
       const validatedGzipInputs = options.validatedGzipInputs;
+      // The parent syntax-checked these exact bytes. Still read/hash every file
+      // here. An absent/stale receipt only restores the normal syntax pass.
+      const validatedJsonInputs = typeof options.inputValidationKey === 'string'
+        && options.inputValidationKey === inputValidationKey(options.digest, options.environment)
+        && Array.isArray(options.validatedJsonInputs) ? options.validatedJsonInputs : undefined;
       if (!isMainThread && (!digestPattern.test(options.digest ?? '') || !Array.isArray(validatedGzipInputs))) fail();
-      const data = await loadPack(packsDir, receipt.data, 'data', validatedGzipInputs); mark('data-pack');
-      const text = await loadPack(packsDir, receipt.rulesText, 'rules-text', validatedGzipInputs); mark('rules-pack');
+      const data = await loadPack(packsDir, receipt.data, 'data', validatedGzipInputs, validatedJsonInputs); mark('data-pack');
+      const text = await loadPack(packsDir, receipt.rulesText, 'rules-text', validatedGzipInputs, validatedJsonInputs); mark('rules-pack');
       if (data.manifest.ruleContractHash !== text.manifest.ruleContractHash || !plain(data.manifest.capabilities) || !plain(data.manifest.environment)) fail();
       environment = datasetEnvironment(data.manifest.environment); capabilities = datasetCapabilities(environment);
       if (JSON.stringify(capabilities) !== JSON.stringify(data.manifest.capabilities)) fail();
@@ -411,7 +419,10 @@ export async function resolveDataset(options = {}) {
       },
       workerSelection: () => ({ root, packsDir, selection: structuredClone(receipt ?? { schemaVersion: 1, data: null }), mapAssetsDir, gameDataDir, environment, digest,
         ...(packed ? { validatedGzipInputs: files.filter(file => file.kind === 'input' && file.path.endsWith('.json.gz'))
-          .map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })) } : {}),
+          .map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })),
+          inputValidationKey: inputValidationKey(digest, environment),
+          validatedJsonInputs: files.filter(file => file.kind === 'input' && file.path.endsWith('.json'))
+            .map(({ path, bytes, sha256 }) => ({ path, bytes, sha256 })) } : {}),
         ...(catalogue.definitionOverlays?.length ? { definitionOverlays: catalogue.definitionOverlays } : {}),
         ...(installed ? { profilePath: installed.profilePath, profileSha256: installed.profileSha256 } : {}),
         ...(!packed ? { legacyMetadataFiles, legacyMetadataSnapshots, legacyMetadataMapAssetsDir: operatorMapAssetsDir ?? null } : {}) }),

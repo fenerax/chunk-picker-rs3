@@ -126,6 +126,47 @@ test('worker gzip validation requires main-thread receipts for the exact hashed 
   assert.equal((await run(selection)).code, 'DATASET_PACK_INVALID');
 });
 
+test('worker JSON syntax receipts require matching code, digest and exact input hashes; misses validate normally', async () => {
+  const made = await companion(), dataset = await resolveDataset(options(made));
+  const selection = { ...dataset.workerSelection(), datasetId: 'duo-legacy' };
+  assert.match(selection.inputValidationKey, /^[a-f0-9]{64}$/);
+  assert.ok(selection.validatedJsonInputs.length > 0);
+  const run = async input => {
+    const source = `
+      import { parentPort, workerData } from 'node:worker_threads';
+      import { registerHooks } from 'node:module';
+      let checks = 0;
+      globalThis.countSyntaxCheck = () => { checks++; };
+      registerHooks({ load(url, context, next) {
+        const result = next(url, context);
+        if (!url.endsWith('/dataset-json-check.mjs')) return result;
+        return { ...result, source: String(result.source).replace('export function createJsonSyntaxCheck() {',
+          'export function createJsonSyntaxCheck() { globalThis.countSyntaxCheck();') };
+      } });
+      const { resolveDataset } = await import(${JSON.stringify(new URL('../app/datasets.mjs', import.meta.url).href)});
+      try { const dataset = await resolveDataset(workerData); parentPort.postMessage({ digest: dataset.digest, checks }); }
+      catch (error) { parentPort.postMessage({ code: error.code }); }
+    `;
+    const worker = new Worker(new URL('data:text/javascript,' + encodeURIComponent(source)), { workerData: input });
+    try { return (await once(worker, 'message'))[0]; }
+    finally { await worker.terminate(); }
+  };
+  assert.deepEqual(await run(selection), { digest: dataset.digest, checks: 0 });
+  for (const changed of [
+    { inputValidationKey: undefined }, { inputValidationKey: '0'.repeat(64) },
+    { validatedJsonInputs: undefined }, { validatedJsonInputs: [] }, { validatedJsonInputs: [null] },
+    { validatedJsonInputs: [{ ...selection.validatedJsonInputs[0], sha256: '0'.repeat(64) }] },
+    { validatedJsonInputs: [{ ...selection.validatedJsonInputs[0], bytes: 0 }] },
+  ]) {
+    const result = await run({ ...selection, ...changed });
+    assert.equal(result.digest, dataset.digest); assert.ok(result.checks > 0);
+  }
+  const record = selection.validatedJsonInputs[0], filename = dataFile(made, record.path), bytes = await readFile(filename);
+  const changed = Buffer.from(bytes); changed[0] ^= 1;
+  await writeFile(filename, changed);
+  assert.equal((await run(selection)).code, 'DATASET_PACK_INVALID', 'a receipt never bypasses file hashing');
+});
+
 test('main-thread resolution always checks gzip syntax even with supplied receipts', async () => {
   const made = await companion({ edit: (relative, bytes) => relative === SCALED_PATHS.gzipCatalogue
     ? gzipSync(Buffer.from('{"broken":')) : bytes });

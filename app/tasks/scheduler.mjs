@@ -9,6 +9,7 @@ import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 import { hasRandomStartChoices } from '../core/state.mjs';
+import { createWorkerPreparation } from './prepared-collection.mjs';
 
 // The server's compatibility context has one protocol identity.
 export function pickerJobId(pickerId = 'legacy-shared') {
@@ -112,16 +113,19 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       };
     } };
   }
+  options.workerPreparation = createWorkerPreparation(options.workerData);
   if (maxCalculators !== undefined) {
     positive(maxCalculators, 'maxCalculators');
     const factory = options.workerFactory ?? nativeWorker;
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
-      workerData: includeCatalogue => factory === nativeWorker ? nativeWorkerInput(options.workerData, includeCatalogue) : options.workerData,
+      workerData: (includeCatalogue, group) => factory === nativeWorker
+        ? nativeWorkerInput(group === 'foreground' ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
+      onReady: factory === nativeWorker ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
   }
   let foreground;
   try { foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal }); }
-  catch (error) { await options.calculatorPool?.close(); throw error; }
+  catch (error) { await options.calculatorPool?.close(); await options.workerPreparation.clear(); throw error; }
   options.calculatorPool?.releaseCatalogue();
   const pickers = new Map();
   function pickerState(pickerId) {
@@ -467,7 +471,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     close(timeoutMs = 10000) {
       if (!closePromise) {
         closed = true; listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); clearUnlockResults();
-        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)]).then(() => options.calculatorPool?.close());
+        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)])
+          .then(() => options.calculatorPool?.close()).finally(() => options.workerPreparation.clear());
       }
       return closePromise;
     },
@@ -476,7 +481,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
 }
 
 /** One worker, bounded snapshots, and a bounded lifetime restart budget. */
-async function createWorkerLane({ workerData, workerFactory = nativeWorker, includeReadyCatalogue = true, onCreated, onEvaluation, onSleep,
+async function createWorkerLane({ workerData, workerPreparation, workerFactory = nativeWorker, includeReadyCatalogue = true, onCreated, onEvaluation, onSleep,
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
@@ -491,6 +496,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   const latestRevisions = new Map(), prewarmSubscriptions = new Map(), closedPickers = new Set();
   const revisionFor = pickerId => latestRevisions.get(pickerId) ?? -1;
   let firstCalculation = true;
+  let receivedCatalogue = false;
   let supported = new Set();
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   let sentSnapshots = new Map();
@@ -798,7 +804,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     // Custom factories retain their exact workerData contract. Reapply on every wake/restart.
     if (PROFILE_ENABLED) profile.workerStarting(profileLane);
     try { worker = calculatorPool ? calculatorPool.createEndpoint(includeReadyCatalogue)
-      : workerFactory(workerFactory === nativeWorker ? nativeWorkerInput(workerData, includeReadyCatalogue) : workerData); }
+      : workerFactory(workerFactory === nativeWorker
+        ? nativeWorkerInput(includeReadyCatalogue ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
@@ -812,6 +819,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         supported = new Set(message.supports ?? []);
         if (workerData?.datasetDigest && (message.datasetDigest !== undefined || workerFactory === nativeWorker)
           && message.datasetDigest !== workerData.datasetDigest) { failure('dataset-mismatch'); return; }
+        if (workerFactory === nativeWorker) workerPreparation?.accept(message);
+        receivedCatalogue ||= Array.isArray(message.catalogue);
         clearTimeout(startupTimer); status = 'ready';
         signal?.removeEventListener('abort', abortInitial);
         lastProgressAt = idleClock.now();
