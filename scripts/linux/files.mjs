@@ -88,7 +88,7 @@ export async function headroom(root, bytes, reserve) {
 // lock. flock is tied to the guard's open description, so the kernel releases
 // it when its holder dies. Keep the guard's inode in place; unlinking it would
 // let observers lock different files. Removal needs no guard: a vanished lock
-// just sends recovery back to acquisition.
+// leaves a contender that already observed it busy; a fresh call may acquire.
 async function lockGuard(file, wait) {
   if (process.platform !== 'linux') return async () => {};
   let guard;
@@ -104,7 +104,8 @@ async function lockGuard(file, wait) {
   await guard.close();
   return null;
 }
-// Returns true when the lock was moved aside or vanished, so acquisition retries.
+// Retry only after this call moves aside a proven dead owner. A busy lock
+// disappearing before the owner read does not prove that we reclaimed it.
 async function recoverDeadOwner(file) {
   if (process.platform !== 'linux') return false;
   const release = await lockGuard(file, false);
@@ -121,7 +122,7 @@ async function recoverDeadOwner(file) {
     }
     await rename(file, path.join(path.dirname(file), 'stale-operation.lock.' + Date.now() + '.' + process.hrtime.bigint() + '-pid' + owner.pid));
     return true;
-  } catch (error) { return error.code === 'ENOENT'; }
+  } catch { return false; }
   finally { await release(); }
 }
 // Publication temps are never transaction evidence. Under the kernel guard no

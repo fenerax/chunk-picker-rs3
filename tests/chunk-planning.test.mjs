@@ -5,6 +5,25 @@ import { chunkPlanningIndexBytes } from '../app/tasks/chunk-planning-index.mjs';
 import { snapshotBytes, trackPlanningIndex, createSnapshotCache, createWorkerCacheBudget } from '../app/tasks/snapshot-cache.mjs';
 import { baseLocationId, buildChunkPlanningIndex, buildChunkPlanningIndexIncremental, createChunkPlanning } from '../app/web/chunk-planning.mjs';
 
+// Observe the fake DOM's completed replacement instead of counting event-loop turns.
+function afterReplacement(node, action) {
+  const ready = Promise.withResolvers(), replace = node.replaceChildren;
+  const timer = setTimeout(() => ready.reject(new Error('Panel did not finish rendering')), 10000);
+  node.replaceChildren = function (...nodes) {
+    replace.apply(this, nodes);
+    if (nodes[0]?.textContent === 'Loading tasks for this chunk…') return;
+    ready.resolve();
+  };
+  try { action(); } catch (error) { ready.reject(error); }
+  return ready.promise.finally(() => { clearTimeout(timer); node.replaceChildren = replace; });
+}
+async function openSection(section) {
+  const body = section.children[1];
+  await afterReplacement(body, () => { section.open = true; section.events.toggle(); });
+  assert.equal(body.children[0]?.textContent, 'Tasks that use something in this chunk.', 'derived section finished successfully');
+  return section;
+}
+
 const fixture = () => ({ chunks: { '12342': { Sections: { '1': { Object: { Anvil: 1 } }, '2': { NPC: { Banker: 1 } } } }, 'Puro-Puro': { Object: { Portal: 1 } }, 'Dorgesh-Kaan': {}, '9000': { Name: 'Dorgesh-Kaan' } }, clues: { easy: { '12342-1': true, 'Puro-Puro': false } }, codeItems: { chunksPlus: { 'Village[+]': ['12342-1', 'Puro-Puro'] } } });
 const task = (id, record, sources = []) => ({ id, label: id, category: 'Extra', record, sources, status: 'blocked', blockers: [{ detail: 'Personal quest required.' }] });
 
@@ -61,8 +80,7 @@ test('primed location indexes survive result wrappers and first panel open witho
   assert.equal(planning.prime(result), primed); assert.equal(traversals, 1);
   state.revision = 2; result = { ...result, stateRevision: 2 };
   assert.equal(planning.prime(result), primed); assert.equal(traversals, 1);
-  const node = planning.render('12342'); node.children[1].open = true; node.children[1].events.toggle();
-  await new Promise(resolve => setImmediate(resolve));
+  const node = planning.render('12342'); await openSection(node.children[1]);
   assert.equal(traversals, 1, 'First Possible Tasks open uses the primed index');
   const walk = node => [node, ...node.children.flatMap(walk)];
   // The panel opens on "Highest level" (doable tasks only); All shows every linked task.
@@ -116,8 +134,7 @@ test('focused planning rows preserve every filter, clue marker and hidden task s
   const fallbackView = createChunkPlanning({ ...context, definitions: () => definitions }).render('12342');
   const focusedView = createChunkPlanning({ ...context, definitions: () => { throw new Error('Focused planning must not rebuild the declaration index'); },
     ensurePlanningResult: async chunkId => { assert.equal(chunkId, '12342'); focusedRequests++; return focused; } }).render('12342');
-  for (const view of [fallbackView, focusedView]) for (const section of view.children) { section.open = true; section.events.toggle(); }
-  await new Promise(resolve => setImmediate(resolve));
+  await Promise.all([fallbackView, focusedView].flatMap(view => view.children.map(openSection)));
   const walk = node => [node, ...node.children.flatMap(walk)];
   const projection = node => walk(node).map(({ tag, textContent, attributes }) => ({ tag, textContent, attributes }));
   for (const filter of ['Highest level', 'Doable', 'Blocked', 'All']) {
@@ -149,11 +166,13 @@ test('If unlocked lists the predicted new tasks, highest per skill, only for chu
     state: () => state, memberId: () => 'a', selectedChunkId: () => '12342', definitions: fixture, ensureResult: async () => result, showTask() {},
     unlockable: () => unlockable, predictUnlock: async () => { predictions++; return predicted; } };
   const walk = node => [node, ...node.children.flatMap(walk)];
-  const open = async () => { const node = createChunkPlanning(context).render('12342'); node.children[1].open = true; node.children[1].events.toggle(); await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve)); return node.children[1]; };
+  const open = () => openSection(createChunkPlanning(context).render('12342').children[1]);
   let section = await open();
   const chip = walk(section).find(node => node.tag === 'button' && node.textContent.startsWith('If unlocked'));
   assert.ok(chip); assert.equal(chip.textContent, 'If unlocked'); assert.equal(predictions, 0, 'no prediction until asked');
-  chip.events.click(); await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve));
+  chip.events.click();
+  const predictionBody = walk(section).find(node => node.children[0]?.textContent === 'Working out what unlocking this chunk would add…');
+  await afterReplacement(predictionBody, () => {});
   assert.equal(chip.textContent, 'If unlocked 2', 'highest woodcutting task plus the quest');
   const texts = walk(section).map(node => node.textContent);
   assert.ok(texts.includes('Cut a maple')); assert.ok(texts.includes('Finish a quest'));
@@ -181,8 +200,8 @@ test('clue locations show place names and section numbers while raw markers requ
       world: () => ({ chunks: new Map([['12342', { name: 'Edgeville' }]]) }), preferences: () => ({ advanced }), canWrite: () => canWrite,
       ensurePlanningResult: async () => ({ format: 'chunk-planning-v1', stateRevision: 1, rows: [], clueLocations: [{ tier: 'easy', location: '12342-1', marker: true }], access: { sections: ['12342-1'] } }),
     };
-    const view = createChunkPlanning(context).render('12342'), clues = view.children[0]; clues.open = true; clues.events.toggle();
-    await new Promise(resolve => setImmediate(resolve));
+    const view = createChunkPlanning(context).render('12342'), clues = view.children[0];
+    await openSection(clues);
     const text = walk(clues).map(node => node.textContent).join('\n');
     assert.match(text, /easy · Edgeville · Section 1/);
     assert.match(text, /Reachable with your current chunks/);
@@ -191,7 +210,10 @@ test('clue locations show place names and section numbers while raw markers requ
   }
 });
 
-test('On the map lists exactly the badge tasks and says whose the rest are', async () => {
+test('On the map lists exactly the badge tasks and says whose the rest are', async t => {
+  // Force several index slices even on an idle machine. A single immediate is
+  // insufficient when the real 8 ms slice budget expires under CI load.
+  let clock = 0; t.mock.method(performance, 'now', () => clock += 9);
   class Node {
     constructor(tag, text) { Object.assign(this, { tag, textContent: text ?? '', children: [], events: {}, attributes: {}, value: '' }); }
     append(...nodes) { this.children.push(...nodes); }
@@ -213,7 +235,7 @@ test('On the map lists exactly the badge tasks and says whose the rest are', asy
     state: () => state, memberId: () => 'a', selectedChunkId: () => '12342', definitions: fixture, ensureResult: async () => result, showTask() {},
     mapTasksAt: id => { assert.equal(id, '12342'); return onMap; } };
   const walk = node => [node, ...node.children.flatMap(walk)];
-  const open = async () => { const node = createChunkPlanning(context).render('12342'); node.children[1].open = true; node.children[1].events.toggle(); await new Promise(resolve => setImmediate(resolve)); return node.children[1]; };
+  const open = () => openSection(createChunkPlanning(context).render('12342').children[1]);
   let section = await open();
   const chip = walk(section).find(node => node.tag === 'button' && node.textContent.startsWith('On the map'));
   assert.equal(chip.textContent, 'On the map 2'); chip.events.click();
