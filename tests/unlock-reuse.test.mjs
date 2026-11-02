@@ -941,7 +941,28 @@ test('native prediction prepares both owners from the fresh saved fixed point an
   });
   assert.equal(messages.length, 2); assert.equal(messages[0].type, 'prediction-prepared');
   assert.equal(messages[0].partnerUnlockReuse, undefined, 'the owner can publish before partner computation');
+  assert.equal(messages[0].result, undefined, 'ordinary calculator clients keep the existing progress payload');
+  assert.deepEqual(normalize(messages[1].result), normalize(prediction.result));
   assert.equal(messages[1].partnerUnlockReuse.memberId, 'reed');
+  const early = await new Promise((resolve, reject) => {
+    const received = [];
+    const onMessage = message => {
+      received.push(message);
+      if (message.type === 'prediction-prepared') return;
+      worker.off('message', onMessage); worker.off('error', reject); resolve(received);
+    };
+    worker.on('message', onMessage); worker.once('error', reject);
+    worker.postMessage({ id: 3, type: 'predict', state: before, memberId: 'actor1', chunkId: '12342', predictionProgress: true, previewProgress: true });
+  });
+  assert.equal(early.length, 3);
+  assert.equal(early[0].type, 'prediction-prepared');
+  assert.equal(early[0].unlockReuse, undefined, 'opted-in Preview precedes projection construction');
+  assert.equal(early[1].unlockReuse.memberId, 'actor1');
+  assert.equal(early[2].partnerUnlockReuse.memberId, 'reed');
+  for (const message of [early[0], early[2]]) assert.deepEqual(normalize(message.result), normalize(prediction.result));
+  assert.equal(early[0].timingMs.totalMs, early[0].evaluationMs);
+  assert.ok(early[0].evaluationMs <= early[2].evaluationMs);
+
   for (const key of ['playJSON', 'duoJSON', 'duoSidebarJSON']) {
     assert.deepEqual(normalize(JSON.parse(Buffer.from(messages[0].unlockReuse[key]))), normalize(JSON.parse(Buffer.from(prediction.unlockReuse[key]))));
     assert.deepEqual(normalize(JSON.parse(Buffer.from(messages[1].partnerUnlockReuse[key]))), normalize(JSON.parse(Buffer.from(prediction.partnerUnlockReuse[key]))));

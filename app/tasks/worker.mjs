@@ -380,7 +380,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   serializedStateSizes.set(state, stateJSONBytes);
   return state;
 }
-const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
+const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
   stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
   if (type === 'cancel') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), revision)); return; }
@@ -454,6 +454,15 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         }
       }
       const prediction = type === 'predict' ? predictionFor(state, memberId, chunkId, snapshot, timingMs) : null;
+      if (prediction && predictionProgress && previewProgress) {
+        // Native Preview callers can display the completed delta before even
+        // building reusable task projections. Ordinary/protocol clients retain
+        // the existing owner-prepared and final response sequence.
+        const elapsedMs = performance.now() - started;
+        parentPort.postMessage({ id, type: 'prediction-prepared',
+          result: { delta: prediction.delta, coverage: prediction.result.coverage, metrics: prediction.result.metrics },
+          evaluationMs: elapsedMs, timingMs: { ...timingMs, totalMs: elapsedMs } });
+      }
       if (prediction && !state.members.find(owner => owner.id === memberId).unlocked.includes(chunkId)) {
         // Reuse only this exact hypothetical task input after a durable save.
         // The HTTP scheduler retains bounded compact bytes, not the full graph.
@@ -466,7 +475,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         unlockReuse = { taskInputKey: taskReuseFingerprint(prediction.state), memberId, sourceRevision: state.revision,
           priority: member.pendingRoll.includes(chunkId) ? 2 : member.selected.includes(chunkId) ? 1 : 0,
           playJSON: sharedJSON(play), duoJSON: duoSidebarJSON, duoSidebarJSON };
-        // Publish the owner's complete result first. A save during partner work
+        // Publish the owner's reusable task bytes first. A save during partner work
         // may reuse these exact bytes while the same worker finishes the pair.
         if (predictionProgress) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse });
         await yieldToRequests();
