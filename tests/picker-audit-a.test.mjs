@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { runInNewContext } from 'node:vm';
+import { retryStartupRead, setStartupSession } from '../app/startup-read.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE',
@@ -138,7 +139,7 @@ test('MP13: browser startup renders the owned roster with neutral dataset defaul
     gamePlugin: { refresh: noop }, bindControls: noop, connectEvents: () => { connected = true; },
     saved: noop, loadTasks: noop, supportsFeature: () => false, applyDatasetControls: noop,
     adopt: state => { c.state = state; rendered = true; assert.equal(c.owners[0].id, state.members[0].id); assert.equal(c.owners[0].name, 'Player 1'); } });
-  runInNewContext(await source('screen-startup.mjs') + '\ncreateScreenStartup(c);', { c, document: {}, globalThis: {},
+  runInNewContext(await source('screen-startup.mjs') + '\ncreateScreenStartup(c);', { c, document: {}, globalThis: {}, AbortController, retryStartupRead, setStartupSession,
     createFeedback: panel, createUpdates: panel, createBackupStatus: panel, createAccountPanel: panel,
     createAccountsPanel: panel, createOverlayPanel: panel,
     createInvites: () => ({ loadSession: async () => session }),

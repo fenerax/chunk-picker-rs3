@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
+import { withStartupTimeout, startupRetryAfter } from '../app/startup-read.mjs';
 import { createAccountPanel } from '../app/web/account-panel.mjs';
 import { createLiveSwapCommandClient, commandOutboxKey } from '../app/web/live-swap-client.mjs';
 
@@ -137,7 +138,7 @@ function browser(initial = defaultSession(), transport) {
     return transport ? transport(route, options, session) : response(route === '/api/session' ? session : { status: 'deleted', backups: session.ownerControls.backups });
   };
   const rendered = el('div'); rendered.append(el('p', 'private game'));
-  const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout,
+  const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout, withStartupTimeout, startupRetryAfter,
     document: { querySelectorAll: () => [rendered], addEventListener() {} }, addEventListener() {} });
   const make = vm.runInContext(coordinatorSource + '\ncreateScreenPickerSession;', context);
   make(c, { fetch: rawFetch, location: { reload: () => destinations.push('reload') }, storage: () => local, tabStorage: () => tab,

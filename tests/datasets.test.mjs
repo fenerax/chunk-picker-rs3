@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, symlink } from 'node:
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { runInNewContext } from 'node:vm';
+import { readStartupJSON, showStartupError } from '../app/startup-read.mjs';
 import { resolveDataset, datasetDigest, encodeDatasetValue, decodeDatasetValue } from '../app/datasets.mjs';
 import { buildDataPack, selectDataPack } from '../scripts/build-data-pack.mjs';
 import { bindingPath, verifyDatasetBinding, bindDatasetStorage } from '../app/dataset-binding.mjs';
@@ -31,14 +32,16 @@ test('shared server fixtures retain the complete default and absent-metadata dat
 
 test('browser bootstrap uses the selected digest, decodes exact values and caches catalogue requests', async () => {
   const runtimeUrl = new URL('../app/dataset-runtime.mjs', import.meta.url);
-  const source = (await readFile(runtimeUrl, 'utf8')).replace(/^export /gm, '')
+  const source = (await readFile(runtimeUrl, 'utf8')).replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '')
     .replaceAll('import.meta.url', JSON.stringify(runtimeUrl.href));
   const digest = 'd'.repeat(64), requests = [];
   const payload = { schemaVersion: 1, dataset: { id: 'duo-legacy', version: 'fixture', health: 'healthy', digest }, capabilities: { cacheWalking: true },
     values: { fixture: encodeDatasetValue({ absent: undefined, ids: new Set(['stable:1']), map: new Map([['stable:1', undefined]]) }) } };
-  const runtime = await runInNewContext(`(async () => { ${source}\nreturn { selectedDataset, datasetJSON, datasetValue }; })()`, { fetch: async (url, options) => {
+  const fetch = async (url, options) => {
     requests.push({ url, options }); return { ok: true, json: async () => url === '/data/dataset-runtime.json' ? payload : { selected: true } };
-  } });
+  };
+  const runtime = await runInNewContext(`(async () => { ${source}\nreturn { selectedDataset, datasetJSON, datasetValue }; })()`, { fetch,
+    readStartupJSON: (path, options) => readStartupJSON(path, { ...options, fetch }), showStartupError });
   assert.equal(runtime.selectedDataset.status().digest, digest);
   const value = runtime.datasetValue('fixture');
   assert.equal(Object.hasOwn(value, 'absent'), true); assert.equal(value.absent, undefined);

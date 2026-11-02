@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
+import { withStartupTimeout, startupRetryAfter } from '../app/startup-read.mjs';
 import { createLiveSwapCommandClient, commandOutboxKey } from '../app/web/live-swap-client.mjs';
 import { mkdir, mkdtemp, rm, writeFile, readFile, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -386,7 +387,7 @@ async function browser(f, initialCookie) {
   let cookie = initialCookie, reloads = 0;
   const siteStore = storage(), tabStore = storage(), notices = [], calls = [], rendered = { text: 'Player 1', replaceChildren() { this.text = ''; } };
   const c = { state: await stateOf(f, cookie), result: {}, normalPlayResults: new Map([['owner', {}]]), planningResults: new Map([['owner', {}]]), viewerPreferences: { ids: true }, taskRequest: 0, taskRenderGeneration: 0, dialogGeneration: 0 };
-  const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout, console,
+  const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout, console, withStartupTimeout, startupRetryAfter,
     document: { querySelectorAll: () => [rendered], addEventListener() {} }, localStorage: siteStore, sessionStorage: tabStore, addEventListener() {} });
   const source = await readFile(new URL('../app/web/screen-save-status.mjs', import.meta.url), 'utf8');
   const exports = vm.runInContext(`(() => { ${source.replace(/^import .*\n/gm, '').replace(/^export /gm, '')}\nreturn { createScreenPickerSession, gameStorage, pickerStoragePrefix }; })()`, context);
