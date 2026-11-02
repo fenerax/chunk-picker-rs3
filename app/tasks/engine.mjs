@@ -643,7 +643,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       // State and rules stay fixed throughout this evaluation. Only observed
       // task reads can affect the previous raw result; when a short-circuiting
       // gate changes, recompute and observe the newly visited dependencies.
-      cachedAccess = proof ? undefined : cachedAccess && sameTaskReads(cachedAccess) ? cachedAccess : replay.access.find(sameTaskReads);
+      cachedAccess = cachedAccess && sameTaskReads(cachedAccess) ? cachedAccess : proof ? undefined : replay.access.find(sameTaskReads);
       if (cachedAccess) {
         for (const key of cachedAccess.reads.keys()) observeCapabilityTask(key);
         ownAccess = copyAccess(cachedAccess.own);
@@ -702,17 +702,20 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // Replays often visit the same resource view. Track the task gates read by
     // collection separately from access gates, and clone mutable source records
     // before ownership/primary annotations can touch a cached resource result.
+    // Captured source admissions are idempotent within one proof. Keep its
+    // memo private: a later proof must capture its own evidence from scratch.
+    const baseMemo = proof ? new Map() : replay.base;
     function collectSources() {
       const view = baseItemSourceView(access);
-      const entries = replay.base.get(view) ?? [];
-      let entry = proof ? undefined : entries.find(sameTaskReads);
+      const entries = baseMemo.get(view) ?? [];
+      let entry = entries.find(sameTaskReads);
       if (!entry) {
         const reads = new Map();
         const tasks = { has(key) { const present = observeCapabilityTask(key); reads.set(key, present); return present; } };
         entry = { reads, value: collectBaseItemSources(definitions, access, { validTasks: tasks, rules,
           expansionCache: replay.expansions, membershipChecks: replay.membership, proof }) };
         replay.baseCollections++;
-        if (!proof) { entries.push(entry); replay.base.set(view, entries); }
+        entries.push(entry); baseMemo.set(view, entries);
       }
       for (const key of entry.reads.keys()) observeCapabilityTask(key);
       const ownObjects = JSON.stringify([...producedObjects.keys()].map(name => [name,
@@ -1382,7 +1385,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const hideSkills = !on(rules, 'Skills', true), hideQuests = !on(rules, 'Quests', true),
       hideDiaries = !on(rules, 'Achievement', true), wholeQuests = on(rules, 'Show Quest Tasks Complete', false),
       smithingPrimary = on(rules, 'Smithing by Smelting', false) || access.objects.has('Anvil') || access.objects.has('Rusted anvil');
-    const rows = compiled.map(task => {
+    // How consumes only the subject's status after the complete capability
+    // replay. Other rows' display/source projections cannot change its proof.
+    const proofSubject = howRequest?.closure && compiled.find(task => task.id === howRequest.taskId);
+    const rows = (proofSubject ? [proofSubject] : compiled).map(task => {
       const blockers = valid.has(task.key) ? membershipByTask.get(task).slice() : check(task, true);
       if (valid.has(task.key) && f2p && task.record['Not F2P']) blockers.push({ kind: 'membership', detail: 'This activity requires membership.' });
       const record = task.record;
@@ -1465,6 +1471,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       Object.defineProperty(row, 'processingPrimary', { value: !!primaryEligible(task, true) });
       return row;
     });
+    if (proofSubject) return { howProof: proof.finish(howRequest.taskId, { tasks: rows }, howRequest.context) };
     const equipment = [];
     const houseStorage = evaluateHouseStorage({ rules, f2p, rows, items, sourceList, access, ownAccess, levels, caps, member, completed, challengeSatisfied });
     rows.push(...houseStorage.tasks);
@@ -1535,6 +1542,13 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         return names.get(name);
       },
     };
+    // A verified list snapshot already found this stable processing closure.
+    // Replay the same fresh final pass, including all proof admission ordering.
+    if (options?.howRequest?.closure) {
+      const closure = options.howRequest.closure;
+      return evaluatePass(state, memberId, options, new Set(closure.eligibleTaskIds.filter(id => recipeIds.has(id))),
+        new Set(closure.multiTaskIds.filter(id => recipeIds.has(id))), replay, true).next().value;
+    }
     let admitted = new Set(), multiAdmitted = new Set(), result;
     const seen = new Map();
     let evaluation = evaluatePass(state, memberId, options, admitted, multiAdmitted, replay);
@@ -1625,13 +1639,18 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   // the existing small-cache default for direct callers.
   const eligibilityCache = createEligibilityCache({ limit: dataset ? 64 : 2, budget: eligibilityBudget });
   const computeProfiledEligibility = PROFILE_ENABLED ? (...args) => profile.span('eligibility', () => computeEligibility(...args)) : computeEligibility;
+  const howInputs = new WeakMap();
   function evaluate(state, memberId, options) {
     state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
-    return eligibilityCache.evaluate(state, memberId, options, () => computeProfiledEligibility(state, memberId, options));
+    const result = eligibilityCache.evaluate(state, memberId, options, () => computeProfiledEligibility(state, memberId, options));
+    if (result.metrics.processingFallbacks === 0) howInputs.set(result.processing, eligibilityInputKey(state, memberId));
+    return result;
   }
-  function how(state, memberId, taskId, { limits, context, cancelled } = {}) {
+  function how(state, memberId, taskId, { limits, context, cancelled, baseline } = {}) {
     state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
-    const howRequest = { taskId, limits, cancelled, deadline: performance.now() + Math.min(25000, limits?.replayMs ?? 20000), context: { datasetDigest: dataset?.digest ?? 'injected', capabilityInputKey: eligibilityInputKey(state, memberId), ...context } };
+    const inputKey = eligibilityInputKey(state, memberId);
+    const closure = baseline?.processing && howInputs.get(baseline.processing) === inputKey ? baseline.processing : undefined;
+    const howRequest = { taskId, limits, cancelled, closure, deadline: performance.now() + Math.min(25000, limits?.replayMs ?? 20000), context: { datasetDigest: dataset?.digest ?? 'injected', capabilityInputKey: inputKey, ...context } };
     try { return computeEligibility(state, memberId, { reuseEligibility: false, howRequest }).howProof; }
     catch (error) { if (error.proof) return error.proof; throw error; }
   }
