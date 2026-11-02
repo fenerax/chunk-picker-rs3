@@ -571,7 +571,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (idleClock.now() - lastRequestAt < idleMs) { armSleep(); return; }
     // Idle warming and abandoned work are expendable. Real requests keep their
     // worker until every waiter has received a complete response.
-    if (active?.waiters.size || active?.reuseWaiters?.size || queue.length) return;
+    if (active?.waiters.size || active?.previewServed || active?.reuseWaiters?.size || queue.length) return;
     clearCancelledGrace();
     scheduler.cancelPrewarm();
     if (active) { deadlineClock.clearTimeout(active.timer); active = undefined; }
@@ -854,7 +854,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
               waiter.signal?.removeEventListener('abort', waiter.abort);
               waiter.resolve(evaluationWith(value, { hit: waiter.hit }));
             }
-            if (active.waiters.size) lastRequestAt = idleClock.now();
+            // Served early: refill, sleep and interactive yield must not mistake the
+            // waiter-less producer for abandoned warm work while its partner runs.
+            if (active.waiters.size) { lastRequestAt = idleClock.now(); active.previewServed = true; }
             active.waiters.clear();
           }
         }
@@ -893,7 +895,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   const scheduler = {
     yieldForInteractive() {
       if (closed || status !== 'ready' || !active || !(active.warm || active.discarded)
-        || active.waiters.size || active.reuseWaiters?.size) return false;
+        || active.waiters.size || active.previewServed || active.reuseWaiters?.size) return false;
       if (calculatorPool && active.discarded) {
         // An abandoned native calculation already received its atomic cancel.
         // Let a cooperative reply release the existing host before paying for
@@ -1023,7 +1025,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         }
         // A bounded response cache can reject/evict the delta while the same
         // active prediction is still preparing its partner. Follow its result.
-        if (entry.previewValue && !entry.discarded) return Promise.resolve(evaluationWith(entry.previewValue, { hit: true }));
+        if (entry.previewValue && !entry.discarded) { entry.previewServed = true; return Promise.resolve(evaluationWith(entry.previewValue, { hit: true })); }
         // Queued requests can add the projection before dispatch. Already active
         // normal requests keep their ordinary payload and callers fall back to it.
         entry.duoSidebarProjection ||= duoSidebarProjection;
@@ -1170,7 +1172,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       previous?.signal?.removeEventListener('abort', previous.abort);
       for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.warm && entry.type === 'predict' && !desired.has(entry.key)) {
         entry.warm = false; warmCounts.cancelled++;
-        if (!entry.waiters.size) cancel(entry, unavailable('Background prediction cancelled.'));
+        if (!entry.waiters.size && !entry.previewServed) cancel(entry, unavailable('Background prediction cancelled.'));
       }
       let queued = 0, snapshot;
       for (const [key, { memberId, chunkId, purpose }] of desired) {
@@ -1202,13 +1204,13 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       for (const entry of [...pending.values()]) if (entry.warm && (pickerId === undefined || entry.pickerId === pickerId)) {
         if (active === entry && (keepActive || pickerKey(entry.pickerId, keepActiveKey) === entry.key)) continue;
         entry.warm = false; warmCounts.cancelled++;
-        if (!entry.waiters.size) cancel(entry, unavailable('Background prediction cancelled.'));
+        if (!entry.waiters.size && !entry.previewServed) cancel(entry, unavailable('Background prediction cancelled.'));
       }
     },
     cancelRankingPrewarm(keepMemberIds = new Set(), pickerId) {
       for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.warm && entry.purpose === 'ranking' && !keepMemberIds.has(entry.memberId)) {
         entry.warm = false; warmCounts.cancelled++;
-        if (!entry.waiters.size) cancel(entry, unavailable('Pool ranking cancelled.'));
+        if (!entry.waiters.size && !entry.previewServed) cancel(entry, unavailable('Pool ranking cancelled.'));
       }
     },
     getHealth() {

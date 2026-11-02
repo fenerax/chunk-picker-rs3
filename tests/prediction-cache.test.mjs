@@ -514,3 +514,52 @@ test('an explicit early Preview promotes active ranking work before following it
   assert.equal(Atomics.load(new Int32Array(worker.requests()[0].cancellation), 0), 0);
   worker.finish(result);
 });
+
+function manualClock() {
+  let time = 0, sequence = 0; const timers = new Map();
+  return { now: () => time,
+    setTimeout(fn, ms) { const id = ++sequence; timers.set(id, { fn, at: time + ms }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    tick(ms) {
+      const end = time + ms;
+      for (;;) {
+        const next = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next || next[1].at > end) break;
+        time = next[1].at; timers.delete(next[0]); next[1].fn();
+      }
+      time = end;
+    } };
+}
+
+test('idle sleep keeps a served early Preview producer until its partner reply', async t => {
+  const idleClock = manualClock();
+  const { scheduler, prediction, predict } = await fixture(t, { idleMs: 100, idleClock });
+  const operation = predict(); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  await operation;
+  idleClock.tick(500); await delay(2);
+  assert.notEqual(scheduler.getHealth().prediction.status, 'sleeping', 'partner preparation keeps its calculator');
+  assert.equal(worker.terminated, false);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 1);
+  worker.finish(result);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 0);
+  idleClock.tick(500); await delay(2);
+  assert.equal(scheduler.getHealth().prediction.status, 'sleeping');
+});
+
+test('a prewarm refill does not cancel a coalesced warm job that already served Preview', async t => {
+  const { scheduler, prediction, predict, warm } = await fixture(t);
+  warm(['12342']); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  const operation = predict('12342');
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  assert.deepEqual((await operation).result, result);
+  warm(['12342', '12343']);
+  assert.equal(worker.messages.some(message => message.type === 'cancel'), false, 'the partner preparation keeps running');
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 1);
+  worker.finish(result);
+  await until(() => worker.requests().length === 2);
+  assert.equal(worker.requests()[1].chunkId, '12343');
+  worker.finish(result);
+});
