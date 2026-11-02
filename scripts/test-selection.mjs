@@ -25,6 +25,7 @@ export const quickTests = new Set([
   "engine-cache-eligibility.test.mjs",
   "profile-spans.test.mjs",
   "perf-private-guards.test.mjs",
+  "profile-stack-writer.test.mjs",
   "unknown-drop-warnings.test.mjs",
   "completion-codec.test.mjs",
   "completion-truth-table.test.mjs",
