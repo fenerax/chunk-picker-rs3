@@ -306,9 +306,9 @@ details[open]>summary::before{transform:rotate(45deg)}
 .more-tools-menu>.menu-heading:first-child,:root[data-read-only=true] #about-heading{margin-top:0;padding-top:var(--space-2);border-top:0}
 /* Unread news shows on the closed More button too, centred over the chevron:
    summary padding (--summary-pad-x mirrors it per breakpoint) + half the
-   chevron's .38em border box - half the dot. Margin and border reset the
+   chevron's box (.38em content-box + its right border) - half the dot. Margin and border reset the
    generic details>summary::before arrow, whose margin pushed the dot left. */
-.more-tools:has(#whats-new-open.has-news)>summary::before{display:block;content:"";position:absolute;margin:0;border:0;top:.25rem;right:calc(var(--summary-pad-x) + .19em - .21rem);width:.42rem;height:.42rem;border-radius:var(--radius-circle);background:var(--gold)}
+.more-tools:has(#whats-new-open.has-news)>summary::before{display:block;content:"";position:absolute;margin:0;border:0;top:.25rem;right:calc(var(--summary-pad-x) + .19em + var(--border-check) / 2 - .21rem);width:.42rem;height:.42rem;border-radius:var(--radius-circle);background:var(--gold)}
 #save-status{order:3;display:inline-flex;align-items:center;gap:var(--space-3);font-size:var(--type-sm);padding:var(--space-2) var(--space-1);white-space:nowrap;color:var(--panel-muted,var(--muted))}
 #save-status::before{content:"";width:.45rem;height:.45rem;border-radius:var(--radius-circle);background:var(--muted)}
 #save-status[data-status=saved]::before{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
