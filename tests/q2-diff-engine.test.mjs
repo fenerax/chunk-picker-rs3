@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { attest, verifyInputs, sha, resultValue, compareValues, validateEngineReport, operations } from '../scripts/experiments/q2-diff-engine/inputs.mjs';
 import { classifyTest, selectTests, concurrencyFor } from '../scripts/test-selection.mjs';
-import { calculatorChanged } from '../scripts/experiments/q2-diff-engine/pr.mjs';
+import { calculatorChanged, importClosure } from '../scripts/experiments/q2-diff-engine/pr.mjs';
 import { cleanupOwned } from '../scripts/experiments/q2-diff-engine/cleanup.mjs';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -48,12 +48,13 @@ test('only verified how-task provenance is rebound; unrelated digests and envelo
 });
 test('report acceptance refuses empty, partial, missing-operation, missing-harvest and over-budget runs', () => {
   const report = { format: 'q2-engine-diff-v1', complete: true, exitCode: 0, errors: 0, differences: 0,
-    inputsVerified: true, requestPairs: 100, expectedPairs: 100, sources: { synthetic: 29, harvest: 71 },
-    resultPairs: 100, errorPairs: 0, successfulSources: { synthetic: 29, harvest: 71 },
+    inputsVerified: true, requestPairs: 700, expectedPairs: 700, sources: { synthetic: 100, harvest: 600 },
+    resultPairs: 700, errorPairs: 0, successfulSources: { synthetic: 100, harvest: 600 },
     successfulRequests: Object.fromEntries(operations.map(type => [type, 1])), requests: Object.fromEntries(operations.map(type => [type, 1])), durationMs: 100, limits: { wallMs: 1000 } };
   assert.equal(validateEngineReport(report), true);
   for (const edit of [v => v.complete = false, v => v.requestPairs--, v => v.expectedPairs = 0,
     v => v.inputsVerified = false, v => v.sources.harvest = 0, v => delete v.successfulRequests.predict,
+    v => { v.sources.harvest = 499; v.sources.synthetic = 201; }, v => v.successfulSources.harvest = 399,
     v => v.durationMs = 1001, v => v.durationMs = NaN, v => v.requestPairs = NaN, v => v.differences++, v => v.errors++, v => delete v.errors, v => v.exitCode = 13]) {
     const changed = structuredClone(report); edit(changed); assert.throws(() => validateEngineReport(changed));
   }
@@ -64,6 +65,10 @@ test('PR selection includes calculator code and data changes, excluding unrelate
   for (const file of ['app/tasks/engine.mjs', 'app/core/planning.mjs', 'app/data/settings.mjs', 'app/dataset-inputs.mjs',
     'app/datasets/open-f2p/wiki-derived/dataset.json', 'app/play-view.mjs', 'app/sandbox.mjs']) assert(calculatorChanged([file]));
   for (const file of ['README.md', 'app/web/app.css', 'app/server.mjs', 'app/data/changelog.json', 'app/data/roadmap.json']) assert(!calculatorChanged([file]));
+  assert(calculatorChanged(['reference/original-picker/tasksMap.json']));
+  assert(!calculatorChanged(['app/helper-task-levels.mjs']));
+  assert(calculatorChanged(['app/helper-task-levels.mjs'], new Set(['app/helper-task-levels.mjs'])));
+  assert(!calculatorChanged(['app/server.mjs'], new Set(['app/helper-task-levels.mjs'])));
 });
 
 test('cleanup refuses a poisoned owned-worktree receipt', async () => {
@@ -82,4 +87,12 @@ test('full-corpus detectors require the explicit engine-differential suite', () 
   assert.deepEqual(selectTests([q2, unit, y03], 'differential'), [y03]);
   assert.deepEqual(selectTests([q2, unit, y03], 'engine-differential'), [q2]);
   assert.equal(concurrencyFor('engine-differential', {}), 1);
+});
+
+test('PR filter follows relative imports from the calculator roots', async () => {
+  const files = { 'app/tasks/worker.mjs': "import { a } from './engine.mjs';\nconst lazy = () => import('../helper-task-levels.mjs');",
+    'app/tasks/engine.mjs': "export { b } from '../play-view.mjs';", 'app/play-view.mjs': "import x from './data/x.json' with { type: 'json' };",
+    'app/helper-task-levels.mjs': '', 'app/data/x.json': '{}', 'app/server.mjs': "import './tasks/worker.mjs';" };
+  const closure = await importClosure(async file => files[file], ['app/tasks/worker.mjs', 'app/tasks/missing.mjs']);
+  assert.deepEqual([...closure].sort(), ['app/data/x.json', 'app/helper-task-levels.mjs', 'app/play-view.mjs', 'app/tasks/engine.mjs', 'app/tasks/worker.mjs']);
 });

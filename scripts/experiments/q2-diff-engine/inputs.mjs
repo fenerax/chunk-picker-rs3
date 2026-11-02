@@ -36,6 +36,9 @@ export function resultValue(reply, type, datasetDigest, inputsSHA256) {
   return value;
 }
 export { compareValues };
+// Reviewed floors: real runs harvest about 1,550 pairs (about 1,250 successful).
+// A collapsed harvest must fail even if synthetic requests cover every operation.
+export const MIN_HARVEST_PAIRS = 500, MIN_HARVEST_RESULTS = 400;
 export function validateEngineReport(report) {
   const counts = [report.requestPairs, report.expectedPairs, report.resultPairs, report.errorPairs,
     ...Object.values(report.successfulRequests ?? {}), ...Object.values(report.successfulSources ?? {})];
@@ -43,7 +46,8 @@ export function validateEngineReport(report) {
     || !Number.isFinite(report.durationMs) || report.durationMs <= 0 || !Number.isFinite(report.limits?.wallMs)
     || report.format !== 'q2-engine-diff-v1' || report.complete !== true || report.exitCode !== 0 || report.errors !== 0 || report.differences !== 0
     || report.inputsVerified !== true || report.requestPairs !== report.expectedPairs || report.requestPairs < 1
-    || !report.sources.synthetic || !report.sources.harvest || !report.successfulSources?.synthetic || !report.successfulSources?.harvest
+    || !report.sources.synthetic || !report.successfulSources?.synthetic
+    || !(report.sources.harvest >= MIN_HARVEST_PAIRS) || !(report.successfulSources?.harvest >= MIN_HARVEST_RESULTS)
     || report.resultPairs + report.errorPairs !== report.requestPairs || operations.some(type => !report.successfulRequests?.[type])
     || report.durationMs > report.limits.wallMs) throw Error('Incomplete engine differential report');
   return true;

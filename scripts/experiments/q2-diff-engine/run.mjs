@@ -1,7 +1,7 @@
 import { parseArgs, promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { cleanupOwned } from './cleanup.mjs';
 import { Client, Failure } from '../y03-fuzz-ci/client.mjs';
@@ -54,11 +54,12 @@ async function main() {
   for (const name of ['compare.mjs', 'volatile.json', 'capture-fixtures.mjs', 'fixture-state.mjs', 'fixture-tools.mjs']) report.harnessSources['calc-check/' + name] = sha(await readFile(new URL('../../../tools/calc-check/' + name, import.meta.url)));
   await checkpoint();
   try {
-    for (const [i, commit] of commits.entries()) {
-      roots[i] = path.join(scratch, i ? 'candidate' : 'reference'); worktrees.push(roots[i]);
-      await writeFile(path.join(out, 'owned.json'), JSON.stringify({ scratch, worktrees }));
-      await git('worktree', 'add', '--detach', roots[i], commit);
-    }
+    // Record both owned paths once, atomically, before adding either worktree:
+    // a kill mid-write must never leave a registered worktree without a receipt.
+    for (const i of commits.keys()) { roots[i] = path.join(scratch, i ? 'candidate' : 'reference'); worktrees.push(roots[i]); }
+    const receipt = path.join(out, 'owned.json');
+    await writeFile(receipt + '.tmp', JSON.stringify({ scratch, worktrees })); await rename(receipt + '.tmp', receipt);
+    for (const [i, commit] of commits.entries()) await git('worktree', 'add', '--detach', roots[i], commit);
     if (opts['candidate-patch']) {
       const patch = await readFile(opts['candidate-patch']); report.candidatePatchSHA256 = sha(patch);
       await command('git', ['-C', roots[1], 'apply', '--', path.resolve(opts['candidate-patch'])]);
