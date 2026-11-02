@@ -28,7 +28,6 @@ import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
-import { constants as zlibConstants, crc32, gzipSync } from 'node:zlib';
 import { serialize } from 'node:v8';
 
 const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
@@ -341,17 +340,6 @@ function sharedJSON(value) {
 }
 // Wrapped by reassignment so the declaration above stays byte-identical for scripts/perf/unlock-calc.mjs.
 if (PROFILE_ENABLED) { const raw = sharedJSON; sharedJSON = value => profile.span('worker.resultSerialization', () => raw(value)); }
-function compressUnlockReuse(value) {
-  value.gzipJSONPrefixMetadata = {};
-  value.gzipJSONPrefixes = Object.fromEntries(['playJSON', 'duoJSON', 'duoSidebarJSON'].map(key => {
-    const prefix = Buffer.from(value[key]).subarray(0, value[key].byteLength - 1);
-    value.gzipJSONPrefixMetadata[key] = { crc32: crc32(prefix), rawLength: prefix.length };
-    const bytes = gzipSync(prefix, { level: 1, finishFlush: zlibConstants.Z_SYNC_FLUSH });
-    const shared = new SharedArrayBuffer(bytes.length); Buffer.from(shared).set(bytes);
-    return [key, shared];
-  }));
-  return value;
-}
 function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId }) {
   if (typeof input !== 'string' || !Number.isSafeInteger(stateRevision) || stateRevision < 0
     || typeof snapshotKey !== 'string' || snapshotKey !== JSON.stringify([stateRevision, input])
@@ -457,9 +445,12 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         const play = mapPlayResult(prediction.result);
         const member = state.members.find(owner => owner.id === memberId);
         const duoSidebarJSON = sharedJSON(projectDuoSidebarResult(play, prediction.state, registry, memberId));
-        unlockReuse = compressUnlockReuse({ taskInputKey: taskReuseFingerprint(prediction.state), memberId, sourceRevision: state.revision,
+        // Native zlib construction can abort the process if this worker is
+        // terminated before handle.init(). Send raw projections; the parent
+        // unlock cache compresses their exact prefixes on admission instead.
+        unlockReuse = { taskInputKey: taskReuseFingerprint(prediction.state), memberId, sourceRevision: state.revision,
           priority: member.pendingRoll.includes(chunkId) ? 2 : member.selected.includes(chunkId) ? 1 : 0,
-          playJSON: sharedJSON(play), duoJSON: duoSidebarJSON, duoSidebarJSON });
+          playJSON: sharedJSON(play), duoJSON: duoSidebarJSON, duoSidebarJSON };
         // Publish the owner's complete result first. A save during partner work
         // may reuse these exact bytes while the same worker finishes the pair.
         if (predictionProgress) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse });
@@ -470,8 +461,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
             const peer = evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs });
             const peerPlay = mapPlayResult(peer);
             const peerSidebarJSON = sharedJSON(projectDuoSidebarResult(peerPlay, prediction.state, registry, partner.id));
-            partnerUnlockReuse = compressUnlockReuse({ taskInputKey: unlockReuse.taskInputKey, memberId: partner.id, sourceRevision: state.revision,
-              priority: unlockReuse.priority, playJSON: sharedJSON(peerPlay), duoJSON: peerSidebarJSON, duoSidebarJSON: peerSidebarJSON });
+            partnerUnlockReuse = { taskInputKey: unlockReuse.taskInputKey, memberId: partner.id, sourceRevision: state.revision,
+              priority: unlockReuse.priority, playJSON: sharedJSON(peerPlay), duoJSON: peerSidebarJSON, duoSidebarJSON: peerSidebarJSON };
           }
         }
       }

@@ -34,8 +34,9 @@ export function createTaskReuseFingerprint() {
 export const taskReuseInputKey = state => createTaskReuseFingerprint()(state);
 
 /** The prediction response cache and this cache divide one total byte budget.
- * Store worker gzip prefixes, releasing its large shared projections; direct
- * callers can use synchronous gzip fallback. Inflate projections lazily and
+ * Compress raw worker projections on the scheduler's main thread, releasing
+ * their large shared buffers. Prepared main-thread gzip prefixes are accepted
+ * unchanged. Inflate projections lazily and
  * evict complete prediction origins together.
  * Priority: explicit Preview 3, pending roll 2, selected 1, bulk pool 0. */
 export function createUnlockResultCache({ limit, byteLimit }) {
