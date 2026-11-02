@@ -229,3 +229,64 @@ test('spatial all, any and count groups export only sufficient distinct selected
     assert.deepEqual(after, before); assert.deepEqual(state, input);
   }
 });
+
+test('snapshot proofs preserve the complete START payloads for every synthetic row', async () => {
+  const { createHash } = await import('node:crypto');
+  const canonical = value => JSON.stringify(value, (key, child) => child && typeof child === 'object' && !Array.isArray(child)
+    ? Object.fromEntries(Object.keys(child).sort().map(name => [name, child[name]])) : child);
+  // Public synthetic captures from c185bd7; includes unavailable, circular,
+  // later cheaper alternatives, personal completions and historical supplies.
+  const cases = [
+    [caveDefinitions(), caveState(), '4217584447f524ff1eaaa8bffe969d74cf27c489c09b1974843ad30009d48634'],
+    [caveDefinitions(), caveState(['12850']), 'd7e2ef684388ef71bdf9ff2d0860cd0015d3e3f5195906cefdd63fffd36e01aa'],
+    [caveDefinitions(), caveState(['12593', '12850']), 'a9dd2b026890131b4a9a1ee9c03694b7acfd2f76bad91bdf64fdbaa325e9d2d1'],
+    [caveDefinitions({ circular: true }), caveState(['12850']), 'e0993ff42d992d71095cee63277e03783502103891bfede0537d621c22d62325'],
+    [pathDefinitions(), pathState(), '2b327c6715837f771a24d6fc257d1ca6463fad8567bc6a022834fe8ecb9ae384'],
+  ];
+  for (const [definitions, state, expected] of cases) {
+    const engine = createTaskEngine(definitions), baseline = engine.evaluate(state, 'one');
+    const proofs = baseline.tasks.filter(row => row.record).map(row => {
+      const proof = engine.how(state, 'one', row.id, { baseline });
+      assert.deepEqual(proof, engine.how(state, 'one', row.id));
+      return proof;
+    });
+    assert.equal(createHash('sha256').update(canonical(proofs)).digest('hex'), expected);
+    const cached = engine.evaluate(state, 'one');
+    for (const row of cached.tasks) if (row.record) assert.deepEqual(engine.how(state, 'one', row.id, { baseline: cached }), engine.how(state, 'one', row.id));
+  }
+});
+
+test('snapshot closure reuse rejects another member, changed inputs and unrecognized results', () => {
+  const engine = createTaskEngine(caveDefinitions()), state = caveState(), baseline = engine.evaluate(state, 'one');
+  const rebound = { ...state, revision: state.revision + 1 };
+  const reboundProof = engine.how(rebound, 'one', id, { baseline });
+  assert.deepEqual(reboundProof, engine.how(rebound, 'one', id));
+  assert.equal(reboundProof.context.stateRevision, rebound.revision);
+  const changed = structuredClone(state); changed.members[0].unlocked = ['12850'];
+  for (const current of [changed, { ...changed, revision: 8 }]) {
+    assert.deepEqual(engine.how(current, 'one', id, { baseline }), engine.how(current, 'one', id));
+  }
+  const two = { ...state, members: [...state.members, { id: 'two', unlocked: ['12850'], completedTasks: [] }] };
+  const first = engine.evaluate(two, 'one');
+  assert.deepEqual(engine.how(two, 'two', id, { baseline: first }), engine.how(two, 'two', id));
+  for (const unknown of [structuredClone(baseline), {}, undefined]) {
+    assert.deepEqual(engine.how(state, 'one', id, { baseline: unknown }), engine.how(state, 'one', id));
+  }
+});
+
+test('snapshot replay preserves processing chains, cycle fallback and request budgets', () => {
+  for (const cycle of [false, true]) {
+    const definitions = { chunks: { '100': { Spawn: { Ore: 1 } } }, challenges: {
+      Crafting: cycle ? { A: { Level: 1, Output: 'Shared', NoXp: true }, B: { Level: 1, Output: 'Shared', NoXp: true } }
+        : { A: { Level: 1, Primary: true, Items: ['Ore'], Output: 'Shared' }, B: { Level: 2, Primary: true, Items: ['Shared'], Output: 'Final' } },
+      Extra: { Goal: { Items: [cycle ? 'Shared' : 'Final'] } },
+    } };
+    const state = caveState(['100']);
+    state.taskRules = { 'Highest Level': false, 'Multi Step Processing': true };
+    const engine = createTaskEngine(definitions), baseline = engine.evaluate(state, 'one', { ownItemQueries: ['Final'] });
+    if (cycle) assert.ok(baseline.diagnostics.some(value => value.kind === 'processing-source-cycle'));
+    for (const row of baseline.tasks) for (const options of [{}, { limits: { nodes: 2 } }, { limits: { replayMs: 0 } }, { cancelled: () => true }]) {
+      assert.deepEqual(engine.how(state, 'one', row.id, { ...options, baseline }), engine.how(state, 'one', row.id, options));
+    }
+  }
+});
