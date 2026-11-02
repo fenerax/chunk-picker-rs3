@@ -106,7 +106,9 @@ test('ranking peeks and completions allow idle sleep; new visible interest permi
   scheduler.subscribePredictions(value => summaries.push(value.result.delta.tasksAdded.length));
   scheduler.prewarm(state(), 'gameplay', groups);
   await until(() => prediction.workers[0]?.requests().length === 1);
-  idleClock.tick(90); prediction.workers[0].finish({ delta: { tasksAdded: [{ id: 'one' }] } });
+  idleClock.tick(90);
+  prepared(prediction.workers[0], { delta: { tasksAdded: [{ id: 'one' }] } });
+  prediction.workers[0].finish({ delta: { tasksAdded: [{ id: 'one' }] } });
   idleClock.tick(9); assert.ok(scheduler.peekPrediction(state(), 'actor1', '12342', 'gameplay'));
   idleClock.tick(1); await delay(2);
   assert.equal(scheduler.getHealth().prediction.status, 'sleeping');
@@ -400,4 +402,191 @@ test('cancelled partial predictions are never cached and closing stops idle cand
   assert.equal(scheduler.getDiagnostics().predictionLane.cache.entries, 0);
   warm(); await scheduler.close(); await delay(5);
   assert.equal(prediction.workers[0].requests().length, 1); assert.equal(prediction.workers[0].terminated, true);
+});
+
+function prepared(worker, result, signature = 'a'.repeat(64)) {
+  const buffer = new SharedArrayBuffer(2); Buffer.from(buffer).set(Buffer.from('{}'));
+  const reuse = memberId => ({ memberId, sourceRevision: 0, taskInputKey: signature, priority: 2,
+    playJSON: buffer, duoJSON: buffer, duoSidebarJSON: buffer });
+  worker.emit('message', { id: worker.requests().at(-1).id, type: 'prediction-prepared', result,
+    unlockReuse: reuse('actor1'), evaluationMs: 1, timingMs: { totalMs: 1 } });
+  return reuse;
+}
+
+test('Preview resolves before partner work, preserves the active job, and publishes its summary once', async t => {
+  const { scheduler, prediction, predict } = await fixture(t);
+  const summaries = []; scheduler.subscribePredictions(value => summaries.push(value));
+  const first = predict(); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [{ id: 'synthetic' }] }, metrics: { availableCount: 1 } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  assert.deepEqual((await first).result, result, 'the pending partner has not sent a final reply');
+  assert.equal(scheduler.getDiagnostics().unlockReuse.entries, 0, 'Preview does not wait for owner projection bytes');
+  const reuse = prepared(worker, undefined);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 1);
+  assert.equal(scheduler.getDiagnostics().unlockReuse.entries, 1);
+  assert.deepEqual((await predict()).result, result, 'followers share an already prepared Preview');
+  const next = predict('12343');
+  assert.equal(worker.requests().length, 1, 'the calculator lease stays occupied');
+  worker.emit('message', { id: worker.requests()[0].id, result, unlockReuse: reuse('actor1'), partnerUnlockReuse: reuse('reed'), evaluationMs: 2 });
+  assert.equal(scheduler.getDiagnostics().unlockReuse.entries, 2, 'partner preparation still reaches the bounded reuse cache');
+  assert.equal(summaries.length, 1);
+  assert.equal(worker.requests().length, 2);
+  worker.finish({ delta: { tasksAdded: [] } }); await next;
+  assert.equal(summaries.length, 2);
+});
+
+test('early Preview followers work when the response cache is too small and detach abort listeners', async t => {
+  const { scheduler, prediction, predict } = await fixture(t, { predictionCacheBytes: 100 });
+  const controller = new AbortController(), operation = predict('12342', state(), 'actor1', 'gameplay', controller.signal);
+  await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [{ id: 'x'.repeat(1000) }] } };
+  prepared(worker, result); await operation; controller.abort();
+  assert.equal(worker.messages.some(message => message.type === 'cancel'), false);
+  assert.equal(scheduler.getDiagnostics().predictionLane.cache.entries, 0);
+  assert.deepEqual((await predict()).result, result);
+  assert.equal(worker.requests().length, 1);
+  worker.finish(result);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 0);
+});
+
+test('cancelled prepared notifications cannot publish or cache a Preview; a late partner error allows the next job', async t => {
+  const { scheduler, prediction, predict } = await fixture(t);
+  const controller = new AbortController(), abandoned = predict('12342', state(), 'actor1', 'gameplay', controller.signal);
+  const rejected = assert.rejects(abandoned, { name: 'AbortError' });
+  await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  controller.abort(); await rejected;
+  prepared(worker, result);
+  assert.equal(scheduler.peekPrediction(state(), 'actor1', '12342', 'gameplay'), undefined);
+  worker.finish(result);
+  const current = predict('12343'); await until(() => worker.requests().length === 2);
+  prepared(worker, result); await current;
+  const following = predict('12344');
+  worker.emit('message', { id: worker.requests()[1].id, error: { name: 'Error', message: 'Synthetic partner failure' } });
+  assert.equal(worker.requests().length, 3);
+  worker.finish(result); await following;
+});
+
+
+test('the hard deadline still retires a producer stalled after early Preview delivery', async t => {
+  const { scheduler, prediction, predict } = await fixture(t, { predictionDeadlineMs: 30, firstCalculationDeadlineMs: 30, maxRestarts: 0 });
+  const operation = predict(); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0];
+  prepared(worker, { delta: { tasksAdded: [] } }); await operation;
+  await until(() => scheduler.getHealth().prediction.status === 'restart-required');
+  assert.equal(worker.terminated, true);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 0);
+  assert.equal(scheduler.getDiagnostics().predictionLane.counts.expired, 1);
+});
+
+test('an early Preview retains its physical calculator lease until the final partner reply', async t => {
+  const physical = factory();
+  const scheduler = await createTaskScheduler({ workerFactory: physical.create, maxCalculators: 1 });
+  t.after(() => scheduler.close());
+  const operation = scheduler.evaluate(state(), 'actor1', 'predict', '12342', 'preview', 'gameplay');
+  await until(() => physical.workers[0]?.requests().length === 1);
+  const worker = physical.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  assert.deepEqual((await operation).result, result);
+  const foreground = scheduler.evaluate(state(), 'reed', 'evaluate', undefined, 'peer', 'gameplay');
+  assert.equal(worker.requests().length, 1);
+  assert.equal(scheduler.getDiagnostics().calculators.active, 1);
+  worker.finish(result);
+  await until(() => worker.requests().length === 2);
+  worker.finish({ tasks: [] }); await foreground;
+  assert.equal(physical.workers.length, 1);
+  assert.equal(scheduler.getDiagnostics().calculators.active, 0);
+});
+
+
+test('an explicit early Preview promotes active ranking work before following its prepared result', async t => {
+  const { scheduler, prediction, predict } = await fixture(t);
+  const current = state();
+  for (const member of current.members) Object.assign(member, { unlocked: ['12341'], selected: ['12342'], pendingRoll: [] });
+  scheduler.prewarm(current, 'gameplay', [{ memberId: 'actor1', chunkIds: ['12342'], purpose: 'ranking' }]);
+  await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  assert.equal(scheduler.getDiagnostics().predictionLane.ranking.active, 1);
+  assert.deepEqual((await predict('12342', current)).result, result);
+  assert.equal(scheduler.getDiagnostics().predictionLane.ranking.active, 0);
+  scheduler.cancelRankingPrewarm();
+  assert.equal(Atomics.load(new Int32Array(worker.requests()[0].cancellation), 0), 0);
+  worker.finish(result);
+});
+
+function manualClock() {
+  let time = 0, sequence = 0; const timers = new Map();
+  return { now: () => time,
+    setTimeout(fn, ms) { const id = ++sequence; timers.set(id, { fn, at: time + ms }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    tick(ms) {
+      const end = time + ms;
+      for (;;) {
+        const next = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next || next[1].at > end) break;
+        time = next[1].at; timers.delete(next[0]); next[1].fn();
+      }
+      time = end;
+    } };
+}
+
+test('idle sleep keeps a served early Preview producer until its partner reply', async t => {
+  const idleClock = manualClock();
+  const { scheduler, prediction, predict } = await fixture(t, { idleMs: 100, idleClock });
+  const operation = predict(); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  await operation;
+  idleClock.tick(500); await delay(2);
+  assert.notEqual(scheduler.getHealth().prediction.status, 'sleeping', 'partner preparation keeps its calculator');
+  assert.equal(worker.terminated, false);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 1);
+  worker.finish(result);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 0);
+  idleClock.tick(500); await delay(2);
+  assert.equal(scheduler.getHealth().prediction.status, 'sleeping');
+});
+
+test('a prewarm refill does not cancel a coalesced warm job that already served Preview', async t => {
+  const { scheduler, prediction, predict, warm } = await fixture(t);
+  warm(['12342']); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  const operation = predict('12342');
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  assert.deepEqual((await operation).result, result);
+  warm(['12342', '12343']);
+  assert.equal(worker.messages.some(message => message.type === 'cancel'), false, 'the partner preparation keeps running');
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 1);
+  worker.finish(result);
+  await until(() => worker.requests().length === 2);
+  assert.equal(worker.requests()[1].chunkId, '12343');
+  worker.finish(result);
+});
+
+test('a note edit keeps a served early Preview producer preparing its partner', async t => {
+  const { scheduler, prediction, predict } = await fixture(t);
+  const operation = predict(); await until(() => prediction.workers[0]?.requests().length === 1);
+  const worker = prediction.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  await operation;
+  assert.equal(scheduler.retireWarmPrediction(), false);
+  assert.equal(worker.terminated, false);
+  assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 1);
+  worker.finish(result);
+});
+
+test('a cancelled served Preview producer yields its only calculator to another picker', async t => {
+  const physical = factory();
+  const scheduler = await createTaskScheduler({ workerFactory: physical.create, maxCalculators: 1 });
+  t.after(() => scheduler.close());
+  const operation = scheduler.evaluate(state(), 'actor1', 'predict', '12342', 'preview', 'gameplay');
+  await until(() => physical.workers[0]?.requests().length === 1);
+  const worker = physical.workers[0], result = { delta: { tasksAdded: [] } };
+  worker.emit('message', { id: worker.requests()[0].id, type: 'prediction-prepared', result, evaluationMs: 1 });
+  await operation;
+  scheduler.cancelPicker('legacy-shared');
+  const other = scheduler.evaluate(state(), 'actor1', 'evaluate', undefined, 'other', 'gameplay', undefined, [], 'full', undefined, 'foreground', false, 'p_' + 'b'.repeat(32));
+  other.catch(() => {});
+  await until(() => physical.workers.some(candidate => candidate.requests().some(message => message.type === 'evaluate')));
 });
