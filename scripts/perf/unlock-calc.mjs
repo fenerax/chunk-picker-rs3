@@ -270,8 +270,11 @@ async function instrument(scratch, appDir) {
   worker = replace(worker, '  Buffer.from(shared).set(bytes);\n  return shared;\n}\n', '  Buffer.from(shared).set(bytes);\n  return shared;\n  });\n}\n', 'shared JSON end');
   // Current workers send the generated catalogue as bytes from a deferred block;
   // earlier workers defer an inline message, and archived workers compute the
-  // duration inline. Add the probe without changing any order.
-  worker = worker.includes('dynamicCatalogueBytes, compileMs });')
+  // duration inline. Workers with prepared-collection handoff spread it last.
+  // Add the probe without changing any order.
+  worker = worker.includes('dynamicCatalogueBytes, compileMs, ...preparation });')
+    ? replace(worker, 'dynamicCatalogueBytes, compileMs, ...preparation });', 'dynamicCatalogueBytes, compileMs, ...preparation, probe: startupSnapshot() });', 'startup timing')
+    : worker.includes('dynamicCatalogueBytes, compileMs });')
     ? replace(worker, 'dynamicCatalogueBytes, compileMs });', 'dynamicCatalogueBytes, compileMs, probe: startupSnapshot() });', 'startup timing')
     : worker.includes('compileMs }));')
     ? replace(worker, 'compileMs }));', 'compileMs, probe: startupSnapshot() }));', 'startup timing')
