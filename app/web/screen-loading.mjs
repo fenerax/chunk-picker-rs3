@@ -29,7 +29,7 @@ export function createScreenLoading(c) {
     c.startupSnapshot = { value: saved, memberId: c.memberId, token };
     const status = c.$('task-engine-status');
     status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-    status.textContent = `Updating… · Last known save, revision ${saved.revision}`;
+    status.textContent = 'Updating… · Showing your last visit';
     c.$('map-counts').textContent = `${saved.unlocked} chunks unlocked · ${saved.pool} in roll pool · Updating…`;
     renderStartupTasks(saved);
     c.perfMark('cached-shell-shown');

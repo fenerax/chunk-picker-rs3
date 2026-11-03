@@ -82,7 +82,9 @@ export function createViewCache({ storage = indexedViewStorage(), maxBytes = 8 *
     }
     return loaded;
   }
-  function clear() { scope = undefined; epoch++; bytes = 0; entries.clear(); loaded = undefined; writing = writing.catch(() => {}).then(() => storage?.write(null)).catch(() => {}); }
+  // Resolves once the stored snapshot is gone (or the store refused), so
+  // sign-out can wait for it before leaving the page.
+  function clear() { scope = undefined; epoch++; bytes = 0; entries.clear(); loaded = undefined; writing = writing.catch(() => {}).then(() => storage?.write(null)).catch(() => {}); return writing; }
   return { configure, remember, peek, hydrate, clear, token: () => epoch, current: token => token === epoch,
     stats: () => ({ entries: entries.size, bytes }), flushed: () => writing };
 }
@@ -118,7 +120,9 @@ export function indexedViewStorage(indexedDB = globalThis.indexedDB) {
 export function replaceView(host, render, document = globalThis.document) {
   const active = document?.activeElement, inside = active && host.contains?.(active);
   const controls = () => [...(host.querySelectorAll?.('input,select,textarea,button,a,summary') ?? [])];
-  const identity = node => [node.tagName, node.id || node.getAttribute?.('aria-label') || node.textContent].join('|');
+  // Stable keys first (data-view-key, id); visible text alone can match a
+  // different action, so text is only a fallback for unkeyed controls.
+  const identity = node => [node.tagName, node.dataset?.viewKey ? `key:${node.dataset.viewKey}` : node.id ? `id:${node.id}` : `text:${node.getAttribute?.('aria-label') || node.textContent}`].join('|');
   const filterValue = inside && active.type === 'search' ? active.value : undefined;
   const key = inside ? identity(active) : undefined, selection = inside ? [active.selectionStart, active.selectionEnd] : [];
   const folds = [...(host.querySelectorAll?.('details') ?? [])].map(node => node.open);

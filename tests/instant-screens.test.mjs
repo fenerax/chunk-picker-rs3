@@ -136,6 +136,26 @@ test('replacing a result preserves focus, selection, scroll and open disclosure 
   document.activeElement = undefined;
 });
 
+test('focus never moves to a different action that only shares its visible label', () => {
+  const keyed = (key, onFocus) => Object.assign(new Node('button'), { textContent: 'Change in Rules → Tasks', dataset: { viewKey: key }, focus: onFocus });
+  const host = new Node('div'); let hostFocused = false, wrongFocused = false;
+  const old = keyed('rule:a'), replacement = keyed('rule:b', () => { wrongFocused = true; });
+  host.focus = () => { hostFocused = true; };
+  host.children = [old]; document.activeElement = old; let replaced = false;
+  host.querySelectorAll = selector => selector === 'details' ? [] : [replaced ? replacement : old];
+  replaceView(host, () => { host.children = [replacement]; replaced = true; }, document);
+  assert.equal(wrongFocused, false); assert.equal(hostFocused, true);
+  document.activeElement = undefined;
+});
+
+test('clear() resolves only after the stored snapshot is removed', async () => {
+  let record = { scope: 'x', entries: [] }; const gate = deferred();
+  const cache = configured({ storage: { read: async () => record, write: async value => { await gate.promise; record = value; } } });
+  const clearing = cache.clear(); assert.ok(clearing instanceof Promise);
+  await flush(); assert.notEqual(record, null);
+  gate.resolve(); await clearing; assert.equal(record, null);
+});
+
 test('returning to a member waits for queued invalidations before reading IndexedDB', async () => {
   let record;
   const storage = { read: async () => record, write: async value => { await flush(); record = structuredClone(value); } };
