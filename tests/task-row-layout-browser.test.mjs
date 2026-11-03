@@ -47,29 +47,52 @@ test('task rows fit their list container and keep actions reachable', { timeout:
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
     browser = await openChrome(await findChrome(), path.join(scratch, 'chrome'), {
-      extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
+      // CDP setEmulatedMedia silently ignores hover/pointer features in Chrome.
+      // Establish a mouse baseline; touch emulation overrides it per coarse case.
+      extraArgs: ['--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4',
+        ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [])],
     });
     const errors = [];
     browser.listeners.add(({ method, params }) => { if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails.exception?.description ?? params.exceptionDetails.text); });
-    await browser.send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` });
-    await until(async () => { if (errors.length) throw new Error(errors.join('\n')); return browser.evaluate('document.documentElement.dataset.fixtureReady === "true"'); });
-    await browser.evaluate(`(() => {
-      document.querySelector('.workspace').replaceChildren(document.querySelector('.task-sidebar'));
-      const panel = document.querySelector('.task-sidebar');
-      panel.replaceChildren(document.querySelector('#active-tasks'));
-      document.querySelector('.topbar').hidden = true;
-      const style = document.createElement('style');
-      style.textContent = '.workspace { display:grid;grid-template-columns:minmax(0,1fr) var(--fixture-panel);height:auto;min-height:100vh;align-items:start } .task-sidebar { grid-column:2;width:100%;height:auto;max-height:none;overflow:visible;box-sizing:border-box } body { overflow:auto } *,*::before,*::after { transition:none!important;animation:none!important }';
-      document.head.append(style);
-    })()`);
+    const loadFixture = async () => {
+      await browser.send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` });
+      await until(async () => { if (errors.length) throw new Error(errors.join('\n')); return browser.evaluate('document.documentElement?.dataset.fixtureReady === "true"'); });
+      await browser.evaluate(`(() => {
+        document.querySelector('.workspace').replaceChildren(document.querySelector('.task-sidebar'));
+        const panel = document.querySelector('.task-sidebar');
+        panel.replaceChildren(document.querySelector('#active-tasks'));
+        document.querySelector('.topbar').hidden = true;
+        const style = document.createElement('style');
+        style.textContent = '.workspace { display:grid;grid-template-columns:minmax(0,1fr) var(--fixture-panel);height:auto;min-height:100vh;align-items:start } .task-sidebar { grid-column:2;width:100%;height:auto;max-height:none;overflow:visible;box-sizing:border-box } body { overflow:auto } *,*::before,*::after { transition:none!important;animation:none!important }';
+        document.head.append(style);
+      })()`);
+    };
+    const emulateLayout = async (viewport, touch, height = 1000) => {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width:viewport, height, deviceScaleFactor:1, mobile:viewport === 390 });
+      await browser.send('Emulation.setTouchEmulationEnabled', { enabled:touch, maxTouchPoints:1 });
+      // Disabling touch restores the host's pointer settings. Navigation reapplies
+      // the explicit mouse baseline and gives each case fresh synthetic rows.
+      await loadFixture();
+      // Verify both primary and available capabilities, including after switching
+      // back from touch to the explicit mouse baseline.
+      const features = [
+        { name:'hover', value:touch ? 'none' : 'hover' },
+        { name:'any-hover', value:touch ? 'none' : 'hover' },
+        { name:'pointer', value:touch ? 'coarse' : 'fine' },
+        { name:'any-pointer', value:touch ? 'coarse' : 'fine' },
+      ];
+      const capabilities = await browser.evaluate(`Object.fromEntries(${JSON.stringify(features)}.map(({ name, value }) => [name, matchMedia('(' + name + ':' + value + ')').matches]))`);
+      assert.deepEqual(capabilities, Object.fromEntries(features.map(({ name }) => [name, true])),
+        'hover/pointer emulation must match the requested ' + (touch ? 'coarse, non-hover' : 'fine, hover') + ' capabilities at ' + viewport + 'px');
+      return browser.evaluate(`({
+        hoverFineDesktop:matchMedia('(hover:hover) and (min-width:721px) and (pointer:fine)').matches,
+        largeTargets:matchMedia('(max-width:720px), (pointer:coarse)').matches,
+      })`);
+    };
     const statusLayouts = [];
-    for (const [name, viewport, listWidth] of [['narrow-260', 1280, 260], ['narrow-320', 1280, 320], ['wide', 1440, 600], ['phone-390', 390, 360], ['tablet-1024-coarse', 1024, 320], ['mouse-700', 700, 320]]) {
+    for (const [name, viewport, listWidth, touch] of [['narrow-260', 1280, 260, false], ['narrow-320', 1280, 320, false], ['wide', 1440, 600, false], ['phone-390', 390, 360, true], ['tablet-1024-coarse', 1024, 320, true], ['mouse-700', 700, 320, false]]) {
       await t.test(name, async () => {
-        const phone = viewport === 390;
-        const touch = phone || name === 'tablet-1024-coarse';
-        const largeTargets = touch || viewport <= 720;
-        await browser.send('Emulation.setDeviceMetricsOverride', { width: viewport, height: 1000, deviceScaleFactor: 1, mobile: phone });
-        await browser.send('Emulation.setTouchEmulationEnabled', { enabled: touch, maxTouchPoints: 1 });
+        const { hoverFineDesktop, largeTargets } = await emulateLayout(viewport, touch);
         await browser.evaluate(`(() => { const s = getComputedStyle(document.querySelector('.task-sidebar'));
           const extra = ['paddingLeft','paddingRight','borderLeftWidth','borderRightWidth'].reduce((sum, key) => sum + parseFloat(s[key]), 0);
           document.documentElement.style.setProperty('--fixture-panel', (${listWidth} + extra) + 'px'); })()`);
@@ -81,6 +104,7 @@ test('task rows fit their list container and keep actions reachable', { timeout:
           return { panel:box(document.querySelector('.task-sidebar')), list:box(document.querySelector('#active-tasks')), body:box(body), label:box(label),
             how:box(row.querySelector('.task-how')), claim:box(row.querySelector('.task-claim-action')),
             whyPosition:getComputedStyle(row.querySelector('.task-why')).position,
+            whyOpacity:getComputedStyle(row.querySelector('.task-why')).opacity,
             overflow:[...document.querySelectorAll('.task-row')].filter(node => node.scrollWidth > node.clientWidth + 1).map(node => node.id),
             expanded:box(document.querySelector('#open .task-how-panel')), openBody:box(document.querySelector('#open .task-body')),
             form:box(document.querySelector('.backlog-form')), backlogBody:box(document.querySelector('#backlogged .task-body')),
@@ -107,7 +131,8 @@ test('task rows fit their list container and keep actions reachable', { timeout:
           assert.ok(metrics.how.y >= metrics.body.bottom, 'How is below the task body');
           assert.equal(metrics.wordWrap, 'break-word', 'normal words wrap at spaces, long identifiers still fit');
           assert.deepEqual(metrics.splitWords, [], 'ordinary words must not break across lines');
-          if (!largeTargets) assert.equal(metrics.whyPosition, 'absolute', 'hidden icons do not occupy a track');
+          assert.equal(metrics.whyPosition, hoverFineDesktop ? 'absolute' : 'static', 'only desktop hover/fine media takes resting icons out of flow');
+          assert.equal(metrics.whyOpacity, hoverFineDesktop ? '0' : '1', 'resting icons follow the matched hover/pointer media');
           assert.ok(metrics.expanded.y >= metrics.openBody.bottom, 'expanded How follows the body');
           assert.ok(metrics.expanded.width >= metrics.openBody.width - 1, 'expanded How keeps the full body width');
           assert.ok(metrics.form.y >= metrics.backlogBody.bottom, 'backlog form follows the body');
@@ -166,8 +191,8 @@ test('task rows fit their list container and keep actions reachable', { timeout:
     }
     await t.test('status text, icon and task name never overlap', async () => {
       // Also cover phone columns above the narrow-container breakpoint.
-      for (const [viewport, listWidth] of [[1440, 361], [390, 375], [720, 600]]) {
-        await browser.send('Emulation.setDeviceMetricsOverride', { width:viewport, height:1000, deviceScaleFactor:1, mobile:viewport <= 720 });
+      for (const [viewport, listWidth, touch] of [[1440, 361, false], [390, 375, true], [720, 600, true]]) {
+        await emulateLayout(viewport, touch);
         await browser.evaluate(`(() => { const s = getComputedStyle(document.querySelector('.task-sidebar'));
           const extra = ['paddingLeft','paddingRight','borderLeftWidth','borderRightWidth'].reduce((sum, key) => sum + parseFloat(s[key]), 0);
           document.documentElement.style.setProperty('--fixture-panel', (${listWidth} + extra) + 'px'); })()`);
@@ -183,10 +208,9 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         }
       }
     });
-    await browser.evaluate('window.appendLayoutRegressions()');
     const layout = async (ids, listWidth, touch = false, viewport = 1280, height = 1000) => {
-      await browser.send('Emulation.setDeviceMetricsOverride', { width:viewport, height, deviceScaleFactor:1, mobile:viewport === 390 });
-      await browser.send('Emulation.setTouchEmulationEnabled', { enabled:touch, maxTouchPoints:1 });
+      const media = await emulateLayout(viewport, touch, height);
+      await browser.evaluate('window.appendLayoutRegressions()');
       await browser.evaluate(`(() => {
         const ids = ${JSON.stringify(ids)};
         for (const row of document.querySelectorAll('.task-row')) row.hidden = !ids.includes(row.id);
@@ -196,8 +220,8 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         document.activeElement?.blur(); window.scrollTo(0, 0);
       })()`);
       await browser.send('Input.dispatchMouseEvent', { type:'mouseMoved', x:1, y:1 });
-      assert.equal(await browser.evaluate('matchMedia("(pointer:coarse)").matches'), touch, 'exercise the requested pointer');
       assert.ok(Math.abs(await browser.evaluate('document.querySelector("#active-tasks").getBoundingClientRect().width') - listWidth) < 1, 'exercise the requested list width');
+      return media;
     };
     // Restore only the matching pre-fix declaration in memory, then remove it.
     // The same geometry assertions must reject the old rule and accept shipped CSS.
@@ -295,7 +319,7 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         const statusIds = how ? ['readonly', 'duo-readonly'] : ['readonly-no-how', 'duo-readonly-no-how'];
         const checkboxIds = how ? ['solo', 'duo'] : ['solo-no-how', 'duo-no-how'];
         const ids = [...statusIds, ...checkboxIds];
-        await layout(ids, width, touch, viewport, height);
+        const { largeTargets } = await layout(ids, width, touch, viewport, height);
         assert.deepEqual(await browser.evaluate(`${JSON.stringify(ids)}.map(id => !!document.getElementById(id).querySelector('.task-how'))`), ids.map(() => how), 'exercise the requested How setting');
         const measure = () => browser.evaluate(`(${statusRowBoxes})().filter(row => ${JSON.stringify(statusIds)}.includes(row.id))`);
         const checkStatus = rows => {
@@ -305,7 +329,6 @@ test('task rows fit their list container and keep actions reachable', { timeout:
             assert.ok(!intersects(row.status, row.label), row.id + ': status must not overlap the task name');
           }
         };
-        const largeTargets = touch || viewport <= 720;
         if (!how) {
           // Reproduce just the two declarations changed by this fix. The narrow
           // container rule already wins; fine-pointer desktop rows already use
