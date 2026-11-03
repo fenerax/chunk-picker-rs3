@@ -1,10 +1,12 @@
+import { createWarmStore, warmStoreAllowed, readWarmFile, WARM_COLLECTION_LIMITS } from './warm-store.mjs';
 import { createHash } from 'node:crypto';
 import { serialize, deserialize } from 'node:v8';
 import { preparationSourceDigest } from '../preparation-key.mjs';
 import { lstatSync, readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { WarmStoreWorker } from './warm-store-worker.mjs';
 
 // One immutable entry per scheduler, shared by native lanes. This fixed cap is
 // separate from the existing snapshot/result byte ledger. Files contain only
@@ -21,8 +23,13 @@ export function preparedCollectionKey(data) {
 }
 export function validPreparedCollectionEntry(entry, key) {
   try {
+    return preparedCollectionEntryShape(entry, key) && hash(entry.bytes) === entry.sha256;
+  } catch { return false; }
+}
+function preparedCollectionEntryShape(entry, key) {
+  try {
     return typeof key === 'string' && entry?.key === key && entry.bytes instanceof Uint8Array
-      && entry.bytes.byteLength > 0 && entry.bytes.byteLength <= PREPARED_COLLECTION_LIMIT && hash(entry.bytes) === entry.sha256;
+      && entry.bytes.byteLength > 0 && entry.bytes.byteLength <= PREPARED_COLLECTION_LIMIT;
   } catch { return false; }
 }
 export function encodePreparedCollection(key, value) {
@@ -49,47 +56,63 @@ export function decodePreparedCollection(entry, key) {
   } catch { /* Mismatched, truncated and corrupt entries are ordinary misses. */ }
 }
 export function readPreparedCollectionFile(reference, key) {
+  if (!warmStoreAllowed()) return;
   try {
     if (typeof key !== 'string' || reference?.key !== key || typeof reference.file !== 'string'
       || !Number.isSafeInteger(reference.bytes) || reference.bytes <= 0 || reference.bytes > PREPARED_COLLECTION_LIMIT) return;
+    if (reference.warm) {
+      const bytes = readWarmFile(reference.file, key, PREPARED_COLLECTION_LIMIT);
+      return bytes?.length === reference.bytes ? { key, sha256: reference.sha256, bytes } : undefined;
+    }
     const info = lstatSync(reference.file);
     if (!info.isFile() || info.size !== reference.bytes) return;
     return { key, sha256: reference.sha256, bytes: readFileSync(reference.file) };
   } catch { /* Missing, unreadable and corrupt files fall back to compilation. */ }
 }
 export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PREPARATION_MODE ?? 'file',
-  directory = process.env.RS3_WORKER_PREPARATION_DIR ?? tmpdir() } = {}) {
+  directory = process.env.RS3_WORKER_PREPARATION_DIR ?? tmpdir(), persistentDirectory } = {}) {
+  const fileAllowed = mode !== 'file' || warmStoreAllowed();
   const key = preparedCollectionKey(data);
-  let entry, reference, cacheDirectory, pending, closed = false;
-  let disabled = !key || !['file', 'memory'].includes(mode);
+  const persistent = fileAllowed && mode === 'file' && typeof persistentDirectory === 'string' ? createWarmStore(path.join(persistentDirectory, 'collections'), WARM_COLLECTION_LIMITS) : undefined;
+  let entry, reference = key ? persistent?.reference(key) : undefined, cacheDirectory, pending, closed = false;
+  let disabled = !fileAllowed || !key || !['file', 'memory'].includes(mode);
   return {
+    persistent: !!persistent,
     input() {
-      if (disabled || closed) return data;
+      if (disabled || closed || mode === 'file' && !warmStoreAllowed()) return data;
+      // The calculator validates the complete file before decoding it. Never
+      // read/hash a collection body on the HTTP server's launch path.
       return mode === 'memory' ? { ...data, preparedCollection: entry, collectPreparedCollection: !entry }
         : { ...data, preparedCollectionFile: reference, collectPreparedCollection: !reference };
     },
     accept(message) {
       const value = message.preparedCollection;
       delete message.preparedCollection;
-      if (disabled || closed || !validPreparedCollectionEntry(value, key)) return;
-      if (mode === 'memory') { entry = value; return; }
-      if (pending || reference) return;
+      if (disabled || closed || mode === 'file' && !warmStoreAllowed() || !preparedCollectionEntryShape(value, key)) return;
+      if (mode === 'memory') { if (validPreparedCollectionEntry(value, key)) entry = value; return; }
+      if (pending || reference && !persistent) return;
       pending = (async () => {
-        // Own a fresh private directory. Publish only after the complete write;
-        // worker retirement never owns an in-progress write or native codec.
-        await mkdir(directory, { recursive: true });
-        cacheDirectory = await mkdtemp(path.join(directory, 'rs3-prepared-'));
-        const temporary = path.join(cacheDirectory, `${key}.tmp`), file = path.join(cacheDirectory, `${key}.bin`);
-        await writeFile(temporary, value.bytes, { flag: 'wx', mode: 0o600 });
-        await rename(temporary, file);
-        if (!closed) reference = { file, key, sha256: value.sha256, bytes: value.bytes.byteLength };
+        // Encoded entries use shared backing memory: no large clone, checksum
+        // or synchronous publication on the server. Only one write is pending.
+        const result = await new Promise((resolve, reject) => {
+          let result, error;
+          const worker = new WarmStoreWorker(new URL('./prepared-collection-publisher.mjs', import.meta.url), {
+            workerData: { key, value, reference, directory, persistentDirectory: persistent ? persistentDirectory : undefined },
+          }, persistent ? [path.join(persistentDirectory, 'collections')] : []);
+          worker.once('message', message => { result = message; });
+          worker.once('error', value => { error = value; });
+          worker.once('exit', code => code === 0 && !error ? resolve(result) : reject(error ?? new Error('Collection publisher exited.')));
+        });
+        if (result?.cacheDirectory) cacheDirectory = result.cacheDirectory;
+        if (!closed && result?.reference) reference = result.reference;
       })().catch(() => { disabled = true; }).finally(() => { pending = undefined; });
     },
     settled() { return pending ?? Promise.resolve(); },
     async clear() {
       closed = true; entry = undefined; reference = undefined;
       await pending;
-      if (cacheDirectory) { try { await rm(cacheDirectory, { recursive: true, force: true }); } catch {} }
+      persistent?.close();
+      if (cacheDirectory && warmStoreAllowed()) { try { await rm(cacheDirectory, { recursive: true, force: true }); } catch {} }
     },
   };
 }

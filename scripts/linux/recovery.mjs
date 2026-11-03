@@ -31,10 +31,10 @@ async function runChildProbe(release, dataDir, output, mode) {
 export async function storeIdentity(dataDir) {
   await assertReleased(dataDir);
   await noLinks(bindingPath(dataDir));
-  return { files: await inventory(dataDir), binding: sha(await readFile(bindingPath(dataDir))) };
+  return { files: await inventory(dataDir, { ignoreRoot: ['warm-store'] }), binding: sha(await readFile(bindingPath(dataDir))) };
 }
 async function snapshot(dataDir, target, binding) {
-  await copyTree(dataDir, target);
+  await copyTree(dataDir, target, { ignoreRoot: ['warm-store'] });
   await writeFile(bindingPath(target), binding ?? await readFile(bindingPath(dataDir)), { flag: 'wx', mode: 0o600 });
 }
 export async function backupStopped({ dataDir, backupDir, scratchRoot, release, keep = 30, minFreeBytes, probe = runProbe }) {
@@ -110,7 +110,7 @@ export async function restoreStopped({ backup, dataDir, scratchRoot, release, mi
       else { await copyFile(path.join(backup, row.path), target, 1); await chmod(target, 0o600); }
     }
     const expected = await inventory(path.join(backup, 'store'));
-    if (encode(expected) !== encode(await inventory(dataDir))) throw new Error('Restored store verification failed; keep service stopped.');
+    if (encode(expected) !== encode(await inventory(dataDir, { ignoreRoot: ['warm-store'] }))) throw new Error('Restored store verification failed; keep service stopped.');
     await assertReleased(dataDir);
     return { verified: true };
   } finally { await rm(scratch, { recursive: true, force: true }); }

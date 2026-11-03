@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { releaseVps } from '../scripts/release/vps/release.mjs';
 import { lockRelease, prepareBundle } from '../scripts/release/vps/bundle.mjs';
 import { execFileSync } from 'node:child_process';
@@ -212,4 +212,17 @@ test('read retries cover a fifteen-second warm-up and remain bounded', async () 
     calls++; return { status: 503, ok: false, json: async () => ({ code: 'PICKER_WARMING' }) };
   } });
   assert.equal((await bounded('/api/state')).response.status, 503); assert.equal(calls, 3);
+});
+
+
+test('online snapshots exclude disposable warm artifacts and interrupted cache publications', async t => {
+  const { dataDir } = await fixture(t);
+  await mkdir(path.join(dataDir, 'warm-store', 'results', '.write-lock'), { recursive: true });
+  await writeFile(path.join(dataDir, 'state.json'), '{}');
+  await writeFile(dataDir + '.dataset.json', '{}');
+  for (let index = 0; index < 10; index++) await writeFile(path.join(dataDir, 'warm-store', 'results', `${index}.tmp`), 'disposable');
+  const id = randomUUID();
+  await snapshotStore(dataDir, id, { maxFiles: 4 });
+  assert.deepEqual(await readdir(path.join(snapshotPath(dataDir, id), 'store')), ['state.json']);
+  assert.equal((await readdir(path.join(dataDir, 'warm-store', 'results'))).length, 11);
 });
