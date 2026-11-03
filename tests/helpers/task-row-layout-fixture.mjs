@@ -1,6 +1,7 @@
 // Synthetic DOM fixture for the row layout, using the real How/claim/duo controls.
 export const taskRowLayoutFixture = `
 import { appendTaskHow } from '/task-how.mjs';
+import { appendTaskWhy } from '/task-why.mjs';
 import { appendTaskClaim } from '/task-claims.mjs';
 import { createDuoTaskView } from '/duo-task-view.mjs';
 const el = (tag, text, cls) => Object.assign(document.createElement(tag), { ...(text ? { textContent: text } : {}), ...(cls ? { className: cls } : {}) });
@@ -9,16 +10,21 @@ const task = { id: 'synthetic-safe', label: '(Furniture Plans) Unlock furniture 
 const state = { revision: 1, members: [{ id: 'one', name: 'Player 2' }, { id: 'two', name: 'Explorer' }], taskClaims: {} };
 const proof = { proofStatus: 'complete', root: 'goal', nodes: { goal: { kind: 'task', taskLabel: 'Unlock furniture plans: Safe', allOf: ['supply'] }, supply: { kind: 'item-source', sourceKind: 'shop', sourceName: 'the furniture shop', subjectId: 'Furniture plans', allOf: [] } } };
 const appendHow = row => appendTaskHow(row, task, { document, button, scope: () => 'fixture', load: async () => proof });
-const appendClaim = host => appendTaskClaim({ document, host, task, getState: () => state, getMemberId: () => 'one', actingForMember: () => true, canEdit: () => true, command: async () => {}, showError: error => { throw error; } });
+const appendClaim = (host, claimState = state) => appendTaskClaim({ document, host, task, getState: () => claimState, getMemberId: () => 'one', actingForMember: () => true, canEdit: () => true, command: async () => {}, showError: error => { throw error; } });
 const icon = name => { const node = el('span', undefined, 'icon icon-' + name); node.setAttribute('aria-hidden', 'true'); return node; };
+// screen-tasks.mjs appends both controls through its appendWhy callback.
+const appendWhy = row => {
+  appendHow(row);
+  appendTaskWhy(row, task, { document, button, icon, load: async () => ({ task, result: {} }), openRule: () => {} });
+};
 const taskIcon = body => { const node = el('img', undefined, 'task-icon'); node.src = '/placeholder-art/item.svg'; node.alt = ''; body.append(node); };
 const section = el('section'); document.querySelector('#active-tasks').append(section);
-function solo(id, { completed = false, readOnly = false, how = true, form = false } = {}) {
+function solo(id, { completed = false, readOnly = false, how = true, form = false, claimState = state } = {}) {
   const row = el('div', undefined, 'task-row'); row.id = id; row.dataset.completed = String(completed);
   const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.checked = completed; checkbox.setAttribute('aria-label', 'Mark synthetic task done');
   const body = el('div', undefined, 'task-body'), content = el('div'); taskIcon(body);
   content.append(button(task.label, () => {}, 'task-label-button'), el('span', 'Level 1', 'task-meta'));
-  if (completed) content.append(el('span', 'Done by Player 2', 'task-meta')); else appendClaim(content);
+  if (completed) content.append(el('span', 'Done by Player 2', 'task-meta')); else appendClaim(content, claimState);
   body.append(content); row.append(readOnly ? el('span', completed ? 'Done' : 'Not done', 'task-completion-status') : checkbox, body);
   if (how) appendHow(row);
   const why = button('', () => {}, 'icon-button task-why'); why.setAttribute('aria-label', 'Why is this task here?'); why.append(icon('why'));
@@ -33,12 +39,23 @@ solo('solo');
 const open = solo('open'); open.querySelector('.task-how').click();
 solo('completed', { completed: true, readOnly: true, how: false });
 solo('readonly', { readOnly: true });
-const duo = createDuoTaskView({ document, getState: () => state, getSelectedMember: () => 'one', getStorage: () => null,
-  command: async () => {}, backlog: () => {}, showTask: () => {}, appendWhy: appendHow, appendIcon: taskIcon,
-  actingForMember: () => true, showError: error => { throw error; } });
+const duoOptions = { document, getState: () => state, getSelectedMember: () => 'one', getStorage: () => null,
+  command: async () => {}, backlog: () => {}, showTask: () => {}, appendWhy, appendIcon: taskIcon,
+  actingForMember: () => true, showError: error => { throw error; } };
+const duo = createDuoTaskView(duoOptions);
 const duoRow = duo.row({ task, memberIds: ['one', 'two'], label: 'Player 2 and Explorer', facts: { group: false, personal: false, completedBy: [] } });
 duoRow.id = 'duo'; section.append(duoRow);
 solo('backlogged', { how: false, form: true });
+window.appendLayoutRegressions = () => {
+  const members = [{ id: 'one', name: 'Explorer number one with a long partner name' }, { id: 'two', name: 'Explorer number two' }];
+  solo('long-claim', { claimState: { ...state, members } });
+  solo('long-takeover', { claimState: { ...state, members, taskClaims: { [task.id]: { memberId: 'two', at: '2026-01-01T00:00:00Z' } } } });
+  const viewer = createDuoTaskView({ ...duoOptions, readOnly: () => true, canEdit: () => false });
+  for (const completed of [false, true]) {
+    const row = viewer.row({ task, memberIds: ['one', 'two'], label: 'Player 2 and Explorer', facts: { group: completed, personal: completed, completedBy: completed ? ['one'] : [] } });
+    row.id = completed ? 'duo-done' : 'duo-readonly'; section.append(row);
+  }
+};
 await document.fonts.ready;
 document.documentElement.dataset.fixtureReady = 'true';
 `;

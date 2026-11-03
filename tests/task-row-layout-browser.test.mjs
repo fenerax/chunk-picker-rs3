@@ -183,6 +183,106 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         }
       }
     });
+    await browser.evaluate('window.appendLayoutRegressions()');
+    const layout = async (ids, listWidth, touch = false, viewport = 1280) => {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width:viewport, height:1000, deviceScaleFactor:1, mobile:false });
+      await browser.send('Emulation.setTouchEmulationEnabled', { enabled:touch, maxTouchPoints:1 });
+      await browser.evaluate(`(() => {
+        const ids = ${JSON.stringify(ids)};
+        for (const row of document.querySelectorAll('.task-row')) row.hidden = !ids.includes(row.id);
+        const s = getComputedStyle(document.querySelector('.task-sidebar'));
+        const extra = ['paddingLeft','paddingRight','borderLeftWidth','borderRightWidth'].reduce((sum, key) => sum + parseFloat(s[key]), 0);
+        document.documentElement.style.setProperty('--fixture-panel', (${listWidth} + extra) + 'px');
+        document.activeElement?.blur(); window.scrollTo(0, 0);
+      })()`);
+      await browser.send('Input.dispatchMouseEvent', { type:'mouseMoved', x:1, y:1 });
+      assert.equal(await browser.evaluate('matchMedia("(pointer:coarse)").matches'), touch, 'exercise the requested pointer');
+      assert.ok(Math.abs(await browser.evaluate('document.querySelector("#active-tasks").getBoundingClientRect().width') - listWidth) < 1, 'exercise the requested list width');
+    };
+    // Restore only the matching pre-fix declaration in memory, then remove it.
+    // The same geometry assertions must reject the old rule and accept shipped CSS.
+    const withOldCSS = async (css, measure) => {
+      await browser.evaluate(`(() => { const s = document.createElement('style'); s.id = 'old-layout-rule'; s.textContent = ${JSON.stringify(css)}; document.head.append(s); })()`);
+      try { return await measure(); }
+      finally { await browser.evaluate('document.querySelector("#old-layout-rule").remove()'); }
+    };
+    const screenshot = async name => {
+      if (!process.env.RS3_LAYOUT_SHOTS) return;
+      await mkdir(process.env.RS3_LAYOUT_SHOTS, { recursive:true });
+      const clip = await browser.evaluate(`(() => { const r = document.querySelector('.task-sidebar').getBoundingClientRect(); return { x:r.x + scrollX, y:r.y + scrollY, width:r.width, height:r.height, scale:1 }; })()`);
+      const shot = await browser.send('Page.captureScreenshot', { format:'png', captureBeyondViewport:true, clip });
+      await writeFile(path.join(process.env.RS3_LAYOUT_SHOTS, (process.env.RS3_LAYOUT_SHOT_PREFIX ?? 'after') + '-' + name + '.png'), Buffer.from(shot.data, 'base64'));
+    };
+    const duoActions = async () => browser.evaluate(`(() => {
+      const row = document.querySelector('#duo');
+      row.querySelector('.task-how').focus(); row.scrollIntoView({block:'center'});
+      const control = selector => {
+        const node = row.querySelector(selector), r = node.getBoundingClientRect(), s = getComputedStyle(node);
+        return { x:r.x, y:r.y, right:r.right, bottom:r.bottom,
+          visible:r.width > 0 && r.height > 0 && s.visibility === 'visible' && Number(s.opacity) > 0 && !node.hidden,
+          clickable:!node.disabled && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === node };
+      };
+      return { why:control('.task-why'), backlog:control('.duo-task-backlog') };
+    })()`);
+    const assertDuoActions = ({ why, backlog }) => {
+      assert.equal(why.visible && backlog.visible, true, 'Why and Backlog are visible');
+      assert.ok(!intersects(why, backlog), 'duo Why and Backlog must not overlap');
+      assert.equal(why.clickable, true, 'duo Why centre must be clickable');
+      assert.equal(backlog.clickable, true, 'duo Backlog centre must be clickable');
+    };
+    for (const width of [260, 320]) for (const touch of [false, true]) {
+      await t.test('duo How, Why and Backlog at ' + width + '/' + (touch ? 'coarse' : 'fine'), async () => {
+        await layout(['duo'], width, touch);
+        const old = await withOldCSS('@container task-list (max-width:360px){.task-row>.duo-task-backlog{grid-column:3 / -1}}', duoActions);
+        assert.throws(() => assertDuoActions(old), { code:'ERR_ASSERTION' }, 'old duo backlog track must fail');
+        t.diagnostic('Old CSS: Why/Backlog overlap=' + intersects(old.why, old.backlog) + ', centres clickable=' + old.why.clickable + '/' + old.backlog.clickable);
+        assertDuoActions(await duoActions());
+        if (width === 260) await screenshot('narrow-260-duo-' + (touch ? 'coarse' : 'fine'));
+      });
+    }
+    const claimBoxes = async () => browser.evaluate(`(() => {
+      const row = document.querySelector('.task-row:not([hidden])'), body = row.querySelector('.task-body'), claim = row.querySelector('.task-claim-action');
+      const box = node => { const r = node.getBoundingClientRect(); return { x:r.x, right:r.right, y:r.y, bottom:r.bottom }; };
+      const text = document.createRange(); text.selectNodeContents(claim);
+      return { text:claim.textContent, row:{ scroll:row.scrollWidth, client:row.clientWidth }, body:{ scroll:body.scrollWidth, client:body.clientWidth, ...box(body) }, claim:box(claim), lines:text.getClientRects().length };
+    })()`);
+    const assertClaimFits = m => {
+      assert.ok(m.row.scroll <= m.row.client + 1, 'long claim must not scroll the row: ' + JSON.stringify(m.row));
+      assert.ok(m.body.scroll <= m.body.client + 1, 'long claim must not scroll the body: ' + JSON.stringify(m.body));
+      assert.ok(m.claim.x >= m.body.x - 1 && m.claim.right <= m.body.right + 1 && m.claim.y >= m.body.y - 1 && m.claim.bottom <= m.body.bottom + 1, 'claim button stays inside the body');
+    };
+    for (const id of ['long-claim', 'long-takeover']) for (const touch of [false, true]) {
+      await t.test(id + ' at 260/' + (touch ? 'coarse' : 'fine'), async () => {
+        await layout([id], 260, touch);
+        const old = await withOldCSS('@container task-list (max-width:360px){.task-claim-action{white-space:nowrap;overflow-wrap:normal;max-width:none}}', claimBoxes);
+        assert.throws(() => assertClaimFits(old), { code:'ERR_ASSERTION' }, 'old nowrap claim must fail');
+        t.diagnostic('Old CSS: row ' + old.row.scroll + '/' + old.row.client + ', body ' + old.body.scroll + '/' + old.body.client);
+        const current = await claimBoxes();
+        assert.equal(current.text, (id === 'long-claim' ? 'Claim for ' : 'Take over for ') + 'Explorer number one with a long partner name');
+        assertClaimFits(current);
+        assert.ok(current.lines > 1, 'long partner name wraps');
+        if (touch) await screenshot('narrow-260-' + id + '-coarse');
+      });
+    }
+    for (const [viewport, touch] of [[1440, false], [1440, true], [720, false]]) {
+      await t.test('read-only duo with How at ' + viewport + '/' + (touch ? 'coarse' : 'fine'), async () => {
+        await layout(['duo-readonly', 'duo-done'], 600, touch, viewport);
+        assert.deepEqual(await browser.evaluate(`['duo-readonly','duo-done'].map(id => {
+          const row = document.getElementById(id);
+          return { status:row.querySelector('.task-completion-status').textContent, checkbox:!!row.querySelector('input[type=checkbox]'), how:!!row.querySelector('.task-how') };
+        })`), [{ status:'Not done', checkbox:false, how:true }, { status:'Done', checkbox:false, how:true }]);
+        const measure = () => browser.evaluate(`(${statusRowBoxes})().filter(row => row.id.startsWith('duo-'))`);
+        const check = rows => {
+          assert.equal(rows.length, 2);
+          for (const row of rows) assert.ok(!intersects(row.status, row.icon), row.id + ': read-only duo status must not overlap the task icon');
+        };
+        const old = await withOldCSS('.duo-task-row:has(>.task-how){grid-template-columns:18px minmax(0,1fr) auto auto auto}@media(max-width:720px),(pointer:coarse){:root .duo-task-row:has(>.task-how){grid-template-columns:44px minmax(0,1fr) auto auto auto}}', measure);
+        assert.throws(() => check(old), { code:'ERR_ASSERTION' }, 'old fixed status track must fail');
+        t.diagnostic('Old CSS: overlapping status=' + old.filter(row => intersects(row.status, row.icon)).map(row => row.id).join(','));
+        check(await measure());
+        if (viewport === 1440 && !touch) await screenshot('wide-readonly-duo');
+      });
+    }
   } finally {
     await browser?.close(); await new Promise(resolve => server.close(resolve));
     await rm(scratch, { recursive: true, force: true });
