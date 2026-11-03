@@ -2,10 +2,39 @@ import { Worker, MessageChannel } from 'node:worker_threads';
 import { encodeReceivedWorkerMessage, decodeReceivedProcessMessage } from './process-worker-transport.mjs';
 import { createRelayCollector, envelopeBytes } from './relay-collector.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
+import { createProcessProfiles } from './process-profiles.mjs';
 
 let worker, stopping = false, failed = false, probeEnabled = false;
 const cancellations = new Map();
 const relay = createRelayCollector();
+let profiles, profileRetiring = false, calculatorReady = false;
+const requests = new Set();
+let profileOperations = Promise.resolve();
+function retireProfileWhenIdle() {
+  if (profileRetiring && calculatorReady && !requests.size) void stop();
+}
+function retireProfile() {
+  if (profileRetiring) return;
+  profileRetiring = true; send({ kind: 'profile-retiring' });
+  retireProfileWhenIdle();
+}
+function restoreProfile() {
+  profileRetiring = false; send({ kind: 'profile-cleaned' });
+}
+async function profile(message) {
+  try {
+    if (!profiles || profileRetiring) throw new Error();
+    if (message.operation === 'start') {
+      await profiles.start(message.deadline);
+      if (!profileRetiring) send({ kind: 'profile', id: message.id });
+    } else {
+      const result = await profiles.stop();
+      if (!profileRetiring) send({ kind: 'profile', id: message.id, profile: result });
+    }
+  } catch {
+    send({ kind: 'profile', id: message.id, error: true });
+  }
+}
 
 function send(message) {
   if (!process.connected) return;
@@ -54,6 +83,12 @@ async function memory(id) {
 process.on('message', message => {
   if (stopping) return;
   try {
+    if (message.kind === 'profile') {
+      if (message.operation === 'cancel') {
+        void profiles?.cancel().then(safe => { if (safe) { restoreProfile(); send({ kind: 'profile', id: message.id, error: true, cancelled: true }); } }).catch(retireProfile);
+      } else profileOperations = profileOperations.then(() => profile(message));
+      return;
+    }
     if (message.kind === 'terminate') { void stop(); return; }
     if (message.kind === 'memory-rss') {
       send({ kind: 'memory-rss', id: message.id, pid: process.pid, rssBytes: process.memoryUsage.rss() }); return;
@@ -69,10 +104,13 @@ process.on('message', message => {
         // process-only V8 flags; explicitly forwarding those flags rejects them.
         ...(probeEnabled ? { execArgv: ['--import', probeImport] } : {}),
       });
+      profiles = createProcessProfiles({ worker, online: new Promise(resolve => worker.once('online', resolve)), retire: retireProfile, restore: restoreProfile });
       worker.on('message', result => {
-        if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) cancellations.delete(result.id);
+        if (result.type === 'ready') calculatorReady = true;
+        if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) { cancellations.delete(result.id); requests.delete(result.id); }
         try { const payload = encodeReceivedWorkerMessage(result); send({ kind: 'message', payload }); relay.note(envelopeBytes(payload)); }
         catch (error) { fail(error); }
+        retireProfileWhenIdle();
       });
       worker.on('error', fail);
       worker.once('exit', code => { if (!stopping && !failed) void stop(code); });
@@ -86,6 +124,7 @@ process.on('message', message => {
         const cancellation = cancellations.get(request.id);
         if (cancellation) Atomics.store(new Int32Array(cancellation), 0, 1);
       } else if (request.cancellation instanceof SharedArrayBuffer) cancellations.set(request.id, request.cancellation);
+      if (request.id !== undefined && !['cancel', 'supersede'].includes(request.type)) requests.add(request.id);
       worker.postMessage(request);
     }
   } catch (error) { fail(error); }

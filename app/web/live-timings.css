@@ -1,0 +1,5 @@
+.timings-page main{max-width:100rem;margin:auto;padding:var(--space-7);font-family:var(--font-body)}
+.timings-page .table-wrap{overflow-x:auto;margin-block:var(--space-6)}
+.timings-page table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.timings-page th,.timings-page td{text-align:left;padding:var(--space-4);border-bottom:var(--border-thin) solid currentColor;white-space:nowrap}
+.timings-page input{width:7rem}.timings-page button{margin:var(--space-2)}

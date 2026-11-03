@@ -2,11 +2,11 @@ import { EventEmitter } from 'node:events';
 
 // One server owns the physical calculators. Lanes borrow a slot for one job;
 // even a retiring calculator holds its slot until termination has completed.
-export function createCalculatorPool({ limit, workerFactory, workerData, onReady, idleMs = 600000, startupDeadlineMs = 30000 }) {
+export function createCalculatorPool({ limit, workerFactory, workerData, onReady, onWorker, idleMs = 600000, startupDeadlineMs = 30000 }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false;
   const diagnostics = () => ({ limit, resident: slots.size, peak, active: [...slots].filter(slot => slot.owner).length,
-    retiring: [...slots].filter(slot => slot.stopping).length, waiting: waiting.size });
+    retiring: [...slots].filter(slot => slot.stopping || slot.worker.profileRetiring).length, waiting: waiting.size });
   function retire(slot) {
     if (slot.stopping) return slot.stopping;
     clearTimeout(slot.timer); clearTimeout(slot.startupTimer);
@@ -20,8 +20,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     slot.timer = setTimeout(() => { if (!slot.owner) void retire(slot); }, Math.min(idleMs, 2147483647));
     slot.timer.unref?.();
   }
-  function allocate(pendingOwner) {
-    const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
+  function allocate(pendingOwner, cold = true) {
+    const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, cold: cold && !!pendingOwner, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
+    onWorker?.(slot.worker);
     slots.add(slot); peak = Math.max(peak, slots.size);
     slot.initial = new Promise((resolve, reject) => { slot.resolve = resolve; slot.reject = reject; });
     // Later slots report failure through their owner, not an unobserved promise.
@@ -32,10 +33,13 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       const owner = slot.owner ?? slot.pendingOwner; slot.owner = undefined;
       if (owner) { owner.slot = undefined; waiting.delete(owner); }
       void retire(slot);
-      if (owner && !owner.stopped) owner.emit('error', error);
+      if (owner && !owner.stopped) owner.emit(slot.worker.profileRetiring ? 'profile-retired' : 'error', error);
     }
     slot.startupTimer = setTimeout(() => fail(new Error('Calculator startup deadline exceeded.')), startupDeadlineMs);
     slot.worker.on('error', fail);
+    slot.worker.on('profile-retiring', () => {
+      if (slot.ready && !slot.owner) void retire(slot);
+    });
     slot.worker.on('exit', () => {
       if (slot.stopping) { slots.delete(slot); pump(); }
       else fail(new Error('Calculator exited.'));
@@ -47,7 +51,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         onReady?.(message);
         clearTimeout(slot.startupTimer); slot.pendingOwner = undefined; slot.ready = true;
         ready ??= message;
-        slot.resolve(ready); idle(slot); pump(); return;
+        slot.resolve(ready);
+        if (slot.worker.profileRetiring) void retire(slot); else idle(slot);
+        pump(); return;
       }
       const owner = slot.owner;
       if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) return;
@@ -55,6 +61,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       const response = { ...message, id: slot.originalId };
       if (complete) { slot.owner = undefined; owner.slot = undefined; idle(slot); }
       owner.emit('message', response);
+      if (complete && slot.worker.profileRetiring) void retire(slot);
       if (complete) pump();
     });
     return slot;
@@ -76,7 +83,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         const ids = new Set(eligible.map(value => value.pickerId));
         for (let i = turns.length - 1; i >= 0; i--) if (!ids.has(turns[i])) turns.splice(i, 1);
         for (const id of ids) if (!turns.includes(id)) turns.push(id);
-        const idleSlots = [...slots].filter(value => value.ready && !value.stopping && !value.owner);
+        const idleSlots = [...slots].filter(value => value.ready && !value.stopping && !value.worker.profileRetiring && !value.owner);
         const usable = (slot, endpoint) => limit === 1 || slot.group === endpoint.group;
         // Advisory lanes share at most limit - 1 slots, including retiring
         // slots. Foreground can then wake even after its idle worker exits.
@@ -108,6 +115,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         turns.splice(turns.indexOf(selected.pickerId), 1); turns.push(selected.pickerId);
         waiting.delete(endpoint); clearTimeout(slot.timer);
         slot.owner = endpoint; endpoint.slot = slot;
+        endpoint.startedCalculator = slot.cold; slot.cold = false;
         request.run();
       }
     } finally { pumping = false; }
@@ -118,7 +126,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot ??= (async () => {
         await Promise.all([...slots].filter(slot => slot.stopping).map(slot => slot.stopping));
         if (closed) throw new Error('Calculator pool is closing.');
-        return ready ?? await ([...slots][0] ?? allocate(this)).initial;
+        return ready ?? await ([...slots][0] ?? allocate(this, false)).initial;
       })().catch(error => { boot = undefined; throw error; });
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }
