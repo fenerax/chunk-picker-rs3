@@ -22,7 +22,7 @@ const shell = (await readFile(new URL('index.html', web), 'utf8'))
   .replace('<script type="module" src="/main.mjs"></script>', '<script type="module" src="/fixture.mjs"></script>');
 
 // No app server or save imports: this host serves only shipped CSS/modules and
-// synthetic rows. Use the same bounded ports as the gallery/browser helpers.
+// synthetic rows. Let the OS assign ports for both this host and owned Chrome.
 test('task rows fit their list container and keep actions reachable', { timeout: 60000 }, async t => {
   const scratch = await mkdtemp(path.join(tmpdir(), 'rs3-row-layout-'));
   const server = createServer(async (request, response) => {
@@ -44,11 +44,13 @@ test('task rows fit their list container and keep actions reachable', { timeout:
   });
   let browser;
   try {
-    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(8966, '127.0.0.1', resolve); });
-    browser = await openChrome(await findChrome(), path.join(scratch, 'chrome'), { port: 8967 });
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    browser = await openChrome(await findChrome(), path.join(scratch, 'chrome'), {
+      extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
+    });
     const errors = [];
     browser.listeners.add(({ method, params }) => { if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails.exception?.description ?? params.exceptionDetails.text); });
-    await browser.send('Page.navigate', { url: 'http://127.0.0.1:8966/' });
+    await browser.send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` });
     await until(async () => { if (errors.length) throw new Error(errors.join('\n')); return browser.evaluate('document.documentElement.dataset.fixtureReady === "true"'); });
     await browser.evaluate(`(() => {
       document.querySelector('.workspace').replaceChildren(document.querySelector('.task-sidebar'));
