@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readdir, readFile, writeFile, rm, utimes, mkdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createWarmStore, warmHash } from '../app/tasks/warm-store.mjs';
+import { createWarmStore, warmHash, releaseWarmStoreLocks } from '../app/tasks/warm-store.mjs';
 import { createWarmResults, warmResultNamespace, warmResultKey } from '../app/tasks/warm-results.mjs';
 import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
@@ -98,7 +98,8 @@ test('root publication hands both lock metadata paths to the service owner befor
     ['.write-lock-GhI789', 'owner-00000000-0000-4000-8000-000000000000']]) {
     const stage = path.join(directory, name);
     await mkdir(stage, { mode: 0o700 });
-    if (token) await writeFile(path.join(stage, token), '2147483647', { mode: 0o600 });
+    if (token) await writeFile(path.join(stage, token), name.endsWith('GhI789')
+      ? JSON.stringify({ pid: 2147483647, threadId: 1234, instanceId: key('dead instance') }) : '2147483647', { mode: 0o600 });
     await utimes(stage, new Date(0), new Date(0));
   }
   assert.ok(store.put(key('service'), Buffer.from('synthetic service reply')));
@@ -113,6 +114,42 @@ test('aged live lock stages keep their owner token until publication', async t =
   const store = createWarmStore(directory);
   assert.ok(store.put(key('independent'), Buffer.from('synthetic reply')));
   assert.equal(await readFile(token, 'utf8'), String(process.pid), 'a live stage must never become an empty published lock');
+});
+
+test('exit cleanup matches the exact thread instance and covers unpublished stages', async t => {
+  const directory = await scratch(t), token = 'owner-00000000-0000-4000-8000-000000000000';
+  const instanceId = key('synthetic instance'), threadId = 1234, owner = { pid: process.pid, threadId, instanceId };
+  const locks = ['.write-lock', '.write-lock-AbC123', '.write-lock-DeF456'];
+  for (const name of locks) {
+    await mkdir(path.join(directory, name));
+    await writeFile(path.join(directory, name, token), JSON.stringify({ ...owner, ...(name.endsWith('DeF456') ? { instanceId: key('other instance') } : {}) }));
+  }
+  releaseWarmStoreLocks(directory, key('other instance'), threadId + 1);
+  releaseWarmStoreLocks(directory, instanceId, threadId + 1);
+  assert.equal((await readdir(directory)).length, 3, 'thread identity must match before removing any token');
+  releaseWarmStoreLocks(directory, instanceId, threadId);
+  assert.deepEqual(await readdir(directory), ['.write-lock-DeF456'], 'other instances remain protected');
+});
+
+test('delayed exit cleanup cannot unlink a replacement writer token', async t => {
+  const directory = await scratch(t), lock = path.join(directory, '.write-lock');
+  const token = path.join(lock, 'owner-00000000-0000-4000-8000-000000000000');
+  const replacement = path.join(lock, 'owner-00000000-0000-4000-8000-000000000001');
+  const instanceId = key('exited instance'), threadId = 1234;
+  await mkdir(lock); await writeFile(token, JSON.stringify({ pid: process.pid, threadId, instanceId }));
+  const unlink = fs.unlinkSync;
+  t.mock.method(fs, 'unlinkSync', file => {
+    if (file === token) {
+      unlink(token); fs.rmdirSync(lock); fs.mkdirSync(lock);
+      fs.writeFileSync(replacement, String(process.pid));
+    }
+    return unlink(file);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  releaseWarmStoreLocks(directory, instanceId, threadId);
+  assert.deepEqual(await readdir(lock), [path.basename(replacement)]);
+  assert.equal(await readFile(replacement, 'utf8'), String(process.pid));
 });
 
 for (const legacy of [false, true]) test(`simultaneous reclamation preserves the live writer and its temp file (${legacy ? 'legacy' : 'token'} owner)`, { timeout: 20000 }, async t => {
@@ -210,7 +247,7 @@ test('result namespace binds source, runtime, dataset, exact definitions, world 
     assert.notEqual(warmResultNamespace({ ...data, ...changed }, environment), namespace);
   }
   for (const changed of [{ source: key('release') }, { node: '24.22.0' }, { v8: '2' }]) assert.notEqual(warmResultNamespace(data, { ...environment, ...changed }), namespace);
-  assert.equal(warmResultNamespace({ ...data, warmStoreDirectory: '/tmp/elsewhere', omitReadyCatalogue: true, collectPreparedCollection: true }, environment), namespace);
+  assert.equal(warmResultNamespace({ ...data, warmStoreDirectory: '/tmp/elsewhere', warmStoreOwnerId: 'synthetic instance', omitReadyCatalogue: true, collectPreparedCollection: true }, environment), namespace);
   assert.equal(warmResultNamespace({ ...data, extraRules: [() => {}] }, environment), undefined);
 });
 test('result keys bind exact save bytes/revision, picker, task input and all request projections', () => {

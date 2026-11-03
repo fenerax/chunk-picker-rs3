@@ -25,7 +25,7 @@ export function warmResultNamespace(data, environment) {
   try {
     // Include every semantic worker input, including custom world/extra rules.
     // Operational flags and directory locations do not affect calculator output.
-    const { warmStoreDirectory, omitReadyCatalogue, collectPreparedCollection, preparedCollection, preparedCollectionFile, ...semantic } = data;
+    const { warmStoreDirectory, warmStoreOwnerId, omitReadyCatalogue, collectPreparedCollection, preparedCollection, preparedCollectionFile, ...semantic } = data;
     if (semantic.definitionBytes !== undefined) semantic.definitionBytes = Buffer.from(semantic.definitionBytes);
     return warmHash(serialize([1, environment ?? { source: preparationSourceDigest(), node: process.versions.node, v8: process.versions.v8 }, semantic]));
   } catch { /* Unserializable injected inputs disable optional persistence. */ }

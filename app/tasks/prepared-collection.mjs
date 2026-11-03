@@ -6,7 +6,7 @@ import { lstatSync, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Worker } from 'node:worker_threads';
+import { WarmStoreWorker } from './warm-store-worker.mjs';
 
 // One immutable entry per scheduler, shared by native lanes. This fixed cap is
 // separate from the existing snapshot/result byte ledger. Files contain only
@@ -94,9 +94,9 @@ export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PR
         // or synchronous publication on the server. Only one write is pending.
         const result = await new Promise((resolve, reject) => {
           let result, error;
-          const worker = new Worker(new URL('./prepared-collection-publisher.mjs', import.meta.url), {
+          const worker = new WarmStoreWorker(new URL('./prepared-collection-publisher.mjs', import.meta.url), {
             workerData: { key, value, reference, directory, persistentDirectory: persistent ? persistentDirectory : undefined },
-          });
+          }, persistent ? [path.join(persistentDirectory, 'collections')] : []);
           worker.once('message', message => { result = message; });
           worker.once('error', value => { error = value; });
           worker.once('exit', code => code === 0 && !error ? resolve(result) : reject(error ?? new Error('Collection publisher exited.')));

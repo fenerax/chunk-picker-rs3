@@ -6,6 +6,7 @@ import { mkdtemp, rm, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { canonical } from '../tools/calc-check/compare.mjs';
+import { runWarmWriterProbe } from './helpers/pause-warm-writer.mjs';
 process.env.RS3_DATASET = 'open-f2p';
 const { ProcessWorker } = await import('../app/tasks/process-worker.mjs');
 const { createWorkerPreparation } = await import('../app/tasks/prepared-collection.mjs');
@@ -17,6 +18,47 @@ const definitions = { chunks: { '12341': {}, '12342': {} }, walkableChunks: ['12
 const world = buildWorld(definitions);
 const data = directory => genericWorkerData({ definitions, world: { chunks: world.chunks, areas: world.areas }, extraRules: [], ...(directory ? { warmStoreDirectory: directory } : {}) });
 const state = createGroupState([{ id: 'a', name: 'A', unlocked: ['12341'] }, { id: 'b', name: 'B', unlocked: ['12341'] }]);
+
+for (const maxCalculators of [undefined, 1]) test(`terminated thread calculator releases its aged lock without a service restart (${maxCalculators ? 'pool' : 'lane'})`, { timeout: 20000 }, async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'warm-thread-exit-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await runWarmWriterProbe(directory, 'results', `
+  import { createTaskScheduler } from ${JSON.stringify(new URL('../app/tasks/scheduler.mjs', import.meta.url).href)};
+  import { createWarmStore, warmHash } from ${JSON.stringify(new URL('../app/tasks/warm-store.mjs', import.meta.url).href)};
+  import { genericWorkerData } from ${JSON.stringify(new URL('./helpers/worker-dataset.mjs', import.meta.url).href)};
+  const state = ${JSON.stringify(state)};
+  const data = () => genericWorkerData({ definitions: ${JSON.stringify(definitions)} });
+  const open = () => createTaskScheduler({ workerData: data(), warmStoreDirectory: directory, maxCalculators: ${JSON.stringify(maxCalculators) ?? 'undefined'} });
+  let scheduler;
+  try {
+  scheduler = await open();
+  const pending = scheduler.evaluate(state, 'a').catch(error => error);
+  const { worker, file } = await held(), partition = path.join(directory, 'results'), lock = path.join(partition, '.write-lock');
+  const [token] = await readdir(lock), owner = JSON.parse(await readFile(path.join(lock, token), 'utf8'));
+  assert.equal(owner.pid, process.pid);
+  assert.equal(owner.threadId, worker.threadId);
+  assert.match(owner.instanceId, /^[a-f0-9-]{36}$/);
+  await utimes(lock, new Date(0), new Date(0));
+  const contender = createWarmStore(partition), cacheKey = warmHash('synthetic replacement');
+  assert.equal(contender.put(cacheKey, Buffer.from('synthetic reply')), undefined, 'an aged live thread retains exclusive ownership');
+  assert.ok((await readFile(file)).length, 'contention must not prune a live writer temp file');
+  assert.deepEqual(await readdir(lock), [token]);
+  const started = Date.now();
+  await scheduler.close(); scheduler = undefined;
+  assert.ok(await pending instanceof Error);
+  assert.ok(contender.put(cacheKey, Buffer.from('synthetic reply')), 'parent exit cleanup allows immediate publication');
+  assert.ok(Date.now() - started < 5000, 'recovery needs neither the stale-lock minute nor a service restart');
+  scheduler = await open();
+  const recovered = await scheduler.evaluate(state, 'a');
+  assert.ok(recovered.result);
+  await scheduler.close(); scheduler = undefined;
+  scheduler = await open();
+  const restored = await scheduler.evaluate(state, 'a');
+  assert.deepEqual(restored.resultJSON, recovered.resultJSON);
+  assert.equal(restored.timingMs.engineMs, 0, 'instance identity must not invalidate persisted reply keys');
+  } finally { await scheduler?.close(); }
+  `);
+});
 
 test('process calculator lock failures reach service stderr once without failing requests', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'warm-worker-warning-'));

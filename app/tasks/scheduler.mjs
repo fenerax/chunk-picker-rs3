@@ -1,6 +1,7 @@
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
-import { Worker } from 'node:worker_threads';
+import { WarmStoreWorker } from './warm-store-worker.mjs';
+import path from 'node:path';
 import { ProcessWorker } from './process-worker.mjs';
 import { createCalculatorPool } from './calculator-pool.mjs';
 import { createHash } from 'node:crypto';
@@ -33,7 +34,8 @@ const superseded = () => Object.assign(new Error('Calculation superseded by a ne
 // Give each native calculator an owned process so retirement releases them.
 const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
   || process.platform !== 'win32' && process.env.RS3_TASK_WORKER_MODE !== 'process'
-  ? new Worker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS }) : new ProcessWorker(data);
+  ? new WarmStoreWorker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS },
+    typeof data?.warmStoreDirectory === 'string' ? [path.join(data.warmStoreDirectory, 'results')] : []) : new ProcessWorker(data);
 // Built-in advisory lanes never read the ready catalogue, so their workers skip
 // sending it. The flag is always overwritten: callers cannot strip foreground's.
 export const nativeWorkerInput = (workerData, includeReadyCatalogue) => ({ ...workerData, omitReadyCatalogue: !includeReadyCatalogue });

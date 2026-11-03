@@ -274,4 +274,37 @@ bugs were also reproduced by running the new regressions against the original
 implementations. Ownership checks emulate root/service UIDs; no live Linux/VPS
 check or performance benchmark was run.
 
+### Thread termination lock cleanup
+
+Lock metadata now records the PID, thread ID and a random worker-instance ID;
+legacy PID-only owners remain readable. The parent assigns the instance ID
+before launching each native calculator or collection publisher and registers
+its store directories. On the worker's `exit` event, the parent removes only
+tokens matching that exited instance, including unpublished stages. Cleanup
+unlinks the observed unique token before removing its directory, so a delayed
+cleanup cannot delete a replacement writer's lock. It never reclaims a thread
+based on age alone. Dead-process reclamation retains the one-minute threshold,
+and root publication still transfers lock/token ownership before exposure.
+
+This uses parent-owned cleanup rather than a heartbeat: synchronous hashing and
+filesystem calls can block a worker's heartbeat, while `exit` proves that the
+thread can no longer write. No acquisition message needs to win a race against
+termination. The operational instance ID is excluded from result namespaces so
+new calculator instances can restore persisted replies.
+
+Synthetic regressions pause actual thread calculators (direct lane and pooled)
+and the separate collection publisher while their lock and temp file are held.
+After aging the lock beyond one minute, contenders still skip without pruning
+the active file. Terminating the owner allows immediate publication in the same
+process; calculator recovery is bounded to five seconds and persisted replies
+restore on the next instance. Cleanup tests also cover instance/thread matching,
+unpublished stages and replacement tokens. Both existing simultaneous-reclaimer
+regressions and the process-termination recovery test remain passing.
+
+Validation on Windows, Node v26.13.0, one test file at a time: `warm-store`
+(14), `prepared-collection` (15), `warm-restart-worker` (5) and the focused
+`scheduler` tests (43): 77 passed, 0 failed, 0 skipped, about 25 seconds for
+the final runs. No server, private data, full suite or live Linux/VPS check was
+used. Calculation logic is unchanged.
+
 Written by Codex.

@@ -14,6 +14,7 @@ import { preparedCollectionKey, encodePreparedCollection, decodePreparedCollecti
   validPreparedCollectionEntry, PREPARED_COLLECTION_LIMIT, readPreparedCollectionFile } from '../app/tasks/prepared-collection.mjs';
 import { createCalculatorPool } from '../app/tasks/calculator-pool.mjs';
 import { canonical } from '../tools/calc-check/compare.mjs';
+import { runWarmWriterProbe } from './helpers/pause-warm-writer.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
@@ -220,6 +221,37 @@ test('persistent collection launches and publication do no body I/O or hashing o
     assert.deepEqual(writes, [], 'publication belongs to the publisher');
     assert.deepEqual(hashes, [], 'neither launch nor accept hashes the collection body');
   } finally { await reopened.clear(); }
+});
+
+test('terminated collection publishers release only their own aged lock', { timeout: 20000 }, async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-publisher-exit-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await runWarmWriterProbe(directory, 'collections', `
+  import { createWorkerPreparation, encodePreparedCollection, preparedCollectionKey, validPreparedCollectionEntry, readPreparedCollectionFile } from ${JSON.stringify(new URL('../app/tasks/prepared-collection.mjs', import.meta.url).href)};
+  import { createCollectionEngine } from ${JSON.stringify(new URL('../app/tasks/collection.mjs', import.meta.url).href)};
+  import { createWarmStore, warmHash } from ${JSON.stringify(new URL('../app/tasks/warm-store.mjs', import.meta.url).href)};
+  import { genericWorkerData } from ${JSON.stringify(new URL('./helpers/worker-dataset.mjs', import.meta.url).href)};
+  const definitions = ${JSON.stringify(definitions)}, input = genericWorkerData({ definitions });
+  let snapshot;
+  createCollectionEngine(definitions, { onPrepared: value => { snapshot = value; } });
+  const entry = encodePreparedCollection(preparedCollectionKey(input), snapshot), caches = [];
+  const open = () => { const cache = createWorkerPreparation(input, { persistentDirectory: directory }); caches.push(cache); return cache; };
+  try {
+  const first = open(); first.accept({ preparedCollection: entry });
+  const { worker } = await held(), partition = path.join(directory, 'collections'), lock = path.join(partition, '.write-lock');
+  const [token] = await readdir(lock);
+  await utimes(lock, new Date(0), new Date(0));
+  const contender = createWarmStore(partition);
+  assert.equal(contender.put(warmHash('synthetic contention'), Buffer.from('synthetic reply')), undefined);
+  assert.deepEqual(await readdir(lock), [token], 'live publishers retain their lock regardless of age');
+  await worker.terminate(); await first.settled();
+  const next = open(); next.accept({ preparedCollection: entry }); await next.settled();
+  const reference = next.input().preparedCollectionFile;
+  assert.ok(reference?.warm, 'a fresh publisher succeeds in the same server process');
+  assert.ok(validPreparedCollectionEntry(readPreparedCollectionFile(reference, entry.key), entry.key));
+  assert(!(await readdir(partition)).some(name => name.startsWith('.write-lock') || name.endsWith('.tmp')));
+  } finally { for (const cache of caches) await cache.clear(); }
+  `);
 });
 
 test('publisher rejects a wrong collection checksum and can retry a complete entry', async t => {

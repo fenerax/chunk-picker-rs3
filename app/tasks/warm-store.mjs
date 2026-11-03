@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { constants, mkdirSync, mkdtempSync, lstatSync, openSync, closeSync, fstatSync, readSync, writeFileSync,
   renameSync, readdirSync, unlinkSync, rmdirSync, chownSync } from 'node:fs';
 import path from 'node:path';
+import { threadId, workerData } from 'node:worker_threads';
 
 export const WARM_STORE_LIMITS = Object.freeze({ bytes: 512 * 1024 * 1024, entries: 256,
   entryBytes: 128 * 1024 * 1024, ageMs: 7 * 86400000 });
@@ -14,15 +15,41 @@ export const WARM_COLLECTION_LIMITS = Object.freeze({ ...WARM_STORE_LIMITS, byte
 export const WARM_RESULT_LIMITS = Object.freeze({ ...WARM_STORE_LIMITS, bytes: 256 * 1024 * 1024, entries: 254 });
 const magic = Buffer.from('RS3WARM1'), headerBytes = 76, digest = /^[a-f0-9]{64}$/;
 const ownerName = name => name === 'owner' || /^owner-[a-f0-9-]{36}$/.test(name);
-function deadOwner(file) {
+const instanceId = workerData?.warmStoreOwnerId ?? randomUUID();
+function lockOwner(file) {
   const fd = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-  let owner;
-  try { const bytes = Buffer.alloc(32); const count = readSync(fd, bytes, 0, bytes.length, 0); owner = Number(bytes.subarray(0, count).toString()); }
+  let value;
+  try { const bytes = Buffer.alloc(256); const count = readSync(fd, bytes, 0, bytes.length, 0); value = bytes.subarray(0, count).toString(); }
   finally { closeSync(fd); }
-  if (Number.isSafeInteger(owner) && owner > 0) {
-    try { process.kill(owner, 0); return false; } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  try { const owner = JSON.parse(value); return typeof owner === 'number' ? { pid: owner } : owner; } catch { return; }
+}
+function deadOwner(file) {
+  const pid = lockOwner(file)?.pid;
+  if (Number.isSafeInteger(pid) && pid > 0) {
+    try { process.kill(pid, 0); return false; } catch (error) { if (error.code !== 'ESRCH') throw error; }
   }
   return true;
+}
+// Called by the owning parent only AFTER its worker exits. Instance identity
+// covers every store/lock that thread used, including unpublished stages. Each
+// unlink still claims a unique lock token, so replacement writers stay safe.
+export function releaseWarmStoreLocks(directory, ownerId, ownerThreadId) {
+  try {
+    if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) return;
+    for (const name of readdirSync(directory)) {
+      if (name !== '.write-lock' && !/^\.write-lock-[a-zA-Z0-9]{6}$/.test(name)) continue;
+      const lock = path.join(directory, name);
+      try {
+        const info = lstatSync(lock);
+        if (!info.isDirectory() || info.isSymbolicLink()) continue;
+        const names = readdirSync(lock);
+        if (names.length !== 1 || !ownerName(names[0])) continue;
+        const token = path.join(lock, names[0]), owner = lockOwner(token);
+        if (owner?.pid !== process.pid || owner.threadId !== ownerThreadId || owner.instanceId !== ownerId) continue;
+        unlinkSync(token); rmdirSync(lock);
+      } catch { /* Optional cleanup; dead-process/aged-stage recovery remains. */ }
+    }
+  } catch { /* Missing or unavailable optional store. */ }
 }
 function header(file, key, limit, body = false) {
   let fd;
@@ -83,7 +110,8 @@ export function createWarmStore(directory, limits = {}) {
     }
   }
   // Writers across lanes share one non-blocking lock. Busy means skip, never
-  // queue unbounded buffers. A killed writer's lock is reclaimed after a minute.
+  // queue unbounded buffers. Parents clean exited threads; dead-process locks
+  // are reclaimed after a minute.
   function writeLocked(operation) {
     if (!available) return false;
     let locked = false, stagedLock;
@@ -118,7 +146,7 @@ export function createWarmStore(directory, limits = {}) {
       const owner = process.getuid?.() === 0 ? lstatSync(directory) : undefined;
       if (owner) chownSync(stagedLock, owner.uid, owner.gid);
       const ownerFile = path.join(stagedLock, token);
-      writeFileSync(ownerFile, String(process.pid), { flag: 'wx', mode: 0o600 });
+      writeFileSync(ownerFile, JSON.stringify({ pid: process.pid, threadId, instanceId }), { flag: 'wx', mode: 0o600 });
       if (owner) chownSync(ownerFile, owner.uid, owner.gid);
       // Every published lock is nonempty: rename cannot replace a live lock.
       try {
