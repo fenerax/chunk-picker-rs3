@@ -51,8 +51,9 @@ function sharedRuntime() {
   const world = buildWorld(definitions);
   world.surface = new Set(['12341', '12342']);
   world.neighbors = new Map([['12341', ['12342']], ['12342', ['12341']]]);
+  // The mocked calculator supplies synthetic training and drop catalogues.
   return {
-    dataset: { ...selectedDataset, capabilities: { ...selectedDataset.capabilities, features: { ...selectedDataset.capabilities.features, runeMetrics: true, originalSync: true, externalNames: true } } }, indexedWorld: world, ruleRegistry: createRuleRegistry(),
+    dataset: { ...selectedDataset, capabilities: { ...selectedDataset.capabilities, features: { ...selectedDataset.capabilities.features, runeMetrics: true, originalSync: true, externalNames: true, training: true, rsCatalogues: true } } }, indexedWorld: world, ruleRegistry: createRuleRegistry(),
     taskWorker: worker, taskWorkerOptions: { workerFactory() {} },
     parsedDefinitions: definitions, parsedTaskMap: {}, identityHistory: {}, sandboxCatalogue: [],
     xpChoiceCatalogue: { choices: [], byId: new Map() }, membersStartBanks: {},
@@ -194,7 +195,7 @@ test('picker A player and viewer cannot observe picker B activity through diagno
   stream.response.destroy();
 });
 
-test('an affected non-admin picker receives crash, recovery and exhausted-restart health after requests settle', async t => {
+test('an affected non-admin picker receives crash, recovery and exhausted-restart health after requests settle', { timeout: 10000 }, async t => {
   const { scheduler, workers, taskWorker, spawned } = await calculatorFixture(t,
     { residency: undefined, autoReady: false, backoffMs: 1, maxRestarts: 1 });
   const { a, b } = await fixture(t, { runtimeOptions: { taskWorker } });
@@ -204,7 +205,7 @@ test('an affected non-admin picker receives crash, recovery and exhausted-restar
   const workerEvents = () => stream.text().split('\n\n').filter(event => event.startsWith('event: worker\n'))
     .map(event => JSON.parse(event.slice(event.indexOf('data: ') + 6)));
   const pending = send(a, '/api/helper-drops?memberId=one', { cookie });
-  while (!workers[0].messages.some(message => message.type === 'evaluate')) await nextTurn();
+  while (!workers[0].messages.some(message => message.type === 'evaluate')) { t.signal.throwIfAborted(); await nextTurn(); }
   workers[0].emit('error', new Error('synthetic calculator failure'));
   assert.equal((await pending).status, 503, 'the failed request has settled');
   const restarting = { status: 'restarting', ready: false, restartRequired: false };
@@ -227,7 +228,7 @@ test('an affected non-admin picker receives crash, recovery and exhausted-restar
 });
 
 for (const route of ['/api/area-check?memberId=one&chunks=12342&revision=0', '/api/helper-drops?memberId=one']) {
-  test(`viewer calculation leaves residency empty: ${route.split('?')[0]}`, async t => {
+  test(`viewer calculation leaves residency empty: ${route.split('?')[0]}`, { timeout: 10000 }, async t => {
     const { scheduler, workers, taskWorker } = await calculatorFixture(t);
     const { a } = await fixture(t, { runtimeOptions: { taskWorker } });
     const cookie = await viewer(a);
@@ -236,6 +237,7 @@ for (const route of ['/api/area-check?memberId=one&chunks=12342&revision=0', '/a
     const pending = send(a, route, { cookie });
     let job, worker;
     while (!job) {
+      t.signal.throwIfAborted();
       await nextTurn();
       worker = workers.find(value => value.messages.some(message => ['area-check', 'evaluate'].includes(message.type)));
       job = worker?.messages.findLast(message => message.id);

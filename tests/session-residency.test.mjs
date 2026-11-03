@@ -450,3 +450,68 @@ test('foreground can preempt an unsolicited advisory calculator still compiling'
   await tick(); await tick();
   assert.equal(workers[1].terminated, true); assert.equal(ran, true);
 });
+
+test('shutdown force-stops warm production without waiting for graceful retirement', { timeout: 1000 }, async t => {
+  let release;
+  t.after(() => release?.());
+  const { scheduler, scopes: [scope], workers } = await fixture(t);
+  scope.noteActivity();
+  scope.prewarm(state, 'input', [{ memberId: 'one', chunkIds: ['100'] }]);
+  await tick();
+  const worker = workers[1];
+  assert.equal(worker.messages.findLast(message => message.id).type, 'predict');
+  const exited = new Promise(resolve => { release = resolve; });
+  let forced = false;
+  worker.terminate = ({ force = false } = {}) => {
+    if (force) { forced = true; worker.emit('exit', 0); release(); }
+    return exited;
+  };
+  await scheduler.close(20);
+  assert.equal(forced, true);
+  await scheduler.close(20);
+});
+
+test('pool shutdown escalates retirement already waiting for a warm calculator exit', { timeout: 1000 }, async t => {
+  const clock = createManualClock(), sessions = createSessionResidency(config, clock);
+  let release;
+  const exited = new Promise(resolve => { release = resolve; });
+  t.after(release);
+  const worker = new EventEmitter();
+  let forced = false;
+  worker.terminate = ({ force = false } = {}) => {
+    if (force) { forced = true; worker.emit('exit', 0); release(); }
+    return exited;
+  };
+  const pool = createCalculatorPool({ limit: 1, sessions, clock, idleMs: 1, workerData: () => ({}),
+    workerFactory: () => { queueMicrotask(() => worker.emit('message', { type: 'ready' })); return worker; } });
+  t.after(() => pool.close());
+  pool.createEndpoint(true).on('error', assert.fail);
+  await tick(); await clock.advance(1);
+  assert.equal(pool.diagnostics().retiring, 1);
+  await pool.close();
+  assert.equal(forced, true);
+  assert.equal(pool.diagnostics().resident, 0);
+});
+
+test('pooled shutdown keeps the requested deadline when termination never resolves', { timeout: 1000 }, async t => {
+  const { scheduler, workers } = await fixture(t);
+  workers[0].terminate = () => new Promise(() => {});
+  const started = performance.now();
+  const first = scheduler.close(20);
+  assert.equal(scheduler.close(20), first);
+  await first;
+  assert.ok(performance.now() - started < 500);
+  assert.equal(scheduler.getHealth().status, 'closed');
+});
+
+test('task preparation readiness obeys the same picker activity admission as its warm queue', async t => {
+  const { scopes: [active, inactive], idleClock } = await fixture(t);
+  assert.equal(active.canPrewarmTasks(), false);
+  active.noteActivity();
+  for (const prediction of [false, true]) {
+    assert.equal(active.canPrewarmTasks(prediction), true);
+    assert.equal(inactive.canPrewarmTasks(prediction), false);
+  }
+  await idleClock.advance(150);
+  assert.equal(active.canPrewarmTasks(), false);
+});

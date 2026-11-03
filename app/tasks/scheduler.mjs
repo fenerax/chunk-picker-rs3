@@ -233,7 +233,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       };
       facade.subscribePrepared = listener => scheduler.subscribePrepared(event => { if (!abandoned && event.pickerId === pickerId) listener(event); });
       facade.subscribePredictions = listener => scheduler.subscribePredictions(event => { if (!abandoned && event.pickerId === pickerId) listener(event); });
-      facade.canPrewarmTasks = (...args) => !abandoned && scheduler.canPrewarmTasks(...args);
+      facade.canPrewarmTasks = (usePrediction = false) => !abandoned && scheduler.canPrewarmTasks(usePrediction, pickerId);
       facade.notePredictionUse = () => { if (!abandoned) scheduler.notePredictionUse(); };
       facade.resumePrewarm = () => { if (!abandoned) scheduler.resumePrewarm(); };
       facade.cancelPicker = () => { if (!abandoned) { abandoned = true; scheduler.cancelPicker(pickerId); } };
@@ -455,7 +455,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     },
     // Current task results and arbitrary Preview baselines use the same bounded
     // low-priority admission as candidate warming, without interactive waiters.
-    canPrewarmTasks(usePrediction = false) { return !closed && foreground.canPrewarm() && (!usePrediction || !prediction || prediction.canPrewarm()); },
+    canPrewarmTasks(usePrediction = false, pickerId = 'legacy-shared') { return !closed && foreground.canPrewarm()
+      && options.calculatorPool?.canPrewarm(pickerId) !== false && (!usePrediction || !prediction || prediction.canPrewarm()); },
     prewarmTasks(state, input, memberIds, { resultView = 'full', stateInput, prediction: usePrediction = false } = {}, pickerId = 'legacy-shared') {
       pickerId = pickerJobId(pickerId);
       const picker = pickerState(pickerId);
@@ -510,8 +511,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     close(timeoutMs = 10000) {
       if (!closePromise) {
         closed = true; sessions?.clear(); listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); preparationListeners.clear(); clearUnlockResults();
-        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)])
-          .then(() => options.calculatorPool?.close()).finally(() => options.workerPreparation.clear());
+        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs),
+          options.calculatorPool?.close(timeoutMs)]).finally(() => options.workerPreparation.clear());
       }
       return closePromise;
     },

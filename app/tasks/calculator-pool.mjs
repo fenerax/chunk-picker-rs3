@@ -1,12 +1,15 @@
 import { EventEmitter } from 'node:events';
 
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
+
 // One server owns the physical calculators. Lanes borrow a slot for one job;
 // even a retiring calculator holds its slot until termination has completed.
 export function createCalculatorPool({ limit, workerFactory, workerData, onReady, idleMs = 600000, startupDeadlineMs = 30000,
   sessions, clock = { now: () => performance.now(), setTimeout, clearTimeout }, memoryUsage = worker => worker.rssBytes }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false, evictions = 0, activityObserved = false;
-  let memoryTrips = 0, optimizationsSuspended = false;
+  let memoryTrips = 0, optimizationsSuspended = false, closePromise;
   const keepWarm = () => sessions?.enabled && !optimizationsSuspended;
   const remainingSession = () => sessions?.remainingAny() ?? 0;
   const idleRemaining = slot => sessions
@@ -35,7 +38,14 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
   const priority = slot => slot.owner?.isBackground?.() ? 0 : slot.group === 'advisory' ? slot.owner ? 2 : 1
     : slot.owner ? 4 : 3;
   const evictionOrder = values => values.sort((a, b) => priority(a) - priority(b) || (activity(a) - activity(b)) || a.idleAt - b.idleAt);
-  function retire(slot) {
+  function retire(slot, force = false) {
+    if (force && !slot.forceStop) {
+      slot.forceStop = true;
+      if (slot.stopping) {
+        // A graceful retirement may already be waiting on synchronous work.
+        try { void Promise.resolve(slot.worker.terminate({ force: true })).catch(() => {}); } catch {}
+      }
+    }
     if (slot.stopping) return slot.stopping;
     clock.clearTimeout(slot.timer); clearTimeout(slot.startupTimer);
     slot.stopping = Promise.resolve().then(() => slot.worker.terminate({ force: !!slot.forceStop })).then(() => {
@@ -81,6 +91,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       if (message.type === 'ready') {
         if (ready?.datasetDigest !== undefined && message.datasetDigest !== ready.datasetDigest) { fail(new Error('Calculator dataset mismatch.')); return; }
         onReady?.(message);
+        // The control protocol belongs to the physical calculator, not the
+        // logical lane endpoint that borrows it for individual jobs.
+        if (PROFILE_ENABLED) profile.attach(slot.worker);
         clearTimeout(slot.startupTimer); slot.pendingOwner = undefined; slot.ready = true;
         ready ??= message;
         slot.resolve(ready); idle(slot); pump(); return;
@@ -270,10 +283,20 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         for (const key of slot.snapshots.keys()) if (JSON.parse(key)[0] === pickerId) slot.snapshots.set(key, {});
       }
     },
-    async close() {
+    close(timeoutMs = 10000) {
+      if (closePromise) return closePromise;
       closed = true; clock.clearTimeout(maintenance); waiting.clear();
       for (const endpoint of endpoints) endpoint.stopped = true;
-      endpoints.clear(); await Promise.all([...slots].map(retire));
-      ready = undefined;
+      endpoints.clear();
+      // Shutdown cancels all calculator work. Do not queue a graceful IPC
+      // request behind a warm calculation or wait for a residency lease.
+      const exits = [...slots].map(slot => { slot.worker.unref?.(); return retire(slot, true); });
+      closePromise = (async () => {
+        let timer;
+        try {
+          await Promise.race([Promise.allSettled(exits), new Promise(resolve => { timer = setTimeout(resolve, timeoutMs); })]);
+        } finally { clearTimeout(timer); ready = undefined; }
+      })();
+      return closePromise;
     } };
 }
