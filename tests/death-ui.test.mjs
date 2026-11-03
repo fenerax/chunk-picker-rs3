@@ -1,7 +1,9 @@
+import './helpers/death-settings-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGroupState } from '../app/core/state.mjs';
 import { createDeathChunks, deathMarkersFor, estimateHoursLabel } from '../app/web/death-chunks.mjs';
+import { resolveDeathSettings } from '../app/core/death-settings.mjs';
 
 const fixtureState = () => createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]);
 const estimate = (chunkId, hours, extras = {}) => ({ chunkId, memberId: 'actor1', stateRevision: 0, thresholdHours: 1000, hours, death: hours > 1000, status: 'estimated-exceeds', breakdown: [], unknown: [], assumptions: [], ...extras });
@@ -35,6 +37,20 @@ function controllerFixture(options = {}) {
 
 
 
+
+test('no warning preference resolves off and schedules no background estimate batch', () => {
+  const h = controllerFixture();
+  assert.equal(resolveDeathSettings(h.view.state.members[0]).showDeathChunks, false);
+  h.controller.refresh(); h.controller.refresh();
+  assert.equal(h.timers.size, 0); assert.equal(h.calls.length, 0); assert.equal(h.map.markers.size, 0);
+  h.view.state.members[0].preferences = { showDeathChunks: true };
+  h.controller.refresh(); h.controller.refresh();
+  assert.equal(h.timers.size, 1);
+  h.view.state.members[0].preferences.showDeathChunks = false;
+  h.controller.refresh();
+  assert.equal(h.timers.size, 0); assert.equal(h.calls.length, 0);
+  h.controller.dispose();
+});
 
 test('on-demand estimates coalesce requests and cache only within the state revision', async () => {
   const h = controllerFixture(), first = h.controller.estimateChunk('candidate'), second = h.controller.estimateChunk('candidate');

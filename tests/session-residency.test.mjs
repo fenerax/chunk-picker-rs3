@@ -39,6 +39,13 @@ async function fixture(t, extra = {}) {
   return { scheduler, scopes, evaluate, workers, idleClock };
 }
 
+test('session idle defaults to three hours while environment overrides keep their precedence', () => {
+  const options = { total: 11 * GiB, free: 8.5 * GiB, constrained: 11 * GiB };
+  assert.equal(residencyDefaults({ ...options, env: {} }).idleMs, 3 * 60 * 60000);
+  assert.equal(residencyDefaults({ ...options, env: { RS3_WORKER_IDLE_MS: '100' } }).idleMs, 100);
+  assert.equal(residencyDefaults({ ...options, env: { RS3_WORKER_IDLE_MS: '100', RS3_SESSION_IDLE_MS: '200' } }).idleMs, 200);
+});
+
 test('defaults reserve VPS headroom and fall back to one calculator on small hosts', () => {
   const vps = residencyDefaults({ total: 11 * GiB, free: 8.5 * GiB, constrained: 11 * GiB, env: {} });
   assert.equal(vps.maxResident, 3); assert.ok(vps.memoryBytes <= 6.5 * GiB);
@@ -223,6 +230,18 @@ test('small budgets disable optional work and retain only the original idle life
   assert.equal(workers[0].terminated, true, 'an open session cannot enable keep-warm on a small host');
   assert.equal(scheduler.getDiagnostics().calculators.limit, 1);
   close();
+});
+
+test('disabled keep-warm retires on the ordinary ten-minute default, not the three-hour session grace', async t => {
+  if (process.env.RS3_WORKER_IDLE_MS !== undefined) return t.skip('RS3_WORKER_IDLE_MS overrides the default');
+  const { scheduler, evaluate, workers, idleClock } = await fixture(t, { idleMs: undefined,
+    residency: { ...config, idleMs: 3 * 60 * 60000, memoryBytes: 150, estimatedBytes: 200 } });
+  const request = evaluate(); workers[0].finish(); await request;
+  await idleClock.advance(599000);
+  assert.notEqual(workers[0].terminated, true, 'the ordinary lifetime is still ten minutes');
+  await idleClock.advance(2000);
+  assert.equal(workers[0].terminated, true, 'a disabled pool must not inherit the session grace');
+  assert.equal(scheduler.getDiagnostics().calculators.resident, 0);
 });
 
 test('zero available budget creates no calculator', async () => {

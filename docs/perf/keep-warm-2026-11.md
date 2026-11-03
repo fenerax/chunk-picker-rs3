@@ -67,7 +67,7 @@ matches the committed save; the existing eager refresh remains in place.
 | Control | Default |
 | --- | --- |
 | `RS3_SESSION_ACTIVE_MS` | 1800000 |
-| `RS3_SESSION_IDLE_MS` | 600000 |
+| `RS3_SESSION_IDLE_MS` | 10800000 (3 hours) |
 | `RS3_CALCULATOR_RESERVATION_BYTES` | 2147483648 |
 | `RS3_CALCULATOR_MEMORY_BYTES` | Derived below |
 | `RS3_MAX_RESIDENT_CALCULATORS` | At most 4, reduced by memory |
@@ -105,6 +105,12 @@ loading/recovery readiness contract; no browser code reads aggregate diagnostics
 Session/stream diagnostics remain picker-scoped on the bound scheduler facade.
 The existing `RS3_WORKER_IDLE_MS`
 remains a fallback for session idle grace; `RS3_SESSION_IDLE_MS` takes precedence.
+Owner decision, 2026-11-03: the session idle grace is three hours for faster
+return visits. Non-session worker idle defaults remain ten minutes. This extends
+resident calculators and their bounded caches, not cache limits or prediction
+retention rules. Existing unreferenced idle timers and memory sampling continue;
+idle residency itself schedules no calculations or warm-store writes. Memory
+admission and pressure eviction still apply throughout the longer grace period.
 Viewer expiry tests use a short session window and retain their sleep assertions.
 
 The RSS ceiling is enforced against requested work too. Native residency uses

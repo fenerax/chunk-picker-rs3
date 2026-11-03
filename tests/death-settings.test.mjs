@@ -1,3 +1,4 @@
+import './helpers/death-settings-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deathSettingDefinitions, resolveDeathSettings, validateDeathSetting } from '../app/core/death-settings.mjs';
@@ -7,6 +8,14 @@ import { createDeathSettings } from '../app/web/death-settings.mjs';
 const clock = () => '2026-10-07T12:00:00.000Z';
 const state = () => createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]);
 
+test('time warnings default off without saving a preference and preserve explicit choices', () => {
+  const member = state().members[0], before = structuredClone(member);
+  assert.equal(resolveDeathSettings(member).showDeathChunks, false);
+  assert.equal(deathSettingDefinitions.find(row => row.id === 'showDeathChunks').default, false);
+  assert.deepEqual(member, before);
+  for (const value of [true, false]) assert.equal(resolveDeathSettings({ preferences: { showDeathChunks: value } }).showDeathChunks, value);
+  assert.equal(harness().input('Show time warnings').checked, false);
+});
 
 
 

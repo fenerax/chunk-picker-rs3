@@ -5,6 +5,7 @@ import { createTravelLinesKey } from './map-info.mjs';
 import { createMapAvailability } from './map-availability.mjs';
 import { createMapTaskCounts } from './map-task-counts.mjs';
 import { createMapActivityLayers } from './map-activity-layers.mjs';
+import { resolveDeathSettings } from '../core/death-settings.mjs';
 
 // Main-screen map; shared values and callbacks live in the explicit screen context.
 export function createScreenMap(c) {
@@ -114,7 +115,7 @@ export function createScreenMap(c) {
       ...(c.preferences().showTaskCounts !== false ? [item('Active task count', 'task-count')] : []),
       ...(c.supportsFeature?.('mapMetadata') !== false && c.preferences().showPlaceNames !== false ? [item('Place names', 'place-name')] : []),
       ...(c.sandbox.active ? [item('Sandbox change (hatched)', 'sandbox')] : []),
-      ...(c.preferences().showDeathChunks !== false && c.map.deathMarkers?.size ? [item('Estimated death chunk', 'death')] : []),
+      ...(resolveDeathSettings(c.member()).showDeathChunks && c.map.deathMarkers?.size ? [item('Estimated death chunk', 'death')] : []),
       ...(c.map.pins?.enabled?.size ? [item('Map icons', 'pin')] : []),
       ...(c.map.overlay === 'membership' ? [item('Members-only land', 'members'), item('Free-to-play boundary', 'members-edge'), item('Not walkable', 'border', '#96a5b4')] : []),
       c.activityLayers.controls('legend'), c.mapAvailability.legend(), c.mapControls(),

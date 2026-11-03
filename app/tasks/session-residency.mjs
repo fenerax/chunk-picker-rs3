@@ -17,7 +17,7 @@ export function residencyDefaults({ total = totalmem(), free = Math.min(freemem(
   return { memoryBytes, estimatedBytes,
     maxResident: integer(Number(env.RS3_MAX_RESIDENT_CALCULATORS ?? Math.max(1, Math.min(4, Math.floor(memoryBytes / estimatedBytes)))), 'maxResident'),
     activeMs: integer(Number(env.RS3_SESSION_ACTIVE_MS ?? 30 * 60000), 'activeMs'),
-    idleMs: integer(Number(env.RS3_SESSION_IDLE_MS ?? env.RS3_WORKER_IDLE_MS ?? 10 * 60000), 'idleMs') };
+    idleMs: integer(Number(env.RS3_SESSION_IDLE_MS ?? env.RS3_WORKER_IDLE_MS ?? 3 * 60 * 60000), 'idleMs') };
 }
 
 // Requests and writable SSE leases describe interest, not calculator ownership.

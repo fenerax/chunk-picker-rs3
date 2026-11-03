@@ -193,6 +193,7 @@ const planningResult = (revision = 7, chunkId = '12341', memberId = 'player1') =
 
 test('Group foreground defers chunk planning and explicit death requests until both players settle', async () => {
   const h = harness(), peer = deferred();
+  h.run('state.members[0].preferences.showDeathChunks = true');
   h.route(path => path === '/api/tasks?memberId=player2' ? peer.promise
     : path === '/api/tasks?memberId=player1' ? taskResult(7)
       : path.startsWith('/api/chunk-planning?') ? planningResult() : Promise.reject(new Error(`Unexpected ${path}`)));
