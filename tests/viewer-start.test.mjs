@@ -32,7 +32,7 @@ function launch({ remembered = null, session = { admin: false, memberId: 'reed' 
     backupStatus: { start() {} },
     streamSafe: { sessionReady() {}, refreshFromStorage() {} }, feedbackPanel: { setSession() {}, start() {}, pause() {}, stop() {} },
     feedbackSessionReady: false,
-    state: undefined, memberId: undefined, sessionAdmin: false, sessionMember: null, sessionReadOnly:false, viewerPreferences:{}, document:{documentElement:{dataset:{}}},
+    state: undefined, memberId: undefined, viewSession: undefined, viewCache: undefined, syncViewCache: undefined, paintStartupView: async () => {}, sessionAdmin: false, sessionMember: null, sessionReadOnly:false, viewerPreferences:{}, document:{documentElement:{dataset:{}}},
     definitions: undefined, definitionsAreFull: false, world: undefined, registry: undefined,
     owners: members.map(owner => ({ ...owner })),
     supportsFeature: feature => supportsDatasetFeature({ capabilities: { features: {} } }, feature),

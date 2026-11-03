@@ -1,0 +1,2219 @@
+{
+  "start": "a9e2cd27b744e529fc44df8e917b966a6387423a",
+  "runtime": {
+    "node": "24.21.0",
+    "chromium": "154.0.8037.57",
+    "linux": "6.18.57",
+    "cpuQuota": 4,
+    "memoryGiB": 16
+  },
+  "fixture": {
+    "members": 2,
+    "chunks": 3,
+    "tasks": 2
+  },
+  "before": {
+    "runs": 5,
+    "delayMs": 600,
+    "rssSamplingMs": 200,
+    "browserSourceSha256": "f85bc65850e4666de64576a746267dd2e8c1d0be3372fa6ba11f32b8b86045d1",
+    "rows": [
+      {
+        "run": 0,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1489.7999999998137,
+        "cached": false,
+        "shellFcpMs": 288,
+        "blankFrames": 0
+      },
+      {
+        "run": 0,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 2071.6999999997206,
+        "cached": false
+      },
+      {
+        "run": 0,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 635.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 913.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 644.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 632.5,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 645.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 680.7999999998137,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 1195.3000000002794,
+        "cached": false,
+        "shellFcpMs": 132,
+        "blankFrames": 0
+      },
+      {
+        "run": 0,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 1764.4000000003725,
+        "cached": false
+      },
+      {
+        "run": 0,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 631.6000000000931,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 630.3000000002794,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 629.6999999997206,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 625.7999999998137,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 631.1999999997206,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 653.5,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1410.2999999998137,
+        "cached": false,
+        "shellFcpMs": 248,
+        "blankFrames": 0
+      },
+      {
+        "run": 1,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 1977.0999999996275,
+        "cached": false
+      },
+      {
+        "run": 1,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 636.5,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 913.8000000002794,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 630.5,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 642.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 630.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 654.3000000002794,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 1187.8999999999069,
+        "cached": false,
+        "shellFcpMs": 144,
+        "blankFrames": 0
+      },
+      {
+        "run": 1,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 1756.7000000001863,
+        "cached": false
+      },
+      {
+        "run": 1,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 627,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 647.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 627.9000000003725,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 638.5,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 629.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 652.3000000002794,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1453.7000000001863,
+        "cached": false,
+        "shellFcpMs": 260,
+        "blankFrames": 0
+      },
+      {
+        "run": 2,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 2022.8000000002794,
+        "cached": false
+      },
+      {
+        "run": 2,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 639.6999999997206,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 930.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 634.3000000002794,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 633.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 631,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 675,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 1141.9000000003725,
+        "cached": false,
+        "shellFcpMs": 112,
+        "blankFrames": 0
+      },
+      {
+        "run": 2,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 1726.4000000003725,
+        "cached": false
+      },
+      {
+        "run": 2,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 639.3999999999069,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 646.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 645.6999999997206,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 627.5,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 631.3999999999069,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 654.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1384.1999999997206,
+        "cached": false,
+        "shellFcpMs": 220,
+        "blankFrames": 0
+      },
+      {
+        "run": 3,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 1965.0999999996275,
+        "cached": false
+      },
+      {
+        "run": 3,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 643.9000000003725,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 946.4000000003725,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 629.3999999999069,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 632.5999999996275,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 647.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 683.7000000001863,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 1171.3999999999069,
+        "cached": false,
+        "shellFcpMs": 112,
+        "blankFrames": 0
+      },
+      {
+        "run": 3,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 1749.1000000000931,
+        "cached": false
+      },
+      {
+        "run": 3,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 635.2999999998137,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 661.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 630.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 636,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 627.7999999998137,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 640.2999999998137,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1438,
+        "cached": false,
+        "shellFcpMs": 244,
+        "blankFrames": 0
+      },
+      {
+        "run": 4,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 2019.7000000001863,
+        "cached": false
+      },
+      {
+        "run": 4,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 645.6000000000931,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 913,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 630.3000000002794,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 647.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 631.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 667.1999999997206,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 1128.6999999997206,
+        "cached": false,
+        "shellFcpMs": 128,
+        "blankFrames": 0
+      },
+      {
+        "run": 4,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 1706.8999999999069,
+        "cached": false
+      },
+      {
+        "run": 4,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 636.6999999997206,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 630,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 630.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 642.1999999997206,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 645.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 654.1000000000931,
+        "updating": false
+      }
+    ],
+    "summary": [
+      {
+        "view": "first-load",
+        "temperature": "cold",
+        "medianMs": 1438,
+        "minMs": 1384.1999999997206,
+        "maxMs": 1489.7999999998137,
+        "count": 5
+      },
+      {
+        "view": "first-load",
+        "temperature": "warm",
+        "medianMs": 1171.3999999999069,
+        "minMs": 1128.6999999997206,
+        "maxMs": 1195.3000000002794,
+        "count": 5
+      },
+      {
+        "view": "play",
+        "temperature": "cold",
+        "medianMs": 2019.7000000001863,
+        "minMs": 1965.0999999996275,
+        "maxMs": 2071.6999999997206,
+        "count": 5
+      },
+      {
+        "view": "play",
+        "temperature": "warm",
+        "medianMs": 1749.1000000000931,
+        "minMs": 1706.8999999999069,
+        "maxMs": 1764.4000000003725,
+        "count": 5
+      },
+      {
+        "view": "how",
+        "temperature": "cold",
+        "medianMs": 639.6999999997206,
+        "minMs": 635.2000000001863,
+        "maxMs": 645.6000000000931,
+        "count": 5
+      },
+      {
+        "view": "how",
+        "temperature": "warm",
+        "medianMs": 635.2999999998137,
+        "minMs": 627,
+        "maxMs": 639.3999999999069,
+        "count": 5
+      },
+      {
+        "view": "why",
+        "temperature": "cold",
+        "medianMs": 913.8000000002794,
+        "minMs": 913,
+        "maxMs": 946.4000000003725,
+        "count": 5
+      },
+      {
+        "view": "why",
+        "temperature": "warm",
+        "medianMs": 646.8999999999069,
+        "minMs": 630,
+        "maxMs": 661.1000000000931,
+        "count": 5
+      },
+      {
+        "view": "ranking",
+        "temperature": "cold",
+        "medianMs": 630.5,
+        "minMs": 629.3999999999069,
+        "maxMs": 644.8999999999069,
+        "count": 5
+      },
+      {
+        "view": "ranking",
+        "temperature": "warm",
+        "medianMs": 630.2000000001863,
+        "minMs": 627.9000000003725,
+        "maxMs": 645.6999999997206,
+        "count": 5
+      },
+      {
+        "view": "preview",
+        "temperature": "cold",
+        "medianMs": 633.2000000001863,
+        "minMs": 632.5,
+        "maxMs": 647.8999999999069,
+        "count": 5
+      },
+      {
+        "view": "preview",
+        "temperature": "warm",
+        "medianMs": 636,
+        "minMs": 625.7999999998137,
+        "maxMs": 642.1999999997206,
+        "count": 5
+      },
+      {
+        "view": "planning",
+        "temperature": "cold",
+        "medianMs": 631.1000000000931,
+        "minMs": 630.8999999999069,
+        "maxMs": 647.2000000001863,
+        "count": 5
+      },
+      {
+        "view": "planning",
+        "temperature": "warm",
+        "medianMs": 631.1999999997206,
+        "minMs": 627.7999999998137,
+        "maxMs": 645.2000000001863,
+        "count": 5
+      },
+      {
+        "view": "progress",
+        "temperature": "cold",
+        "medianMs": 675,
+        "minMs": 654.3000000002794,
+        "maxMs": 683.7000000001863,
+        "count": 5
+      },
+      {
+        "view": "progress",
+        "temperature": "warm",
+        "medianMs": 653.5,
+        "minMs": 640.2999999998137,
+        "maxMs": 654.8999999999069,
+        "count": 5
+      }
+    ],
+    "memory": [
+      {
+        "run": 0,
+        "peakChromeRssMiB": 733.171875,
+        "idleChromeRssMiB": 711.33984375
+      },
+      {
+        "run": 1,
+        "peakChromeRssMiB": 750.625,
+        "idleChromeRssMiB": 712.36328125
+      },
+      {
+        "run": 2,
+        "peakChromeRssMiB": 723.515625,
+        "idleChromeRssMiB": 708.18359375
+      },
+      {
+        "run": 3,
+        "peakChromeRssMiB": 730.83203125,
+        "idleChromeRssMiB": 709.3828125
+      },
+      {
+        "run": 4,
+        "peakChromeRssMiB": 732.1484375,
+        "idleChromeRssMiB": 708.6171875
+      }
+    ],
+    "screenshots": []
+  },
+  "after": {
+    "runs": 5,
+    "delayMs": 600,
+    "rssSamplingMs": 200,
+    "browserSourceSha256": "401d61f472c40ebc1daaebf6577cdcd9f82fd12f1ffb1c8bb1823c63b44f10bb",
+    "rows": [
+      {
+        "run": 0,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1478.6000000000931,
+        "cached": false,
+        "shellFcpMs": 300,
+        "blankFrames": 0
+      },
+      {
+        "run": 0,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 2045.8000000002794,
+        "cached": false
+      },
+      {
+        "run": 0,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 645.5,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 931.6000000000931,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 637.5,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 650.7999999998137,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 646.8000000002794,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 676.1999999997206,
+        "updating": false
+      },
+      {
+        "run": 0,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 458.70000000018626,
+        "cached": true,
+        "shellFcpMs": 116,
+        "blankFrames": 0
+      },
+      {
+        "run": 0,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 458.70000000018626,
+        "cached": true
+      },
+      {
+        "run": 0,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 8.800000000279397,
+        "updating": true
+      },
+      {
+        "run": 0,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 30,
+        "updating": true
+      },
+      {
+        "run": 0,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 22.700000000186265,
+        "updating": true
+      },
+      {
+        "run": 0,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 19.199999999720603,
+        "updating": true
+      },
+      {
+        "run": 0,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 20.399999999906868,
+        "updating": true
+      },
+      {
+        "run": 0,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 37,
+        "updating": true
+      },
+      {
+        "run": 1,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1485.5,
+        "cached": false,
+        "shellFcpMs": 240,
+        "blankFrames": 0
+      },
+      {
+        "run": 1,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 2059.7999999998137,
+        "cached": false
+      },
+      {
+        "run": 1,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 633.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 927.7000000001863,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 628.8999999999069,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 635.4000000003725,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 631,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 662.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 1,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 533,
+        "cached": true,
+        "shellFcpMs": 152,
+        "blankFrames": 0
+      },
+      {
+        "run": 1,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 533,
+        "cached": true
+      },
+      {
+        "run": 1,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 6.7000000001862645,
+        "updating": true
+      },
+      {
+        "run": 1,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 22.600000000093132,
+        "updating": true
+      },
+      {
+        "run": 1,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 22,
+        "updating": true
+      },
+      {
+        "run": 1,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 26.200000000186265,
+        "updating": true
+      },
+      {
+        "run": 1,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 28.700000000186265,
+        "updating": true
+      },
+      {
+        "run": 1,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 41.10000000009313,
+        "updating": true
+      },
+      {
+        "run": 2,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1433.1999999997206,
+        "cached": false,
+        "shellFcpMs": 216,
+        "blankFrames": 0
+      },
+      {
+        "run": 2,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 2013.5999999996275,
+        "cached": false
+      },
+      {
+        "run": 2,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 644.1999999997206,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 920.3000000002794,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 633.5,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 637,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 629.6999999997206,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 675.8000000002794,
+        "updating": false
+      },
+      {
+        "run": 2,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 495.79999999981374,
+        "cached": true,
+        "shellFcpMs": 148,
+        "blankFrames": 0
+      },
+      {
+        "run": 2,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 495.79999999981374,
+        "cached": true
+      },
+      {
+        "run": 2,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 5.2999999998137355,
+        "updating": true
+      },
+      {
+        "run": 2,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 20.800000000279397,
+        "updating": true
+      },
+      {
+        "run": 2,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 20.700000000186265,
+        "updating": true
+      },
+      {
+        "run": 2,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 25.600000000093132,
+        "updating": true
+      },
+      {
+        "run": 2,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 22.199999999720603,
+        "updating": true
+      },
+      {
+        "run": 2,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 39,
+        "updating": true
+      },
+      {
+        "run": 3,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1451.2999999998137,
+        "cached": false,
+        "shellFcpMs": 320,
+        "blankFrames": 0
+      },
+      {
+        "run": 3,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 2028.2000000001863,
+        "cached": false
+      },
+      {
+        "run": 3,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 637.6999999997206,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 960.1000000000931,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 635.7000000001863,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 649.7000000001863,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 631,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 697.6000000000931,
+        "updating": false
+      },
+      {
+        "run": 3,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 504.29999999981374,
+        "cached": true,
+        "shellFcpMs": 124,
+        "blankFrames": 0
+      },
+      {
+        "run": 3,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 504.29999999981374,
+        "cached": true
+      },
+      {
+        "run": 3,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 18.5,
+        "updating": true
+      },
+      {
+        "run": 3,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 20.5,
+        "updating": true
+      },
+      {
+        "run": 3,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 27.899999999906868,
+        "updating": true
+      },
+      {
+        "run": 3,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 23.399999999906868,
+        "updating": true
+      },
+      {
+        "run": 3,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 17.800000000279397,
+        "updating": true
+      },
+      {
+        "run": 3,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 98.60000000009313,
+        "updating": true
+      },
+      {
+        "run": 4,
+        "view": "first-load",
+        "temperature": "cold",
+        "ms": 1375.2000000001863,
+        "cached": false,
+        "shellFcpMs": 220,
+        "blankFrames": 0
+      },
+      {
+        "run": 4,
+        "view": "play",
+        "temperature": "cold",
+        "ms": 1942.2000000001863,
+        "cached": false
+      },
+      {
+        "run": 4,
+        "view": "how",
+        "temperature": "cold",
+        "ms": 637.2000000001863,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "why",
+        "temperature": "cold",
+        "ms": 943.7999999998137,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "ranking",
+        "temperature": "cold",
+        "ms": 627.1999999997206,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "preview",
+        "temperature": "cold",
+        "ms": 635.7000000001863,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "planning",
+        "temperature": "cold",
+        "ms": 647.3999999999069,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "progress",
+        "temperature": "cold",
+        "ms": 679.5999999996275,
+        "updating": false
+      },
+      {
+        "run": 4,
+        "view": "first-load",
+        "temperature": "warm",
+        "ms": 476.70000000018626,
+        "cached": true,
+        "shellFcpMs": 112,
+        "blankFrames": 0
+      },
+      {
+        "run": 4,
+        "view": "play",
+        "temperature": "warm",
+        "ms": 476.70000000018626,
+        "cached": true
+      },
+      {
+        "run": 4,
+        "view": "how",
+        "temperature": "warm",
+        "ms": 12,
+        "updating": true
+      },
+      {
+        "run": 4,
+        "view": "why",
+        "temperature": "warm",
+        "ms": 25.699999999720603,
+        "updating": true
+      },
+      {
+        "run": 4,
+        "view": "ranking",
+        "temperature": "warm",
+        "ms": 20.899999999906868,
+        "updating": true
+      },
+      {
+        "run": 4,
+        "view": "preview",
+        "temperature": "warm",
+        "ms": 25.40000000037253,
+        "updating": true
+      },
+      {
+        "run": 4,
+        "view": "planning",
+        "temperature": "warm",
+        "ms": 22.299999999813735,
+        "updating": true
+      },
+      {
+        "run": 4,
+        "view": "progress",
+        "temperature": "warm",
+        "ms": 30.299999999813735,
+        "updating": true
+      }
+    ],
+    "summary": [
+      {
+        "view": "first-load",
+        "temperature": "cold",
+        "medianMs": 1451.2999999998137,
+        "minMs": 1375.2000000001863,
+        "maxMs": 1485.5,
+        "count": 5
+      },
+      {
+        "view": "first-load",
+        "temperature": "warm",
+        "medianMs": 495.79999999981374,
+        "minMs": 458.70000000018626,
+        "maxMs": 533,
+        "count": 5
+      },
+      {
+        "view": "play",
+        "temperature": "cold",
+        "medianMs": 2028.2000000001863,
+        "minMs": 1942.2000000001863,
+        "maxMs": 2059.7999999998137,
+        "count": 5
+      },
+      {
+        "view": "play",
+        "temperature": "warm",
+        "medianMs": 495.79999999981374,
+        "minMs": 458.70000000018626,
+        "maxMs": 533,
+        "count": 5
+      },
+      {
+        "view": "how",
+        "temperature": "cold",
+        "medianMs": 637.6999999997206,
+        "minMs": 633.1000000000931,
+        "maxMs": 645.5,
+        "count": 5
+      },
+      {
+        "view": "how",
+        "temperature": "warm",
+        "medianMs": 8.800000000279397,
+        "minMs": 5.2999999998137355,
+        "maxMs": 18.5,
+        "count": 5
+      },
+      {
+        "view": "why",
+        "temperature": "cold",
+        "medianMs": 931.6000000000931,
+        "minMs": 920.3000000002794,
+        "maxMs": 960.1000000000931,
+        "count": 5
+      },
+      {
+        "view": "why",
+        "temperature": "warm",
+        "medianMs": 22.600000000093132,
+        "minMs": 20.5,
+        "maxMs": 30,
+        "count": 5
+      },
+      {
+        "view": "ranking",
+        "temperature": "cold",
+        "medianMs": 633.5,
+        "minMs": 627.1999999997206,
+        "maxMs": 637.5,
+        "count": 5
+      },
+      {
+        "view": "ranking",
+        "temperature": "warm",
+        "medianMs": 22,
+        "minMs": 20.700000000186265,
+        "maxMs": 27.899999999906868,
+        "count": 5
+      },
+      {
+        "view": "preview",
+        "temperature": "cold",
+        "medianMs": 637,
+        "minMs": 635.4000000003725,
+        "maxMs": 650.7999999998137,
+        "count": 5
+      },
+      {
+        "view": "preview",
+        "temperature": "warm",
+        "medianMs": 25.40000000037253,
+        "minMs": 19.199999999720603,
+        "maxMs": 26.200000000186265,
+        "count": 5
+      },
+      {
+        "view": "planning",
+        "temperature": "cold",
+        "medianMs": 631,
+        "minMs": 629.6999999997206,
+        "maxMs": 647.3999999999069,
+        "count": 5
+      },
+      {
+        "view": "planning",
+        "temperature": "warm",
+        "medianMs": 22.199999999720603,
+        "minMs": 17.800000000279397,
+        "maxMs": 28.700000000186265,
+        "count": 5
+      },
+      {
+        "view": "progress",
+        "temperature": "cold",
+        "medianMs": 676.1999999997206,
+        "minMs": 662.1000000000931,
+        "maxMs": 697.6000000000931,
+        "count": 5
+      },
+      {
+        "view": "progress",
+        "temperature": "warm",
+        "medianMs": 39,
+        "minMs": 30.299999999813735,
+        "maxMs": 98.60000000009313,
+        "count": 5
+      }
+    ],
+    "memory": [
+      {
+        "run": 0,
+        "peakChromeRssMiB": 721.3984375,
+        "idleChromeRssMiB": 720.7890625
+      },
+      {
+        "run": 1,
+        "peakChromeRssMiB": 742.3046875,
+        "idleChromeRssMiB": 721.91015625
+      },
+      {
+        "run": 2,
+        "peakChromeRssMiB": 741.55078125,
+        "idleChromeRssMiB": 721.2890625
+      },
+      {
+        "run": 3,
+        "peakChromeRssMiB": 737.765625,
+        "idleChromeRssMiB": 716.7578125
+      },
+      {
+        "run": 4,
+        "peakChromeRssMiB": 743.92578125,
+        "idleChromeRssMiB": 725.99609375
+      }
+    ],
+    "screenshots": []
+  },
+  "rollControlSupplement": {
+    "before": {
+      "runs": 5,
+      "delayMs": 600,
+      "startupOnly": true,
+      "rssSamplingMs": 200,
+      "browserSourceSha256": "f85bc65850e4666de64576a746267dd2e8c1d0be3372fa6ba11f32b8b86045d1",
+      "rows": [
+        {
+          "run": 0,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1459.5,
+          "cached": false,
+          "shellFcpMs": 252,
+          "blankFrames": 0
+        },
+        {
+          "run": 0,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2044.9000000003725,
+          "cached": false
+        },
+        {
+          "run": 0,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1459.5
+        },
+        {
+          "run": 0,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 1265.5,
+          "cached": false,
+          "shellFcpMs": 136,
+          "blankFrames": 0
+        },
+        {
+          "run": 0,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 1838.2999999998137,
+          "cached": false
+        },
+        {
+          "run": 0,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1265.5
+        },
+        {
+          "run": 1,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1453.1000000000931,
+          "cached": false,
+          "shellFcpMs": 244,
+          "blankFrames": 0
+        },
+        {
+          "run": 1,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2032.1000000000931,
+          "cached": false
+        },
+        {
+          "run": 1,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1453.2000000001863
+        },
+        {
+          "run": 1,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 1228.5,
+          "cached": false,
+          "shellFcpMs": 152,
+          "blankFrames": 0
+        },
+        {
+          "run": 1,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 1798.8999999999069,
+          "cached": false
+        },
+        {
+          "run": 1,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1228.5
+        },
+        {
+          "run": 2,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1597.8000000002794,
+          "cached": false,
+          "shellFcpMs": 288,
+          "blankFrames": 0
+        },
+        {
+          "run": 2,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2174,
+          "cached": false
+        },
+        {
+          "run": 2,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1597.8999999999069
+        },
+        {
+          "run": 2,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 1283.6000000000931,
+          "cached": false,
+          "shellFcpMs": 140,
+          "blankFrames": 0
+        },
+        {
+          "run": 2,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 1849.4000000003725,
+          "cached": false
+        },
+        {
+          "run": 2,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1283.6000000000931
+        },
+        {
+          "run": 3,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1460.5,
+          "cached": false,
+          "shellFcpMs": 300,
+          "blankFrames": 0
+        },
+        {
+          "run": 3,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2043.8000000002794,
+          "cached": false
+        },
+        {
+          "run": 3,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1460.5
+        },
+        {
+          "run": 3,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 1236.6999999997206,
+          "cached": false,
+          "shellFcpMs": 156,
+          "blankFrames": 0
+        },
+        {
+          "run": 3,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 1798.3999999999069,
+          "cached": false
+        },
+        {
+          "run": 3,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1236.6999999997206
+        },
+        {
+          "run": 4,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1473.8999999999069,
+          "cached": false,
+          "shellFcpMs": 244,
+          "blankFrames": 0
+        },
+        {
+          "run": 4,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2023.5,
+          "cached": false
+        },
+        {
+          "run": 4,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1474
+        },
+        {
+          "run": 4,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 1199.6000000000931,
+          "cached": false,
+          "shellFcpMs": 128,
+          "blankFrames": 0
+        },
+        {
+          "run": 4,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 1778.6000000000931,
+          "cached": false
+        },
+        {
+          "run": 4,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1199.7000000001863
+        }
+      ],
+      "summary": [
+        {
+          "view": "first-load",
+          "temperature": "cold",
+          "medianMs": 1460.5,
+          "minMs": 1453.1000000000931,
+          "maxMs": 1597.8000000002794,
+          "count": 5
+        },
+        {
+          "view": "first-load",
+          "temperature": "warm",
+          "medianMs": 1236.6999999997206,
+          "minMs": 1199.6000000000931,
+          "maxMs": 1283.6000000000931,
+          "count": 5
+        },
+        {
+          "view": "play",
+          "temperature": "cold",
+          "medianMs": 2043.8000000002794,
+          "minMs": 2023.5,
+          "maxMs": 2174,
+          "count": 5
+        },
+        {
+          "view": "play",
+          "temperature": "warm",
+          "medianMs": 1798.8999999999069,
+          "minMs": 1778.6000000000931,
+          "maxMs": 1849.4000000003725,
+          "count": 5
+        },
+        {
+          "view": "roll-controls",
+          "temperature": "cold",
+          "medianMs": 1460.5,
+          "minMs": 1453.2000000001863,
+          "maxMs": 1597.8999999999069,
+          "count": 5
+        },
+        {
+          "view": "roll-controls",
+          "temperature": "warm",
+          "medianMs": 1236.6999999997206,
+          "minMs": 1199.7000000001863,
+          "maxMs": 1283.6000000000931,
+          "count": 5
+        }
+      ],
+      "memory": [
+        {
+          "run": 0,
+          "peakChromeRssMiB": 692.91796875,
+          "idleChromeRssMiB": 692.91796875
+        },
+        {
+          "run": 1,
+          "peakChromeRssMiB": 693.421875,
+          "idleChromeRssMiB": 693.421875
+        },
+        {
+          "run": 2,
+          "peakChromeRssMiB": 690.80078125,
+          "idleChromeRssMiB": 686.67578125
+        },
+        {
+          "run": 3,
+          "peakChromeRssMiB": 686.42578125,
+          "idleChromeRssMiB": 686.41015625
+        },
+        {
+          "run": 4,
+          "peakChromeRssMiB": 693.63671875,
+          "idleChromeRssMiB": 692.87109375
+        }
+      ],
+      "screenshots": []
+    },
+    "after": {
+      "runs": 5,
+      "delayMs": 600,
+      "startupOnly": true,
+      "rssSamplingMs": 200,
+      "browserSourceSha256": "401d61f472c40ebc1daaebf6577cdcd9f82fd12f1ffb1c8bb1823c63b44f10bb",
+      "rows": [
+        {
+          "run": 0,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1513.2999999998137,
+          "cached": false,
+          "shellFcpMs": 340,
+          "blankFrames": 0
+        },
+        {
+          "run": 0,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2081.1999999997206,
+          "cached": false
+        },
+        {
+          "run": 0,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1513.2999999998137
+        },
+        {
+          "run": 0,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 579.2999999998137,
+          "cached": true,
+          "shellFcpMs": 180,
+          "blankFrames": 0
+        },
+        {
+          "run": 0,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 579.2999999998137,
+          "cached": true
+        },
+        {
+          "run": 0,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1255.8999999999069
+        },
+        {
+          "run": 1,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1458.1999999997206,
+          "cached": false,
+          "shellFcpMs": 232,
+          "blankFrames": 0
+        },
+        {
+          "run": 1,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2027.7999999998137,
+          "cached": false
+        },
+        {
+          "run": 1,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1458.2999999998137
+        },
+        {
+          "run": 1,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 539.1999999997206,
+          "cached": true,
+          "shellFcpMs": 140,
+          "blankFrames": 0
+        },
+        {
+          "run": 1,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 539.1999999997206,
+          "cached": true
+        },
+        {
+          "run": 1,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1192.7999999998137
+        },
+        {
+          "run": 2,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1442.8999999999069,
+          "cached": false,
+          "shellFcpMs": 252,
+          "blankFrames": 0
+        },
+        {
+          "run": 2,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2009.7999999998137,
+          "cached": false
+        },
+        {
+          "run": 2,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1443
+        },
+        {
+          "run": 2,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 473.79999999981374,
+          "cached": true,
+          "shellFcpMs": 164,
+          "blankFrames": 0
+        },
+        {
+          "run": 2,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 473.79999999981374,
+          "cached": true
+        },
+        {
+          "run": 2,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1191.5999999996275
+        },
+        {
+          "run": 3,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1474.3999999999069,
+          "cached": false,
+          "shellFcpMs": 236,
+          "blankFrames": 0
+        },
+        {
+          "run": 3,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2020.7999999998137,
+          "cached": false
+        },
+        {
+          "run": 3,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1474.3999999999069
+        },
+        {
+          "run": 3,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 571.1999999997206,
+          "cached": true,
+          "shellFcpMs": 144,
+          "blankFrames": 0
+        },
+        {
+          "run": 3,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 571.1999999997206,
+          "cached": true
+        },
+        {
+          "run": 3,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1213.5999999996275
+        },
+        {
+          "run": 4,
+          "view": "first-load",
+          "temperature": "cold",
+          "ms": 1513.7000000001863,
+          "cached": false,
+          "shellFcpMs": 264,
+          "blankFrames": 0
+        },
+        {
+          "run": 4,
+          "view": "play",
+          "temperature": "cold",
+          "ms": 2092.7999999998137,
+          "cached": false
+        },
+        {
+          "run": 4,
+          "view": "roll-controls",
+          "temperature": "cold",
+          "ms": 1513.7000000001863
+        },
+        {
+          "run": 4,
+          "view": "first-load",
+          "temperature": "warm",
+          "ms": 523.6999999997206,
+          "cached": true,
+          "shellFcpMs": 160,
+          "blankFrames": 0
+        },
+        {
+          "run": 4,
+          "view": "play",
+          "temperature": "warm",
+          "ms": 523.6999999997206,
+          "cached": true
+        },
+        {
+          "run": 4,
+          "view": "roll-controls",
+          "temperature": "warm",
+          "ms": 1186.8999999999069
+        }
+      ],
+      "summary": [
+        {
+          "view": "first-load",
+          "temperature": "cold",
+          "medianMs": 1474.3999999999069,
+          "minMs": 1442.8999999999069,
+          "maxMs": 1513.7000000001863,
+          "count": 5
+        },
+        {
+          "view": "first-load",
+          "temperature": "warm",
+          "medianMs": 539.1999999997206,
+          "minMs": 473.79999999981374,
+          "maxMs": 579.2999999998137,
+          "count": 5
+        },
+        {
+          "view": "play",
+          "temperature": "cold",
+          "medianMs": 2027.7999999998137,
+          "minMs": 2009.7999999998137,
+          "maxMs": 2092.7999999998137,
+          "count": 5
+        },
+        {
+          "view": "play",
+          "temperature": "warm",
+          "medianMs": 539.1999999997206,
+          "minMs": 473.79999999981374,
+          "maxMs": 579.2999999998137,
+          "count": 5
+        },
+        {
+          "view": "roll-controls",
+          "temperature": "cold",
+          "medianMs": 1474.3999999999069,
+          "minMs": 1443,
+          "maxMs": 1513.7000000001863,
+          "count": 5
+        },
+        {
+          "view": "roll-controls",
+          "temperature": "warm",
+          "medianMs": 1192.7999999998137,
+          "minMs": 1186.8999999999069,
+          "maxMs": 1255.8999999999069,
+          "count": 5
+        }
+      ],
+      "memory": [
+        {
+          "run": 0,
+          "peakChromeRssMiB": 686.66796875,
+          "idleChromeRssMiB": 686.66015625
+        },
+        {
+          "run": 1,
+          "peakChromeRssMiB": 685.70703125,
+          "idleChromeRssMiB": 685.70703125
+        },
+        {
+          "run": 2,
+          "peakChromeRssMiB": 687.71484375,
+          "idleChromeRssMiB": 687.69921875
+        },
+        {
+          "run": 3,
+          "peakChromeRssMiB": 686.6484375,
+          "idleChromeRssMiB": 685.87890625
+        },
+        {
+          "run": 4,
+          "peakChromeRssMiB": 687.3828125,
+          "idleChromeRssMiB": 687.3671875
+        }
+      ],
+      "screenshots": []
+    }
+  },
+  "screenshots": [
+    {
+      "view": "how",
+      "width": 1440,
+      "height": 900,
+      "differentPixels": 0,
+      "beforeSha256": "a4e47f5f31c076ee465c026728ccfe8f798a29a672231ccdf362875f30ce950b",
+      "afterSha256": "a4e47f5f31c076ee465c026728ccfe8f798a29a672231ccdf362875f30ce950b",
+      "maxChannelDelta": 0,
+      "pixelsAboveOneChannelStep": 0
+    },
+    {
+      "view": "planning",
+      "width": 1440,
+      "height": 900,
+      "differentPixels": 12,
+      "beforeSha256": "8d83a71b51b307feb5ed00df39a6afdd852a534b2efce35a021d76562ba77785",
+      "afterSha256": "34ec41b63a5230a3d13f2c14954ad10d29f7e9fd03f1476cc67b78b20883bc4e",
+      "maxChannelDelta": 1,
+      "pixelsAboveOneChannelStep": 0
+    },
+    {
+      "view": "play",
+      "width": 1440,
+      "height": 900,
+      "differentPixels": 0,
+      "beforeSha256": "a6c046bfa7c1b296737492f65e05ee39245076d2c1042cb06d0497630e984e44",
+      "afterSha256": "a6c046bfa7c1b296737492f65e05ee39245076d2c1042cb06d0497630e984e44",
+      "maxChannelDelta": 0,
+      "pixelsAboveOneChannelStep": 0
+    },
+    {
+      "view": "preview",
+      "width": 1440,
+      "height": 900,
+      "differentPixels": 12,
+      "beforeSha256": "990f7ec6e3f806737288cc6dc7c3cd455e13543692e6ba86fd9317f96d2dcb21",
+      "afterSha256": "5d01719bd14bc14b3fc805b5367a92ddcebbdbe3633153ecdc62da1739e971da",
+      "maxChannelDelta": 1,
+      "pixelsAboveOneChannelStep": 0
+    },
+    {
+      "view": "progress",
+      "width": 1440,
+      "height": 900,
+      "differentPixels": 0,
+      "beforeSha256": "5814e1a1820f938991e23d188b1ef9383aaea7ac53e2d5af415db9b77bc2e28d",
+      "afterSha256": "5814e1a1820f938991e23d188b1ef9383aaea7ac53e2d5af415db9b77bc2e28d",
+      "maxChannelDelta": 0,
+      "pixelsAboveOneChannelStep": 0
+    },
+    {
+      "view": "ranking",
+      "width": 1440,
+      "height": 900,
+      "differentPixels": 12,
+      "beforeSha256": "dcdd53308e9254a3ebbed99be20762480bf81934c3488a501d2adbcde6eaaf1f",
+      "afterSha256": "34b3c43fe02cf56002386cebd69bb444c19a5b0f1e6cb1142840b01813e46ddd",
+      "maxChannelDelta": 1,
+      "pixelsAboveOneChannelStep": 0
+    },
+    {
+      "view": "why",
+      "width": 1440,
+      "height": 900,
+      "differentPixels": 12,
+      "beforeSha256": "dfa648453194109f5ffc1b5f2c2a7d7bae50f24d8b4154b18e1ff987b9fa251f",
+      "afterSha256": "85199810ed034f4aeccb8dedee0f54c3048a41a66215664d04f69259f94106a0",
+      "maxChannelDelta": 1,
+      "pixelsAboveOneChannelStep": 0
+    }
+  ],
+  "validation": {
+    "targeted": {
+      "tests": 562,
+      "pass": 561,
+      "fail": 0,
+      "skipped": 1,
+      "durationMs": 30188.313027,
+      "files": 19
+    },
+    "quick": {
+      "tests": 3501,
+      "pass": 3433,
+      "fail": 0,
+      "skipped": 68,
+      "durationMs": 301523.61138699995,
+      "files": 346
+    }
+  },
+  "privateChecks": {
+    "serverStarts": 0,
+    "calculatorRuns": 0,
+    "credentialsCreated": 0,
+    "changedFiles": 0
+  }
+}

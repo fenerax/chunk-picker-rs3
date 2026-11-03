@@ -1,3 +1,4 @@
+import { replaceView } from './browser-state.mjs';
 // A lazy, read-only disclosure shared by task details and Slayer assignments.
 export function renderWhyChain(c, chain, { advanced = false } = {}) {
   function render(value, root = false) {
@@ -34,15 +35,20 @@ export function createWhyChainDisclosure(c, selector, { memberId, revision, curr
     if (loaded || pending || !current()) return;
     pending = true;
     body.setAttribute('aria-busy', 'true');
-    body.replaceChildren(c.el('p', 'Checking all requirements…', 'status-detail'));
+    const token = c.viewCache?.token(), key = JSON.stringify([memberId, selector]), cached = !result && c.viewCache?.peek('why-chain', key, revision);
+    const status = c.el('p', cached ? 'Updating… · Last known requirements' : 'Checking all requirements…', 'status-detail');
+    status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    body.replaceChildren(status);
+    if (cached) body.append(renderWhyChain(c, cached.value, { advanced: advanced() }));
     try {
       const query = new URLSearchParams({ memberId, revision: String(revision), ...selector });
       // Sandbox evidence belongs to its preview, never to the saved-map endpoint.
       const chain = result ? (await import('../tasks/why-chain.mjs')).buildWhyChain(result, definitions ?? {}, selector)
         : await c.api(`/api/task-why?${query}`);
-      if (!current()) return;
+      if (!current() || c.viewCache && !c.viewCache.current(token)) return;
       if (!result && (chain.memberId !== memberId || chain.stateRevision !== revision)) throw new Error('Saved details changed. Open Why not? again.');
-      body.replaceChildren(renderWhyChain(c, chain, { advanced: advanced() }));
+      if (!result) c.viewCache?.remember('why-chain', key, revision, chain);
+      replaceView(body, () => body.replaceChildren(renderWhyChain(c, chain, { advanced: advanced() })));
       loaded = true;
     } catch (error) {
       if (current()) body.replaceChildren(c.el('p', error.message || 'The explanation could not be loaded.', 'error'), c.button('Retry Why not?', load));

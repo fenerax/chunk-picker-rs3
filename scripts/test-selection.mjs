@@ -18,6 +18,7 @@ export const quickTests = new Set([
   "live-timings.test.mjs",
   "live-timings-server.test.mjs",
   "process-profiles.test.mjs",
+  "instant-screens.test.mjs",
   "prepared-collection.test.mjs",
   "q2-diff-engine.test.mjs",
   "q2-ci.test.mjs",

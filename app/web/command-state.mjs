@@ -9,7 +9,19 @@ export function projectTaskState(state, changes) {
     const edits = changes.filter(change => change.memberId === member.id);
     if (!edits.length) return member;
     const taskStatus = { ...member.taskStatus };
-    for (const edit of edits) taskStatus[edit.taskId] = { ...taskStatus[edit.taskId], challengeCompleted: edit.challengeCompleted };
+    for (const edit of edits) {
+      if (edit.type === 'clear-backlog') {
+        const ids = edit.taskIds ?? Object.keys(taskStatus).filter(id => taskStatus[id]?.backlogged);
+        for (const id of ids) {
+          if (!taskStatus[id]?.backlogged) continue;
+          const { backlogReason, ...rest } = taskStatus[id]; taskStatus[id] = { ...rest, backlogged: false };
+        }
+        continue;
+      }
+      if (edit.type && edit.type !== 'set-task-status') continue;
+      const fields = Object.fromEntries(['challengeCompleted', 'backlogged', 'backlogReason', 'favorite', 'note'].filter(key => Object.hasOwn(edit, key)).map(key => [key, edit[key]]));
+      taskStatus[edit.taskId] = { ...taskStatus[edit.taskId], ...fields };
+    }
     return { ...member, taskStatus };
   }) };
 }
