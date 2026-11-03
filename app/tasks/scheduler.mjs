@@ -113,13 +113,14 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       };
     } };
   }
-  options.workerPreparation = createWorkerPreparation(options.workerData);
+  if (options.warmStoreDirectory) options.workerData = { ...options.workerData, warmStoreDirectory: options.warmStoreDirectory };
+  options.workerPreparation = createWorkerPreparation(options.workerData, { persistentDirectory: options.warmStoreDirectory });
   if (maxCalculators !== undefined) {
     positive(maxCalculators, 'maxCalculators');
     const factory = options.workerFactory ?? nativeWorker;
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
       workerData: (includeCatalogue, group) => factory === nativeWorker
-        ? nativeWorkerInput(group === 'foreground' ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
+        ? nativeWorkerInput(group === 'foreground' || options.workerPreparation.persistent ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
       onReady: factory === nativeWorker ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
   }
@@ -809,7 +810,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (PROFILE_ENABLED) profile.workerStarting(profileLane);
     try { worker = calculatorPool ? calculatorPool.createEndpoint(includeReadyCatalogue)
       : workerFactory(workerFactory === nativeWorker
-        ? nativeWorkerInput(includeReadyCatalogue ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
+        ? nativeWorkerInput(includeReadyCatalogue || workerPreparation?.persistent ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);

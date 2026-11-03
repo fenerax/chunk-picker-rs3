@@ -1,4 +1,5 @@
 import { configDescriptor, bindingBytes } from '../private-companion/release-pack-check.mjs';
+import { prewarmCandidate } from './prewarm.mjs';
 import { captureOnline } from './online.mjs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -135,7 +136,7 @@ export async function deployStopped({ settings, current, candidate, controller, 
   }
 }
 export async function deployPrechecked({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions,
-  capture = captureOnline, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
+  capture = captureOnline, check = checkStoppedCompatibility, request = privateRequest, wait = delay, prewarm = prewarmCandidate }) {
   const snapshot = await capture({ settings, release: current, request });
   let checkedIdentity;
   try {
@@ -144,6 +145,9 @@ export async function deployPrechecked({ settings, current, candidate, controlle
       assertStopped: () => assertReleased(snapshot.dataDir) });
     if (encode(before) !== encode(await storeIdentity(snapshot.dataDir))) throw new Error('Checked snapshot changed.');
     checkedIdentity = before;
+    // The captured snapshot is read-only calculator input; publication targets
+    // the persistent data directory while the old writer remains online.
+    try { await prewarm({ settings, candidate, dataDir: snapshot.dataDir }); } catch { /* Optional cache miss. */ }
   } finally { await snapshot.cleanup(); }
   // No start/stop has happened if any of the online preparation failed.
   return deployStopped({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions, checkedIdentity, check, request, wait });

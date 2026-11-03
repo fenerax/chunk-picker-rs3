@@ -62,6 +62,7 @@ export async function openApplication(config, dataDir, { probe = false } = {}) {
   if (!probe && config.multiPicker) options.multiPicker = { ...config.multiPicker, recoveryInputs: { ...config.packs,
     ...(config.selection ? { selection: config.selection } : {}), ...(config.profile ? { profile: config.profile } : {}), ...(config.addons ? { addons: config.addons } : {}) } };
   if (probe) {
+    options.taskWorkerOptions = { warmStoreDirectory: false };
     options.runeMetrics = options.originalSync = { fetchImpl: async () => { throw new Error('Offline recovery probe.'); } };
     return server.createServer(options);
   }

@@ -15,6 +15,8 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "warm-store.test.mjs",
+  "warm-candidate.test.mjs",
   "prepared-collection.test.mjs",
   "q2-diff-engine.test.mjs",
   "startup-retry.test.mjs",
@@ -341,6 +343,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "warm-restart-worker.test.mjs",
   "worker-native-zlib.test.mjs",
   "calculator-bundle-worker.test.mjs",
   "calc-check.test.mjs",
@@ -580,6 +583,7 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "warm-restart-server.test.mjs",
   "multi-picker-capacity.test.mjs",
   "calculator-bundle.test.mjs",
   "calculator-bundle-worker.test.mjs",
