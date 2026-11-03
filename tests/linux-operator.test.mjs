@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { prewarmCandidate } from '../scripts/linux/prewarm.mjs';
-import { rootFilesystem } from './helpers/prewarm.mjs';
+import { rootFilesystem, serviceQuery } from './helpers/prewarm.mjs';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { assertReleased, encode, exclusive, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { assertSameRelease, readRelease } from '../scripts/linux/runtime.mjs';
@@ -345,9 +345,10 @@ for (const root of [false, true]) for (const changed of [false, true]) test(`onl
   assert.deepEqual(f.events, ['stop', 'start']);
 });
 
-for (const outcome of ['root owner', 'symlink owner', 'failed child', 'timed-out child', 'spawn error']) test(`root online deploy proceeds after optional prewarm miss: ${outcome}`,
+for (const outcome of ['missing identity', 'ambiguous identity', 'root uid', 'root gid', 'DynamicUser', 'failed child', 'timed-out child', 'spawn error']) test(`root online deploy proceeds after optional prewarm miss: ${outcome}`,
   { skip: process.platform !== 'linux' && 'Linux uid/gid and /proc descriptor semantics.' }, async t => {
   const f = await fixture(t);
+  f.settings.service = 'chunk-picker.service';
   await mkdir(path.join(f.candidate.config.coreRoot, 'scripts/linux'), { recursive: true });
   await writeFile(path.join(f.candidate.config.coreRoot, 'scripts/linux/prewarm.mjs'), '');
   f.candidate = await readRelease(f.candidate.pointerFile, f.settings.dataDir);
@@ -355,11 +356,13 @@ for (const outcome of ['root owner', 'symlink owner', 'failed child', 'timed-out
   t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
   if (outcome === 'timed-out child') t.mock.timers.enable({ apis: ['setTimeout'] });
   const changes = [], descriptors = [], io = rootFilesystem(f.settings.dataDir, { changes, descriptors });
-  if (outcome === 'root owner' || outcome === 'symlink owner') {
-    const stat = io.lstat;
-    io.lstat = async file => Object.assign(await stat(file), file === f.settings.dataDir
-      ? outcome === 'root owner' ? { uid: 0 } : { isSymbolicLink: () => true } : {});
-  }
+  const identityMiss = ['missing identity', 'ambiguous identity', 'root uid', 'root gid', 'DynamicUser'].includes(outcome);
+  let queryIdentity = serviceQuery();
+  if (outcome === 'missing identity') queryIdentity = serviceQuery(undefined, { user: '' });
+  if (outcome === 'ambiguous identity') queryIdentity = async () => ({ stdout: 'User=prewarm-fixture\nUser=other-fixture\nGroup=prewarm-fixture\nDynamicUser=no\n' });
+  if (outcome === 'root uid') queryIdentity = serviceQuery({ uid: 0, gid: 1202 });
+  if (outcome === 'root gid') queryIdentity = serviceQuery({ uid: 1201, gid: 0 });
+  if (outcome === 'DynamicUser') queryIdentity = serviceQuery(undefined, { dynamic: 'yes' });
   const { copyTree } = await import('../scripts/linux/files.mjs');
   let spawned = 0, warmed = 0, killed = 0;
   const capture = async () => {
@@ -370,7 +373,7 @@ for (const outcome of ['root owner', 'symlink owner', 'failed child', 'timed-out
   };
   const prewarm = async args => {
     warmed++; assert.deepEqual(f.events, []);
-    assert.equal(await prewarmCandidate({ ...args, filesystem: io, execute(node, argv, options) {
+    assert.equal(await prewarmCandidate({ ...args, filesystem: io, queryIdentity, execute(node, argv, options) {
       spawned++; assert.notEqual(options.uid, 0);
       assert.equal(options.uid, 1201); assert.equal(options.gid, 1202);
       assert.deepEqual(f.events, []);
@@ -386,7 +389,7 @@ for (const outcome of ['root owner', 'symlink owner', 'failed child', 'timed-out
   };
   const result = await deployPrechecked({ ...f, capture, check: async () => {}, prewarm, request: healthy, wait: noWait });
   assert.equal(result.activated, true); assert.equal(warmed, 1);
-  assert.equal(spawned, outcome === 'root owner' || outcome === 'symlink owner' ? 0 : 1);
+  assert.equal(spawned, identityMiss ? 0 : 1);
   assert.equal(killed, outcome === 'timed-out child' ? 1 : 0);
   assert.deepEqual(f.events, ['stop', 'start']);
   assert(changes.every(({ file }) => !file.startsWith(f.settings.dataDir)));

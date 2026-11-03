@@ -5,32 +5,52 @@ import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
 import { readFile, access, lstat, open, readdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { outside } from './files.mjs';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { getPriority, setPriority } from 'node:os';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-import { parseArgs } from 'node:util';
+import { parseArgs, promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerHooks } from 'node:module';
 
-// Only the captured, root-created copy may have its permissions changed. Its
-// ancestors must prevent replacement; a root-owned sticky ancestor (e.g. /tmp)
-// is safe above the private parent. The live store is inspected with lstat only.
-async function serviceIdentity(settings, filesystem) {
-  const info = await filesystem.lstat(settings.dataDir);
-  const { uid, gid } = info;
-  if (!info.isDirectory() || info.isSymbolicLink()
-    || ![uid, gid].every(id => Number.isSafeInteger(id) && id > 0)
-    || (settings.serviceUid !== undefined || settings.serviceGid !== undefined)
-      && (settings.serviceUid !== uid || settings.serviceGid !== gid)) throw Error('Dedicated service owner required.');
-  for (let file = path.dirname(path.resolve(settings.dataDir)); ; file = path.dirname(file)) {
-    const ancestor = await filesystem.lstat(file);
-    if (!ancestor.isDirectory() || ancestor.isSymbolicLink()) throw Error('Ambiguous service directory.');
-    if (file === path.dirname(file)) break;
+const identityCommand = promisify(execFile);
+export async function serviceIdentity(settings, query = identityCommand) {
+  if (settings.service !== 'chunk-picker.service') throw Error('Unknown service.');
+  // Query the root-managed unit, never the service-controlled data tree. Use
+  // absolute tools and a fixed environment for both systemd and NSS lookups.
+  const run = async (command, args) => (await query(command, args, { timeout: 5000, maxBuffer: 4096,
+    windowsHide: true, env: { PATH: '/usr/sbin:/usr/bin:/sbin:/bin', LANG: 'C' } })).stdout.trim();
+  const rows = (await run('/usr/bin/systemctl', ['show', '--property=User,Group,DynamicUser', '--', settings.service])).split('\n');
+  const fields = new Map();
+  for (const row of rows) {
+    const match = /^(User|Group|DynamicUser)=(.*)$/.exec(row);
+    if (!match || fields.has(match[1])) throw Error('Ambiguous service identity.');
+    fields.set(match[1], match[2]);
   }
+  if (fields.size !== 3 || fields.get('DynamicUser') !== 'no') throw Error('Static service required.');
+  let uid, gid;
+  if (settings.serviceUid !== undefined || settings.serviceGid !== undefined) {
+    ({ serviceUid: uid, serviceGid: gid } = settings);
+  } else {
+    const lookup = async (database, key, count) => {
+      if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*\$?$/.test(key)) throw Error('Missing service account.');
+      const row = (await run('/usr/bin/getent', [database, '--', key])).split(':');
+      if (row.length !== count || row.some(value => /[\r\n]/.test(value))) throw Error('Ambiguous service account.');
+      return row;
+    };
+    const account = await lookup('passwd', fields.get('User'), 7);
+    uid = /^\d+$/.test(account[2]) ? Number(account[2]) : NaN;
+    const group = fields.get('Group');
+    const groupId = group ? (await lookup('group', group, 4))[2] : account[3];
+    gid = /^\d+$/.test(groupId) ? Number(groupId) : NaN;
+  }
+  if (![uid, gid].every(id => Number.isSafeInteger(id) && id > 0)) throw Error('Dedicated service identity required.');
   return { uid, gid };
 }
+// Only the captured, root-created copy may have its permissions changed. Its
+// ancestors must prevent replacement; a root-owned sticky ancestor (e.g. /tmp)
+// is safe above the private parent. No live-store ownership is consulted.
 async function readableSnapshot(settings, dataDir, gid, filesystem) {
   dataDir = path.resolve(dataDir);
   outside(settings.dataDir, dataDir); outside(dataDir, settings.dataDir);
@@ -62,7 +82,7 @@ async function readableSnapshot(settings, dataDir, gid, filesystem) {
   catch (error) { await root.close(); throw error; }
 }
 export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn,
-  filesystem = { lstat, open, readdir } }) {
+  filesystem = { lstat, open, readdir }, queryIdentity = identityCommand, timeoutMs = 180000 }) {
   let snapshot;
   // Old releases remain deployable. This optional preparation never extends
   // the writer pause and cannot turn a failed warm-up into a deployment failure.
@@ -70,11 +90,13 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
     const script = path.join(candidate.config.coreRoot, 'scripts/linux/prewarm.mjs');
     await access(script);
     const { runtimeEnvironment } = await import('./runtime.mjs');
-    const options = { env: runtimeEnvironment(candidate.config, { probe: true }), stdio: 'ignore', windowsHide: true };
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 180000) return false;
+    const options = { env: runtimeEnvironment(candidate.config, { probe: true }), stdio: 'ignore', windowsHide: true,
+      ...(process.platform === 'linux' ? { detached: true } : {}) };
     let input = dataDir, guard = [];
     if (process.getuid?.() === 0) {
       if (process.platform !== 'linux') return false;
-      const { uid, gid } = await serviceIdentity(settings, filesystem);
+      const { uid, gid } = await serviceIdentity(settings, queryIdentity);
       snapshot = await readableSnapshot(settings, dataDir, gid, filesystem);
       input = '/proc/self/fd/3';
       // Node/libuv's Unix spawn clears supplementary groups with setgroups(0,
@@ -89,14 +111,45 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
       const child = execute(candidate.config.nodePath ?? process.execPath, [...guard, script, '--root', candidate.config.coreRoot,
         '--data-dir', input, '--warm-dir', path.join(settings.dataDir, 'warm-store')], options);
       try { if (Number.isSafeInteger(child.pid)) setPriority(child.pid, Math.max(10, getPriority(child.pid))); } catch { /* Best-effort OS priority; bounded calculator remains optional. */ }
-      let timedOut = false;
+      let timedOut = false, finished = false, terminationTimer, groupTimer;
+      const hasGroup = options.detached && Number.isSafeInteger(child.pid) && child.pid > 0;
+      const killTree = () => {
+        try {
+          if (hasGroup) process.kill(-child.pid, 'SIGKILL');
+          else child.kill('SIGKILL');
+        } catch { /* Already exited or unavailable; still an optional miss. */ }
+      };
+      const finish = result => {
+        if (finished) return;
+        finished = true; clearTimeout(timer); clearTimeout(terminationTimer); clearTimeout(groupTimer); resolve(result);
+      };
+      // Reserve termination time inside the outer budget (175s work + 5s
+      // cleanup by default). A stopped calculator cannot defer SIGKILL.
+      const terminationMs = Math.min(5000, Math.floor(timeoutMs / 10));
       const timer = setTimeout(() => {
         timedOut = true;
-        try { child.kill('SIGKILL'); } catch { /* Still an optional miss. */ }
-        resolve(false);
-      }, 180000);
-      child.once('error', () => { clearTimeout(timer); resolve(false); });
-      child.once('close', code => { clearTimeout(timer); resolve(!timedOut && code === 0); });
+        terminationTimer = setTimeout(() => finish(false), terminationMs);
+        killTree();
+      }, timeoutMs - terminationMs);
+      child.once('error', () => {
+        if (finished) return;
+        timedOut = true;
+        if (Number.isSafeInteger(child.pid) && child.pid > 0) killTree();
+        finish(false);
+      });
+      child.once('close', code => {
+        if (finished) return;
+        // Also remove descendants left behind by an early parent exit.
+        if (hasGroup) killTree();
+        if (timedOut && hasGroup) {
+          const waitForGroup = () => {
+            try { process.kill(-child.pid, 0); }
+            catch (error) { if (error.code === 'ESRCH') { finish(false); return; } }
+            groupTimer = setTimeout(waitForGroup, 20);
+          };
+          waitForGroup();
+        } else finish(!timedOut && code === 0);
+      });
     });
   } catch { return false; }
   finally { try { await snapshot?.close(); } catch { /* Optional descriptor cleanup. */ } }
