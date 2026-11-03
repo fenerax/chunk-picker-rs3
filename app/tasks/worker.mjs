@@ -84,7 +84,8 @@ function getCollectionEngine() {
     const prepared = decodePreparedCollection(collectionEntry ?? readPreparedCollectionFile(collectionFile, preparationKey), preparationKey);
     collectionEntry = undefined; collectionFile = undefined;
     collectionEngine = createCollectionEngine(definitions, { dataset: selectedDataset, prepared,
-      onPrepared: workerData.collectPreparedCollection ? value => { collectionPreparation = value; } : undefined });
+      onPrepared: !prepared && (workerData.collectPreparedCollection || workerData.preparedCollectionFile)
+        ? value => { collectionPreparation = value; } : undefined });
   }
   return collectionEngine;
 }

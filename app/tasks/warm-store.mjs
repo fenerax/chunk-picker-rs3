@@ -1,7 +1,7 @@
 // Optional, disposable calculator artifacts. No state/store imports or codecs
 // with native compression handles: a calculator may be terminated at any time.
 import { createHash, randomUUID } from 'node:crypto';
-import { constants, mkdirSync, lstatSync, openSync, closeSync, fstatSync, readSync, writeFileSync,
+import { constants, mkdirSync, mkdtempSync, lstatSync, openSync, closeSync, fstatSync, readSync, writeFileSync,
   renameSync, readdirSync, unlinkSync, rmdirSync, chownSync } from 'node:fs';
 import path from 'node:path';
 
@@ -44,7 +44,14 @@ export function createWarmStore(directory, limits = {}) {
     || Object.values(caps).some(value => !Number.isSafeInteger(value) || value <= 0)
     || caps.entryBytes + headerBytes > caps.bytes || caps.entryBytes > 0xffffffff) return;
   const lock = path.join(directory, '.write-lock');
-  let available = true;
+  let available = true, warnedLock = false;
+  function lockFailure(reason) {
+    if (!warnedLock) {
+      warnedLock = true;
+      console.warn(`[warm-store] Write lock unavailable (${reason}); optional publication/pruning skipped.`);
+    }
+    return false;
+  }
   const fileFor = key => path.join(directory, `${key}.warm`);
   function prune(keep, reserveBytes = 0, reserveEntries = 0) {
     const rows = [];
@@ -68,7 +75,7 @@ export function createWarmStore(directory, limits = {}) {
   // queue unbounded buffers. A killed writer's lock is reclaimed after a minute.
   function writeLocked(operation) {
     if (!available) return false;
-    let locked = false;
+    let locked = false, stagedLock;
     try {
       const created = mkdirSync(directory, { recursive: true, mode: 0o700 });
       if (created && process.getuid?.() === 0) {
@@ -77,27 +84,52 @@ export function createWarmStore(directory, limits = {}) {
           chownSync(current, owner.uid, owner.gid); if (current === created) break;
         }
       }
-      if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) return false;
-      try { mkdirSync(lock, { mode: 0o700 }); locked = true; }
+      if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) return lockFailure('unsafe directory');
+      // Prepare ownership before exposing the lock name. A kill between mkdir
+      // and chown must not leave a root-only lock that the service cannot read.
+      // Unpublished stages never protect a write; stale ones are disposable.
+      for (const name of readdirSync(directory)) {
+        if (!/^\.write-lock-[a-zA-Z0-9]{6}$/.test(name)) continue;
+        const file = path.join(directory, name), info = lstatSync(file);
+        if (!info.isDirectory() || info.isSymbolicLink() || Date.now() - info.mtimeMs < 60000) continue;
+        // A kill before chown leaves an empty root-only stage. Removing that
+        // empty directory needs only write permission on its service-owned parent.
+        try { rmdirSync(file); continue; } catch (error) { if (!['ENOTEMPTY', 'EEXIST'].includes(error.code)) throw error; }
+        try { unlinkSync(path.join(file, 'owner')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+        rmdirSync(file);
+      }
+      stagedLock = mkdtempSync(path.join(directory, '.write-lock-'));
+      const owner = process.getuid?.() === 0 ? lstatSync(directory) : undefined;
+      if (owner) chownSync(stagedLock, owner.uid, owner.gid);
+      const ownerFile = path.join(stagedLock, 'owner');
+      writeFileSync(ownerFile, String(process.pid), { flag: 'wx', mode: 0o600 });
+      if (owner) chownSync(ownerFile, owner.uid, owner.gid);
+      // Every published lock is nonempty: rename cannot replace a live lock.
+      try {
+        if (lstatSync(lock, { throwIfNoEntry: false })) throw Object.assign(new Error('Lock exists.'), { code: 'EEXIST' });
+        renameSync(stagedLock, lock); stagedLock = undefined; locked = true;
+      }
       catch {
         const info = lstatSync(lock);
-        if (!info.isDirectory() || info.isSymbolicLink() || Date.now() - info.mtimeMs < 60000) return false;
+        if (!info.isDirectory() || info.isSymbolicLink() || Date.now() - info.mtimeMs < 60000) return lockFailure('busy or unsafe lock');
         const ownerFile = path.join(lock, 'owner');
         try {
           const ownerFd = openSync(ownerFile, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
           let owner;
           try { const bytes = Buffer.alloc(32); const count = readSync(ownerFd, bytes, 0, bytes.length, 0); owner = Number(bytes.subarray(0, count).toString()); } finally { closeSync(ownerFd); }
           if (Number.isSafeInteger(owner) && owner > 0) {
-            try { process.kill(owner, 0); return false; } catch (error) { if (error.code !== 'ESRCH') return false; }
+            try { process.kill(owner, 0); return lockFailure('live owner'); } catch (error) { if (error.code !== 'ESRCH') return lockFailure(error.code); }
           }
           unlinkSync(ownerFile);
-        } catch (error) { if (error.code !== 'ENOENT') return false; }
-        rmdirSync(lock); mkdirSync(lock, { mode: 0o700 }); locked = true;
+        } catch (error) { if (error.code !== 'ENOENT') return lockFailure(error.code); }
+        rmdirSync(lock); renameSync(stagedLock, lock); stagedLock = undefined; locked = true;
       }
-      writeFileSync(path.join(lock, 'owner'), String(process.pid), { flag: 'wx', mode: 0o600 });
       operation(); return true;
-    } catch { return false; }
-    finally { if (locked) { try { unlinkSync(path.join(lock, 'owner')); rmdirSync(lock); } catch {} } }
+    } catch (error) { return locked ? false : lockFailure(error.code ?? 'error'); }
+    finally {
+      if (stagedLock) { try { unlinkSync(path.join(stagedLock, 'owner')); } catch {} try { rmdirSync(stagedLock); } catch {} }
+      if (locked) { try { unlinkSync(path.join(lock, 'owner')); rmdirSync(lock); } catch {} }
+    }
   }
   writeLocked(() => prune());
   return {

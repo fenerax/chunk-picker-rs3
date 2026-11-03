@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createWarmStore, warmHash } from '../app/tasks/warm-store.mjs';
 import { createWarmResults, warmResultNamespace, warmResultKey } from '../app/tasks/warm-results.mjs';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 const key = value => warmHash(String(value));
 async function scratch(t) {
   const directory = await mkdtemp(path.join(tmpdir(), 'warm-store-test-'));
@@ -55,6 +57,58 @@ test('unsafe directory/file links and invalid limits decline optional storage', 
   assert.equal(createWarmStore(directory, { bytes: 100 }), undefined);
   const blocked = path.join(directory, 'blocked'); await writeFile(blocked, 'x');
   assert.equal(createWarmStore(blocked).put(key(1), Buffer.from('x')), undefined);
+});
+
+test('root publication hands both lock metadata paths to the service owner before writing artifacts', async t => {
+  const directory = await scratch(t), changes = [], uid = 12345, gid = 23456;
+  const lock = path.join(directory, '.write-lock'), ownerFile = path.join(lock, 'owner');
+  const lstat = fs.lstatSync, rename = fs.renameSync;
+  const originalGetuid = process.getuid;
+  process.getuid = () => 0;
+  t.mock.method(fs, 'lstatSync', (file, ...options) => {
+    const info = lstat(file, ...options);
+    return file === directory ? Object.assign(info, { uid, gid }) : info;
+  });
+  t.mock.method(fs, 'chownSync', (file, user, group) => { changes.push([file, user, group]); });
+  t.mock.method(fs, 'renameSync', (from, to) => {
+    if (to === lock) {
+      assert(changes.some(row => row[0] === from && row[1] === uid && row[2] === gid));
+      assert(changes.some(row => row[0] === path.join(from, 'owner') && row[1] === uid && row[2] === gid));
+    }
+    return rename(from, to);
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    if (originalGetuid) process.getuid = originalGetuid; else delete process.getuid;
+    t.mock.restoreAll(); syncBuiltinESMExports();
+  });
+  const store = createWarmStore(directory);
+  assert.ok(store.put(key('root'), Buffer.from('synthetic root prewarm')));
+  // Model the stale metadata left by a killed root writer. The ownership
+  // assertions above cover the cross-UID requirement even on Windows.
+  await mkdir(lock, { mode: 0o700 }); await writeFile(ownerFile, '2147483647', { mode: 0o600 });
+  await utimes(lock, new Date(0), new Date(0));
+  t.mock.restoreAll(); syncBuiltinESMExports();
+  process.getuid = () => uid;
+  for (const [name, withOwner] of [['.write-lock-AbC123', false], ['.write-lock-DeF456', true]]) {
+    const stage = path.join(directory, name);
+    await mkdir(stage, { mode: 0o700 });
+    if (withOwner) await writeFile(path.join(stage, 'owner'), '2147483647', { mode: 0o600 });
+    await utimes(stage, new Date(0), new Date(0));
+  }
+  assert.ok(store.put(key('service'), Buffer.from('synthetic service reply')));
+  assert(!(await readdir(directory)).some(name => name.startsWith('.write-lock')));
+});
+
+test('a persistent lock acquisition failure is logged once across prune and publication attempts', async t => {
+  const directory = await scratch(t), blocked = path.join(directory, 'blocked');
+  await writeFile(blocked, 'not a directory');
+  const warnings = [];
+  t.mock.method(console, 'warn', message => warnings.push(message));
+  const store = createWarmStore(blocked);
+  for (let i = 0; i < 3; i++) assert.equal(store.put(key(i), Buffer.from('synthetic')), undefined);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /warm-store.*lock/i);
 });
 test('result namespace binds source, runtime, dataset, exact definitions, world and every semantic worker option', () => {
   const data = { datasetDigest: key('dataset'), definitions: { chunks: {} }, world: { chunks: new Map() }, extraRules: [], datasetOptions: {} };

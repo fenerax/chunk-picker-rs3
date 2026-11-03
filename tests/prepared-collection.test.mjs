@@ -7,6 +7,9 @@ import { mkdtemp, writeFile, readFile, readdir, rm, unlink } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { syncBuiltinESMExports } from 'node:module';
 import { preparedCollectionKey, encodePreparedCollection, decodePreparedCollection, createWorkerPreparation,
   validPreparedCollectionEntry, PREPARED_COLLECTION_LIMIT, readPreparedCollectionFile } from '../app/tasks/prepared-collection.mjs';
 import { createCalculatorPool } from '../app/tasks/calculator-pool.mjs';
@@ -178,6 +181,55 @@ test('file write failure disables preparation and close waits for its owned writ
   const racing = createWorkerPreparation(init(), { directory });
   racing.accept({ preparedCollection: entry }); await racing.clear();
   assert.deepEqual(await readdir(directory), ['blocked']);
+});
+
+test('persistent collection launches and publication do no body I/O or hashing on the server thread', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-responsive-'));
+  const cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  t.after(async () => { await cache.clear(); await rm(directory, { recursive: true, force: true }); });
+  const { key, snapshot } = prepared();
+  const entry = encodePreparedCollection(key, { ...snapshot, syntheticPadding: 'x'.repeat(4 * 1024 * 1024) });
+  const reads = [], writes = [], hashes = [];
+  const read = fs.readSync, write = fs.writeFileSync, hash = crypto.createHash;
+  t.mock.method(fs, 'readSync', (...args) => { if (args[4] >= 76) reads.push(args[3]); return read(...args); });
+  t.mock.method(fs, 'writeFileSync', (...args) => { if (args[0].endsWith('.tmp') || args[0].endsWith('.warm')) writes.push(args[0]); return write(...args); });
+  t.mock.method(crypto, 'createHash', (...args) => {
+    const digest = hash(...args), update = digest.update;
+    digest.update = function(bytes, ...rest) {
+      if (bytes.byteLength >= entry.bytes.byteLength) hashes.push(bytes.byteLength);
+      return update.call(this, bytes, ...rest);
+    };
+    return digest;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const ready = { preparedCollection: entry };
+  cache.accept(ready);
+  assert.equal(ready.preparedCollection, undefined);
+  // A foreground launch proceeds immediately while optional publication runs.
+  assert.equal(cache.input().collectPreparedCollection, true);
+  await cache.settled();
+  const reference = cache.input().preparedCollectionFile;
+  assert.ok(reference?.warm);
+  const reopened = createWorkerPreparation(init(), { persistentDirectory: directory });
+  try {
+    assert.deepEqual(reopened.input().preparedCollectionFile, reference);
+    assert.deepEqual(reopened.input().preparedCollectionFile, reference);
+    cache.accept({ preparedCollection: entry }); await cache.settled();
+    assert.deepEqual(reads, [], 'full-file validation belongs to calculators/publisher');
+    assert.deepEqual(writes, [], 'publication belongs to the publisher');
+    assert.deepEqual(hashes, [], 'neither launch nor accept hashes the collection body');
+  } finally { await reopened.clear(); }
+});
+
+test('publisher rejects a wrong collection checksum and can retry a complete entry', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-publisher-integrity-'));
+  const cache = createWorkerPreparation(init(), { persistentDirectory: directory }), { entry } = prepared();
+  t.after(async () => { await cache.clear(); await rm(directory, { recursive: true, force: true }); });
+  cache.accept({ preparedCollection: { ...entry, sha256: '0'.repeat(64) } });
+  await cache.settled(); assert.equal(cache.input().preparedCollectionFile, undefined);
+  cache.accept({ preparedCollection: entry });
+  await cache.settled(); assert.ok(cache.input().preparedCollectionFile?.warm);
 });
 
 test('file-backed process workers return identical lists on hit, corrupt-file fallback and missing-file fallback', async t => {

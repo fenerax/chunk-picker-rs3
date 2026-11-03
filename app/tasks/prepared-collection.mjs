@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { serialize, deserialize } from 'node:v8';
 import { preparationSourceDigest } from '../preparation-key.mjs';
 import { lstatSync, readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { Worker } from 'node:worker_threads';
 
 // One immutable entry per scheduler, shared by native lanes. This fixed cap is
 // separate from the existing snapshot/result byte ledger. Files contain only
@@ -22,8 +23,13 @@ export function preparedCollectionKey(data) {
 }
 export function validPreparedCollectionEntry(entry, key) {
   try {
+    return preparedCollectionEntryShape(entry, key) && hash(entry.bytes) === entry.sha256;
+  } catch { return false; }
+}
+function preparedCollectionEntryShape(entry, key) {
+  try {
     return typeof key === 'string' && entry?.key === key && entry.bytes instanceof Uint8Array
-      && entry.bytes.byteLength > 0 && entry.bytes.byteLength <= PREPARED_COLLECTION_LIMIT && hash(entry.bytes) === entry.sha256;
+      && entry.bytes.byteLength > 0 && entry.bytes.byteLength <= PREPARED_COLLECTION_LIMIT;
   } catch { return false; }
 }
 export function encodePreparedCollection(key, value) {
@@ -72,26 +78,31 @@ export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PR
     persistent: !!persistent,
     input() {
       if (disabled || closed) return data;
-      if (persistent && reference && !validPreparedCollectionEntry(readPreparedCollectionFile(reference, key), key)) reference = undefined;
+      // The calculator validates the complete file before decoding it. Never
+      // read/hash a collection body on the HTTP server's launch path.
       return mode === 'memory' ? { ...data, preparedCollection: entry, collectPreparedCollection: !entry }
         : { ...data, preparedCollectionFile: reference, collectPreparedCollection: !reference };
     },
     accept(message) {
       const value = message.preparedCollection;
       delete message.preparedCollection;
-      if (disabled || closed || !validPreparedCollectionEntry(value, key)) return;
-      if (mode === 'memory') { entry = value; return; }
-      if (pending || reference && (!persistent || validPreparedCollectionEntry(readPreparedCollectionFile(reference, key), key))) return;
+      if (disabled || closed || !preparedCollectionEntryShape(value, key)) return;
+      if (mode === 'memory') { if (validPreparedCollectionEntry(value, key)) entry = value; return; }
+      if (pending || reference && !persistent) return;
       pending = (async () => {
-        if (persistent) { reference = persistent.put(key, value.bytes); return; }
-        // Own a fresh private directory. Publish only after the complete write;
-        // worker retirement never owns an in-progress write or native codec.
-        await mkdir(directory, { recursive: true });
-        cacheDirectory = await mkdtemp(path.join(directory, 'rs3-prepared-'));
-        const temporary = path.join(cacheDirectory, `${key}.tmp`), file = path.join(cacheDirectory, `${key}.bin`);
-        await writeFile(temporary, value.bytes, { flag: 'wx', mode: 0o600 });
-        await rename(temporary, file);
-        if (!closed) reference = { file, key, sha256: value.sha256, bytes: value.bytes.byteLength };
+        // Encoded entries use shared backing memory: no large clone, checksum
+        // or synchronous publication on the server. Only one write is pending.
+        const result = await new Promise((resolve, reject) => {
+          let result, error;
+          const worker = new Worker(new URL('./prepared-collection-publisher.mjs', import.meta.url), {
+            workerData: { key, value, reference, directory, persistentDirectory: persistent ? persistentDirectory : undefined },
+          });
+          worker.once('message', message => { result = message; });
+          worker.once('error', value => { error = value; });
+          worker.once('exit', code => code === 0 && !error ? resolve(result) : reject(error ?? new Error('Collection publisher exited.')));
+        });
+        if (result?.cacheDirectory) cacheDirectory = result.cacheDirectory;
+        if (!closed && result?.reference) reference = result.reference;
       })().catch(() => { disabled = true; }).finally(() => { pending = undefined; });
     },
     settled() { return pending ?? Promise.resolve(); },

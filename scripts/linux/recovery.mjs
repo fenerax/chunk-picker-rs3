@@ -110,7 +110,7 @@ export async function restoreStopped({ backup, dataDir, scratchRoot, release, mi
       else { await copyFile(path.join(backup, row.path), target, 1); await chmod(target, 0o600); }
     }
     const expected = await inventory(path.join(backup, 'store'));
-    if (encode(expected) !== encode(await inventory(dataDir))) throw new Error('Restored store verification failed; keep service stopped.');
+    if (encode(expected) !== encode(await inventory(dataDir, { ignoreRoot: ['warm-store'] }))) throw new Error('Restored store verification failed; keep service stopped.');
     await assertReleased(dataDir);
     return { verified: true };
   } finally { await rm(scratch, { recursive: true, force: true }); }

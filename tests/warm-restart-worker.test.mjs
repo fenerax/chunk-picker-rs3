@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { spawn } from 'node:child_process';
 import { mkdtemp, rm, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -16,6 +17,33 @@ const definitions = { chunks: { '12341': {}, '12342': {} }, walkableChunks: ['12
 const world = buildWorld(definitions);
 const data = directory => genericWorkerData({ definitions, world: { chunks: world.chunks, areas: world.areas }, extraRules: [], ...(directory ? { warmStoreDirectory: directory } : {}) });
 const state = createGroupState([{ id: 'a', name: 'A', unlocked: ['12341'] }, { id: 'b', name: 'B', unlocked: ['12341'] }]);
+
+test('process calculator lock failures reach service stderr once without failing requests', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'warm-worker-warning-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const blocked = path.join(directory, 'blocked'), script = path.join(directory, 'probe.mjs');
+  await writeFile(blocked, 'synthetic obstruction');
+  await writeFile(script, `import assert from 'node:assert/strict';
+    import { once } from 'node:events';
+    import { ProcessWorker } from ${JSON.stringify(new URL('../app/tasks/process-worker.mjs', import.meta.url).href)};
+    import { genericWorkerData } from ${JSON.stringify(new URL('./helpers/worker-dataset.mjs', import.meta.url).href)};
+    const worker = new ProcessWorker(genericWorkerData({ definitions: ${JSON.stringify(definitions)}, warmStoreDirectory: ${JSON.stringify(blocked)} }));
+    try {
+      const [ready] = await once(worker, 'message'); assert.equal(ready.type, 'ready');
+      for (let id = 1; id <= 2; id++) {
+        const reply = once(worker, 'message');
+        worker.postMessage({ id, type: 'evaluate', state: ${JSON.stringify(state)}, memberId: 'a' });
+        assert.equal((await reply)[0].error, undefined);
+      }
+    } finally { await worker.terminate(); }
+  `);
+  const child = spawn(process.execPath, [script], { env: { ...process.env, RS3_DATASET: 'open-f2p' }, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+  let stderr = '';
+  child.stderr.on('data', bytes => { stderr += bytes; });
+  const [code] = await once(child, 'close');
+  assert.equal(code, 0, stderr);
+  assert.equal((stderr.match(/\[warm-store\].*lock/gi) ?? []).length, 1, stderr);
+});
 async function run(directory) {
   const input = data(directory), preparation = createWorkerPreparation(input, { persistentDirectory: directory });
   const worker = new ProcessWorker(preparation.input());

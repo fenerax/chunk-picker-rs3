@@ -73,7 +73,7 @@ async function inputBytes(inputs) {
   return bytes;
 }
 async function copyGameplay(source, target, mutate) {
-  const files = await inventory(source);
+  const files = await inventory(source, { ignoreRoot: ['warm-store'] });
   await mutate('capture.gameplay', () => mkdir(target, { mode: 0o700 }));
   for (const row of files.filter(row => gameplayRoots.has(row.path.split('/')[0]))) {
     const to = path.join(target, row.path);
@@ -82,14 +82,14 @@ async function copyGameplay(source, target, mutate) {
   }
 }
 export async function copyServiceTree(source, target, step, label) {
-  const before = await inventory(source);
+  const before = await inventory(source, { ignoreRoot: ['warm-store'] });
   await step(label); await mkdir(target, { mode: 0o700 });
   for (const row of before) {
     await step(label);
     if (row.directory) await mkdir(path.join(target, row.path), { mode: 0o700 });
     else await copyFile(path.join(source, row.path), path.join(target, row.path), 1);
   }
-  if (encode(before) !== encode(await inventory(source)) || encode(before) !== encode(await inventory(target))) throw new Error('Recovery source changed while copying.');
+  if (encode(before) !== encode(await inventory(source, { ignoreRoot: ['warm-store'] })) || encode(before) !== encode(await inventory(target))) throw new Error('Recovery source changed while copying.');
   return before;
 }
 async function checkpointBinding(source) {

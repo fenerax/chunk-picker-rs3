@@ -201,4 +201,47 @@ Risks and remaining integration:
   lifecycle timing on the VPS before treating the laboratory numbers as an SLA.
 
 
+## Review fixes
+
+Collection file bodies are validated by the calculator, not by the server's
+worker-launch path. A separate short-lived publisher thread validates returned
+collection bytes and publishes persistent or temporary files. Publication is
+bounded to one pending entry per preparation owner; foreground launches do not
+await it. Missing or corrupt files still rebuild normally, and a failed restore
+can return the rebuilt collection for replacement.
+
+Root publishers prepare service-owned lock directories and owner files before
+atomically exposing `.write-lock`. This also covers interruption between
+creation and ownership correction. Stale unpublished lock stages are reclaimed;
+failed acquisition is reported once per store instance rather than silently
+failing on every later publication/prune. Process calculators inherit service
+stderr so these warnings reach the journal.
+
+Traversal audit (`inventory`/`walk` under `scripts/linux` and `app/storage`):
+
+- Service checkpoint gameplay copies omit `warm-store` before enumeration,
+  matching the existing single-store snapshot exclusion. Service recovery
+  copies, identities, installation comparisons and listings also exclude it.
+- Stopped single-store copies/identities already exclude it; restored-store
+  verification and the offline rehearsal's initial copy now do so as well.
+  Compatibility/derive probes run on these filtered copies with persistence
+  disabled.
+- Remaining inventories inspect immutable release trees, pack payloads,
+  already-filtered snapshots/backup manifests, or stopped ownership-repair
+  trees. Backup manifest verification remains complete so unexpected files
+  cannot be hidden by cache exclusions.
+
+Regression fixtures use synthetic collection padding, intercepted parent-thread
+body I/O/hashing, emulated root/service ownership, dead-owner lock metadata and
+invalid warm-tree entries. They require no private saves or live VPS.
+
+Review-fix validation on Windows, Node v26.13.0: the seven requested warm-store,
+restart, candidate, snapshot, operator and prediction-cache files plus
+`prepared-collection`, `linux-multi-picker`, `linux-service-crash` and
+`linux-recovery-paths` ran with test concurrency 1. The batch had 209 passes,
+one existing root-only skip and one pre-existing unconditional `process.getuid`
+fixture failure. That fixture now uses the neighboring portable UID/GID
+fallback; its focused rerun passed (1/1), giving 210 passing cases and one skip.
+No full suite or live Linux/VPS check was run.
+
 Written by Codex.
