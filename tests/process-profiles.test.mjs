@@ -126,3 +126,37 @@ test('host deadline stops relay sampling while its start acknowledgement is miss
   assert.ok(calls.includes('disconnect')); assert.equal(f.retirements(), 0);
   release(); await started;
 });
+
+test('host deadline retires a calculator without waiting for its native start acknowledgement', async () => {
+  const pending = Promise.withResolvers(); let stopped = 0;
+  const f = fixture({ stopTimeoutMs: 500, worker: { startCpuProfile: () => pending.promise } });
+  f.online.resolve();
+  const started = assert.rejects(f.profiles.start(Date.now() + 30), /cancelled|did not stop/);
+  try {
+    await delay(120);
+    assert.equal(f.retirements(), 1, 'deadline cleanup must not wait for the native handle');
+  } finally {
+    pending.resolve({ stop: async () => { stopped++; return {}; } });
+    await started;
+    await delay(5);
+    assert.equal(stopped, 1, 'a late native handle still receives stop');
+  }
+});
+
+for (const stage of ['Profiler.start', 'Profiler.stop']) test(`relay ${stage} acknowledgement cannot block deadline cleanup`, async () => {
+  const entered = Promise.withResolvers(); let release, disconnected = false;
+  const f = fixture({ openSession: async () => ({ disconnect() { disconnected = true; }, post(method, callback) {
+    if (method === stage) { release = () => callback(null, { profile: {} }); entered.resolve(); }
+    else callback(null, { profile: {} });
+  } }) });
+  f.online.resolve();
+  const started = f.profiles.start(Date.now() + 30).catch(() => {});
+  await entered.promise;
+  const stopping = f.profiles.cancel().catch(() => {});
+  try {
+    const completed = await Promise.race([Promise.all([started, stopping]).then(() => true), delay(150).then(() => false)]);
+    assert.equal(completed, true, 'capture cleanup must finish without an acknowledgement');
+    assert.equal(disconnected, true);
+    assert.equal(f.retirements(), 0);
+  } finally { release(); await started; await stopping; }
+});

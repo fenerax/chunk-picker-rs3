@@ -772,6 +772,12 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (calculatorPool) {
       worker.schedule(() => {
         if (closed || status !== 'ready' || active) return;
+        // Expired optional work must not hide another picker's warm queue.
+        for (const entry of [...warmQueue]) if (!calculatorPool.canPrewarm(entry.pickerId)
+          && !entry.waiters.size && !served(entry) && !entry.reuseWaiters?.size) {
+          entry.warm = false; warmCounts.cancelled++;
+          cancel(entry, unavailable('Background prediction cancelled.'));
+        }
         const candidates = queue.length ? queue : warmQueue;
         const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
         const entry = candidates.find(entry => entry.pickerId === id) ?? candidates[0];

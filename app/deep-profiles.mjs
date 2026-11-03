@@ -10,10 +10,18 @@ const validName = name => /^profile-\d+-\d+-(picker|calculator|relay)\.cpuprofil
 // enabled=false (the server default) keeps CPU sampling off entirely: no worker is
 // attached and start() is refused. Sampling slows calculations while it runs, so an
 // operator must opt in with RS3_DEEP_PROFILES=1 before an admin can start a capture.
-export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink }, enabled = true } = {}) {
+export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink }, enabled = true, stopTimeoutMs = 1000 } = {}) {
   const directory = path.join(dataDir, 'cpu-profiles');
   const workers = new Set(), online = new WeakMap(), nativeProfiles = new WeakMap();
   let current, closing = false, sequence = 0, failures = 0, retirements = 0, stopping;
+  async function bounded(promise) {
+    let timer;
+    try {
+      return await Promise.race([promise, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('CPU profiler cleanup timed out.')), stopTimeoutMs);
+      })]);
+    } finally { clearTimeout(timer); }
+  }
   async function files() {
     let names; try { names = await readdir(directory); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     const entries = [];
@@ -69,13 +77,13 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     if (current !== run || run.starting || run.handles.has(worker) || !worker.startCpuProfile) return;
     // Serialize native admission: one uncertain start must disable the capture
     // before another calculator (including a replacement) can join it.
-    const pending = run.admissions.then(async () => {
+    const pending = Promise.race([run.admissions, run.cancel.promise]).then(async () => {
       await Promise.race([Promise.resolve(online.get(worker)), run.cancel.promise]);
       if (current !== run || run.cancelled || Date.now() >= run.deadline) return;
       if (!(worker instanceof Worker)) return worker.startCpuProfile({ deadline: run.deadline });
       let profiles = nativeProfiles.get(worker);
       if (!profiles) {
-        profiles = createProcessProfiles({ worker, online: online.get(worker), captureRelay: false,
+        profiles = createProcessProfiles({ worker, online: online.get(worker), captureRelay: false, stopTimeoutMs,
           retire() { worker.profileRetiring = true; worker.emit('profile-retiring'); },
           restore() { worker.profileRetiring = undefined; worker.emit('profile-cleaned'); } });
         nativeProfiles.set(worker, profiles);
@@ -136,7 +144,10 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
         await run.post('Profiler.start'); if (run.cancelled) return;
         run.starting = false;
       })();
-      try { await run.ready; if (!run.cancelled) await Promise.all([...workers].map(worker => startWorker(run, worker))); }
+      try {
+        await Promise.race([run.ready, run.cancel.promise]);
+        if (!run.cancelled) await Promise.race([Promise.all([...workers].map(worker => startWorker(run, worker))), run.cancel.promise]);
+      }
       catch (error) { failures++; await this.stop(); throw Object.assign(new Error(error.status ? error.message : 'CPU profiling is unavailable.'), { status: error.status ?? 503 }); }
       return this.status();
     },
@@ -146,18 +157,24 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       clearTimeout(run.timer); run.cancelled = true; run.cancel.resolve(); current = undefined;
       stopping = (async () => {
         try {
-          await run.ready.catch(() => {});
-          if (run.pickerStarted) { const { profile } = await run.post('Profiler.stop'); await save('picker', profile); }
+          // Once start was issued, stop independently of its acknowledgement.
+          if (!run.pickerStarted) await bounded(run.ready.catch(() => {}));
+          if (run.pickerStarted) { const { profile } = await bounded(run.post('Profiler.stop')); await save('picker', profile); }
         } catch { failures++; }
         finally { run.session?.disconnect(); }
-        await Promise.all([...run.handles.values()].map(async pending => {
+        await Promise.all([...run.handles].map(async ([worker, pending]) => {
+          // Keep the stop continuation attached even after a timeout, so a late
+          // start acknowledgement cannot leave a calculator sampling.
+          const cleanup = pending.then(handle => handle?.stop());
           try {
-            const handle = await pending;
-            if (!handle) return;
-            const profile = await handle.stop();
+            const profile = await bounded(cleanup);
+            if (!profile) return;
             if (profile.calculator && profile.relay) { await save('calculator', profile.calculator); await save('relay', profile.relay); }
             else await save('calculator', profile);
-          } catch { failures++; }
+          } catch {
+            failures++;
+            if (!worker.profileRetiring) { worker.profileRetiring = true; worker.emit('profile-retiring'); }
+          }
         }));
         await writes; await prune();
       })().catch(() => { failures++; }).finally(() => { stopping = undefined; });
