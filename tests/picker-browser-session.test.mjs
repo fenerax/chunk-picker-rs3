@@ -98,6 +98,16 @@ test('queued but not yet persisted commands are reported on logout', () => {
   assert.throws(() => f.c.panelContext.pickerSession.queueCommand(), { name: 'AbortError' });
 });
 
+test('sign-out clears the display snapshot in single-picker deployments too, and waits for it', async () => {
+  const f = fixture({ initial: { multiPicker: false, kind: 'account', memberId: 'owner', readOnly: false } });
+  const gate = deferred(); let clears = 0;
+  f.c.viewCache = { clear: () => { clears++; return gate.promise; } };
+  let settled = false;
+  const leaving = Promise.resolve(f.c.panelContext.pickerSession.beforeSignOut()).then(() => { settled = true; });
+  assert.equal(clears, 1); await new Promise(resolve => setImmediate(resolve)); assert.equal(settled, false);
+  gate.resolve(); await leaving; assert.equal(settled, true);
+});
+
 test('late preference callbacks cannot recreate cleared picker records', () => {
   const f = fixture(), adapter = f.gameStorage();
   adapter.setItem('picker.overlay', 'membership'); f.c.panelContext.pickerSession.stop();

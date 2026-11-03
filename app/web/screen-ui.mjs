@@ -30,7 +30,7 @@ export function createScreenUi(c) {
 
   c.button = (text, action, cls) => { const node = c.el('button', text, cls); node.type = 'button'; node.addEventListener('click', () => Promise.resolve().then(action).catch(c.showError)); return node; };
 
-  c.check = (text, checked, action) => { const label = c.el('label'); const input = c.el('input'); input.type = 'checkbox'; input.checked = checked; input.disabled = !c.canWrite(); let previous = checked; input.addEventListener('change', async () => { if (!c.canWrite()) { input.checked = previous; return; } const generation = c.dialogGeneration; input.disabled = true; try { await action(input.checked); previous = input.checked; } catch (error) { if (c.dialogCurrent(generation)) { input.checked = previous; c.showError(error); } } finally { if (c.dialogCurrent(generation)) input.disabled = !c.canWrite(); } }); label.append(input, document.createTextNode(text)); return label; };
+  c.check = (text, checked, action) => { const label = c.el('label'); const input = c.el('input'); input.type = 'checkbox'; input.checked = checked; input.disabled = !c.canWrite(); let previous = checked, sequence = 0; input.addEventListener('change', async () => { if (!c.canWrite()) { input.checked = previous; return; } const generation = c.dialogGeneration, request = ++sequence, value = input.checked; try { await action(value); previous = value; } catch (error) { if (c.dialogCurrent(generation) && request === sequence) { input.checked = previous; c.showError(error); } } }); label.append(input, document.createTextNode(text)); return label; };
 
   c.fieldSequence = 0;
 

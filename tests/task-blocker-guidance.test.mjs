@@ -131,7 +131,7 @@ test('task dialog explains both completion controls beside their distinct existi
     const { c } = harness(), commands = [], task = { id: 'task', label: 'Example task', category: 'Custom', status: 'available' };
     const owner = { id: 'owner', name: 'Player', completedTasks: [], taskStatus: {} };
     let dialog;
-    Object.assign(c, { memberId: 'owner', state: { revision: 1, members: [owner] }, result: { tasks: [task] }, duoDetails: new Map(),
+    Object.assign(c, { memberId: 'owner', state: { revision: 1, members: [owner] }, result: { memberId: 'owner', stateRevision: 1, tasks: [task] }, duoDetails: new Map(),
       sandbox: { active: false }, definitions: {}, canWrite: () => writable, advanced: () => false, supportsFeature: () => false,
       command: async payload => commands.push(structuredClone(payload)), openDialog: (title, content) => { dialog = content; return 1; },
       check(text, checked, action) { const label = new Node('label', text), input = new Node('input'); input.checked = checked; input.disabled = !writable; input.action = action; label.append(input); return label; },

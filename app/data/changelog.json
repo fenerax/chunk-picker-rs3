@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-11-02",
+      "title": "Screens show up at once",
+      "items": [
+        "Tasks, Preview, How?, the pool, chunk planning and Progress show your last known result right away, marked as updating, while the fresh answer loads",
+        "On reload you see a short saved summary of your tasks before everything else finishes loading",
+        "If an update fails, the message and its Retry button stay put instead of being replaced"
+      ]
+    },
+    {
+      "date": "2026-11-02",
       "title": "How? and Preview answer sooner",
       "items": [
         "The How? panel now answers several times faster",

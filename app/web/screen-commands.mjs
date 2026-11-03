@@ -44,7 +44,7 @@ export function createScreenCommands(c) {
       document.querySelector('.connection-status').append(node);
     }
     if (node) { node.textContent = text; node.hidden = !text; }
-  } });
+  }, delay: 300 });
   let checks = [], displayState, displaySource, displayChecks;
   function taskDisplayState() {
     if (displaySource !== c.state || displayChecks !== checks) {
@@ -152,7 +152,7 @@ export function createScreenCommands(c) {
     if (c.sandbox.active) return c.sandbox.command(payload);
     const finishQueued = typeof c.panelContext !== 'undefined' ? c.panelContext?.pickerSession?.queueCommand() : undefined;
     c.lastSaveControl = document.activeElement;
-    const check = payload.type === 'set-task-status' && typeof payload.challengeCompleted === 'boolean' ? { ...payload } : undefined;
+    const check = ['set-task-status', 'clear-backlog'].includes(payload.type) ? { ...payload } : undefined;
     if (check) { checks = [...checks, check]; c.saved('Saving…'); c.renderTasks(); }
     const task = c.queue.then(async () => {
       if (typeof c.panelContext !== 'undefined' && c.panelContext?.pickerSession?.stopped) throw Object.assign(new Error('The picker changed.'), { name: 'AbortError' });
