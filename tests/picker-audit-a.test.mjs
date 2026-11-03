@@ -162,7 +162,7 @@ test('audit A: sessions, state, errors and headers contain only the caller accou
   const foreign = [right.accountId, right.pickerId];
   for (const [route, status, options] of [
     ['/api/session', 200], ['/api/state', 200], ['/api/state?view=play-v1', 200], ['/api/history', 200],
-    ['/api/history/1', 404], ['/api/coordination', 200], ['/api/health', 200], ['/api/diagnostics', 200],
+    ['/api/history/1', 404], ['/api/coordination', 200], ['/api/health', 200], ['/api/diagnostics', 403],
     ['/api/command', 409, { body: { expectedRevision: 99, command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Player 1' } } }],
   ]) {
     const response = await f.send(route, a, options);

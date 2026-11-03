@@ -79,8 +79,9 @@ test('uncloneable initialization values fail before spawning an owned child', ()
 });
 
 test('isolated task worker compiles, evaluates, reuses shared state and requests missing snapshot resend', { timeout: 15000 }, async t => {
-  const { worker, state, send } = await fixture(t);
+  const { worker, state, send } = await fixture(t, { trackRss: true });
   assert.notEqual(worker.pid, process.pid);
+  assert.ok(worker.rssBytes > 0, 'process RSS reports arrive independently of calculation replies');
   const object = await send({ type: 'evaluate' }); assert.equal(object.error, undefined);
   const stateJSON = sharedBytes(JSON.stringify(state)), metadata = {
     state: undefined, stateTransport: 'json-shared-v1', input: 'fixture', snapshotKey: JSON.stringify([state.revision, 'fixture']),
@@ -338,6 +339,43 @@ test('a host that ignores graceful termination is killed before retirement resol
     assert.equal(retired, false);
     await retirement;
     assert.equal(retired, true); assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
+  } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+});
+
+test('RSS telemetry validates samples and retains the last valid measurement without new reports', async () => {
+  const original = childProcesses.fork, child = new EventEmitter();
+  child.pid = 123; child.connected = true;
+  child.send = (_message, callback) => callback?.();
+  child.kill = () => { child.emit('exit', 0); return true; };
+  childProcesses.fork = () => child; syncBuiltinESMExports();
+  try {
+    const worker = new ProcessWorker({ definitions }, { trackRss: true });
+    child.emit('message', { kind: 'memory-rss', rssBytes: 200 });
+    assert.equal(worker.rssBytes, 200);
+    for (const rssBytes of [undefined, NaN, Infinity, -1, '0', 1.5]) {
+      child.emit('message', { kind: 'memory-rss', rssBytes });
+      assert.equal(worker.rssBytes, 200);
+    }
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(worker.rssBytes, 200, 'a missing report keeps the last measurement');
+    child.emit('message', { kind: 'memory-rss', rssBytes: 100 });
+    assert.equal(worker.rssBytes, 100, 'a valid new sample can lower the measurement');
+    await worker.terminate({ force: true });
+  } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+});
+
+test('memory emergency upgrades an existing graceful retirement to immediate force-kill', async () => {
+  const original = childProcesses.fork, child = new EventEmitter(), signals = [];
+  child.pid = 123; child.connected = true;
+  child.send = (_message, callback) => callback?.();
+  child.kill = signal => { signals.push(signal); child.emit('exit', null, signal); return true; };
+  childProcesses.fork = () => child; syncBuiltinESMExports();
+  try {
+    const worker = new ProcessWorker({ definitions });
+    const retirement = worker.terminate();
+    assert.equal(worker.terminate({ force: true }), retirement);
+    assert.deepEqual(signals, ['SIGKILL'], 'emergency retirement does not wait for the graceful kill timer');
+    await retirement;
   } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
 });
 

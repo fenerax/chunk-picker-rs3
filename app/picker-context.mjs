@@ -111,6 +111,13 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   };
   const admitStream = pickerLimits ? (key, response) => pickerLimits.stream({ accountId: key }, pickerId, response) : legacyAdmitStream;
   const taskWorker = sharedTaskWorker?.forPicker?.(pickerId) ?? sharedTaskWorker;
+  let lastPickerActivity = -Infinity, writableStreams = 0;
+  const hasRecentActivity = () => writableStreams > 0 || schedulingClock.now() - lastPickerActivity < 30 * 60000;
+  function notePickerActivity() {
+    lastPickerActivity = schedulingClock.now();
+    taskWorker?.noteActivity?.();
+    schedulePredictions();
+  }
   if (typeof usageAdmission !== 'function') throw new TypeError('A shared usage admission limiter is required.');
   const usageClock = now === undefined ? Date.now : () => typeof now === 'function' ? now() : now;
   // Verify the selected runtime before touching this picker's gameplay files.
@@ -218,6 +225,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       authenticateAdmin: (request, security) => invites.authenticate(request, security), checkRequestOrigin, serializeMutation,
       unauthenticated: key => limits.unauthenticated(key), admitStream });
     gamePlugin = await openGamePlugin({ pickerLimits, pickerId, dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
+      onActivity: notePickerActivity,
       serializeMutation, checkRequestOrigin, unauthenticated: key => limits.unauthenticated(key),
       indexKey: pickerRouting?.indexKey, removeKey: pickerRouting?.removeKey, authorizeKey: pickerRouting?.authenticateKey,
       // In-game lists read the saved task result only; they never start an evaluation.
@@ -378,6 +386,24 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   };
   const clients = new Set();
   const clientCredentials = new Map();
+  const aggregateAccess = (identity, security) => identity?.admin && !security.publicRequest;
+  function clientWorkerHealth(identity, security) {
+    if (!taskWorker) return { status: 'not-configured', ready: true, restartRequired: false };
+    return aggregateAccess(identity, security) ? taskWorker.getHealth()
+      : taskWorker.getClientHealth?.() ?? { status: 'ready', ready: true, restartRequired: false };
+  }
+  function broadcastWorker() {
+    for (const [client, credentials] of clientCredentials) {
+      const { request, security } = credentials;
+      const identity = invites.authenticate(request, security);
+      if (!identity) continue;
+      const event = `event: worker\ndata: ${JSON.stringify(clientWorkerHealth(identity, security))}\n\n`;
+      // Another picker's transitions must not leak through event frequency.
+      if (event === credentials.workerEvent) continue;
+      credentials.workerEvent = event;
+      if (!writeEvent(client, event)) { clients.delete(client); clientCredentials.delete(client); }
+    }
+  }
   function broadcast(bytes) {
     if (pickerRouting?.authenticate) endInactiveClients();
     for (const client of clients) if (!writeEvent(client, bytes)) {
@@ -565,6 +591,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let startupWarmup;
   let trainingSourceIndex, bankingRouteProvider;
   let prewarmTimer;
+  const preparedOffers = new Set();
+  const offerKey = (input, memberId, chunkId) => JSON.stringify([input, memberId, String(chunkId)]);
   let noteQuietUntil = -Infinity;
   let foregroundActive = 0, foregroundLastActivity = schedulingClock.now(),foregroundCompletedRevision = -1, foregroundAwaitedRevision = -1, awaitingForeground;
   let automaticDeathActive = 0;
@@ -633,12 +661,14 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     // prediction worker. Foreground loading wins even on slow state transfers.
     prewarmTimer = schedulingClock.setTimeout(() => { void trackJob(async () => {
       if (closed) return;
+      if (!hasRecentActivity()) return;
       const time = schedulingClock.now();
-      if (startupWarmup && ['pending', 'running'].includes(startupWarmup.diagnostics().status)) { schedulePredictions(); return; }
       if (foregroundActive || automaticDeathActive) { schedulePredictions(); return; }
-      if (requiredTaskMembers.size && [...requiredTaskMembers].some(id => !settledTaskMembers.has(id))) { schedulePredictions(); return; }
-      if (awaitingForeground && time < awaitingForeground.until) { schedulePredictions(Math.min(1000, awaitingForeground.until - time)); return; }
-      awaitingForeground = undefined;
+      const pendingOffer = predictionPrewarm && store.getCalculationSnapshot().hasPendingRoll;
+      if (!pendingOffer && startupWarmup && ['pending', 'running'].includes(startupWarmup.diagnostics().status)) { schedulePredictions(); return; }
+      if (!pendingOffer && requiredTaskMembers.size && [...requiredTaskMembers].some(id => !settledTaskMembers.has(id))) { schedulePredictions(); return; }
+      if (!pendingOffer && awaitingForeground && time < awaitingForeground.until) { schedulePredictions(Math.min(1000, awaitingForeground.until - time)); return; }
+      if (!pendingOffer) awaitingForeground = undefined;
       const quietRemaining = Math.max(1000 - (time - foregroundLastActivity), noteQuietUntil - time);
       if (quietRemaining > 0) { schedulePredictions(quietRemaining); return; }
       const { state, input } = calculationState();
@@ -653,7 +683,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         }
       };
       if (predictionPrewarm) {
-        interleave(state.members.map(member => valid(member.pendingRoll)));
+        interleave(state.members.map(member => valid(member.pendingRoll).filter(id => !preparedOffers.has(offerKey(input, member.id, id)))));
         interleave(state.members.map(member => valid(member.selected)));
       }
       const interested = poolRanking.interestedMembers();
@@ -679,6 +709,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     rankingLeaseTimer = setTimeout(watchRankingLeases, 1000);
     rankingLeaseTimer.unref?.();
   }
+  const unsubscribePrepared = taskWorker?.subscribePrepared?.(({ input, memberId, chunkId }) => {
+    if (closed || input !== savedTaskFingerprint || !store.getCalculationSnapshot().hasPendingRoll) return;
+    const state = calculationState().state;
+    if (state.members.some(member => member.id === memberId && member.pendingRoll.includes(String(chunkId)))) {
+      // One attempt per offered choice/input, even when a deliberately tiny
+      // response budget cannot retain it. Cache eviction must not create a loop.
+      preparedOffers.add(offerKey(input, memberId, chunkId));
+    }
+    if (state.members.some(member => member.pendingRoll.some(id => !preparedOffers.has(offerKey(input, member.id, id))
+      && !taskWorker.peekPrediction?.(state, member.id, id, input)))) schedulePredictions();
+  });
   const unsubscribePredictions = taskWorker?.subscribePredictions(({ input, memberId, chunkId, result }) => {
     if (closed || input !== savedTaskFingerprint) return;
     poolRanking.remember(input, memberId, chunkId, result);
@@ -753,9 +794,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     }
   }
   let lastUnchangedTaskRevision, refreshMemberId;
-  const unsubscribe = store.subscribe(({ revision, ownershipChanged, noteEdit }) => {
+  const unsubscribe = store.subscribe(({ revision, ownershipChanged, noteEdit, choicesChanged }) => {
     const gameplay = taskFingerprint(), taskResultsUnchanged = gameplay === savedTaskFingerprint;
     lastUnchangedTaskRevision = taskResultsUnchanged ? revision : undefined;
+    if (choicesChanged || !taskResultsUnchanged) preparedOffers.clear();
     if (taskResultsUnchanged) {
       for (const entry of savedTaskResults.values()) rebindTaskRevision(entry, revision);
     } else { savedTaskResults.clear(); lastClaimCheckKey = undefined; }
@@ -790,6 +832,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       taskWorker?.supersedeDisplay(revision, gameplay);
       // A pending warm-up reads the latest state when it fires.
       // Claim-only saves must preserve the quiet window scheduled by the task response.
+      if (choicesChanged && !noteEdit) { taskWorker?.cancelPrewarm({ keepTasks: true }); schedulePredictions(0); }
       if (noteEdit && taskWorker) {
         // Someone is typing notes. Their tasks stay valid, but queued warm-up
         // yields to the next save; epoch-keyed entries requeue after the quiet.
@@ -834,7 +877,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       identityLookup = undefined; identityLookupRevision = -1; trainingSourceIndex = undefined;
     }
     endInactiveClients();
-    broadcast(`event: worker\ndata: ${JSON.stringify(worker)}\n\n`);
+    broadcastWorker();
   });
   let importingBackup = false;
   const admittedImports = new WeakSet();
@@ -942,6 +985,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (privateAddon?.features.originalSync && route.startsWith('/api/original-sync/')) await privateAddon.verify();
       if (route.startsWith('/api/')) {
         requirePermission();
+        // Residency interest belongs to authenticated writable boundaries.
+        // Calculations themselves may also be requested by read-only viewers.
+        if (!identity.readOnly && ['/api/state', '/api/tasks', '/api/predict', '/api/command', '/api/session', '/api/prediction-intent', '/api/pool-ranking-intent',
+          '/api/helper-drops', '/api/training-plan', '/api/area-check', '/api/task-how', '/api/death-estimates', '/api/chunk-planning', '/api/sandbox/evaluate'].includes(route)) notePickerActivity();
         // Stable invitation identity: opening new sessions or changing IP cannot reset it.
         const expensiveRead = ['GET', 'HEAD'].includes(request.method)
           && ['/api/task-why', '/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/task-how', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)
@@ -1067,8 +1114,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await sendCached(request, response, cachedValue('display-world', () => projectDisplayWorld(indexedWorld))); return;
           }
           if (route === '/api/health') {
-            const worker = taskWorker?.getHealth() ?? { status: 'not-configured', ready: true, restartRequired: false };
-            const warming = startupWarmup && ['pending', 'running'].includes(startupWarmup.diagnostics().status);
+            const worker = clientWorkerHealth(identity, security);
+            const warming = aggregateAccess(identity, security) && startupWarmup && ['pending', 'running'].includes(startupWarmup.diagnostics().status);
             await json(request, response, 200, { ready: !closed && !handover.frozen && worker.ready && !worker.stuck && !worker.restartRequired, status: closed ? 'stopping' : handover.frozen ? 'updating' : worker.stuck ? 'stuck' : worker.restartRequired ? 'restart-required' : warming ? 'warming' : worker.ready ? 'ready'
               : ['sleeping', 'waking'].includes(worker.status) ? worker.status : 'degraded',
               savesReady: !closed && !handover.frozen && !liveSwap?.standby, standby: liveSwap?.standby === true, worker, local: true, revision: store.getInfo().revision, version: appVersion, schemaVersion: 1,
@@ -1083,6 +1130,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await json(request, response, 200, value); return;
           }
           if (route === '/api/diagnostics') {
+            requireAdmin();
             await json(request, response, 200, { status: closed ? 'stopping' : 'running', ...(taskWorker?.getDiagnostics() ?? { worker: { status: 'not-configured' } }),
               poolRanking: poolRanking.diagnostics(),
               referenceCache: { entries: 2, bytes: runtime.definitionCache.retainedBytes + runtime.taskCache.retainedBytes },
@@ -1403,9 +1451,16 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if (request.method === 'HEAD') { response.end(); return; }
             response.write(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`);
             response.write(`event: version\ndata: ${JSON.stringify({ version: appVersion })}\n\n`);
-            if (taskWorker) response.write(`event: worker\ndata: ${JSON.stringify(taskWorker.getHealth())}\n\n`);
+            const workerEvent = taskWorker ? `event: worker\ndata: ${JSON.stringify(clientWorkerHealth(identity, security))}\n\n` : undefined;
+            if (workerEvent) response.write(workerEvent);
+            const releaseSession = !identity.readOnly ? taskWorker?.openSession?.() : undefined;
+            if (!identity.readOnly) { writableStreams++; notePickerActivity(); }
+            response.once('close', () => {
+              releaseSession?.();
+              if (!identity.readOnly) { writableStreams--; lastPickerActivity = schedulingClock.now(); }
+            });
             clients.add(response);
-            clientCredentials.set(response, { request, security });
+            clientCredentials.set(response, { request, security, workerEvent });
             const heartbeat = setInterval(() => { endInactiveClients(); if (clients.has(response)) writeEvent(response, ': keepalive\n\n'); }, 20000);
             heartbeat.unref();
             const stop = () => { clearInterval(heartbeat); clients.delete(response); clientCredentials.delete(response); };
@@ -2156,13 +2211,13 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         await claimCleanupRun;
         await readinessPrepared; readinessPrepared = undefined;
         startupWarmup = undefined;
-        unsubscribe(); unsubscribeWorker?.(); unsubscribeResidency?.(); unsubscribePredictions?.();
+        unsubscribe(); unsubscribeWorker?.(); unsubscribeResidency?.(); unsubscribePredictions?.(); unsubscribePrepared?.();
         await overlays.close();
         await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), gamePlugin.close()]);
         progressClient.close(); originalSyncClient?.close();
         while (jobs.size) await Promise.allSettled([...jobs]);
         stateResponseBuilds.clear(); responseCache.clear(); sandboxPools.clear(); rollPoolCache = undefined;
-        poolRanking.clear(); rankingPools.clear(); savedTaskResults.clear();
+        poolRanking.clear(); rankingPools.clear(); savedTaskResults.clear(); preparedOffers.clear();
         runeMetricsPreviews.clear(); originalSyncPreviews.clear();
         identityLookup = undefined; calculationSnapshot = undefined;
         trainingSourceIndex = undefined; bankingRouteProvider = undefined;

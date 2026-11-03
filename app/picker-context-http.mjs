@@ -27,7 +27,7 @@ export const routePermissions = Object.freeze({
     '/api/admin/live-timings': 'admin', '/api/admin/cpu-profiles': 'admin',
     '/api/admin/master-link': 'admin', '/api/icons': 'read', '/api/ids/:id': 'read',
     '/api/state': 'read', '/api/history': 'read', '/api/history/:id': 'read', '/api/roll-stats': 'read', '/api/display-world': 'read', '/api/health': 'read', '/api/art-status': 'read', '/api/dataset-status': 'read', '/api/dataset-runtime': 'read', '/api/dataset-input': 'read',
-    '/api/changelog': 'read', '/api/roadmap': 'read', '/api/diagnostics': 'read', '/api/definitions': 'read',
+    '/api/changelog': 'read', '/api/roadmap': 'read', '/api/diagnostics': 'admin', '/api/definitions': 'read',
     '/api/map-info': 'read', '/api/npcs-and-shops': 'read', '/api/archaeology-catalogue': 'read',
     '/api/chunk-sections': 'read', '/api/interior-maps': 'read', '/api/task-map': 'read',
     '/api/training-catalogue': 'read', '/api/house-storage-catalogue': 'read',

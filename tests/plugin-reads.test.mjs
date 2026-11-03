@@ -20,13 +20,13 @@ const completion = (id, memberId, at, extra = {}) => ({ type: 'complete-task', a
 async function fixture(t, save = state(), savedResult = null) {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'plugin-reads-'));
   let at = now, output, input, saved = savedResult && { bytes: Buffer.from(JSON.stringify(savedResult)), revision: save.revision };
-  let prediction = null, claimReads = 0, historyReads = 0, poolWarms = 0;
+  let prediction = null, claimReads = 0, historyReads = 0, poolWarms = 0, activity = 0;
   const controller = await openGamePlugin({ dataDir, clock: () => at, registry, questMapping: new Map(),
     store: { getInfo: () => ({ revision: save.revision }), getCalculationSnapshot: () => ({ state: save, members: save.members }),
       getTaskClaimState: () => { claimReads++; return save; },
       getTaskCompletionHistory: () => { historyReads++; return save.history; }, peekRollPool: () => null,
       rollPool: () => { poolWarms++; } },
-    peekPrediction: () => prediction,
+    peekPrediction: () => prediction, onActivity: () => { activity++; },
     world: { chunks: new Map([['12850', { name: 'Home' }], ['13106', { name: 'East' }], ['13362', { name: 'Far east' }]]) },
     savedTasks: () => saved, bodyJSON: async () => input, json: async (_req, _res, _status, value) => { output = value; },
     serializeMutation: operation => operation(), checkRequestOrigin: () => {},
@@ -35,6 +35,7 @@ async function fixture(t, save = state(), savedResult = null) {
   const { key } = await controller.create({ admin: true }, { memberId: 'a', label: 'Read test' });
   return { save, controller, setSaved(value) { saved = value; }, setPrediction(value) { prediction = value; }, advance(ms) { at += ms; },
     get poolWarms() { return poolWarms; },
+    get activity() { return activity; },
     get reads() { return { claimReads, historyReads }; },
     async call(route = 'tasks', report = null) {
       at += 1001; input = report && { v: 1, seq: 1, sentAt: new Date(at).toISOString(), position: { x: 50, z: 50, floor: 0 }, ...report };
@@ -209,4 +210,14 @@ test('active generated goals remember their location; authored and custom tasks 
   rememberActiveLocations({ memory, world, state: state(), result: { tasks: [] }, rows: many });
   assert.equal(memory.size, PLUGIN_REMEMBERED_LOCATIONS);
   assert.ok(!memory.has('goal') && !memory.has('goal0') && memory.has(`goal${PLUGIN_REMEMBERED_LOCATIONS + 9}`), 'The oldest entries go first');
+});
+
+
+test('authenticated plugin reads renew session interest without starting any calculation', async t => {
+  const f = await fixture(t);
+  await f.call();
+  assert.equal(f.activity, 1); assert.equal(f.poolWarms, 0);
+  await assert.rejects(f.controller.handle({ method: 'GET', url: '/api/plugin/v1/tasks', headers: {} }, {},
+    { route: '/api/plugin/v1/tasks', security: { rateKey: 'synthetic' } }), { status: 401 });
+  assert.equal(f.activity, 1);
 });

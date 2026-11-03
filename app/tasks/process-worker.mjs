@@ -17,8 +17,9 @@ export class ProcessWorker extends EventEmitter {
   #sequence = 0;
   #failed = false;
   #profileTimeoutMs;
+  rssBytes = 0;
 
-  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, profileTimeoutMs = 20000 } = {}) {
+  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, trackRss = false, profileTimeoutMs = 20000 } = {}) {
     super();
     this.#profileTimeoutMs = profileTimeoutMs;
     // Serialization failures must occur before a child is created.
@@ -33,6 +34,9 @@ export class ProcessWorker extends EventEmitter {
     this.#child.on('message', message => {
       try {
         if (message.kind === 'message') this.emit('message', decodeReceivedProcessMessage(message.payload));
+        else if (message.kind === 'memory-rss') {
+          if (Number.isSafeInteger(message.rssBytes) && message.rssBytes >= 0) this.rssBytes = message.rssBytes;
+        }
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
         else if (message.kind === 'profile') {
           const request = this.#profiles.get(message.id);
@@ -62,7 +66,7 @@ export class ProcessWorker extends EventEmitter {
     // A spawn failure has a close event, but no exit event or OS process.
     this.#child.once('close', code => { if (!this.#child.pid) this.#finish(code ?? 1); });
     this.#child.once('disconnect', () => { if (!this.#exited && !this.#stopping) void this.terminate(); });
-    this.#send({ kind: 'init', data, probeImport });
+    this.#send({ kind: 'init', data, probeImport, trackRss });
   }
 
   get pid() { return this.#child.pid; }
@@ -96,8 +100,14 @@ export class ProcessWorker extends EventEmitter {
 
   postMessage(message) { this.#send({ kind: 'post', payload: encodeProcessMessage(message) }); }
 
-  terminate() {
-    if (this.#stopping || this.#exited) return this.#exitPromise;
+  terminate({ force = false } = {}) {
+    if (this.#exited) return this.#exitPromise;
+    if (force) {
+      this.#stopping = true;
+      try { this.#child.kill('SIGKILL'); } catch {}
+      return this.#exitPromise;
+    }
+    if (this.#stopping) return this.#exitPromise;
     this.#stopping = true;
     if (this.#child.connected) this.#send({ kind: 'terminate' });
     const kill = signal => { if (!this.#exited) try { this.#child.kill(signal); } catch {} };

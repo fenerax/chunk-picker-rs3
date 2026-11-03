@@ -68,6 +68,8 @@ async function trial(config) {
     await writeFile(path.join(config.store, 'access-token'), randomBytes(32).toString('base64url'), { mode: 0o600 });
     app = await createServer({ dataDir: config.store, port: config.port, host: '127.0.0.1',
       initialState, startupSignal: controller.signal, predictionPrewarm: false,
+      // Cold/warm engine trials force sleep independently of player sessions.
+      taskWorkerOptions: { residency: false },
       ...(config.multiPicker && !config.solo ? { multiPicker: { registryDir: path.join(config.root, 'registry'),
         pickerRoot: path.join(config.root, 'pickers'), tombstoneDir: path.join(config.root, 'tombstones') } } : {}),
       shutdownDeadlineMs: 5000,

@@ -109,11 +109,14 @@ test('server warms selected and pending predictions without calculating the unop
     assert.equal(response.status, 200); return response.json();
   }
   const settled = value => value.predictionLane.prewarm.completed >= 2 && !value.predictionLane.prewarm.pending && !value.predictionLane.prewarm.active;
-  // Cross the unchanged browser admission threshold with virtual scheduling time.
+  // Saved offers and diagnostic reads cannot establish activity at startup.
   assert.equal((await get('/api/diagnostics')).predictionLane.worker.status, 'idle');
   await clock.advance(9999);
   assert.equal((await get('/api/diagnostics')).predictionLane.worker.status, 'idle', 'Startup warming waits the full ten seconds');
   await clock.advance(1);
+  assert.equal((await get('/api/diagnostics')).predictionLane.worker.status, 'idle');
+  await get('/api/state?view=play-v1');
+  await clock.advance(1000);
   await until(() => get('/api/diagnostics'), settled);
   for (const chunkId of ['13108', '12597']) {
     const value = await get(`/api/predict?memberId=synthetic&chunkId=${chunkId}`);
@@ -168,6 +171,11 @@ test('bounded server warming prioritizes pending rolls across players before lar
   await clock.advance(9999);
   assert.equal(request(workers[1]), undefined, 'Startup admission has not expired');
   await clock.advance(1);
+  assert.equal(request(workers[1]), undefined, 'Saved offers alone do not admit preparation');
+  const response = await fetch(new URL('/api/state?view=play-v1', app.inviteUrl),
+    { headers: { Authorization: `Bearer ${new URL(app.inviteUrl).pathname.slice('/join/'.length)}` } });
+  assert.equal(response.status, 200); await response.json();
+  await clock.advance(1000);
   await until(async () => ({ predictionLane: { worker: true }, messages: request(workers[1]) }), value => value.messages?.length === 1);
   assert.equal(request(workers[1])[0].memberId, 'second');
   assert.equal(request(workers[1])[0].chunkId, '12597');
@@ -278,4 +286,68 @@ test('explicit Preview clears queued warming, follows its active producer and pr
   await until(async () => ({ messages: f.messages('predict') }), value => value.messages.length === 2);
   assert.equal(f.messages('predict')[1].chunkId, '13108', 'Warming resumes at the one-second quiet deadline');
   predictionWorker.finish('predict');
+});
+
+test('a pending offer prepares Preview while an opened state still awaits its unrequested task list', async t => {
+  const clock = createManualClock(), workers = [];
+  const workerFactory = () => {
+    const worker = new EventEmitter(); worker.messages = [];
+    worker.postMessage = message => worker.messages.push(message);
+    worker.terminate = async () => {};
+    workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] }));
+    return worker;
+  };
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'rs3-offer-ahead-'));
+  const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'], pendingRoll: ['12597'] }]);
+  initialState.rules['roll.neighborMode'] = geometricMode;
+  const app = await createServer({ dataset: fixtureDataset, dataDir, port: 0, schedulingClock: clock,
+    definitions, taskMap: {}, initialState, taskWorkerOptions: { workerFactory } });
+  t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
+  await app.listen(); const invitation = new URL(app.inviteUrl);
+  const headers = { Authorization: `Bearer ${invitation.pathname.slice('/join/'.length)}` };
+  await clock.advance(10000);
+  assert.equal(workers.length, 1, 'saved offers do not start prepare-ahead before authenticated activity');
+  const response = await fetch(invitation.origin + '/api/state?view=play-v1', { headers });
+  assert.equal(response.status, 200); await response.json();
+  await clock.advance(1000);
+  await until(async () => ({ predictionLane: {}, messages: workers[1]?.messages }), value => value.messages?.some(message => message.type === 'predict'));
+  const job = workers[1].messages.find(message => message.type === 'predict');
+  assert.equal(job.chunkId, '12597');
+  assert.equal(workers[0].messages.some(message => message.type === 'evaluate'), false);
+  workers[1].emit('message', { id: job.id, result: { delta: { tasksAdded: [] } }, evaluationMs: 0 });
+  const diagnostics = await fetch(invitation.origin + '/api/diagnostics', { headers });
+  assert.equal((await diagnostics.json()).predictionLane.cache.entries, 1);
+});
+
+test('every pending choice is prepared when early Preview precedes release of a one-job fairness budget', async t => {
+  const clock = createManualClock(), workers = [];
+  const workerFactory = () => {
+    const worker = new EventEmitter(); worker.messages = [];
+    worker.postMessage = message => worker.messages.push(message);
+    worker.terminate = async () => {};
+    workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] }));
+    return worker;
+  };
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'rs3-offer-refill-'));
+  const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'], pendingRoll: ['12342', '12597'] }]);
+  initialState.rules['roll.neighborMode'] = geometricMode;
+  const app = await createServer({ dataset: fixtureDataset, dataDir, port: 0, schedulingClock: clock,
+    definitions, taskMap: {}, initialState, taskWorkerOptions: { workerFactory, predictionCacheBytes: 1, fairness: { maxOutstandingJobsPerPicker: 1 } } });
+  t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
+  await app.listen(); const invitation = new URL(app.inviteUrl);
+  const headers = { Authorization: `Bearer ${invitation.pathname.slice('/join/'.length)}` };
+  await (await fetch(invitation.origin + '/api/state?view=play-v1', { headers })).json();
+  await clock.advance(1000);
+  const first = workers[1].messages.find(message => message.type === 'predict');
+  assert.equal(first.chunkId, '12342');
+  workers[1].emit('message', { id: first.id, type: 'prediction-prepared', result: { delta: { tasksAdded: [] } }, evaluationMs: 0 });
+  await clock.advance(1000);
+  assert.equal(workers[1].messages.filter(message => message.type === 'predict').length, 1);
+  workers[1].emit('message', { id: first.id, result: { delta: { tasksAdded: [] } }, evaluationMs: 0 });
+  await clock.advance(1000);
+  const jobs = workers[1].messages.filter(message => message.type === 'predict');
+  assert.equal(jobs.length, 2); assert.equal(jobs[1].chunkId, '12597');
+  workers[1].emit('message', { id: jobs[1].id, result: { delta: { tasksAdded: [] } }, evaluationMs: 0 });
+  await clock.advance(5000);
+  assert.equal(workers[1].messages.filter(message => message.type === 'predict').length, 2, 'oversized results cannot create an automatic retry loop');
 });

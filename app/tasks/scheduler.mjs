@@ -4,6 +4,7 @@ import { WarmStoreWorker } from './warm-store-worker.mjs';
 import path from 'node:path';
 import { ProcessWorker } from './process-worker.mjs';
 import { createCalculatorPool } from './calculator-pool.mjs';
+import { createSessionResidency } from './session-residency.mjs';
 import { createHash } from 'node:crypto';
 import { deserialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
@@ -23,7 +24,7 @@ const pickerKey = (pickerId, key) => JSON.stringify([pickerId, key]);
 // bound facade; all lanes and their admission/memory limits remain shared.
 const pickerArguments = { peekPrediction: 4, cancelRankingPrewarm: 1, preparedEvaluation: 3, prepareRules: 2,
   evaluate: 12, supersede: 3, supersedeDisplay: 2, setRevision: 2, prewarm: 4, prewarmTasks: 4,
-  cancelPrewarm: 1, retireWarmPrediction: 0 };
+  cancelPrewarm: 1, retireWarmPrediction: 0, noteActivity: 0, openSession: 0, getDiagnostics: 0, getClientHealth: 0 };
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
 const queueFull = () => Object.assign(new Error('Task calculation budget is full. Wait for pending tasks and retry.'), { status: 429, retryAfter: 1 });
 const positive = (value, name, minimum = 1) => {
@@ -100,7 +101,7 @@ function validStateInput(state, input, stateInput, type) {
 export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs = 120000, deathWorkerFactory,
   duoWorkerFactory, maxDuoQueue = 2, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
   predictionWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
-  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, ...options } = {}) {
+  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, residency, ...options } = {}) {
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
@@ -121,16 +122,25 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       };
     } };
   }
+  const sessions = residency ? createSessionResidency(residency, options.idleClock) : undefined;
+  options.sessions = sessions;
+  if (sessions?.memoryBytes === 0) throw unavailable('Insufficient memory for a task calculator.');
+  if (sessions) options.idleMs ??= Number(process.env.RS3_WORKER_IDLE_MS ?? sessions.idleMs);
+  if (sessions) maxCalculators = Math.min(maxCalculators ?? sessions.maxResident, sessions.maxResident, Math.max(1, Math.floor(sessions.memoryBytes / sessions.estimatedBytes)));
   if (options.warmStoreDirectory) options.workerData = { ...options.workerData, warmStoreDirectory: options.warmStoreDirectory };
   options.workerPreparation = createWorkerPreparation(options.workerData, { persistentDirectory: options.warmStoreDirectory });
   if (maxCalculators !== undefined) {
     positive(maxCalculators, 'maxCalculators');
-    const factory = options.workerFactory ?? nativeWorker;
+    // RSS accounting and emergency retirement need an owned process. Thread
+    // RSS belongs to the server and cannot be bounded per physical calculator.
+    const factory = options.workerFactory ?? (sessions ? data => new ProcessWorker(data, { trackRss: true }) : nativeWorker);
+    const native = !options.workerFactory;
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
-      workerData: (includeCatalogue, group) => factory === nativeWorker
+      workerData: (includeCatalogue, group) => native
         ? nativeWorkerInput(group === 'foreground' || options.workerPreparation.persistent ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
+      sessions, clock: options.idleClock, memoryUsage: options.calculatorMemoryUsage,
       onWorker: options.onWorker,
-      onReady: factory === nativeWorker ? message => options.workerPreparation.accept(message) : undefined,
+      onReady: native ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
   }
   let foreground;
@@ -163,6 +173,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   const listeners = new Set();
   const residencyListeners = new Set();
   const predictionListeners = new Set();
+  const preparationListeners = new Set();
   const announceResidency = () => { for (const listener of residencyListeners) { try { listener(scheduler.getHealth()); } catch { /* Observers cannot interrupt retirement. */ } } };
   const announce = () => { announceResidency(); for (const listener of listeners) { try { listener(scheduler.getHealth()); } catch { /* Observers cannot interrupt recovery. */ } } };
   foreground.subscribe(announce);
@@ -187,6 +198,11 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       onEvaluation(message, entry) {
         const picker = pickerState(entry.pickerId);
         if (picker.closed) return;
+        // Preview can arrive before its partner releases admission. Refill only
+        // after that final reply too, without publishing the same delta twice.
+        if (entry.warm && message.type !== 'prediction-prepared') for (const listener of preparationListeners) {
+          try { listener({ pickerId: entry.pickerId, memberId: entry.memberId, chunkId: entry.chunkId, input: entry.input }); } catch { /* Optional warming cannot interrupt a reply. */ }
+        }
         if (!closed && !entry.previewValue && entry.revision === picker.latestRevision && !entry.discarded && !message.result?.cancelled
           && Array.isArray(message.result?.delta?.tasksAdded)) {
           const state = { ...entry.predictionState, revision: entry.revision };
@@ -225,8 +241,9 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
         }
         args.length = count; return scheduler[name](...args, pickerId);
       };
+      facade.subscribePrepared = listener => scheduler.subscribePrepared(event => { if (!abandoned && event.pickerId === pickerId) listener(event); });
       facade.subscribePredictions = listener => scheduler.subscribePredictions(event => { if (!abandoned && event.pickerId === pickerId) listener(event); });
-      facade.canPrewarmTasks = (...args) => !abandoned && scheduler.canPrewarmTasks(...args);
+      facade.canPrewarmTasks = (usePrediction = false) => !abandoned && scheduler.canPrewarmTasks(usePrediction, pickerId);
       facade.notePredictionUse = () => { if (!abandoned) scheduler.notePredictionUse(); };
       facade.resumePrewarm = () => { if (!abandoned) scheduler.resumePrewarm(); };
       facade.cancelPicker = () => { if (!abandoned) { abandoned = true; scheduler.cancelPicker(pickerId); } };
@@ -234,13 +251,32 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     },
     cancelPicker(id) {
       const pickerId = pickerJobId(id), picker = pickerState(pickerId);
-      picker.closed = true; picker.unlockResults.clear();
+      picker.closed = true; picker.unlockResults.clear(); sessions?.forget(pickerId);
       for (const lane of [foreground, death, prediction, duo]) lane?.cancelPicker(pickerId);
+    },
+    noteActivity(pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      if (closed || pickerState(pickerId).closed) return;
+      sessions?.note(pickerId);
+      for (const lane of [foreground, prediction, death, duo]) lane?.sessionChanged(pickerId);
+      options.calculatorPool?.sessionChanged(pickerId);
+    },
+    openSession(pickerId = 'legacy-shared') {
+      if (closed || pickerState(pickerId).closed || !sessions) return () => {};
+      const release = sessions.open(pickerId);
+      scheduler.noteActivity(pickerId);
+      let released = false;
+      return () => {
+        if (released) return; released = true; release();
+        for (const lane of [foreground, prediction, death, duo]) lane?.sessionChanged();
+        options.calculatorPool?.sessionChanged();
+      };
     },
     catalogue: foreground.catalogue, dynamicCatalogue: foreground.dynamicCatalogue,
     supports: type => foreground.supports(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     subscribeResidency(listener) { residencyListeners.add(listener); return () => residencyListeners.delete(listener); },
+    subscribePrepared(listener) { preparationListeners.add(listener); return () => preparationListeners.delete(listener); },
     subscribePredictions(listener) { predictionListeners.add(listener); return () => predictionListeners.delete(listener); },
     peekPrediction(state, memberId, chunkId, input, pickerId = 'legacy-shared') {
       pickerId = pickerJobId(pickerId);
@@ -412,7 +448,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     prewarm(state, input, groups, { signal } = {}, pickerId = 'legacy-shared') {
       pickerId = pickerJobId(pickerId);
       const picker = pickerState(pickerId);
-      if (closed || picker.closed || signal?.aborted || state.revision < picker.latestRevision) return { queued: 0 };
+      if (closed || picker.closed || signal?.aborted || state.revision < picker.latestRevision
+        || options.calculatorPool?.canPrewarm(pickerId) === false) return { queued: 0 };
       scheduler.supersede(state.revision, input, undefined, pickerId);
       // Ranking deltas may displace a reviewed choice's response from the LRU.
       // Its complete prepared bytes still satisfy automatic preparation, so a
@@ -428,11 +465,13 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     },
     // Current task results and arbitrary Preview baselines use the same bounded
     // low-priority admission as candidate warming, without interactive waiters.
-    canPrewarmTasks(usePrediction = false) { return !closed && foreground.canPrewarm() && (!usePrediction || !prediction || prediction.canPrewarm()); },
+    canPrewarmTasks(usePrediction = false, pickerId = 'legacy-shared') { return !closed && foreground.canPrewarm()
+      && options.calculatorPool?.canPrewarm(pickerId) !== false && (!usePrediction || !prediction || prediction.canPrewarm()); },
     prewarmTasks(state, input, memberIds, { resultView = 'full', stateInput, prediction: usePrediction = false } = {}, pickerId = 'legacy-shared') {
       pickerId = pickerJobId(pickerId);
       const picker = pickerState(pickerId);
-      if (closed || picker.closed || state.revision < picker.latestRevision) return { queued: 0 };
+      if (closed || picker.closed || state.revision < picker.latestRevision
+        || options.calculatorPool?.canPrewarm(pickerId) === false) return { queued: 0 };
       if (!['full', 'play-v1'].includes(resultView)) throw new TypeError('Unknown task result view.');
       if (!Array.isArray(memberIds) || memberIds.some(id => !state.members?.some(member => member.id === id))) throw new TypeError('Choose known players to prepare tasks.');
       if (stateInput && !validStateInput(state, input, stateInput, 'evaluate')) throw new TypeError('Invalid serialized task state input.');
@@ -450,6 +489,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       return prediction?.retireWarm(pickerId) ?? false;
     },
     resumePrewarm() { prediction?.noteInteractiveUse(); },
+    getClientHealth(pickerId = 'legacy-shared') { return foreground.getClientHealth(pickerJobId(pickerId)); },
     getHealth() {
       const health = foreground.getHealth(), lanes = { death: death?.getHealth() ?? { status: 'idle', ready: false },
         prediction: prediction?.getHealth() ?? { status: 'idle', ready: false }, duo: duo?.getHealth() ?? { status: 'idle', ready: false } };
@@ -467,7 +507,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (restarted.length) clearUnlockResults();
       return { restarted, worker: scheduler.getHealth() };
     },
-    getDiagnostics: () => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics() } : {}), unlockReuse: pickerState('legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
+    getDiagnostics: pickerId => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics(pickerId) } : {}), unlockReuse: pickerState(pickerId ?? 'legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDeathQueue, deadlineMs: deathDeadlineMs },
     }, duoLane: duo?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDuoQueue, deadlineMs: duoDeadlineMs },
@@ -480,9 +520,9 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     } }),
     close(timeoutMs = 10000) {
       if (!closePromise) {
-        closed = true; listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); clearUnlockResults();
-        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)])
-          .then(() => options.calculatorPool?.close()).finally(() => options.workerPreparation.clear());
+        closed = true; sessions?.clear(); listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); preparationListeners.clear(); clearUnlockResults();
+        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs),
+          options.calculatorPool?.close(timeoutMs)]).finally(() => options.workerPreparation.clear());
       }
       return closePromise;
     },
@@ -495,7 +535,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
-  stuckMs = 120000, signal, fairness, calculatorPool, timings: liveTimings, onWorker, deadlineClock = { setTimeout, clearTimeout },
+  stuckMs = 120000, signal, fairness, calculatorPool, sessions, timings: liveTimings, onWorker, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
   for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
@@ -506,7 +546,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   const latestRevisions = new Map(), prewarmSubscriptions = new Map(), closedPickers = new Set();
   const revisionFor = pickerId => latestRevisions.get(pickerId) ?? -1;
   let firstCalculation = true;
-  let receivedCatalogue = false;
+  let receivedCatalogue = false, recovering = false;
   let supported = new Set();
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   let sentSnapshots = new Map();
@@ -549,6 +589,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   const counts = { requested: 0, coalesced: 0, cacheHits: 0, completed: 0, errors: 0, expired: 0, cancelled: 0, superseded: 0, rejected: 0, promoted: 0, retired: 0 };
   const timings = {};
   let lastTimingMs = {};
+  const residentPickers = new Set();
+  const sessionRemaining = () => calculatorPool?.keepWarm() === false ? 0
+    : [...residentPickers].reduce((maximum, id) => Math.max(maximum, sessions?.remaining(id) ?? 0), 0);
   let sleepTimer, lastRequestAt = idleClock.now(), idleStops = 0;
   let lastProgressAt = idleClock.now(), manualRestart;
   let initialAborted = false, cancelledGrace;
@@ -571,14 +614,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (closed || !['ready', 'starting'].includes(status)) return;
     // Native timers cap their delay at signed 32-bit milliseconds. Long custom
     // intervals use several bounded timers instead of overflowing to 1 ms.
-    sleepTimer = idleClock.setTimeout(sleep, Math.min(2147483647, Math.max(0, idleMs - (idleClock.now() - lastRequestAt))));
+    sleepTimer = idleClock.setTimeout(sleep, Math.min(2147483647, Math.max(0, idleMs - (idleClock.now() - lastRequestAt), sessionRemaining())));
     sleepTimer?.unref?.();
   }
   function sleep() {
     idleClock.clearTimeout(sleepTimer);
     sleepTimer = undefined;
     if (closed || status !== 'ready') return;
-    if (idleClock.now() - lastRequestAt < idleMs) { armSleep(); return; }
+    if (idleClock.now() - lastRequestAt < idleMs || sessionRemaining() > 0) { armSleep(); return; }
     // Idle warming and abandoned work are expendable. Real requests keep their
     // worker until every waiter has received a complete response.
     if (active?.waiters.size || served(active) || active?.reuseWaiters?.size || queue.length) return;
@@ -671,11 +714,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     }
     settle(entry, error);
   }
-  function retire() {
+  function retire(error = superseded()) {
     clearCancelledGrace();
     if (active) {
       deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
-      cancel(active, superseded()); active = undefined;
+      cancel(active, error); active = undefined;
     }
     clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
@@ -694,6 +737,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function failure(kind) {
     if (closed || status === 'restarting' || status === 'restart-required') return;
+    recovering = true;
     clearCancelledGrace();
     firstCalculation = true;
     const profiling = kind === 'profile-retired';
@@ -737,11 +781,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         // They contain only bounded metadata, never another retained state body.
         sentSnapshots = worker.snapshotHints;
         dispatch(fairness ? fairTake() : queue.shift() ?? warmQueue.shift());
-      }, () => scheduler.yieldForInteractive());
+      }, () => scheduler.yieldForInteractive(), () => scheduler.isBackground(), () => scheduler.stopForMemory(), () => scheduler.yieldWhileStarting());
       return;
     }
     if (fairness && (queue.length || warmQueue.length)) { dispatch(fairTake()); return; }
-    if (!queue.length && idleClock.now() - lastRequestAt >= idleMs) { sleep(); return; }
+    if (!queue.length && idleClock.now() - lastRequestAt >= idleMs && !sessionRemaining()) { sleep(); return; }
     if (!queue.length) {
       if (!warmQueue.length || idleTimer) return;
       idleTimer = setImmediate(() => { idleTimer = undefined; dispatch(queue.shift() ?? warmQueue.shift()); });
@@ -762,6 +806,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   function dispatch(entry) {
     if (closed || status !== 'ready' || active) { if (entry) (entry.warm ? warmQueue : queue).unshift(entry); return; }
     if (!entry) return;
+    residentPickers.add(entry.pickerId);
     if (wakeStarted !== undefined) { liveTimings?.record('calculator-wake', idleClock.now() - wakeStarted, { source: 'computed', calculatorStarted: !calculatorPool || !!worker.startedCalculator }); wakeStarted = undefined; }
     entry.calculatorStarted ||= !!worker.startedCalculator;
     active = entry; entry.startedAt = idleClock.now(); entry.id = ++sequence;
@@ -846,7 +891,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
           && message.datasetDigest !== workerData.datasetDigest) { failure('dataset-mismatch'); return; }
         if (workerFactory === nativeWorker) workerPreparation?.accept(message);
         receivedCatalogue ||= Array.isArray(message.catalogue);
-        clearTimeout(startupTimer); status = 'ready';
+        clearTimeout(startupTimer); status = 'ready'; recovering = false;
         signal?.removeEventListener('abort', abortInitial);
         lastProgressAt = idleClock.now();
         compileMs = Number.isFinite(message.compileMs) ? message.compileMs : 0;
@@ -918,6 +963,19 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     });
   }
   const scheduler = {
+    yieldWhileStarting() {
+      if (closed || active || queue.length) return false;
+      scheduler.cancelPrewarm();
+      return retire();
+    },
+    isBackground() {
+      return !!active && !active.waiters.size && !served(active) && !active.reuseWaiters?.size;
+    },
+    stopForMemory() {
+      if (closed || !active) return false;
+      scheduler.cancelPrewarm();
+      return retire(unavailable('Task calculator exceeded its memory budget. Retry shortly.'));
+    },
     yieldForInteractive() {
       if (closed || status !== 'ready' || !active || !(active.warm || active.discarded)
         || active.waiters.size || served(active) || active.reuseWaiters?.size) return false;
@@ -946,7 +1004,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     },
     openPicker(pickerId) { closedPickers.delete(pickerId); },
     cancelPicker(pickerId) {
-      closedPickers.add(pickerId);
+      closedPickers.add(pickerId); residentPickers.delete(pickerId); armSleep();
       scheduler.cancelPrewarm({}, pickerId);
       for (const entry of new Set([...pending.values(), ...(active ? [active] : [])])) {
         if (entry.pickerId !== pickerId) continue;
@@ -960,6 +1018,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     supports: type => supported.has(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     noteInteractiveUse: touch,
+    sessionChanged(pickerId) { if (sessions && pickerId) residentPickers.add(pickerId); armSleep(); },
     confirmSavedPrediction(taskInputKey, revision, pickerId) {
       if (active?.pickerId !== pickerId || active.reuseRevision !== revision || active.preparedReuse?.taskInputKey !== taskInputKey) return false;
       active.confirmedTaskInputKey = taskInputKey; return true;
@@ -1159,7 +1218,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return retire();
     },
     canPrewarm() {
-      return !closed && ['starting', 'ready'].includes(status) && idleClock.now() - lastRequestAt < idleMs;
+      return !closed && ['starting', 'ready'].includes(status) && (idleClock.now() - lastRequestAt < idleMs || sessionRemaining() > 0);
     },
     prewarmTasks(state, input, memberIds, resultView, stateInput, pickerId) {
       if (closedPickers.has(pickerId) || !scheduler.canPrewarm() || state.revision < revisionFor(pickerId)) return { queued: 0 };
@@ -1182,7 +1241,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     },
     prewarm(state, input, groups, signal, predictionRevision = state.revision, pickerId = 'legacy-shared') {
       if (closed || closedPickers.has(pickerId) || signal?.aborted || status === 'restart-required' || state.revision < revisionFor(pickerId)
-        || idleClock.now() - lastRequestAt >= idleMs) return { queued: 0 };
+        || idleClock.now() - lastRequestAt >= idleMs && !sessions?.remaining(pickerId)) return { queued: 0 };
       scheduler.supersede(state.revision, input, undefined, pickerId);
       const desired = new Map(), fingerprint = predictionInput(state, input);
       for (const group of groups) for (const chunkId of group.chunkIds) {
@@ -1239,6 +1298,15 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         if (!entry.waiters.size && !served(entry)) cancel(entry, unavailable('Pool ranking cancelled.'));
       }
     },
+    // Browser recovery needs readiness, not shared lane activity or lifetimes.
+    // An idle picker can submit work even when another picker's lane is waking.
+    // Lane failures affect everyone, including after failed requests settle.
+    getClientHealth(pickerId) {
+      const ownWork = [...pending.values()].some(entry => entry.pickerId === pickerId)
+        || active?.pickerId === pickerId;
+      const clientStatus = closed ? 'closed' : recovering ? status === 'restart-required' ? status : 'restarting' : ownWork ? status : 'ready';
+      return { status: clientStatus, ready: clientStatus === 'ready', restartRequired: clientStatus === 'restart-required' };
+    },
     getHealth() {
       const time = idleClock.now(), oldest = queue[0]?.queuedAt ?? warmQueue[0]?.queuedAt;
       const activeMs = active ? Math.max(0, time - active.startedAt) : 0;
@@ -1259,7 +1327,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         clearCancelledGrace();
         clearTimeout(restartTimer); clearTimeout(startupTimer); clearImmediate(idleTimer); idleTimer = undefined;
         idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
-        status = 'restarting'; generation++;
+        status = 'restarting'; recovering = true; generation++;
         scheduler.cancelPrewarm();
         const error = unavailable('Task calculation restarted. Retry shortly.');
         for (const entry of [...pending.values()]) settle(entry, error);

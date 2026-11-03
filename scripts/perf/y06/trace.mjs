@@ -35,7 +35,8 @@ export function createTrace(root){
       s=replace(s,'return { entry, limit };',"return { entry, limit, scope: key.split(':')[1], kind: key.split(':')[0] };");
       s=replace(s,"for (const { entry, limit } of selected) if (entry.count + amount > limit) throw refusal(message, Math.max(1, Math.ceil((entry.until - at) / 1000)));",`for (const { entry, limit, scope, kind } of selected) if (entry.count + amount > limit) { ${g}.refusal({kind:'rate',budget:kind,scope,count:entry.count,limit,amount,scopeCounts:selected.map(x=>({scope:x.scope,count:x.entry.count,limit:x.limit}))}); throw refusal(message, Math.max(1, Math.ceil((entry.until - at) / 1000))); }`);
     }else if(name==='app/tasks/scheduler.mjs'){
-      s=replace(s,'function retire() {',`function retire() { ${g}.lifecycle('retire',active);`);
+      const retire=s.includes('function retire(error = superseded()) {')?'function retire(error = superseded()) {':'function retire() {';
+      s=replace(s,retire,`${retire} ${g}.lifecycle('retire',active);`);
       if(s.includes('if (!cancelledGrace) {'))s=replace(s,'if (!cancelledGrace) {',`if (!cancelledGrace) { ${g}.lifecycle('grace',active);`);
 
       s=replace(s,'if (count >= maxOutstandingJobsPerPicker) return;',`if (count >= maxOutstandingJobsPerPicker) { ${g}.refusal({kind:'picker-outstanding',count,limit:maxOutstandingJobsPerPicker}); return; }`);

@@ -101,7 +101,7 @@ test('close while store preparation is pending closes health first and cleans th
   await assert.rejects(readFile(path.join(dataDir, 'store.lock')), { code: 'ENOENT' });
 });
 
-test('autonomous native warmup prepares both task lists without commands and keeps Preview available', async t => {
+test('an active session autonomously prepares both task lists without commands and keeps Preview available', async t => {
   const { dataDir, token } = await directory(t);
   const initialState = createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['12341'] }, { id: 'reed', name: 'Reed', unlocked: ['12342'] }]);
   const handle = await startServer({ ...options, dataDir, initialState });
@@ -109,6 +109,7 @@ test('autonomous native warmup prepares both task lists without commands and kee
   const app = await handle.ready, revision = app.store.getInfo().revision;
   const savedBytes = await readFile(path.join(dataDir, 'state.json'), 'utf8');
   const request = client(handle, token);
+  assert.equal((await request('/api/session')).status, 200);
   const deadline = Date.now() + 30000;
   let diagnostic;
   do {

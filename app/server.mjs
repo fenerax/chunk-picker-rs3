@@ -27,6 +27,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createTaskScheduler } from './tasks/scheduler.mjs';
+import { residencyDefaults } from './tasks/session-residency.mjs';
 import { sharedJSONBytes, sharedBuffer } from './tasks/shared-bytes.mjs';
 import { prepareStoreProcessIdentity } from './storage/store.mjs';
 import { normalizePublicOrigin, normalizeIngressRole, requestContext, checkRequestOrigin, createRateLimits, createStreamLimits } from './security/request.mjs';
@@ -114,6 +115,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Synthetic scratch saves only: game plugin items from beta worlds tick like live ones.
   pluginItemsBetaAsLive = false,
 } = {}) {
+  // Custom calculator fixtures retain their established lane contract. Native
+  // calculators share an explicit host/memory cap even in the legacy picker.
+  if (!taskWorkerOptions?.workerFactory && taskWorkerOptions?.residency !== false) {
+    taskWorkerOptions = { ...taskWorkerOptions, residency: { ...residencyDefaults(), ...taskWorkerOptions?.residency } };
+  }
   let timings, deepProfiles;
   try {
   const initializationStarted = performance.now();

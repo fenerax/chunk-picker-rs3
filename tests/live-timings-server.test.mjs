@@ -162,12 +162,18 @@ test('viewer diagnostics, health and worker events omit profiling counters and r
   const worker = workers[0], message = worker.messages.find(message => message.id); assert.ok(message);
   await request('/api/admin/cpu-profiles', admin, { action: 'start', seconds: 60 });
   assert.ok(!worker.terminated);
-  for (const route of ['/api/diagnostics', '/api/health']) assert.ok(!/profil/i.test(JSON.stringify(await request(route, viewer))));
+  // Diagnostics are administrator-only; viewers are refused outright.
+  assert.equal((await fetch(origin + '/api/diagnostics', { headers: viewer })).status, 403);
+  assert.ok(!/profil/i.test(JSON.stringify(await request('/api/health', viewer))));
   worker.emit('message', { id: message.id, result: { tasks: [], metrics: { availableCount: 0 } } });
   await requestResult;
   const event = new TextDecoder().decode((await reader.read()).value);
-  assert.match(event, /event: worker/); assert.ok(!/profil/i.test(event));
-  for (const route of ['/api/diagnostics', '/api/health']) assert.ok(!/profil/i.test(JSON.stringify(await request(route, viewer))));
+  // Viewers get coarse client health, so a capture may produce no worker event at all;
+  // whatever they do receive must not mention profiling.
+  assert.match(event, /event: (worker|task-ready)/); assert.ok(!/profil/i.test(event));
+  // Diagnostics are administrator-only; viewers are refused outright.
+  assert.equal((await fetch(origin + '/api/diagnostics', { headers: viewer })).status, 403);
+  assert.ok(!/profil/i.test(JSON.stringify(await request('/api/health', viewer))));
   const summary = await request('/api/admin/live-timings'); assert.ok(summary.profile.failures > 0);
   assert.equal(summary.profile.retirements, 1);
 });

@@ -96,6 +96,10 @@ process.on('message', message => {
     if (message.kind === 'memory') { void memory(message.id); return; }
     if (message.kind === 'init') {
       if (worker) throw new Error('Task worker process was initialized twice.');
+      if (message.trackRss) {
+        const report = () => send({ kind: 'memory-rss', rssBytes: process.memoryUsage.rss() });
+        report(); setInterval(report, 100).unref();
+      }
       const probeImport = message.probeImport ?? process.env.RS3_WORKER_MEMORY_PROBE_IMPORT;
       probeEnabled = !!probeImport;
       worker = new Worker(new URL('./worker.mjs', import.meta.url), {

@@ -549,7 +549,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       let state, stateJSON, taskInputKey, rollInputKey;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
       const inputKey = gameplayFingerprint();
-      calculationSnapshot = { revision, members, inputKey,
+      calculationSnapshot = { revision, members, inputKey, hasPendingRoll: current.members.some(member => member.pendingRoll.length > 0),
         get taskInputKey() {
           return taskInputKey ??= randomStarts.length
             ? createHash('sha256').update(JSON.stringify([taskReuseFingerprint(input), randomStarts])).digest('hex')
@@ -973,12 +973,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined);
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
+    const choicesChanged = JSON.stringify(current.members.map(member => [member.id, member.selected, member.pendingRoll]))
+      !== JSON.stringify(validated.members.map(member => [member.id, member.selected, member.pendingRoll]));
     current = validated;
     receipts = nextReceipts;
     currentDiskSerialized = diskDocument;
     if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
     for (const listener of listeners) {
-      try { listener({ revision: current.revision, ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
+      try { listener({ revision: current.revision, ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}), ...(choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
     }
     // Let already-requested task lanes receive the committed snapshot before
     // preparing the response pools.

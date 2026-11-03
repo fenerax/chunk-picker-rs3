@@ -417,3 +417,19 @@ test('browser snapshots omit identity migration evidence while history, undo and
   assert.deepEqual((await store.backup()).state.provenance.restore.incomingProvenance.taskIdentityMigration, evidence);
   assert.equal(JSON.parse(store.getStateSnapshot().stateJSON).provenance.restore.incomingProvenance.taskIdentityMigration, undefined);
 });
+
+test('roll choice notifications identify offers without invalidating unchanged task inputs', async t => {
+  const dataDir = await directory(t);
+  const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'], pendingRoll: ['12342'] }]);
+  const store = await openStore({ dataDir, initialState });
+  t.after(() => store.close());
+  const notifications = [], before = store.getCalculationSnapshot();
+  assert.equal(before.hasPendingRoll, true);
+  store.subscribe(event => notifications.push(event));
+  await store.command({ type: 'cancel-roll', memberId: 'one' }, 0);
+  assert.equal(notifications[0].choicesChanged, true);
+  assert.equal(store.getCalculationSnapshot().hasPendingRoll, false);
+  assert.equal(store.getCalculationSnapshot().taskInputKey, before.taskInputKey);
+  await store.command({ type: 'set-preference', memberId: 'one', preferenceId: 'theme', value: 'dark' }, 1);
+  assert.equal(notifications[1].choicesChanged, undefined);
+});
