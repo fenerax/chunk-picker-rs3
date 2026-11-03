@@ -6,20 +6,28 @@ export function createProcessProfiles({ worker, online, retire, restore = () => 
 }, stopTimeoutMs = 1000 }) {
   let current;
   const post = (session, method) => new Promise((resolve, reject) => session.post(method, (error, value) => error ? reject(error) : resolve(value)));
+  const bounded = async (promise, timeout) => {
+    let timer;
+    try {
+      return await Promise.race([promise, new Promise((_, reject) => {
+        timer = setTimeout(() => { timeout(); reject(new Error('Relay profiler did not stop.')); }, stopTimeoutMs); timer.unref?.();
+      })]);
+    } finally { clearTimeout(timer); }
+  };
   const cancelled = capture => capture.cancelled || Date.now() >= capture.deadline;
   function check(capture) { if (cancelled(capture)) throw new Error('Capture cancelled.'); }
   function finish(capture) {
     capture.cancelled = true; capture.cancel.resolve(); clearTimeout(capture.timer);
     return capture.finished ??= (async () => {
       // Relay sampling stops independently of a stalled native start/stop.
-      const relay = (async () => {
+      const relay = bounded((async () => {
         try {
           // Once start has been issued, do not wait for its acknowledgement
           // before dispatching the host-local deadline stop.
           if (!capture.relayStarted) await capture.relayReady.catch(() => {});
           if (capture.relayStarted) return (await post(capture.session, 'Profiler.stop')).profile;
         } finally { capture.session?.disconnect(); }
-      })();
+      })(), () => capture.session?.disconnect());
       const calculator = (async () => {
         if (!capture.issued) return;
         // This cleanup is owned by the host deadline, independent of parent IPC.
@@ -34,6 +42,9 @@ export function createProcessProfiles({ worker, online, retire, restore = () => 
         }, () => {});
         let timer;
         try {
+          // Node exposes stop only through the acknowledged native handle.
+          // If it is missing, retire now and still stop any handle arriving late.
+          if (!capture.handle) throw new Error('Native profiler did not stop.');
           return await Promise.race([
             cleanup,
             new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Native profiler did not stop.')), stopTimeoutMs); timer.unref?.(); }),
@@ -56,17 +67,19 @@ export function createProcessProfiles({ worker, online, retire, restore = () => 
       capture.timer = setTimeout(() => { void finish(capture).catch(() => {}); }, capture.deadline - Date.now()); capture.timer.unref?.();
       capture.relayReady = (async () => {
         if (!captureRelay) return;
-        capture.session = await openSession(); check(capture);
+        capture.session = await openSession();
+        if (cancelled(capture)) capture.session.disconnect();
+        check(capture);
         await post(capture.session, 'Profiler.enable'); check(capture);
         capture.relayStarted = true;
         await post(capture.session, 'Profiler.start');
       })();
       try {
-        await capture.relayReady; check(capture);
+        await Promise.race([capture.relayReady, capture.cancel.promise]); check(capture);
         await Promise.race([online, capture.cancel.promise]); check(capture);
         // No await may separate this check from issuing the native request.
         capture.issued = true;
-        capture.native = (async () => worker.startCpuProfile())();
+        capture.native = (async () => worker.startCpuProfile())().then(handle => capture.handle = handle);
         await Promise.race([capture.native, capture.cancel.promise]); check(capture);
       } catch (error) {
         try { await finish(capture); } finally { if (current === capture && !capture.uncertain) current = undefined; }

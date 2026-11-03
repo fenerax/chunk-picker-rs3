@@ -343,3 +343,57 @@ test('a failed capture retires at most one calculator and replacements finish fo
   assert.equal(starts, 1); assert.equal(workers.length, 2); assert.equal(profiles.status().retirements, 1);
   assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().failures, 0);
 });
+
+for (const stage of ['Profiler.start', 'Profiler.stop']) test(`picker ${stage} acknowledgement cannot block stop or close`, async t => {
+  const { Session } = await import('node:inspector');
+  const original = Session.prototype.post, entered = Promise.withResolvers();
+  let release;
+  Session.prototype.post = function(method, ...args) {
+    if (method !== stage) return original.call(this, method, ...args);
+    const callback = args.pop();
+    return original.call(this, method, ...args, (...result) => {
+      release = () => callback(...result); entered.resolve();
+    });
+  };
+  const profiles = await createDeepProfiles(await temporary(t), { stopTimeoutMs: 20 });
+  const started = profiles.start(60);
+  if (stage === 'Profiler.stop') await started;
+  const stopping = stage === 'Profiler.stop' ? profiles.stop() : undefined;
+  await entered.promise;
+  const closed = profiles.close();
+  try {
+    const completed = await Promise.race([Promise.all([started, stopping, closed]).then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 150))]);
+    assert.equal(completed, true, 'stop and close must finish without an inspector acknowledgement');
+    assert.equal(profiles.status().stopping, false);
+    assert.equal(profiles.status().active, false);
+  } finally {
+    Session.prototype.post = original; release();
+    await started; await stopping; await closed;
+  }
+});
+
+test('a missing calculator start acknowledgement bounds close and retires uncertain cleanup', async t => {
+  const profiles = await createDeepProfiles(await temporary(t), { stopTimeoutMs: 20 });
+  const entered = Promise.withResolvers(), pending = Promise.withResolvers(); let stopped = 0;
+  const worker = new EventEmitter();
+  worker.startCpuProfile = () => { entered.resolve(); return pending.promise; };
+  profiles.attach(worker);
+  let otherStarts = 0;
+  const other = new EventEmitter();
+  other.startCpuProfile = async () => { otherStarts++; return { stop: async () => ({ nodes: [1] }) }; };
+  profiles.attach(other);
+  const started = profiles.start(60); await entered.promise;
+  const closed = profiles.close();
+  try {
+    const completed = await Promise.race([closed.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 150))]);
+    assert.equal(completed, true);
+    assert.equal(worker.profileRetiring, true);
+    assert.equal(otherStarts, 0);
+    assert.equal(other.profileRetiring, undefined, 'an unissued admission must not retire another calculator');
+    assert.equal(profiles.status().stopping, false);
+  } finally {
+    pending.resolve({ stop: async () => { stopped++; return { nodes: [1] }; } });
+    await started; await closed; await new Promise(resolve => setImmediate(resolve));
+    assert.equal(stopped, 1);
+  }
+});
