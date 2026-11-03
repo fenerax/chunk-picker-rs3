@@ -101,7 +101,7 @@
   :root .map-corner button { min-width:44px;min-height:44px; }
   .phone-layout .map-corner { right:calc(.5rem + env(safe-area-inset-right,0px));bottom:4rem; }
   /* The 44 px checkbox needs its own column, or it covers the task icon. */
-  :root .task-row { align-items:start;grid-template-columns:44px minmax(0,1fr) auto auto auto;gap:var(--space-3); }
+  :root .task-row { align-items:start;grid-template-columns:var(--task-status-width,44px) minmax(0,1fr) auto auto auto;gap:var(--space-3); }
   :root .duo-task-row { grid-template-columns:44px minmax(0,1fr) auto auto; }
   :root .task-row>input[type=checkbox] { margin-top:calc(-1 * var(--space-5)); }
   :root .task-row>.icon-button { opacity:1; }

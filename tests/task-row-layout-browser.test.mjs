@@ -9,6 +9,14 @@ import { openChrome, until } from '../scripts/perf/cdp.mjs';
 import { taskRowLayoutFixture } from './helpers/task-row-layout-fixture.mjs';
 
 const web = new URL('../app/web/', import.meta.url);
+function statusRowBoxes() {
+  const box = node => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, right:r.right, bottom:r.bottom }; };
+  return [...document.querySelectorAll('.task-row:has(>.task-completion-status)')].map(row => {
+    // Measure the painted text: a fixed grid track can be narrower than its label.
+    const text = document.createRange(); text.selectNodeContents(row.querySelector('.task-completion-status'));
+    return { id:row.id, status:box(text), icon:box(row.querySelector('.task-icon')), label:box(row.querySelector('.task-label-button')) };
+  });
+}
 const shell = (await readFile(new URL('index.html', web), 'utf8'))
   .replace('</head>', '<link rel="stylesheet" href="/duo-tasks.css"></head>')
   .replace('<script type="module" src="/main.mjs"></script>', '<script type="module" src="/fixture.mjs"></script>');
@@ -51,6 +59,7 @@ test('task rows fit their list container and keep actions reachable', { timeout:
       style.textContent = '.workspace { display:grid;grid-template-columns:minmax(0,1fr) var(--fixture-panel);height:auto;min-height:100vh;align-items:start } .task-sidebar { grid-column:2;width:100%;height:auto;max-height:none;overflow:visible;box-sizing:border-box } body { overflow:auto } *,*::before,*::after { transition:none!important;animation:none!important }';
       document.head.append(style);
     })()`);
+    const statusLayouts = [];
     for (const [name, viewport, listWidth] of [['narrow-260', 1280, 260], ['narrow-320', 1280, 320], ['wide', 1440, 600], ['phone-390', 390, 360]]) {
       await t.test(name, async () => {
         const phone = viewport === 390;
@@ -74,8 +83,10 @@ test('task rows fit their list container and keep actions reachable', { timeout:
             wordWrap:getComputedStyle(label).overflowWrap,
             splitWords:[...label.textContent.matchAll(/\\S+/g)].filter(word => { const range = document.createRange(); range.setStart(label.firstChild, word.index); range.setEnd(label.firstChild, word.index + word[0].length); return range.getClientRects().length > 1; }).map(word => word[0]),
             claimLines:(() => { const range = document.createRange(); range.selectNodeContents(row.querySelector('.task-claim-action')); return range.getClientRects().length; })(),
+            statusRows:(${statusRowBoxes})(),
             rows:[...document.querySelectorAll('.task-row')].map(row => ({ id:row.id, body:box(row.querySelector('.task-body')), row:box(row) })) };
         })()`);
+        statusLayouts.push({ name, rows:metrics.statusRows });
         if (process.env.RS3_LAYOUT_SHOTS) {
           await mkdir(process.env.RS3_LAYOUT_SHOTS, { recursive: true });
           const shot = await browser.send('Page.captureScreenshot', { format:'png', captureBeyondViewport:true, clip:{ x:metrics.panel.x, y:metrics.panel.y, width:metrics.panel.width, height:metrics.panel.height, scale:1 } });
@@ -95,7 +106,10 @@ test('task rows fit their list container and keep actions reachable', { timeout:
           assert.ok(metrics.expanded.y >= metrics.openBody.bottom, 'expanded How follows the body');
           assert.ok(metrics.expanded.width >= metrics.openBody.width - 1, 'expanded How keeps the full body width');
           assert.ok(metrics.form.y >= metrics.backlogBody.bottom, 'backlog form follows the body');
-          for (const row of metrics.rows) assert.ok(row.body.width > listWidth - (phone ? 60 : 35), row.id + ' body gets the width');
+          for (const row of metrics.rows) {
+            assert.ok(row.body.width > listWidth - (phone ? 60 : 35), row.id + ' body gets the width');
+            assert.equal(row.body.x, metrics.body.x, row.id + ' keeps the task body aligned');
+          }
         } else {
           assert.ok(metrics.how.y < metrics.body.bottom, 'wide layout retains inline How');
         }
@@ -114,6 +128,25 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         await browser.evaluate('document.activeElement.blur()');
       });
     }
+    await t.test('status text, icon and task name never overlap', async () => {
+      // Also cover phone columns above the narrow-container breakpoint.
+      for (const [viewport, listWidth] of [[1440, 361], [390, 375], [720, 600]]) {
+        await browser.send('Emulation.setDeviceMetricsOverride', { width:viewport, height:1000, deviceScaleFactor:1, mobile:viewport <= 720 });
+        await browser.evaluate(`(() => { const s = getComputedStyle(document.querySelector('.task-sidebar'));
+          const extra = ['paddingLeft','paddingRight','borderLeftWidth','borderRightWidth'].reduce((sum, key) => sum + parseFloat(s[key]), 0);
+          document.documentElement.style.setProperty('--fixture-panel', (${listWidth} + extra) + 'px'); })()`);
+        statusLayouts.push({ name:viewport + '/' + listWidth, rows:await browser.evaluate(`(${statusRowBoxes})()`) });
+      }
+      const intersects = (a, b) => a.x < b.right && b.x < a.right && a.y < b.bottom && b.y < a.bottom;
+      for (const { name, rows } of statusLayouts) {
+        assert.equal(rows.length, 2, name + ' covers Done and Not done');
+        for (const row of rows) {
+          assert.ok(!intersects(row.status, row.icon), name + ' ' + row.id + ': status and icon must not intersect');
+          assert.ok(!intersects(row.status, row.label), name + ' ' + row.id + ': status and name must not intersect');
+          assert.ok(!intersects(row.icon, row.label), name + ' ' + row.id + ': icon and name must not intersect');
+        }
+      }
+    });
   } finally {
     await browser?.close(); await new Promise(resolve => server.close(resolve));
     await rm(scratch, { recursive: true, force: true });
