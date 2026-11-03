@@ -4341,6 +4341,22 @@ test('instant screens: an exact-revision cached row is still provisional, and a 
   assert.equal(h.find('p', 'Updating… · Last known task details')?.hidden ?? true, true);
 });
 
+test('instant screens: reopened and prerequisite dialogs from cached rows never skip validation', async () => {
+  const h = harness(), response = deferred();
+  const cached = { id: 'builtin:cached', label: 'Synthetic cached goal', category: 'Extra', status: 'available' };
+  h.context.cachedTask = cached; h.context.actor1Result = taskResult(7);
+  h.run("shownResult={...actor1Result,format:'play-v1',memberId:'actor1',stateRevision:state.revision,tasks:[cachedTask]}; result=undefined");
+  // A prerequisite link passes the cached result back in with detailed=true.
+  h.route(() => response.promise); h.run('showTask(cachedTask, true, { result: shownResult })');
+  assert.equal(h.find('p', 'Updating… · Last known task details').hidden, false);
+  await flush(); response.resolve({ ...taskResult(7), tasks: [] }); await flush(); await flush();
+  assert.ok(h.find('p', 'This task is no longer in the current calculation. Refresh Tasks.'));
+  // Reopening after validated details exist must not restore the cached row.
+  h.run("closeDialog(); fullResult = {...actor1Result, memberId:'actor1', stateRevision: state.revision, tasks: []}; showTask(cachedTask)");
+  assert.ok(h.find('p', 'This task is no longer in the current calculation. Refresh Tasks.'));
+  assert.ok(!h.find('p', 'Extra · available'), 'the cached status line is not restored');
+});
+
 test('instant screens: authoritative hydration keeps the cached first paint until fresh tasks arrive', async () => {
   const h = harness();
   h.run("startupSnapshot={token:viewCache.token(),memberId:'actor1',value:{tasks:[{id:'builtin:startup',label:'Cached startup goal',category:'Extra'}]}}; result=undefined; renderTasks()");

@@ -25,10 +25,16 @@ export function createScreenTaskDialogs(c) {
     // A display-cache row at the current revision is still provisional until
     // the live answer arrives (a release can change availability without a
     // new save revision), so it gets the same Updating… path as an old one.
-    const provisional = !c.sandbox.active && !review.result && ownerId === c.memberId && !c.result && ownerResult === c.shownResult;
-    const stale = ownerResult && (ownerResult.stateRevision !== c.state.revision || provisional);
-    const progressive = !c.sandbox.active && !detailed && (ownerResult?.format === 'play-v1' || stale) && !task.id.startsWith('custom:') && ownerResult.tasks.some(row => row.id === task.id) && !loadedFull;
-    if (!detailed && !progressive && loadedFull) task = loadedFull.tasks.find(row => row.id === task.id) ?? task;
+    // Identity, not origin: a prerequisite opened from a cached dialog passes
+    // the same cached object back in as review.result.
+    const provisional = !c.sandbox.active && ownerId === c.memberId && !c.result && !!c.shownResult && ownerResult === c.shownResult;
+    const stale = !!ownerResult && (ownerResult.stateRevision !== c.state.revision || provisional);
+    const custom = task.id.startsWith('custom:');
+    // Validated details already loaded at this revision decide whether an old
+    // or cached row still exists; they never fall back to the cached row.
+    const removed = stale && !!loadedFull && !custom && !loadedFull.tasks.some(row => row.id === task.id);
+    const progressive = !c.sandbox.active && !custom && !loadedFull && (stale || (!detailed && ownerResult?.format === 'play-v1' && ownerResult.tasks.some(row => row.id === task.id)));
+    if ((!detailed || stale) && !progressive && loadedFull) task = loadedFull.tasks.find(row => row.id === task.id) ?? task;
     const detailResult = loadedFull ?? ownerResult;
     const commandTaskId = duoEntry?.id ?? task.id;
     const dialogMemberId = ownerId, dialogRevision = c.state.revision, status = owner.taskStatus?.[commandTaskId] ?? owner.taskStatus?.[task.id] ?? {}, name = owner.name;
@@ -96,7 +102,15 @@ export function createScreenTaskDialogs(c) {
       if (!asks && full.record?.Description) stack.prepend(c.el('p', c.plain(full.record.Description), 'task-asks'));
       bottomSlot.replaceChildren(...c.taskDetailSections(full, fullResultValue, () => generation, review));
     };
-    if (!progressive) fillDetails(task, detailResult);
+    // The shown row came from an older or cached answer; drop its status and
+    // controls so nothing on screen still claims it is current.
+    const showRemoved = () => {
+      updating.hidden = true;
+      for (const node of [taskStatus, explanation, guidanceSlot, backlogBox, completion]) node.remove?.();
+      bottomSlot.replaceChildren(c.el('p', 'This task is no longer in the current calculation. Refresh Tasks.', 'status-detail'));
+    };
+    if (removed) showRemoved();
+    else if (!progressive) fillDetails(task, detailResult);
     else {
       bottomSlot.append(c.el('p', 'Loading sources and details…', 'status-detail task-detail-loading'));
       const requestedMember = c.memberId, revision = c.state.revision;
@@ -105,14 +119,7 @@ export function createScreenTaskDialogs(c) {
         if (requestedMember !== c.memberId || revision !== c.state.revision || !c.dialogCurrent(generation)) return;
         if (value.memberId !== dialogMemberId || value.stateRevision !== revision) throw new Error('The saved task details changed. Open the task again.');
         const fullTask = value.tasks.find(row => row.id === task.id);
-        if (!fullTask) {
-          // The shown row came from an older or cached answer; drop its status
-          // and controls so nothing on screen still claims it is current.
-          updating.hidden = true;
-          for (const node of [taskStatus, explanation, guidanceSlot, backlogBox, completion]) node.remove?.();
-          bottomSlot.replaceChildren(c.el('p', 'This task is no longer in the current calculation. Refresh Tasks.', 'status-detail'));
-          return;
-        }
+        if (!fullTask) { showRemoved(); return; }
         fillDetails(fullTask, value);
       }).catch(error => { if (c.dialogCurrent(generation)) bottomSlot.replaceChildren(c.el('p', error.message || String(error), 'error')); });
     }

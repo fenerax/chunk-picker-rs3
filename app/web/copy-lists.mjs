@@ -52,7 +52,8 @@ export function createCopyLists(c) {
     const heading = c.$('task-count').parentElement, sidebar = heading.parentElement;
     update('copy-active-tasks', 'Copy active tasks', heading, sidebar, {
       player: group ? c.state.members.map(owner => owner.name).join(' & ') : c.member().name,
-      title: c.sandbox.active ? 'Sandbox active tasks' : 'Active tasks', groups: taskGroups(active),
+      // Rows shown from an earlier or cached answer carry the screen's warning.
+      title: c.sandbox.active ? 'Sandbox active tasks' : !group && (!c.result || c.result.stateRevision !== c.state.revision) ? 'Active tasks (still updating)' : 'Active tasks', groups: taskGroups(active),
     });
     // Keep recovery beside its list, ahead of the search field.
     heading.after(controls.get('copy-active-tasks').fallback);
