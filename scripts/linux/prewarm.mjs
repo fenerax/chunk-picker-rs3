@@ -2,36 +2,178 @@
 // listener, credentials, or writes to the copied gameplay inputs.
 import path from 'node:path';
 import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
-import { readFile, access } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { readFile, access, lstat, open, readdir } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { outside } from './files.mjs';
+import { spawn, execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { getPriority, setPriority } from 'node:os';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-import { parseArgs } from 'node:util';
+import { parseArgs, promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerHooks } from 'node:module';
 
-export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn }) {
-  // Root deployments deliberately defer warming to the service's first start.
-  // Do not even inspect a candidate script or spawn an older root publisher.
-  if (!warmStoreAllowed()) return false;
+const identityCommand = promisify(execFile);
+export async function serviceIdentity(settings, query = identityCommand) {
+  if (settings.service !== 'chunk-picker.service') throw Error('Unknown service.');
+  // Query the root-managed unit, never the service-controlled data tree. Use
+  // absolute tools and a fixed environment for both systemd and NSS lookups.
+  const run = async (command, args) => (await query(command, args, { timeout: 5000, maxBuffer: 4096,
+    windowsHide: true, env: { PATH: '/usr/sbin:/usr/bin:/sbin:/bin', LANG: 'C' } })).stdout.trim();
+  const rows = (await run('/usr/bin/systemctl', ['show', '--property=User,Group,DynamicUser', '--', settings.service])).split('\n');
+  const fields = new Map();
+  for (const row of rows) {
+    const match = /^(User|Group|DynamicUser)=(.*)$/.exec(row);
+    if (!match || fields.has(match[1])) throw Error('Ambiguous service identity.');
+    fields.set(match[1], match[2]);
+  }
+  if (fields.size !== 3 || fields.get('DynamicUser') !== 'no') throw Error('Static service required.');
+  let uid, gid;
+  if (settings.serviceUid !== undefined || settings.serviceGid !== undefined) {
+    ({ serviceUid: uid, serviceGid: gid } = settings);
+  } else {
+    const lookup = async (database, key, count) => {
+      if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*\$?$/.test(key)) throw Error('Missing service account.');
+      const row = (await run('/usr/bin/getent', [database, '--', key])).split(':');
+      if (row.length !== count || row.some(value => /[\r\n]/.test(value))) throw Error('Ambiguous service account.');
+      return row;
+    };
+    const account = await lookup('passwd', fields.get('User'), 7);
+    uid = /^\d+$/.test(account[2]) ? Number(account[2]) : NaN;
+    const group = fields.get('Group');
+    const groupId = group ? (await lookup('group', group, 4))[2] : account[3];
+    gid = /^\d+$/.test(groupId) ? Number(groupId) : NaN;
+  }
+  if (![uid, gid].every(id => Number.isSafeInteger(id) && id > 0)) throw Error('Dedicated service identity required.');
+  return { uid, gid };
+}
+// Only the captured, root-created copy may have its permissions changed. Its
+// ancestors must prevent replacement; a root-owned sticky ancestor (e.g. /tmp)
+// is safe above the private parent. No live-store ownership is consulted.
+async function readableSnapshot(settings, dataDir, gid, filesystem) {
+  dataDir = path.resolve(dataDir);
+  outside(settings.dataDir, dataDir); outside(dataDir, settings.dataDir);
+  const parent = path.dirname(dataDir);
+  for (let file = dataDir; ; file = path.dirname(file)) {
+    const info = await filesystem.lstat(file);
+    if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== 0
+      || (info.mode & 0o022) && !(file !== dataDir && file !== parent && (info.mode & 0o1000))) {
+      throw Error('Protected root snapshot required.');
+    }
+    if (file === path.dirname(file)) break;
+  }
+  const root = await filesystem.open(dataDir, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  async function share(file, handle, directory) {
+    const info = await handle.stat();
+    if (info.uid !== 0 || (info.mode & 0o022) || (directory ? !info.isDirectory() : !info.isFile() || info.nlink !== 1)) {
+      throw Error('Unsafe snapshot entry.');
+    }
+    if (directory) for (const entry of await filesystem.readdir(file, { withFileTypes: true })) {
+      const child = path.join(file, entry.name), isDirectory = entry.isDirectory();
+      const opened = await filesystem.open(child, constants.O_RDONLY | constants.O_NOFOLLOW | (isDirectory ? constants.O_DIRECTORY : constants.O_NONBLOCK));
+      try { await share(child, opened, isDirectory); } finally { await opened.close(); }
+    }
+    // Descriptor operations only, inside the protected copy. The service never
+    // gains write access, and the root-only parent stays inaccessible by path.
+    await handle.chown(0, gid); await handle.chmod(directory ? 0o550 : 0o440);
+  }
+  try { await share(dataDir, root, true); return root; }
+  catch (error) { await root.close(); throw error; }
+}
+const budgetSpent = Symbol('prewarm budget spent');
+export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn,
+  filesystem = { lstat, open, readdir }, queryIdentity = identityCommand, timeoutMs = 180000 }) {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 180000) return false;
+  // One deadline from entry covers script checks, identity lookup, snapshot
+  // preparation, spawn and the child itself. Termination time is reserved
+  // inside the same budget (175s + 5s by default).
+  const terminationMs = Math.min(5000, Math.floor(timeoutMs / 10));
+  let deadlineReached = false, deadlineAction = () => {}, expire;
+  const expired = new Promise(resolve => { expire = resolve; });
+  const deadline = setTimeout(() => { deadlineReached = true; expire(budgetSpent); deadlineAction(); }, timeoutMs - terminationMs);
+  const bounded = async work => {
+    const value = await Promise.race([work, expired]);
+    if (value === budgetSpent) throw Error('Prewarm budget spent.');
+    return value;
+  };
+  let snapshot, pendingSnapshot;
   // Old releases remain deployable. This optional preparation never extends
   // the writer pause and cannot turn a failed warm-up into a deployment failure.
   try {
     const script = path.join(candidate.config.coreRoot, 'scripts/linux/prewarm.mjs');
-    await access(script);
-    const { runtimeEnvironment } = await import('./runtime.mjs');
+    await bounded(access(script));
+    const { runtimeEnvironment } = await bounded(import('./runtime.mjs'));
+    const options = { env: runtimeEnvironment(candidate.config, { probe: true }), stdio: 'ignore', windowsHide: true,
+      ...(process.platform === 'linux' ? { detached: true } : {}) };
+    let input = dataDir, guard = [];
+    if (process.getuid?.() === 0) {
+      if (process.platform !== 'linux') return false;
+      const { uid, gid } = await bounded(serviceIdentity(settings, queryIdentity));
+      pendingSnapshot = readableSnapshot(settings, dataDir, gid, filesystem);
+      snapshot = await bounded(pendingSnapshot);
+      input = '/proc/self/fd/3';
+      // Node/libuv's Unix spawn clears supplementary groups with setgroups(0,
+      // NULL) before setgid/setuid. Also fail closed before candidate imports:
+      // libuv tolerates EPERM from setgroups on capability-restricted systems.
+      Object.assign(options, { uid, gid, stdio: ['ignore', 'ignore', 'ignore', snapshot.fd] });
+      options.env.HOME = settings.dataDir;
+      const check = `if (process.getuid() !== ${uid} || process.getgid() !== ${gid} || process.getgroups().some(group => group !== ${gid})) process.exit(1);`;
+      guard = ['--import', 'data:text/javascript,' + encodeURIComponent(check)];
+    }
     return await new Promise(resolve => {
-      const child = execute(candidate.config.nodePath ?? process.execPath, [script, '--root', candidate.config.coreRoot,
-        '--data-dir', dataDir, '--warm-dir', path.join(settings.dataDir, 'warm-store')],
-      { env: runtimeEnvironment(candidate.config, { probe: true }), stdio: 'ignore', windowsHide: true });
+      const child = execute(candidate.config.nodePath ?? process.execPath, [...guard, script, '--root', candidate.config.coreRoot,
+        '--data-dir', input, '--warm-dir', path.join(settings.dataDir, 'warm-store')], options);
       try { if (Number.isSafeInteger(child.pid)) setPriority(child.pid, Math.max(10, getPriority(child.pid))); } catch { /* Best-effort OS priority; bounded calculator remains optional. */ }
-      const timer = setTimeout(() => { child.kill('SIGKILL'); }, 180000);
-      child.once('error', () => { clearTimeout(timer); resolve(false); });
-      child.once('close', code => { clearTimeout(timer); resolve(code === 0); });
+      let timedOut = false, finished = false, terminationTimer, groupTimer;
+      const hasGroup = options.detached && Number.isSafeInteger(child.pid) && child.pid > 0;
+      const killTree = () => {
+        try {
+          if (hasGroup) process.kill(-child.pid, 'SIGKILL');
+          else child.kill('SIGKILL');
+        } catch { /* Already exited or unavailable; still an optional miss. */ }
+      };
+      const finish = result => {
+        if (finished) return;
+        finished = true; clearTimeout(deadline); clearTimeout(terminationTimer); clearTimeout(groupTimer); resolve(result);
+      };
+      // The entry deadline kills the tree; the reserved termination time ends
+      // the wait. A stopped calculator cannot defer SIGKILL.
+      const onDeadline = () => {
+        if (finished || timedOut) return;
+        timedOut = true;
+        terminationTimer = setTimeout(() => finish(false), terminationMs);
+        killTree();
+      };
+      deadlineAction = onDeadline;
+      if (deadlineReached) onDeadline();
+      child.once('error', () => {
+        if (finished) return;
+        timedOut = true;
+        if (Number.isSafeInteger(child.pid) && child.pid > 0) killTree();
+        finish(false);
+      });
+      child.once('close', code => {
+        if (finished) return;
+        // Also remove descendants left behind by an early parent exit.
+        if (hasGroup) killTree();
+        if (timedOut && hasGroup) {
+          const waitForGroup = () => {
+            try { process.kill(-child.pid, 0); }
+            catch (error) { if (error.code === 'ESRCH') { finish(false); return; } }
+            groupTimer = setTimeout(waitForGroup, 20);
+          };
+          waitForGroup();
+        } else finish(!timedOut && code === 0);
+      });
     });
   } catch { return false; }
+  finally {
+    clearTimeout(deadline);
+    // A snapshot still being prepared when the budget ran out closes when it lands.
+    if (!snapshot) pendingSnapshot?.then(handle => handle.close()).catch(() => {});
+    try { await snapshot?.close(); } catch { /* Optional descriptor cleanup. */ }
+  }
 }
 
 export async function prewarmCalculation({ root, dataDir, warmDirectory, maxMembers = 8 }) {

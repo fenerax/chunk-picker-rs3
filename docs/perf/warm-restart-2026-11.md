@@ -42,9 +42,11 @@ foreground priority and idle deadlines. This adds no independent keep-warm or
 recency policy; W1 can use the persistence layer without changing its policy.
 No cache eagerly loads every player's state at startup.
 
-VPS prepare/stage still only build and verify the candidate. Non-root online deployment
+VPS prepare/stage still only build and verify the candidate. Online deployment
 prepares the candidate calculator against the captured copy, before stopping
-the writer. Root deployments skip this optional step and warm on service startup. It warms at most eight members, full/play/sidebar/peer views, and
+the writer. Root deployments run this child as the service account, using the
+protected snapshot access described below. It warms at most eight members,
+full/play/sidebar/peer views, and
 one eligible Preview each, using one process calculator at reduced OS priority and a 180-second outer
 budget. Older candidates or failed preparation fall back to ordinary startup.
 An intervening save revision deliberately misses. `rehearse` uses this same
@@ -317,14 +319,141 @@ reads are misses: no service-controlled cache path is safe to traverse as root.
 All warm-store ownership-transfer calls were removed; no warm-store `chown`
 or `chmod` operations remain, so no descriptor-based ownership repair is needed.
 
-Root operator and direct prewarm entry points skip optional warming without
-spawning a candidate (including older candidates). Runtime also disables
-persistence when root. The service account warms on its first calculation;
-this can cost a cold start after deployment. Non-root locking, unique tokens,
-parent cleanup after thread exit and dead-writer reclamation are unchanged.
-Checkpoint, recovery and rehearsal exclusions remain intact. Gameplay logic
-is unchanged. Synthetic regressions cover root refusal, zero cache I/O,
-stage/lock symlinks, unchanged victim ownership and direct publisher invocation.
+Root online deployment now launches optional prewarm as the service account
+before stopping the writer. Identity comes only from trusted configuration:
+explicit numeric `serviceUid` and `serviceGid` settings supplied together take
+precedence; otherwise `/usr/bin/systemctl show` supplies the service's `User`
+and `Group`, resolved through `/usr/bin/getent`. An unset `Group` uses the
+account's primary group. The operator's configured `chunk-picker.service` is
+queried even with explicit IDs so `DynamicUser` is always refused. Missing,
+duplicate, malformed, unresolved or root identities skip this optional work.
+The commands have fixed environments, five-second timeouts and bounded output.
+No live-directory owner or ancestor is consulted to choose IDs, so replacing
+that directory or its ancestors cannot select a different service account.
+No live-store contents, warm-store paths or ownership are touched by root in
+this preparation.
+
+The captured copy must be root-owned under a protected root-owned parent and
+ancestors, with no group/world write access (root-owned sticky ancestors above
+the private parent are allowed). The launcher opens its directory and entries
+with `O_NOFOLLOW`, checks descriptor ownership/type and refuses hard-linked
+files. Only these snapshot descriptors receive `fchown(0, serviceGid)` and
+read-only modes: directories 0550, files 0440. The private parent's permissions
+stay unchanged. The child receives the opened directory as fd 3 and reads
+`/proc/self/fd/3`, bypassing root-only ancestor traversal without exposing the
+scratch tree. Protected parents prevent service symlink swaps; descriptor
+operations pin the inodes being changed. Nothing is chowned or chmodded under
+the persistent data directory. The service identity remains independent of
+filesystem ownership, and the child guard continues to refuse root cache access.
+
+Node's numeric `uid` and `gid` spawn options drop privileges before candidate
+code executes. On Linux, libuv clears supplementary groups using
+`setgroups(0, NULL)` before setting gid/uid, leaving only the primary service
+group effective. Because libuv tolerates `EPERM` from that group-clearing call,
+a built-in Node `--import` guard checks the resulting uid, primary gid and all
+supplementary groups before any candidate module loads. Unexpected identity or
+extra groups fail closed, including on capability-restricted systems. The child
+uses `runtimeEnvironment(..., { probe: true })`,
+with `HOME` set to the service-owned data directory instead of root's home.
+This also works with older prewarm scripts; candidates with no script skip it
+before any identity lookup or snapshot inspection. Linux children, including
+non-root launches, start detached in their own process group; calculator
+descendants inherit it. The reduced OS priority remains. The 180-second outer
+budget starts when the launcher is entered. It covers the script check, the identity
+lookup, snapshot preparation, spawn and the child, so a slow or hung
+preparation step returns a miss at the deadline without spawning. Five seconds
+are reserved for termination: 175 seconds after entry the
+launcher sends `SIGKILL` to the entire group, waits for child closure and group
+exit for up to five seconds, and returns a miss by the outer deadline. Killed orphan zombies may await
+init reaping, but cannot execute or write. An early parent exit also kills any
+remaining group members. Child failure, identity/permission refusal and timeout
+are optional misses; cleanup finishes
+before the writer stops, so prewarm never extends the writer pause. Non-root
+operators retain their original identity, environment, input path and stdio.
+
+Direct root calculator entry points and runtime persistence still refuse root.
+Non-root locking, unique tokens, parent cleanup after thread exit and dead-writer
+reclamation are unchanged. Checkpoint, recovery and rehearsal exclusions remain
+intact. Gameplay logic is unchanged. Synthetic regressions cover service spawn
+identity, inherited snapshot reads, refusal paths, timeout/failure deployment
+continuation, unchanged non-root inputs and absence of live-store permission
+mutations. A real Linux regression starts a child and a grandchild that ignores
+`SIGTERM`, then verifies both have terminated within the bounded timeout.
+UID/ownership changes are emulated; no real root deployment is tested.
+
+The Linux CI descriptor-read failure was in that test's privilege emulation:
+it removed spawn's `uid`/`gid` options, so libuv never cleared the Ubuntu
+runner's supplementary groups. The unchanged production import guard rejected
+those groups and exited before candidate imports or snapshot reads. The positive
+real-child fixture now emulates group clearing as well as uid/gid changes;
+the negative fixture still proves unexpected groups prevent candidate imports.
+Descriptor ownership emulation also masks write bits consistently with lstat,
+so a permissive fixture umask cannot cause an unrelated snapshot refusal.
+
+For an installation already at the task base, replace these installed operator
+tool files (the release tree alone does not update them):
+
+- `/opt/chunk-picker/tools/scripts/linux/operator.mjs`
+- `/opt/chunk-picker/tools/scripts/linux/prewarm.mjs`
+
+The local imports (`scripts/linux/files.mjs`, `scripts/linux/runtime.mjs` and
+`app/tasks/warm-store.mjs`, with their existing imports) already exist at the
+base and are unchanged by this fix. No additional installed tool files or
+systemd unit changes are needed. The selected candidate still supplies its own
+`scripts/linux/prewarm.mjs` and calculator imports.
+
+Historical synthetic launcher microprobe on Node v24.21.0: five fresh parent
+processes per revision, START `c98ddd775fc4bc3be5d977de1db4b376519e6bbc` versus
+the original service-UID launcher, before this trusted-identity/timeout follow-up.
+Root ownership and permission changes were emulated; the child used the current
+non-root uid/gid through real spawn options and read one synthetic file through
+the inherited descriptor. It performed no calculator work. Times are medians
+[min–max]; RSS is the maximum observed across the five trials.
+
+| Launcher measurement | START | After |
+| --- | ---: | ---: |
+| Successful child runs | 0/5 (root skip) | 5/5 |
+| Duration, ms | 0.087 [0.086–0.124] | 38.15 [31.40–61.80] |
+| Parent peak RSS, KiB | 34,688 | 35,024 |
+| Child peak RSS, KiB | No child | 29,124 |
+
+These measure launching and descriptor access only, not calculator cold-start
+savings or real service privilege changes. No private data or live server was
+used. The targeted six-file test run passed 84 tests, failed 0 and skipped the
+existing Windows-only test on Linux. `npm run test:quick` ran once: 3,572 passed,
+0 failed, 68 skipped across 353 files, in 354.15 seconds. No full suite was run.
+
+Local follow-up validation on Windows, Node v26.13.0: only `warm-candidate`,
+`linux-operator`, `online-snapshot`, `warm-store` and the new, full-only
+`prewarm-process-tree` test file were run, with test concurrency 1. Of 98 tests,
+71 passed and 27 Linux cases skipped; none failed (75.82 seconds). Neither npm
+suite was run. After the final cleanup and fixture edits, `warm-candidate`
+was rerun: 19 passed, 18 Linux skips, 0 failed (0.72 seconds), including the
+new spawn-error regression. The five files now cover 99 distinct cases:
+72 passed, 27 Linux skips. The real process-tree regression, descriptor reads and UID/GID
+drop checks require Linux CI; no real service-identity drop or Linux execution
+was performed on this Windows machine. All inputs were synthetic.
+
+Current regression names (parameter suffixes shown in braces):
+
+- `root prewarm uses only the service uid/gid and a read-only snapshot descriptor: configured={false,true}`
+- `trusted systemd identity resolves the primary group when Group is unset`
+- `explicit service settings win over systemd account names without NSS lookups`
+- `trusted service identity refuses {missing,ambiguous unit,ambiguous account,root uid,root gid,DynamicUser,partial settings,invalid number,lookup failure}`
+- `data-directory {symlink,owner} swap cannot choose the prewarm identity`
+- `root prewarm skips an ambiguous identity or unsafe copy: {root uid,root gid,missing identity,ambiguous identity,DynamicUser,partial settings,unprotected snapshot}`
+- `inherited snapshot descriptor reads copied state and static inputs in a real child`
+- `root prewarm reserves termination time inside the 180 second budget`
+- `root prewarm counts a slow identity lookup inside the same 180 second budget`
+- `root prewarm abandons a hung identity lookup at the budget without spawning`
+- `prewarm waits for exit after SIGKILL but never exceeds the outer budget`
+- `prewarm spawn errors with no PID return a miss without signalling`
+- `prewarm timeout kills a real child and SIGTERM-ignoring grandchild within the whole-tree budget`
+- `non-root launcher leaves identity, HOME, input path and stdio unchanged`
+- `root spawn guard refuses unexpected {uid,supplementary groups} before candidate imports`
+- `root prewarm refuses unsafe snapshot entries without permission changes to live paths: {symlink,hard link,live-store overlap}`
+- `root launcher skips older candidates without a prewarm script before inspecting the store`
+- `root online deploy proceeds after optional prewarm miss: {missing identity,ambiguous identity,root uid,root gid,DynamicUser,failed child,timed-out child,spawn error}`
 
 The requested branch diff and all Linux mutation calls were audited. Remaining
 path-based ownership/permission calls already exist on fetched main
