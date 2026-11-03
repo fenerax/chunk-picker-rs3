@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createTaskScheduler, nativeWorkerInput, predictionCacheKey } from '../app/tasks/scheduler.mjs';
 import { STATE_SNAPSHOT_LIMIT } from '../app/tasks/state-transfer.mjs';
+import { createProcessProfiles } from '../app/tasks/process-profiles.mjs';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate) {
@@ -729,3 +730,70 @@ test('native worker input always sets the ready-catalogue flag without changing 
   assert.deepEqual(nativeWorkerInput(undefined, false), { omitReadyCatalogue: true });
   assert.equal(workerData.omitReadyCatalogue, true);
 });
+
+for (const pooled of [false, true]) {
+  test(`${pooled ? 'pooled' : 'dedicated'} profiling retirements finish foreground work and never spend the restart budget`, async t => {
+    const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, ...(pooled ? { maxCalculators: 1 } : {}) });
+    for (let index = 0; index < 4; index++) {
+      const worker = workers.at(-1), first = evaluate(`capture-${index}`);
+      await until(() => worker.messages.some(message => message.id));
+      worker.profileRetiring = true; worker.emit('profile-retiring');
+      assert.equal(worker.terminated, false, 'profiling must allow the foreground request to finish');
+      const second = evaluate(`following-${index}`);
+      worker.finish(); assert.equal((await first).result.metrics.availableCount, 1);
+      await until(() => workers.at(-1) !== worker && workers.at(-1).messages.some(message => message.id));
+      assert.equal(worker.terminated, true); workers.at(-1).finish(); await second;
+      assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().failures, 0);
+      assert.equal(scheduler.getHealth().restartRequired, false); assert.equal(scheduler.getHealth().status, 'ready');
+    }
+    assert.equal(pooled ? scheduler.getDiagnostics().calculators.profileRetirements : scheduler.getHealth().profileRetirements, 4);
+  });
+
+  test(`${pooled ? 'pooled' : 'dedicated'} forced profile retirement recovers even with no restart budget`, async t => {
+    const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, ...(pooled ? { maxCalculators: 1 } : {}) });
+    for (let index = 0; index < 3; index++) {
+      const request = evaluate(`interrupted-${index}`);
+      const rejected = assert.rejects(request, { status: 503 });
+      await until(() => !workers.at(-1).profileRetiring && workers.at(-1).messages.some(message => message.id));
+      const worker = workers.at(-1);
+      worker.profileRetiring = true; worker.emit('profile-retiring'); worker.emit('exit', 0);
+      await rejected; await until(() => scheduler.getHealth().status === 'ready');
+      assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().restartRequired, false);
+    }
+    const request = evaluate('after-captures'); await until(() => !workers.at(-1).profileRetiring && workers.at(-1).messages.some(message => message.id));
+    workers.at(-1).finish(); await request;
+    assert.equal(scheduler.getHealth().status, 'ready');
+  });
+
+  test(`${pooled ? 'pooled' : 'dedicated'} repeated expiry while awaiting online preserves a pending foreground request`, async t => {
+    const online = Promise.withResolvers(), workers = []; let nativeStarts = 0, retirements = 0, lane;
+    const creation = createTaskScheduler({ maxRestarts: 0, onCreated(value) { lane ??= value; }, ...(pooled ? { maxCalculators: 1 } : {}), workerFactory() {
+      const worker = new EventEmitter(); workers.push(worker);
+      worker.messages = []; worker.postMessage = message => worker.messages.push(message);
+      worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
+      worker.profiles = createProcessProfiles({ online: online.promise,
+        worker: { startCpuProfile() { nativeStarts++; throw new Error('Cancelled capture reached calculator.'); } },
+        retire() { retirements++; worker.profileRetiring = true; worker.emit('profile-retiring'); },
+        openSession: async () => ({ disconnect() {}, post(method, callback) { callback(null, { profile: {} }); } }),
+      });
+      return worker;
+    } });
+    // Cold startup has an admitted lane waiting for the same calculator.
+    t.after(async () => { online.resolve(); for (const worker of workers) worker.emit('message', { type: 'ready', catalogue: [] }); await (await creation).close(); });
+    await until(() => workers.length === 1);
+    const worker = workers[0];
+    const request = lane.evaluate({ revision: 0 }, 'actor1', 'evaluate', undefined, 'foreground', 'foreground');
+    for (let index = 0; index < 4; index++) {
+      const started = assert.rejects(worker.profiles.start(Date.now() + 20), /cancelled/);
+      await delay(30); await started;
+      assert.equal(worker.terminated, undefined);
+    }
+    online.resolve(); worker.emit('message', { type: 'ready', catalogue: [] });
+    const scheduler = await creation;
+    await until(() => worker.messages.some(message => message.id));
+    worker.emit('message', { id: worker.messages.at(-1).id, result: { synthetic: true } });
+    assert.equal((await request).result.synthetic, true);
+    assert.equal(nativeStarts, 0); assert.equal(retirements, 0); assert.equal(workers.length, 1);
+    assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().restartRequired, false);
+  });
+}

@@ -4,9 +4,9 @@ import { EventEmitter } from 'node:events';
 // even a retiring calculator holds its slot until termination has completed.
 export function createCalculatorPool({ limit, workerFactory, workerData, onReady, onWorker, idleMs = 600000, startupDeadlineMs = 30000 }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
-  let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false;
+  let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false, profileRetirements = 0;
   const diagnostics = () => ({ limit, resident: slots.size, peak, active: [...slots].filter(slot => slot.owner).length,
-    retiring: [...slots].filter(slot => slot.stopping).length, waiting: waiting.size });
+    retiring: [...slots].filter(slot => slot.stopping || slot.worker.profileRetiring).length, waiting: waiting.size, profileRetirements });
   function retire(slot) {
     if (slot.stopping) return slot.stopping;
     clearTimeout(slot.timer); clearTimeout(slot.startupTimer);
@@ -33,10 +33,14 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       const owner = slot.owner ?? slot.pendingOwner; slot.owner = undefined;
       if (owner) { owner.slot = undefined; waiting.delete(owner); }
       void retire(slot);
-      if (owner && !owner.stopped) owner.emit('error', error);
+      if (owner && !owner.stopped) owner.emit(slot.worker.profileRetiring ? 'profile-retired' : 'error', error);
     }
     slot.startupTimer = setTimeout(() => fail(new Error('Calculator startup deadline exceeded.')), startupDeadlineMs);
     slot.worker.on('error', fail);
+    slot.worker.on('profile-retiring', () => {
+      profileRetirements++;
+      if (slot.ready && !slot.owner) void retire(slot);
+    });
     slot.worker.on('exit', () => {
       if (slot.stopping) { slots.delete(slot); pump(); }
       else fail(new Error('Calculator exited.'));
@@ -48,7 +52,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         onReady?.(message);
         clearTimeout(slot.startupTimer); slot.pendingOwner = undefined; slot.ready = true;
         ready ??= message;
-        slot.resolve(ready); idle(slot); pump(); return;
+        slot.resolve(ready);
+        if (slot.worker.profileRetiring) void retire(slot); else idle(slot);
+        pump(); return;
       }
       const owner = slot.owner;
       if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) return;
@@ -56,6 +62,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       const response = { ...message, id: slot.originalId };
       if (complete) { slot.owner = undefined; owner.slot = undefined; idle(slot); }
       owner.emit('message', response);
+      if (complete && slot.worker.profileRetiring) void retire(slot);
       if (complete) pump();
     });
     return slot;
@@ -77,7 +84,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         const ids = new Set(eligible.map(value => value.pickerId));
         for (let i = turns.length - 1; i >= 0; i--) if (!ids.has(turns[i])) turns.splice(i, 1);
         for (const id of ids) if (!turns.includes(id)) turns.push(id);
-        const idleSlots = [...slots].filter(value => value.ready && !value.stopping && !value.owner);
+        const idleSlots = [...slots].filter(value => value.ready && !value.stopping && !value.worker.profileRetiring && !value.owner);
         const usable = (slot, endpoint) => limit === 1 || slot.group === endpoint.group;
         // Advisory lanes share at most limit - 1 slots, including retiring
         // slots. Foreground can then wake even after its idle worker exits.

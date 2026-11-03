@@ -179,7 +179,7 @@ test('a calculator crash during capture releases handles and leaves no partial f
   profiles.attach(worker); await profiles.start(60);
   const exited = new Promise(resolve => worker.once('exit', resolve)); process.kill(worker.pid, 'SIGKILL'); await exited;
   assert.ok(profiles.status().failures > 0); await profiles.stop();
-  assert.deepEqual(profiles.status(), { active: false, deadline: null, stopping: false, failures: 1 });
+  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 1 });
   const files = await profiles.list(); assert.equal(files.length, 1); assert.match(files[0].name, /-picker\.cpuprofile$/);
   assert.deepEqual((await readdir(path.join(dir, 'cpu-profiles'))).sort(), files.map(file => file.name).sort());
   await profiles.start(60); await profiles.close();
@@ -250,4 +250,42 @@ test('promoted peer cache hits discard the producer and follower timing flags', 
   assert.equal(follower.coalesced, true); assert.equal(follower.calculatorStarted, true);
   const cached = await call('foreground'); assert.equal(cached.hit, true);
   assert.notEqual(cached.coalesced, true); assert.notEqual(cached.calculatorStarted, true);
+});
+
+test('stop cancels capture admission before any picker or calculator profiler starts', async t => {
+  const dir = await temporary(t), entered = Promise.withResolvers(), release = Promise.withResolvers();
+  const profiles = await createDeepProfiles(dir, { fileIO: { writeFile, rename, async unlink(file) {
+    entered.resolve(); await release.promise; await unlink(file);
+  } } });
+  t.after(async () => { release.resolve(); await profiles.close(); });
+  await mkdir(path.join(dir, 'cpu-profiles'));
+  await writeFile(path.join(dir, 'cpu-profiles', 'profile-1-1-calculator.cpuprofile.tmp'), '{}');
+  let starts = 0;
+  const worker = new EventEmitter(); worker.startCpuProfile = async () => { starts++; return { stop: async () => ({ nodes: [1] }) }; };
+  profiles.attach(worker);
+  const started = profiles.start(600); await entered.promise;
+  assert.equal(profiles.status().starting, true); assert.equal(profiles.status().active, true);
+  let stopped = false;
+  const stopping = profiles.stop().then(() => { stopped = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(stopped, false); assert.equal(profiles.status().stopping, true);
+  await assert.rejects(profiles.start(60), { status: 409 });
+  release.resolve(); await Promise.all([started, stopping]);
+  assert.equal(starts, 0); assert.deepEqual(await profiles.list(), []);
+  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 0 });
+});
+
+test('concurrent capture starts reserve one owner synchronously', async t => {
+  const profiles = await createDeepProfiles(await temporary(t)); t.after(() => profiles.close());
+  let starts = 0;
+  const worker = new EventEmitter(); worker.startCpuProfile = async () => { starts++; return { stop: async () => ({ nodes: [1] }) }; };
+  profiles.attach(worker);
+  const first = profiles.start(60);
+  assert.equal(profiles.status().starting, true);
+  await assert.rejects(profiles.start(60), { status: 409 });
+  await first; assert.equal(profiles.status().starting, false); assert.equal(starts, 1);
+  await profiles.stop();
+  const cancelled = profiles.start(600), stopped = profiles.stop();
+  await Promise.all([cancelled, stopped]); assert.equal(starts, 1);
+  assert.equal(profiles.status().active, false);
 });

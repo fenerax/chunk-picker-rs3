@@ -35,8 +35,9 @@ export class ProcessWorker extends EventEmitter {
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
         else if (message.kind === 'profile') {
           const request = this.#profiles.get(message.id);
-          if (request) { this.#profiles.delete(message.id); clearTimeout(request.timer); message.error ? request.reject(new Error('Calculator profile unavailable.')) : request.resolve(message.profile); }
+          if (request && (!request.timedOut || message.cancelled)) { this.#profiles.delete(message.id); clearTimeout(request.timer); message.error ? request.reject(new Error('Calculator profile unavailable.')) : request.resolve(message.profile); }
         }
+        else if (message.kind === 'profile-retiring') { this.profileRetiring = true; this.emit('profile-retiring'); }
         else if (message.kind === 'memory') {
           const request = this.#memory.get(message.id);
           if (request) {
@@ -109,10 +110,11 @@ export class ProcessWorker extends EventEmitter {
     const id = ++this.#sequence;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.#profiles.delete(id);
-        // An unacknowledged start (or stop) has an unknown capture state. Keep
-        // the caller's handle pending until exit proves both isolates stopped.
-        void this.terminate().then(() => reject(new Error('Calculator profile timed out.')));
+        this.#profiles.get(id).timedOut = true;
+        // Only the host knows whether a native request was actually issued.
+        // It can cancel an online wait safely, or retire an uncertain profiler
+        // after allowing the current calculation a bounded idle grace period.
+        this.#send({ kind: 'profile', operation: 'cancel', id });
       }, this.#profileTimeoutMs);
       timer.unref(); this.#profiles.set(id, { resolve, reject, timer });
       this.#send({ kind: 'profile', operation, id, deadline });

@@ -20,7 +20,7 @@ async function refresh() {
       $('windows').append(title, wrap);
     }
     $('slowest').replaceChildren(table(['Action', 'Duration', 'Flags', 'Time'], data.slowest.map(event => [event.action, ms(event.durationMs), ['cached', 'coalesced', 'calculatorStarted', 'failed'].filter(key => event[key]).join(', ') || 'computed', new Date(event.time).toLocaleString()])));
-    $('profile-status').textContent = data.profile.active ? `Recording until ${new Date(data.profile.deadline).toLocaleTimeString()}` : data.profile.stopping ? 'Finishing profiles…' : `Off · ${data.profile.failures} profile errors`;
+    $('profile-status').textContent = data.profile.starting ? 'Starting profiles…' : data.profile.active ? `Recording until ${new Date(data.profile.deadline).toLocaleTimeString()}` : data.profile.stopping ? 'Finishing profiles…' : `Off · ${data.profile.failures} profile errors`;
     $('start').disabled = data.profile.active || data.profile.stopping; $('stop').disabled = !data.profile.active;
     $('profiles').replaceChildren();
     for (const file of data.profiles) { const li = document.createElement('li'), link = document.createElement('a'); link.href = `/api/admin/cpu-profiles?name=${encodeURIComponent(file.name)}`; link.textContent = `${file.name} (${file.bytes.toLocaleString()} bytes)`; li.append(link); $('profiles').append(li); }

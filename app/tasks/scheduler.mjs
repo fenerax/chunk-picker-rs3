@@ -505,7 +505,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   let firstCalculation = true;
   let receivedCatalogue = false;
   let supported = new Set();
-  let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
+  let status = 'starting', restarts = 0, failures = 0, profileRetirements = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   let sentSnapshots = new Map();
   const queue = [], warmQueue = [], pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
   function forgetPickerSnapshots(pickerId) {
@@ -693,12 +693,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (closed || status === 'restarting' || status === 'restart-required') return;
     clearCancelledGrace();
     firstCalculation = true;
-    failures++; lastFailure = { kind, at: new Date().toISOString() };
+    const profiling = kind === 'profile-retired';
+    if (profiling) profileRetirements++; else failures++;
+    lastFailure = { kind, at: new Date().toISOString() };
     clearTimeout(startupTimer);
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     const old = worker; worker = undefined; generation++; terminate(old);
     if (active) { deadlineClock.clearTimeout(active.timer); counts.errors++; settle(active, unavailable('Task engine interrupted. It is recovering; retry shortly.')); active = undefined; }
-    if (restarts >= maxRestarts) {
+    if (!profiling && restarts >= maxRestarts) {
       status = 'restart-required'; nextRetryAt = null;
       const error = unavailable('Task engine needs a server restart. Saves remain available.');
       for (const entry of [...queue, ...warmQueue]) settle(entry, error);
@@ -708,12 +710,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     }
     status = 'restarting';
     const delay = Math.min(maxBackoffMs, backoffMs * 2 ** restarts);
-    restarts++; nextRetryAt = new Date(Date.now() + delay).toISOString();
+    if (!profiling) restarts++;
+    nextRetryAt = new Date(Date.now() + delay).toISOString();
     announce();
     restartTimer = setTimeout(launch, delay);
   }
   function pump() {
     if (closed || status !== 'ready') return;
+    if (!active && worker.profileRetiring) { profileRetirements++; retire(); return; }
     if (active) {
       if (calculatorPool && queue.length) scheduler.yieldForInteractive();
       return;
@@ -826,7 +830,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', () => { if (ownGeneration === generation) failure('worker-error'); });
-    worker.on('exit', () => { if (ownGeneration === generation && !closed) failure('worker-exit'); });
+    worker.on('exit', () => { if (ownGeneration === generation && !closed) failure(worker.profileRetiring ? 'profile-retired' : 'worker-exit'); });
+    worker.on('profile-retiring', () => { if (ownGeneration === generation && !closed) pump(); });
+    worker.on('profile-retired', () => { if (ownGeneration === generation && !closed) failure('profile-retired'); });
     worker.on('message', message => {
       if (ownGeneration !== generation || closed) return;
       if (PROFILE_ENABLED && (message._rs3ProfileReply || message._rs3ProfileRelayReply)) return;
@@ -1241,7 +1247,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       const noProgressLimit = ['starting', 'waking'].includes(status) ? Math.max(stuckMs, startupDeadlineMs) : stuckMs;
       return { status: closed ? 'closed' : status, ready: !closed && status === 'ready', restartRequired: status === 'restart-required',
         stuck: !closed && status !== 'sleeping' && noProgressMs > noProgressLimit, activeMs, queuedMs, noProgressMs, stuckMs,
-        restarts, maxRestarts, failures, nextRetryAt, compileMs, lastFailure, idleMs, idleStops, resident: !!worker, retiring: terminating.size };
+        restarts, maxRestarts, failures, profileRetirements, nextRetryAt, compileMs, lastFailure, idleMs, idleStops, resident: !!worker, retiring: terminating.size };
     },
     async restartUnhealthy() {
       if (manualRestart) { await manualRestart; return false; }

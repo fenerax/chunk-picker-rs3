@@ -55,8 +55,12 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     return writes;
   }
   async function startWorker(run, worker) {
-    if (current !== run || run.handles.has(worker) || !worker.startCpuProfile) return;
-    const pending = Promise.resolve(online.get(worker)).then(() => worker instanceof Worker ? worker.startCpuProfile() : worker.startCpuProfile({ deadline: run.deadline }));
+    if (current !== run || run.starting || run.handles.has(worker) || !worker.startCpuProfile) return;
+    const pending = (async () => {
+      await Promise.race([Promise.resolve(online.get(worker)), run.cancel.promise]);
+      if (current !== run || run.cancelled || Date.now() >= run.deadline) return;
+      return worker instanceof Worker ? worker.startCpuProfile() : worker.startCpuProfile({ deadline: run.deadline });
+    })();
     run.handles.set(worker, pending);
     try { await pending; } catch { failures++; run.handles.delete(worker); }
   }
@@ -76,7 +80,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       worker.once('exit', () => { workers.delete(worker); if (current?.handles.delete(worker)) failures++; });
       if (current) void startWorker(current, worker);
     },
-    status() { return { active: !!current, deadline: current?.deadline ?? null, stopping: !!stopping, failures }; },
+    status() { return { active: !!current, starting: !!current?.starting, deadline: current?.deadline ?? null, stopping: !!stopping, failures }; },
     async list() { return (await files()).filter(entry => validName(entry.name)); },
     async download(name) {
       if (!validName(name)) throw Object.assign(new Error('Profile not found.'), { status: 404 });
@@ -88,31 +92,41 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     async start(seconds = 180) {
       if (!Number.isFinite(seconds) || seconds < 0.01 || seconds > 600) throw Object.assign(new Error('Use a duration up to 600 seconds.'), { status: 400 });
       if (current || stopping || closing) throw Object.assign(new Error('A profile is already running or stopping.'), { status: 409 });
-      try { await writes; await prune(); }
-      catch { failures++; throw Object.assign(new Error('CPU profile storage is unavailable.'), { status: 503 }); }
-      const { Session } = await import('node:inspector');
-      // Import is asynchronous; retain exclusive switch ownership across it.
-      if (current || stopping || closing) throw Object.assign(new Error('A profile is already running or stopping.'), { status: 409 });
-      const session = new Session(); session.connect();
-      const post = (method) => new Promise((resolve, reject) => session.post(method, (error, result) => error ? reject(error) : resolve(result)));
-      const run = current = { session, post, handles: new Map(), deadline: Date.now() + seconds * 1000 };
+      // Reserve ownership synchronously, including admission and lazy imports.
+      const run = current = { starting: true, handles: new Map(), cancel: Promise.withResolvers(), deadline: Date.now() + seconds * 1000 };
       run.timer = setTimeout(() => { void this.stop(); }, seconds * 1000); run.timer.unref();
-      run.ready = (async () => { await post('Profiler.enable'); await post('Profiler.start'); })();
-      try { await run.ready; await Promise.all([...workers].map(worker => startWorker(run, worker))); }
-      catch { failures++; await this.stop(); throw Object.assign(new Error('CPU profiling is unavailable.'), { status: 503 }); }
+      run.ready = (async () => {
+        try {
+          await writes; if (run.cancelled) return;
+          await prune(); if (run.cancelled) return;
+        } catch { throw Object.assign(new Error('CPU profile storage is unavailable.'), { status: 503 }); }
+        const { Session } = await import('node:inspector'); if (run.cancelled) return;
+        const session = run.session = new Session(); session.connect();
+        run.post = method => new Promise((resolve, reject) => session.post(method, (error, result) => error ? reject(error) : resolve(result)));
+        await run.post('Profiler.enable'); if (run.cancelled) return;
+        run.pickerStarted = true;
+        await run.post('Profiler.start'); if (run.cancelled) return;
+        run.starting = false;
+      })();
+      try { await run.ready; if (!run.cancelled) await Promise.all([...workers].map(worker => startWorker(run, worker))); }
+      catch (error) { failures++; await this.stop(); throw Object.assign(new Error(error.status ? error.message : 'CPU profiling is unavailable.'), { status: error.status ?? 503 }); }
       return this.status();
     },
     stop() {
       if (stopping) return stopping;
       const run = current; if (!run) return Promise.resolve();
-      clearTimeout(run.timer); current = undefined;
+      clearTimeout(run.timer); run.cancelled = true; run.cancel.resolve(); current = undefined;
       stopping = (async () => {
-        try { await run.ready; const { profile } = await run.post('Profiler.stop'); await save('picker', profile); }
-        catch { failures++; }
-        finally { run.session.disconnect(); }
+        try {
+          await run.ready.catch(() => {});
+          if (run.pickerStarted) { const { profile } = await run.post('Profiler.stop'); await save('picker', profile); }
+        } catch { failures++; }
+        finally { run.session?.disconnect(); }
         await Promise.all([...run.handles.values()].map(async pending => {
           try {
-            const handle = await pending, profile = await handle.stop();
+            const handle = await pending;
+            if (!handle) return;
+            const profile = await handle.stop();
             if (profile.calculator && profile.relay) { await save('calculator', profile.calculator); await save('relay', profile.relay); }
             else await save('calculator', profile);
           } catch { failures++; }

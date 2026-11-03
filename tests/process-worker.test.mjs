@@ -159,16 +159,81 @@ test('host deadline ends both captures without a parent stop command', { timeout
   const next = await worker.startCpuProfile(); await next.stop();
 });
 
+test('expiry before the host observes online preserves the process and foreground work', { timeout: 10000 }, async t => {
+  const original = childProcesses.fork; let nativeStarts = 0;
+  const preload = `data:text/javascript;base64,${Buffer.from(`
+    import { Worker } from 'node:worker_threads';
+    const once = Worker.prototype.once, start = Worker.prototype.startCpuProfile;
+    Worker.prototype.once = function(event, listener) {
+      return once.call(this, event, event === 'online' ? (...args) => setTimeout(() => listener(...args), 5000) : listener);
+    };
+    Worker.prototype.startCpuProfile = function(...args) {
+      process.send({ kind: 'synthetic-native-start' }); return start.apply(this, args);
+    };
+  `).toString('base64')}`;
+  childProcesses.fork = (module, args, options) => {
+    const child = original(module, args, { ...options, execArgv: [...options.execArgv, '--import', preload] });
+    child.on('message', message => { if (message.kind === 'synthetic-native-start') nativeStarts++; });
+    return child;
+  };
+  syncBuiltinESMExports();
+  let f;
+  try { f = await fixture(t, { profileTimeoutMs: 200 }); }
+  finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+  let exits = 0; f.worker.on('exit', () => { exits++; });
+  for (let index = 0; index < 4; index++) {
+    const foreground = f.send({ type: 'evaluate' });
+    await assert.rejects(f.worker.startCpuProfile({ deadline: Date.now() + 80 }), /unavailable/);
+    assert.equal((await foreground).error, undefined);
+    assert.equal(exits, 0); assert.equal(f.worker.profileRetiring, undefined);
+  }
+  await assert.rejects(f.worker.startCpuProfile(), /unavailable/);
+  assert.equal(exits, 0); assert.equal(f.worker.profileRetiring, undefined);
+  assert.equal(nativeStarts, 0);
+  assert.equal((await f.send({ type: 'evaluate' })).error, undefined);
+});
+
+test('an uncertain native start retires the real host after foreground completion', { timeout: 10000 }, async t => {
+  const original = childProcesses.fork;
+  const preload = `data:text/javascript;base64,${Buffer.from(`
+    import { Worker } from 'node:worker_threads';
+    Worker.prototype.startCpuProfile = () => new Promise(() => {});
+  `).toString('base64')}`;
+  childProcesses.fork = (module, args, options) => original(module, args, { ...options, execArgv: [...options.execArgv, '--import', preload] });
+  syncBuiltinESMExports();
+  let f;
+  try { f = await fixture(t, { probeImport, profileTimeoutMs: 200 }); }
+  finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+  const id = 801, cancellation = new SharedArrayBuffer(4);
+  const blocked = waitFor(f.worker, message => message.id === id && message.testBlocked);
+  const completed = waitFor(f.worker, message => message.id === id && message.type !== 'progress');
+  f.worker.postMessage({ id, state: f.state, memberId: 'player1', cancellation, testWaitForCancellation: true });
+  await blocked;
+  const retiring = once(f.worker, 'profile-retiring'), exited = once(f.worker, 'exit');
+  const capture = assert.rejects(f.worker.startCpuProfile({ deadline: Date.now() + 80 }), /exited/);
+  await retiring; assert.doesNotThrow(() => process.kill(f.worker.pid, 0));
+  let released = false;
+  const lateCapture = assert.rejects(f.worker.startCpuProfile(), /exited/).then(() => { released = true; });
+  await delay(250);
+  assert.equal(released, false, 'a later cancellation must still wait for actual retirement');
+  f.worker.postMessage({ type: 'cancel', id });
+  assert.equal((await completed).error, undefined);
+  await exited; await capture; await lateCapture;
+});
+
 for (const acknowledgement of ['delayed', 'missing']) {
-  test(`${acknowledgement} start acknowledgement retires capture before reporting inactive`, { timeout: 10000 }, async t => {
+  test(`${acknowledgement} start acknowledgement proves cleanup before reporting inactive and preserves the calculator`, { timeout: 10000 }, async t => {
     const dir = await mkdtemp(path.join(tmpdir(), 'profile-ack-'));
     const profiles = await createDeepProfiles(dir);
-    const original = childProcesses.fork, captured = Promise.withResolvers(), retiring = Promise.withResolvers();
-    let child, worker, deliverLate, deliverTermination;
+    const original = childProcesses.fork, captured = Promise.withResolvers(), cleaned = Promise.withResolvers();
+    let child, worker, deliverLate, deliverCleanup;
     childProcesses.fork = (...args) => {
       child = original(...args);
-      const emit = child.emit.bind(child), send = child.send.bind(child);
+      const emit = child.emit.bind(child);
       child.emit = (event, message, ...rest) => {
+        if (event === 'message' && message.kind === 'profile' && message.cancelled) {
+          deliverCleanup = () => emit(event, message, ...rest); cleaned.resolve(); return true;
+        }
         if (event === 'message' && message.kind === 'profile' && !message.profile && !message.error) {
           captured.resolve();
           if (acknowledgement === 'delayed') deliverLate = () => emit(event, message, ...rest);
@@ -176,28 +241,23 @@ for (const acknowledgement of ['delayed', 'missing']) {
         }
         return emit(event, message, ...rest);
       };
-      child.send = (message, ...rest) => {
-        if (message.kind === 'terminate') { deliverTermination = () => send(message, ...rest); retiring.resolve(); return true; }
-        return send(message, ...rest);
-      };
       return child;
     };
     syncBuiltinESMExports();
     try { ({ worker } = await fixture(t, { profileTimeoutMs: 300 })); }
     finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-    t.after(async () => { deliverTermination?.(); await profiles.close(); await worker.terminate(); await rm(dir, { recursive: true, force: true }); });
+    t.after(async () => { deliverCleanup?.(); await profiles.close(); await worker.terminate(); await rm(dir, { recursive: true, force: true }); });
     profiles.attach(worker);
     const started = profiles.start(60); await captured.promise;
-    const stopped = profiles.stop(); await retiring.promise;
-    assert.doesNotThrow(() => process.kill(worker.pid, 0));
+    const stopped = profiles.stop(); await cleaned.promise;
     assert.ok(profiles.status().active || profiles.status().stopping, 'uncertain capture must remain visibly running or stopping');
     deliverLate?.();
     await delay(20);
     assert.equal(profiles.status().stopping, true, 'late acknowledgement must not release the capture handle');
-    deliverTermination(); await stopped; await started;
-    assert.throws(() => process.kill(worker.pid, 0), { code: 'ESRCH' });
+    deliverCleanup(); await stopped; await started;
+    assert.doesNotThrow(() => process.kill(worker.pid, 0));
     assert.equal(profiles.status().active, false); assert.equal(profiles.status().stopping, false);
-    await assert.rejects(worker.startCpuProfile(), /stopped/);
+    assert.equal(worker.profileRetiring, undefined);
     const files = await profiles.list(); assert.equal(files.length, 1); assert.match(files[0].name, /-picker\.cpuprofile$/);
     assert.equal((await readdir(path.join(dir, 'cpu-profiles'))).length, 1);
     assert.ok(profiles.status().failures > 0);
