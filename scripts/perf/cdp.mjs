@@ -8,6 +8,16 @@ export async function until(action, timeoutMs = 30000, interval = 50) {
   while (Date.now() < end) { const result = await action(); if (result) return result; await sleep(interval); }
   throw new Error('Timed out waiting for the scratch benchmark.');
 }
+// Browser.close acknowledges the request before Chrome finishes profile writes.
+// Give that owned process a chance to exit before the signal-based fallback.
+async function waitForChromeExit(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise(resolve => {
+    const done = () => { clearTimeout(timer); child.removeListener('exit', done); resolve(); };
+    const timer = setTimeout(done, 3000);
+    child.once('exit', done);
+  });
+}
 export async function stopChild(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   const exited = new Promise(resolve => child.once('exit', resolve));
@@ -87,7 +97,10 @@ export async function openChrome(executable, profile, options = {}, dependencies
     await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
     await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     return { child, send, evaluate, listeners, async close() {
-      try { await send('Browser.close'); } catch {} socket.close(); await stopChild(child);
+      const exited = waitForChromeExit(child);
+      // Some Chrome builds exit without acknowledging this CDP request.
+      try { await Promise.race([send('Browser.close'), exited]); } catch {}
+      socket.close(); await exited; await stopChild(child);
     } };
   } catch (error) { socket?.close(); await stopChild(child); throw error; }
 }

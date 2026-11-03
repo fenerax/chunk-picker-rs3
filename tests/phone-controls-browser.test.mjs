@@ -19,6 +19,12 @@ function bounds(selector) {
   const r = node.getBoundingClientRect();
   let left = Math.max(0, r.left), right = Math.min(innerWidth, r.right);
   let top = Math.max(0, r.top), bottom = Math.min(innerHeight, r.bottom);
+  // Fixed tabs occlude the scrolling dock even though they are not a clipping
+  // ancestor. A gesture starting there scrolls the document, not the dock.
+  const tabs = document.querySelector('#phone-tabs');
+  if (tabs?.checkVisibility() && !tabs.contains(node) && !node.closest('dialog[open]')) {
+    bottom = Math.min(bottom, tabs.getBoundingClientRect().top);
+  }
   let ancestorScroll = 0;
   for (let parent = node.parentElement; parent; parent = parent.parentElement) {
     const style = getComputedStyle(parent), box = parent.getBoundingClientRect();
@@ -58,15 +64,70 @@ for (const [label, name] of [
       browser = await openChrome(await findChrome(), path.join(directory, 'chrome'), {
         extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
       });
+      let streamRevision = false;
+      const pendingReads = new Set();
+      browser.listeners.add(({ method, params }) => {
+        if (method === 'Network.requestWillBeSent') {
+          const pathname = new URL(params.request.url).pathname;
+          if (pathname.startsWith('/api/') && pathname !== '/api/events') pendingReads.add(params.requestId);
+        }
+        if (method === 'Network.loadingFinished' || method === 'Network.loadingFailed') pendingReads.delete(params.requestId);
+        if (method === 'Network.eventSourceMessageReceived' && params.eventName === 'revision') streamRevision = true;
+      });
       const probe = selector => browser.evaluate(`(${bounds})(${JSON.stringify(selector)})`);
-      const ready = expression => until(() => browser.evaluate(`Boolean(${expression})`));
+      const ready = async expression => {
+        try { await until(() => browser.evaluate(`Boolean(${expression})`)); }
+        catch (error) {
+          const details = await browser.evaluate(`({ save: document.querySelector('#save-status')?.textContent, scroll: [scrollX, scrollY], controls: document.querySelector('#phone-controls-toggle')?.getAttribute('aria-expanded') })`);
+          throw new Error(`Phone UI did not settle: ${expression}: ${JSON.stringify(details)}`, { cause: error });
+        }
+      };
       const settle = () => browser.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+      // Calculator feedback appears after a delay and can add a header row.
+      // Network completion alone precedes JSON adoption and the final paint.
+      const layoutReady = () => until(async () => {
+        if (pendingReads.size) return false;
+        await settle();
+        return !pendingReads.size && await browser.evaluate("!document.querySelector('#calculation-status')?.checkVisibility()");
+      });
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: phone });
       await browser.send('Emulation.setTouchEmulationEnabled', { enabled: phone, maxTouchPoints: 1 });
+      // Hold real backup, stream and task responses until state hydration finishes,
+      // exercising the independent startup reads without a network sleep.
+      const delayedStartup = label === 'short' && width === 320;
+      let backupRequest, streamRequest, taskRequest;
+      if (delayedStartup) {
+        browser.listeners.add(({ method, params }) => {
+          if (method !== 'Fetch.requestPaused') return;
+          const pathname = new URL(params.request.url).pathname;
+          if (pathname === '/api/backup-status') backupRequest = params.requestId;
+          else if (pathname === '/api/tasks') taskRequest = params.requestId;
+          else streamRequest = params.requestId;
+        });
+        await browser.send('Fetch.enable', { patterns: ['/api/backup-status', '/api/events', `/api/tasks?memberId=${encodeURIComponent(initialState.members[0].id)}&*`].map(file => ({ urlPattern: `*${file}`, requestStage: 'Response' })) });
+      }
       // Every case has a fresh browser profile: folded and unscrolled.
       await browser.send('Page.navigate', { url: app.inviteUrl });
       await ready(`document.querySelector('#save-status')?.textContent === 'Saved' && document.querySelector('#pick')?.textContent.includes(${JSON.stringify(name)})`);
+      if (delayedStartup) {
+        await until(() => backupRequest && streamRequest && taskRequest);
+        await ready("document.querySelector('#calculation-status')?.checkVisibility()");
+        assert.equal(await browser.evaluate("document.querySelector('#backup-status-notice').checkVisibility()"), false, 'backup health can arrive after Saved');
+        await browser.send('Fetch.continueResponse', { requestId: backupRequest });
+        await browser.send('Fetch.continueResponse', { requestId: streamRequest });
+        await browser.send('Fetch.continueResponse', { requestId: taskRequest });
+        await browser.send('Fetch.disable');
+      }
+      // Saved also appears before EventSource opens. Its Syncing… caption can
+      // rewrap the header; wait for the initial live revision and its UI turn.
+      await until(() => streamRevision);
       await settle();
+      await ready("document.querySelector('#save-status')?.textContent === 'Saved'");
+      // Backup health is separate from Saved. Its banner changes the phone
+      // controls' native tap positions, so measure only after that read settles.
+      await ready("document.querySelector('#backup-status-menu')?.textContent && document.querySelector('#backup-status-menu').textContent !== 'Last backup: checking…'");
+      assert.ok(await browser.evaluate("document.querySelector('#backup-status-notice').checkVisibility()"), 'fresh backup warning present');
+      await layoutReady();
       assert.equal(await browser.evaluate('innerWidth'), width);
       assert.equal(await browser.evaluate("matchMedia('(pointer:coarse)').matches"), phone);
       if (phone) {
@@ -99,6 +160,7 @@ for (const [label, name] of [
         }
       }
       const tap = async selector => {
+        await layoutReady();
         const b = await probe(selector);
         assert.ok(b && b.visibleWidth >= 1 && b.visibleHeight >= 1 && b.ownsCenter, `${selector} must own a visible native tap point: ${JSON.stringify(b)}`);
         if (phone) {
@@ -112,10 +174,11 @@ for (const [label, name] of [
       };
       const reveal = async (selector, container) => {
         for (let i = 0; i < 16; i++) {
+          await layoutReady();
           const b = await probe(selector);
           if (b?.ownsCenter && b.visibleHeight >= Math.min(44, b.height)) return;
           const panel = await probe(container);
-          assert.ok(panel?.visibleHeight > 20, `${container} must expose a scrolling surface`);
+          assert.ok(panel?.visibleHeight > 20 && panel.ownsCenter, `${container} must expose an unobstructed scrolling surface`);
           const distance = Math.min(160, panel.visibleHeight * 0.6);
           const direction = b.top < panel.top ? 1 : -1;
           if (phone) {
@@ -126,9 +189,14 @@ for (const [label, name] of [
               await settle();
             }
             await browser.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-            // Let any fling finish: a tap during a fling only stops the scroll.
-            const offset = () => browser.evaluate(`document.querySelector(${JSON.stringify(container)}).scrollTop`);
-            await until(async () => { const a = await offset(); await new Promise(r => setTimeout(r, 120)); return a === await offset(); });
+            // Let the dock AND its scrolling ancestors finish any fling; a tap
+            // during document momentum only stops scrolling instead of clicking.
+            const offsets = () => browser.evaluate(`(() => {
+              const positions = [scrollX, scrollY];
+              for (let node = document.querySelector(${JSON.stringify(container)}); node; node = node.parentElement) positions.push(node.scrollLeft, node.scrollTop);
+              return JSON.stringify(positions);
+            })()`);
+            await until(async () => { const a = await offsets(); await new Promise(r => setTimeout(r, 120)); return a === await offsets(); });
           } else {
             await browser.send('Input.synthesizeScrollGesture', { x: panel.x, y: panel.y,
               yDistance: direction * distance, speed: 900, gestureSourceType: 'mouse' });
@@ -196,7 +264,7 @@ for (const [label, name] of [
     } finally {
       await browser?.close();
       await app?.close();
-      await rm(directory, { recursive: true, force: true });
+      await rm(directory, { recursive: true, force: true, maxRetries: 5 });
     }
   });
 }

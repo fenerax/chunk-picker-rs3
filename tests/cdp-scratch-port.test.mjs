@@ -32,18 +32,19 @@ test('extra arguments cannot override the debugging listener or owned profile', 
 
 function transport(endpoint = 'ws://127.0.0.1:8947/devtools/page/synthetic') {
   const child = new EventEmitter(); child.exitCode = null; child.signalCode = null;
+  let closeChild = stoppedChild => { stoppedChild.exitCode = 0; stoppedChild.emit('exit', 0); };
   child.kill = () => { child.exitCode = 0; child.emit('exit', 0); };
   const observed = { requests: [], launches: [], sockets: [], activePortReads: 0 };
   class Socket extends EventTarget {
     constructor(url) { super(); observed.sockets.push(url); queueMicrotask(() => this.dispatchEvent(new Event('open'))); }
     send(value) {
       const request = JSON.parse(value);
-      if (request.method === 'Browser.close') child.exitCode = 0;
+      if (request.method === 'Browser.close' && closeChild(child) === false) return;
       queueMicrotask(() => this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ id: request.id, result: {} }) })));
     }
     close() { this.dispatchEvent(new Event('close')); }
   }
-  return { child, observed, dependencies: {
+  return { child, observed, onClose: action => { closeChild = action; }, dependencies: {
     spawn: (file, args) => { observed.launches.push({ file, args }); return child; },
     readFile: async () => { observed.activePortReads++; throw Error('Fixed-port mode must not read DevToolsActivePort.'); },
     fetch: async url => { observed.requests.push(url); return { json: async () => [{ type: 'page', webSocketDebuggerUrl: endpoint }] }; },
@@ -70,4 +71,34 @@ test('CDP refuses a debugger target outside the selected loopback listener', asy
     await assert.rejects(openChrome('synthetic-chrome', profile, { port: Number('8947') }, fixture.dependencies), /escaped/);
     assert.deepEqual(fixture.observed.sockets, []);
   }
+});
+
+test('CDP close waits for Chrome to finish exiting before scratch cleanup', async () => {
+  let finishExit;
+  const fixture = transport();
+  fixture.onClose(child => {
+    finishExit = () => { child.exitCode = 0; child.emit('exit', 0); };
+  });
+  const signals = [];
+  fixture.child.kill = signal => { signals.push(signal); finishExit(); };
+  const browser = await openChrome('synthetic-chrome', profile, { port: Number('8947') }, fixture.dependencies);
+  let closed = false;
+  const closing = browser.close().then(() => { closed = true; });
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(typeof finishExit, 'function', 'Browser.close was acknowledged');
+    assert.equal(closed, false, 'an acknowledged close does not mean the process exited');
+    assert.deepEqual(signals, [], 'allow graceful profile writes before sending a signal');
+  } finally { finishExit(); await closing; }
+  assert.equal(closed, true);
+  assert.equal(fixture.child.listenerCount('exit'), 0, 'exit waiter releases its listener');
+});
+
+test('CDP close observes process exit even when Chrome sends no acknowledgement', { timeout: 5000 }, async () => {
+  const fixture = transport();
+  fixture.onClose(child => { child.exitCode = 0; child.emit('exit', 0); return false; });
+  const browser = await openChrome('synthetic-chrome', profile, { port: Number('8947') }, fixture.dependencies);
+  await browser.close();
+  assert.equal(fixture.child.exitCode, 0);
+  assert.equal(fixture.child.listenerCount('exit'), 0);
 });
