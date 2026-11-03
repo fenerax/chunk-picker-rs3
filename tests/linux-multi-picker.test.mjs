@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { chown, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { chown, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile, symlink } from 'node:fs/promises';
 import { withDirectoryBarriers, withStoreWrite, snapshotStore, snapshotPath } from '../app/storage/snapshot.mjs';
 import { openRegistry, registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { createPickerCheckpoint } from '../app/picker-router-checkpoint.mjs';
-import { captureServiceCheckpoint, verifyServiceBackup } from '../scripts/linux/service-checkpoint.mjs';
+import { captureServiceCheckpoint, verifyServiceBackup, copyServiceTree } from '../scripts/linux/service-checkpoint.mjs';
 import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine, reconcileServiceRecoveryTombstones } from '../scripts/linux/service-recovery.mjs';
 import { atomic, copyTree, encode, exists, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
@@ -116,6 +116,28 @@ test('service export retains bindings and membership checkpoint, excludes all cr
   assert(!(await inventory(backup)).some(row => /access-token|invites|accounts\.json|plugin-keys|future-secret/.test(row.path)));
   await writeFile(path.join(backup, 'pickers', f.pickers[0].id, 'state.json'), '{}');
   await assert.rejects(verifyServiceBackup(backup), /manifest/);
+});
+
+test('service checkpoints, recovery copies and resumed identity checks never traverse warm artifacts', async t => {
+  const f = await fixture(t), warm = path.join(f.dir(f.pickers[1]), 'warm-store');
+  await mkdir(warm);
+  // An invalid entry proves exclusion before lstat/hash, without a large file
+  // or a timing-dependent race with calculator publication/pruning.
+  await symlink(path.join(f.root, 'missing-synthetic-artifact'), path.join(warm, 'unreadable'), 'dir');
+  const backup = await f.capture();
+  assert(!(await inventory(backup)).some(row => row.path.includes('warm-store')));
+  const copy = path.join(f.root, 'copied-gameplay');
+  await copyServiceTree(f.dir(f.pickers[1]), copy, async () => {}, 'test.copy');
+  assert(!(await inventory(copy)).some(row => row.path.startsWith('warm-store')));
+  const listing = await listServicePickers(f.settings);
+  assert.equal(listing.pickerCount, f.pickers.length);
+  const target = await f.target();
+  const options = { settings: target, backup, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile, probe: portableProbe };
+  assert.equal((await restoreServiceStopped(options)).restored, f.pickers.length);
+  const restoredWarm = path.join(target.multiPicker.pickerRoot, f.pickers[1].id, 'warm-store');
+  await mkdir(restoredWarm);
+  await symlink(path.join(f.root, 'missing-synthetic-artifact'), path.join(restoredWarm, 'unreadable'), 'dir');
+  assert.equal((await restoreServiceStopped(options)).restored, f.pickers.length, 'disposable warm files cannot change a restored store identity');
 });
 
 test('cross-directory deadline and thrown capture release every gate without abandoning accepted writes', async t => {
@@ -877,7 +899,7 @@ test('MP15 stopped operator issues one private link without provider subjects an
   const options = { settings: f.settings, command: 'relink-code', argument: accountId,
     release: { ...f.release, config: { ...f.release.config, publicOriginFile } },
     controller: { state: async () => ({ active: false, stopped: true }) },
-    serviceIdentity: async () => ({ uid: process.getuid(), gid: process.getgid() }) };
+    serviceIdentity: async () => ({ uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 }) };
   const first = await runServiceOperator(options), second = await runServiceOperator(options);
   const code = result => new URL(result.claimLink).searchParams.get('code');
   const registry = await openRegistry(f.settings.multiPicker); f.cleanup(() => registry.close());

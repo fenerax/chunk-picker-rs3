@@ -1,6 +1,7 @@
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
-import { Worker } from 'node:worker_threads';
+import { WarmStoreWorker } from './warm-store-worker.mjs';
+import path from 'node:path';
 import { ProcessWorker } from './process-worker.mjs';
 import { createCalculatorPool } from './calculator-pool.mjs';
 import { createSessionResidency } from './session-residency.mjs';
@@ -34,7 +35,8 @@ const superseded = () => Object.assign(new Error('Calculation superseded by a ne
 // Give each native calculator an owned process so retirement releases them.
 const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
   || process.platform !== 'win32' && process.env.RS3_TASK_WORKER_MODE !== 'process'
-  ? new Worker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS }) : new ProcessWorker(data);
+  ? new WarmStoreWorker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS },
+    typeof data?.warmStoreDirectory === 'string' ? [path.join(data.warmStoreDirectory, 'results')] : []) : new ProcessWorker(data);
 // Built-in advisory lanes never read the ready catalogue, so their workers skip
 // sending it. The flag is always overwritten: callers cannot strip foreground's.
 export const nativeWorkerInput = (workerData, includeReadyCatalogue) => ({ ...workerData, omitReadyCatalogue: !includeReadyCatalogue });
@@ -119,7 +121,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   if (sessions?.memoryBytes === 0) throw unavailable('Insufficient memory for a task calculator.');
   if (sessions) options.idleMs ??= Number(process.env.RS3_WORKER_IDLE_MS ?? sessions.idleMs);
   if (sessions) maxCalculators = Math.min(maxCalculators ?? sessions.maxResident, sessions.maxResident, Math.max(1, Math.floor(sessions.memoryBytes / sessions.estimatedBytes)));
-  options.workerPreparation = createWorkerPreparation(options.workerData);
+  if (options.warmStoreDirectory) options.workerData = { ...options.workerData, warmStoreDirectory: options.warmStoreDirectory };
+  options.workerPreparation = createWorkerPreparation(options.workerData, { persistentDirectory: options.warmStoreDirectory });
   if (maxCalculators !== undefined) {
     positive(maxCalculators, 'maxCalculators');
     // RSS accounting and emergency retirement need an owned process. Thread
@@ -128,7 +131,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     const native = !options.workerFactory;
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
       workerData: (includeCatalogue, group) => native
-        ? nativeWorkerInput(group === 'foreground' ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
+        ? nativeWorkerInput(group === 'foreground' || options.workerPreparation.persistent ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
       sessions, clock: options.idleClock, memoryUsage: options.calculatorMemoryUsage,
       onReady: native ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
@@ -854,7 +857,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (PROFILE_ENABLED) profile.workerStarting(profileLane);
     try { worker = calculatorPool ? calculatorPool.createEndpoint(includeReadyCatalogue)
       : workerFactory(workerFactory === nativeWorker
-        ? nativeWorkerInput(includeReadyCatalogue ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
+        ? nativeWorkerInput(includeReadyCatalogue || workerPreparation?.persistent ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);

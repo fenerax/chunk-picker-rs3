@@ -209,7 +209,7 @@ export async function probe(core, dataDir, output, { retention } = {}) {
   }
   if (!port) throw new Error('No scratch compatibility port available.');
   const { createServer } = await import(pathToFileURL(path.join(core, 'app/server.mjs')));
-  const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false, retention,
+  const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false, retention, taskWorkerOptions: { warmStoreDirectory: false },
     runeMetrics: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } },
     originalSync: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } } });
   try {

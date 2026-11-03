@@ -285,7 +285,11 @@ async function instrument(scratch, appDir) {
   worker = replace(worker, 'stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false', 'stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, probeFresh = false, probeProfile', 'request flags');
   worker = replace(worker, '  const started = performance.now();\n  // Fixed stage names', '  begin();\n  if (probeFresh) { snapshots.clear(); stateSnapshots.clear(); sandboxSnapshots.clear(); }\n  const started = performance.now();\n  // Fixed stage names', 'request begin');
   worker = replace(worker, '  requests.set(id, request);\n  try {', '  requests.set(id, request);\n  try {\n    await startProfile(probeProfile);', 'profile start');
-  worker = replace(worker, '    parentPort.postMessage({ id, ...payload,', '    await stopProfile(probeProfile);\n    parentPort.postMessage({ id, probe: snapshot(), ...payload,', 'profile stop and report');
+  if (worker.includes('    parentPort.postMessage({ id, ...reply,')) {
+    // Warm-restart workers reply from the warm store or from a fresh calculation.
+    worker = replace(worker, '      parentPort.postMessage({ id, ...restored,', '      await stopProfile(probeProfile);\n      parentPort.postMessage({ id, probe: snapshot(), ...restored,', 'profile stop and report (warm)');
+    worker = replace(worker, '    parentPort.postMessage({ id, ...reply,', '    await stopProfile(probeProfile);\n    parentPort.postMessage({ id, probe: snapshot(), ...reply,', 'profile stop and report');
+  } else worker = replace(worker, '    parentPort.postMessage({ id, ...payload,', '    await stopProfile(probeProfile);\n    parentPort.postMessage({ id, probe: snapshot(), ...payload,', 'profile stop and report');
   worker = replace(worker, '  } catch (error) {\n    timingMs.totalMs', '  } catch (error) {\n    await stopProfile(probeProfile);\n    timingMs.totalMs', 'profile error cleanup');
   worker = absoluteImports(worker, workerFile, new Map([['./engine.mjs', engineURL]]));
   worker = `import { measured, begin, snapshot, startupSnapshot, startProfile, stopProfile, sampleHeap } from ${JSON.stringify(runtimeURL)};\n`

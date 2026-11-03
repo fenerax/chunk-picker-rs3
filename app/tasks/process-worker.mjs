@@ -25,7 +25,8 @@ export class ProcessWorker extends EventEmitter {
     this.#child = fork(fileURLToPath(new URL('./process-worker-host.mjs', import.meta.url)), [], {
       // The relay host collects its own garbage (relay-collector.mjs).
       execArgv: [...process.execArgv, '--expose-gc'],
-      serialization: 'advanced', stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true,
+      // Optional warm-store failures must reach the service journal too.
+      serialization: 'advanced', stdio: ['ignore', 'ignore', 'inherit', 'ipc'], windowsHide: true,
     });
     this.#child.on('message', message => {
       try {

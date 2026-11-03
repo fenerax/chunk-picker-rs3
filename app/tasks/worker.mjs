@@ -29,6 +29,7 @@ import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { serialize } from 'node:v8';
+import { createWarmResults } from './warm-results.mjs';
 import { preparedCollectionKey, decodePreparedCollection, encodePreparedCollection, readPreparedCollectionFile } from './prepared-collection.mjs';
 
 const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
@@ -36,7 +37,9 @@ startupPhase('worker:modules');
 // Definitions compile once in this isolated worker. Evaluation never runs on
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
 if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
-const preparationKey = workerData.collectPreparedCollection || workerData.preparedCollection || workerData.preparedCollectionFile ? preparedCollectionKey(workerData) : undefined;
+const warmResults = createWarmResults(workerData);
+const collectPreparedCollection = workerData.collectPreparedCollection || !!workerData.preparedCollectionFile;
+const preparationKey = collectPreparedCollection || workerData.preparedCollection ? preparedCollectionKey(workerData) : undefined;
 let collectionEntry = workerData.preparedCollection, collectionFile = workerData.preparedCollectionFile;
 delete workerData.preparedCollection; delete workerData.preparedCollectionFile;
 const definitions = prepareWorkerDefinitions(takeDefinitions(), selectedDataset, workerData.preparedDatasetStages, workerData.datasetOptions);
@@ -82,7 +85,8 @@ function getCollectionEngine() {
     const prepared = decodePreparedCollection(collectionEntry ?? readPreparedCollectionFile(collectionFile, preparationKey), preparationKey);
     collectionEntry = undefined; collectionFile = undefined;
     collectionEngine = createCollectionEngine(definitions, { dataset: selectedDataset, prepared,
-      onPrepared: workerData.collectPreparedCollection ? value => { collectionPreparation = value; } : undefined });
+      onPrepared: !prepared && collectPreparedCollection
+        ? value => { collectionPreparation = value; } : undefined });
   }
   return collectionEngine;
 }
@@ -414,6 +418,17 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     // Calculation caches receive an opaque picker-scoped input. Legacy callers
     // keep their previous cache keys, including revision-only inputs.
     if (pickerId !== 'legacy-shared') input = JSON.stringify([pickerId, input ?? state.revision]);
+    const warmKey = warmResults?.key({ type, state, memberId, chunkId, draft, chunkIds, input, pickerId, resultTransport, resultView, duoProjection, duoSidebarProjection });
+    const restored = warmResults?.get(warmKey);
+    if (restored && !abandoned() && state.revision >= pickerRevision(pickerId)) {
+      timingMs.totalMs = performance.now() - started;
+      if (type === 'predict' && predictionProgress) {
+        if (previewProgress) parentPort.postMessage({ id, type: 'prediction-prepared', result: restored.result, evaluationMs: timingMs.totalMs, timingMs });
+        if (restored.unlockReuse) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse: restored.unlockReuse });
+      }
+      parentPort.postMessage({ id, ...restored, evaluationMs: timingMs.totalMs, timingMs });
+      return;
+    }
     let result, unlockReuse, partnerUnlockReuse;
     if (type === 'prepare-rules') {
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
@@ -509,7 +524,9 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         ...(duoSidebarProjection && duoSidebarJSON ? { duoSidebarJSON } : {}), cancelled: !!result.cancelled }
       : { result };
     timingMs.totalMs = performance.now() - started;
-    parentPort.postMessage({ id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs });
+    const reply = { ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}) };
+    if (!abandoned() && state.revision >= pickerRevision(pickerId)) warmResults?.put(warmKey, reply);
+    parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs });
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
@@ -526,9 +543,9 @@ const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 's
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
 setImmediate(() => {
-  // A replacement that omits the catalogue needs no collection graph until
-  // its first calculation. The initial foreground still publishes all IDs.
-  if (!workerData.omitReadyCatalogue || workerData.collectPreparedCollection) getCollectionEngine();
+  // Validate file-backed replacements before ready so a restore miss can
+  // return a repair for publication. Other catalogue-omitting workers stay lazy.
+  if (!workerData.omitReadyCatalogue || collectPreparedCollection) getCollectionEngine();
   const preparation = collectionPreparation ? { preparedCollection: encodePreparedCollection(preparationKey, collectionPreparation) } : {};
   collectionPreparation = undefined;
   const compileMs = performance.now() - compileStarted;

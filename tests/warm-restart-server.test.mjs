@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+process.env.RS3_DATASET = 'open-f2p';
+process.env.RS3_TASK_WORKER_MODE = 'process';
+const { createServer } = await import('../app/server.mjs');
+const { createGroupState } = await import('../app/core/state.mjs');
+const { prewarmCalculation } = await import('../scripts/linux/prewarm.mjs');
+
+test('online calculator preparation hits the actual server namespace and task snapshot after restart', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'warm-restart-server-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const dataDir = path.join(directory, 'game'), copied = path.join(directory, 'copied');
+  const options = { dataDir, port: 0, predictionPrewarm: false, initialState: createGroupState([{ id: 'a', name: 'A' }]) };
+  let app = await createServer(options);
+  t.after(() => app.close());
+  const document = await app.store.backup(), token = app.store.getAccessToken();
+  await app.close();
+  await mkdir(copied); await writeFile(path.join(copied, 'state.json'), JSON.stringify(document));
+  const input = await readdir(copied);
+  const warmed = await prewarmCalculation({ root: path.resolve('.'), dataDir: copied, warmDirectory: path.join(dataDir, 'warm-store') });
+  assert.equal(warmed.members, 1); assert.ok(warmed.requests >= 4);
+  assert.deepEqual(await readdir(copied), input, 'calculator preparation never creates credentials or other input files');
+  const artifacts = async () => (await readdir(path.join(dataDir, 'warm-store'), { recursive: true })).filter(file => file.endsWith('.warm')).length;
+  const before = await artifacts();
+  app = await createServer(options); await app.listen();
+  const response = await fetch(`http://127.0.0.1:${app.address().port}/api/tasks?memberId=a`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(response.status, 200); await response.json();
+  assert.equal(await artifacts(), before, 'the server reused the prepared reply instead of publishing another key');
+  const diagnostics = await (await fetch(`http://127.0.0.1:${app.address().port}/api/diagnostics`, { headers: { Authorization: `Bearer ${token}` } })).json();
+  assert.equal(diagnostics.timingMs.last.engineMs, 0);
+});

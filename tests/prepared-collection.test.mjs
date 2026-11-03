@@ -1,16 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { Worker } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
 import { serialize } from 'node:v8';
 import { mkdtemp, writeFile, readFile, readdir, rm, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { syncBuiltinESMExports } from 'node:module';
 import { preparedCollectionKey, encodePreparedCollection, decodePreparedCollection, createWorkerPreparation,
   validPreparedCollectionEntry, PREPARED_COLLECTION_LIMIT, readPreparedCollectionFile } from '../app/tasks/prepared-collection.mjs';
 import { createCalculatorPool } from '../app/tasks/calculator-pool.mjs';
 import { canonical } from '../tools/calc-check/compare.mjs';
+import { runWarmWriterProbe } from './helpers/pause-warm-writer.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
@@ -180,6 +185,86 @@ test('file write failure disables preparation and close waits for its owned writ
   assert.deepEqual(await readdir(directory), ['blocked']);
 });
 
+test('persistent collection launches and publication do no body I/O or hashing on the server thread', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-responsive-'));
+  const cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  t.after(async () => { await cache.clear(); await rm(directory, { recursive: true, force: true }); });
+  const { key, snapshot } = prepared();
+  const entry = encodePreparedCollection(key, { ...snapshot, syntheticPadding: 'x'.repeat(4 * 1024 * 1024) });
+  const reads = [], writes = [], hashes = [];
+  const read = fs.readSync, write = fs.writeFileSync, hash = crypto.createHash;
+  t.mock.method(fs, 'readSync', (...args) => { if (args[4] >= 76) reads.push(args[3]); return read(...args); });
+  t.mock.method(fs, 'writeFileSync', (...args) => { if (args[0].endsWith('.tmp') || args[0].endsWith('.warm')) writes.push(args[0]); return write(...args); });
+  t.mock.method(crypto, 'createHash', (...args) => {
+    const digest = hash(...args), update = digest.update;
+    digest.update = function(bytes, ...rest) {
+      if (bytes.byteLength >= entry.bytes.byteLength) hashes.push(bytes.byteLength);
+      return update.call(this, bytes, ...rest);
+    };
+    return digest;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const ready = { preparedCollection: entry };
+  cache.accept(ready);
+  assert.equal(ready.preparedCollection, undefined);
+  // A foreground launch proceeds immediately while optional publication runs.
+  assert.equal(cache.input().collectPreparedCollection, true);
+  await cache.settled();
+  const reference = cache.input().preparedCollectionFile;
+  assert.ok(reference?.warm);
+  const reopened = createWorkerPreparation(init(), { persistentDirectory: directory });
+  try {
+    assert.deepEqual(reopened.input().preparedCollectionFile, reference);
+    assert.deepEqual(reopened.input().preparedCollectionFile, reference);
+    cache.accept({ preparedCollection: entry }); await cache.settled();
+    assert.deepEqual(reads, [], 'full-file validation belongs to calculators/publisher');
+    assert.deepEqual(writes, [], 'publication belongs to the publisher');
+    assert.deepEqual(hashes, [], 'neither launch nor accept hashes the collection body');
+  } finally { await reopened.clear(); }
+});
+
+test('terminated collection publishers release only their own aged lock', { timeout: 20000 }, async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-publisher-exit-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await runWarmWriterProbe(directory, 'collections', `
+  import { createWorkerPreparation, encodePreparedCollection, preparedCollectionKey, validPreparedCollectionEntry, readPreparedCollectionFile } from ${JSON.stringify(new URL('../app/tasks/prepared-collection.mjs', import.meta.url).href)};
+  import { createCollectionEngine } from ${JSON.stringify(new URL('../app/tasks/collection.mjs', import.meta.url).href)};
+  import { createWarmStore, warmHash } from ${JSON.stringify(new URL('../app/tasks/warm-store.mjs', import.meta.url).href)};
+  import { genericWorkerData } from ${JSON.stringify(new URL('./helpers/worker-dataset.mjs', import.meta.url).href)};
+  const definitions = ${JSON.stringify(definitions)}, input = genericWorkerData({ definitions });
+  let snapshot;
+  createCollectionEngine(definitions, { onPrepared: value => { snapshot = value; } });
+  const entry = encodePreparedCollection(preparedCollectionKey(input), snapshot), caches = [];
+  const open = () => { const cache = createWorkerPreparation(input, { persistentDirectory: directory }); caches.push(cache); return cache; };
+  try {
+  const first = open(); first.accept({ preparedCollection: entry });
+  const { worker } = await held(), partition = path.join(directory, 'collections'), lock = path.join(partition, '.write-lock');
+  const [token] = await readdir(lock);
+  await utimes(lock, new Date(0), new Date(0));
+  const contender = createWarmStore(partition);
+  assert.equal(contender.put(warmHash('synthetic contention'), Buffer.from('synthetic reply')), undefined);
+  assert.deepEqual(await readdir(lock), [token], 'live publishers retain their lock regardless of age');
+  await worker.terminate(); await first.settled();
+  const next = open(); next.accept({ preparedCollection: entry }); await next.settled();
+  const reference = next.input().preparedCollectionFile;
+  assert.ok(reference?.warm, 'a fresh publisher succeeds in the same server process');
+  assert.ok(validPreparedCollectionEntry(readPreparedCollectionFile(reference, entry.key), entry.key));
+  assert(!(await readdir(partition)).some(name => name.startsWith('.write-lock') || name.endsWith('.tmp')));
+  } finally { for (const cache of caches) await cache.clear(); }
+  `);
+});
+
+test('publisher rejects a wrong collection checksum and can retry a complete entry', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-publisher-integrity-'));
+  const cache = createWorkerPreparation(init(), { persistentDirectory: directory }), { entry } = prepared();
+  t.after(async () => { await cache.clear(); await rm(directory, { recursive: true, force: true }); });
+  cache.accept({ preparedCollection: { ...entry, sha256: '0'.repeat(64) } });
+  await cache.settled(); assert.equal(cache.input().preparedCollectionFile, undefined);
+  cache.accept({ preparedCollection: entry });
+  await cache.settled(); assert.ok(cache.input().preparedCollectionFile?.warm);
+});
+
 test('file-backed process workers return identical lists on hit, corrupt-file fallback and missing-file fallback', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'prepared-process-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -196,6 +281,36 @@ test('file-backed process workers return identical lists on hit, corrupt-file fa
     assert.equal(restored.ready.catalogue, undefined);
     assert.deepEqual(restored.results, normal.results);
   }
+});
+
+test('body-corrupt persistent collections rebuild, publish a repair and restore on the next calculator', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-body-repair-'));
+  let cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  t.after(async () => { await cache.clear(); await rm(directory, { recursive: true, force: true }); });
+  const current = state(), cold = await runWorker(cache.input(), current);
+  assert.ok(cold.ready.preparedCollection);
+  cache.accept(cold.ready); await cache.settled();
+  const reference = cache.input().preparedCollectionFile, original = await readFile(reference.file);
+  const corrupt = Buffer.from(original); corrupt[corrupt.length - 1] ^= 1;
+  await writeFile(reference.file, corrupt);
+  assert.deepEqual(corrupt.subarray(0, 76), original.subarray(0, 76), 'the header and length stay intact');
+  assert.equal(corrupt.length, original.length);
+  await cache.clear();
+  cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  const input = cache.input();
+  assert.ok(input.preparedCollectionFile?.warm, 'header-only launch validation accepts the reference');
+  assert.equal(input.collectPreparedCollection, false, 'the calculator must enable collection after a body miss');
+  assert.equal(readPreparedCollectionFile(input.preparedCollectionFile, reference.key), undefined);
+  const rebuilt = await runWorker({ ...input, omitReadyCatalogue: true }, current);
+  assert.deepEqual(rebuilt.results, cold.results, 'cold fallback preserves calculation results');
+  assert.ok(validPreparedCollectionEntry(rebuilt.ready.preparedCollection, reference.key), 'the rebuilt preparation is returned for publication');
+  cache.accept(rebuilt.ready); await cache.settled();
+  assert.deepEqual(await readFile(reference.file), original, 'the publisher replaces the corrupt body');
+  await cache.clear();
+  cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  const warm = await runWorker({ ...cache.input(), omitReadyCatalogue: true }, current);
+  assert.deepEqual(warm.results, cold.results);
+  assert.equal(warm.ready.preparedCollection, undefined, 'a valid warm restore needs no further rebuild/publication');
 });
 
 test('the pool labels physical foreground/advisory allocations for bounded preparation residency', async () => {
@@ -231,4 +346,70 @@ test('native foreground preserves catalogues through idle retirement and a coale
   assert.deepEqual(a.result, b.result);
   assert.equal(scheduler.catalogue, catalogue); assert.equal(scheduler.dynamicCatalogue, dynamic);
   assert.equal(scheduler.getHealth().restarts, 0);
+});
+
+
+test('root collection file reads miss and preparation cannot launch a file publisher', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-root-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const { entry, key } = prepared(), data = init();
+  const existing = createWorkerPreparation(data, { directory });
+  const getuid = process.getuid; process.getuid = () => 0;
+  t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
+  const calls = [];
+  for (const name of ['openSync', 'lstatSync', 'readFileSync', 'mkdirSync', 'readdirSync']) {
+    t.mock.method(fs, name, () => { calls.push(name); throw Error('Root cache I/O forbidden.'); });
+  }
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  for (const warm of [false, true]) assert.equal(readPreparedCollectionFile({ file: path.join(directory, 'entry'),
+    key, sha256: entry.sha256, bytes: entry.bytes.length, warm }, key), undefined);
+  for (const cache of [existing, createWorkerPreparation(data, { directory }),
+    createWorkerPreparation(data, { directory, persistentDirectory: directory })]) {
+    cache.accept({ preparedCollection: entry }); await cache.settled();
+    assert.equal(cache.input(), data);
+    await cache.clear();
+  }
+  assert.deepEqual(calls, []);
+  assert.deepEqual(await readdir(directory), []);
+});
+
+for (const persistent of [false, true]) test(`root collection publisher refuses cache filesystem access (persistent=${persistent})`, async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'publisher-root-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const { entry, key } = prepared();
+  // A separate thread must enforce the boundary itself, even if invoked without
+  // the parent preparation guard. Mock both sync and async filesystem exports.
+  const script = `
+    const fs = require('node:fs'), { syncBuiltinESMExports } = require('node:module');
+    const { parentPort, workerData } = require('node:worker_threads');
+    process.getuid = () => 0;
+    const calls = [];
+    for (const name of ['mkdirSync', 'mkdtempSync', 'lstatSync', 'openSync', 'readFileSync',
+      'writeFileSync', 'renameSync', 'unlinkSync', 'rmdirSync', 'chownSync', 'chmodSync']) {
+      const original = fs[name];
+      fs[name] = (file, ...args) => {
+        // The module loader still reads public source files outside the cache.
+        if (!String(file).startsWith(workerData.directory)
+          && (name === 'readFileSync' || name === 'lstatSync'
+            || name === 'openSync' && (args[0] === 'r' || args[0] === 0))) return original(file, ...args);
+        calls.push(name); throw Error('Root cache I/O forbidden.');
+      };
+    }
+    for (const name of ['mkdir', 'mkdtemp', 'writeFile', 'rename', 'rm', 'chown', 'chmod']) {
+      fs.promises[name] = async () => { calls.push(name); throw Error('Root cache I/O forbidden.'); };
+    }
+    syncBuiltinESMExports();
+    import(${JSON.stringify(new URL('../app/tasks/prepared-collection-publisher.mjs', import.meta.url).href)})
+      .then(() => parentPort.postMessage({ calls }));
+  `;
+  const worker = new Worker(script, { eval: true, workerData: { key, value: entry, directory,
+    persistentDirectory: persistent ? directory : undefined } });
+  t.after(() => worker.terminate());
+  const messages = [];
+  worker.on('message', message => messages.push(message));
+  const [code] = await once(worker, 'exit');
+  assert.equal(code, 0);
+  assert.deepEqual(messages, [{ calls: [] }]);
+  assert.deepEqual(await readdir(directory), []);
 });

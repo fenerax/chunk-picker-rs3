@@ -69,7 +69,7 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
     async function walk(relative = '') {
       for (const name of (await readdir(path.join(dataDir, relative))).sort()) {
         budget();
-        if (!relative && ['store.lock', 'store.lock.recovery'].includes(name)) continue;
+        if (!relative && ['store.lock', 'store.lock.recovery', 'warm-store'].includes(name)) continue;
         const rel = relative ? relative + '/' + name : name;
         const file = path.join(dataDir, rel), info = await lstat(file);
         if (info.isDirectory()) { directories.push('store/' + rel); await walk(rel); }

@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { assertReleased, encode, exclusive, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { assertSameRelease, readRelease } from '../scripts/linux/runtime.mjs';
-import { backupStopped, checkStoppedCompatibility, restoreStopped, verifyBackup, writeBackupStatus } from '../scripts/linux/recovery.mjs';
+import { backupStopped, checkStoppedCompatibility, restoreStopped, verifyBackup, writeBackupStatus, storeIdentity } from '../scripts/linux/recovery.mjs';
 import { deployStopped, deployPrechecked, backupOnline, healthRecovery } from '../scripts/linux/operator.mjs';
 import { readBackupStatus } from '../app/storage/backup-status.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
@@ -309,7 +309,7 @@ test('startup gate refuses abandoned maintenance and consumes a permit tied to t
 
 // Fast operator decision tests use the complete synthetic fixture and real byte
 // inventories, while the decoder itself is covered by the serial probes above.
-for (const changed of [false, true]) test(`online deploy: changed=${changed} selects the stopped re-probe correctly`, async t => {
+for (const root of [false, true]) for (const changed of [false, true]) test(`online deploy: root=${root} changed=${changed} selects the stopped re-probe correctly`, async t => {
   const f = await fixture(t); let checks = 0;
   const { copyTree } = await import('../scripts/linux/files.mjs');
   const capture = async () => {
@@ -326,7 +326,18 @@ for (const changed of [false, true]) test(`online deploy: changed=${changed} sel
   const check = async ({ assertStopped, savedIdentityAdditions }) => {
     await assertStopped(); assert.deepEqual(savedIdentityAdditions, syntheticAdditions); checks++;
   };
-  await deployPrechecked({ ...f, savedIdentityAdditions: syntheticAdditions, check, capture, request: healthy, wait: noWait });
+  let warmed = 0;
+  const prewarm = async ({ settings, candidate, dataDir }) => {
+    assert.equal(settings, f.settings); assert.equal(candidate, f.candidate);
+    assert.notEqual(dataDir, f.settings.dataDir); assert.deepEqual(f.events, []); warmed++;
+    await mkdir(path.join(settings.dataDir, 'warm-store'), { recursive: true });
+    await writeFile(path.join(settings.dataDir, 'warm-store', 'synthetic.warm'), 'disposable');
+    return false; // Optional warm-up failure never changes activation safety.
+  };
+  const getuid = process.getuid; process.getuid = () => root ? 0 : 1000;
+  t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
+  await deployPrechecked({ ...f, savedIdentityAdditions: syntheticAdditions, check, capture, prewarm, request: healthy, wait: noWait });
+  assert.equal(warmed, root ? 0 : 1);
   assert.equal(checks, changed ? 2 : 1);
   assert.deepEqual(f.events, ['stop', 'start']);
 });
@@ -370,4 +381,19 @@ test('an exited candidate is stopped before automatic restarts consume the rollb
   assert.equal(waits, 0); assert.equal(starts, 2);
   assert.deepEqual(f.events, ['stop', 'start', 'stop', 'start']);
   assert.deepEqual(await readFile(f.settings.current), f.current.pointerBytes);
+});
+
+
+test('warm artifacts never change save identity or enter stopped recovery snapshots', async t => {
+  const { settings, current } = await fixture(t);
+  const before = await storeIdentity(settings.dataDir);
+  await mkdir(path.join(settings.dataDir, 'warm-store'), { recursive: true });
+  await writeFile(path.join(settings.dataDir, 'warm-store', 'synthetic.warm'), 'disposable');
+  assert.deepEqual(await storeIdentity(settings.dataDir), before);
+  const probe = async (release, dir, output) => {
+    assert(!(await readdir(dir)).includes('warm-store'));
+    await writeFile(output, encode(await json(path.join(dir, 'state.json'))));
+  };
+  const backup = await backupStopped({ ...settings, release: current, probe });
+  assert(!(await inventory(backup.target)).some(row => row.path.split('/').includes('warm-store')));
 });
