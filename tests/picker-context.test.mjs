@@ -14,6 +14,8 @@ import { buildWorld } from '../app/data/world.mjs';
 import { selectedDataset } from '../app/dataset-runtime.mjs';
 import { createRateLimits, createStreamLimits, requestContext } from '../app/security/request.mjs';
 import { createRepresentation, createResponseCache } from '../app/http-response.mjs';
+import { EventEmitter } from 'node:events';
+import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const clock = () => Date.parse('2026-10-21T12:00:00.000Z');
@@ -121,6 +123,27 @@ async function viewer(context) {
   assert.equal(joined.status, 303);
   return String(joined.headers.get('set-cookie')).split(';')[0];
 }
+
+test('picker A viewer sees only its own session and stream counts as picker B becomes active', async t => {
+  const scheduler = await createTaskScheduler({ residency: { memoryBytes: 300, estimatedBytes: 100, maxResident: 3 },
+    calculatorMemoryUsage: () => 100, workerFactory() {
+      const worker = new EventEmitter(); worker.postMessage = () => {}; worker.terminate = async () => {};
+      queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
+    } });
+  t.after(() => scheduler.close());
+  const taskWorker = Object.create(scheduler); taskWorker.closeCalls = 0;
+  taskWorker.forPicker = id => scheduler.forPicker('p_' + (id === 'a' ? 'a' : 'b').repeat(32));
+  const { a, b } = await fixture(t, { runtimeOptions: { taskWorker } });
+  const cookie = await viewer(a);
+  const diagnostics = async context => (await send(context, '/api/diagnostics', context === a ? { cookie } : {})).body.calculators.residency;
+  const before = await diagnostics(a);
+  assert.equal(before.sessions, 0); assert.equal(before.streams, 0);
+  await send(b, '/api/state');
+  const stream = await send(b, '/api/events', { stream: true });
+  assert.equal((await diagnostics(b)).sessions, 1); assert.equal((await diagnostics(b)).streams, 1);
+  assert.deepEqual(await diagnostics(a), before);
+  stream.response.destroy();
+});
 
 test('two contexts isolate durable state, private static fields, history and undo at colliding revisions', async t => {
   const { a, b, open } = await fixture(t);

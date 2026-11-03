@@ -109,11 +109,14 @@ test('server warms selected and pending predictions without calculating the unop
     assert.equal(response.status, 200); return response.json();
   }
   const settled = value => value.predictionLane.prewarm.completed >= 2 && !value.predictionLane.prewarm.pending && !value.predictionLane.prewarm.active;
-  // Cross the unchanged browser admission threshold with virtual scheduling time.
+  // Saved offers and diagnostic reads cannot establish activity at startup.
   assert.equal((await get('/api/diagnostics')).predictionLane.worker.status, 'idle');
   await clock.advance(9999);
   assert.equal((await get('/api/diagnostics')).predictionLane.worker.status, 'idle', 'Startup warming waits the full ten seconds');
   await clock.advance(1);
+  assert.equal((await get('/api/diagnostics')).predictionLane.worker.status, 'idle');
+  await get('/api/state?view=play-v1');
+  await clock.advance(1000);
   await until(() => get('/api/diagnostics'), settled);
   for (const chunkId of ['13108', '12597']) {
     const value = await get(`/api/predict?memberId=synthetic&chunkId=${chunkId}`);
@@ -168,6 +171,11 @@ test('bounded server warming prioritizes pending rolls across players before lar
   await clock.advance(9999);
   assert.equal(request(workers[1]), undefined, 'Startup admission has not expired');
   await clock.advance(1);
+  assert.equal(request(workers[1]), undefined, 'Saved offers alone do not admit preparation');
+  const response = await fetch(new URL('/api/state?view=play-v1', app.inviteUrl),
+    { headers: { Authorization: `Bearer ${new URL(app.inviteUrl).pathname.slice('/join/'.length)}` } });
+  assert.equal(response.status, 200); await response.json();
+  await clock.advance(1000);
   await until(async () => ({ predictionLane: { worker: true }, messages: request(workers[1]) }), value => value.messages?.length === 1);
   assert.equal(request(workers[1])[0].memberId, 'second');
   assert.equal(request(workers[1])[0].chunkId, '12597');
@@ -297,6 +305,8 @@ test('a pending offer prepares Preview while an opened state still awaits its un
   t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
   await app.listen(); const invitation = new URL(app.inviteUrl);
   const headers = { Authorization: `Bearer ${invitation.pathname.slice('/join/'.length)}` };
+  await clock.advance(10000);
+  assert.equal(workers.length, 1, 'saved offers do not start prepare-ahead before authenticated activity');
   const response = await fetch(invitation.origin + '/api/state?view=play-v1', { headers });
   assert.equal(response.status, 200); await response.json();
   await clock.advance(1000);

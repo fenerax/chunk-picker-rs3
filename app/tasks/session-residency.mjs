@@ -7,12 +7,13 @@ const integer = (value, name) => {
 };
 // Reserve room for the server, the OS and a calculator's transient allocations.
 // Reservations include starting/retiring workers; RSS can only raise them.
-export function residencyDefaults({ total = totalmem(), free = freemem(), constrained = process.constrainedMemory?.() || total,
+export function residencyDefaults({ total = totalmem(), free = Math.min(freemem(), process.availableMemory?.() ?? Infinity), constrained = process.constrainedMemory?.() || total,
   env = process.env } = {}) {
   const available = Math.min(total, constrained);
   const estimatedBytes = integer(Number(env.RS3_CALCULATOR_RESERVATION_BYTES ?? 2 * GiB), 'estimatedBytes');
-  const memoryBytes = integer(Number(env.RS3_CALCULATOR_MEMORY_BYTES
-    ?? Math.max(estimatedBytes, Math.floor(Math.min(available * 0.6, free - Math.min(2 * GiB, available * 0.25))))), 'memoryBytes');
+  const ceiling = Math.max(0, Math.floor(Math.min(available * 0.6, free - Math.min(2 * GiB, available * 0.25))));
+  const requested = env.RS3_CALCULATOR_MEMORY_BYTES;
+  const memoryBytes = Math.min(ceiling, requested === undefined ? ceiling : integer(Number(requested), 'memoryBytes'));
   return { memoryBytes, estimatedBytes,
     maxResident: integer(Number(env.RS3_MAX_RESIDENT_CALCULATORS ?? Math.max(1, Math.min(4, Math.floor(memoryBytes / estimatedBytes)))), 'maxResident'),
     activeMs: integer(Number(env.RS3_SESSION_ACTIVE_MS ?? 30 * 60000), 'activeMs'),
@@ -23,14 +24,16 @@ export function residencyDefaults({ total = totalmem(), free = freemem(), constr
 // Background completions never extend a session. No timer or save data is kept.
 export function createSessionResidency(options = {}, clock = { now: () => performance.now() }) {
   const config = { ...residencyDefaults(), ...options };
-  for (const key of ['memoryBytes', 'estimatedBytes', 'maxResident', 'activeMs', 'idleMs']) integer(config[key], key);
-  if (config.memoryBytes < config.estimatedBytes) throw new TypeError('memoryBytes must cover one calculator reservation.');
+  for (const key of ['estimatedBytes', 'maxResident', 'activeMs', 'idleMs']) integer(config[key], key);
+  if (!Number.isSafeInteger(config.memoryBytes) || config.memoryBytes < 0) throw new TypeError('memoryBytes must be a nonnegative integer.');
+  config.memoryBytes = Math.min(config.memoryBytes, residencyDefaults().memoryBytes);
+  config.enabled = config.memoryBytes >= config.estimatedBytes;
   const sessions = new Map();
   const session = id => {
     if (!sessions.has(id)) sessions.set(id, { at: clock.now(), lastAt: clock.now(), streams: 0 });
     return sessions.get(id);
   };
-  const remaining = entry => !entry ? 0 : entry.streams ? config.idleMs
+  const remaining = entry => !config.enabled || !entry ? 0 : entry.streams ? config.idleMs
     : Math.max(0, entry.at + config.activeMs + config.idleMs - clock.now());
   return { ...config,
     note(id) { const entry = session(id); entry.at = entry.lastAt = clock.now(); },
@@ -49,9 +52,12 @@ export function createSessionResidency(options = {}, clock = { now: () => perfor
     remaining(id) { return remaining(sessions.get(id)); },
     remainingAny() { return [...sessions.values()].reduce((maximum, entry) => Math.max(maximum, remaining(entry)), 0); },
     lastActive(id) { return sessions.get(id)?.lastAt ?? -Infinity; },
-    diagnostics() { return { activeMs: config.activeMs, idleMs: config.idleMs,
-      sessions: [...sessions.values()].filter(entry => remaining(entry) > 0).length,
-      streams: [...sessions.values()].reduce((sum, entry) => sum + entry.streams, 0) }; },
+    diagnostics(id) {
+      const entries = id === undefined ? [...sessions.values()] : [sessions.get(id)].filter(Boolean);
+      return { enabled: config.enabled, activeMs: config.activeMs, idleMs: config.idleMs,
+        sessions: entries.filter(entry => remaining(entry) > 0).length,
+        streams: entries.reduce((sum, entry) => sum + entry.streams, 0) };
+    },
     forget(id) { sessions.delete(id); },
     clear() { sessions.clear(); },
   };

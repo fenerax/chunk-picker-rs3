@@ -109,6 +109,13 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   };
   const admitStream = pickerLimits ? (key, response) => pickerLimits.stream({ accountId: key }, pickerId, response) : legacyAdmitStream;
   const taskWorker = sharedTaskWorker?.forPicker?.(pickerId) ?? sharedTaskWorker;
+  let lastPickerActivity = -Infinity, writableStreams = 0;
+  const hasRecentActivity = () => writableStreams > 0 || schedulingClock.now() - lastPickerActivity < 30 * 60000;
+  function notePickerActivity() {
+    lastPickerActivity = schedulingClock.now();
+    taskWorker?.noteActivity?.();
+    schedulePredictions();
+  }
   if (typeof usageAdmission !== 'function') throw new TypeError('A shared usage admission limiter is required.');
   const usageClock = now === undefined ? Date.now : () => typeof now === 'function' ? now() : now;
   // Verify the selected runtime before touching this picker's gameplay files.
@@ -207,7 +214,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       authenticateAdmin: (request, security) => invites.authenticate(request, security), checkRequestOrigin, serializeMutation,
       unauthenticated: key => limits.unauthenticated(key), admitStream });
     gamePlugin = await openGamePlugin({ pickerLimits, pickerId, dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
-      onActivity: () => taskWorker?.noteActivity?.(),
+      onActivity: notePickerActivity,
       serializeMutation, checkRequestOrigin, unauthenticated: key => limits.unauthenticated(key),
       indexKey: pickerRouting?.indexKey, removeKey: pickerRouting?.removeKey, authorizeKey: pickerRouting?.authenticateKey,
       // In-game lists read the saved task result only; they never start an evaluation.
@@ -622,6 +629,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     // prediction worker. Foreground loading wins even on slow state transfers.
     prewarmTimer = schedulingClock.setTimeout(() => { void trackJob(async () => {
       if (closed) return;
+      if (!hasRecentActivity()) return;
       const time = schedulingClock.now();
       if (foregroundActive || automaticDeathActive) { schedulePredictions(); return; }
       const pendingOffer = predictionPrewarm && store.getCalculationSnapshot().hasPendingRoll;
@@ -936,7 +944,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (privateAddon?.features.originalSync && route.startsWith('/api/original-sync/')) await privateAddon.verify();
       if (route.startsWith('/api/')) {
         requirePermission();
-        if (!identity.readOnly && ['/api/state', '/api/tasks', '/api/predict', '/api/command', '/api/session'].includes(route)) taskWorker?.noteActivity?.();
+        if (!identity.readOnly && ['/api/state', '/api/tasks', '/api/predict', '/api/command', '/api/session', '/api/prediction-intent', '/api/pool-ranking-intent'].includes(route)) notePickerActivity();
         // Stable invitation identity: opening new sessions or changing IP cannot reset it.
         const expensiveRead = ['GET', 'HEAD'].includes(request.method)
           && ['/api/task-why', '/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/task-how', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)
@@ -1398,7 +1406,11 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             response.write(`event: version\ndata: ${JSON.stringify({ version: appVersion })}\n\n`);
             if (taskWorker) response.write(`event: worker\ndata: ${JSON.stringify(taskWorker.getHealth())}\n\n`);
             const releaseSession = !identity.readOnly ? taskWorker?.openSession?.() : undefined;
-            response.once('close', () => releaseSession?.());
+            if (!identity.readOnly) { writableStreams++; notePickerActivity(); }
+            response.once('close', () => {
+              releaseSession?.();
+              if (!identity.readOnly) { writableStreams--; lastPickerActivity = schedulingClock.now(); }
+            });
             clients.add(response);
             clientCredentials.set(response, { request, security });
             const heartbeat = setInterval(() => { endInactiveClients(); if (clients.has(response)) writeEvent(response, ': keepalive\n\n'); }, 20000);

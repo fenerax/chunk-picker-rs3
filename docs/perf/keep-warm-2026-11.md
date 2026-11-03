@@ -72,22 +72,54 @@ matches the committed save; the existing eager refresh remains in place.
 | `RS3_CALCULATOR_MEMORY_BYTES` | Derived below |
 | `RS3_MAX_RESIDENT_CALCULATORS` | At most 4, reduced by memory |
 
-The memory budget is the smaller of 60% of effective total RAM and free RAM
-minus a reserve of min(2 GiB, 25% of total), with a one-calculator minimum.
-Effective total honors Node's constrained-memory observation. Each live slot
+The memory budget is the smaller of 60% of effective total RAM and available RAM
+minus a reserve of min(2 GiB, 25% of total), clamped to zero. There is no 2 GiB
+floor. Effective total honors Node's constrained-memory observation; available
+RAM also honors Node's available-memory observation. Environment and explicit
+budget overrides can lower this ceiling but cannot raise it. Each live slot
 reserves max(configured reservation, observed RSS). The final cap is also bounded
 by any existing `maxCalculators` setting and floor(budget/reservation). An 11 GiB
 host with 8.5 GiB free yields a 6.5 GiB budget and three resident slots. A 2 GiB
-host falls back to one slot. Several pickers share these slots, rather than
-allocating one calculator per picker. Diagnostics expose limits and eviction counts. The existing `RS3_WORKER_IDLE_MS`
+host with 1 GiB available yields a 0.5 GiB budget. Below one full reservation,
+keep-warm and all prepare-ahead are disabled: requested work uses at most one
+calculator, subject to the actual RSS ceiling and the original idle lifetime.
+An SSE lease cannot extend that lifetime. A zero budget refuses calculator
+startup without allocating a worker. Several pickers share these slots, rather
+than allocating one calculator per picker. Diagnostics expose limits, actual
+RSS, eviction and emergency counts. Session/stream counters are scoped to the
+authenticated picker; only the internal scheduler exposes global counters.
+The existing `RS3_WORKER_IDLE_MS`
 remains a fallback for session idle grace; `RS3_SESSION_IDLE_MS` takes precedence.
 Viewer expiry tests use a short session window and retain their sleep assertions.
 
-The RSS ceiling controls admission and eviction, not native allocation inside an
-already-requested synchronous calculation. Such work, including a served Preview's
-partner, is preserved; transient RSS growth can exceed reservations until a safe
-retirement point. Thread mode uses reservations where per-worker RSS is unavailable.
-A machine must still have enough memory to run one calculator and the server.
+The RSS ceiling is enforced against requested work too. Native residency uses
+owned process workers on every platform, including when thread mode would
+otherwise be selected. The pool samples Linux process RSS every 100 ms and at
+admission/completion; process-host RSS reports provide the Windows fallback
+without waiting for a synchronous calculator to answer. Starting and retiring
+processes remain charged until exit. Admission queues work while the charged
+memory exceeds the ceiling; it cannot start a replacement beside a retiring
+process. Unrequested production and advisory graphs are reclaimed before
+foreground. Advisory admission reserves foreground headroom and cannot evict
+foreground to start another advisory job. Interactive work can yield unsolicited
+producers across groups.
+
+An actual RSS breach permanently disables keep-warm and prepare-ahead for that
+pool's lifetime. Expendable work goes first; if that is insufficient, requested
+advisory jobs, then foreground jobs, are atomically cancelled and their process
+is force-killed. Affected request waiters receive retryable HTTP 503 errors;
+even an unfinished partner of a served Preview cannot bypass this emergency
+bound. Queued requested work keeps its admission order and deadlines. Ordinary
+yielding, sleep, cancellation grace and `served()` protection remain unchanged
+outside this emergency. A sampled RSS guard cannot prevent allocations between
+samples; the OS/server reserve absorbs that detection window. Service-manager
+limits remain appropriate as the final OS allocation limit.
+
+Prepare-ahead also requires recent authenticated writable activity or a current
+writable SSE stream for that picker. Saved offers at startup, viewers and
+diagnostic polling cannot establish this interest. The server checks before
+hydrating a preparation plan, and the pool checks again at dispatch. Small-host
+and emergency modes reject optional admission entirely.
 
 ## Measurement method
 
@@ -206,6 +238,23 @@ Keeping two calculators resident through active gaps spends roughly their summed
 
 ### Commands and checks
 
+Review-fix validation on Windows, with synthetic fixtures only, run one command
+at a time (no full suite):
+
+- Required seven-file regression command: 129 passed, 0 failed, 0 skipped
+  (36.883 s), including all of `prediction-cache.test.mjs`.
+- Calculator-pool consumers found with `git grep -l calculator-pool tests`, plus
+  scheduler, warmstart-scheduler, picker-fairness-isolation, process-worker and
+  process-worker-transport: 150 passed, 0 failed, 0 skipped (16.567 s). This run
+  also repeats session-residency, so the two counts overlap.
+- New regressions cover the 6.5 GiB foreground/advisory pressure case,
+  cross-group and compiling-producer preemption, growing requested RSS,
+  a served Preview partner, startup RSS, delayed exit/admission, small/zero
+  budgets, immediate force-kill, picker-private counters and inactive saved
+  offers. Game calculation implementations are unchanged.
+
+The following checks and performance commands describe the original candidate:
+
 The six touched/added test files are `session-residency.test.mjs`,
 `picker-context.test.mjs`, `plugin-reads.test.mjs`, `prediction-server.test.mjs`,
 `storage.test.mjs` and `viewer-permissions.test.mjs`. They cover leases, bounded
@@ -225,13 +274,15 @@ node scripts/experiments/q2-diff-engine/supervise.mjs --reference-ref a9e2cd27b7
 npm run test:quick
 ```
 
-Remaining cold paths: a first advisory calculator after restart/true expiry, memory or response-cache eviction, a newly requested unoffered hypothetical input, and opening before preparation completes. In-flight requested work can temporarily exceed its RSS reservation. A real elapsed idle soak and an OVH run remain useful follow-ups.
+Remaining cold paths: a first advisory calculator after restart/true expiry, memory or response-cache eviction, a newly requested unoffered hypothetical input, and opening before preparation completes. The review fixes enforce an RSS breach by emergency cancellation rather than allowing requested work to grow until completion. A real elapsed idle soak and an OVH run remain useful follow-ups.
 
 
 ## Limits
 
-No engine, worker protocol, game rules, data files, browser code, changelog or
-roadmap changes. Private HTTP/plugin and normal-store footprint checks were skipped: those
+The review fixes add process RSS telemetry and forced retirement; they do not
+change engine results, game rules, data files, browser code, changelog or roadmap.
+The performance measurements above describe the original candidate and have not
+been rerun for these safety fixes. Private HTTP/plugin and normal-store footprint checks were skipped: those
 checks create credentials and are prohibited for these inputs. Calculator-only memory/session
 measurements replace that private check. Physical hard limits should still be
 provided by the service manager. Real elapsed 30-minute soak and OVH deployment

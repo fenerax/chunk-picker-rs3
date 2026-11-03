@@ -7,24 +7,35 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
   sessions, clock = { now: () => performance.now(), setTimeout, clearTimeout }, memoryUsage = worker => {
     if (!worker.pid) return 0;
     try { return Number(/^VmRSS:\s+(\d+)/m.exec(readFileSync(`/proc/${worker.pid}/status`, 'utf8'))?.[1] ?? 0) * 1024; }
-    catch { return 0; }
+    catch { return worker.rssBytes ?? 0; }
   } }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false, evictions = 0, activityObserved = false;
+  let memoryTrips = 0, optimizationsSuspended = false;
+  const keepWarm = () => sessions?.enabled && !optimizationsSuspended;
   const bootAt = clock.now();
   const remainingSession = () => sessions?.remainingAny() ?? 0;
   const idleRemaining = slot => sessions
-    ? activityObserved ? remainingSession() : idleMs - (clock.now() - bootAt)
+    ? keepWarm() && activityObserved ? remainingSession() : idleMs - (clock.now() - bootAt)
     : idleMs - (clock.now() - slot.idleAt);
   const activity = slot => sessions?.lastActive(slot.pickerId) ?? -Infinity;
-  const reservation = slot => sessions ? Math.max(sessions.estimatedBytes, memoryUsage(slot.worker)) : 0;
+  const rss = slot => Math.max(0, memoryUsage(slot.worker) || 0);
+  const estimate = () => Math.min(sessions.estimatedBytes, sessions.memoryBytes);
+  const reservation = slot => sessions ? Math.max(estimate(), rss(slot)) : 0;
   const reserved = () => [...slots].reduce((sum, slot) => sum + reservation(slot), 0);
-  const diagnostics = () => ({ limit, resident: slots.size, peak, active: [...slots].filter(slot => slot.owner).length,
-    retiring: [...slots].filter(slot => slot.stopping).length, waiting: waiting.size, ...(sessions ? { memoryBytes: sessions.memoryBytes, reservedBytes: reserved(), evictions, residency: sessions.diagnostics() } : {}) });
+  const diagnostics = pickerId => ({ limit, resident: slots.size, peak, active: [...slots].filter(slot => slot.owner).length,
+    retiring: [...slots].filter(slot => slot.stopping).length, waiting: waiting.size, ...(sessions ? { memoryBytes: sessions.memoryBytes,
+      rssBytes: [...slots].reduce((sum, slot) => sum + rss(slot), 0), reservedBytes: reserved(), evictions, memoryTrips,
+      optimizationsSuspended, residency: sessions.diagnostics(pickerId) } : {}) });
+  // Unrequested producers and advisory graphs go before the foreground graph,
+  // regardless of which picker's activity last touched them.
+  const priority = slot => slot.owner?.isBackground?.() ? 0 : slot.group === 'advisory' ? slot.owner ? 2 : 1
+    : slot.owner ? 4 : 3;
+  const evictionOrder = values => values.sort((a, b) => priority(a) - priority(b) || (activity(a) - activity(b)) || a.idleAt - b.idleAt);
   function retire(slot) {
     if (slot.stopping) return slot.stopping;
     clock.clearTimeout(slot.timer); clearTimeout(slot.startupTimer);
-    slot.stopping = Promise.resolve().then(() => slot.worker.terminate()).then(() => {
+    slot.stopping = Promise.resolve().then(() => slot.worker.terminate({ force: !!slot.forceStop })).then(() => {
       slots.delete(slot); pump();
     }, () => { /* An unproven exit still occupies the hard cap. */ });
     return slot.stopping;
@@ -55,6 +66,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       void retire(slot);
       if (owner && !owner.stopped) owner.emit('error', error);
     }
+    slot.fail = fail;
     slot.startupTimer = setTimeout(() => fail(new Error('Calculator startup deadline exceeded.')), startupDeadlineMs);
     slot.worker.on('error', fail);
     slot.worker.on('exit', () => {
@@ -85,12 +97,13 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     if (closed || pumping) return;
     pumping = true;
     try {
+      enforceMemory();
       while (waiting.size) {
         const candidates = [];
         for (const [endpoint, request] of waiting) {
           const next = request.peek();
           if (endpoint.stopped || !next) waiting.delete(endpoint);
-          else candidates.push({ endpoint, request, ...next });
+          else if (next.interactive || canPrewarm(next.pickerId)) candidates.push({ endpoint, request, ...next });
         }
         if (!candidates.length) break;
         const interactive = candidates.some(value => value.interactive);
@@ -102,7 +115,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         const usable = (slot, endpoint) => limit === 1 || slot.group === endpoint.group;
         // Advisory lanes share at most limit - 1 slots, including retiring
         // slots. Foreground can then wake even after its idle worker exits.
-        const canAllocate = endpoint => slots.size < limit && (!sessions || reserved() + sessions.estimatedBytes <= sessions.memoryBytes)
+        const canAllocate = endpoint => slots.size < limit && (!sessions || sessions.memoryBytes > 0
+          && reserved() + estimate() + (limit > 1 && endpoint.group === 'advisory'
+            && ![...slots].some(slot => slot.group === 'foreground') ? estimate() : 0) <= sessions.memoryBytes)
           && (limit === 1 || endpoint.group === 'foreground'
             || [...slots].filter(value => value.group === 'advisory').length < limit - 1)
           && ![...slots].some(value => !value.ready && !value.stopping && usable(value, endpoint));
@@ -111,6 +126,8 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         // picker's interactive request on an already-ready calculator.
         const selected = ordered.find(value => idleSlots.some(slot => usable(slot, value.endpoint)))
           ?? ordered.find(value => canAllocate(value.endpoint)) ?? ordered[0];
+        // Retiring processes still own their RSS and reservation until exit.
+        if (sessions && (sessions.memoryBytes === 0 || reserved() > sessions.memoryBytes)) break;
         const slot = idleSlots.find(value => usable(value, selected.endpoint));
         if (!slot) {
           const starting = [...slots].some(value => !value.ready && !value.stopping && usable(value, selected.endpoint));
@@ -119,16 +136,20 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
             try { allocate(endpoint); } catch (error) {
               waiting.delete(endpoint); queueMicrotask(() => { if (!endpoint.stopped) endpoint.emit('error', error); });
             }
-          } else if (interactive && sessions && !starting && idleSlots.length && ![...slots].some(value => value.stopping)
+          } else if (interactive && sessions && !starting && idleSlots.some(slot => slot.group === 'advisory') && ![...slots].some(value => value.stopping)
             && (selected.endpoint.group === 'foreground' || limit === 1 || [...slots].filter(value => value.group === 'advisory').length < limit - 1)) {
             // Another group's idle graph can make room; do not exceed either
             // cap while its process is still terminating.
-            const oldest = idleSlots.sort((a, b) => (activity(a) - activity(b)) || a.idleAt - b.idleAt)[0];
+            const oldest = evictionOrder(idleSlots.filter(slot => slot.group === 'advisory'))[0];
             evictions++; void retire(oldest);
           } else if (interactive && !starting && ![...slots].some(value => value.stopping && usable(value, selected.endpoint))) {
-            // Keep foreground free of advisory graphs. An unrequested producer
-            // in the requested group yields instead of occupying its slot.
-            for (const value of slots) if (usable(value, selected.endpoint) && value.owner?.yieldToInteractive?.()) break;
+            // Memory and physical slots are shared across groups. A foreground
+            // request must be able to displace unsolicited advisory production.
+            for (const value of evictionOrder([...slots])) if (!value.stopping) {
+              if (!value.ready && value.group === 'advisory' && selected.endpoint.group === 'foreground'
+                && value.pendingOwner?.yieldWhileStarting?.()) break;
+              if (value.owner?.yieldToInteractive?.()) break;
+            }
           }
           break;
         }
@@ -151,8 +172,8 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }
     get snapshotHints() { return this.slot?.snapshots; }
-    schedule(peek, run, yieldToInteractive) {
-      this.yieldToInteractive = yieldToInteractive; waiting.set(this, { peek, run }); pump();
+    schedule(peek, run, yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting) {
+      Object.assign(this, { yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting }); waiting.set(this, { peek, run }); pump();
     }
     postMessage(message) {
       if (this.stopped) throw new Error('Calculator lane has stopped.');
@@ -178,26 +199,54 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     }
     unref() { return this; }
   }
+  function canPrewarm(pickerId) {
+    return !sessions || keepWarm() && sessions.remaining(pickerId) > 0 && reserved() <= sessions.memoryBytes;
+  }
   function enforceMemory() {
     if (closed || !sessions) return;
+    const live = [...slots].filter(slot => !slot.stopping);
+    const actual = live.reduce((sum, slot) => sum + rss(slot), 0);
+    const totalActual = [...slots].reduce((sum, slot) => sum + rss(slot), 0);
+    if (totalActual > sessions.memoryBytes && !optimizationsSuspended) {
+      // Fail closed for optional work for the remainder of this pool's life.
+      // Requested jobs may also be interrupted below: reservations are not a
+      // licence for a synchronous calculator to grow without a bound.
+      optimizationsSuspended = true; memoryTrips++;
+      for (const slot of live) if (slot.ready && !slot.owner) idle(slot);
+    }
+    if (totalActual > sessions.memoryBytes) for (const slot of slots) if (slot.stopping && !slot.forceStop) {
+      slot.forceStop = true;
+      void Promise.resolve(slot.worker.terminate({ force: true })).catch(() => {});
+    }
     // Already-retiring workers still count against admission, but their pending
     // exit must not cause another idle graph to be evicted on every sample.
     let bytes = [...slots].filter(slot => !slot.stopping).reduce((sum, slot) => sum + reservation(slot), 0);
-    const oldest = [...slots].filter(slot => !slot.stopping)
-      .sort((a, b) => (activity(a) - activity(b)) || a.idleAt - b.idleAt);
+    let actualRemaining = actual;
+    const oldest = evictionOrder(live);
     for (const slot of oldest) {
       if (bytes <= sessions.memoryBytes) break;
-      if (!slot.owner && slot.ready) { bytes -= reservation(slot); evictions++; void retire(slot); }
-      else if (slot.owner?.yieldToInteractive?.()) { bytes -= reservation(slot); evictions++; }
+      let stopped = false;
+      if (!slot.owner && slot.ready) { slot.forceStop = actual > sessions.memoryBytes; void retire(slot); stopped = true; }
+      else if (!slot.ready && actualRemaining > sessions.memoryBytes) {
+        slot.forceStop = true; slot.fail(new Error('Calculator startup exceeded its memory budget.')); stopped = true;
+      }
+      else if (slot.owner?.isBackground?.() || actualRemaining > sessions.memoryBytes) {
+        // Only an RSS emergency overrides served()/request waiters. The lane
+        // settles its callers and atomically cancels before forced retirement.
+        slot.forceStop = actual > sessions.memoryBytes;
+        stopped = actualRemaining > sessions.memoryBytes ? slot.owner?.memoryPressure?.() ?? false
+          : slot.owner?.yieldToInteractive?.() ?? false;
+      }
+      if (stopped) { bytes -= reservation(slot); actualRemaining -= rss(slot); evictions++; }
     }
   }
   const memoryTimer = sessions ? clock.setTimeout(function check() {
-    enforceMemory();
-    if (!closed) { maintenance = clock.setTimeout(check, 1000); maintenance?.unref?.(); }
-  }, 1000) : undefined;
+    pump();
+    if (!closed) { maintenance = clock.setTimeout(check, 100); maintenance?.unref?.(); }
+  }, 100) : undefined;
   let maintenance = memoryTimer;
   maintenance?.unref?.();
-  return { createEndpoint: includeReadyCatalogue => new Endpoint(includeReadyCatalogue), diagnostics,
+  return { createEndpoint: includeReadyCatalogue => new Endpoint(includeReadyCatalogue), diagnostics, canPrewarm, keepWarm,
     sessionChanged(pickerId) {
       if (closed) return;
       if (sessions && pickerId) activityObserved = true;

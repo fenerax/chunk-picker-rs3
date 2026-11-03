@@ -23,7 +23,7 @@ const pickerKey = (pickerId, key) => JSON.stringify([pickerId, key]);
 // bound facade; all lanes and their admission/memory limits remain shared.
 const pickerArguments = { peekPrediction: 4, cancelRankingPrewarm: 1, preparedEvaluation: 3, prepareRules: 2,
   evaluate: 12, supersede: 3, supersedeDisplay: 2, setRevision: 2, prewarm: 4, prewarmTasks: 4,
-  cancelPrewarm: 1, retireWarmPrediction: 0, noteActivity: 0, openSession: 0 };
+  cancelPrewarm: 1, retireWarmPrediction: 0, noteActivity: 0, openSession: 0, getDiagnostics: 0 };
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
 const queueFull = () => Object.assign(new Error('Task calculation budget is full. Wait for pending tasks and retry.'), { status: 429, retryAfter: 1 });
 const positive = (value, name, minimum = 1) => {
@@ -116,17 +116,21 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   }
   const sessions = residency ? createSessionResidency(residency, options.idleClock) : undefined;
   options.sessions = sessions;
+  if (sessions?.memoryBytes === 0) throw unavailable('Insufficient memory for a task calculator.');
   if (sessions) options.idleMs ??= Number(process.env.RS3_WORKER_IDLE_MS ?? sessions.idleMs);
-  if (sessions) maxCalculators = Math.min(maxCalculators ?? sessions.maxResident, sessions.maxResident, Math.floor(sessions.memoryBytes / sessions.estimatedBytes));
+  if (sessions) maxCalculators = Math.min(maxCalculators ?? sessions.maxResident, sessions.maxResident, Math.max(1, Math.floor(sessions.memoryBytes / sessions.estimatedBytes)));
   options.workerPreparation = createWorkerPreparation(options.workerData);
   if (maxCalculators !== undefined) {
     positive(maxCalculators, 'maxCalculators');
-    const factory = options.workerFactory ?? nativeWorker;
+    // RSS accounting and emergency retirement need an owned process. Thread
+    // RSS belongs to the server and cannot be bounded per physical calculator.
+    const factory = options.workerFactory ?? (sessions ? data => new ProcessWorker(data, { trackRss: true }) : nativeWorker);
+    const native = !options.workerFactory;
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
-      workerData: (includeCatalogue, group) => factory === nativeWorker
+      workerData: (includeCatalogue, group) => native
         ? nativeWorkerInput(group === 'foreground' ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
       sessions, clock: options.idleClock, memoryUsage: options.calculatorMemoryUsage,
-      onReady: factory === nativeWorker ? message => options.workerPreparation.accept(message) : undefined,
+      onReady: native ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
   }
   let foreground;
@@ -435,7 +439,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     prewarm(state, input, groups, { signal } = {}, pickerId = 'legacy-shared') {
       pickerId = pickerJobId(pickerId);
       const picker = pickerState(pickerId);
-      if (closed || picker.closed || signal?.aborted || state.revision < picker.latestRevision) return { queued: 0 };
+      if (closed || picker.closed || signal?.aborted || state.revision < picker.latestRevision
+        || options.calculatorPool?.canPrewarm(pickerId) === false) return { queued: 0 };
       scheduler.supersede(state.revision, input, undefined, pickerId);
       // Ranking deltas may displace a reviewed choice's response from the LRU.
       // Its complete prepared bytes still satisfy automatic preparation, so a
@@ -455,7 +460,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     prewarmTasks(state, input, memberIds, { resultView = 'full', stateInput, prediction: usePrediction = false } = {}, pickerId = 'legacy-shared') {
       pickerId = pickerJobId(pickerId);
       const picker = pickerState(pickerId);
-      if (closed || picker.closed || state.revision < picker.latestRevision) return { queued: 0 };
+      if (closed || picker.closed || state.revision < picker.latestRevision
+        || options.calculatorPool?.canPrewarm(pickerId) === false) return { queued: 0 };
       if (!['full', 'play-v1'].includes(resultView)) throw new TypeError('Unknown task result view.');
       if (!Array.isArray(memberIds) || memberIds.some(id => !state.members?.some(member => member.id === id))) throw new TypeError('Choose known players to prepare tasks.');
       if (stateInput && !validStateInput(state, input, stateInput, 'evaluate')) throw new TypeError('Invalid serialized task state input.');
@@ -490,7 +496,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (restarted.length) clearUnlockResults();
       return { restarted, worker: scheduler.getHealth() };
     },
-    getDiagnostics: () => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics() } : {}), unlockReuse: pickerState('legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
+    getDiagnostics: pickerId => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics(pickerId) } : {}), unlockReuse: pickerState(pickerId ?? 'legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDeathQueue, deadlineMs: deathDeadlineMs },
     }, duoLane: duo?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDuoQueue, deadlineMs: duoDeadlineMs },
@@ -573,7 +579,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   const timings = {};
   let lastTimingMs = {};
   const residentPickers = new Set();
-  const sessionRemaining = () => [...residentPickers].reduce((maximum, id) => Math.max(maximum, sessions?.remaining(id) ?? 0), 0);
+  const sessionRemaining = () => calculatorPool?.keepWarm() === false ? 0
+    : [...residentPickers].reduce((maximum, id) => Math.max(maximum, sessions?.remaining(id) ?? 0), 0);
   let sleepTimer, lastRequestAt = idleClock.now(), idleStops = 0;
   let lastProgressAt = idleClock.now(), manualRestart;
   let initialAborted = false, cancelledGrace;
@@ -694,11 +701,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     }
     settle(entry, error);
   }
-  function retire() {
+  function retire(error = superseded()) {
     clearCancelledGrace();
     if (active) {
       deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
-      cancel(active, superseded()); active = undefined;
+      cancel(active, error); active = undefined;
     }
     clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
@@ -756,7 +763,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         // They contain only bounded metadata, never another retained state body.
         sentSnapshots = worker.snapshotHints;
         dispatch(fairness ? fairTake() : queue.shift() ?? warmQueue.shift());
-      }, () => scheduler.yieldForInteractive());
+      }, () => scheduler.yieldForInteractive(), () => scheduler.isBackground(), () => scheduler.stopForMemory(), () => scheduler.yieldWhileStarting());
       return;
     }
     if (fairness && (queue.length || warmQueue.length)) { dispatch(fairTake()); return; }
@@ -932,6 +939,19 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     });
   }
   const scheduler = {
+    yieldWhileStarting() {
+      if (closed || active || queue.length) return false;
+      scheduler.cancelPrewarm();
+      return retire();
+    },
+    isBackground() {
+      return !!active && !active.waiters.size && !served(active) && !active.reuseWaiters?.size;
+    },
+    stopForMemory() {
+      if (closed || !active) return false;
+      scheduler.cancelPrewarm();
+      return retire(unavailable('Task calculator exceeded its memory budget. Retry shortly.'));
+    },
     yieldForInteractive() {
       if (closed || status !== 'ready' || !active || !(active.warm || active.discarded)
         || active.waiters.size || served(active) || active.reuseWaiters?.size) return false;
