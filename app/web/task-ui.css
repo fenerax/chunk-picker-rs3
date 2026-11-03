@@ -47,7 +47,7 @@
 .task-why-loading{margin:0;font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
 @media(max-width:500px){.task-hover{padding:var(--space-5);font-size:var(--type-sm)}.task-hover-content{gap:var(--space-3)}.task-equipment-stats{gap:var(--space-2) var(--space-5)}.task-method-details{padding:var(--space-3)}.task-method-choice{min-height:44px}}
 
-.task-row:has(>.task-completion-status){grid-template-columns:auto minmax(0,1fr) auto auto}
+.task-row:has(>.task-completion-status){--task-status-width:auto;grid-template-columns:auto minmax(0,1fr) auto auto}
 .task-completion-status{white-space:nowrap;font-size:var(--type-sm);color:var(--muted);align-self:start;padding-block:var(--space-3)}
 
 /* How uses the existing lazy explanation panel and type scale. */
@@ -55,11 +55,44 @@
 .task-how-steps{margin:0;padding-left:1.5em;overflow-wrap:anywhere}
 .task-how-steps li+li{margin-top:var(--space-2)}
 
-.task-row:has(>.task-how){grid-template-columns:18px minmax(0,1fr) auto auto auto auto}
+/* A read-only status needs its text width, even when How adds another track. */
+.task-row:has(>.task-how){grid-template-columns:var(--task-status-width,18px) minmax(0,1fr) auto auto auto auto}
 
-.duo-task-row:has(>.task-how){grid-template-columns:18px minmax(0,1fr) auto auto auto}
-@media(max-width:720px),(max-width:980px) and (max-height:500px) and (pointer:coarse){
-  :root .task-row:has(>.task-how){grid-template-columns:44px minmax(0,1fr) auto auto auto auto}
-  :root .duo-task-row:has(>.task-how){grid-template-columns:44px minmax(0,1fr) auto auto auto}
+.duo-task-row:has(>.task-how){grid-template-columns:var(--task-status-width,18px) minmax(0,1fr) auto auto auto}
+
+/* The sidebar can be thin on a wide screen. Its block-sized lists keep their
+   parent's definite width; inline containment must not size the sidebar. */
+.task-list{container:task-list / inline-size;inline-size:100%;box-sizing:border-box;min-inline-size:0}
+@container task-list (max-width:360px){
+  /* The body spans every action track. Revealing an action cannot squeeze it. */
+  :root .task-list .task-row{--task-body-row:1;--task-actions-row:2;position:relative;grid-template-columns:var(--task-check-width,18px) minmax(0,1fr) auto auto auto;gap:var(--space-2) var(--space-4)}
+  .task-row>input[type=checkbox]{grid-column:1;grid-row:1}
+  .task-row>.task-body{grid-column:2 / -1;grid-row:var(--task-body-row)}
+  :root .task-list .task-row:has(>.task-completion-status){--task-status-width:var(--task-check-width,18px);--task-body-row:2;--task-actions-row:3}
+  .task-row>.task-completion-status{grid-column:2 / -1;grid-row:1;padding-block:0}
+  .task-label-button{overflow-wrap:break-word;word-break:normal}
+  .task-claim-line{display:flex;margin-inline-end:0}
+  /* The body now has the full row width, so a long partner name wraps between words. */
+  .task-claim-action{white-space:normal;overflow-wrap:break-word;text-align:left;max-width:100%}
+  .task-row>.task-how{grid-column:2;grid-row:var(--task-actions-row);justify-self:start;padding-inline:0;text-align:left}
+  .task-row>.icon-button{grid-column:3;grid-row:var(--task-actions-row);margin:0}
+  .task-row>.task-backlog{grid-column:4}
+  .task-row>a.icon-button{grid-column:5;margin:0}
+  /* Why keeps track 3; the duo Backlog button starts after it so neither covers the other. */
+  .task-row>.duo-task-backlog{grid-column:4 / -1;grid-row:var(--task-actions-row);justify-self:start;white-space:nowrap}
+  .task-row>.task-why-panel,.task-row>.backlog-form,.task-row>.duo-task-chooser{grid-column:2 / -1;grid-row:auto;min-width:0}
+  /* Keep the action line even when all its icons are temporarily out of flow. */
+  .task-row:has(>.icon-button:not([hidden]))::after{content:"";grid-column:2;grid-row:var(--task-actions-row);min-height:var(--task-action-height,26px);pointer-events:none}
+  @media(hover:hover) and (min-width:721px) and (pointer:fine){
+    /* Match the opacity rules: phone widths and coarse pointers show icons.
+       Stay in the tab order, but take no track width while transparent.
+       Focus-within reveals the row before the focused action is painted. */
+    .task-row:not(:hover):not(:focus-within)>.icon-button:not(.task-backlog):not([aria-expanded=true]){position:absolute;inset-inline-end:0;inset-block-start:0;pointer-events:none}
+  }
+}
+@media(max-width:720px),(pointer:coarse){
+  .task-list{--task-check-width:44px;--task-action-height:44px}
+  :root .task-row:has(>.task-how){grid-template-columns:var(--task-status-width,44px) minmax(0,1fr) auto auto auto auto}
+  :root .duo-task-row:has(>.task-how){grid-template-columns:var(--task-status-width,44px) minmax(0,1fr) auto auto auto}
   .task-how{min-height:44px}
 }
