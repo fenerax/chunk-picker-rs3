@@ -106,6 +106,9 @@ try {
           if (variant === 'before') await page.send('Fetch.enable', { patterns: [...baselineFiles.keys()].map(file => ({ urlPattern: `*${file}` })) });
           await page.send('Page.navigate', { url: app.inviteUrl });
           await ready(page, "document.querySelector('#save-status')?.textContent === 'Saved'");
+          // Backup polling is independent of state hydration. Wait for its
+          // status to settle, then keep the visibility assertion below.
+          await ready(page, "document.querySelector('#backup-status-menu')?.textContent && document.querySelector('#backup-status-menu').textContent !== 'Last backup: checking…'");
           check(row, 'fresh backup warning present', await page.evaluate("document.querySelector('#backup-status-notice').checkVisibility()"));
           if (!notice) await page.evaluate("document.querySelector('#backup-status-notice').hidden = true");
           await settle(page);
@@ -172,7 +175,7 @@ try {
       }
     } finally { await page.close(); }
   }
-} finally { await app?.close(); await rm(directory, { recursive: true, force: true }); }
+} finally { await app?.close(); await rm(directory, { recursive: true, force: true, maxRetries: 5 }); }
 const result = { node: process.version, baseline, rows, failures };
 if (option('output')) await writeFile(option('output'), JSON.stringify(result, null, 2) + '\n');
 console.log(JSON.stringify({ cases: rows.length, checks: rows.reduce((n, r) => n + r.checks, 0), failures: failures.length, candidateFailures: failures.filter(f => f.variant === 'after').length }));
