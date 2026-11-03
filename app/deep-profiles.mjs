@@ -7,7 +7,10 @@ import path from 'node:path';
 export const PROFILE_FAILURE_CAP = 1;
 export const PROFILE_CAPS = Object.freeze({ count: 12, totalBytes: 128 * 1024 * 1024, fileBytes: 32 * 1024 * 1024 });
 const validName = name => /^profile-\d+-\d+-(picker|calculator|relay)\.cpuprofile$/.test(name);
-export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink } } = {}) {
+// enabled=false (the server default) keeps CPU sampling off entirely: no worker is
+// attached and start() is refused. Sampling slows calculations while it runs, so an
+// operator must opt in with RS3_DEEP_PROFILES=1 before an admin can start a capture.
+export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink }, enabled = true } = {}) {
   const directory = path.join(dataDir, 'cpu-profiles');
   const workers = new Set(), online = new WeakMap(), nativeProfiles = new WeakMap();
   let current, closing = false, sequence = 0, failures = 0, retirements = 0, stopping;
@@ -86,7 +89,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
   }
   const api = {
     attach(worker) {
-      if (!worker?.on || closing || workers.has(worker)) return;
+      if (!enabled || !worker?.on || closing || workers.has(worker)) return;
       workers.add(worker);
       if (worker instanceof Worker) {
         const ready = new Promise((resolve, reject) => {
@@ -104,7 +107,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       });
       if (current) void startWorker(current, worker);
     },
-    status() { return { active: !!current, starting: !!current?.starting, deadline: current?.deadline ?? null, stopping: !!stopping, failures, retirements }; },
+    status() { return { enabled, active: !!current, starting: !!current?.starting, deadline: current?.deadline ?? null, stopping: !!stopping, failures, retirements }; },
     async list() { return (await files()).filter(entry => validName(entry.name)); },
     async download(name) {
       if (!validName(name)) throw Object.assign(new Error('Profile not found.'), { status: 404 });
@@ -114,6 +117,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       catch (error) { if (error.code === 'ENOENT') throw Object.assign(new Error('Profile not found.'), { status: 404 }); throw error; }
     },
     async start(seconds = 180) {
+      if (!enabled) throw Object.assign(new Error('CPU profiling is off on this server.'), { status: 403 });
       if (!Number.isFinite(seconds) || seconds < 0.01 || seconds > 600) throw Object.assign(new Error('Use a duration up to 600 seconds.'), { status: 400 });
       if (current || stopping || closing) throw Object.assign(new Error('A profile is already running or stopping.'), { status: 409 });
       // Reserve ownership synchronously, including admission and lazy imports.

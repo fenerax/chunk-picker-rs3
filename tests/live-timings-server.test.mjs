@@ -24,7 +24,7 @@ test('synthetic server records actions, flags, private bytes, admin permissions 
   const initialState = createGroupState([{ id: 'timing-private-id', name: 'Timing private name', unlocked: [ids[0]] }, { id: 'partner', name: 'Partner', unlocked: [ids[2]] }]);
   initialState.rules['roll.neighborMode'] = createRuleRegistry().get('roll.neighborMode').options.find(v => v === 'frontier' || v === 'geometric');
   initialState.rules['access.shared'] = false; initialState.rules['content.f2p'] = false;
-  const options = { dataDir, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState, port: 0, predictionPrewarm: false,
+  const options = { dataDir, deepProfiles: true, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState, port: 0, predictionPrewarm: false,
     taskWorkerOptions: { workerFactory(data) { const worker = new ProcessWorker(data), post = worker.postMessage.bind(worker); worker.postMessage = message => { if (message.type === 'evaluate') setTimeout(() => post(message), 50); else post(message); }; return worker; } } };
   app = await createServer(options); await app.listen();
   let origin = `http://127.0.0.1:${app.address().port}`;
@@ -55,8 +55,10 @@ test('synthetic server records actions, flags, private bytes, admin permissions 
     await request('/api/admin/cpu-profiles', { action: 'start' }, headers, 403);
   }
   const { key } = await request('/api/game-plugin/keys', { memberId: member, label: 'Timing test' }, admin, 201);
-  await request('/api/admin/live-timings', undefined, { Authorization: `Bearer ${key}` }, 403);
-  await request('/admin/live-timings', undefined, { Authorization: `Bearer ${key}` }, 403);
+  // Plugin keys only work on plugin routes; here they count as no credential.
+  await request('/api/admin/live-timings', undefined, { Authorization: `Bearer ${key}` }, 401);
+  await request('/admin/live-timings', undefined, { Authorization: `Bearer ${key}` }, 401);
+  for (const junk of [{ cookie: 'session=not-a-session' }, { Authorization: 'Bearer not-a-token' }]) await request('/api/admin/live-timings', undefined, junk, 401);
   assert.match(await request('/admin/live-timings'), /Live timings/);
   let summary = await request('/api/admin/live-timings'), rows = summary.windows['24h'];
   for (const action of ['tasks-full', 'tasks-play', 'preview-first', 'preview-partner', 'how', 'why', 'roll-pool', 'pool-ranking', 'chunk-planning', 'sandbox', 'command', 'state-full', 'state-play', 'worker-start']) assert.ok(rows.find(r => r.action === action).count > 0, action);
@@ -91,7 +93,7 @@ test('multi-picker users and invite viewers cannot inspect or control process-wi
   const users = [];
   for (const { account, picker } of accounts) users.push({ cookie: `duo_access=${await invites.issuePickerSession(account.id, picker.id, 'discord')}` });
   await invites.close(); invites = undefined; await registry.close(); registry = undefined;
-  app = await createServer({ dataDir, multiPicker, dataset: await emptyMetadataDataset(), definitions, taskMap: {},
+  app = await createServer({ dataDir, deepProfiles: true, multiPicker, dataset: await emptyMetadataDataset(), definitions, taskMap: {},
     initialState: createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }, { id: 'synthetic-partner', name: 'Synthetic partner' }]), port: 0, predictionPrewarm: false });
   await app.listen();
   const origin = new URL(app.inviteUrl).origin, admin = { Authorization: `Bearer ${app.store.getAccessToken()}` };
@@ -134,7 +136,7 @@ test('multi-picker users and invite viewers cannot inspect or control process-wi
 test('viewer diagnostics, health and worker events omit profiling counters and reasons', { timeout: 15000 }, async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'timing-viewer-')), workers = [];
   const initialState = createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }]);
-  const app = await createServer({ dataDir, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState,
+  const app = await createServer({ dataDir, deepProfiles: true, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState,
     port: 0, predictionPrewarm: false, taskWorkerOptions: { maxRestarts: 0, workerFactory() {
       const worker = new EventEmitter(); worker.messages = []; worker.postMessage = message => worker.messages.push(message);
       worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
@@ -168,4 +170,29 @@ test('viewer diagnostics, health and worker events omit profiling counters and r
   for (const route of ['/api/diagnostics', '/api/health']) assert.ok(!/profil/i.test(JSON.stringify(await request(route, viewer))));
   const summary = await request('/api/admin/live-timings'); assert.ok(summary.profile.failures > 0);
   assert.equal(summary.profile.retirements, 1);
+});
+
+test('CPU profiling is off unless the operator turns it on, and never attaches to calculators', { timeout: 15000 }, async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'timing-off-')), workers = [];
+  const initialState = createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }]);
+  const app = await createServer({ dataDir, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState,
+    port: 0, predictionPrewarm: false, taskWorkerOptions: { workerFactory() {
+      const worker = new EventEmitter(); worker.postMessage = message => {
+        if (message.id !== undefined) queueMicrotask(() => worker.emit('message', { id: message.id, result: { tasks: [], metrics: { availableCount: 0 } } }));
+      };
+      worker.terminate = async () => { worker.emit('exit', 0); };
+      worker.startCpuProfile = async () => { worker.profiled = true; };
+      workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
+    } } });
+  t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
+  await app.listen();
+  const origin = new URL(app.inviteUrl).origin, admin = { Authorization: `Bearer ${app.store.getAccessToken()}` };
+  const start = await fetch(origin + '/api/admin/cpu-profiles', { method: 'POST',
+    headers: { ...admin, Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start', seconds: 60 }) });
+  assert.equal(start.status, 403); await start.arrayBuffer();
+  const tasks = await fetch(origin + `/api/tasks?memberId=${initialState.members[0].id}`, { headers: admin });
+  assert.equal(tasks.status, 200); await tasks.arrayBuffer();
+  const summary = await (await fetch(origin + '/api/admin/live-timings', { headers: admin })).json();
+  assert.equal(summary.profile.enabled, false); assert.equal(summary.profile.active, false);
+  assert.ok(workers.length > 0); assert.ok(workers.every(worker => !worker.profiled));
 });

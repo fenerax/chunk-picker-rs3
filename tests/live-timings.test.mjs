@@ -180,7 +180,7 @@ test('a calculator crash during capture releases handles and leaves no partial f
   profiles.attach(worker); await profiles.start(60);
   const exited = new Promise(resolve => worker.once('exit', resolve)); process.kill(worker.pid, 'SIGKILL'); await exited;
   assert.ok(profiles.status().failures > 0); await profiles.stop();
-  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 1, retirements: 0 });
+  assert.deepEqual(profiles.status(), { enabled: true, active: false, starting: false, deadline: null, stopping: false, failures: 1, retirements: 0 });
   const files = await profiles.list(); assert.equal(files.length, 1); assert.match(files[0].name, /-picker\.cpuprofile$/);
   assert.deepEqual((await readdir(path.join(dir, 'cpu-profiles'))).sort(), files.map(file => file.name).sort());
   await profiles.start(60); await profiles.close();
@@ -273,7 +273,7 @@ test('stop cancels capture admission before any picker or calculator profiler st
   await assert.rejects(profiles.start(60), { status: 409 });
   release.resolve(); await Promise.all([started, stopping]);
   assert.equal(starts, 0); assert.deepEqual(await profiles.list(), []);
-  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 0, retirements: 0 });
+  assert.deepEqual(profiles.status(), { enabled: true, active: false, starting: false, deadline: null, stopping: false, failures: 0, retirements: 0 });
 });
 
 test('concurrent capture starts reserve one owner synchronously', async t => {

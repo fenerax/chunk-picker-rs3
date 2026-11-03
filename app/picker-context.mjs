@@ -869,11 +869,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (security.publicRequest && apiPermission(request.method, route) === 'admin' && !ownerRestore) throw httpError(403, 'Administrator access requires a private connection.');
       if (isLiveTimingsRoute(route)) {
         const admin = invites.authenticate(request, security);
-        // No credential at all: the ordinary checks below answer 401 like every
-        // other private route. Any presented non-admin credential (member,
-        // viewer or plugin key) is refused here with 403.
-        const presented = !!(admin || request.headers.authorization || request.headers.cookie);
-        if (security.publicRequest || (presented && (!admin?.admin || admin.readOnly))) throw httpError(403, 'Administrator access required.');
+        // Only a recognised non-admin session is refused early. Missing or
+        // unrecognised credentials (including plugin keys, which are not valid
+        // here) take the ordinary path: anonymous rate limiting and 401.
+        if (security.publicRequest || (admin && (!admin.admin || admin.readOnly))) throw httpError(403, 'Administrator access required.');
       }
       if (await gamePlugin.handle(request, response, { route, security, closed })) return;
       if (await overlays.handle(request, response, { route, security, closed })) return;

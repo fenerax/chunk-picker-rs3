@@ -19,7 +19,7 @@ async function trial(mode) {
   const rss = async pid => { try { const bytes = await readFile(`/proc/${pid}/status`, 'utf8'); return Number(/^VmRSS:\s+(\d+)/m.exec(bytes)?.[1] ?? 0) * 1024; } catch { return 0; } };
   const sample = async () => { parentPeak = Math.max(parentPeak, await rss(process.pid)); workerPeak = Math.max(workerPeak, (await Promise.all([...workers].map(rss))).reduce((a, b) => a + b, 0)); };
   try {
-    app = await createServer({ dataDir, dataset, definitions, initialState, taskMap: {}, port: 0, predictionPrewarm: false, rateLimits: { expensive: 100000, expensiveGlobal: 100000 }, liveTimingOptions: { enabled: mode !== 'off' }, taskWorkerOptions: { onWorker(worker) { if (worker.pid) workers.add(worker.pid); } } });
+    app = await createServer({ dataDir, deepProfiles: true, dataset, definitions, initialState, taskMap: {}, port: 0, predictionPrewarm: false, rateLimits: { expensive: 100000, expensiveGlobal: 100000 }, liveTimingOptions: { enabled: mode !== 'off' }, taskWorkerOptions: { onWorker(worker) { if (worker.pid) workers.add(worker.pid); } } });
     await app.listen();
     const origin = `http://127.0.0.1:${app.address().port}`, headers = { Authorization: `Bearer ${app.store.getAccessToken()}` };
     const request = async route => { const response = await fetch(origin + route, { headers }); const body = await response.json(); if (response.status !== 200) throw new Error('HTTPError'); return body; };

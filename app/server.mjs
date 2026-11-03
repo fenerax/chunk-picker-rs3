@@ -99,7 +99,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   interiorCatalogue,
   gameDataDir = process.env.RS3_GAME_DATA_DIR || path.join(ROOT, '.local', 'game-data'),
   chunkSectionCatalogue,
-  liveTimingOptions, taskWorkerOptions, idleMemoryOptions, shutdownDeadlineMs = 10000, retention, predictionPrewarm = true,
+  liveTimingOptions, deepProfiles: deepProfilesEnabled = process.env.RS3_DEEP_PROFILES === '1', taskWorkerOptions, idleMemoryOptions, shutdownDeadlineMs = 10000, retention, predictionPrewarm = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin = process.env.RS3_PUBLIC_ORIGIN, rateLimits = {}, usageRateLimits = {},
   requestContextFor = requestContext,
@@ -134,7 +134,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   } else await prepareGameStorage(dataDir, dataset);
   startupPhase('create:storage');
   timings = await openLiveTimings(dataDir, { ...liveTimingOptions, paused: !!liveSwap?.standby });
-  deepProfiles = await createDeepProfiles(dataDir, { pruneOnOpen: !liveSwap?.standby });
+  deepProfiles = await createDeepProfiles(dataDir, { pruneOnOpen: !liveSwap?.standby, enabled: deepProfilesEnabled });
   const originalOnWorker = taskWorkerOptions?.onWorker;
   taskWorkerOptions = { ...taskWorkerOptions, timings, onWorker(worker) {
     originalOnWorker?.(worker); deepProfiles.attach(worker); noteTiming({ calculatorStarted: true });
