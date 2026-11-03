@@ -31,6 +31,7 @@ import { buildChunkPlanningIndex } from '../app/tasks/chunk-planning-index.mjs';
 import { createLiveSwapCommandClient } from '../app/web/live-swap-client.mjs';
 import { createTaskFocus } from '../app/web/task-focus.mjs';
 import { browserUUID, canSaveAddress } from '../app/web/save-address.mjs';
+import { resolveDeathSettings } from '../app/core/death-settings.mjs';
 
 const entry = new URL('../app/web/main.mjs', import.meta.url);
 const imports = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?\r?\n/gm;
@@ -51,6 +52,7 @@ export async function readScreenGraph() {
 }
 
 export function runScreenGraph(context, modules) {
+  context.resolveDeathSettings ??= resolveDeathSettings;
   context.createViewCache ??= () => createViewCache({ storage: null });
   context.replaceView ??= replaceView;
   context.setStartupSession ??= setStartupSession;

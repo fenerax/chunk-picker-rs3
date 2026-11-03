@@ -1,3 +1,4 @@
+import './helpers/death-settings-fixture.mjs';
 import { appendTaskClaim, createTaskClaimClock } from '../app/web/task-claims.mjs';
 import { readScreenGraph, runScreenGraph } from './browser-screen-harness.mjs';
 import test from 'node:test';
@@ -79,7 +80,11 @@ test('collapsible map legend describes only the active map layers and chunk stat
   assert.ok(!labels().includes('Active task count'));
   runInContext('mapDisplay.sizes.showTaskCounts = true; renderLegend();', context);
   runInContext("state.members = [{ id: 'actor1', name: 'Player', unlocked: ['1'], selected: ['2'], pendingRoll: [] }, { id: 'reed', name: 'Reed', unlocked: ['3'], selected: [], pendingRoll: ['4'] }]; map.members = state.members; pool = { eligible: [{ id: '2' }] }; map.deathMarkers = new Map([['2', {}]]); map.pins = { enabled: new Set(['bank']) }; map.connections = { byChunk: { '3': { connected: false } } }; document.getElementById('group-view').checked = true; renderLegend();", context);
+  assert.ok(!labels().includes('Estimated death chunk'), 'stale markers do not reveal the legend without an opt-in');
+  runInContext('state.members[0].preferences = { showDeathChunks: true }; renderLegend();', context);
   for (const label of ['Unlocked', 'Player only', 'Reed only', 'Player’s saved hand selections', 'Player’s roll options (numbered)', 'Roll choices', 'Estimated death chunk', 'Map icons', 'Disconnected partner']) assert.ok(labels().includes(label), label);
+  runInContext('state.members[0].preferences.showDeathChunks = false; renderLegend();', context);
+  assert.ok(!labels().includes('Estimated death chunk'));
   runInContext("document.getElementById('group-view').checked = false; renderLegend();", context);
   for (const label of ['Player only', 'Reed only', 'Roll choices', 'Disconnected partner']) assert.ok(!labels().includes(label), label);
 });

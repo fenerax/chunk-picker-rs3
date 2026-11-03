@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { createGroupState } from '../app/core/state.mjs';
 import { createDeathChunks, deathMarkersFor, estimateHoursLabel } from '../app/web/death-chunks.mjs';
 
-const fixtureState = () => createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
+const fixtureState = () => {
+  const state = createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
+  for (const member of state.members) member.preferences = { showDeathChunks: true };
+  return state;
+};
 const estimate = (chunkId, hours, extras = {}) => ({ chunkId, memberId: 'player1', stateRevision: 0, thresholdHours: 1000, hours, death: hours > 1000, status: 'estimated-exceeds', breakdown: [], unknown: [], assumptions: [], ...extras });
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const flush = async () => { for (let index = 0; index < 12; index++) await Promise.resolve(); };
@@ -22,7 +26,7 @@ test('skull visibility and threshold follow personal settings', () => {
   const state = fixtureState(), row = estimate('candidate', 1001);
   state.members[0].preferences = { showDeathChunks: false };
   assert.equal(deathMarkersFor({ state, memberId: 'player1', candidateIds: ['candidate'], estimates: [row] }).size, 0);
-  state.members[0].preferences = { deathThresholdHours: 1001 };
+  state.members[0].preferences = { showDeathChunks: true, deathThresholdHours: 1001 };
   assert.equal(deathMarkersFor({ state, memberId: 'player1', candidateIds: ['candidate'], estimates: [row] }).size, 0);
   state.members[0].preferences.deathThresholdHours = 1000;
   assert.equal(deathMarkersFor({ state, memberId: 'player1', candidateIds: ['candidate'], estimates: [row] }).size, 1);
@@ -76,7 +80,7 @@ test('display-only saves keep background estimates while gameplay and settings c
     assert.equal(h.timers.size, 0); assert.equal(h.calls.length, 1); assert.deepEqual([...h.map.markers.keys()], ['candidate']);
   }
   assert.equal((await h.controller.estimateChunk('candidate')).hours, 2000); assert.equal(h.calls.length, 1);
-  h.view.state = structuredClone(h.view.state); h.view.state.members[0].preferences = { deathThresholdHours: 3000 };
+  h.view.state = structuredClone(h.view.state); h.view.state.members[0].preferences = { showDeathChunks: true, deathThresholdHours: 3000 };
   h.controller.refresh(); assert.equal(h.timers.size, 1); assert.equal(h.map.markers.size, 0);
   h.runTimer(); assert.equal(h.calls.length, 2);
   h.view.state = structuredClone(h.view.state); h.view.state.revision++; unchanged = undefined;

@@ -2,7 +2,9 @@ import { datasetValue, datasetRuleDefinitions } from "../dataset-runtime.mjs";
 const unsafeKeys = new Set(['__proto__', 'prototype', 'constructor']);
 const emptyOverrides = Object.freeze({});
 
-export const deathSettingDefinitions = datasetRuleDefinitions("app/core/death-settings.mjs#deathSettingDefinitions");
+// Owner decision (2026-11-03): park warnings without changing frozen dataset inputs.
+export const deathSettingDefinitions = Object.freeze(datasetRuleDefinitions("app/core/death-settings.mjs#deathSettingDefinitions")
+  .map(definition => definition.id === 'showDeathChunks' ? Object.freeze({ ...definition, default: false }) : definition));
 const definitions = new Map(deathSettingDefinitions.map(definition => [definition.id, definition]));
 
 function positiveNumber(value, definition) {

@@ -9,7 +9,7 @@ const state = () => createGroupState([{ id: 'player1', name: 'Player 1' }, { id:
 
 test('death settings have explicit personal defaults without writing saved values', () => {
   const member = state().members[0], before = structuredClone(member);
-  assert.deepEqual(resolveDeathSettings(member), { deathThresholdHours: 1000, defaultSecondsPerKill: 60, monsterSecondsPerKill: {}, showDeathChunks: true });
+  assert.deepEqual(resolveDeathSettings(member), { deathThresholdHours: 1000, defaultSecondsPerKill: 60, monsterSecondsPerKill: {}, showDeathChunks: false });
   assert.deepEqual(member, before);
   const definition = deathSettingDefinitions.find(row => row.id === 'defaultSecondsPerKill');
   assert.match(definition.label, /placeholder/); assert.match(definition.description, /starting guess until you time yourself/);

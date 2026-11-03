@@ -17,7 +17,9 @@ Settings are sparse overrides in `member.preferences`, validated through the exi
 | `deathThresholdHours` | 1000 | Positive finite threshold, at most one billion active person-hours |
 | `defaultSecondsPerKill` | 60 | Positive finite **placeholder**, at most 86,400 seconds; replace with measured session time |
 | `monsterSecondsPerKill` | `{}` | Exact source monster names, including variants, mapped to effective seconds per kill |
-| `showDeathChunks` | `true` | Show advisory skulls on the current personal candidates |
+| `showDeathChunks` | `false` | Opt in to advisory skulls on the current personal candidates |
+
+Owner decision, 2026-11-03: the death estimate is parked as a future feature. “Show time warnings” defaults off when no preference is saved; explicit opt-ins stay on. The application overrides the frozen dataset default in `app/core/death-settings.mjs`, leaving dated, hash-verified inputs unchanged. With warnings off, the browser schedules no background death-estimate batch and hides the death legend, while on-demand details remain available. Server Preview predictions do not compute death estimates.
 
 Effective seconds per kill include fighting, respawns, movement, looting, banking and resupply. They are not an intrinsic monster speed. The app does not infer unknown drop chances from rarity labels.
 

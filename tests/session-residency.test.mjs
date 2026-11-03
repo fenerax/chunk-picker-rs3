@@ -39,6 +39,13 @@ async function fixture(t, extra = {}) {
   return { scheduler, scopes, evaluate, workers, idleClock };
 }
 
+test('session idle defaults to three hours while environment overrides keep their precedence', () => {
+  const options = { total: 11 * GiB, free: 8.5 * GiB, constrained: 11 * GiB };
+  assert.equal(residencyDefaults({ ...options, env: {} }).idleMs, 3 * 60 * 60000);
+  assert.equal(residencyDefaults({ ...options, env: { RS3_WORKER_IDLE_MS: '100' } }).idleMs, 100);
+  assert.equal(residencyDefaults({ ...options, env: { RS3_WORKER_IDLE_MS: '100', RS3_SESSION_IDLE_MS: '200' } }).idleMs, 200);
+});
+
 test('defaults reserve VPS headroom and fall back to one calculator on small hosts', () => {
   const vps = residencyDefaults({ total: 11 * GiB, free: 8.5 * GiB, constrained: 11 * GiB, env: {} });
   assert.equal(vps.maxResident, 3); assert.ok(vps.memoryBytes <= 6.5 * GiB);
