@@ -13,12 +13,15 @@ export class ProcessWorker extends EventEmitter {
   #resolveExit;
   #killTimers = [];
   #memory = new Map();
+  #profiles = new Map();
   #sequence = 0;
   #failed = false;
+  #profileTimeoutMs;
   rssBytes = 0;
 
-  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, trackRss = false } = {}) {
+  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, trackRss = false, profileTimeoutMs = 20000 } = {}) {
     super();
+    this.#profileTimeoutMs = profileTimeoutMs;
     // Serialization failures must occur before a child is created.
     const data = encodeProcessMessage(workerData);
     this.#exitPromise = new Promise(resolve => { this.#resolveExit = resolve; });
@@ -35,6 +38,19 @@ export class ProcessWorker extends EventEmitter {
           if (Number.isSafeInteger(message.rssBytes) && message.rssBytes >= 0) this.rssBytes = message.rssBytes;
         }
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
+        else if (message.kind === 'profile') {
+          const request = this.#profiles.get(message.id);
+          if (request) {
+            const cleaned = message.cancelled || request.operation === 'stop' && !message.error;
+            if (!request.timedOut || cleaned) {
+              this.#profiles.delete(message.id); clearTimeout(request.timer);
+              if (request.timedOut && cleaned) this.#restoreProfile();
+              message.error ? request.reject(new Error('Calculator profile unavailable.')) : request.resolve(message.profile);
+            }
+          }
+        }
+        else if (message.kind === 'profile-retiring') this.#retireProfile();
+        else if (message.kind === 'profile-cleaned') this.#restoreProfile();
         else if (message.kind === 'memory') {
           const request = this.#memory.get(message.id);
           if (request) {
@@ -76,6 +92,8 @@ export class ProcessWorker extends EventEmitter {
       clearTimeout(timer); reject(new Error('Task worker process exited.'));
     }
     this.#memory.clear();
+    for (const { reject, timer } of this.#profiles.values()) { clearTimeout(timer); reject(new Error('Calculator exited.')); }
+    this.#profiles.clear();
     this.#resolveExit(code);
     this.emit('exit', code);
   }
@@ -100,6 +118,38 @@ export class ProcessWorker extends EventEmitter {
 
   unref() { this.#child.unref(); this.#child.channel?.unref(); return this; }
   ref() { this.#child.ref(); this.#child.channel?.ref(); return this; }
+
+  async startCpuProfile({ deadline = Date.now() + 600000 } = {}) {
+    await this.#profileRequest('start', deadline);
+    return { stop: () => this.#profileRequest('stop') };
+  }
+
+  #restoreProfile() {
+    for (const [id, request] of this.#profiles) if (request.timedOut) { clearTimeout(request.timer); this.#profiles.delete(id); }
+    this.profileRetiring = undefined; this.emit('profile-cleaned');
+  }
+
+  #retireProfile() {
+    if (this.profileRetiring) return;
+    this.profileRetiring = true; this.emit('profile-retiring');
+  }
+
+  #profileRequest(operation, deadline) {
+    if (this.#exited || this.#stopping || this.profileRetiring) return Promise.reject(new Error('Calculator profile unavailable.'));
+    const id = ++this.#sequence;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.#profiles.get(id).timedOut = true;
+        // Mark uncertainty before any replacement can join this capture.
+        // The scheduler/host may retire only when the request is finished.
+        this.#retireProfile();
+        reject(new Error('Calculator profile unavailable.'));
+        this.#send({ kind: 'profile', operation: 'cancel', id });
+      }, this.#profileTimeoutMs);
+      timer.unref(); this.#profiles.set(id, { resolve, reject, timer, operation });
+      this.#send({ kind: 'profile', operation, id, deadline });
+    });
+  }
 
   getMemoryUsage() {
     if (this.#exited || this.#stopping) return Promise.reject(new Error('Task worker process has stopped.'));

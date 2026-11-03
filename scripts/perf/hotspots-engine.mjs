@@ -10,12 +10,13 @@ import { promisify, parseArgs } from 'node:util';
 import path from 'node:path';
 import { registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { canonical } from '../../tools/calc-check/compare.mjs';
 import { workerStartupSpans } from './profile-stack/worker-startup.mjs';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const clock = () => Number(process.hrtime.bigint()) / 1e6;
 const zip = promisify(gzip);
 const hwm = pid => Number(/^VmHWM:\s+(\d+)/m.exec(readFileSync(`/proc/${pid}/status`, 'utf8'))?.[1] ?? 0) * 1024;
-const { values: args } = parseArgs({ options: { 'data-dir': { type: 'string' }, out: { type: 'string' }, runs: { type: 'string', default: '5' }, trial: { type: 'boolean' }, 'fresh-preview': { type: 'boolean' }, 'fresh-member': { type: 'string' }, profile: { type: 'boolean' } } });
+const { values: args } = parseArgs({ options: { 'data-dir': { type: 'string' }, out: { type: 'string' }, runs: { type: 'string', default: '5' }, trial: { type: 'boolean' }, 'fresh-preview': { type: 'boolean' }, 'fresh-member': { type: 'string' }, profile: { type: 'boolean' }, 'result-hashes': { type: 'boolean' } } });
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 24 || major === 24 && minor < 20) throw new Error('NodeVersionError');
 registerHooks({ load(url, context, next) {
@@ -59,7 +60,7 @@ async function trial() {
   const report = { node: process.version, datasetHash: dataset.digest, sourceHash: sha(source), stateHash: sha(JSON.stringify(state)),
     counts: { members: state.members.length, tasks: state.tasks.length, chunks: world.chunks.size,
       membersShape: state.members.map(m => ({ unlocked: m.unlocked.length, selected: m.selected.length, pending: m.pendingRoll.length, completed: m.completedTasks.length, status: Object.keys(m.taskStatus ?? {}).length })) },
-    startup: {}, requests: {}, responses: {}, profiles: {}, peakRSS: 0 };
+    startup: {}, requests: {}, responses: {}, profiles: {}, resultHashes: {}, resultCounts: {}, peakRSS: 0 };
   const shared = value => { const bytes = Buffer.from(JSON.stringify(value)), out = new SharedArrayBuffer(bytes.length); Buffer.from(out).set(bytes); return out; };
   let worker, sequence = 0;
   const sentSnapshots = new Set();
@@ -96,6 +97,21 @@ async function trial() {
     const start = clock(), result = await request(message), wallMs = clock() - start;
     report.requests[key] = { wallMs, evaluationMs: result.evaluationMs, stages: result.timingMs, peakRSS: hwm(worker.pid) };
     if (args.profile && profile) report.profiles[key] = cpuSummary((await request({ type: 'cancel', __engineProfile: 'cpu-stop' })).value, result.__hotspotsWindow);
+    if (args['result-hashes']) {
+      const decode = value => {
+        if (value instanceof SharedArrayBuffer || value instanceof ArrayBuffer || Buffer.isBuffer(value)) {
+          const bytes = Buffer.from(value);
+          try { return JSON.parse(bytes); } catch { return { bytes: bytes.length, sha256: sha(bytes) }; }
+        }
+        if (Array.isArray(value)) return value.map(decode);
+        if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, decode(child)]));
+        return value;
+      };
+      const values = {};
+      for (const key of ['result', 'resultJSON', 'playJSON', 'duoJSON', 'duoSidebarJSON', 'sandboxJSON', 'unlockReuse', 'partnerUnlockReuse']) if (result[key] !== undefined) values[key] = decode(result[key]);
+      report.resultHashes[key] = sha(JSON.stringify(canonical(values)));
+      report.resultCounts[key] = Object.keys(values).length;
+    }
     return result;
   }
   async function encode(key, value) {
@@ -206,6 +222,16 @@ async function trial() {
       forgetSavedWhyChain(entry);
       for (const temperature of ['cold', 'warm']) await measured(`how-${index}-${temperature}`, { type: 'how-task', state, snapshotKey, memberId: state.members[0].id, input, chunkId: taskId });
     }
+    if (args['result-hashes']) {
+      await measured('prepare-rules', { type: 'prepare-rules', state: { revision: state.revision, rules: state.rules } });
+      for (let member = 0; member < state.members.length; member++) {
+        const memberId = state.members[member].id;
+        await measured(`planning-${member}`, { ...base, type: 'chunk-planning', memberId, chunkId: candidate });
+        await measured(`sandbox-${member}`, { ...base, type: 'sandbox', memberId, chunkId: { changes: { unlockChunks: [], lockChunks: [], doneTasks: [] } }, resultTransport: 'json-shared-v1' });
+        await measured(`area-${member}`, { ...base, type: 'area-check', memberId, chunkId: { chunkIds: [candidate], asMembers: false } });
+        await measured(`death-${member}`, { type: 'death-estimates', state, snapshotKey, memberId, input, chunkIds: [candidate] });
+      }
+    }
     stage = 7;
     const { projectPlayState } = await import('../../app/play-view.mjs');
     const { projectDisplayWorld } = await import('../../app/display-world.mjs');
@@ -228,7 +254,7 @@ async function main() {
   for (let run = 0; run < runs; run++) {
     const traceDir = path.join(args.out, `startup-${run}`); await mkdir(traceDir, { recursive: true });
     const child = spawn(process.execPath, ['--import', new URL('./profile-stack/bootstrap.mjs', import.meta.url).href, fileURLToPath(import.meta.url),
-      '--trial', '--data-dir', args['data-dir'], ...(args.profile ? ['--profile'] : []), ...(args['fresh-preview'] ? ['--fresh-preview'] : []), ...(args['fresh-member'] === undefined ? [] : ['--fresh-member', args['fresh-member']])], { env: { ...process.env, RS3_PROFILE: '1', RS3_PROFILE_DIR: traceDir,
+      '--trial', '--data-dir', args['data-dir'], ...(args.profile ? ['--profile'] : []), ...(args['result-hashes'] ? ['--result-hashes'] : []), ...(args['fresh-preview'] ? ['--fresh-preview'] : []), ...(args['fresh-member'] === undefined ? [] : ['--fresh-member', args['fresh-member']])], { env: { ...process.env, RS3_PROFILE: '1', RS3_PROFILE_DIR: traceDir,
         RS3_ENGINE_PROFILE_PROBE: args.profile ? '1' : '0', RS3_ENGINE_HEAP_PROFILE: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = ''; child.stdout.on('data', x => stdout += x); child.stderr.on('data', x => stderr += x);
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); });
