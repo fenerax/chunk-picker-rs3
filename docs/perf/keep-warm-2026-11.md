@@ -94,9 +94,12 @@ health path also retains its aggregate worker health. Main already exposed
 global lane, queue and pool counters in diagnostics; those
 remain available to administrators, alongside the new memory/residency fields.
 Ordinary player/viewer health and worker SSE carry only foreground readiness
-for their own work: `status`, `ready` and `restartRequired`. An idle picker is
+and lane failure state: `status`, `ready` and `restartRequired`. An idle picker is
 ready to submit work even if shared calculators are sleeping or another picker
-is waking one. Unchanged worker events are suppressed, so another picker's
+is waking one. A failed foreground lane reports recovery or restart-required
+to every picker until its replacement is ready, including after failed requests
+settle and during replacement startup. Busy and queue activity stay picker-local.
+Unchanged worker events are suppressed, so another picker's
 transitions do not leak through event frequency. This preserves the browser's
 loading/recovery readiness contract; no browser code reads aggregate diagnostics.
 Session/stream diagnostics remain picker-scoped on the bound scheduler facade.
@@ -114,9 +117,12 @@ last valid RSS and the configured reservation floor. Starting and retiring
 processes remain charged until exit. Admission queues work while the charged
 memory exceeds the ceiling; it cannot start a replacement beside a retiring
 process. Unrequested production and advisory graphs are reclaimed before
-foreground. Advisory admission reserves foreground headroom and cannot evict
-foreground to start another advisory job. Interactive work can yield unsolicited
-producers across groups.
+foreground. Advisory admission reserves foreground headroom. Unsolicited work
+cannot evict foreground to start another advisory job. Explicit Preview, death
+estimate and Group requests can retire an idle foreground graph when its RSS
+prevents admission. Its reservation remains charged until exit; advisory
+allocation still leaves a reservation and physical slot for foreground to
+respawn lazily. Interactive work can yield unsolicited producers across groups.
 
 An actual RSS breach permanently disables keep-warm and prepare-ahead for that
 pool's lifetime. Expendable work goes first; if that is insufficient, requested
@@ -134,6 +140,15 @@ writable SSE stream for that picker. Saved offers at startup, viewers and
 diagnostic polling cannot establish this interest. The server checks before
 hydrating a preparation plan, and the pool checks again at dispatch. Small-host
 and emergency modes reject optional admission entirely.
+
+Session renewal occurs only at authenticated writable HTTP/plugin boundaries
+and writable SSE leases. Scheduler admission, cache hits and calculation
+completion do not establish or renew writable interest: read-only Area check
+and helper-drops requests can calculate without creating a session. Fake memory
+pressure tests use 650/200/240 synthetic bytes with the same proportions as the
+6.5/2/2.4 GiB profile, so the requested test budget stays below low-memory host
+ceilings. Other reservation fixtures also use small synthetic byte values;
+host-default calculations pass explicit total/free/constrained observations.
 
 ## Measurement method
 
@@ -251,6 +266,31 @@ Gap memory samples are taken 50 ms after the idle-clock jump; START can still ha
 Keeping two calculators resident through active gaps spends roughly their summed RSS to remove cold waits. The final stress also exercises the third slot. All worker RSS is released after expiry in every trial. These measurements replace a private server/store footprint run, which is forbidden because it creates credentials.
 
 ### Commands and checks
+
+Four-finding follow-up validation (synthetic fixtures, Windows, one file at a
+time):
+
+- Required files: session-residency 26, process-worker 11, picker-context 30,
+  prediction-server 7, and web-browser 371. The browser suite exercises
+  `screen-loading.mjs` through the screen-graph harness and includes worker
+  health recovery and failed-load retry coverage. Additional scheduler suite: 43.
+  Total: 488 passed, 0 failed, 0 skipped (54.0 s across completed runs).
+- Repeated all 26 residency cases with Node OS observations overridden to 2 GiB
+  total and 1 GiB free: 26 passed, 0 failed (1.1 s). This repeat is excluded from
+  the 488 unique cases above. The production host ceiling remains enforced.
+- New regressions cover the 300-byte budget / 100-byte reservation / 250-byte
+  idle foreground reproduction for Preview, death estimates and Group, retaining
+  writable SSE interest, charging delayed retirement, rejecting unsolicited
+  eviction and waking foreground alongside requested advisory work.
+- Non-admin HTTP health and SSE retain crash recovery after request settlement,
+  stay not-ready during replacement compilation, emit the ready transition and
+  retain exhausted-restart health. Viewer-only Area check and helper-drops
+  leave residency at zero on admission and completion; writable state reads
+  still establish interest. Existing cross-picker activity-isolation checks pass.
+- An initial residency run was stopped after a direct scheduler fixture call
+  relied on implicit writable activity. That fixture now records writable
+  activity explicitly; incomplete-run output is excluded from the totals.
+  No full suite, game/task calculation changes or deployment.
 
 Follow-up review validation (synthetic inputs, Windows, one file at a time):
 

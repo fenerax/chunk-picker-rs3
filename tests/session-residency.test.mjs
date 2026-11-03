@@ -31,7 +31,11 @@ async function fixture(t, extra = {}) {
     calculatorMemoryUsage: worker => worker.bytes, fairness: { maxOutstandingJobsPerPicker: 4 }, ...extra });
   t.after(() => scheduler.close());
   const scopes = ids.map(id => scheduler.forPicker(id));
-  const evaluate = (scope = scopes[0], key = 'tasks', type = 'evaluate') => scope.evaluate(state, 'one', type, type === 'predict' ? '100' : undefined, key, 'input');
+  // Model the authenticated writable HTTP boundary, separately from calculation.
+  const evaluate = (scope = scopes[0], key = 'tasks', type = 'evaluate') => {
+    scope.noteActivity();
+    return scope.evaluate(state, 'one', type, type === 'predict' ? '100' : undefined, key, 'input');
+  };
   return { scheduler, scopes, evaluate, workers, idleClock };
 }
 
@@ -108,6 +112,40 @@ test('one-reservation budgets bound all pickers and interactive work interrupts 
   workers[1].finish(); await interactive;
   assert.equal(scheduler.getDiagnostics().calculators.peak, 1);
   a.cancelPrewarm();
+});
+
+for (const type of ['predict', 'death-estimates', 'duo']) test(`requested ${type} reclaims idle foreground RSS while retaining foreground headroom`, async t => {
+  const { scheduler, scopes: [a, b], evaluate, workers } = await fixture(t);
+  const close = a.openSession(); t.after(close);
+  const initial = evaluate(a); workers[0].finish(); await initial;
+  workers[0].bytes = 250;
+  let releaseExit;
+  workers[0].terminate = () => new Promise(resolve => { releaseExit = () => { workers[0].terminated = true; resolve(); }; });
+  t.after(() => releaseExit?.());
+  // Unsolicited work cannot displace foreground, even with writable interest.
+  assert.equal(a.prewarm(state, 'input', [{ memberId: 'one', chunkIds: ['101'] }]).queued, 1);
+  await tick();
+  assert.equal(workers.length, 1); assert.equal(releaseExit, undefined);
+  a.cancelPrewarm();
+  const requested = type === 'duo'
+    ? a.evaluate(state, 'one', 'evaluate', undefined, 'group', 'input', undefined, [], 'play-v1', undefined, 'duo')
+    : evaluate(a, 'requested', type);
+  await tick();
+  assert.equal(typeof releaseExit, 'function', 'the idle foreground calculator must be reclaimed');
+  assert.equal(workers.length, 1, 'retiring memory is still charged');
+  assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 250);
+  releaseExit(); await tick(); await tick();
+  assert.equal(workers.length, 2);
+  assert.equal(workers[1].messages.findLast(message => message.id).type, type === 'duo' ? 'evaluate' : type);
+  // The advisory job stays active while the next foreground request wakes.
+  const next = evaluate(b, 'next-foreground');
+  await tick(); await tick();
+  assert.equal(workers.length, 3);
+  assert.equal(workers[2].messages.findLast(message => message.id).type, 'evaluate');
+  assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 200);
+  assert.ok(scheduler.getDiagnostics().calculators.peak <= 3);
+  workers[2].finish(); await next;
+  workers[1].finish(); await requested;
 });
 
 test('an opened session retains the startup calculator before the first task request, without allocating more workers', async t => {
@@ -277,6 +315,7 @@ test('actual RSS above the ceiling cancels requested advisory work and queues re
   const foreground = evaluate(a);
   const preview = evaluate(b, 'preview', 'predict');
   const previewRejected = assert.rejects(preview, { status: 503 });
+  c.noteActivity();
   const death = c.evaluate(state, 'one', 'death-estimates', undefined, 'death', 'input');
   await tick(); assert.equal(workers.length, 3);
   let exit, forced;
@@ -344,10 +383,10 @@ test('an RSS emergency can retire a served Preview partner while ordinary yieldi
 
 for (const pressure of [true, false]) test(`pool ${pressure ? 'preserves foreground headroom' : 'preempts background production across groups'}`, async t => {
   const clock = createManualClock(), workers = [], sessions = createSessionResidency({ ...config,
-    activeMs: 10000, memoryBytes: Math.floor(6.5 * GiB), estimatedBytes: 2 * GiB });
+    activeMs: 10000, memoryBytes: 650, estimatedBytes: 200 }, clock);
   const pool = createCalculatorPool({ limit: 3, clock, sessions, workerData: () => ({}),
     memoryUsage: worker => worker.bytes, workerFactory() {
-      const worker = new EventEmitter(); worker.bytes = 2 * GiB;
+      const worker = new EventEmitter(); worker.bytes = 200;
       worker.postMessage = message => { worker.last = message; };
       worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
       workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready' })); return worker;
@@ -368,15 +407,15 @@ for (const pressure of [true, false]) test(`pool ${pressure ? 'preserves foregro
   warm(); warm(); await tick();
   assert.equal(workers.length, 3);
   if (!pressure) await foreground.terminate();
-  workers[1].bytes = workers[2].bytes = 2.4 * GiB;
+  workers[1].bytes = workers[2].bytes = 240;
   if (pressure) {
     pool.sessionChanged(ids[0]); await tick();
-    assert.equal(workers[0].terminated, undefined, '2 GiB foreground graph survives the 6.5 GiB pressure case');
+    assert.equal(workers[0].terminated, undefined, '200-byte foreground graph survives the 650-byte pressure case');
     assert.equal(workers.filter(worker => worker.terminated).length, 1);
     return;
   }
-  // Foreground has expired and 4.8 GiB of busy advisory graphs remain. Its
-  // 2 GiB reservation needs an unsolicited producer in another group to yield.
+  // Foreground has expired and 480 bytes of busy advisory graphs remain. Its
+  // 200-byte reservation needs an unsolicited producer in another group to yield.
   const requested = pool.createEndpoint(true); requested.on('message', () => {});
   let ran = false;
   requested.schedule(() => ({ pickerId: ids[1], interactive: true }), () => { ran = true; requested.postMessage({ id: 2 }); });

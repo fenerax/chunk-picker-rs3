@@ -962,7 +962,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (privateAddon?.features.originalSync && route.startsWith('/api/original-sync/')) await privateAddon.verify();
       if (route.startsWith('/api/')) {
         requirePermission();
-        if (!identity.readOnly && ['/api/state', '/api/tasks', '/api/predict', '/api/command', '/api/session', '/api/prediction-intent', '/api/pool-ranking-intent'].includes(route)) notePickerActivity();
+        // Residency interest belongs to authenticated writable boundaries.
+        // Calculations themselves may also be requested by read-only viewers.
+        if (!identity.readOnly && ['/api/state', '/api/tasks', '/api/predict', '/api/command', '/api/session', '/api/prediction-intent', '/api/pool-ranking-intent',
+          '/api/helper-drops', '/api/training-plan', '/api/area-check', '/api/task-how', '/api/death-estimates', '/api/chunk-planning', '/api/sandbox/evaluate'].includes(route)) notePickerActivity();
         // Stable invitation identity: opening new sessions or changing IP cannot reset it.
         const expensiveRead = ['GET', 'HEAD'].includes(request.method)
           && ['/api/task-why', '/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/task-how', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)

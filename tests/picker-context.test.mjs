@@ -124,19 +124,28 @@ async function viewer(context, readOnly = true) {
   return String(joined.headers.get('set-cookie')).split(';')[0];
 }
 
-test('picker A player and viewer cannot observe picker B activity through diagnostics, health or worker SSE', async t => {
+async function calculatorFixture(t, { autoReady = true, ...options } = {}) {
   const workers = [];
-  const scheduler = await createTaskScheduler({ residency: { memoryBytes: 300, estimatedBytes: 100, maxResident: 3 },
+  const spawned = Promise.withResolvers();
+  const scheduler = await createTaskScheduler({ residency: { memoryBytes: 300, estimatedBytes: 100, maxResident: 3 }, ...options,
     calculatorMemoryUsage: worker => worker.bytes, workerFactory() {
       const worker = new EventEmitter(); worker.bytes = 100; worker.messages = [];
       worker.postMessage = message => worker.messages.push(message);
       worker.terminate = async () => { worker.emit('exit', 0); };
       workers.push(worker);
-      queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
+      worker.ready = () => worker.emit('message', { type: 'ready', catalogue: [] });
+      if (autoReady || workers.length === 1) queueMicrotask(worker.ready);
+      if (workers.length === 2) spawned.resolve(worker);
+      return worker;
     } });
   t.after(() => scheduler.close());
   const taskWorker = Object.create(scheduler); taskWorker.closeCalls = 0;
   taskWorker.forPicker = id => scheduler.forPicker('p_' + (id === 'a' ? 'a' : 'b').repeat(32));
+  return { scheduler, workers, taskWorker, spawned: spawned.promise };
+}
+
+test('picker A player and viewer cannot observe picker B activity through diagnostics, health or worker SSE', async t => {
+  const { scheduler, workers, taskWorker } = await calculatorFixture(t);
   const { a, b } = await fixture(t, { runtimeOptions: { taskWorker } });
   const clients = [];
   for (const readOnly of [true, false]) {
@@ -184,6 +193,62 @@ test('picker A player and viewer cannot observe picker B activity through diagno
   for (const client of clients) client.stream.response.destroy();
   stream.response.destroy();
 });
+
+test('an affected non-admin picker receives crash, recovery and exhausted-restart health after requests settle', async t => {
+  const { scheduler, workers, taskWorker, spawned } = await calculatorFixture(t,
+    { residency: undefined, autoReady: false, backoffMs: 1, maxRestarts: 1 });
+  const { a, b } = await fixture(t, { runtimeOptions: { taskWorker } });
+  const cookie = await viewer(a, false), otherCookie = await viewer(b);
+  const stream = await send(a, '/api/events', { cookie, stream: true });
+  stream.request.on('error', () => {}); t.after(() => stream.response.destroy());
+  const workerEvents = () => stream.text().split('\n\n').filter(event => event.startsWith('event: worker\n'))
+    .map(event => JSON.parse(event.slice(event.indexOf('data: ') + 6)));
+  const pending = send(a, '/api/helper-drops?memberId=one', { cookie });
+  while (!workers[0].messages.some(message => message.type === 'evaluate')) await nextTurn();
+  workers[0].emit('error', new Error('synthetic calculator failure'));
+  assert.equal((await pending).status, 503, 'the failed request has settled');
+  const restarting = { status: 'restarting', ready: false, restartRequired: false };
+  assert.deepEqual((await send(a, '/api/health', { cookie })).body.worker, restarting);
+  assert.deepEqual((await send(b, '/api/health', { cookie: otherCookie })).body.worker, restarting,
+    'lane failure can be shared without exposing picker activity');
+  const replacement = await spawned;
+  assert.equal(scheduler.getHealth().status, 'starting');
+  assert.deepEqual((await send(a, '/api/health', { cookie })).body.worker, restarting,
+    'replacement startup must not announce ready before compilation finishes');
+  replacement.ready();
+  const ready = { status: 'ready', ready: true, restartRequired: false };
+  assert.deepEqual((await send(a, '/api/health', { cookie })).body.worker, ready);
+  assert.deepEqual(workerEvents(), [ready, restarting, ready],
+    'SSE preserves the false-to-true transition used by the browser to retry a failed task load');
+  replacement.emit('exit', 1);
+  const exhausted = { status: 'restart-required', ready: false, restartRequired: true };
+  assert.deepEqual((await send(a, '/api/health', { cookie })).body.worker, exhausted);
+  assert.deepEqual(workerEvents().at(-1), exhausted);
+});
+
+for (const route of ['/api/area-check?memberId=one&chunks=12342&revision=0', '/api/helper-drops?memberId=one']) {
+  test(`viewer calculation leaves residency empty: ${route.split('?')[0]}`, async t => {
+    const { scheduler, workers, taskWorker } = await calculatorFixture(t);
+    const { a } = await fixture(t, { runtimeOptions: { taskWorker } });
+    const cookie = await viewer(a);
+    const residency = () => scheduler.getDiagnostics().calculators.residency;
+    assert.equal(residency().sessions, 0);
+    const pending = send(a, route, { cookie });
+    let job, worker;
+    while (!job) {
+      await nextTurn();
+      worker = workers.find(value => value.messages.some(message => ['area-check', 'evaluate'].includes(message.type)));
+      job = worker?.messages.findLast(message => message.id);
+    }
+    assert.equal(residency().sessions, 0, 'viewer admission cannot establish writable interest');
+    worker.emit('message', { id: job.id, pickerId: job.pickerId, result: { tasks: [] } });
+    assert.equal((await pending).status, 200);
+    assert.equal(residency().sessions, 0, 'viewer completion cannot establish writable interest');
+    assert.equal(residency().streams, 0);
+    await send(a, '/api/state');
+    assert.equal(residency().sessions, 1, 'authenticated writable activity still establishes residency');
+  });
+}
 
 test('two contexts isolate durable state, private static fields, history and undo at colliding revisions', async t => {
   const { a, b, open } = await fixture(t);

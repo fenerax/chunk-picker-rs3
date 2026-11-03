@@ -139,11 +139,12 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
             try { allocate(endpoint); } catch (error) {
               waiting.delete(endpoint); queueMicrotask(() => { if (!endpoint.stopped) endpoint.emit('error', error); });
             }
-          } else if (interactive && sessions && !starting && idleSlots.some(slot => slot.group === 'advisory') && ![...slots].some(value => value.stopping)
+          } else if (interactive && sessions && !starting && idleSlots.length && ![...slots].some(value => value.stopping)
             && (selected.endpoint.group === 'foreground' || limit === 1 || [...slots].filter(value => value.group === 'advisory').length < limit - 1)) {
-            // Another group's idle graph can make room; do not exceed either
-            // cap while its process is still terminating.
-            const oldest = evictionOrder(idleSlots.filter(slot => slot.group === 'advisory'))[0];
+            // Requested advisory work may reclaim an idle foreground graph.
+            // Retirement stays charged until exit, and canAllocate still reserves
+            // headroom to respawn foreground lazily for the next request.
+            const oldest = evictionOrder(idleSlots)[0];
             evictions++; void retire(oldest);
           } else if (interactive && !starting && ![...slots].some(value => value.stopping && usable(value, selected.endpoint))) {
             // Memory and physical slots are shared across groups. A foreground

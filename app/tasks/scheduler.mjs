@@ -307,7 +307,6 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (closed || picker.closed) return Promise.reject(unavailable('The task server is closing.'));
       if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
-      scheduler.noteActivity(pickerId);
       if (!['foreground', 'duo', 'side'].includes(evaluationLane) || evaluationLane === 'duo' && (type !== 'evaluate' || resultView !== 'play-v1')
         || evaluationLane === 'side' && !(type === 'chunk-planning' || type === 'evaluate' && resultView === 'full')) return Promise.reject(new TypeError('Invalid task evaluation lane.'));
       if (typeof duoSidebarProjection !== 'boolean' || duoSidebarProjection && (type !== 'evaluate' || resultView !== 'play-v1' || evaluationLane !== 'foreground')) return Promise.reject(new TypeError('Invalid duo sidebar projection.'));
@@ -536,7 +535,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   const latestRevisions = new Map(), prewarmSubscriptions = new Map(), closedPickers = new Set();
   const revisionFor = pickerId => latestRevisions.get(pickerId) ?? -1;
   let firstCalculation = true;
-  let receivedCatalogue = false;
+  let receivedCatalogue = false, recovering = false;
   let supported = new Set();
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   let sentSnapshots = new Map();
@@ -725,6 +724,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function failure(kind) {
     if (closed || status === 'restarting' || status === 'restart-required') return;
+    recovering = true;
     clearCancelledGrace();
     firstCalculation = true;
     failures++; lastFailure = { kind, at: new Date().toISOString() };
@@ -869,7 +869,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
           && message.datasetDigest !== workerData.datasetDigest) { failure('dataset-mismatch'); return; }
         if (workerFactory === nativeWorker) workerPreparation?.accept(message);
         receivedCatalogue ||= Array.isArray(message.catalogue);
-        clearTimeout(startupTimer); status = 'ready';
+        clearTimeout(startupTimer); status = 'ready'; recovering = false;
         signal?.removeEventListener('abort', abortInitial);
         lastProgressAt = idleClock.now();
         compileMs = Number.isFinite(message.compileMs) ? message.compileMs : 0;
@@ -903,7 +903,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
             }
             // Served early: refill, sleep and interactive yield must not mistake the
             // waiter-less producer for abandoned warm work while its partner runs.
-            if (active.waiters.size) { lastRequestAt = idleClock.now(); sessions?.note(active.pickerId); active.previewServed = true; }
+            if (active.waiters.size) { lastRequestAt = idleClock.now(); active.previewServed = true; }
             active.waiters.clear();
           }
         }
@@ -912,7 +912,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
       if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
-      if (entry.waiters.size || entry.reuseWaiters?.size) { lastRequestAt = idleClock.now(); sessions?.note(entry.pickerId); }
+      if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
       if (message.error) {
         // An error may occur before or after the worker touches its snapshot
@@ -1276,10 +1276,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     },
     // Browser recovery needs readiness, not shared lane activity or lifetimes.
     // An idle picker can submit work even when another picker's lane is waking.
+    // Lane failures affect everyone, including after failed requests settle.
     getClientHealth(pickerId) {
       const ownWork = [...pending.values()].some(entry => entry.pickerId === pickerId)
         || active?.pickerId === pickerId;
-      const clientStatus = closed ? 'closed' : ownWork ? status : 'ready';
+      const clientStatus = closed ? 'closed' : recovering ? status === 'restart-required' ? status : 'restarting' : ownWork ? status : 'ready';
       return { status: clientStatus, ready: clientStatus === 'ready', restartRequired: clientStatus === 'restart-required' };
     },
     getHealth() {
@@ -1302,7 +1303,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         clearCancelledGrace();
         clearTimeout(restartTimer); clearTimeout(startupTimer); clearImmediate(idleTimer); idleTimer = undefined;
         idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
-        status = 'restarting'; generation++;
+        status = 'restarting'; recovering = true; generation++;
         scheduler.cancelPrewarm();
         const error = unavailable('Task calculation restarted. Retry shortly.');
         for (const entry of [...pending.values()]) settle(entry, error);
