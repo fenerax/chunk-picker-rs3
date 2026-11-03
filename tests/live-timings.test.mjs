@@ -46,13 +46,20 @@ test('disabled collector does not write', async t => {
   const dir = await temporary(t), timings = await openLiveTimings(dir, { enabled: false }); timings.record('how', 1); await timings.close();
   await assert.rejects(stat(`${dir}/live-timings.json`), { code: 'ENOENT' });
 });
-test('CPU profiles cover process calculators, deadline, close, downloads and caps', async t => {
+test('CPU profiles cover process calculators, deadline, close, downloads and caps', { timeout: 30000 }, async t => {
   const dir = await temporary(t), profiles = await createDeepProfiles(dir, { caps: { count: 3, fileBytes: 4 * 1024 * 1024, totalBytes: 12 * 1024 * 1024 } });
   const worker = new ProcessWorker(genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }));
   t.after(async () => { await profiles.close(); await worker.terminate(); });
   await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
-  profiles.attach(worker); await profiles.start(0.5);
-  await new Promise(resolve => setTimeout(resolve, 650)); await profiles.stop();
+  // Native profiler admission can exceed 500 ms on a busy runner. Wait for
+  // both process profilers to acknowledge startup before firing the picker
+  // deadline, rather than making successful admission race a wall-clock sleep.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  profiles.attach(worker); await profiles.start(60);
+  assert.equal(profiles.status().active, true);
+  t.mock.timers.tick(60000);
+  assert.equal(profiles.status().active, false, 'The deadline stops capture without an explicit stop');
+  await profiles.stop(); // Join the deadline-triggered cleanup and profile writes.
   assert.equal(profiles.status().active, false);
   const files = await profiles.list(); assert.equal(files.length, 3); assert.ok(files.some(f => f.name.endsWith('-calculator.cpuprofile'))); assert.ok(files.some(f => f.name.endsWith('-relay.cpuprofile'))); assert.ok(files.some(f => f.name.endsWith('-picker.cpuprofile')));
   for (const file of files) { const parsed = JSON.parse(await profiles.download(file.name)); assert.ok(parsed.nodes.length > 0); }
