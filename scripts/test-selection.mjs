@@ -18,6 +18,7 @@ export const quickTests = new Set([
   "instant-screens.test.mjs",
   "prepared-collection.test.mjs",
   "q2-diff-engine.test.mjs",
+  "q2-ci.test.mjs",
   "startup-retry.test.mjs",
   "multi-picker-capacity.test.mjs",
   "calculator-bundle.test.mjs",

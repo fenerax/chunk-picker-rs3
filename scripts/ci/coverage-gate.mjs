@@ -91,13 +91,20 @@ export async function coverageGate(directory, checkout = fileURLToPath(new URL('
     differentialFiles: differentialInventory.map(file => `tests/${file}`) });
 }
 
+// The reusable differential workflow includes both y03 and Q2. Q2's
+// "not relevant" decision exits successfully; a skipped/failed workflow cannot
+// be rescued by artifacts from an earlier attempt.
+export function requireUpstreamSuccess(env = process.env) {
+  for (const key of ['RS3_COVERAGE_TEST_RESULT', 'RS3_COVERAGE_WINDOWS_RESULT', 'RS3_COVERAGE_DIFFERENTIAL_RESULT'])
+    if (env[key] !== undefined && env[key] !== 'success') throw Error('An upstream test job did not succeed.');
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     if (process.argv.length !== 3) throw Error('Usage: node scripts/ci/coverage-gate.mjs <report directory>');
     // Rerunning failed jobs can leave an earlier attempt's artifacts behind.
     // They cannot rescue a job that failed or was cancelled this time.
-    for (const key of ['RS3_COVERAGE_TEST_RESULT', 'RS3_COVERAGE_WINDOWS_RESULT', 'RS3_COVERAGE_DIFFERENTIAL_RESULT'])
-      if (process.env[key] !== undefined && process.env[key] !== 'success') throw Error('An upstream test job did not succeed.');
+    requireUpstreamSuccess();
     const result = await coverageGate(path.resolve(process.argv[2]));
     console.log(`Coverage: ${result.covered}/${result.total} tests passed somewhere; ${result.allowed.length} reviewed exceptions; ${result.uncovered.length} uncovered.`);
     for (const row of result.uncovered) console.error(`UNCOVERED ${row.file}: ${row.name.join(' > ')} (#${row.occurrence})`);

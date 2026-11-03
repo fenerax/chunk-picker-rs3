@@ -12,24 +12,67 @@ semantics and prevents mixing packs or definitions. It is deliberately too
 strict for comparing changed engine implementations. This harness does not
 change that digest, the app, or the scheduled y03 cold/warm deep campaign.
 
-## Run and opt in for a PR
+## PR checks and local reproduction
+
+The `Tests` workflow calls `Public differential`. Its separate `PR engine
+differential` job checks out the PR head with full history and compares that
+head against its merge base with the PR base SHA. Missing history fails; there
+is no self-comparison fallback. Relevance uses the calculator roots' import
+closures at both refs, calculator/data paths and `reference/`. An unrelated PR
+runs the job successfully with a **not relevant** summary, rather than skipping
+its required check. The scheduled y03 deep campaign is unchanged.
+
+The reusable workflow's combined result feeds `RS3_COVERAGE_DIFFERENTIAL_RESULT`
+in the coverage gate. A failed comparison, input verification, collapsed harvest,
+timeout, memory breach or cancelled job fails that gate. A not-relevant decision
+exits zero. Required harvest floors remain `MIN_HARVEST_PAIRS = 500` and
+`MIN_HARVEST_RESULTS = 400`; matching error replies do not satisfy the latter.
+
+The job has a 15-minute limit, a 14-minute comparison step, a 720000 ms campaign
+deadline and a 780000 ms outer deadline. `workflow_call` inputs `q2-request-ms`,
+`q2-wall-ms`, `q2-outer-ms`, `q2-rss-mib` and `q2-tree-rss-mib` configure the
+bounds (defaults: 30000, 720000, 780000, 768, 2048). Keep deadlines below the
+step/job limits to leave time for cleanup and upload. Node 24.21.0 runs in a
+disposable container, with inherited selectors removed and no packs mounted.
+The existing RSS sampler bounds the owned process group; it is not a cgroup
+hard limit. Runner teardown disposes of descendants even after SIGKILL.
+
+A local reproduction uses the same job script and limits (choose a fresh output
+directory, and make both histories available first):
 
 ```sh
 export PATH=/opt/codex/cua_node/bin:$PATH
 node --version
-node scripts/experiments/q2-diff-engine/supervise.mjs --reference-ref BASE_SHA --candidate-ref HEAD_SHA --out /tmp/engine-diff
-node scripts/experiments/q2-diff-engine/pr.mjs --base-ref BASE_BRANCH_SHA --head-ref PR_HEAD_SHA --out /tmp/pr-engine-diff
+node scripts/experiments/q2-diff-engine/pr.mjs --base-ref BASE_SHA --head-ref PR_HEAD_SHA --out /tmp/pr-engine-diff --request-ms 30000 --wall-ms 720000 --outer-ms 780000 --rss-mib 768 --tree-rss-mib 2048
 ```
 
-The explicit PR command is the opt-in entrypoint for a CI step or local PR check.
-It computes the merge base and runs only for calculator/data paths. Both histories
-must already be available locally; missing history fails, with no network fetch
-or fallback to comparing HEAD against itself. Run PR head, not GitHub's synthetic
-merge commit. Workflow wiring requires .github/workflows/differential.yml changes,
-which are outside this task's scripts/tests-only ownership; no workflow was edited.
-The intended caller uses a boolean workflow_call input (default false), full
-checkout history and the PR base/head SHAs, in a separate 15-minute step. Keep
-scheduled y03 deep runs unchanged and upload the Q2 output with always().
+### Reading a failure
+
+Open **Public differential / PR engine differential**, then the Q2 job summary.
+Download `q2-pr-differential-RUN_ID-RUN_ATTEMPT`: `summary.json` and `summary.md`
+contain the resolved merge base and head, compared/result/error pair counts,
+harvest counts and floors, difference count, wall time and sampled peak group
+RSS. For a mismatch, `firstDifference.requestType` names the operation and
+`firstDifference.path` identifies its first differing result field. Compared
+values and captured states are omitted. The first mismatch stops the campaign,
+so its difference count covers only pairs reached before stopping.
+
+Exit 10 means a result difference: reproduce locally and inspect that operation
+and field. Exit 14 includes unequal input bytes, incomplete reports and a harvest
+below either floor; check input/fixture changes before interpreting it as an
+engine difference. Exits 11/15/124 are request/campaign/outer deadlines, 13 is RSS,
+12 a crash and 16 an unexpected engine error. The local output also retains
+`comparison/campaign/report.json`, `comparison/supervisor.json` and campaign
+logs for investigation. If no summary artifact exists, inspect checkout/setup or
+cancellation logs; absence never proves success. Fix the cause instead of
+lowering floors or weakening comparison. A deliberate game/input change needs
+separate review because this gate requires byte-identical inputs and results.
+
+Direct comparisons, independent of PR relevance, remain available:
+
+```sh
+node scripts/experiments/q2-diff-engine/supervise.mjs --reference-ref BASE_SHA --candidate-ref HEAD_SHA --out /tmp/engine-diff
+```
 
 ## Input gate and corpus
 
@@ -116,7 +159,7 @@ node scripts/test.mjs engine-differential
 npm run test:quick
 ```
 
-## Recorded public evidence (2026-11-02)
+## Historical public evidence from PR #103 (2026-11-02)
 
 START: c185bd7c932d96642506b10c3c0935fb689b7d02. Linux, Node v24.21.0.
 The harness runs from the working tree and records its source hashes; calculator
@@ -167,7 +210,10 @@ Validation:
 - `npm run test:quick`, once: 3405 passed, 0 failed, 68 existing skips
   (3473 cases; 762.96 seconds). No full npm test run.
 
-Remaining: permission to edit `.github/workflows/differential.yml` and its
+At that task’s completion, remaining work was permission to edit `.github/workflows/differential.yml` and its
 `.github/workflows/test.yml` caller for CI activation, plus the unavailable local
 pre-#101 ref. The supplied scripts/tests-only scope was preserved. No private
 save or released/private pack was opened, and no lab-data file was modified.
+
+CI activation and fresh comparisons on the required main base are recorded in
+[`docs/perf/q2-ci-2026-11.md`](../../../docs/perf/q2-ci-2026-11.md).
