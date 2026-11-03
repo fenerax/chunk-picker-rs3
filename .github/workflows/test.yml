@@ -103,6 +103,8 @@ jobs:
           if-no-files-found: error
 
   differential:
+    # The reusable workflow also checks PR head vs merge base with Q2.
+    # A Q2 "not relevant" result succeeds; any comparison failure fails coverage.
     # Avoid spending a separate runner on detectors/smoke when the main suite fails.
     needs: test
     uses: ./.github/workflows/differential.yml
