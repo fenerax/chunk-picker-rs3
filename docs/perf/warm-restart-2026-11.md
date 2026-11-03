@@ -244,4 +244,34 @@ fixture failure. That fixture now uses the neighboring portable UID/GID
 fallback; its focused rerun passed (1/1), giving 210 passing cases and one skip.
 No full suite or live Linux/VPS check was run.
 
+### Follow-up review fixes
+
+Each published lock now has a unique owner-file token. Removing that exact
+token atomically claims a dead lock for reclamation; another reclaimer that
+observed the same owner skips if the token is gone. New locks never reuse the
+legacy `owner` filename, so older PID-only locks remain reclaimable without
+letting a delayed reclaimer delete a replacement writer's metadata. Live stages
+retain their tokens even after a minute. Root publishers still transfer stage
+and token ownership to the service user before exposing the lock.
+
+Calculators retain the original file-preparation flag before dropping transfer
+inputs. File-backed replacements validate their collection before the ready
+message, including when the ready catalogue is omitted. A body-validation miss
+returns the rebuilt preparation for publication even when the header was valid
+and `collectPreparedCollection` was false. The next calculator can restore the
+repaired file. Calculation logic is unchanged.
+
+Regression tests control two reclaimers after they read the same dead PID,
+hold the winning writer with an active temp file, and verify exclusive writing
+and preservation of that file for tokenized and legacy locks. A separate process
+worker test changes only the collection body, preserving the header and length,
+then checks identical cold results, repair publication and a warm restore.
+
+Follow-up validation on Windows, Node v26.13.0: `warm-store` (12),
+`prepared-collection` (14) and `warm-restart-worker` (3) passed sequentially:
+29 passed, 0 failed, 0 skipped, about 15 seconds for the final run. Both reported
+bugs were also reproduced by running the new regressions against the original
+implementations. Ownership checks emulate root/service UIDs; no live Linux/VPS
+check or performance benchmark was run.
+
 Written by Codex.

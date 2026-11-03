@@ -13,6 +13,17 @@ export const warmHash = bytes => createHash('sha256').update(bytes).digest('hex'
 export const WARM_COLLECTION_LIMITS = Object.freeze({ ...WARM_STORE_LIMITS, bytes: 256 * 1024 * 1024, entries: 2 });
 export const WARM_RESULT_LIMITS = Object.freeze({ ...WARM_STORE_LIMITS, bytes: 256 * 1024 * 1024, entries: 254 });
 const magic = Buffer.from('RS3WARM1'), headerBytes = 76, digest = /^[a-f0-9]{64}$/;
+const ownerName = name => name === 'owner' || /^owner-[a-f0-9-]{36}$/.test(name);
+function deadOwner(file) {
+  const fd = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  let owner;
+  try { const bytes = Buffer.alloc(32); const count = readSync(fd, bytes, 0, bytes.length, 0); owner = Number(bytes.subarray(0, count).toString()); }
+  finally { closeSync(fd); }
+  if (Number.isSafeInteger(owner) && owner > 0) {
+    try { process.kill(owner, 0); return false; } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  }
+  return true;
+}
 function header(file, key, limit, body = false) {
   let fd;
   try {
@@ -76,6 +87,7 @@ export function createWarmStore(directory, limits = {}) {
   function writeLocked(operation) {
     if (!available) return false;
     let locked = false, stagedLock;
+    const token = `owner-${randomUUID()}`;
     try {
       const created = mkdirSync(directory, { recursive: true, mode: 0o700 });
       if (created && process.getuid?.() === 0) {
@@ -95,13 +107,17 @@ export function createWarmStore(directory, limits = {}) {
         // A kill before chown leaves an empty root-only stage. Removing that
         // empty directory needs only write permission on its service-owned parent.
         try { rmdirSync(file); continue; } catch (error) { if (!['ENOTEMPTY', 'EEXIST'].includes(error.code)) throw error; }
-        try { unlinkSync(path.join(file, 'owner')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+        const names = readdirSync(file);
+        // A paused publisher can still expose its stage. Never empty a live
+        // stage: every lock must remain nonempty when it is published.
+        if (names.length !== 1 || !ownerName(names[0]) || !deadOwner(path.join(file, names[0]))) continue;
+        unlinkSync(path.join(file, names[0]));
         rmdirSync(file);
       }
       stagedLock = mkdtempSync(path.join(directory, '.write-lock-'));
       const owner = process.getuid?.() === 0 ? lstatSync(directory) : undefined;
       if (owner) chownSync(stagedLock, owner.uid, owner.gid);
-      const ownerFile = path.join(stagedLock, 'owner');
+      const ownerFile = path.join(stagedLock, token);
       writeFileSync(ownerFile, String(process.pid), { flag: 'wx', mode: 0o600 });
       if (owner) chownSync(ownerFile, owner.uid, owner.gid);
       // Every published lock is nonempty: rename cannot replace a live lock.
@@ -112,23 +128,24 @@ export function createWarmStore(directory, limits = {}) {
       catch {
         const info = lstatSync(lock);
         if (!info.isDirectory() || info.isSymbolicLink() || Date.now() - info.mtimeMs < 60000) return lockFailure('busy or unsafe lock');
-        const ownerFile = path.join(lock, 'owner');
-        try {
-          const ownerFd = openSync(ownerFile, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-          let owner;
-          try { const bytes = Buffer.alloc(32); const count = readSync(ownerFd, bytes, 0, bytes.length, 0); owner = Number(bytes.subarray(0, count).toString()); } finally { closeSync(ownerFd); }
-          if (Number.isSafeInteger(owner) && owner > 0) {
-            try { process.kill(owner, 0); return lockFailure('live owner'); } catch (error) { if (error.code !== 'ESRCH') return lockFailure(error.code); }
-          }
+        const names = readdirSync(lock);
+        if (names.length > 1 || names.length === 1 && !ownerName(names[0])) return lockFailure('unsafe owner');
+        if (names.length) {
+          const ownerFile = path.join(lock, names[0]);
+          if (!deadOwner(ownerFile)) return lockFailure('live owner');
+          // Unlink is the atomic claim on this stale instance. Only one
+          // reclaimer can remove its unique token; losers must skip, including
+          // ENOENT. A later writer has a different token and remains nonempty.
+          // The fixed legacy name is safe too: new writers never reuse it.
           unlinkSync(ownerFile);
-        } catch (error) { if (error.code !== 'ENOENT') return lockFailure(error.code); }
+        }
         rmdirSync(lock); renameSync(stagedLock, lock); stagedLock = undefined; locked = true;
       }
       operation(); return true;
     } catch (error) { return locked ? false : lockFailure(error.code ?? 'error'); }
     finally {
-      if (stagedLock) { try { unlinkSync(path.join(stagedLock, 'owner')); } catch {} try { rmdirSync(stagedLock); } catch {} }
-      if (locked) { try { unlinkSync(path.join(lock, 'owner')); rmdirSync(lock); } catch {} }
+      if (stagedLock) { try { unlinkSync(path.join(stagedLock, token)); } catch {} try { rmdirSync(stagedLock); } catch {} }
+      if (locked) { try { unlinkSync(path.join(lock, token)); rmdirSync(lock); } catch {} }
     }
   }
   writeLocked(() => prune());

@@ -38,7 +38,8 @@ startupPhase('worker:modules');
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
 if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
 const warmResults = createWarmResults(workerData);
-const preparationKey = workerData.collectPreparedCollection || workerData.preparedCollection || workerData.preparedCollectionFile ? preparedCollectionKey(workerData) : undefined;
+const collectPreparedCollection = workerData.collectPreparedCollection || !!workerData.preparedCollectionFile;
+const preparationKey = collectPreparedCollection || workerData.preparedCollection ? preparedCollectionKey(workerData) : undefined;
 let collectionEntry = workerData.preparedCollection, collectionFile = workerData.preparedCollectionFile;
 delete workerData.preparedCollection; delete workerData.preparedCollectionFile;
 const definitions = prepareWorkerDefinitions(takeDefinitions(), selectedDataset, workerData.preparedDatasetStages, workerData.datasetOptions);
@@ -84,7 +85,7 @@ function getCollectionEngine() {
     const prepared = decodePreparedCollection(collectionEntry ?? readPreparedCollectionFile(collectionFile, preparationKey), preparationKey);
     collectionEntry = undefined; collectionFile = undefined;
     collectionEngine = createCollectionEngine(definitions, { dataset: selectedDataset, prepared,
-      onPrepared: !prepared && (workerData.collectPreparedCollection || workerData.preparedCollectionFile)
+      onPrepared: !prepared && collectPreparedCollection
         ? value => { collectionPreparation = value; } : undefined });
   }
   return collectionEngine;
@@ -542,9 +543,9 @@ const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 's
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
 setImmediate(() => {
-  // A replacement that omits the catalogue needs no collection graph until
-  // its first calculation. The initial foreground still publishes all IDs.
-  if (!workerData.omitReadyCatalogue || workerData.collectPreparedCollection) getCollectionEngine();
+  // Validate file-backed replacements before ready so a restore miss can
+  // return a repair for publication. Other catalogue-omitting workers stay lazy.
+  if (!workerData.omitReadyCatalogue || collectPreparedCollection) getCollectionEngine();
   const preparation = collectionPreparation ? { preparedCollection: encodePreparedCollection(preparationKey, collectionPreparation) } : {};
   collectionPreparation = undefined;
   const compileMs = performance.now() - compileStarted;

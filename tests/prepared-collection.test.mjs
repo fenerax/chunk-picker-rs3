@@ -250,6 +250,36 @@ test('file-backed process workers return identical lists on hit, corrupt-file fa
   }
 });
 
+test('body-corrupt persistent collections rebuild, publish a repair and restore on the next calculator', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-body-repair-'));
+  let cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  t.after(async () => { await cache.clear(); await rm(directory, { recursive: true, force: true }); });
+  const current = state(), cold = await runWorker(cache.input(), current);
+  assert.ok(cold.ready.preparedCollection);
+  cache.accept(cold.ready); await cache.settled();
+  const reference = cache.input().preparedCollectionFile, original = await readFile(reference.file);
+  const corrupt = Buffer.from(original); corrupt[corrupt.length - 1] ^= 1;
+  await writeFile(reference.file, corrupt);
+  assert.deepEqual(corrupt.subarray(0, 76), original.subarray(0, 76), 'the header and length stay intact');
+  assert.equal(corrupt.length, original.length);
+  await cache.clear();
+  cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  const input = cache.input();
+  assert.ok(input.preparedCollectionFile?.warm, 'header-only launch validation accepts the reference');
+  assert.equal(input.collectPreparedCollection, false, 'the calculator must enable collection after a body miss');
+  assert.equal(readPreparedCollectionFile(input.preparedCollectionFile, reference.key), undefined);
+  const rebuilt = await runWorker({ ...input, omitReadyCatalogue: true }, current);
+  assert.deepEqual(rebuilt.results, cold.results, 'cold fallback preserves calculation results');
+  assert.ok(validPreparedCollectionEntry(rebuilt.ready.preparedCollection, reference.key), 'the rebuilt preparation is returned for publication');
+  cache.accept(rebuilt.ready); await cache.settled();
+  assert.deepEqual(await readFile(reference.file), original, 'the publisher replaces the corrupt body');
+  await cache.clear();
+  cache = createWorkerPreparation(init(), { persistentDirectory: directory });
+  const warm = await runWorker({ ...cache.input(), omitReadyCatalogue: true }, current);
+  assert.deepEqual(warm.results, cold.results);
+  assert.equal(warm.ready.preparedCollection, undefined, 'a valid warm restore needs no further rebuild/publication');
+});
+
 test('the pool labels physical foreground/advisory allocations for bounded preparation residency', async () => {
   const groups = [];
   const pool = createCalculatorPool({ limit: 2, idleMs: 1000,
