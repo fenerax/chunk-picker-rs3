@@ -515,3 +515,26 @@ test('task preparation readiness obeys the same picker activity admission as its
   await idleClock.advance(150);
   assert.equal(active.canPrewarmTasks(), false);
 });
+
+for (const requested of [false, true]) test(`expired queued warming releases the shared lane${requested ? ' behind requested work' : ''}`, async t => {
+  const { scheduler, scopes: [a, b, c], evaluate, workers, idleClock } = await fixture(t, { residency: { ...config, memoryBytes: 200 } });
+  a.noteActivity(); workers[0].bytes = 150;
+  assert.equal(a.prewarm(state, 'input', [{ memberId: 'one', chunkIds: ['100'] }]).queued, 1);
+  await tick(); assert.equal(workers.length, 1);
+  const close = b.openSession(); t.after(close);
+  await idleClock.advance(150);
+  assert.equal(b.prewarm(state, 'input', [{ memberId: 'one', chunkIds: ['101'] }]).queued, 1);
+  const request = requested ? evaluate(c, 'requested', 'predict') : undefined;
+  workers[0].bytes = 100;
+  await idleClock.advance(100);
+  assert.equal(workers.length, 2, 'eligible work must acquire the free reservation');
+  assert.equal(workers[1].messages.findLast(message => message.id).pickerId, ids[requested ? 2 : 1]);
+  if (requested) {
+    assert.equal(workers[1].messages.findLast(message => message.id).chunkId, '100');
+    workers[1].finish(); await request; await tick();
+  }
+  assert.equal(workers[1].messages.findLast(message => message.id).chunkId, '101');
+  workers[1].finish(); await tick();
+  assert.equal(scheduler.getDiagnostics().predictionLane.retainedWork.pending, 0);
+  assert.equal(scheduler.getDiagnostics().predictionLane.prewarm.completed, 1);
+});
