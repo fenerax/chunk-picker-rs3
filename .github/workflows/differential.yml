@@ -2,6 +2,22 @@ name: Public differential
 
 on:
   workflow_call:
+    inputs:
+      q2-request-ms:
+        type: number
+        default: 30000
+      q2-wall-ms:
+        type: number
+        default: 720000
+      q2-outer-ms:
+        type: number
+        default: 780000
+      q2-rss-mib:
+        type: number
+        default: 768
+      q2-tree-rss-mib:
+        type: number
+        default: 2048
   workflow_dispatch:
   schedule:
     - cron: '23 4 * * 1'
@@ -59,5 +75,42 @@ jobs:
           path: |
             ${{ runner.temp }}/differential-${{ github.run_id }}-${{ github.run_attempt }}
             ${{ runner.temp }}/detectors-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: error
+
+  engine-pr:
+    name: PR engine differential
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Hosted runner disposes of all descendants even on SIGKILL/cancellation.
+    container: node:24.21.0-bookworm
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compare merge base with PR head
+        timeout-minutes: 14
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REQUEST_MS: ${{ inputs.q2-request-ms }}
+          WALL_MS: ${{ inputs.q2-wall-ms }}
+          OUTER_MS: ${{ inputs.q2-outer-ms }}
+          RSS_MIB: ${{ inputs.q2-rss-mib }}
+          TREE_RSS_MIB: ${{ inputs.q2-tree-rss-mib }}
+        run: |
+          env -i PATH="$PATH" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$GITHUB_WORKSPACE" GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" node scripts/experiments/q2-diff-engine/pr.mjs --base-ref "$BASE_SHA" --head-ref "$HEAD_SHA" --out "$RUNNER_TEMP/q2-pr" --request-ms "$REQUEST_MS" --wall-ms "$WALL_MS" --outer-ms "$OUTER_MS" --rss-mib "$RSS_MIB" --tree-rss-mib "$TREE_RSS_MIB"
+      - name: Keep compact PR engine report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: q2-pr-differential-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/q2-pr/summary.json
+            ${{ runner.temp }}/q2-pr/summary.md
           retention-days: 14
           if-no-files-found: error
