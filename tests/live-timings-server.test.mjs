@@ -1,0 +1,73 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
+import { createServer } from '../app/server.mjs';
+import { createGroupState } from '../app/core/state.mjs';
+import { ProcessWorker } from '../app/tasks/process-worker.mjs';
+import { surfaceCoordinates, SURFACE_GRID } from '../app/data/surface-grid.mjs';
+import { createRuleRegistry } from '../app/core/rules.mjs';
+import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
+
+const first = surfaceCoordinates('12344') ? 12341 : SURFACE_GRID.startId - 3;
+const ids = [String(first), String(first + 1), String(first + 2)];
+const definitions = { chunks: { [ids[0]]: {}, [ids[1]]: {}, [ids[2]]: {} }, walkableChunks: [ids[0], ids[1], ids[2]], walkableChunksF2P: [ids[0], ids[1], ids[2]], challenges: { Extra: { 'Synthetic present': { Chunks: [ids[0]] }, 'Synthetic future': { Chunks: [ids[1]] } } } };
+test('synthetic server records actions, flags, private bytes, admin permissions and restart', async t => {
+  const dataDir = await mkdtemp('/tmp/live-timings-http-'); let app;
+  t.after(async () => { await app?.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const initialState = createGroupState([{ id: 'timing-private-id', name: 'Timing private name', unlocked: [ids[0]] }, { id: 'partner', name: 'Partner', unlocked: [ids[2]] }]);
+  initialState.rules['roll.neighborMode'] = createRuleRegistry().get('roll.neighborMode').options.find(v => v === 'frontier' || v === 'geometric');
+  initialState.rules['access.shared'] = false; initialState.rules['content.f2p'] = false;
+  const options = { dataDir, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState, port: 0, predictionPrewarm: false,
+    taskWorkerOptions: { workerFactory(data) { const worker = new ProcessWorker(data), post = worker.postMessage.bind(worker); worker.postMessage = message => { if (message.type === 'evaluate') setTimeout(() => post(message), 50); else post(message); }; return worker; } } };
+  app = await createServer(options); await app.listen();
+  let origin = `http://127.0.0.1:${app.address().port}`;
+  const admin = { Authorization: `Bearer ${app.store.getAccessToken()}` };
+  async function request(route, body, headers = admin, expected = 200) {
+    const response = await fetch(origin + route, { headers: { ...headers, ...(body ? { Origin: origin, 'Content-Type': 'application/json' } : {}) }, ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
+    const text = await response.text(); assert.equal(response.status, expected, `${route}: ${text.slice(0, 300)}`);
+    return response.headers.get('content-type')?.includes('application/json') ? JSON.parse(text) : text;
+  }
+  const member = 'timing-private-id', tasksRoute = `/api/tasks?memberId=${member}`;
+  const [tasks] = await Promise.all([request(tasksRoute), request(tasksRoute)]); await request(tasksRoute);
+  await request(`${tasksRoute}&view=play-v1`); const state = await request('/api/state'); await request('/api/state'); await request('/api/state?view=play-v1');
+  const revision = app.store.getInfo().revision, taskId = tasks.tasks[0].id;
+  await request(`/api/task-how?memberId=${member}&taskId=${encodeURIComponent(taskId)}&revision=${revision}`);
+  await request(`/api/task-why?memberId=${member}&taskId=${encodeURIComponent(taskId)}&revision=${revision}`);
+  const chunkId = state.pools[member].eligible[0].id;
+  await request(`/api/predict?memberId=${member}&chunkId=${chunkId}`);
+  const deadline = Date.now() + 10000;
+  while ((await request('/api/diagnostics')).prediction?.queue?.active && Date.now() < deadline) await delay(10);
+  await request(`/api/chunk-planning?memberId=${member}&chunkId=${chunkId}`);
+  await request(`/api/pool-ranking?memberId=${member}`);
+  await request('/api/sandbox/evaluate', { memberId: member, baseRevision: revision, changes: {} });
+  await request('/api/command', { expectedRevision: revision, command: { type: 'set-note', memberId: member, chunkId: ids[0], note: 'Private timing note' } });
+  for (const body of [{ label: 'Viewer', viewer: true }, { label: 'Player', memberId: member }]) {
+    const invite = await request('/api/invites', body, admin, 201), joined = await fetch(invite.link, { redirect: 'manual' });
+    const headers = { cookie: joined.headers.get('set-cookie').split(';')[0] };
+    for (const route of ['/admin/live-timings', '/admin/live-timings.mjs', '/api/admin/live-timings', '/api/admin/cpu-profiles?name=x']) await request(route, undefined, headers, 403);
+    await request('/api/admin/cpu-profiles', { action: 'start' }, headers, 403);
+  }
+  const { key } = await request('/api/game-plugin/keys', { memberId: member, label: 'Timing test' }, admin, 201);
+  await request('/api/admin/live-timings', undefined, { Authorization: `Bearer ${key}` }, 403);
+  await request('/admin/live-timings', undefined, { Authorization: `Bearer ${key}` }, 403);
+  assert.match(await request('/admin/live-timings'), /Live timings/);
+  let summary = await request('/api/admin/live-timings'), rows = summary.windows['24h'];
+  for (const action of ['tasks-full', 'tasks-play', 'preview-first', 'preview-partner', 'how', 'why', 'roll-pool', 'pool-ranking', 'chunk-planning', 'sandbox', 'command', 'state-full', 'state-play', 'worker-start']) assert.ok(rows.find(r => r.action === action).count > 0, action);
+  assert.ok(rows.find(r => r.action === 'tasks-full').coalesced > 0);
+  assert.ok(rows.find(r => r.action === 'tasks-full').cached > 0);
+  assert.ok(rows.find(r => r.action === 'how').stages.totalMs.count > 0);
+  await request('/api/admin/cpu-profiles', { action: 'start', seconds: 600 });
+  await app.close();
+  const bytes = await readFile(`${dataDir}/live-timings.json`, 'utf8');
+  for (const secret of [member, initialState.members[0].name, 'Synthetic present', 'Synthetic future', ids[0], 'Private timing note', key]) assert.ok(!bytes.includes(JSON.stringify(secret)), secret);
+  app = await createServer(options); await app.listen(); origin = `http://127.0.0.1:${app.address().port}`;
+  summary = await request('/api/admin/live-timings'); assert.equal(summary.profile.active, false); assert.ok(summary.profiles.length > 0);
+  assert.equal(summary.windows['24h'].find(r => r.action === 'tasks-full').count, rows.find(r => r.action === 'tasks-full').count);
+  for (const file of summary.profiles) {
+    const profile = await request(`/api/admin/cpu-profiles?name=${encodeURIComponent(file.name)}`);
+    assert.ok(profile.nodes.length > 0);
+    const bytes = JSON.stringify(profile);
+    for (const secret of [member, initialState.members[0].name, 'Synthetic present', 'Synthetic future', key]) assert.ok(!bytes.includes(secret));
+  }
+});

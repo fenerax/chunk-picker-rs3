@@ -1,3 +1,5 @@
+import { openLiveTimings, noteTiming } from './live-timings.mjs';
+import { createDeepProfiles } from './deep-profiles.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
 import { createUsageRateLimit } from './usage-route.mjs';
@@ -97,7 +99,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   interiorCatalogue,
   gameDataDir = process.env.RS3_GAME_DATA_DIR || path.join(ROOT, '.local', 'game-data'),
   chunkSectionCatalogue,
-  taskWorkerOptions, idleMemoryOptions, shutdownDeadlineMs = 10000, retention, predictionPrewarm = true,
+  liveTimingOptions, taskWorkerOptions, idleMemoryOptions, shutdownDeadlineMs = 10000, retention, predictionPrewarm = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin = process.env.RS3_PUBLIC_ORIGIN, rateLimits = {}, usageRateLimits = {},
   requestContextFor = requestContext,
@@ -112,6 +114,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Synthetic scratch saves only: game plugin items from beta worlds tick like live ones.
   pluginItemsBetaAsLive = false,
 } = {}) {
+  let timings, deepProfiles;
+  try {
   const initializationStarted = performance.now();
   startupPhase('create:start');
   dataset ??= reuseEquivalentDataset(await resolveDataset({ packsDir, selectionPath: packSelection, mapAssetsDir, gameDataDir }), selectedDataset);
@@ -129,6 +133,20 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     if (dataset.capabilities?.independent && !binding.bound) throw new Error('Standby requires existing bound storage.');
   } else await prepareGameStorage(dataDir, dataset);
   startupPhase('create:storage');
+  timings = await openLiveTimings(dataDir, { ...liveTimingOptions, paused: !!liveSwap?.standby });
+  deepProfiles = await createDeepProfiles(dataDir, { pruneOnOpen: !liveSwap?.standby });
+  const originalOnWorker = taskWorkerOptions?.onWorker;
+  taskWorkerOptions = { ...taskWorkerOptions, timings, onWorker(worker) {
+    originalOnWorker?.(worker); deepProfiles.attach(worker); noteTiming({ calculatorStarted: true });
+    const started = performance.now(); let finished = false;
+    const complete = failed => {
+      if (finished) return; finished = true; worker.off('message', ready); worker.off('exit', exited);
+      timings.record('worker-start', performance.now() - started, { source: 'computed', calculatorStarted: true, failed });
+    };
+    const ready = message => { if (message.type === 'ready') complete(false); };
+    const exited = () => complete(true);
+    worker.on('message', ready); worker.once('exit', exited);
+  } };
   if (initialImport && !datasetFeature(dataset, 'originalSync')) throw httpError(422, 'Restore a starter backup through Backup & Import.');
   const browserDataset = await datasetBrowserPayload(dataset);
   startupPhase('create:browser-payload');
@@ -312,7 +330,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   }
   const usageAdmission = createUsageRateLimit({ ...(now === undefined ? {} : { now: () => typeof now === 'function' ? now() : now }), ...usageRateLimits });
   const runtime = {
-    dataset, indexedWorld, ruleRegistry, taskWorker, taskWorkerOptions, parsedDefinitions,
+    timings, deepProfiles, dataset, indexedWorld, ruleRegistry, taskWorker, taskWorkerOptions, parsedDefinitions,
     parsedTaskMap, identityHistory, migrateState, registry, xpChoiceCatalogue, sandboxCatalogue,
     originalSyncIntegration, privateAddon, appVersion, browserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
@@ -438,7 +456,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           } catch (error) { await opened?.close(); throw error; }
         } });
     }
-  } catch (error) { await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); throw error; }
+  } catch (error) { await deepProfiles.close(); await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); await timings.close(); throw error; }
   // Preserve the original synchronous dispatcher when routing is disabled.
   function contextFor(request) { return context; }
   async function serviceOperator(request, response, listener) {
@@ -486,7 +504,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     return pickerRouter ? pickerRouter.handle(request, response, listener) : contextFor(request).handle(request, response, listener);
   };
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
-  const profiledRequestHandler = PROFILE_ENABLED ? (request, response, listener) => profile.request(request, response, () => requestHandler(request, response, listener)) : requestHandler;
+  const timedRequestHandler = (request, response, listener) => timings.request(request, response, () => requestHandler(request, response, listener));
+  const profiledRequestHandler = PROFILE_ENABLED ? (request, response, listener) => profile.request(request, response, () => timedRequestHandler(request, response, listener)) : timedRequestHandler;
   const server = httpServer ?? http.createServer(headerOptions, profiledRequestHandler);
   const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions,
     (request, response) => profiledRequestHandler(request, response, { host: '127.0.0.1', ingressRole: loopbackRole })));
@@ -495,8 +514,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const handle = {
     server, store: context.store, world: indexedWorld, dataset,
     getStartupTimingMs: () => ({ ...startupTimingMs }),
-    activate: checkpoint => context.activate(checkpoint),
-    freeze: options => context.freeze(options),
+    activate: async checkpoint => { const result = await context.activate(checkpoint); await timings.resume(); return result; },
+    freeze: async options => { const result = await context.freeze(options); await timings.pause(); await deepProfiles.stop(); return result; },
     address: () => server.address(), loopbackAddress: () => loopbackServer?.address() ?? null,
     get inviteUrl() {
       const address = server.address(), hostname = host.includes(':') ? `[${host}]` : host;
@@ -540,7 +559,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         const boundedResponses = contextClosed.then(() => {
           saveResponseTimer = setTimeout(() => { for (const socket of connections) socket.destroy(); }, shutdownDeadlineMs);
         });
-        try { await Promise.all([connectionsClosed, taskWorker?.close(shutdownDeadlineMs), boundedResponses]); }
+        try { await deepProfiles.close(); await Promise.all([connectionsClosed, taskWorker?.close(shutdownDeadlineMs), boundedResponses]); await timings.close(); }
         finally { clearTimeout(timer); clearTimeout(saveResponseTimer); runtime.staticCache.clear(); }
       })();
       return closePromise;
@@ -550,6 +569,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   startupPhase('create:handler');
   startupSignal?.removeEventListener('abort', abortCalculator);
   return handle;
+  } catch (error) { await deepProfiles?.close(); await timings?.close(); throw error; }
 }
 
 /** Production startup exposes private health before opening the save. */

@@ -6,6 +6,34 @@ import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 let worker, stopping = false, failed = false, probeEnabled = false;
 const cancellations = new Map();
 const relay = createRelayCollector();
+let cpuProfile, relayProfile, workerOnline;
+const inspectorPost = (session, method) => new Promise((resolve, reject) => session.post(method, (error, value) => error ? reject(error) : resolve(value)));
+let profileOperations = Promise.resolve();
+async function profile(message) {
+  try {
+    if (!worker) throw new Error();
+    if (message.operation === 'start') {
+      if (cpuProfile) throw new Error();
+      const { Session } = await import('node:inspector');
+      relayProfile = new Session(); relayProfile.connect();
+      await inspectorPost(relayProfile, 'Profiler.enable'); await inspectorPost(relayProfile, 'Profiler.start');
+      await workerOnline;
+      cpuProfile = await worker.startCpuProfile();
+      send({ kind: 'profile', id: message.id });
+    } else {
+      const handle = cpuProfile; cpuProfile = undefined;
+      if (!handle) throw new Error();
+      const calculator = await handle.stop(), { profile: relay } = await inspectorPost(relayProfile, 'Profiler.stop');
+      relayProfile.disconnect(); relayProfile = undefined;
+      send({ kind: 'profile', id: message.id, profile: { calculator, relay } });
+    }
+  } catch {
+    relayProfile?.disconnect(); relayProfile = undefined;
+    const handle = cpuProfile; cpuProfile = undefined;
+    if (handle) try { await handle.stop(); } catch {}
+    send({ kind: 'profile', id: message.id, error: true });
+  }
+}
 
 function send(message) {
   if (!process.connected) return;
@@ -54,6 +82,7 @@ async function memory(id) {
 process.on('message', message => {
   if (stopping) return;
   try {
+    if (message.kind === 'profile') { profileOperations = profileOperations.then(() => profile(message)); return; }
     if (message.kind === 'terminate') { void stop(); return; }
     if (message.kind === 'memory-rss') {
       send({ kind: 'memory-rss', id: message.id, pid: process.pid, rssBytes: process.memoryUsage.rss() }); return;
@@ -69,6 +98,7 @@ process.on('message', message => {
         // process-only V8 flags; explicitly forwarding those flags rejects them.
         ...(probeEnabled ? { execArgv: ['--import', probeImport] } : {}),
       });
+      workerOnline = new Promise(resolve => worker.once('online', resolve));
       worker.on('message', result => {
         if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) cancellations.delete(result.id);
         try { const payload = encodeReceivedWorkerMessage(result); send({ kind: 'message', payload }); relay.note(envelopeBytes(payload)); }

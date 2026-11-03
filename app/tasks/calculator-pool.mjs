@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 
 // One server owns the physical calculators. Lanes borrow a slot for one job;
 // even a retiring calculator holds its slot until termination has completed.
-export function createCalculatorPool({ limit, workerFactory, workerData, onReady, idleMs = 600000, startupDeadlineMs = 30000 }) {
+export function createCalculatorPool({ limit, workerFactory, workerData, onReady, onWorker, idleMs = 600000, startupDeadlineMs = 30000 }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false;
   const diagnostics = () => ({ limit, resident: slots.size, peak, active: [...slots].filter(slot => slot.owner).length,
@@ -20,8 +20,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     slot.timer = setTimeout(() => { if (!slot.owner) void retire(slot); }, Math.min(idleMs, 2147483647));
     slot.timer.unref?.();
   }
-  function allocate(pendingOwner) {
-    const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
+  function allocate(pendingOwner, cold = true) {
+    const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, cold: cold && !!pendingOwner, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
+    onWorker?.(slot.worker);
     slots.add(slot); peak = Math.max(peak, slots.size);
     slot.initial = new Promise((resolve, reject) => { slot.resolve = resolve; slot.reject = reject; });
     // Later slots report failure through their owner, not an unobserved promise.
@@ -108,6 +109,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         turns.splice(turns.indexOf(selected.pickerId), 1); turns.push(selected.pickerId);
         waiting.delete(endpoint); clearTimeout(slot.timer);
         slot.owner = endpoint; endpoint.slot = slot;
+        endpoint.startedCalculator = slot.cold; slot.cold = false;
         request.run();
       }
     } finally { pumping = false; }
@@ -118,7 +120,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot ??= (async () => {
         await Promise.all([...slots].filter(slot => slot.stopping).map(slot => slot.stopping));
         if (closed) throw new Error('Calculator pool is closing.');
-        return ready ?? await ([...slots][0] ?? allocate(this)).initial;
+        return ready ?? await ([...slots][0] ?? allocate(this, false)).initial;
       })().catch(error => { boot = undefined; throw error; });
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }

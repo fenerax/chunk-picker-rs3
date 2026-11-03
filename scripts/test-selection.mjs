@@ -15,6 +15,8 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "live-timings.test.mjs",
+  "live-timings-server.test.mjs",
   "prepared-collection.test.mjs",
   "q2-diff-engine.test.mjs",
   "startup-retry.test.mjs",

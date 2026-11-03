@@ -13,6 +13,7 @@ export class ProcessWorker extends EventEmitter {
   #resolveExit;
   #killTimers = [];
   #memory = new Map();
+  #profiles = new Map();
   #sequence = 0;
   #failed = false;
 
@@ -30,6 +31,10 @@ export class ProcessWorker extends EventEmitter {
       try {
         if (message.kind === 'message') this.emit('message', decodeReceivedProcessMessage(message.payload));
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
+        else if (message.kind === 'profile') {
+          const request = this.#profiles.get(message.id);
+          if (request) { this.#profiles.delete(message.id); clearTimeout(request.timer); message.error ? request.reject(new Error('Calculator profile unavailable.')) : request.resolve(message.profile); }
+        }
         else if (message.kind === 'memory') {
           const request = this.#memory.get(message.id);
           if (request) {
@@ -71,6 +76,8 @@ export class ProcessWorker extends EventEmitter {
       clearTimeout(timer); reject(new Error('Task worker process exited.'));
     }
     this.#memory.clear();
+    for (const { reject, timer } of this.#profiles.values()) { clearTimeout(timer); reject(new Error('Calculator exited.')); }
+    this.#profiles.clear();
     this.#resolveExit(code);
     this.emit('exit', code);
   }
@@ -89,6 +96,21 @@ export class ProcessWorker extends EventEmitter {
 
   unref() { this.#child.unref(); this.#child.channel?.unref(); return this; }
   ref() { this.#child.ref(); this.#child.channel?.ref(); return this; }
+
+  async startCpuProfile() {
+    await this.#profileRequest('start');
+    return { stop: () => this.#profileRequest('stop') };
+  }
+
+  #profileRequest(operation) {
+    if (this.#exited || this.#stopping) return Promise.reject(new Error('Calculator stopped.'));
+    const id = ++this.#sequence;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.#profiles.delete(id); reject(new Error('Calculator profile timed out.')); }, 20000);
+      timer.unref(); this.#profiles.set(id, { resolve, reject, timer });
+      this.#send({ kind: 'profile', operation, id });
+    });
+  }
 
   getMemoryUsage() {
     if (this.#exited || this.#stopping) return Promise.reject(new Error('Task worker process has stopped.'));

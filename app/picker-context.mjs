@@ -1,3 +1,5 @@
+import { noteTiming } from './live-timings.mjs';
+import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
 import { savedWhyChain, forgetSavedWhyChain } from './task-why-http.mjs';
@@ -127,13 +129,18 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     return pending;
   }
   const trackJob = operation => track(jobs, operation);
-  const evaluatedRollPool = (...args) => trackJob(() => evaluatedRollPoolWork(...args));
+  const evaluatedRollPool = (...args) => trackJob(async () => {
+    const started = performance.now();
+    const metadata = {};
+    try { return await evaluatedRollPoolWork(args[0], args[1], args[2], metadata); }
+    finally { runtime.timings?.record('roll-pool', performance.now() - started, metadata); }
+  });
   const evaluatedTasks = (...args) => trackJob(() => evaluatedTasksWork(...args));
   const rememberTaskResult = (...args) => trackJob(() => rememberTaskResultWork(...args));
   let rollPoolCache = createRollPoolCache(indexedWorld, ruleRegistry, { inputKey: createTaskReuseFingerprint() });
-  async function evaluatedRollPoolWork(state, memberId, draft) {
+  async function evaluatedRollPoolWork(state, memberId, draft, timing = {}) {
     const cached = draft === undefined && rollPoolCache.get(state, memberId);
-    if (cached?.partnerConnections !== undefined) return cached;
+    if (cached?.partnerConnections !== undefined) { timing.source = 'cache'; noteTiming(timing); return cached; }
     let value;
     if (taskWorker?.supports('roll-pool') && workerRollRules(ruleRegistry)) try {
       // Pool snapshots must include selections, pending offers and blacklists;
@@ -142,13 +149,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       const candidate = store?.getInfo().revision === state.revision ? store.getCalculationSnapshot() : undefined;
       const captured = candidate?.rollInputKey === input ? candidate : undefined;
       const stateInput = captured ? { get stateJSON() { return captured.stateJSON; }, inputKey: input } : undefined;
-      value = (await taskWorker.evaluate(stateInput ? { revision: state.revision, members: captured.members } : state,
-        memberId, 'roll-pool', draft, key, input, undefined, [], 'full', stateInput)).result;
+      const evaluation = await taskWorker.evaluate(stateInput ? { revision: state.revision, members: captured.members } : state,
+        memberId, 'roll-pool', draft, key, input, undefined, [], 'full', stateInput);
+      Object.assign(timing, { source: evaluation.hit && !evaluation.coalesced ? 'cache' : 'computed', coalesced: evaluation.coalesced, calculatorStarted: evaluation.calculatorStarted, stages: evaluation.timingMs?.stages ?? evaluation.timingMs });
+      noteTiming({ ...timing, timingMs: evaluation.timingMs });
+      value = evaluation.result;
     } catch {
       // A restarting or unavailable calculator must not block a roll or a state send.
       value = undefined;
     }
     if (value === undefined) {
+      timing.source = 'computed'; noteTiming(timing);
       // Injected workers and custom JavaScript hooks retain their inline API.
       const hypothetical = draft === undefined ? state : applySandboxChanges(state, memberId, draft.changes, sandboxCatalogue);
       value = { pool: evaluateRollPool(indexedWorld, hypothetical, memberId, ruleRegistry),
@@ -292,6 +303,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   async function stateRepresentation(view, info = store.getInfo()) {
     const key = `state:${info.revision}:${view ?? 'full'}`;
     let cached = responseCache.get(key);
+    noteTiming({ source: cached ? 'cache' : 'computed' });
     if (!cached) {
       const saved = await store.getStateSnapshot({ view });
       if (saved.revision !== info.revision) return stateRepresentation(view);
@@ -303,6 +315,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     signal.throwIfAborted();
     const key = `state:${info.revision}:full`, gzipKey = `${key}:gzip`;
     const cached = responseCache.get(key) ?? responseCache.get(gzipKey);
+    noteTiming({ source: cached ? 'cache' : 'computed' });
     if (cached) return cached;
     const result = await stateResponseBuilds.run(key, async buildSignal => {
       const saved = await store.getStateSnapshot({});
@@ -443,6 +456,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     broadcast(`event: task-ready\ndata: ${JSON.stringify({ revision, memberId })}\n\n`);
   }
   async function readSavedTasks(request, response) {
+    noteTiming({ source: 'cache' });
     const query = new URL(request.url, 'http://localhost').searchParams;
     const memberId = query.get('memberId'), revision = store.getInfo().revision;
     if (!knownTaskMembers.has(memberId)) throw httpError(400, 'Choose a known player to view tasks.');
@@ -703,6 +717,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         ? taskWorker.preparedEvaluation?.(() => stateInput.taskInputKey, memberId, state.revision) : undefined;
       const evaluation = reused ?? await taskWorker.evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput,
         side && type !== 'death-estimates' ? 'side' : evaluationLane, duoSidebarProjection);
+      noteTiming({ source: evaluation.hit && !evaluation.coalesced ? 'cache' : 'computed', coalesced: evaluation.coalesced, calculatorStarted: evaluation.calculatorStarted, timingMs: evaluation.timingMs });
       completed = !evaluation.cancelled;
       // Compress off the response path. Current lists survive retirement within
       // the existing quota, so reading them need not compile another worker.
@@ -852,6 +867,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (route.includes('\\') || route.includes('\0') || route.split('/').some(part => part === '..' || part === '.')) throw httpError(404, 'Not found.');
       const ownerRestore = pickerId !== 'legacy' && /^\/api\/(?:restore|import)(?:\/preview)?$/.test(route);
       if (security.publicRequest && apiPermission(request.method, route) === 'admin' && !ownerRestore) throw httpError(403, 'Administrator access requires a private connection.');
+      if (isLiveTimingsRoute(route)) {
+        const admin = invites.authenticate(request, security);
+        if (!admin?.admin || admin.readOnly || security.publicRequest) throw httpError(403, 'Administrator access required.');
+      }
       if (await gamePlugin.handle(request, response, { route, security, closed })) return;
       if (await overlays.handle(request, response, { route, security, closed })) return;
       const authRoute = route.startsWith('/auth/');
@@ -913,6 +932,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         if (identity.readOnly && !usageWrite && (!['GET', 'HEAD'].includes(request.method) || !['read', 'saved-tasks'].includes(permission))) throw httpError(403, 'This link is view only.');
         if (permission === 'admin' && !(ownerRestore && identity.role === 'owner')) requireAdmin();
       }
+      if (await serveLiveTimings(request, response, { route, identity, security, timings: runtime.timings, profiles: runtime.deepProfiles })) return;
       if (!originalSyncIntegration && (route.startsWith('/api/original-sync/') || unavailableDatasetFeature(dataset, route) === 'originalSync')) {
         throw httpError(404, 'Not found.');
       }
@@ -940,6 +960,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security, request) }); return; }
           if (route === '/api/accounts') { requireAdmin(); await json(request, response, 200, { accounts: accounts.list() }); return; }
           if (route === '/api/pool-ranking') {
+            noteTiming({ source: 'cache' });
             const query = new URL(request.url, 'http://localhost').searchParams;
             const captured = calculationState(), state = captured.state, memberId = query.get('memberId');
             if (!state.members.some(member => member.id === memberId)) throw httpError(400, 'Choose a known player to compare the roll pool.');
@@ -956,6 +977,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await json(request, response, 200, { ...ranking, pickerId: identity.pickerId ?? (pickerRouting?.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id) ?? pickerId, datasetDigest: dataset.digest }); return;
           }
           if (route === '/api/task-why') {
+            noteTiming({ source: 'computed' });
             const query = new URL(request.url, 'http://localhost').searchParams;
             await json(request, response, 200, await savedWhyChain(query, { revision: store.getInfo().revision, members: knownTaskMembers,
               entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision })); return;
@@ -1501,6 +1523,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               if (response.destroyed) return;
               if (store.getInfo().revision !== draft.baseRevision) throw httpError(409, 'Your saved map changed during the Sandbox preview. Reset Sandbox to use the latest map.');
               if (!invites.authenticate(request, security)) throw httpError(401, 'Access required.');
+              noteTiming({ timingMs: { sandboxValidationMs, sandboxPoolMs } });
               const cache = { ...(evaluation.resultCache ?? evaluation.result.cache), hit: evaluation.hit, poolHit,
                 evaluationMs: evaluation.evaluationMs, timingMs: { ...evaluation.timingMs, sandboxValidationMs, sandboxPoolMs },
                 requestMs: performance.now() - started, worker: true };

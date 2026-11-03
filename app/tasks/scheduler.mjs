@@ -45,7 +45,12 @@ export const predictionCacheKey = (state, memberId, chunkId, input) => JSON.stri
 
 // Preserve lazy result access when adding per-waiter metadata. Object spread
 // would parse the full task result even for callers that only send its bytes.
-const evaluationWith = (value, metadata) => Object.defineProperties({ ...metadata }, Object.getOwnPropertyDescriptors(value));
+const evaluationWith = (value, metadata) => {
+  const result = Object.defineProperties({ ...metadata }, Object.getOwnPropertyDescriptors(value));
+  // Observability must not change serialized scheduler replies or cache sizes.
+  for (const key of ['coalesced', 'calculatorStarted']) if (Object.hasOwn(result, key)) Object.defineProperty(result, key, { enumerable: false });
+  return result;
+};
 function unlockEvaluation(reused) {
   let result;
   const value = { evaluationMs: 0, timingMs: {}, cancelled: false, resultCache: { unlockPredictionHit: true },
@@ -58,6 +63,7 @@ function unlockEvaluation(reused) {
 function cachedPlayValue(value) {
   const descriptors = Object.getOwnPropertyDescriptors(value);
   delete descriptors.hit;
+  delete descriptors.coalesced; delete descriptors.calculatorStarted;
   delete descriptors.resultJSON; delete descriptors.result;
   const playJSON = value.playJSON;
   let result;
@@ -120,6 +126,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
       workerData: (includeCatalogue, group) => factory === nativeWorker
         ? nativeWorkerInput(group === 'foreground' ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
+      onWorker: options.onWorker,
       onReady: factory === nativeWorker ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
   }
@@ -485,7 +492,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
-  stuckMs = 120000, signal, fairness, calculatorPool, deadlineClock = { setTimeout, clearTimeout },
+  stuckMs = 120000, signal, fairness, calculatorPool, timings: liveTimings, onWorker, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
   for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
@@ -581,8 +588,10 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     status = 'sleeping'; idleStops++; sentSnapshots.clear(); cache.clear();
     onSleep?.(); terminate(old); announce();
   }
+  let wakeStarted;
   function wake() {
     if (closed || status !== 'sleeping') return;
+    wakeStarted = idleClock.now();
     status = 'waking'; announce();
     // Termination completes before a replacement allocates its catalogue.
     // Requests admitted during this await share the bounded startup queue.
@@ -636,7 +645,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     entry.stateInput = undefined;
     for (const waiter of entry.waiters) {
       waiter.signal?.removeEventListener('abort', waiter.abort);
-      if (error) waiter.reject(error); else waiter.resolve(evaluationWith(value, { hit: waiter.hit }));
+      if (error) waiter.reject(error); else waiter.resolve(evaluationWith(value, { hit: waiter.hit, coalesced: waiter.hit, calculatorStarted: entry.calculatorStarted }));
     }
     entry.waiters.clear();
     entry.discarded = !!error;
@@ -746,6 +755,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   function dispatch(entry) {
     if (closed || status !== 'ready' || active) { if (entry) (entry.warm ? warmQueue : queue).unshift(entry); return; }
     if (!entry) return;
+    if (wakeStarted !== undefined) { liveTimings?.record('calculator-wake', idleClock.now() - wakeStarted, { source: 'computed', calculatorStarted: !calculatorPool || !!worker.startedCalculator }); wakeStarted = undefined; }
+    entry.calculatorStarted ||= !!worker.startedCalculator;
     active = entry; entry.startedAt = idleClock.now(); entry.id = ++sequence;
     if (PROFILE_ENABLED) profile.dispatch(entry);
     entry.cancellation = new SharedArrayBuffer(4);
@@ -811,6 +822,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       : workerFactory(workerFactory === nativeWorker
         ? nativeWorkerInput(includeReadyCatalogue ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
+    if (!calculatorPool) onWorker?.(worker);
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', () => { if (ownGeneration === generation) failure('worker-error'); });
@@ -855,7 +867,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
             storeEvaluation(active.key, active.revision, active.type, value, active.pickerId);
             for (const waiter of active.waiters) {
               waiter.signal?.removeEventListener('abort', waiter.abort);
-              waiter.resolve(evaluationWith(value, { hit: waiter.hit }));
+              waiter.resolve(evaluationWith(value, { hit: waiter.hit, coalesced: waiter.hit, calculatorStarted: active.calculatorStarted }));
             }
             // Served early: refill, sleep and interactive yield must not mistake the
             // waiter-less producer for abandoned warm work while its partner runs.
@@ -866,6 +878,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return;
       }
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
+      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
       if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
@@ -1028,7 +1041,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         }
         // A bounded response cache can reject/evict the delta while the same
         // active prediction is still preparing its partner. Follow its result.
-        if (entry.previewValue && !entry.discarded) { entry.previewServed = true; return Promise.resolve(evaluationWith(entry.previewValue, { hit: true })); }
+        if (entry.previewValue && !entry.discarded) { entry.previewServed = true; return Promise.resolve(evaluationWith(entry.previewValue, { hit: true, coalesced: true, calculatorStarted: entry.calculatorStarted })); }
         // Queued requests can add the projection before dispatch. Already active
         // normal requests keep their ordinary payload and callers fall back to it.
         entry.duoSidebarProjection ||= duoSidebarProjection;
@@ -1047,6 +1060,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         const releaseFair = admitFair(pickerId, { interactive: true });
         if (!releaseFair) { counts.rejected++; return Promise.reject(queueFull()); }
         entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
+        entry.calculatorStarted = !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status));
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry);
         if (!fairness && (type === 'predict' || type === 'evaluate' && resultView === 'play-v1')) queue.unshift(entry); else queue.push(entry);
@@ -1150,7 +1164,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         const releaseFair = admitFair(pickerId);
         if (!releaseFair) { warmCounts.skipped++; continue; }
         snapshot ??= stateInput ? state : structuredClone(state);
-        const entry = { releaseFair, key, originalKey, pickerId, input, state: snapshot, stateInput, memberId, type: 'evaluate', resultView,
+        const entry = { calculatorStarted: !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status)), releaseFair, key, originalKey, pickerId, input, state: snapshot, stateInput, memberId, type: 'evaluate', resultView,
           revision: state.revision, queuedAt: idleClock.now(), waiters: new Set(), warm: true };
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry); warmQueue.push(entry); queued++; warmCounts.queued++;
