@@ -260,7 +260,7 @@ test('Backlog chunk search reads only the selected player and never submits view
   initialState.tasks = [{ id: first, label: 'Mine ore', category: 'Mining' }, { id: second, label: 'Chop wood', category: 'Woodcutting' }];
   initialState.members[0].taskStatus = { [first]: { backlogged: true, backlogReason: 'Later' } };
   initialState.members[1].taskStatus = { [second]: { backlogged: true } };
-  const f = await fixture(t, { initialState, port: 0, taskWorkerOptions: { idleMs: 100 }, definitions: {
+  const f = await fixture(t, { initialState, port: 0, taskWorkerOptions: { idleMs: 100, residency: { activeMs: 1, idleMs: 100 } }, definitions: {
     chunks: { '12341': { Nickname: 'Lumbridge', Sections: { 2: {} } }, '12342': { Nickname: 'Varrock' } },
     walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'],
     challenges: { Mining: { 'Mine ore': { PickerId: first, Chunks: ['12341-2[+]'] } }, Woodcutting: { 'Chop wood': { PickerId: second, Chunks: ['12342'] } } },
@@ -303,7 +303,7 @@ test('native calculator announces readiness after its asynchronous module graph 
 });
 
 test('view-only requests read completed tasks without submitting work, including after calculator sleep', async t => {
-  const f = await fixture(t, { taskWorkerOptions: { idleMs: 100 } }), stream = await openEvents(t, f);
+  const f = await fixture(t, { taskWorkerOptions: { idleMs: 100, residency: { activeMs: 1, idleMs: 100 } } }), stream = await openEvents(t, f);
   const memberId = f.application.store.getState().members[0].id;
   const route = `/api/tasks?memberId=${memberId}`;
   const diagnostics = () => f.admin('/api/diagnostics').then(response => response.json());

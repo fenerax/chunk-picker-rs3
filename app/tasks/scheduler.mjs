@@ -3,6 +3,7 @@ const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefin
 import { Worker } from 'node:worker_threads';
 import { ProcessWorker } from './process-worker.mjs';
 import { createCalculatorPool } from './calculator-pool.mjs';
+import { createSessionResidency } from './session-residency.mjs';
 import { createHash } from 'node:crypto';
 import { deserialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
@@ -22,7 +23,7 @@ const pickerKey = (pickerId, key) => JSON.stringify([pickerId, key]);
 // bound facade; all lanes and their admission/memory limits remain shared.
 const pickerArguments = { peekPrediction: 4, cancelRankingPrewarm: 1, preparedEvaluation: 3, prepareRules: 2,
   evaluate: 12, supersede: 3, supersedeDisplay: 2, setRevision: 2, prewarm: 4, prewarmTasks: 4,
-  cancelPrewarm: 1, retireWarmPrediction: 0 };
+  cancelPrewarm: 1, retireWarmPrediction: 0, noteActivity: 0, openSession: 0 };
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
 const queueFull = () => Object.assign(new Error('Task calculation budget is full. Wait for pending tasks and retry.'), { status: 429, retryAfter: 1 });
 const positive = (value, name, minimum = 1) => {
@@ -92,7 +93,7 @@ function validStateInput(state, input, stateInput, type) {
 export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs = 120000, deathWorkerFactory,
   duoWorkerFactory, maxDuoQueue = 2, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
   predictionWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
-  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, ...options } = {}) {
+  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, residency, ...options } = {}) {
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
@@ -113,6 +114,10 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       };
     } };
   }
+  const sessions = residency ? createSessionResidency(residency, options.idleClock) : undefined;
+  options.sessions = sessions;
+  if (sessions) options.idleMs ??= Number(process.env.RS3_WORKER_IDLE_MS ?? sessions.idleMs);
+  if (sessions) maxCalculators = Math.min(maxCalculators ?? sessions.maxResident, sessions.maxResident, Math.floor(sessions.memoryBytes / sessions.estimatedBytes));
   options.workerPreparation = createWorkerPreparation(options.workerData);
   if (maxCalculators !== undefined) {
     positive(maxCalculators, 'maxCalculators');
@@ -120,6 +125,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
       workerData: (includeCatalogue, group) => factory === nativeWorker
         ? nativeWorkerInput(group === 'foreground' ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
+      sessions, clock: options.idleClock, memoryUsage: options.calculatorMemoryUsage,
       onReady: factory === nativeWorker ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
   }
@@ -153,6 +159,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   const listeners = new Set();
   const residencyListeners = new Set();
   const predictionListeners = new Set();
+  const preparationListeners = new Set();
   const announceResidency = () => { for (const listener of residencyListeners) { try { listener(scheduler.getHealth()); } catch { /* Observers cannot interrupt retirement. */ } } };
   const announce = () => { announceResidency(); for (const listener of listeners) { try { listener(scheduler.getHealth()); } catch { /* Observers cannot interrupt recovery. */ } } };
   foreground.subscribe(announce);
@@ -177,6 +184,11 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       onEvaluation(message, entry) {
         const picker = pickerState(entry.pickerId);
         if (picker.closed) return;
+        // Preview can arrive before its partner releases admission. Refill only
+        // after that final reply too, without publishing the same delta twice.
+        if (entry.warm && message.type !== 'prediction-prepared') for (const listener of preparationListeners) {
+          try { listener({ pickerId: entry.pickerId, memberId: entry.memberId, chunkId: entry.chunkId, input: entry.input }); } catch { /* Optional warming cannot interrupt a reply. */ }
+        }
         if (!closed && !entry.previewValue && entry.revision === picker.latestRevision && !entry.discarded && !message.result?.cancelled
           && Array.isArray(message.result?.delta?.tasksAdded)) {
           const state = { ...entry.predictionState, revision: entry.revision };
@@ -215,6 +227,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
         }
         args.length = count; return scheduler[name](...args, pickerId);
       };
+      facade.subscribePrepared = listener => scheduler.subscribePrepared(event => { if (!abandoned && event.pickerId === pickerId) listener(event); });
       facade.subscribePredictions = listener => scheduler.subscribePredictions(event => { if (!abandoned && event.pickerId === pickerId) listener(event); });
       facade.canPrewarmTasks = (...args) => !abandoned && scheduler.canPrewarmTasks(...args);
       facade.notePredictionUse = () => { if (!abandoned) scheduler.notePredictionUse(); };
@@ -224,13 +237,32 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     },
     cancelPicker(id) {
       const pickerId = pickerJobId(id), picker = pickerState(pickerId);
-      picker.closed = true; picker.unlockResults.clear();
+      picker.closed = true; picker.unlockResults.clear(); sessions?.forget(pickerId);
       for (const lane of [foreground, death, prediction, duo]) lane?.cancelPicker(pickerId);
+    },
+    noteActivity(pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      if (closed || pickerState(pickerId).closed) return;
+      sessions?.note(pickerId);
+      for (const lane of [foreground, prediction, death, duo]) lane?.sessionChanged(pickerId);
+      options.calculatorPool?.sessionChanged(pickerId);
+    },
+    openSession(pickerId = 'legacy-shared') {
+      if (closed || pickerState(pickerId).closed || !sessions) return () => {};
+      const release = sessions.open(pickerId);
+      scheduler.noteActivity(pickerId);
+      let released = false;
+      return () => {
+        if (released) return; released = true; release();
+        for (const lane of [foreground, prediction, death, duo]) lane?.sessionChanged();
+        options.calculatorPool?.sessionChanged();
+      };
     },
     catalogue: foreground.catalogue, dynamicCatalogue: foreground.dynamicCatalogue,
     supports: type => foreground.supports(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     subscribeResidency(listener) { residencyListeners.add(listener); return () => residencyListeners.delete(listener); },
+    subscribePrepared(listener) { preparationListeners.add(listener); return () => preparationListeners.delete(listener); },
     subscribePredictions(listener) { predictionListeners.add(listener); return () => predictionListeners.delete(listener); },
     peekPrediction(state, memberId, chunkId, input, pickerId = 'legacy-shared') {
       pickerId = pickerJobId(pickerId);
@@ -271,6 +303,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (closed || picker.closed) return Promise.reject(unavailable('The task server is closing.'));
       if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
+      scheduler.noteActivity(pickerId);
       if (!['foreground', 'duo', 'side'].includes(evaluationLane) || evaluationLane === 'duo' && (type !== 'evaluate' || resultView !== 'play-v1')
         || evaluationLane === 'side' && !(type === 'chunk-planning' || type === 'evaluate' && resultView === 'full')) return Promise.reject(new TypeError('Invalid task evaluation lane.'));
       if (typeof duoSidebarProjection !== 'boolean' || duoSidebarProjection && (type !== 'evaluate' || resultView !== 'play-v1' || evaluationLane !== 'foreground')) return Promise.reject(new TypeError('Invalid duo sidebar projection.'));
@@ -470,7 +503,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     } }),
     close(timeoutMs = 10000) {
       if (!closePromise) {
-        closed = true; listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); clearUnlockResults();
+        closed = true; sessions?.clear(); listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); preparationListeners.clear(); clearUnlockResults();
         closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)])
           .then(() => options.calculatorPool?.close()).finally(() => options.workerPreparation.clear());
       }
@@ -485,7 +518,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
-  stuckMs = 120000, signal, fairness, calculatorPool, deadlineClock = { setTimeout, clearTimeout },
+  stuckMs = 120000, signal, fairness, calculatorPool, sessions, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
   for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
@@ -539,6 +572,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   const counts = { requested: 0, coalesced: 0, cacheHits: 0, completed: 0, errors: 0, expired: 0, cancelled: 0, superseded: 0, rejected: 0, promoted: 0, retired: 0 };
   const timings = {};
   let lastTimingMs = {};
+  const residentPickers = new Set();
+  const sessionRemaining = () => [...residentPickers].reduce((maximum, id) => Math.max(maximum, sessions?.remaining(id) ?? 0), 0);
   let sleepTimer, lastRequestAt = idleClock.now(), idleStops = 0;
   let lastProgressAt = idleClock.now(), manualRestart;
   let initialAborted = false, cancelledGrace;
@@ -561,14 +596,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (closed || !['ready', 'starting'].includes(status)) return;
     // Native timers cap their delay at signed 32-bit milliseconds. Long custom
     // intervals use several bounded timers instead of overflowing to 1 ms.
-    sleepTimer = idleClock.setTimeout(sleep, Math.min(2147483647, Math.max(0, idleMs - (idleClock.now() - lastRequestAt))));
+    sleepTimer = idleClock.setTimeout(sleep, Math.min(2147483647, Math.max(0, idleMs - (idleClock.now() - lastRequestAt), sessionRemaining())));
     sleepTimer?.unref?.();
   }
   function sleep() {
     idleClock.clearTimeout(sleepTimer);
     sleepTimer = undefined;
     if (closed || status !== 'ready') return;
-    if (idleClock.now() - lastRequestAt < idleMs) { armSleep(); return; }
+    if (idleClock.now() - lastRequestAt < idleMs || sessionRemaining() > 0) { armSleep(); return; }
     // Idle warming and abandoned work are expendable. Real requests keep their
     // worker until every waiter has received a complete response.
     if (active?.waiters.size || served(active) || active?.reuseWaiters?.size || queue.length) return;
@@ -725,7 +760,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return;
     }
     if (fairness && (queue.length || warmQueue.length)) { dispatch(fairTake()); return; }
-    if (!queue.length && idleClock.now() - lastRequestAt >= idleMs) { sleep(); return; }
+    if (!queue.length && idleClock.now() - lastRequestAt >= idleMs && !sessionRemaining()) { sleep(); return; }
     if (!queue.length) {
       if (!warmQueue.length || idleTimer) return;
       idleTimer = setImmediate(() => { idleTimer = undefined; dispatch(queue.shift() ?? warmQueue.shift()); });
@@ -746,6 +781,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   function dispatch(entry) {
     if (closed || status !== 'ready' || active) { if (entry) (entry.warm ? warmQueue : queue).unshift(entry); return; }
     if (!entry) return;
+    residentPickers.add(entry.pickerId);
     active = entry; entry.startedAt = idleClock.now(); entry.id = ++sequence;
     if (PROFILE_ENABLED) profile.dispatch(entry);
     entry.cancellation = new SharedArrayBuffer(4);
@@ -859,7 +895,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
             }
             // Served early: refill, sleep and interactive yield must not mistake the
             // waiter-less producer for abandoned warm work while its partner runs.
-            if (active.waiters.size) { lastRequestAt = idleClock.now(); active.previewServed = true; }
+            if (active.waiters.size) { lastRequestAt = idleClock.now(); sessions?.note(active.pickerId); active.previewServed = true; }
             active.waiters.clear();
           }
         }
@@ -868,7 +904,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
       if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
-      if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
+      if (entry.waiters.size || entry.reuseWaiters?.size) { lastRequestAt = idleClock.now(); sessions?.note(entry.pickerId); }
       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
       if (message.error) {
         // An error may occur before or after the worker touches its snapshot
@@ -924,7 +960,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     },
     openPicker(pickerId) { closedPickers.delete(pickerId); },
     cancelPicker(pickerId) {
-      closedPickers.add(pickerId);
+      closedPickers.add(pickerId); residentPickers.delete(pickerId); armSleep();
       scheduler.cancelPrewarm({}, pickerId);
       for (const entry of new Set([...pending.values(), ...(active ? [active] : [])])) {
         if (entry.pickerId !== pickerId) continue;
@@ -938,6 +974,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     supports: type => supported.has(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     noteInteractiveUse: touch,
+    sessionChanged(pickerId) { if (sessions && pickerId) residentPickers.add(pickerId); armSleep(); },
     confirmSavedPrediction(taskInputKey, revision, pickerId) {
       if (active?.pickerId !== pickerId || active.reuseRevision !== revision || active.preparedReuse?.taskInputKey !== taskInputKey) return false;
       active.confirmedTaskInputKey = taskInputKey; return true;
@@ -1136,7 +1173,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return retire();
     },
     canPrewarm() {
-      return !closed && ['starting', 'ready'].includes(status) && idleClock.now() - lastRequestAt < idleMs;
+      return !closed && ['starting', 'ready'].includes(status) && (idleClock.now() - lastRequestAt < idleMs || sessionRemaining() > 0);
     },
     prewarmTasks(state, input, memberIds, resultView, stateInput, pickerId) {
       if (closedPickers.has(pickerId) || !scheduler.canPrewarm() || state.revision < revisionFor(pickerId)) return { queued: 0 };
@@ -1159,7 +1196,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     },
     prewarm(state, input, groups, signal, predictionRevision = state.revision, pickerId = 'legacy-shared') {
       if (closed || closedPickers.has(pickerId) || signal?.aborted || status === 'restart-required' || state.revision < revisionFor(pickerId)
-        || idleClock.now() - lastRequestAt >= idleMs) return { queued: 0 };
+        || idleClock.now() - lastRequestAt >= idleMs && !sessions?.remaining(pickerId)) return { queued: 0 };
       scheduler.supersede(state.revision, input, undefined, pickerId);
       const desired = new Map(), fingerprint = predictionInput(state, input);
       for (const group of groups) for (const chunkId of group.chunkIds) {

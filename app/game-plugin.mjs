@@ -33,7 +33,7 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, peekPrediction = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn, indexKey, removeKey, authorizeKey, pickerLimits, pickerId }) {
+  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, onActivity = () => {}, clock = Date.now, savedTasks = () => null, peekPrediction = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn, indexKey, removeKey, authorizeKey, pickerLimits, pickerId }) {
   const progressSource = createPluginProgressSource({ clock });
   const coordinates = createGameCoordinates(world);
   const gameId = id => coordinates.pickerChunkToGameId(id);
@@ -501,6 +501,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // This exact authenticated boundary never reads browser credentials. Missing
       // Origin is allowed, including Funnel; supplied origins retain normal checks.
       if (request.headers.origin || request.headers['sec-fetch-site'] === 'cross-site') checkRequestOrigin(request, security);
+      onActivity();
       if (route === '/api/plugin/v1/tasks') {
         // Outside the mutation queue: parsing a saved list must not delay commands.
         keys.touch(credential.id); await json(request, response, 200, tasks(credential.player, from)); return true;

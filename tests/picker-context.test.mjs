@@ -631,3 +631,23 @@ test('picker close destroys stalled full-state sends before draining requests', 
   const other = gzipCall(b, { method: 'HEAD' }); await other.done;
   assert.equal(other.response.statusCode, 200);
 });
+
+test('only writable player activity retains calculators and an SSE lease ends with its response', async t => {
+  const { a, runtime } = await fixture(t);
+  let requests = 0, opened = 0, released = 0;
+  runtime.taskWorker.noteActivity = () => { requests++; };
+  runtime.taskWorker.openSession = () => { opened++; return () => { released++; }; };
+  assert.equal((await send(a, '/api/state?view=play-v1')).status, 200);
+  assert.equal(requests, 1);
+  const cookie = await viewer(a);
+  await send(a, '/api/state?view=play-v1', { cookie });
+  await send(a, '/api/diagnostics');
+  assert.equal((await send(a, '/api/state', { key: 'invalid' })).status, 401);
+  assert.equal(requests, 1, 'viewer, monitoring and refused requests do not extend residency');
+  const readOnly = await send(a, '/api/events', { cookie, stream: true });
+  assert.equal(opened, 0); readOnly.response.end();
+  const player = await send(a, '/api/events', { stream: true });
+  assert.equal(opened, 1); assert.equal(released, 0);
+  player.response.destroy(); await nextTurn();
+  assert.equal(released, 1);
+});
