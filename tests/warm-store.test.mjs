@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readdir, readFile, writeFile, rm, utimes, mkdir, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createWarmStore, warmHash, releaseWarmStoreLocks } from '../app/tasks/warm-store.mjs';
+import { createWarmStore, warmHash, releaseWarmStoreLocks, readWarmFile } from '../app/tasks/warm-store.mjs';
 import { createWarmResults, warmResultNamespace, warmResultKey } from '../app/tasks/warm-results.mjs';
 import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
@@ -61,39 +61,50 @@ test('unsafe directory/file links and invalid limits decline optional storage', 
   assert.equal(createWarmStore(blocked).put(key(1), Buffer.from('x')), undefined);
 });
 
-test('root publication hands both lock metadata paths to the service owner before writing artifacts', async t => {
-  const directory = await scratch(t), changes = [], uid = 12345, gid = 23456;
-  const lock = path.join(directory, '.write-lock'), ownerFile = path.join(lock, 'owner');
-  const lstat = fs.lstatSync, rename = fs.renameSync;
-  const originalGetuid = process.getuid;
-  process.getuid = () => 0;
-  t.mock.method(fs, 'lstatSync', (file, ...options) => {
-    const info = lstat(file, ...options);
-    return file === directory ? Object.assign(info, { uid, gid }) : info;
-  });
-  t.mock.method(fs, 'chownSync', (file, user, group) => { changes.push([file, user, group]); });
-  t.mock.method(fs, 'renameSync', (from, to) => {
-    if (to === lock) {
-      assert(changes.some(row => row[0] === from && row[1] === uid && row[2] === gid));
-      const [token] = fs.readdirSync(from);
-      assert.match(token, /^owner-[a-f0-9-]{36}$/);
-      assert(changes.some(row => row[0] === path.join(from, token) && row[1] === uid && row[2] === gid));
-    }
-    return rename(from, to);
-  });
+test('root refuses warm reads, publication, pruning and lock cleanup without filesystem access', async t => {
+  const directory = await scratch(t), bytes = Buffer.from('synthetic reply');
+  const store = createWarmStore(directory), reference = store.put(key('seed'), bytes);
+  const results = createWarmResults({ warmStoreDirectory: directory, definitions: {} });
+  const victim = path.join(directory, 'victim');
+  await writeFile(victim, 'synthetic victim');
+  await symlink(victim, path.join(directory, '.write-lock-AbC123'));
+  await symlink(victim, path.join(directory, '.write-lock'));
+  await writeFile(path.join(directory, 'aaaa.tmp'), 'abandoned');
+  await utimes(reference.file, new Date(0), new Date(0));
+  const before = await readdir(directory), victimInfo = await fs.promises.stat(victim), calls = [], warnings = [];
+  const getuid = process.getuid; process.getuid = () => 0;
+  t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
+  // Include both reads and mutations: root must not even traverse the cache.
+  for (const name of ['mkdirSync', 'mkdtempSync', 'lstatSync', 'openSync', 'readSync', 'writeFileSync',
+    'renameSync', 'readdirSync', 'unlinkSync', 'rmdirSync', 'chownSync', 'chmodSync', 'fchownSync', 'fchmodSync']) {
+    t.mock.method(fs, name, () => { calls.push(name); throw Error('Root cache I/O forbidden.'); });
+  }
+  t.mock.method(console, 'warn', message => warnings.push(message));
   syncBuiltinESMExports();
-  t.after(() => {
-    if (originalGetuid) process.getuid = originalGetuid; else delete process.getuid;
-    t.mock.restoreAll(); syncBuiltinESMExports();
-  });
-  const store = createWarmStore(directory);
-  assert.ok(store.put(key('root'), Buffer.from('synthetic root prewarm')));
-  // Model the stale metadata left by a killed root writer. The ownership
-  // assertions above cover the cross-UID requirement even on Windows.
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  assert.equal(createWarmStore(directory), undefined);
+  assert.equal(createWarmStore(path.join(directory, 'new')), undefined);
+  assert.equal(createWarmResults({ warmStoreDirectory: directory, definitions: {} }), undefined);
+  assert.equal(store.put(key('root'), bytes), undefined);
+  assert.equal(store.reference(key('seed')), undefined);
+  assert.equal(store.get(key('seed')), undefined);
+  assert.equal(readWarmFile(reference.file, reference.key), undefined);
+  results.put(key('root result'), { result: {} });
+  assert.equal(results.get(key('root result')), undefined);
+  releaseWarmStoreLocks(directory, key('owner'), 1234);
+  assert.deepEqual(calls, []);
+  assert.equal(warnings.length, 1, 'root refusal is logged once, not once per request');
+  assert.deepEqual(await readdir(directory), before, 'no prune, stage or lock mutation');
+  assert.equal(await readFile(victim, 'utf8'), 'synthetic victim');
+  const after = await fs.promises.stat(victim);
+  for (const field of ['uid', 'gid', 'mode', 'ino', 'dev']) assert.equal(after[field], victimInfo[field]);
+});
+
+test('service writers reclaim dead legacy and token locks and abandoned stages', async t => {
+  const directory = await scratch(t), store = createWarmStore(directory);
+  const lock = path.join(directory, '.write-lock'), ownerFile = path.join(lock, 'owner');
   await mkdir(lock, { mode: 0o700 }); await writeFile(ownerFile, '2147483647', { mode: 0o600 });
   await utimes(lock, new Date(0), new Date(0));
-  t.mock.restoreAll(); syncBuiltinESMExports();
-  process.getuid = () => uid;
   for (const [name, token] of [['.write-lock-AbC123', undefined], ['.write-lock-DeF456', 'owner'],
     ['.write-lock-GhI789', 'owner-00000000-0000-4000-8000-000000000000']]) {
     const stage = path.join(directory, name);

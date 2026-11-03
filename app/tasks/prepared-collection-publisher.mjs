@@ -3,13 +3,13 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { mkdir, mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { createWarmStore, WARM_COLLECTION_LIMITS } from './warm-store.mjs';
+import { createWarmStore, warmStoreAllowed, WARM_COLLECTION_LIMITS } from './warm-store.mjs';
 import { validPreparedCollectionEntry, readPreparedCollectionFile } from './prepared-collection.mjs';
 
 const { key, value, reference, directory, persistentDirectory } = workerData;
 let cacheDirectory;
 try {
-  if (validPreparedCollectionEntry(value, key)) {
+  if (warmStoreAllowed() && validPreparedCollectionEntry(value, key)) {
     if (persistentDirectory) {
       const store = createWarmStore(path.join(persistentDirectory, 'collections'), WARM_COLLECTION_LIMITS);
       const existing = validPreparedCollectionEntry(readPreparedCollectionFile(reference, key), key);
@@ -25,6 +25,6 @@ try {
     }
   }
 } catch (error) {
-  if (cacheDirectory) await rm(cacheDirectory, { recursive: true, force: true });
+  if (cacheDirectory && warmStoreAllowed()) await rm(cacheDirectory, { recursive: true, force: true });
   throw error;
 }

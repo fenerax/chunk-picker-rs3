@@ -1,6 +1,7 @@
 // Online preparation from an explicitly captured copy. No server, store,
 // listener, credentials, or writes to the copied gameplay inputs.
 import path from 'node:path';
+import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
 import { readFile, access } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -12,6 +13,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerHooks } from 'node:module';
 
 export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn }) {
+  // Root deployments deliberately defer warming to the service's first start.
+  // Do not even inspect a candidate script or spawn an older root publisher.
+  if (!warmStoreAllowed()) return false;
   // Old releases remain deployable. This optional preparation never extends
   // the writer pause and cannot turn a failed warm-up into a deployment failure.
   try {
@@ -31,6 +35,7 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
 }
 
 export async function prewarmCalculation({ root, dataDir, warmDirectory, maxMembers = 8 }) {
+  if (!warmStoreAllowed()) return false;
   if (!Number.isSafeInteger(maxMembers) || maxMembers < 1 || maxMembers > 8) throw Error('Invalid warm bound.');
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major < 24 || major === 24 && minor < 20) throw Error('Unsupported Node.');

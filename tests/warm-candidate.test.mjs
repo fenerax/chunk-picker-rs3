@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { EventEmitter } from 'node:events';
 import path from 'node:path';
-import { prewarmCandidate } from '../scripts/linux/prewarm.mjs';
+import { prewarmCandidate, prewarmCalculation } from '../scripts/linux/prewarm.mjs';
 test('online preparation invokes the candidate calculator with copied input and persistent output; failures are optional', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'warm-candidate-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -48,4 +48,14 @@ test('online preparation lowers its child priority before calculator work', asyn
   assert.equal(await prewarmCandidate({ settings: { dataDir: path.join(directory, 'live') },
     candidate: { config: { coreRoot: directory, nodePath: process.execPath, datasetId: 'open-f2p' } }, dataDir: path.join(directory, 'copy') }), true);
   assert.ok(JSON.parse(await readFile(output, 'utf8')) >= 10);
+});
+
+
+test('root skips candidate spawning and direct prewarm before inspecting any input path', async t => {
+  const getuid = process.getuid; process.getuid = () => 0;
+  t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
+  const forbidden = new Proxy({}, { get() { assert.fail('Root prewarm inspected input.'); } });
+  assert.equal(await prewarmCandidate({ settings: forbidden, candidate: forbidden, dataDir: forbidden,
+    execute() { assert.fail('Root spawned a warm publisher.'); } }), false);
+  assert.equal(await prewarmCalculation({ root: forbidden, dataDir: forbidden, warmDirectory: forbidden }), false);
 });

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { serialize, deserialize } from 'node:v8';
 import { preparationSourceDigest } from '../preparation-key.mjs';
-import { createWarmStore, warmHash, WARM_RESULT_LIMITS } from './warm-store.mjs';
+import { createWarmStore, warmStoreAllowed, warmHash, WARM_RESULT_LIMITS } from './warm-store.mjs';
 
 const buffers = ['resultJSON', 'playJSON', 'duoJSON', 'duoSidebarJSON'];
 const reuseBuffers = ['playJSON', 'duoJSON', 'duoSidebarJSON'];
@@ -40,13 +40,13 @@ export function warmResultKey(namespace, request) {
   } catch { /* Optional miss. */ }
 }
 export function createWarmResults(data) {
-  if (typeof data.warmStoreDirectory !== 'string') return;
+  if (!warmStoreAllowed() || typeof data.warmStoreDirectory !== 'string') return;
   const namespace = warmResultNamespace(data), store = createWarmStore(path.join(data.warmStoreDirectory, 'results'), WARM_RESULT_LIMITS);
   if (!namespace || !store) return;
   return {
     key: request => warmResultKey(namespace, request),
     get(key) {
-      if (!key) return;
+      if (!warmStoreAllowed() || !key) return;
       try {
         const bytes = store.get(key);
         if (!bytes) return;
@@ -56,7 +56,7 @@ export function createWarmResults(data) {
       } catch { /* Invalid serialization is a miss. */ }
     },
     put(key, value) {
-      if (!key || value.error || value.cancelled || value.result?.cancelled) return;
+      if (!warmStoreAllowed() || !key || value.error || value.cancelled || value.result?.cancelled) return;
       try { store.put(key, serialize(packet(value, false))); } catch { /* Recompute after a write miss. */ }
     },
   };

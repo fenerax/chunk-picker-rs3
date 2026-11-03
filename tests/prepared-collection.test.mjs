@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { Worker } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
 import { serialize } from 'node:v8';
 import { mkdtemp, writeFile, readFile, readdir, rm, unlink } from 'node:fs/promises';
@@ -345,4 +346,70 @@ test('native foreground preserves catalogues through idle retirement and a coale
   assert.deepEqual(a.result, b.result);
   assert.equal(scheduler.catalogue, catalogue); assert.equal(scheduler.dynamicCatalogue, dynamic);
   assert.equal(scheduler.getHealth().restarts, 0);
+});
+
+
+test('root collection file reads miss and preparation cannot launch a file publisher', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'prepared-root-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const { entry, key } = prepared(), data = init();
+  const existing = createWorkerPreparation(data, { directory });
+  const getuid = process.getuid; process.getuid = () => 0;
+  t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
+  const calls = [];
+  for (const name of ['openSync', 'lstatSync', 'readFileSync', 'mkdirSync', 'readdirSync']) {
+    t.mock.method(fs, name, () => { calls.push(name); throw Error('Root cache I/O forbidden.'); });
+  }
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  for (const warm of [false, true]) assert.equal(readPreparedCollectionFile({ file: path.join(directory, 'entry'),
+    key, sha256: entry.sha256, bytes: entry.bytes.length, warm }, key), undefined);
+  for (const cache of [existing, createWorkerPreparation(data, { directory }),
+    createWorkerPreparation(data, { directory, persistentDirectory: directory })]) {
+    cache.accept({ preparedCollection: entry }); await cache.settled();
+    assert.equal(cache.input(), data);
+    await cache.clear();
+  }
+  assert.deepEqual(calls, []);
+  assert.deepEqual(await readdir(directory), []);
+});
+
+for (const persistent of [false, true]) test(`root collection publisher refuses cache filesystem access (persistent=${persistent})`, async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'publisher-root-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const { entry, key } = prepared();
+  // A separate thread must enforce the boundary itself, even if invoked without
+  // the parent preparation guard. Mock both sync and async filesystem exports.
+  const script = `
+    const fs = require('node:fs'), { syncBuiltinESMExports } = require('node:module');
+    const { parentPort, workerData } = require('node:worker_threads');
+    process.getuid = () => 0;
+    const calls = [];
+    for (const name of ['mkdirSync', 'mkdtempSync', 'lstatSync', 'openSync', 'readFileSync',
+      'writeFileSync', 'renameSync', 'unlinkSync', 'rmdirSync', 'chownSync', 'chmodSync']) {
+      const original = fs[name];
+      fs[name] = (file, ...args) => {
+        // The module loader still reads public source files outside the cache.
+        if (!String(file).startsWith(workerData.directory)
+          && (name === 'readFileSync' || name === 'lstatSync'
+            || name === 'openSync' && (args[0] === 'r' || args[0] === 0))) return original(file, ...args);
+        calls.push(name); throw Error('Root cache I/O forbidden.');
+      };
+    }
+    for (const name of ['mkdir', 'mkdtemp', 'writeFile', 'rename', 'rm', 'chown', 'chmod']) {
+      fs.promises[name] = async () => { calls.push(name); throw Error('Root cache I/O forbidden.'); };
+    }
+    syncBuiltinESMExports();
+    import(${JSON.stringify(new URL('../app/tasks/prepared-collection-publisher.mjs', import.meta.url).href)})
+      .then(() => parentPort.postMessage({ calls }));
+  `;
+  const worker = new Worker(script, { eval: true, workerData: { key, value: entry, directory,
+    persistentDirectory: persistent ? directory : undefined } });
+  t.after(() => worker.terminate());
+  const messages = [];
+  worker.on('message', message => messages.push(message));
+  const [code] = await once(worker, 'exit');
+  assert.equal(code, 0);
+  assert.deepEqual(messages, [{ calls: [] }]);
+  assert.deepEqual(await readdir(directory), []);
 });

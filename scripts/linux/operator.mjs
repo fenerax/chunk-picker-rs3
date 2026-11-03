@@ -1,4 +1,5 @@
 import { configDescriptor, bindingBytes } from '../private-companion/release-pack-check.mjs';
+import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
 import { prewarmCandidate } from './prewarm.mjs';
 import { captureOnline } from './online.mjs';
 import path from 'node:path';
@@ -146,8 +147,9 @@ export async function deployPrechecked({ settings, current, candidate, controlle
     if (encode(before) !== encode(await storeIdentity(snapshot.dataDir))) throw new Error('Checked snapshot changed.');
     checkedIdentity = before;
     // The captured snapshot is read-only calculator input; publication targets
-    // the persistent data directory while the old writer remains online.
-    try { await prewarm({ settings, candidate, dataDir: snapshot.dataDir }); } catch { /* Optional cache miss. */ }
+    // the persistent data directory while the old writer remains online. Root
+    // operators defer this optional work to the service account after start.
+    if (warmStoreAllowed()) try { await prewarm({ settings, candidate, dataDir: snapshot.dataDir }); } catch { /* Optional cache miss. */ }
   } finally { await snapshot.cleanup(); }
   // No start/stop has happened if any of the online preparation failed.
   return deployStopped({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions, checkedIdentity, check, request, wait });

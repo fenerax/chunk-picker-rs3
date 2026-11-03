@@ -1,4 +1,4 @@
-import { createWarmStore, readWarmFile, WARM_COLLECTION_LIMITS } from './warm-store.mjs';
+import { createWarmStore, warmStoreAllowed, readWarmFile, WARM_COLLECTION_LIMITS } from './warm-store.mjs';
 import { createHash } from 'node:crypto';
 import { serialize, deserialize } from 'node:v8';
 import { preparationSourceDigest } from '../preparation-key.mjs';
@@ -56,6 +56,7 @@ export function decodePreparedCollection(entry, key) {
   } catch { /* Mismatched, truncated and corrupt entries are ordinary misses. */ }
 }
 export function readPreparedCollectionFile(reference, key) {
+  if (!warmStoreAllowed()) return;
   try {
     if (typeof key !== 'string' || reference?.key !== key || typeof reference.file !== 'string'
       || !Number.isSafeInteger(reference.bytes) || reference.bytes <= 0 || reference.bytes > PREPARED_COLLECTION_LIMIT) return;
@@ -70,14 +71,15 @@ export function readPreparedCollectionFile(reference, key) {
 }
 export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PREPARATION_MODE ?? 'file',
   directory = process.env.RS3_WORKER_PREPARATION_DIR ?? tmpdir(), persistentDirectory } = {}) {
+  const fileAllowed = mode !== 'file' || warmStoreAllowed();
   const key = preparedCollectionKey(data);
-  const persistent = mode === 'file' && typeof persistentDirectory === 'string' ? createWarmStore(path.join(persistentDirectory, 'collections'), WARM_COLLECTION_LIMITS) : undefined;
+  const persistent = fileAllowed && mode === 'file' && typeof persistentDirectory === 'string' ? createWarmStore(path.join(persistentDirectory, 'collections'), WARM_COLLECTION_LIMITS) : undefined;
   let entry, reference = key ? persistent?.reference(key) : undefined, cacheDirectory, pending, closed = false;
-  let disabled = !key || !['file', 'memory'].includes(mode);
+  let disabled = !fileAllowed || !key || !['file', 'memory'].includes(mode);
   return {
     persistent: !!persistent,
     input() {
-      if (disabled || closed) return data;
+      if (disabled || closed || mode === 'file' && !warmStoreAllowed()) return data;
       // The calculator validates the complete file before decoding it. Never
       // read/hash a collection body on the HTTP server's launch path.
       return mode === 'memory' ? { ...data, preparedCollection: entry, collectPreparedCollection: !entry }
@@ -86,7 +88,7 @@ export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PR
     accept(message) {
       const value = message.preparedCollection;
       delete message.preparedCollection;
-      if (disabled || closed || !preparedCollectionEntryShape(value, key)) return;
+      if (disabled || closed || mode === 'file' && !warmStoreAllowed() || !preparedCollectionEntryShape(value, key)) return;
       if (mode === 'memory') { if (validPreparedCollectionEntry(value, key)) entry = value; return; }
       if (pending || reference && !persistent) return;
       pending = (async () => {
@@ -110,7 +112,7 @@ export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PR
       closed = true; entry = undefined; reference = undefined;
       await pending;
       persistent?.close();
-      if (cacheDirectory) { try { await rm(cacheDirectory, { recursive: true, force: true }); } catch {} }
+      if (cacheDirectory && warmStoreAllowed()) { try { await rm(cacheDirectory, { recursive: true, force: true }); } catch {} }
     },
   };
 }

@@ -2,12 +2,23 @@
 // with native compression handles: a calculator may be terminated at any time.
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, mkdirSync, mkdtempSync, lstatSync, openSync, closeSync, fstatSync, readSync, writeFileSync,
-  renameSync, readdirSync, unlinkSync, rmdirSync, chownSync } from 'node:fs';
+  renameSync, readdirSync, unlinkSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
 import { threadId, workerData } from 'node:worker_threads';
 
 export const WARM_STORE_LIMITS = Object.freeze({ bytes: 512 * 1024 * 1024, entries: 256,
   entryBytes: 128 * 1024 * 1024, ageMs: 7 * 86400000 });
+// Cache paths are service-controlled. Root must not traverse them, including
+// for reads, pruning or exited-worker cleanup. Recheck on existing handles too.
+let warnedRoot = false;
+export function warmStoreAllowed() {
+  if (process.getuid?.() !== 0) return true;
+  if (!warnedRoot) {
+    warnedRoot = true;
+    console.warn('[warm-store] Root access refused; optional cache reads and writes skipped.');
+  }
+  return false;
+}
 export const warmHash = bytes => createHash('sha256').update(bytes).digest('hex');
 // Reserve independent budgets so per-player replies cannot evict both release
 // collection graphs. Together: 512 MiB and 256 files, not per player.
@@ -34,6 +45,7 @@ function deadOwner(file) {
 // covers every store/lock that thread used, including unpublished stages. Each
 // unlink still claims a unique lock token, so replacement writers stay safe.
 export function releaseWarmStoreLocks(directory, ownerId, ownerThreadId) {
+  if (!warmStoreAllowed()) return;
   try {
     if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) return;
     for (const name of readdirSync(directory)) {
@@ -52,6 +64,7 @@ export function releaseWarmStoreLocks(directory, ownerId, ownerThreadId) {
   } catch { /* Missing or unavailable optional store. */ }
 }
 function header(file, key, limit, body = false) {
+  if (!warmStoreAllowed()) return;
   let fd;
   try {
     if (!digest.test(key)) return;
@@ -77,6 +90,7 @@ function header(file, key, limit, body = false) {
 export const readWarmFile = (file, key, limit = WARM_STORE_LIMITS.entryBytes) => header(file, key, limit, true);
 
 export function createWarmStore(directory, limits = {}) {
+  if (!warmStoreAllowed()) return;
   const caps = { ...WARM_STORE_LIMITS, ...limits };
   if (typeof directory !== 'string' || !path.isAbsolute(directory)
     || Object.values(caps).some(value => !Number.isSafeInteger(value) || value <= 0)
@@ -92,6 +106,7 @@ export function createWarmStore(directory, limits = {}) {
   }
   const fileFor = key => path.join(directory, `${key}.warm`);
   function prune(keep, reserveBytes = 0, reserveEntries = 0) {
+    if (!warmStoreAllowed()) return;
     const rows = [];
     for (const name of readdirSync(directory)) {
       if (!/^[a-f0-9]{64}\.warm$/.test(name) && !/^[a-f0-9-]+\.tmp$/.test(name)) continue;
@@ -113,27 +128,18 @@ export function createWarmStore(directory, limits = {}) {
   // queue unbounded buffers. Parents clean exited threads; dead-process locks
   // are reclaimed after a minute.
   function writeLocked(operation) {
-    if (!available) return false;
+    if (!warmStoreAllowed() || !available) return false;
     let locked = false, stagedLock;
     const token = `owner-${randomUUID()}`;
     try {
-      const created = mkdirSync(directory, { recursive: true, mode: 0o700 });
-      if (created && process.getuid?.() === 0) {
-        const owner = lstatSync(path.dirname(created));
-        for (let current = directory; ; current = path.dirname(current)) {
-          chownSync(current, owner.uid, owner.gid); if (current === created) break;
-        }
-      }
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
       if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) return lockFailure('unsafe directory');
-      // Prepare ownership before exposing the lock name. A kill between mkdir
-      // and chown must not leave a root-only lock that the service cannot read.
       // Unpublished stages never protect a write; stale ones are disposable.
       for (const name of readdirSync(directory)) {
         if (!/^\.write-lock-[a-zA-Z0-9]{6}$/.test(name)) continue;
         const file = path.join(directory, name), info = lstatSync(file);
         if (!info.isDirectory() || info.isSymbolicLink() || Date.now() - info.mtimeMs < 60000) continue;
-        // A kill before chown leaves an empty root-only stage. Removing that
-        // empty directory needs only write permission on its service-owned parent.
+        // An interrupted writer can leave an empty unpublished stage.
         try { rmdirSync(file); continue; } catch (error) { if (!['ENOTEMPTY', 'EEXIST'].includes(error.code)) throw error; }
         const names = readdirSync(file);
         // A paused publisher can still expose its stage. Never empty a live
@@ -143,11 +149,8 @@ export function createWarmStore(directory, limits = {}) {
         rmdirSync(file);
       }
       stagedLock = mkdtempSync(path.join(directory, '.write-lock-'));
-      const owner = process.getuid?.() === 0 ? lstatSync(directory) : undefined;
-      if (owner) chownSync(stagedLock, owner.uid, owner.gid);
       const ownerFile = path.join(stagedLock, token);
       writeFileSync(ownerFile, JSON.stringify({ pid: process.pid, threadId, instanceId }), { flag: 'wx', mode: 0o600 });
-      if (owner) chownSync(ownerFile, owner.uid, owner.gid);
       // Every published lock is nonempty: rename cannot replace a live lock.
       try {
         if (lstatSync(lock, { throwIfNoEntry: false })) throw Object.assign(new Error('Lock exists.'), { code: 'EEXIST' });
@@ -179,7 +182,7 @@ export function createWarmStore(directory, limits = {}) {
   writeLocked(() => prune());
   return {
     reference(key) {
-      if (!available || !digest.test(key)) return;
+      if (!warmStoreAllowed() || !available || !digest.test(key)) return;
       const file = fileFor(key);
       try { if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()
         || Date.now() - lstatSync(file).mtimeMs > caps.ageMs) return; } catch { return; }
@@ -187,7 +190,7 @@ export function createWarmStore(directory, limits = {}) {
     },
     get(key) { return this.reference(key) ? readWarmFile(fileFor(key), key, caps.entryBytes) : undefined; },
     put(key, bytes) {
-      if (!available || !digest.test(key) || !(bytes instanceof Uint8Array) || !bytes.length || bytes.length > caps.entryBytes) return;
+      if (!warmStoreAllowed() || !available || !digest.test(key) || !(bytes instanceof Uint8Array) || !bytes.length || bytes.length > caps.entryBytes) return;
       const file = fileFor(key), temporary = path.join(directory, `${randomUUID()}.tmp`);
       const written = writeLocked(() => {
         // Prune before allocating disk space, leaving room for this publication.
@@ -195,7 +198,6 @@ export function createWarmStore(directory, limits = {}) {
         const prefix = Buffer.alloc(headerBytes); magic.copy(prefix);
         Buffer.from(key, 'hex').copy(prefix, 8); Buffer.from(warmHash(bytes), 'hex').copy(prefix, 40); prefix.writeUInt32BE(bytes.length, 72);
         writeFileSync(temporary, Buffer.concat([prefix, bytes]), { flag: 'wx', mode: 0o600 });
-        if (process.getuid?.() === 0) { const owner = lstatSync(directory); chownSync(temporary, owner.uid, owner.gid); }
         renameSync(temporary, file); prune(file);
       });
       try { unlinkSync(temporary); } catch {}

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { isPrivateClient } from '../../app/security/request.mjs';
@@ -61,8 +62,8 @@ export async function openApplication(config, dataDir, { probe = false } = {}) {
     retention: Object.fromEntries(Object.entries({ backupDays: config.runtimeOptions?.backupDays, historyEntries: config.runtimeOptions?.historyEntries }).filter(([, value]) => value != null)) };
   if (!probe && config.multiPicker) options.multiPicker = { ...config.multiPicker, recoveryInputs: { ...config.packs,
     ...(config.selection ? { selection: config.selection } : {}), ...(config.profile ? { profile: config.profile } : {}), ...(config.addons ? { addons: config.addons } : {}) } };
+  if (probe || !warmStoreAllowed()) options.taskWorkerOptions = { warmStoreDirectory: false };
   if (probe) {
-    options.taskWorkerOptions = { warmStoreDirectory: false };
     options.runeMetrics = options.originalSync = { fetchImpl: async () => { throw new Error('Offline recovery probe.'); } };
     return server.createServer(options);
   }

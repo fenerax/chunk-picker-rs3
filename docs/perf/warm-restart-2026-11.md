@@ -25,7 +25,7 @@ Publication uses a private temporary file and rename. Nonblocking cross-process
 writer locks bound pending writes; dead writers' remnants are reclaimed after
 one minute. Pruning reserves space before writing, including temporary bytes.
 No new native compression handles are constructed in terminable calculators.
-Root preparation gives created files the service directory's ownership.
+Only non-root processes publish cache artifacts; see **Root and ownership** below.
 
 | State lost at restart | Decision |
 | --- | --- |
@@ -42,9 +42,9 @@ foreground priority and idle deadlines. This adds no independent keep-warm or
 recency policy; W1 can use the persistence layer without changing its policy.
 No cache eagerly loads every player's state at startup.
 
-VPS prepare/stage still only build and verify the candidate. Online deployment
-now prepares the candidate calculator against the captured copy, before stopping
-the writer. It warms at most eight members, full/play/sidebar/peer views, and
+VPS prepare/stage still only build and verify the candidate. Non-root online deployment
+prepares the candidate calculator against the captured copy, before stopping
+the writer. Root deployments skip this optional step and warm on service startup. It warms at most eight members, full/play/sidebar/peer views, and
 one eligible Preview each, using one process calculator at reduced OS priority and a 180-second outer
 budget. Older candidates or failed preparation fall back to ordinary startup.
 An intervening save revision deliberately misses. `rehearse` uses this same
@@ -210,9 +210,8 @@ bounded to one pending entry per preparation owner; foreground launches do not
 await it. Missing or corrupt files still rebuild normally, and a failed restore
 can return the rebuilt collection for replacement.
 
-Root publishers prepare service-owned lock directories and owner files before
-atomically exposing `.write-lock`. This also covers interruption between
-creation and ownership correction. Stale unpublished lock stages are reclaimed;
+The original root ownership-transfer scheme is superseded by **Root and ownership**
+below. Non-root writers publish nonempty locks atomically. Stale unpublished lock stages are reclaimed;
 failed acquisition is reported once per store instance rather than silently
 failing on every later publication/prune. Process calculators inherit service
 stderr so these warnings reach the journal.
@@ -251,8 +250,8 @@ token atomically claims a dead lock for reclamation; another reclaimer that
 observed the same owner skips if the token is gone. New locks never reuse the
 legacy `owner` filename, so older PID-only locks remain reclaimable without
 letting a delayed reclaimer delete a replacement writer's metadata. Live stages
-retain their tokens even after a minute. Root publishers still transfer stage
-and token ownership to the service user before exposing the lock.
+retain their tokens even after a minute. Root publication is now refused as
+described below.
 
 Calculators retain the original file-preparation flag before dropping transfer
 inputs. File-backed replacements validate their collection before the ready
@@ -284,7 +283,7 @@ tokens matching that exited instance, including unpublished stages. Cleanup
 unlinks the observed unique token before removing its directory, so a delayed
 cleanup cannot delete a replacement writer's lock. It never reclaims a thread
 based on age alone. Dead-process reclamation retains the one-minute threshold,
-and root publication still transfers lock/token ownership before exposure.
+and root access is now refused as described below.
 
 This uses parent-owned cleanup rather than a heartbeat: synchronous hashing and
 filesystem calls can block a worker's heartbeat, while `exit` proves that the
@@ -306,5 +305,62 @@ Validation on Windows, Node v26.13.0, one test file at a time: `warm-store`
 `scheduler` tests (43): 77 passed, 0 failed, 0 skipped, about 25 seconds for
 the final runs. No server, private data, full suite or live Linux/VPS check was
 used. Calculation logic is unchanged.
+
+## Root and ownership
+
+Security-fix START: `7585d4d3e5304ad8355263504ae8454dbf276caa`.
+Root cache creation, publication, lock acquisition/cleanup, pruning and reads
+are refused before filesystem access, with one warning per module instance.
+Existing handles recheck the UID. Results, collection preparation and its
+publisher enforce the same boundary, including temporary-file fallback. Root
+reads are misses: no service-controlled cache path is safe to traverse as root.
+All warm-store ownership-transfer calls were removed; no warm-store `chown`
+or `chmod` operations remain, so no descriptor-based ownership repair is needed.
+
+Root operator and direct prewarm entry points skip optional warming without
+spawning a candidate (including older candidates). Runtime also disables
+persistence when root. The service account warms on its first calculation;
+this can cost a cold start after deployment. Non-root locking, unique tokens,
+parent cleanup after thread exit and dead-writer reclamation are unchanged.
+Checkpoint, recovery and rehearsal exclusions remain intact. Gameplay logic
+is unchanged. Synthetic regressions cover root refusal, zero cache I/O,
+stage/lock symlinks, unchanged victim ownership and direct publisher invocation.
+
+The requested branch diff and all Linux mutation calls were audited. Remaining
+path-based ownership/permission calls already exist on fetched main
+(`c69240de830b73d42b8a4a8133fa4654a0a10e1c`): `online.mjs`
+(snapshot ownership), `operator.mjs` and `service-operator.mjs` (stopped ownership
+repair), `service-recovery.mjs` (reconciliation ownership), and `recovery.mjs`
+(restore permissions). They are not repaired in this change, as requested;
+those older operations warrant a separate descriptor-anchoring audit, including
+ownership-repair inventories that can encounter an existing cache. Existing
+rename/removal calls in `files.mjs`, checkpoint/recovery, rehearsal, service
+locks and start checks also predate this branch. No new root warm-store
+mutation remains in this branch's added paths.
+
+Synthetic microprobe: five fresh Node v24.21.0 processes per revision, 100
+512-byte non-root put/get pairs each, then emulated root creation, publication,
+reads and cleanup. Chown was intercepted, never performed. Medians [min–max]:
+
+| Measurement | Security-fix START | Fixed |
+| --- | ---: | ---: |
+| Root filesystem calls | 64 [64–64] | 0 [0–0] |
+| Root chown calls | 5 [5–5] | 0 [0–0] |
+| Root probe, ms | 1.455 [1.415–1.649] | 0.178 [0.138–1.396] |
+| Non-root roundtrip, ms | 0.356 [0.321–0.416] | 0.218 [0.159–0.340] |
+| Process peak RSS, MiB | 39.50 [39.23–39.75] | 38.34 [37.71–38.71] |
+
+These small synthetic timings do not establish production calculator speed.
+No private inputs, real root process or live VPS deployment was used for this fix.
+
+Requested-file validation accounts for 339 passing cases and 10 existing
+platform skips after focused reruns. The initial runs had two failures in the
+new publisher spy (it blocked Node's public source loader); the corrected cache
+files passed 37/37. Four additional cases failed under an incorrect F2P override;
+all four passed with their declared default dataset, and the F2P failures were
+also reproduced on untouched security-fix START. No skips were added.
+
+`npm run test:quick`, once: 3459 passed, 0 failed, 68 existing skips;
+695.18 seconds. No full `npm test` was run.
 
 Written by Codex.

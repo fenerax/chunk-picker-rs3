@@ -309,7 +309,7 @@ test('startup gate refuses abandoned maintenance and consumes a permit tied to t
 
 // Fast operator decision tests use the complete synthetic fixture and real byte
 // inventories, while the decoder itself is covered by the serial probes above.
-for (const changed of [false, true]) test(`online deploy: changed=${changed} selects the stopped re-probe correctly`, async t => {
+for (const root of [false, true]) for (const changed of [false, true]) test(`online deploy: root=${root} changed=${changed} selects the stopped re-probe correctly`, async t => {
   const f = await fixture(t); let checks = 0;
   const { copyTree } = await import('../scripts/linux/files.mjs');
   const capture = async () => {
@@ -334,8 +334,10 @@ for (const changed of [false, true]) test(`online deploy: changed=${changed} sel
     await writeFile(path.join(settings.dataDir, 'warm-store', 'synthetic.warm'), 'disposable');
     return false; // Optional warm-up failure never changes activation safety.
   };
+  const getuid = process.getuid; process.getuid = () => root ? 0 : 1000;
+  t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
   await deployPrechecked({ ...f, savedIdentityAdditions: syntheticAdditions, check, capture, prewarm, request: healthy, wait: noWait });
-  assert.equal(warmed, 1);
+  assert.equal(warmed, root ? 0 : 1);
   assert.equal(checks, changed ? 2 : 1);
   assert.deepEqual(f.events, ['stop', 'start']);
 });
