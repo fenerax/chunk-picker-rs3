@@ -110,7 +110,7 @@ const probeImport = `data:text/javascript;base64,${Buffer.from(`
       message.memoryPort.postMessage({ threadId, memoryUsage: process.memoryUsage() }); message.memoryPort.close();
     }
     if (message.testWaitForCancellation) {
-      const flag = new Int32Array(message.cancellation), deadline = Date.now() + 4000;
+      const flag = new Int32Array(message.cancellation), deadline = Date.now() + (message.testHoldMs ?? 4000);
       parentPort.postMessage({ type: 'progress', id: message.id, testBlocked: true });
       while (!Atomics.load(flag, 0) && Date.now() < deadline) Atomics.wait(flag, 0, 0, 20);
       parentPort.postMessage({ type: 'progress', id: message.id, testCancellationObserved: !!Atomics.load(flag, 0) });
@@ -187,53 +187,102 @@ test('expiry before the host observes online preserves the process and foregroun
     assert.equal((await foreground).error, undefined);
     assert.equal(exits, 0); assert.equal(f.worker.profileRetiring, undefined);
   }
+  const cleaned = once(f.worker, 'profile-cleaned');
   await assert.rejects(f.worker.startCpuProfile(), /unavailable/);
+  await cleaned;
   assert.equal(exits, 0); assert.equal(f.worker.profileRetiring, undefined);
   assert.equal(nativeStarts, 0);
   assert.equal((await f.send({ type: 'evaluate' })).error, undefined);
 });
 
-test('an uncertain native start retires the real host after foreground completion', { timeout: 10000 }, async t => {
+for (const operation of ['start', 'stop']) test(`an uncertain native ${operation} retires the real host after foreground completion`, { timeout: 10000 }, async t => {
   const original = childProcesses.fork;
   const preload = `data:text/javascript;base64,${Buffer.from(`
     import { Worker } from 'node:worker_threads';
-    Worker.prototype.startCpuProfile = () => new Promise(() => {});
+    const start = Worker.prototype.startCpuProfile;
+    Worker.prototype.startCpuProfile = function() {
+      if ('${operation}' === 'start') return new Promise(() => {});
+      return start.call(this).then(handle => ({ stop() { void handle.stop(); return new Promise(() => {}); } }));
+    };
   `).toString('base64')}`;
   childProcesses.fork = (module, args, options) => original(module, args, { ...options, execArgv: [...options.execArgv, '--import', preload] });
   syncBuiltinESMExports();
   let f;
-  try { f = await fixture(t, { probeImport, profileTimeoutMs: 200 }); }
+  try { f = await fixture(t, { probeImport, profileTimeoutMs: operation === 'stop' ? 5000 : 200 }); }
   finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+  const retiring = once(f.worker, 'profile-retiring'), exited = once(f.worker, 'exit');
+  // A stop-uncertainty test begins with a confirmed native start. Starting
+  // while the synthetic isolate is blocked would also test start uncertainty.
+  let capture;
+  if (operation === 'stop') { capture = f.worker.startCpuProfile({ deadline: Date.now() + 1000 }); await capture; }
   const id = 801, cancellation = new SharedArrayBuffer(4);
   const blocked = waitFor(f.worker, message => message.id === id && message.testBlocked);
   const completed = waitFor(f.worker, message => message.id === id && message.type !== 'progress');
-  f.worker.postMessage({ id, state: f.state, memberId: 'player1', cancellation, testWaitForCancellation: true });
+  f.worker.postMessage({ id, state: f.state, memberId: 'player1', cancellation, testWaitForCancellation: true, ...(operation === 'stop' ? { testHoldMs: 6000 } : {}) });
   await blocked;
-  const retiring = once(f.worker, 'profile-retiring'), exited = once(f.worker, 'exit');
-  const capture = assert.rejects(f.worker.startCpuProfile({ deadline: Date.now() + 80 }), /exited/);
+  if (operation === 'start') capture = assert.rejects(f.worker.startCpuProfile({ deadline: Date.now() + 80 }), /unavailable/);
   await retiring; assert.doesNotThrow(() => process.kill(f.worker.pid, 0));
-  let released = false;
-  const lateCapture = assert.rejects(f.worker.startCpuProfile(), /exited/).then(() => { released = true; });
-  await delay(250);
-  assert.equal(released, false, 'a later cancellation must still wait for actual retirement');
+  await assert.rejects(f.worker.startCpuProfile(), /unavailable/);
+  await delay(2300);
+  assert.doesNotThrow(() => process.kill(f.worker.pid, 0), 'profiling must never kill a busy worker');
   f.worker.postMessage({ type: 'cancel', id });
   assert.equal((await completed).error, undefined);
-  await exited; await capture; await lateCapture;
+  await exited; await capture;
 });
 
+for (const operation of ['start', 'stop']) {
+  test(`late native ${operation} cleanup cancels retirement beyond the former kill deadline`, { timeout: 10000 }, async t => {
+    const original = childProcesses.fork;
+    const preload = `data:text/javascript;base64,${Buffer.from(`
+      import { Worker } from 'node:worker_threads';
+      const start = Worker.prototype.startCpuProfile, release = Promise.withResolvers();
+      process.on('message', message => { if (message.kind === 'synthetic-profile-release') release.resolve(); });
+      Worker.prototype.startCpuProfile = async function() {
+        if ('${operation}' === 'start') {
+          await release.promise; return { stop: async () => ({}) };
+        }
+        const handle = await start.call(this);
+        return { stop: async () => { const result = await handle.stop(); await release.promise; return result; } };
+      };
+    `).toString('base64')}`;
+    let child;
+    childProcesses.fork = (module, args, options) => child = original(module, args, { ...options, execArgv: [...options.execArgv, '--import', preload] });
+    syncBuiltinESMExports();
+    let f;
+    try { f = await fixture(t, { probeImport, profileTimeoutMs: 5000 }); }
+    finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+    const worker = f.worker, id = 803;
+    const blocked = waitFor(worker, message => message.id === id && message.testBlocked);
+    const completed = waitFor(worker, message => message.id === id && message.type !== 'progress');
+    worker.postMessage({ id, state: f.state, memberId: f.state.members[0].id, cancellation: new SharedArrayBuffer(4), testWaitForCancellation: true, testHoldMs: 6000 });
+    await blocked;
+    const retiring = once(worker, 'profile-retiring'), cleaned = once(worker, 'profile-cleaned');
+    const started = worker.startCpuProfile({ deadline: Date.now() + 1000 });
+    const capture = operation === 'start' ? assert.rejects(started, /unavailable/) : started;
+    await retiring;
+    await delay(500); child.send({ kind: 'synthetic-profile-release' });
+    await cleaned; await capture;
+    await delay(1100);
+    assert.equal(worker.profileRetiring, undefined);
+    assert.doesNotThrow(() => process.kill(worker.pid, 0));
+    worker.postMessage({ type: 'cancel', id }); assert.equal((await completed).error, undefined);
+    assert.equal((await f.send({ type: 'evaluate' })).error, undefined);
+  });
+}
+
 for (const acknowledgement of ['delayed', 'missing']) {
-  test(`${acknowledgement} start acknowledgement proves cleanup before reporting inactive and preserves the calculator`, { timeout: 10000 }, async t => {
+  test(`${acknowledgement} start acknowledgement disables capture and late cleanup preserves foreground work`, { timeout: 10000 }, async t => {
     const dir = await mkdtemp(path.join(tmpdir(), 'profile-ack-'));
     const profiles = await createDeepProfiles(dir);
     const original = childProcesses.fork, captured = Promise.withResolvers(), cleaned = Promise.withResolvers();
-    let child, worker, deliverLate, deliverCleanup;
+    let worker, deliverLate, deliverCleanup;
     childProcesses.fork = (...args) => {
-      child = original(...args);
-      const emit = child.emit.bind(child);
+      const child = original(...args), emit = child.emit.bind(child);
       child.emit = (event, message, ...rest) => {
-        if (event === 'message' && message.kind === 'profile' && message.cancelled) {
+        if (event === 'message' && message.kind === 'profile-cleaned') {
           deliverCleanup = () => emit(event, message, ...rest); cleaned.resolve(); return true;
         }
+        if (event === 'message' && message.kind === 'profile' && message.cancelled) return true;
         if (event === 'message' && message.kind === 'profile' && !message.profile && !message.error) {
           captured.resolve();
           if (acknowledgement === 'delayed') deliverLate = () => emit(event, message, ...rest);
@@ -244,22 +293,26 @@ for (const acknowledgement of ['delayed', 'missing']) {
       return child;
     };
     syncBuiltinESMExports();
-    try { ({ worker } = await fixture(t, { profileTimeoutMs: 300 })); }
+    let f;
+    try { f = await fixture(t, { probeImport, profileTimeoutMs: 1000 }); worker = f.worker; }
     finally { childProcesses.fork = original; syncBuiltinESMExports(); }
     t.after(async () => { deliverCleanup?.(); await profiles.close(); await worker.terminate(); await rm(dir, { recursive: true, force: true }); });
     profiles.attach(worker);
     const started = profiles.start(60); await captured.promise;
-    const stopped = profiles.stop(); await cleaned.promise;
-    assert.ok(profiles.status().active || profiles.status().stopping, 'uncertain capture must remain visibly running or stopping');
-    deliverLate?.();
-    await delay(20);
-    assert.equal(profiles.status().stopping, true, 'late acknowledgement must not release the capture handle');
-    deliverCleanup(); await stopped; await started;
-    assert.doesNotThrow(() => process.kill(worker.pid, 0));
-    assert.equal(profiles.status().active, false); assert.equal(profiles.status().stopping, false);
+    const id = 802, blocked = waitFor(worker, message => message.id === id && message.testBlocked);
+    const completed = waitFor(worker, message => message.id === id && message.type !== 'progress');
+    worker.postMessage({ id, state: f.state, memberId: f.state.members[0].id, cancellation: new SharedArrayBuffer(4), testWaitForCancellation: true });
+    await blocked;
+    await cleaned.promise; await started; await profiles.stop();
+    assert.equal(profiles.status().active, false);
+    assert.equal(worker.profileRetiring, true);
+    deliverLate?.(); await delay(20);
+    assert.equal(worker.profileRetiring, true, 'a late start ack is not proof of cleanup');
+    deliverCleanup(); await delay(20);
     assert.equal(worker.profileRetiring, undefined);
-    const files = await profiles.list(); assert.equal(files.length, 1); assert.match(files[0].name, /-picker\.cpuprofile$/);
-    assert.equal((await readdir(path.join(dir, 'cpu-profiles'))).length, 1);
+    worker.postMessage({ type: 'cancel', id }); assert.equal((await completed).error, undefined);
+    assert.equal((await f.send({ type: 'evaluate' })).error, undefined);
+    assert.doesNotThrow(() => process.kill(worker.pid, 0));
     assert.ok(profiles.status().failures > 0);
   });
 }

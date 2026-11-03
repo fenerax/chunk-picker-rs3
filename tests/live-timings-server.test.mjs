@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { EventEmitter } from 'node:events';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -127,4 +128,44 @@ test('multi-picker users and invite viewers cannot inspect or control process-wi
   const after = await request('/api/admin/live-timings'); assert.equal(after.profile.active, true);
   assert.deepEqual(after.profiles, summary.profiles, 'denied controls must not change capture files');
   await request('/api/admin/cpu-profiles', admin, { action: 'stop' });
+});
+
+
+test('viewer diagnostics, health and worker events omit profiling counters and reasons', { timeout: 15000 }, async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'timing-viewer-')), workers = [];
+  const initialState = createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }]);
+  const app = await createServer({ dataDir, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState,
+    port: 0, predictionPrewarm: false, taskWorkerOptions: { maxRestarts: 0, workerFactory() {
+      const worker = new EventEmitter(); worker.messages = []; worker.postMessage = message => worker.messages.push(message);
+      worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
+      worker.startCpuProfile = async () => { worker.profileRetiring = true; worker.emit('profile-retiring'); throw new Error('Synthetic native uncertainty.'); };
+      workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
+    } } });
+  const controller = new AbortController();
+  t.after(async () => { controller.abort(); await app.close(); await rm(dataDir, { recursive: true, force: true }); });
+  await app.listen();
+  const origin = new URL(app.inviteUrl).origin, admin = { Authorization: `Bearer ${app.store.getAccessToken()}` };
+  async function request(route, headers = admin, body) {
+    const response = await fetch(origin + route, { headers: { ...headers, ...(body ? { Origin: origin, 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
+    assert.ok(response.ok, `${route}: ${response.status}`); return response.json();
+  }
+  const invite = await request('/api/invites', admin, { label: 'Synthetic viewer', viewer: true });
+  const joined = await fetch(invite.link, { redirect: 'manual' }), viewer = { cookie: joined.headers.get('set-cookie').split(';')[0] };
+  const stream = await fetch(origin + '/api/events', { headers: viewer, signal: controller.signal }), reader = stream.body.getReader();
+  await reader.read();
+  const requestResult = request(`/api/tasks?memberId=${initialState.members[0].id}`);
+  const deadline = Date.now() + 5000;
+  while (!workers[0].messages.some(message => message.id) && Date.now() < deadline) await delay(5);
+  const worker = workers[0], message = worker.messages.find(message => message.id); assert.ok(message);
+  await request('/api/admin/cpu-profiles', admin, { action: 'start', seconds: 60 });
+  assert.ok(!worker.terminated);
+  for (const route of ['/api/diagnostics', '/api/health']) assert.ok(!/profil/i.test(JSON.stringify(await request(route, viewer))));
+  worker.emit('message', { id: message.id, result: { tasks: [], metrics: { availableCount: 0 } } });
+  await requestResult;
+  const event = new TextDecoder().decode((await reader.read()).value);
+  assert.match(event, /event: worker/); assert.ok(!/profil/i.test(event));
+  for (const route of ['/api/diagnostics', '/api/health']) assert.ok(!/profil/i.test(JSON.stringify(await request(route, viewer))));
+  const summary = await request('/api/admin/live-timings'); assert.ok(summary.profile.failures > 0);
+  assert.equal(summary.profile.retirements, 1);
 });

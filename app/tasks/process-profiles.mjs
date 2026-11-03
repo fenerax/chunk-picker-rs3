@@ -1,6 +1,6 @@
 // Host-local capture ownership. Waiting for online is cancellable and does
 // not make the calculator's native profiler state uncertain.
-export function createProcessProfiles({ worker, online, retire, openSession = async () => {
+export function createProcessProfiles({ worker, online, retire, restore = () => {}, captureRelay = true, openSession = async () => {
   const { Session } = await import('node:inspector');
   const session = new Session(); session.connect(); return session;
 }, stopTimeoutMs = 1000 }) {
@@ -14,16 +14,28 @@ export function createProcessProfiles({ worker, online, retire, openSession = as
       // Relay sampling stops independently of a stalled native start/stop.
       const relay = (async () => {
         try {
-          await capture.relayReady.catch(() => {});
+          // Once start has been issued, do not wait for its acknowledgement
+          // before dispatching the host-local deadline stop.
+          if (!capture.relayStarted) await capture.relayReady.catch(() => {});
           if (capture.relayStarted) return (await post(capture.session, 'Profiler.stop')).profile;
         } finally { capture.session?.disconnect(); }
       })();
       const calculator = (async () => {
         if (!capture.issued) return;
+        // This cleanup is owned by the host deadline, independent of parent IPC.
+        // Keep observing it after the allowance expires so late proof can
+        // cancel idle retirement while foreground work is still running.
+        const cleanup = capture.native.then(handle => handle.stop());
+        cleanup.then(() => {
+          if (!capture.uncertain) return;
+          capture.uncertain = false;
+          if (current === capture) current = undefined;
+          restore();
+        }, () => {});
         let timer;
         try {
           return await Promise.race([
-            capture.native.then(handle => handle.stop()),
+            cleanup,
             new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Native profiler did not stop.')), stopTimeoutMs); timer.unref?.(); }),
           ]);
         } catch (error) { capture.uncertain = true; retire(); throw error; }
@@ -43,6 +55,7 @@ export function createProcessProfiles({ worker, online, retire, openSession = as
       const capture = current = { deadline: Math.min(deadline, Date.now() + 600000), cancel: Promise.withResolvers() };
       capture.timer = setTimeout(() => { void finish(capture).catch(() => {}); }, capture.deadline - Date.now()); capture.timer.unref?.();
       capture.relayReady = (async () => {
+        if (!captureRelay) return;
         capture.session = await openSession(); check(capture);
         await post(capture.session, 'Profiler.enable'); check(capture);
         capture.relayStarted = true;
@@ -56,14 +69,14 @@ export function createProcessProfiles({ worker, online, retire, openSession = as
         capture.native = (async () => worker.startCpuProfile())();
         await Promise.race([capture.native, capture.cancel.promise]); check(capture);
       } catch (error) {
-        try { await finish(capture); } finally { if (current === capture) current = undefined; }
+        try { await finish(capture); } finally { if (current === capture && !capture.uncertain) current = undefined; }
         throw error;
       }
     },
     async stop() {
       const capture = current;
       if (!capture) throw new Error('No capture.');
-      try { return await finish(capture); } finally { if (current === capture) current = undefined; }
+      try { return await finish(capture); } finally { if (current === capture && !capture.uncertain) current = undefined; }
     },
     async cancel() {
       const capture = current;
@@ -73,7 +86,7 @@ export function createProcessProfiles({ worker, online, retire, openSession = as
       // native request fails or exceeds its bounded stop allowance.
       try { await finish(capture); }
       catch (error) { if (capture.uncertain) throw error; }
-      finally { if (current === capture) current = undefined; }
+      finally { if (current === capture && !capture.uncertain) current = undefined; }
       return true;
     },
   };

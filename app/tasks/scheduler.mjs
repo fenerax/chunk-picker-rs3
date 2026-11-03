@@ -505,7 +505,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   let firstCalculation = true;
   let receivedCatalogue = false;
   let supported = new Set();
-  let status = 'starting', restarts = 0, failures = 0, profileRetirements = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
+  let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   let sentSnapshots = new Map();
   const queue = [], warmQueue = [], pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
   function forgetPickerSnapshots(pickerId) {
@@ -694,8 +694,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     clearCancelledGrace();
     firstCalculation = true;
     const profiling = kind === 'profile-retired';
-    if (profiling) profileRetirements++; else failures++;
-    lastFailure = { kind, at: new Date().toISOString() };
+    if (!profiling) failures++;
+    if (!profiling) lastFailure = { kind, at: new Date().toISOString() };
     clearTimeout(startupTimer);
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     const old = worker; worker = undefined; generation++; terminate(old);
@@ -717,7 +717,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function pump() {
     if (closed || status !== 'ready') return;
-    if (!active && worker.profileRetiring) { profileRetirements++; retire(); return; }
+    if (!active && worker.profileRetiring) { retire(); return; }
     if (active) {
       if (calculatorPool && queue.length) scheduler.yieldForInteractive();
       return;
@@ -829,7 +829,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (!calculatorPool) onWorker?.(worker);
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
-    worker.on('error', () => { if (ownGeneration === generation) failure('worker-error'); });
+    worker.on('error', () => { if (ownGeneration === generation) failure(worker.profileRetiring ? 'profile-retired' : 'worker-error'); });
     worker.on('exit', () => { if (ownGeneration === generation && !closed) failure(worker.profileRetiring ? 'profile-retired' : 'worker-exit'); });
     worker.on('profile-retiring', () => { if (ownGeneration === generation && !closed) pump(); });
     worker.on('profile-retired', () => { if (ownGeneration === generation && !closed) failure('profile-retired'); });
@@ -1247,7 +1247,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       const noProgressLimit = ['starting', 'waking'].includes(status) ? Math.max(stuckMs, startupDeadlineMs) : stuckMs;
       return { status: closed ? 'closed' : status, ready: !closed && status === 'ready', restartRequired: status === 'restart-required',
         stuck: !closed && status !== 'sleeping' && noProgressMs > noProgressLimit, activeMs, queuedMs, noProgressMs, stuckMs,
-        restarts, maxRestarts, failures, profileRetirements, nextRetryAt, compileMs, lastFailure, idleMs, idleStops, resident: !!worker, retiring: terminating.size };
+        restarts, maxRestarts, failures, nextRetryAt, compileMs, lastFailure, idleMs, idleStops, resident: !!worker, retiring: terminating.size };
     },
     async restartUnhealthy() {
       if (manualRestart) { await manualRestart; return false; }

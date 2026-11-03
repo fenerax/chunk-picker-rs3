@@ -1,13 +1,16 @@
 import { Worker } from 'node:worker_threads';
+import { createProcessProfiles } from './tasks/process-profiles.mjs';
+
 import { mkdir, readdir, stat, writeFile, rename, unlink, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+export const PROFILE_FAILURE_CAP = 1;
 export const PROFILE_CAPS = Object.freeze({ count: 12, totalBytes: 128 * 1024 * 1024, fileBytes: 32 * 1024 * 1024 });
 const validName = name => /^profile-\d+-\d+-(picker|calculator|relay)\.cpuprofile$/.test(name);
 export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink } } = {}) {
   const directory = path.join(dataDir, 'cpu-profiles');
-  const workers = new Set(), online = new WeakMap();
-  let current, closing = false, sequence = 0, failures = 0, stopping;
+  const workers = new Set(), online = new WeakMap(), nativeProfiles = new WeakMap();
+  let current, closing = false, sequence = 0, failures = 0, retirements = 0, stopping;
   async function files() {
     let names; try { names = await readdir(directory); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     const entries = [];
@@ -54,17 +57,34 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     }).catch(() => { failures++; });
     return writes;
   }
+  function failCapture(run) {
+    if (run.failed || run.cancelled) return;
+    run.failed = true; failures++;
+    if (++run.failures >= PROFILE_FAILURE_CAP) void api.stop();
+  }
   async function startWorker(run, worker) {
     if (current !== run || run.starting || run.handles.has(worker) || !worker.startCpuProfile) return;
-    const pending = (async () => {
+    // Serialize native admission: one uncertain start must disable the capture
+    // before another calculator (including a replacement) can join it.
+    const pending = run.admissions.then(async () => {
       await Promise.race([Promise.resolve(online.get(worker)), run.cancel.promise]);
       if (current !== run || run.cancelled || Date.now() >= run.deadline) return;
-      return worker instanceof Worker ? worker.startCpuProfile() : worker.startCpuProfile({ deadline: run.deadline });
-    })();
+      if (!(worker instanceof Worker)) return worker.startCpuProfile({ deadline: run.deadline });
+      let profiles = nativeProfiles.get(worker);
+      if (!profiles) {
+        profiles = createProcessProfiles({ worker, online: online.get(worker), captureRelay: false,
+          retire() { worker.profileRetiring = true; worker.emit('profile-retiring'); },
+          restore() { worker.profileRetiring = undefined; worker.emit('profile-cleaned'); } });
+        nativeProfiles.set(worker, profiles);
+      }
+      await profiles.start(run.deadline);
+      return { stop: async () => (await profiles.stop()).calculator };
+    });
     run.handles.set(worker, pending);
-    try { await pending; } catch { failures++; run.handles.delete(worker); }
+    run.admissions = pending.catch(() => { failCapture(run); });
+    try { await pending; } catch { failCapture(run); }
   }
-  return {
+  const api = {
     attach(worker) {
       if (!worker?.on || closing || workers.has(worker)) return;
       workers.add(worker);
@@ -77,10 +97,14 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
         });
         ready.catch(() => {}); online.set(worker, ready);
       }
-      worker.once('exit', () => { workers.delete(worker); if (current?.handles.delete(worker)) failures++; });
+      worker.on('profile-retiring', () => { if (current?.handles.has(worker)) failCapture(current); });
+      worker.once('exit', () => {
+        workers.delete(worker); if (worker.profileRetiring) retirements++;
+        if (current?.handles.delete(worker)) failCapture(current);
+      });
       if (current) void startWorker(current, worker);
     },
-    status() { return { active: !!current, starting: !!current?.starting, deadline: current?.deadline ?? null, stopping: !!stopping, failures }; },
+    status() { return { active: !!current, starting: !!current?.starting, deadline: current?.deadline ?? null, stopping: !!stopping, failures, retirements }; },
     async list() { return (await files()).filter(entry => validName(entry.name)); },
     async download(name) {
       if (!validName(name)) throw Object.assign(new Error('Profile not found.'), { status: 404 });
@@ -93,7 +117,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       if (!Number.isFinite(seconds) || seconds < 0.01 || seconds > 600) throw Object.assign(new Error('Use a duration up to 600 seconds.'), { status: 400 });
       if (current || stopping || closing) throw Object.assign(new Error('A profile is already running or stopping.'), { status: 409 });
       // Reserve ownership synchronously, including admission and lazy imports.
-      const run = current = { starting: true, handles: new Map(), cancel: Promise.withResolvers(), deadline: Date.now() + seconds * 1000 };
+      const run = current = { starting: true, failures: 0, admissions: Promise.resolve(), handles: new Map(), cancel: Promise.withResolvers(), deadline: Date.now() + seconds * 1000 };
       run.timer = setTimeout(() => { void this.stop(); }, seconds * 1000); run.timer.unref();
       run.ready = (async () => {
         try {
@@ -137,4 +161,5 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     },
     async close() { closing = true; await this.stop(); workers.clear(); await writes; },
   };
+  return api;
 }

@@ -5,14 +5,14 @@ import { createProcessProfiles } from '../app/tasks/process-profiles.mjs';
 
 function fixture(options = {}) {
   const online = Promise.withResolvers(), relayStarted = Promise.withResolvers();
-  const calls = []; let retirements = 0;
+  const calls = [], retired = Promise.withResolvers(); let retirements = 0;
   const session = { disconnect() { calls.push('disconnect'); }, post(method, callback) {
     calls.push(method); if (method === 'Profiler.start') relayStarted.resolve();
     callback(null, { profile: { nodes: [1] } });
   } };
   const worker = { startCpuProfile() { calls.push('native-start'); return { stop: async () => { calls.push('native-stop'); return { nodes: [1] }; } }; } };
-  const profiles = createProcessProfiles({ worker, online: online.promise, retire() { retirements++; }, openSession: async () => session, stopTimeoutMs: 20, ...options });
-  return { profiles, online, relayStarted, calls, retirements: () => retirements };
+  const profiles = createProcessProfiles({ worker, online: online.promise, retire() { retirements++; retired.resolve(); }, openSession: async () => session, stopTimeoutMs: 20, ...options });
+  return { profiles, online, relayStarted, calls, retired: retired.promise, retirements: () => retirements };
 }
 
 test('expiry while waiting online stops only the relay; repeated captures preserve the calculator', async () => {
@@ -32,7 +32,7 @@ test('expiry while waiting online stops only the relay; repeated captures preser
 for (const stage of ['open', 'Profiler.enable', 'Profiler.start', 'online']) {
   test(`cancellation during ${stage} is rechecked before issuing a native request`, async () => {
     const entered = Promise.withResolvers(), release = Promise.withResolvers();
-    const calls = []; let retirements = 0;
+    const calls = [], retired = Promise.withResolvers(); let retirements = 0;
     const session = { disconnect() { calls.push('disconnect'); }, post(method, callback) {
       calls.push(method);
       if (method === stage) { entered.resolve(); void release.promise.then(() => callback(null, {})); }
@@ -56,7 +56,7 @@ for (const operation of ['start', 'stop']) {
     f.online.resolve();
     const started = f.profiles.start(Date.now() + 30);
     const completed = operation === 'start' ? assert.rejects(started, /did not stop/) : started;
-    await delay(80); await completed;
+    await f.retired; await completed;
     assert.equal(f.retirements(), 1);
     assert.ok(f.calls.includes('Profiler.stop')); assert.ok(f.calls.includes('disconnect'));
     await assert.rejects(f.profiles.stop());
@@ -88,3 +88,41 @@ for (const stalled of [false, true]) {
     assert.equal(retirements, Number(stalled)); assert.equal(disconnected, true);
   });
 }
+
+
+for (const operation of ['start', 'stop']) {
+  test(`late native ${operation} cleanup clears idle retirement without a parent stop`, async () => {
+    const pending = Promise.withResolvers(); let restores = 0;
+    const f = fixture({ restore() { restores++; }, worker: { startCpuProfile() {
+      return operation === 'start' ? pending.promise : { stop: () => pending.promise };
+    } } });
+    f.online.resolve();
+    const started = f.profiles.start(Date.now() + 20);
+    const completion = operation === 'start' ? assert.rejects(started, /did not stop/) : started;
+    await f.retired; await completion;
+    assert.equal(f.retirements(), 1); assert.equal(restores, 0);
+    await assert.rejects(f.profiles.cancel(), /did not stop/);
+    await assert.rejects(f.profiles.start(Date.now() + 1000), /unavailable/i);
+    assert.equal(restores, 0, 'a repeated cancel cannot prove uncertain native cleanup');
+    if (operation === 'start') pending.resolve({ stop: async () => ({}) }); else pending.resolve({});
+    await delay(5);
+    assert.equal(restores, 1);
+    assert.ok(f.calls.includes('Profiler.stop'));
+  });
+}
+
+
+test('host deadline stops relay sampling while its start acknowledgement is missing', async () => {
+  const entered = Promise.withResolvers(), stopped = Promise.withResolvers(); let release;
+  const calls = [];
+  const f = fixture({ openSession: async () => ({ disconnect() { calls.push('disconnect'); }, post(method, callback) {
+    calls.push(method);
+    if (method === 'Profiler.start') { release = () => callback(null, {}); entered.resolve(); }
+    else { callback(null, { profile: {} }); if (method === 'Profiler.stop') stopped.resolve(); }
+  } }) });
+  const started = assert.rejects(f.profiles.start(Date.now() + 30), /cancelled/);
+  await entered.promise;
+  await Promise.race([stopped.promise, delay(1000).then(() => assert.fail('relay deadline did not stop sampling'))]);
+  assert.ok(calls.includes('disconnect')); assert.equal(f.retirements(), 0);
+  release(); await started;
+});

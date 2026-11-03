@@ -35,9 +35,17 @@ export class ProcessWorker extends EventEmitter {
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
         else if (message.kind === 'profile') {
           const request = this.#profiles.get(message.id);
-          if (request && (!request.timedOut || message.cancelled)) { this.#profiles.delete(message.id); clearTimeout(request.timer); message.error ? request.reject(new Error('Calculator profile unavailable.')) : request.resolve(message.profile); }
+          if (request) {
+            const cleaned = message.cancelled || request.operation === 'stop' && !message.error;
+            if (!request.timedOut || cleaned) {
+              this.#profiles.delete(message.id); clearTimeout(request.timer);
+              if (request.timedOut && cleaned) this.#restoreProfile();
+              message.error ? request.reject(new Error('Calculator profile unavailable.')) : request.resolve(message.profile);
+            }
+          }
         }
-        else if (message.kind === 'profile-retiring') { this.profileRetiring = true; this.emit('profile-retiring'); }
+        else if (message.kind === 'profile-retiring') this.#retireProfile();
+        else if (message.kind === 'profile-cleaned') this.#restoreProfile();
         else if (message.kind === 'memory') {
           const request = this.#memory.get(message.id);
           if (request) {
@@ -105,18 +113,29 @@ export class ProcessWorker extends EventEmitter {
     return { stop: () => this.#profileRequest('stop') };
   }
 
+  #restoreProfile() {
+    for (const [id, request] of this.#profiles) if (request.timedOut) { clearTimeout(request.timer); this.#profiles.delete(id); }
+    this.profileRetiring = undefined; this.emit('profile-cleaned');
+  }
+
+  #retireProfile() {
+    if (this.profileRetiring) return;
+    this.profileRetiring = true; this.emit('profile-retiring');
+  }
+
   #profileRequest(operation, deadline) {
-    if (this.#exited || this.#stopping) return Promise.reject(new Error('Calculator stopped.'));
+    if (this.#exited || this.#stopping || this.profileRetiring) return Promise.reject(new Error('Calculator profile unavailable.'));
     const id = ++this.#sequence;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#profiles.get(id).timedOut = true;
-        // Only the host knows whether a native request was actually issued.
-        // It can cancel an online wait safely, or retire an uncertain profiler
-        // after allowing the current calculation a bounded idle grace period.
+        // Mark uncertainty before any replacement can join this capture.
+        // The scheduler/host may retire only when the request is finished.
+        this.#retireProfile();
+        reject(new Error('Calculator profile unavailable.'));
         this.#send({ kind: 'profile', operation: 'cancel', id });
       }, this.#profileTimeoutMs);
-      timer.unref(); this.#profiles.set(id, { resolve, reject, timer });
+      timer.unref(); this.#profiles.set(id, { resolve, reject, timer, operation });
       this.#send({ kind: 'profile', operation, id, deadline });
     });
   }

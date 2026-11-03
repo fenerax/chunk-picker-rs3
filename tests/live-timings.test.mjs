@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { openLiveTimings, noteTiming, actions, TIMING_FILE_CAP } from '../app/live-timings.mjs';
 import { createDeepProfiles } from '../app/deep-profiles.mjs';
+import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 import { ProcessWorker } from '../app/tasks/process-worker.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 
@@ -179,7 +180,7 @@ test('a calculator crash during capture releases handles and leaves no partial f
   profiles.attach(worker); await profiles.start(60);
   const exited = new Promise(resolve => worker.once('exit', resolve)); process.kill(worker.pid, 'SIGKILL'); await exited;
   assert.ok(profiles.status().failures > 0); await profiles.stop();
-  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 1 });
+  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 1, retirements: 0 });
   const files = await profiles.list(); assert.equal(files.length, 1); assert.match(files[0].name, /-picker\.cpuprofile$/);
   assert.deepEqual((await readdir(path.join(dir, 'cpu-profiles'))).sort(), files.map(file => file.name).sort());
   await profiles.start(60); await profiles.close();
@@ -272,7 +273,7 @@ test('stop cancels capture admission before any picker or calculator profiler st
   await assert.rejects(profiles.start(60), { status: 409 });
   release.resolve(); await Promise.all([started, stopping]);
   assert.equal(starts, 0); assert.deepEqual(await profiles.list(), []);
-  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 0 });
+  assert.deepEqual(profiles.status(), { active: false, starting: false, deadline: null, stopping: false, failures: 0, retirements: 0 });
 });
 
 test('concurrent capture starts reserve one owner synchronously', async t => {
@@ -288,4 +289,57 @@ test('concurrent capture starts reserve one owner synchronously', async t => {
   const cancelled = profiles.start(600), stopped = profiles.stop();
   await Promise.all([cancelled, stopped]); assert.equal(starts, 1);
   assert.equal(profiles.status().active, false);
+});
+
+
+test('one failed admission disables the capture before replacements or other workers join', async t => {
+  const profiles = await createDeepProfiles(await temporary(t));
+  t.after(() => profiles.close());
+  let starts = 0, replacements = 0;
+  const worker = new EventEmitter();
+  worker.startCpuProfile = async () => {
+    starts++;
+    worker.profileRetiring = true; worker.emit('profile-retiring');
+    for (let index = 0; index < 12; index++) {
+      const replacement = new EventEmitter();
+      replacement.startCpuProfile = async () => { replacements++; throw new Error('Synthetic failure.'); };
+      profiles.attach(replacement);
+    }
+    throw new Error('Synthetic native uncertainty.');
+  };
+  profiles.attach(worker);
+  await profiles.start(60); await profiles.stop();
+  assert.equal(starts, 1); assert.equal(replacements, 0);
+  assert.equal(profiles.status().active, false);
+  assert.ok(profiles.status().failures > 0);
+});
+
+
+test('a failed capture retires at most one calculator and replacements finish foreground work', async t => {
+  const profiles = await createDeepProfiles(await temporary(t)), workers = [];
+  let starts = 0;
+  const scheduler = await createTaskScheduler({ maxRestarts: 0, onWorker: worker => profiles.attach(worker), workerFactory() {
+    const worker = new EventEmitter(); worker.messages = [];
+    worker.postMessage = message => worker.messages.push(message);
+    worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
+    worker.startCpuProfile = async () => {
+      starts++; worker.profileRetiring = true; worker.emit('profile-retiring'); throw new Error('Synthetic native failure.');
+    };
+    workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
+  } });
+  t.after(async () => { await profiles.close(); await scheduler.close(); });
+  for (let index = 0; index < 6; index++) {
+    const request = scheduler.evaluate({ revision: index }, 'synthetic-member', 'evaluate', undefined, String(index), String(index));
+    const deadline = Date.now() + 3000;
+    while (!workers.at(-1).messages.some(message => message.id) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
+    const worker = workers.at(-1), message = worker.messages.find(message => message.id); assert.ok(message);
+    if (!index) await profiles.start(60);
+    assert.ok(!worker.terminated);
+    worker.messages.splice(worker.messages.indexOf(message), 1);
+    worker.emit('message', { id: message.id, result: { synthetic: true } });
+    assert.equal((await request).result.synthetic, true);
+  }
+  await profiles.stop();
+  assert.equal(starts, 1); assert.equal(workers.length, 2); assert.equal(profiles.status().retirements, 1);
+  assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().failures, 0);
 });

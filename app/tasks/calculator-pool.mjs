@@ -4,9 +4,9 @@ import { EventEmitter } from 'node:events';
 // even a retiring calculator holds its slot until termination has completed.
 export function createCalculatorPool({ limit, workerFactory, workerData, onReady, onWorker, idleMs = 600000, startupDeadlineMs = 30000 }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
-  let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false, profileRetirements = 0;
+  let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false;
   const diagnostics = () => ({ limit, resident: slots.size, peak, active: [...slots].filter(slot => slot.owner).length,
-    retiring: [...slots].filter(slot => slot.stopping || slot.worker.profileRetiring).length, waiting: waiting.size, profileRetirements });
+    retiring: [...slots].filter(slot => slot.stopping || slot.worker.profileRetiring).length, waiting: waiting.size });
   function retire(slot) {
     if (slot.stopping) return slot.stopping;
     clearTimeout(slot.timer); clearTimeout(slot.startupTimer);
@@ -38,7 +38,6 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     slot.startupTimer = setTimeout(() => fail(new Error('Calculator startup deadline exceeded.')), startupDeadlineMs);
     slot.worker.on('error', fail);
     slot.worker.on('profile-retiring', () => {
-      profileRetirements++;
       if (slot.ready && !slot.owner) void retire(slot);
     });
     slot.worker.on('exit', () => {

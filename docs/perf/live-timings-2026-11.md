@@ -1,6 +1,6 @@
 # Live timings and on-demand CPU profiles
 
-START: a9e2cd27b744e529fc44df8e917b966a6387423a. Linux, Node v24.21.0, process calculators. No npm dependencies or calculator algorithms changed.
+Original measurement START: a9e2cd27b744e529fc44df8e917b966a6387423a. Round-3 correction base: 635ef35a6d619ce945d1c95ec8913de89f10f9c9. Linux, Node v24.21.0, process calculators. No npm dependencies or calculator algorithms changed.
 
 ## Changes
 
@@ -25,9 +25,9 @@ Capture admission reserves a visible `starting` state synchronously, before wait
 
 Process calculator hosts enforce the requested absolute capture deadline locally, capped at 600 seconds, even without a parent stop command. Waiting for thread online is distinct from issuing a native profiling request. Expiry or an acknowledgement timeout before issuance cancels the wait and stops only the relay profiler. Cancellation is checked after each asynchronous admission step, including online, so a late online event cannot start sampling. Healthy calculators keep serving foreground work.
 
-A profiling acknowledgement timeout (20 seconds by default) requests host cleanup rather than immediately terminating the process. The host confirms both profilers stopped when possible; late start/stop acknowledgements cannot release the pending handle before that confirmation. Only a failed or stalled native start/stop requires retirement. Relay sampling stops independently while native cleanup receives a one-second allowance. A calculator marked for profiling retirement takes no new pooled jobs, and its current calculation gets up to one additional second to finish before host shutdown. Idle retirement preserves its completed response. Forced retirement can interrupt a longer foreground calculation: proving a stalled native profiler stopped requires terminating its isolate, and waiting indefinitely would leave capture unbounded. Host shutdown itself has the existing 1.5-second force-exit bound. Status remains active or stopping until cleanup or actual process exit is confirmed.
+Profiling never interrupts a user's request. A profiling acknowledgement timeout (20 seconds by default) marks the calculator for retirement when idle and requests host cleanup. The capture deadline and stop operation belong to the host itself, so neither depends on a parent stop message. Relay sampling also stops at the host deadline if its start acknowledgement is missing. Native cleanup receives a one-second acknowledgement allowance; that allowance only marks uncertainty and never starts a busy-worker kill timer. The current calculation finishes before retirement. A late successful native stop or cleanup confirmation clears the mark if it arrives before idle. Uncertain ownership is retained until cleanup is proven, including across repeated cancel requests. Ordinary process shutdown deadlines apply only after idle retirement has begun.
 
-Profiling retirements are counted separately in pool/lane diagnostics and never spend the scheduler restart budget or cause `restart-required`, including repeated forced retirements with a zero restart budget. Ordinary calculator errors retain their existing failure budget. Crashed calculators are removed from capture ownership; incomplete profiles are discarded. No game rules, task algorithms or worker calculation protocol changed.
+Each capture has a failure cap of one. The first failed or uncertain admission disables the capture synchronously, before any replacement can join it. Native profile admissions are serialized independently of calculator request dispatch. Healthy thread calculators use the same local deadline/cleanup controller without a second relay profiler. Profiling-related worker errors and exits preserve the ordinary restart budget, including with `maxRestarts: 0`. Profiling counters and reasons are absent from ordinary diagnostics, health responses and worker events; failure and retirement counts are available only in the administrator capture status. Ordinary calculator errors retain their existing failure budget. Incomplete profiles can be discarded. No game rules, task algorithms or worker calculation protocol changed.
 
 ## VPS runner (root commands)
 
@@ -67,6 +67,53 @@ node scripts/perf/live-timings-load.mjs --micro > /tmp/live-timings-micro.json
 ```
 
 ## Validation and measurements
+
+### Round-3 follow-up — 2026-11-03
+
+Base for this correction: `635ef35a6d619ce945d1c95ec8913de89f10f9c9`. Linux, Node v24.21.0. The earlier review follow-up below is historical; its forced-retirement grace design is superseded by idle-only retirement.
+
+- Finding 1: removed the forced-retirement timer. Native start/stop uncertainty retains ownership and permits foreground completion; late cleanup cancels retirement. Process and thread capture controllers own their deadlines.
+- Finding 2: one-failure capture cap and serialized native admissions prevent replacements from joining a failed capture. An integration regression finishes six foreground requests across two workers with one profile start and one retirement.
+- Finding 3: dedicated worker errors use the same profiling-retirement classification as exits. Dedicated and pooled recovery tests retain zero ordinary restarts with a zero restart budget.
+- Finding 4: removed profiling counters and reasons from public scheduler health and pool diagnostics. A viewer HTTP/SSE test checks these while foreground work is active and after retirement; admin status retains the failure and retirement counts.
+- Finding 5: `process-profiles.test.mjs` remains in the quick selection; no new test file was added.
+
+Five fresh synthetic process workers per side, run sequentially against the untouched base and candidate with one calculator at a time. A host preload withholds native start confirmation; the synthetic foreground request stays blocked for 2,300 ms after the retirement mark, beyond the deleted forced-kill grace. The harness imports no server or store and uses no private input. Timings are median [minimum–maximum]. The observation window includes the intentional hold and is not an application latency benchmark.
+
+| Synthetic lifecycle measurement | Base | Candidate |
+| --- | ---: | ---: |
+| Foreground completions | 0/5 | 5/5 |
+| Foreground interruptions | 5/5 | 0/5 |
+| Retirement mark, ms | 1082.20 [1081.58–1083.10] | 1081.88 [1081.44–1083.66] |
+| Observation window, ms | 3382.60 [3381.85–3878.50] | 3442.03 [3426.63–3452.17] |
+| Peak sampled worker-process RSS, MiB | 254.33 [238.02–262.62] | 257.92 [255.08–268.14] |
+
+Reproduce from the candidate checkout, passing either application tree:
+
+```sh
+export PATH=/opt/codex/cua_node/bin:$PATH
+node --version
+node scripts/perf/profile-retirement.mjs /tmp/t1-start 5
+node scripts/perf/profile-retirement.mjs . 5
+```
+
+Final targeted coverage: **171 passed, 0 failed, 0 skipped** across the latest runs of the nine requested files. The combined selection passed 154 cases outside `process-worker.test.mjs`; that file's final isolated rerun passed 17 cases in 44.25 seconds. An earlier combined run reported 166 passed, 2 failed and 3 cancelled while the new fixtures still used timed cleanup release. The next combined run reported 170 passed and 1 failed because the stop-only fixture also hit its short parent start timeout. Explicit cleanup handshakes and a confirmed start for the stop-only fixture resolve those test setup races. The application deadlines and foreground-completion assertions were not relaxed. The existing parent-death case passed.
+
+| Test file | Passed |
+| --- | ---: |
+| `tests/live-timings.test.mjs` | 22 |
+| `tests/live-timings-server.test.mjs` | 3 |
+| `tests/process-worker.test.mjs` | 17 |
+| `tests/process-profiles.test.mjs` | 13 |
+| `tests/scheduler.test.mjs` | 53 |
+| `tests/warmstart-scheduler.test.mjs` | 17 |
+| `tests/picker-calculator-cap.test.mjs` | 29 |
+| `tests/worker-watchdog.test.mjs` | 6 |
+| `tests/workers-idle.test.mjs` | 11 |
+
+Round-3 quick gate, run once after the final targeted file runs: **3,466 passed, 0 failed, 68 skipped**, 3,534 cases across 349 files in **678.55 seconds**, using the default two-file cap (`npm run test:quick`). Exit code 0, no cancellations. Existing skip conditions remain unchanged. No full suite was run. The correction is staged on `fix/t1-round3`, with no commit, push or PR. Recommendation: **MERGE-CANDIDATE**. Status: **SHIP**.
+
+These are lifecycle measurements, not a new CPU sampling overhead estimate. Active CPU profiling still has the diagnostic resource cost measured below. No calculation logic changed, no private save was opened, and no credentials were created against private data. No full `npm test` was run.
 
 ### Review follow-up — 2026-11-02
 
@@ -253,7 +300,7 @@ Final focused tests: **151 passed, 0 failed** (32.86 seconds). The peer-cache te
 
 Final complete quick selection: **3,438 passed, 0 failed, 68 skipped**, 3,506 cases in 503.81 seconds, using `RS3_TEST_CONCURRENCY=4 npm run test:quick`. A detached supervisor recorded exit code 0 and no signal. One earlier final attempt was terminated by a tool-transport reset before a completion summary; it is treated as interrupted, not as a passing run. No assertion, deadline, source comparator or skip condition was weakened. Existing skipped cases were retained.
 
-The implementation is staged on `perf/t1-live-timings`; no push, PR or deployment was performed. The shared hotspot edits are confined to `app/server.mjs`, `app/tasks/scheduler.mjs`, `app/tasks/calculator-pool.mjs` and the process-worker adapter/host. `app/tasks/engine.mjs`, `app/tasks/worker.mjs`, game rules/state behavior, changelog and roadmap are unchanged.
+The original implementation was staged on `perf/t1-live-timings`; no push, PR or deployment was performed. The shared hotspot edits are confined to `app/server.mjs`, `app/tasks/scheduler.mjs`, `app/tasks/calculator-pool.mjs` and the process-worker adapter/host. `app/tasks/engine.mjs`, `app/tasks/worker.mjs`, game rules/state behavior, changelog and roadmap are unchanged.
 
 ## Remaining limits
 

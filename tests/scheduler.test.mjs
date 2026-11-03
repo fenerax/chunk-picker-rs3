@@ -746,17 +746,17 @@ for (const pooled of [false, true]) {
       assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().failures, 0);
       assert.equal(scheduler.getHealth().restartRequired, false); assert.equal(scheduler.getHealth().status, 'ready');
     }
-    assert.equal(pooled ? scheduler.getDiagnostics().calculators.profileRetirements : scheduler.getHealth().profileRetirements, 4);
+    assert.equal(JSON.stringify(scheduler.getDiagnostics()).includes('profile'), false);
   });
 
-  test(`${pooled ? 'pooled' : 'dedicated'} forced profile retirement recovers even with no restart budget`, async t => {
+  for (const event of ['exit', 'error']) test(`${pooled ? 'pooled' : 'dedicated'} crash via ${event} during idle retirement preserves the restart budget`, async t => {
     const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, ...(pooled ? { maxCalculators: 1 } : {}) });
     for (let index = 0; index < 3; index++) {
       const request = evaluate(`interrupted-${index}`);
       const rejected = assert.rejects(request, { status: 503 });
       await until(() => !workers.at(-1).profileRetiring && workers.at(-1).messages.some(message => message.id));
       const worker = workers.at(-1);
-      worker.profileRetiring = true; worker.emit('profile-retiring'); worker.emit('exit', 0);
+      worker.profileRetiring = true; worker.emit('profile-retiring'); worker.emit(event, event === 'error' ? new Error('Synthetic crash.') : 1);
       await rejected; await until(() => scheduler.getHealth().status === 'ready');
       assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().restartRequired, false);
     }
@@ -795,5 +795,22 @@ for (const pooled of [false, true]) {
     assert.equal((await request).result.synthetic, true);
     assert.equal(nativeStarts, 0); assert.equal(retirements, 0); assert.equal(workers.length, 1);
     assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().restartRequired, false);
+  });
+}
+
+
+for (const pooled of [false, true]) {
+  test(`${pooled ? 'pooled' : 'dedicated'} late cleanup preserves a busy worker and keeps public diagnostics clean`, async t => {
+    const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, ...(pooled ? { maxCalculators: 1 } : {}) });
+    const events = []; scheduler.subscribe(value => events.push(value));
+    const request = evaluate('cleanup'); await until(() => workers[0].messages.some(message => message.id));
+    const worker = workers[0]; worker.profileRetiring = true; worker.emit('profile-retiring');
+    worker.profileRetiring = undefined; worker.emit('profile-cleaned');
+    worker.finish(); await request;
+    const second = evaluate('next-cleanup'); worker.finish(); await second;
+    assert.equal(workers.length, 1); assert.equal(worker.terminated, false);
+    for (const value of [scheduler.getHealth(), scheduler.getDiagnostics(), ...events]) {
+      assert.ok(!/profil/i.test(JSON.stringify(value)));
+    }
   });
 }

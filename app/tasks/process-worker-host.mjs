@@ -16,10 +16,10 @@ function retireProfileWhenIdle() {
 function retireProfile() {
   if (profileRetiring) return;
   profileRetiring = true; send({ kind: 'profile-retiring' });
-  // Give the current calculation a bounded opportunity to finish. A native
-  // profiler that cannot prove it stopped cannot retain an unbounded capture.
-  const deadline = setTimeout(() => { void stop(); }, 1000); deadline.unref();
   retireProfileWhenIdle();
+}
+function restoreProfile() {
+  profileRetiring = false; send({ kind: 'profile-cleaned' });
 }
 async function profile(message) {
   try {
@@ -32,7 +32,7 @@ async function profile(message) {
       if (!profileRetiring) send({ kind: 'profile', id: message.id, profile: result });
     }
   } catch {
-    if (!profileRetiring) send({ kind: 'profile', id: message.id, error: true });
+    send({ kind: 'profile', id: message.id, error: true });
   }
 }
 
@@ -85,7 +85,7 @@ process.on('message', message => {
   try {
     if (message.kind === 'profile') {
       if (message.operation === 'cancel') {
-        void profiles?.cancel().then(safe => { if (safe && !profileRetiring) send({ kind: 'profile', id: message.id, error: true, cancelled: true }); }).catch(retireProfile);
+        void profiles?.cancel().then(safe => { if (safe) { restoreProfile(); send({ kind: 'profile', id: message.id, error: true, cancelled: true }); } }).catch(retireProfile);
       } else profileOperations = profileOperations.then(() => profile(message));
       return;
     }
@@ -104,7 +104,7 @@ process.on('message', message => {
         // process-only V8 flags; explicitly forwarding those flags rejects them.
         ...(probeEnabled ? { execArgv: ['--import', probeImport] } : {}),
       });
-      profiles = createProcessProfiles({ worker, online: new Promise(resolve => worker.once('online', resolve)), retire: retireProfile });
+      profiles = createProcessProfiles({ worker, online: new Promise(resolve => worker.once('online', resolve)), retire: retireProfile, restore: restoreProfile });
       worker.on('message', result => {
         if (result.type === 'ready') calculatorReady = true;
         if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) { cancellations.delete(result.id); requests.delete(result.id); }
