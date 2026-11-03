@@ -13,10 +13,10 @@ const appendHow = row => appendTaskHow(row, task, { document, button, scope: () 
 const appendClaim = (host, claimState = state) => appendTaskClaim({ document, host, task, getState: () => claimState, getMemberId: () => 'one', actingForMember: () => true, canEdit: () => true, command: async () => {}, showError: error => { throw error; } });
 const icon = name => { const node = el('span', undefined, 'icon icon-' + name); node.setAttribute('aria-hidden', 'true'); return node; };
 // screen-tasks.mjs appends both controls through its appendWhy callback.
-const appendWhy = row => {
-  appendHow(row);
+const appendWhyOnly = row => {
   appendTaskWhy(row, task, { document, button, icon, load: async () => ({ task, result: {} }), openRule: () => {} });
 };
+const appendWhy = row => { appendHow(row); appendWhyOnly(row); };
 const taskIcon = body => { const node = el('img', undefined, 'task-icon'); node.src = '/placeholder-art/item.svg'; node.alt = ''; body.append(node); };
 const section = el('section'); document.querySelector('#active-tasks').append(section);
 function solo(id, { completed = false, readOnly = false, how = true, form = false, claimState = state } = {}) {
@@ -47,6 +47,8 @@ const duoRow = duo.row({ task, memberIds: ['one', 'two'], label: 'Player 2 and E
 duoRow.id = 'duo'; section.append(duoRow);
 solo('backlogged', { how: false, form: true });
 window.appendLayoutRegressions = () => {
+  solo('solo-no-how', { how: false });
+  solo('readonly-no-how', { readOnly: true, how: false });
   const members = [{ id: 'one', name: 'Explorer number one with a long partner name' }, { id: 'two', name: 'Explorer number two' }];
   solo('long-claim', { claimState: { ...state, members } });
   solo('long-takeover', { claimState: { ...state, members, taskClaims: { [task.id]: { memberId: 'two', at: '2026-01-01T00:00:00Z' } } } });
@@ -54,6 +56,13 @@ window.appendLayoutRegressions = () => {
   for (const completed of [false, true]) {
     const row = viewer.row({ task, memberIds: ['one', 'two'], label: 'Player 2 and Explorer', facts: { group: completed, personal: completed, completedBy: completed ? ['one'] : [] } });
     row.id = completed ? 'duo-done' : 'duo-readonly'; section.append(row);
+  }
+  // Settings omit How through the appendWhy callback; use the same shipped
+  // duo renderer with that callback for both editable and read-only rows.
+  for (const readOnly of [false, true]) {
+    const view = createDuoTaskView({ ...duoOptions, appendWhy: appendWhyOnly, readOnly: () => readOnly, canEdit: () => !readOnly });
+    const row = view.row({ task, memberIds: ['one', 'two'], label: 'Player 2 and Explorer', facts: { group: false, personal: false, completedBy: [] } });
+    row.id = readOnly ? 'duo-readonly-no-how' : 'duo-no-how'; section.append(row);
   }
 };
 await document.fonts.ready;

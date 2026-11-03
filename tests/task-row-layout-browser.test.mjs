@@ -184,8 +184,8 @@ test('task rows fit their list container and keep actions reachable', { timeout:
       }
     });
     await browser.evaluate('window.appendLayoutRegressions()');
-    const layout = async (ids, listWidth, touch = false, viewport = 1280) => {
-      await browser.send('Emulation.setDeviceMetricsOverride', { width:viewport, height:1000, deviceScaleFactor:1, mobile:false });
+    const layout = async (ids, listWidth, touch = false, viewport = 1280, height = 1000) => {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width:viewport, height, deviceScaleFactor:1, mobile:viewport === 390 });
       await browser.send('Emulation.setTouchEmulationEnabled', { enabled:touch, maxTouchPoints:1 });
       await browser.evaluate(`(() => {
         const ids = ${JSON.stringify(ids)};
@@ -271,7 +271,7 @@ test('task rows fit their list container and keep actions reachable', { timeout:
           const row = document.getElementById(id);
           return { status:row.querySelector('.task-completion-status').textContent, checkbox:!!row.querySelector('input[type=checkbox]'), how:!!row.querySelector('.task-how') };
         })`), [{ status:'Not done', checkbox:false, how:true }, { status:'Done', checkbox:false, how:true }]);
-        const measure = () => browser.evaluate(`(${statusRowBoxes})().filter(row => row.id.startsWith('duo-'))`);
+        const measure = () => browser.evaluate(`(${statusRowBoxes})().filter(row => ['duo-readonly','duo-done'].includes(row.id))`);
         const check = rows => {
           assert.equal(rows.length, 2);
           for (const row of rows) assert.ok(!intersects(row.status, row.icon), row.id + ': read-only duo status must not overlap the task icon');
@@ -281,6 +281,52 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         t.diagnostic('Old CSS: overlapping status=' + old.filter(row => intersects(row.status, row.icon)).map(row => row.id).join(','));
         check(await measure());
         if (viewport === 1440 && !touch) await screenshot('wide-readonly-duo');
+      });
+    }
+    const modes = [
+      ['phone', 390, 844, true], ['phone-fine', 390, 844, false],
+      ['tablet-coarse', 1024, 768, true], ['tablet-fine', 1024, 768, false],
+      ['mouse-720', 720, 1000, false], ['mouse-721', 721, 1000, false],
+      ['desktop', 1440, 1000, false],
+    ];
+    for (const [mode, viewport, height, touch] of modes) for (const width of [320, 375]) for (const how of [false, true]) {
+      const name = mode + '-' + width + '-how-' + (how ? 'on' : 'off');
+      await t.test('solo and duo status/checkbox columns at ' + name, async () => {
+        const statusIds = how ? ['readonly', 'duo-readonly'] : ['readonly-no-how', 'duo-readonly-no-how'];
+        const checkboxIds = how ? ['solo', 'duo'] : ['solo-no-how', 'duo-no-how'];
+        const ids = [...statusIds, ...checkboxIds];
+        await layout(ids, width, touch, viewport, height);
+        assert.deepEqual(await browser.evaluate(`${JSON.stringify(ids)}.map(id => !!document.getElementById(id).querySelector('.task-how'))`), ids.map(() => how), 'exercise the requested How setting');
+        const measure = () => browser.evaluate(`(${statusRowBoxes})().filter(row => ${JSON.stringify(statusIds)}.includes(row.id))`);
+        const checkStatus = rows => {
+          assert.equal(rows.length, statusIds.length);
+          for (const row of rows) {
+            assert.ok(!intersects(row.status, row.icon), row.id + ': status must not overlap the task icon');
+            assert.ok(!intersects(row.status, row.label), row.id + ': status must not overlap the task name');
+          }
+        };
+        const largeTargets = touch || viewport <= 720;
+        if (!how) {
+          // Reproduce just the two declarations changed by this fix. The narrow
+          // container rule already wins; fine-pointer desktop rows already use
+          // the more specific read-only selector. Both remain regression guards.
+          const old = await withOldCSS('.duo-task-row{grid-template-columns:18px minmax(0,1fr) auto auto}@media(max-width:720px),(pointer:coarse){:root .duo-task-row{grid-template-columns:44px minmax(0,1fr) auto auto}}', measure);
+          if (width > 360 && largeTargets) {
+            assert.throws(() => checkStatus(old), { code:'ERR_ASSERTION', message:/duo-readonly-no-how: status must not overlap the task icon/ }, 'old fixed duo column must fail the same status assertion');
+            const duo = old.find(row => row.id === 'duo-readonly-no-how');
+            t.diagnostic('Old CSS: Not done overlaps icon by ' + (duo.status.right - duo.icon.x).toFixed(2) + 'px');
+          } else checkStatus(old);
+        }
+        checkStatus(await measure());
+        const checkboxes = await browser.evaluate(`${JSON.stringify(checkboxIds)}.map(id => {
+          const row = document.getElementById(id), checkbox = row.querySelector('input[type=checkbox]');
+          return { id, firstColumn:parseFloat(getComputedStyle(row).gridTemplateColumns), checkboxWidth:checkbox.getBoundingClientRect().width };
+        })`);
+        for (const row of checkboxes) {
+          assert.equal(row.firstColumn, largeTargets ? 44 : 18, row.id + ': checkbox keeps its own column');
+          if (largeTargets) assert.equal(row.checkboxWidth, 44, row.id + ': checkbox keeps its 44px touch target');
+        }
+        if (!how && ['phone', 'tablet-coarse', 'desktop'].includes(mode)) await screenshot(name);
       });
     }
   } finally {
