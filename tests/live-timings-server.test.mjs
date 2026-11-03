@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { openRegistry } from '../app/storage/registry.mjs';
+import { openInviteStore } from '../app/storage/invites.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
@@ -13,7 +18,7 @@ const first = surfaceCoordinates('12344') ? 12341 : SURFACE_GRID.startId - 3;
 const ids = [String(first), String(first + 1), String(first + 2)];
 const definitions = { chunks: { [ids[0]]: {}, [ids[1]]: {}, [ids[2]]: {} }, walkableChunks: [ids[0], ids[1], ids[2]], walkableChunksF2P: [ids[0], ids[1], ids[2]], challenges: { Extra: { 'Synthetic present': { Chunks: [ids[0]] }, 'Synthetic future': { Chunks: [ids[1]] } } } };
 test('synthetic server records actions, flags, private bytes, admin permissions and restart', async t => {
-  const dataDir = await mkdtemp('/tmp/live-timings-http-'); let app;
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'live-timings-http-')); let app;
   t.after(async () => { await app?.close(); await rm(dataDir, { recursive: true, force: true }); });
   const initialState = createGroupState([{ id: 'timing-private-id', name: 'Timing private name', unlocked: [ids[0]] }, { id: 'partner', name: 'Partner', unlocked: [ids[2]] }]);
   initialState.rules['roll.neighborMode'] = createRuleRegistry().get('roll.neighborMode').options.find(v => v === 'frontier' || v === 'geometric');
@@ -70,4 +75,56 @@ test('synthetic server records actions, flags, private bytes, admin permissions 
     const bytes = JSON.stringify(profile);
     for (const secret of [member, initialState.members[0].name, 'Synthetic present', 'Synthetic future', key]) assert.ok(!bytes.includes(secret));
   }
+});
+
+test('multi-picker users and invite viewers cannot inspect or control process-wide captures', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'live-timings-isolation-'));
+  const dataDir = path.join(root, 'legacy'); await mkdir(dataDir);
+  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), maxCalculators: 1 };
+  let registry, invites, app;
+  t.after(async () => { await app?.close(); await invites?.close(); await registry?.close(); await rm(root, { recursive: true, force: true }); });
+  registry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
+  const accounts = [];
+  for (let index = 0; index < 2; index++) accounts.push(await registry.firstLogin('discord', String(index + 100)));
+  invites = await openInviteStore({ dataDir, masterToken: randomBytes(32).toString('base64url'), masterLabel: 'Synthetic operator', pickerRegistry: registry });
+  const users = [];
+  for (const { account, picker } of accounts) users.push({ cookie: `duo_access=${await invites.issuePickerSession(account.id, picker.id, 'discord')}` });
+  await invites.close(); invites = undefined; await registry.close(); registry = undefined;
+  app = await createServer({ dataDir, multiPicker, dataset: await emptyMetadataDataset(), definitions, taskMap: {},
+    initialState: createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }, { id: 'synthetic-partner', name: 'Synthetic partner' }]), port: 0, predictionPrewarm: false });
+  await app.listen();
+  const origin = new URL(app.inviteUrl).origin, admin = { Authorization: `Bearer ${app.store.getAccessToken()}` };
+  async function request(route, headers = admin, body, expected = 200) {
+    const response = await fetch(origin + route, { headers: { ...headers, ...(body ? { Origin: origin, 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
+    const text = await response.text(); assert.equal(response.status, expected, text);
+    if (expected === 403) { assert.deepEqual(Object.keys(JSON.parse(text)), ['message']); return text; }
+    return JSON.parse(text);
+  }
+  for (const body of [{ label: 'Synthetic player' }, { label: 'Synthetic viewer', viewer: true }]) {
+    const invite = await request('/api/invites', admin, body, 201), joined = await fetch(invite.link, { redirect: 'manual' });
+    users.push({ cookie: joined.headers.get('set-cookie').split(';')[0] });
+  }
+  await request('/api/admin/cpu-profiles', admin, { action: 'start', seconds: 60 });
+  await request('/api/admin/cpu-profiles', admin, { action: 'stop' });
+  const summary = await request('/api/admin/live-timings'), filename = summary.profiles[0].name;
+  assert.ok(filename);
+  await request('/api/admin/cpu-profiles', admin, { action: 'start', seconds: 60 });
+  for (const headers of users) {
+    // Check both own and foreign picker selectors, with real registry sessions.
+    for (const prefix of ['', ...accounts.map(({ picker }) => `/api/pickers/${picker.id}`)]) {
+      const routes = prefix ? [`${prefix}/admin/live-timings`, `${prefix}/admin/cpu-profiles?name=${filename}`]
+        : ['/admin/live-timings', '/admin/live-timings.mjs', '/admin/live-timings.css', '/api/admin/live-timings', `/api/admin/cpu-profiles?name=${filename}`, '/api/admin/cpu-profiles?name=unavailable'];
+      for (const route of routes) {
+        const denied = await request(route, headers, undefined, 403);
+        assert.ok(!denied.includes(filename));
+        for (const { account, picker } of accounts) { assert.ok(!denied.includes(account.id)); assert.ok(!denied.includes(picker.id)); }
+        assert.ok(!/windows|deadline|nodes|profiles|cpu-profiles/.test(denied));
+      }
+      for (const action of ['start', 'stop']) await request(prefix ? `${prefix}/admin/cpu-profiles` : '/api/admin/cpu-profiles', headers, { action, seconds: 60 }, 403);
+    }
+  }
+  const after = await request('/api/admin/live-timings'); assert.equal(after.profile.active, true);
+  assert.deepEqual(after.profiles, summary.profiles, 'denied controls must not change capture files');
+  await request('/api/admin/cpu-profiles', admin, { action: 'stop' });
 });

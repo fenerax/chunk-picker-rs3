@@ -4,14 +4,14 @@ import path from 'node:path';
 
 export const PROFILE_CAPS = Object.freeze({ count: 12, totalBytes: 128 * 1024 * 1024, fileBytes: 32 * 1024 * 1024 });
 const validName = name => /^profile-\d+-\d+-(picker|calculator|relay)\.cpuprofile$/.test(name);
-export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true } = {}) {
+export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink } } = {}) {
   const directory = path.join(dataDir, 'cpu-profiles');
   const workers = new Set(), online = new WeakMap();
   let current, closing = false, sequence = 0, failures = 0, stopping;
   async function files() {
     let names; try { names = await readdir(directory); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     const entries = [];
-    for (const name of names.filter(validName)) {
+    for (const name of names.filter(name => validName(name) || name.endsWith('.tmp') && validName(name.slice(0, -4)))) {
       try {
         const info = await stat(path.join(directory, name));
         if (info.isFile()) entries.push({ name, bytes: info.size, time: info.mtimeMs });
@@ -23,14 +23,15 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     const entries = await files(); let bytes = 0, count = 0;
     for (const entry of entries) {
       bytes += entry.bytes; count++;
-      if (entry.bytes > caps.fileBytes || count > caps.count - Number(reserve > 0) || bytes > caps.totalBytes - reserve) {
-        bytes -= entry.bytes; count--; await unlink(path.join(directory, entry.name));
+      if (entry.name.endsWith('.tmp') || entry.bytes > caps.fileBytes || count > caps.count - Number(reserve > 0) || bytes > caps.totalBytes - reserve) {
+        await fileIO.unlink(path.join(directory, entry.name)); bytes -= entry.bytes; count--;
       }
     }
+    const remaining = await files();
+    if (remaining.length + Number(reserve > 0) > caps.count || remaining.reduce((sum, entry) => sum + entry.bytes, 0) + reserve > caps.totalBytes
+      || remaining.some(entry => entry.bytes > caps.fileBytes)) throw new Error('CPU profile storage limit exceeded.');
   }
   if (pruneOnOpen) {
-    try { for (const name of await readdir(directory)) if (name.endsWith('.tmp') && validName(name.slice(0, -4))) await unlink(path.join(directory, name)); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
     await prune();
   }
   // Serialize profile writes so overlapping worker stops cannot exceed the cap.
@@ -42,14 +43,20 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       if (length > caps.fileBytes || length > caps.totalBytes) { failures++; return; }
       await mkdir(directory, { recursive: true, mode: 0o700 }); await prune(length);
       const name = `profile-${Date.now()}-${++sequence}-${kind}.cpuprofile`;
-      await writeFile(path.join(directory, `${name}.tmp`), bytes, { mode: 0o600 });
-      await rename(path.join(directory, `${name}.tmp`), path.join(directory, name));
+      const temporary = path.join(directory, `${name}.tmp`);
+      try {
+        await fileIO.writeFile(temporary, bytes, { mode: 0o600 });
+        await fileIO.rename(temporary, path.join(directory, name));
+      } catch (error) {
+        try { await fileIO.unlink(temporary); } catch (cleanup) { if (cleanup.code !== 'ENOENT') failures++; }
+        throw error;
+      }
     }).catch(() => { failures++; });
     return writes;
   }
   async function startWorker(run, worker) {
     if (current !== run || run.handles.has(worker) || !worker.startCpuProfile) return;
-    const pending = Promise.resolve(online.get(worker)).then(() => worker.startCpuProfile());
+    const pending = Promise.resolve(online.get(worker)).then(() => worker instanceof Worker ? worker.startCpuProfile() : worker.startCpuProfile({ deadline: run.deadline }));
     run.handles.set(worker, pending);
     try { await pending; } catch { failures++; run.handles.delete(worker); }
   }
@@ -70,7 +77,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       if (current) void startWorker(current, worker);
     },
     status() { return { active: !!current, deadline: current?.deadline ?? null, stopping: !!stopping, failures }; },
-    async list() { return files(); },
+    async list() { return (await files()).filter(entry => validName(entry.name)); },
     async download(name) {
       if (!validName(name)) throw Object.assign(new Error('Profile not found.'), { status: 404 });
       const entry = (await files()).find(item => item.name === name);
@@ -81,6 +88,8 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     async start(seconds = 180) {
       if (!Number.isFinite(seconds) || seconds < 0.01 || seconds > 600) throw Object.assign(new Error('Use a duration up to 600 seconds.'), { status: 400 });
       if (current || stopping || closing) throw Object.assign(new Error('A profile is already running or stopping.'), { status: 409 });
+      try { await writes; await prune(); }
+      catch { failures++; throw Object.assign(new Error('CPU profile storage is unavailable.'), { status: 503 }); }
       const { Session } = await import('node:inspector');
       // Import is asynchronous; retain exclusive switch ownership across it.
       if (current || stopping || closing) throw Object.assign(new Error('A profile is already running or stopping.'), { status: 409 });

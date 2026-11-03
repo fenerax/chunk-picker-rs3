@@ -6,31 +6,60 @@ import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 let worker, stopping = false, failed = false, probeEnabled = false;
 const cancellations = new Map();
 const relay = createRelayCollector();
-let cpuProfile, relayProfile, workerOnline;
+let cpuProfile, workerOnline;
 const inspectorPost = (session, method) => new Promise((resolve, reject) => session.post(method, (error, value) => error ? reject(error) : resolve(value)));
 let profileOperations = Promise.resolve();
+function finishProfile(capture) {
+  return capture.finished ??= (async () => {
+    clearTimeout(capture.timer);
+    // Stop both isolates immediately; a stalled native stop must not leave the
+    // relay sampling while we wait. Retire if completion cannot be proven.
+    const retirement = setTimeout(() => { void stop(1); }, 1000); retirement.unref();
+    try {
+      const [calculator, { profile: relay }] = await Promise.all([
+        capture.handle.stop(), inspectorPost(capture.session, 'Profiler.stop'),
+      ]);
+      return { calculator, relay };
+    } finally { clearTimeout(retirement); capture.session.disconnect(); }
+  })();
+}
 async function profile(message) {
   try {
     if (!worker) throw new Error();
     if (message.operation === 'start') {
-      if (cpuProfile) throw new Error();
+      if (cpuProfile || !Number.isFinite(message.deadline) || message.deadline <= Date.now()) throw new Error();
+      // Bound capture locally even if the parent loses an acknowledgement or
+      // never sends stop. A stalled start cannot postpone this watchdog.
+      const capture = cpuProfile = {};
+      capture.timer = setTimeout(() => {
+        if (!capture.handle) { void stop(1); return; }
+        void finishProfile(capture).catch(() => stop(1));
+      }, Math.min(600000, message.deadline - Date.now()));
+      capture.timer.unref();
       const { Session } = await import('node:inspector');
-      relayProfile = new Session(); relayProfile.connect();
-      await inspectorPost(relayProfile, 'Profiler.enable'); await inspectorPost(relayProfile, 'Profiler.start');
+      capture.session = new Session(); capture.session.connect();
+      await inspectorPost(capture.session, 'Profiler.enable'); await inspectorPost(capture.session, 'Profiler.start');
       await workerOnline;
-      cpuProfile = await worker.startCpuProfile();
+      capture.handle = await worker.startCpuProfile();
       send({ kind: 'profile', id: message.id });
     } else {
-      const handle = cpuProfile; cpuProfile = undefined;
-      if (!handle) throw new Error();
-      const calculator = await handle.stop(), { profile: relay } = await inspectorPost(relayProfile, 'Profiler.stop');
-      relayProfile.disconnect(); relayProfile = undefined;
-      send({ kind: 'profile', id: message.id, profile: { calculator, relay } });
+      const capture = cpuProfile;
+      if (!capture?.handle) throw new Error();
+      const result = await finishProfile(capture); cpuProfile = undefined;
+      send({ kind: 'profile', id: message.id, profile: result });
     }
   } catch {
-    relayProfile?.disconnect(); relayProfile = undefined;
-    const handle = cpuProfile; cpuProfile = undefined;
-    if (handle) try { await handle.stop(); } catch {}
+    const capture = cpuProfile; cpuProfile = undefined;
+    if (capture) {
+      clearTimeout(capture.timer);
+      if (capture.handle) try { await finishProfile(capture); } catch { void stop(1); return; }
+      else {
+        capture.session?.disconnect();
+        // Exit, rather than an early failure acknowledgement, proves that an
+        // uncertain native start can no longer be capturing.
+        void stop(1); return;
+      }
+    }
     send({ kind: 'profile', id: message.id, error: true });
   }
 }

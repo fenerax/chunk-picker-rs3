@@ -16,9 +16,11 @@ export class ProcessWorker extends EventEmitter {
   #profiles = new Map();
   #sequence = 0;
   #failed = false;
+  #profileTimeoutMs;
 
-  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT } = {}) {
+  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, profileTimeoutMs = 20000 } = {}) {
     super();
+    this.#profileTimeoutMs = profileTimeoutMs;
     // Serialization failures must occur before a child is created.
     const data = encodeProcessMessage(workerData);
     this.#exitPromise = new Promise(resolve => { this.#resolveExit = resolve; });
@@ -97,18 +99,23 @@ export class ProcessWorker extends EventEmitter {
   unref() { this.#child.unref(); this.#child.channel?.unref(); return this; }
   ref() { this.#child.ref(); this.#child.channel?.ref(); return this; }
 
-  async startCpuProfile() {
-    await this.#profileRequest('start');
+  async startCpuProfile({ deadline = Date.now() + 600000 } = {}) {
+    await this.#profileRequest('start', deadline);
     return { stop: () => this.#profileRequest('stop') };
   }
 
-  #profileRequest(operation) {
+  #profileRequest(operation, deadline) {
     if (this.#exited || this.#stopping) return Promise.reject(new Error('Calculator stopped.'));
     const id = ++this.#sequence;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.#profiles.delete(id); reject(new Error('Calculator profile timed out.')); }, 20000);
+      const timer = setTimeout(() => {
+        this.#profiles.delete(id);
+        // An unacknowledged start (or stop) has an unknown capture state. Keep
+        // the caller's handle pending until exit proves both isolates stopped.
+        void this.terminate().then(() => reject(new Error('Calculator profile timed out.')));
+      }, this.#profileTimeoutMs);
       timer.unref(); this.#profiles.set(id, { resolve, reject, timer });
-      this.#send({ kind: 'profile', operation, id });
+      this.#send({ kind: 'profile', operation, id, deadline });
     });
   }
 

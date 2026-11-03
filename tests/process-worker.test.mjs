@@ -11,6 +11,11 @@ import { encodeProcessMessage, decodeProcessMessage } from '../app/tasks/process
 import { createGroupState } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
+import { createDeepProfiles } from '../app/deep-profiles.mjs';
+import { mkdtemp, rm, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const definitions = {
   chunks: { '12341': {}, '12342': {} },
@@ -139,6 +144,65 @@ test('terminate is idempotent and resolves only after its owned process exits', 
   assert.throws(() => worker.postMessage({ id: 1 }), /stopped/);
   await assert.rejects(worker.getMemoryUsage(), /stopped/);
 });
+
+test('host deadline ends both captures without a parent stop command', { timeout: 10000 }, async t => {
+  const { worker } = await fixture(t);
+  const deadline = Date.now() + 300;
+  const handle = await worker.startCpuProfile({ deadline });
+  await delay(550);
+  const profile = await handle.stop();
+  for (const kind of ['calculator', 'relay']) {
+    const capture = typeof profile[kind] === 'string' ? JSON.parse(profile[kind]) : profile[kind];
+    assert.ok(capture.nodes.length > 0);
+    assert.ok(capture.endTime - capture.startTime < 500000, `${kind} capture must end at its local deadline`);
+  }
+  const next = await worker.startCpuProfile(); await next.stop();
+});
+
+for (const acknowledgement of ['delayed', 'missing']) {
+  test(`${acknowledgement} start acknowledgement retires capture before reporting inactive`, { timeout: 10000 }, async t => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'profile-ack-'));
+    const profiles = await createDeepProfiles(dir);
+    const original = childProcesses.fork, captured = Promise.withResolvers(), retiring = Promise.withResolvers();
+    let child, worker, deliverLate, deliverTermination;
+    childProcesses.fork = (...args) => {
+      child = original(...args);
+      const emit = child.emit.bind(child), send = child.send.bind(child);
+      child.emit = (event, message, ...rest) => {
+        if (event === 'message' && message.kind === 'profile' && !message.profile && !message.error) {
+          captured.resolve();
+          if (acknowledgement === 'delayed') deliverLate = () => emit(event, message, ...rest);
+          return true;
+        }
+        return emit(event, message, ...rest);
+      };
+      child.send = (message, ...rest) => {
+        if (message.kind === 'terminate') { deliverTermination = () => send(message, ...rest); retiring.resolve(); return true; }
+        return send(message, ...rest);
+      };
+      return child;
+    };
+    syncBuiltinESMExports();
+    try { ({ worker } = await fixture(t, { profileTimeoutMs: 300 })); }
+    finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+    t.after(async () => { deliverTermination?.(); await profiles.close(); await worker.terminate(); await rm(dir, { recursive: true, force: true }); });
+    profiles.attach(worker);
+    const started = profiles.start(60); await captured.promise;
+    const stopped = profiles.stop(); await retiring.promise;
+    assert.doesNotThrow(() => process.kill(worker.pid, 0));
+    assert.ok(profiles.status().active || profiles.status().stopping, 'uncertain capture must remain visibly running or stopping');
+    deliverLate?.();
+    await delay(20);
+    assert.equal(profiles.status().stopping, true, 'late acknowledgement must not release the capture handle');
+    deliverTermination(); await stopped; await started;
+    assert.throws(() => process.kill(worker.pid, 0), { code: 'ESRCH' });
+    assert.equal(profiles.status().active, false); assert.equal(profiles.status().stopping, false);
+    await assert.rejects(worker.startCpuProfile(), /stopped/);
+    const files = await profiles.list(); assert.equal(files.length, 1); assert.match(files[0].name, /-picker\.cpuprofile$/);
+    assert.equal((await readdir(path.join(dir, 'cpu-profiles'))).length, 1);
+    assert.ok(profiles.status().failures > 0);
+  });
+}
 
 test('initialization failure forwards the worker error and leaves no child process', { timeout: 15000 }, async t => {
   const worker = new ProcessWorker({ definitions: null });

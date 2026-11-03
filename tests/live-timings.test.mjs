@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, stat, readdir, mkdir, rename, unlink } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
+import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { openLiveTimings, noteTiming, actions, TIMING_FILE_CAP } from '../app/live-timings.mjs';
 import { createDeepProfiles } from '../app/deep-profiles.mjs';
 import { ProcessWorker } from '../app/tasks/process-worker.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 
-async function temporary(t) { const dir = await mkdtemp('/tmp/live-timings-unit-'); t.after(() => rm(dir, { recursive: true, force: true })); return dir; }
+async function temporary(t) { const dir = await mkdtemp(path.join(tmpdir(), 'live-timings-unit-')); t.after(() => rm(dir, { recursive: true, force: true })); return dir; }
 test('bounded summaries, numeric stages, windows, restart and private-byte allowlist', async t => {
   const dir = await temporary(t); let now = Date.now();
   let timings = await openLiveTimings(dir, { now: () => now });
@@ -47,8 +50,8 @@ test('CPU profiles cover process calculators, deadline, close, downloads and cap
   const worker = new ProcessWorker(genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }));
   t.after(async () => { await profiles.close(); await worker.terminate(); });
   await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
-  profiles.attach(worker); await profiles.start(0.08);
-  await new Promise(resolve => setTimeout(resolve, 150)); await profiles.stop();
+  profiles.attach(worker); await profiles.start(0.5);
+  await new Promise(resolve => setTimeout(resolve, 650)); await profiles.stop();
   assert.equal(profiles.status().active, false);
   const files = await profiles.list(); assert.equal(files.length, 3); assert.ok(files.some(f => f.name.endsWith('-calculator.cpuprofile'))); assert.ok(files.some(f => f.name.endsWith('-relay.cpuprofile'))); assert.ok(files.some(f => f.name.endsWith('-picker.cpuprofile')));
   for (const file of files) { const parsed = JSON.parse(await profiles.download(file.name)); assert.ok(parsed.nodes.length > 0); }
@@ -106,7 +109,7 @@ test('VPS runner rejects the live directory and aliases before creating a scratc
   const { spawn } = await import('node:child_process');
   const dir = await temporary(t);
   const result = await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [new URL('../scripts/perf/vps-hotspots.mjs', import.meta.url).pathname, '--recovery-save', dir, '--live-data-dir', dir, '--out', `${dir}-out`], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [fileURLToPath(new URL('../scripts/perf/vps-hotspots.mjs', import.meta.url)), '--recovery-save', dir, '--live-data-dir', dir, '--out', `${dir}-out`], { stdio: ['ignore', 'pipe', 'pipe'] });
     let output = ''; child.stderr.on('data', bytes => { output += bytes; }); child.once('error', reject); child.once('close', code => resolve({ code, output }));
   });
   assert.equal(result.code, 1); assert.match(result.output, /IsolationError/);
@@ -117,6 +120,71 @@ test('oversized CPU captures are discarded within byte caps', async t => {
   await profiles.start(0.02); await new Promise(resolve => setTimeout(resolve, 80)); await profiles.stop();
   assert.equal(profiles.status().active, false); assert.equal((await profiles.list()).length, 0); assert.ok(profiles.status().failures > 0);
   await profiles.close();
+});
+
+test('partial profile writes and failed renames clean up and stay within disk caps', async t => {
+  const caps = { count: 2, fileBytes: 64, totalBytes: 96 };
+  for (const operation of ['write', 'rename']) {
+    const dir = await temporary(t), directory = path.join(dir, 'cpu-profiles');
+    let attempts = 0;
+    const checkDisk = async () => {
+      const entries = await Promise.all((await readdir(directory)).map(name => stat(path.join(directory, name))));
+      assert.ok(entries.length <= caps.count);
+      assert.ok(entries.reduce((sum, entry) => sum + entry.size, 0) <= caps.totalBytes);
+      assert.ok(entries.every(entry => entry.size <= caps.fileBytes));
+    };
+    const profiles = await createDeepProfiles(dir, { caps, fileIO: {
+      unlink,
+      async writeFile(file, bytes, options) {
+        await writeFile(file, operation === 'write' ? bytes.slice(0, 8) : bytes, options);
+        await checkDisk();
+        if (operation === 'write') { attempts++; throw new Error('Synthetic partial write failure'); }
+      },
+      async rename() { attempts++; throw new Error('Synthetic rename failure'); },
+    } });
+    t.after(() => profiles.close());
+    const worker = new EventEmitter(); worker.startCpuProfile = async () => ({ stop: async () => ({ nodes: [1] }) }); profiles.attach(worker);
+    for (let index = 0; index < 6; index++) {
+      await profiles.start(60); await profiles.stop(); await checkDisk();
+      assert.deepEqual(await readdir(directory), []);
+    }
+    assert.equal(attempts, 6); assert.ok(profiles.status().failures >= attempts);
+  }
+});
+
+test('temporary profiles count toward caps and failed cleanup refuses capture admission', async t => {
+  const dir = await temporary(t), directory = path.join(dir, 'cpu-profiles');
+  let blocked = false, starts = 0;
+  const profiles = await createDeepProfiles(dir, { caps: { count: 2, fileBytes: 64, totalBytes: 96 }, fileIO: {
+    writeFile, rename, async unlink(file) { if (blocked) throw new Error('Synthetic cleanup failure'); await unlink(file); },
+  } });
+  t.after(() => profiles.close());
+  await mkdir(directory);
+  for (let index = 0; index < 3; index++) await writeFile(path.join(directory, `profile-1-${index}-calculator.cpuprofile.tmp`), 'x'.repeat(40));
+  const worker = new EventEmitter(); worker.startCpuProfile = async () => { starts++; return { stop: async () => ({ nodes: [1] }) }; }; profiles.attach(worker);
+  blocked = true;
+  for (let index = 0; index < 3; index++) await assert.rejects(profiles.start(60), { status: 503 });
+  assert.equal(starts, 0); assert.equal(profiles.status().active, false);
+  assert.deepEqual(await profiles.list(), []);
+  await assert.rejects(profiles.download('profile-1-0-calculator.cpuprofile.tmp'), { status: 404 });
+  blocked = false; await profiles.start(60); await profiles.stop();
+  assert.equal(starts, 1); assert.equal((await readdir(directory)).length, 1);
+});
+
+test('a calculator crash during capture releases handles and leaves no partial files', async t => {
+  const dir = await temporary(t), profiles = await createDeepProfiles(dir);
+  const worker = new ProcessWorker(genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }));
+  t.after(async () => { await profiles.close(); await worker.terminate(); });
+  await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
+  profiles.attach(worker); await profiles.start(60);
+  const exited = new Promise(resolve => worker.once('exit', resolve)); process.kill(worker.pid, 'SIGKILL'); await exited;
+  assert.ok(profiles.status().failures > 0); await profiles.stop();
+  assert.deepEqual(profiles.status(), { active: false, deadline: null, stopping: false, failures: 1 });
+  const files = await profiles.list(); assert.equal(files.length, 1); assert.match(files[0].name, /-picker\.cpuprofile$/);
+  assert.deepEqual((await readdir(path.join(dir, 'cpu-profiles'))).sort(), files.map(file => file.name).sort());
+  await profiles.start(60); await profiles.close();
+  assert.equal(profiles.status().failures, 1, 'dead calculator must not be restarted or stopped again');
+  assert.equal((await profiles.list()).length, 2);
 });
 
 test('a calculator created during an active profile joins without a restart flag', async t => {
