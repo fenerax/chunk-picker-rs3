@@ -4357,6 +4357,14 @@ test('instant screens: reopened and prerequisite dialogs from cached rows never 
   assert.ok(!h.find('p', 'Extra · available'), 'the cached status line is not restored');
 });
 
+test('instant screens: a failed refresh keeps its message and Retry through redraws', () => {
+  const h = harness(); h.context.actor1Result = taskResult(7);
+  h.run("shownResult={...actor1Result,memberId:'actor1',stateRevision:state.revision - 1}; result=undefined; showTaskLoadError(new Error('Synthetic load failure')); renderTasks()");
+  assert.doesNotMatch(String(h.nodes.get('task-engine-status').textContent ?? ''), /Updating…/, 'no request is running');
+  assert.ok(h.find('span', 'Synthetic load failure'));
+  assert.ok(h.find('button', 'Retry'));
+});
+
 test('instant screens: authoritative hydration keeps the cached first paint until fresh tasks arrive', async () => {
   const h = harness();
   h.run("startupSnapshot={token:viewCache.token(),memberId:'actor1',value:{tasks:[{id:'builtin:startup',label:'Cached startup goal',category:'Extra'}]}}; result=undefined; renderTasks()");

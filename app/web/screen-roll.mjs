@@ -30,6 +30,15 @@ export function createScreenRoll(c) {
     return c.fetchSavedTasks(memberId, revision, c.foregroundProjection()).then(value => value.memberId === memberId && value.stateRevision === revision ? value : null).catch(() => null);
   }
 
+  // The roll controls unlock once the save lands, while the display-only
+  // comparison may still run. Only the roll that took the busy flag may clear
+  // it, so an older comparison finishing cannot unlock a newer roll's save.
+  function takeRollBusy() { c.rollBusy = true; c.rollBusyOwner = (c.rollBusyOwner ?? 0) + 1; return c.rollBusyOwner; }
+  function releaseRollBusy(owner) {
+    if (owner !== c.rollBusyOwner || !c.rollBusy) return false;
+    c.rollBusy = false; return true;
+  }
+
   async function rollChunks(count, confirmed = false) {
     if (!c.canWrite()) return;
     const owner = c.member(), candidates = c.rollCandidateCount();
@@ -44,19 +53,19 @@ export function createScreenRoll(c) {
     const rollingMemberId = c.memberId, generation = c.dialogGeneration;
     const rollingName = owner.name, fancy = c.preferences().cinematicRoll;
     const rollType = c.preferences().randomStartAlways ? 'random-start' : 'roll';
-    c.rollBusy = true;
+    const busy = takeRollBusy();
     c.renderRollControls();
     try {
       const baseline = count === 1 ? rollBaseline() : Promise.resolve(null);
       const response = await c.command({ type: rollType, memberId: rollingMemberId, count });
-      c.rollBusy = false; c.renderRollControls();
+      if (releaseRollBusy(busy)) c.renderRollControls();
       const picks = response.state.history.at(-1)?.command?.rolled ?? [];
       if (rollingMemberId === c.memberId && fancy && picks.length) await c.presentRoll(picks, rollingName);
       const before = await baseline;
       if (before && count === 1 && rollingMemberId === c.memberId) await c.newTaskPopup(before, generation);
     }
     catch (error) { c.showError(error); }
-    finally { c.rollBusy = false; c.renderState(); }
+    finally { releaseRollBusy(busy); c.renderState(); }
   }
 
   async function presentRoll(ids, ownerName) {
@@ -100,14 +109,14 @@ export function createScreenRoll(c) {
   async function acceptRoll(payload) {
     if (!c.canWrite() || c.rollBusy || c.hasPendingCommand?.()) return;
     const generation = c.dialogGeneration;
-    c.rollBusy = true; c.renderState();
+    const busy = takeRollBusy(); c.renderState();
     try {
       const baseline = payload.type === 'cancel-roll' ? Promise.resolve(null) : rollBaseline();
       await c.command(payload);
-      c.rollBusy = false; c.renderRollControls();
+      if (releaseRollBusy(busy)) c.renderRollControls();
       const before = await baseline;
       if (before && payload.memberId === c.memberId) await c.newTaskPopup(before, generation);
-    } finally { c.rollBusy = false; c.renderState(); }
+    } finally { releaseRollBusy(busy); c.renderState(); }
   }
 
   Object.assign(c, { renderRollControls, rollCandidateCount, rollChunks, presentRoll, newTaskPopup, unpickDialog, acceptRoll });

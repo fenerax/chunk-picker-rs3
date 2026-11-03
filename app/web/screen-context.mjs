@@ -77,6 +77,8 @@ export function createScreenContext() {
     registry: undefined,
     result: undefined,
     rollBusy: undefined,
+    rollBusyOwner: 0,
+    backlogDrafts: undefined,
     rulesPanel: undefined,
     sandbox: undefined,
     sessionAdmin: undefined,

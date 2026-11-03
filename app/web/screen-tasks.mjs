@@ -48,8 +48,13 @@ export function createScreenTasks(c) {
     const existing = host.querySelector?.(':scope > .backlog-form');
     if (existing) { existing.querySelector('input')?.focus(); return; }
     const form = c.el('form', undefined, 'backlog-form'), reason = c.input('text');
+    // The optimistic redraw replaces this row while saving; a refused save
+    // keeps the typed reason here so reopening Backlog restores it.
+    const backlogDrafts = c.backlogDrafts ??= new Map(), draftKey = JSON.stringify([owner, task.id]);
+    reason.value = backlogDrafts.get(draftKey) ?? '';
     const trigger = document.activeElement;
     const dismiss = () => {
+      backlogDrafts.delete(draftKey);
       form.remove();
       const available = node => node && node !== document.body && typeof node.focus === 'function' && node.isConnected !== false && !node.disabled && !node.hidden && !node.closest?.('[hidden]');
       const fallback = host.querySelector?.('.task-backlog, .backlog-open, .task-label-button');
@@ -63,7 +68,8 @@ export function createScreenTasks(c) {
     form.addEventListener('submit', async event => {
       event.preventDefault(); save.disabled = true;
       const text = reason.value.trim();
-      try { await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason: text }); after?.(); }
+      backlogDrafts.set(draftKey, reason.value);
+      try { await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason: text }); backlogDrafts.delete(draftKey); after?.(); }
       catch (error) { save.disabled = false; c.showError(error); }
     });
     host.append(form); reason.focus?.();
@@ -428,7 +434,8 @@ export function createScreenTasks(c) {
     if (c.taskListDepthScope !== depthScope) { c.taskListDepthScope = depthScope; c.taskListDepths = undefined; }
     if (c.result?.memberId === c.memberId) c.shownResult = c.result;
     const view = c.result ?? (typeof c.shownResult !== 'undefined' && c.shownResult?.memberId === c.memberId ? c.shownResult : undefined);
-    if (view && view.stateRevision !== c.state.revision && !c.sandbox.active) c.$('task-engine-status').textContent = 'Updating… · Last known tasks';
+    // A failed refresh keeps its message and Retry; nothing is updating then.
+    if (view && view.stateRevision !== c.state.revision && !c.sandbox.active && !c.taskLoadError) c.$('task-engine-status').textContent = 'Updating… · Last known tasks';
     const countLine = c.$('task-engine-status').firstChild;
     if (view?.metrics && view.memberId === c.memberId && view.stateRevision === c.state.revision && / possible tasks/.test(countLine?.textContent)) {
       countLine.textContent = c.taskEngineCount(view) + (countLine.textContent.match(/ · .*/)?.[0] ?? '');
