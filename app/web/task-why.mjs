@@ -48,7 +48,7 @@ export function renderTaskWhy(why, { document, actions = [], openRule, readOnly 
     const linked = why.rules.filter(rule => rule.section).slice(0, 2);
     actions = [...linked.map(rule => {
       const link = el('button', linked.length === 1 ? `${readOnly ? 'View' : 'Change'} in Rules → ${rule.section}` : `${readOnly ? 'View' : 'Change'} ${rule.label} in Rules`, 'task-why-link');
-      link.type = 'button'; link.dataset.viewKey = `rule:${rule.id}`; link.addEventListener('click', () => openRule(rule.id));
+      link.type = 'button'; link.setAttribute('data-view-key', `rule:${rule.id}`); link.addEventListener('click', () => openRule(rule.id));
       return link;
     }), ...actions];
   }
