@@ -94,13 +94,14 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     for (const controller of requests) controller.abort();
     for (const dispose of disposers) safe(dispose);
     disposers.clear();
+    c.viewCache?.clear();
     c.sessionReadOnly = true;
     c.taskRequest++; c.taskRenderGeneration++; c.dialogGeneration++;
     c.taskController?.abort(); clearTimeout(c.syncTimer);
     c.usage?.stop(); c.backupStatus?.dispose(); c.gamePlugin?.dispose?.();
     c.closeDialog?.(); c.disposeAccessSections?.();
     for (const value of Object.values(c)) if (value instanceof Map || value instanceof Set) value.clear();
-    for (const name of ['state', 'result', 'fullResult', 'shownResult', 'world', 'definitions', 'registry', 'memberId', 'pool', 'taskFactsCache', 'duoResultCache', 'duoInspectionCache', 'earlyTaskLoad', 'foregroundTaskLoad', 'pendingGameplayAttempt', 'chunkSearch', 'shownChunkSignature']) c[name] = undefined;
+    for (const name of ['startupSnapshot', 'state', 'result', 'fullResult', 'shownResult', 'world', 'definitions', 'registry', 'memberId', 'pool', 'taskFactsCache', 'duoResultCache', 'duoInspectionCache', 'earlyTaskLoad', 'foregroundTaskLoad', 'pendingGameplayAttempt', 'chunkSearch', 'shownChunkSignature']) c[name] = undefined;
     c.viewerPreferences = {}; c.statePools = {}; c.pendingChunkChanges = []; c.lastDuoResults = [];
     c.refreshSaveRecovery?.();
     for (const node of globalThis.document?.querySelectorAll?.('.workspace, #chunk-info, #dialog-content, #pending-panel, #recent-content, #group-goals') ?? []) node.replaceChildren();
@@ -194,11 +195,21 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
       }
     }, true);
   }
+  // Teardown stays synchronous (callers rely on it, and refusals throw). The
+  // returned promise settles when the display snapshot is gone, capped so a
+  // stuck IndexedDB cannot hold sign-out.
   const beforeSignOut = () => {
-    if (!session?.multiPicker) return;
-    stop();
-    if (session?.multiPicker) clear(session.pickerId);
-    safe(() => storage().setItem(changeKey, String(Date.now())));
+    if (session?.multiPicker) {
+      stop();
+      if (session?.multiPicker) clear(session.pickerId);
+      safe(() => storage().setItem(changeKey, String(Date.now())));
+    }
+    // Every deployment, not only multi-picker ones: the display snapshot holds
+    // private task rows and must not outlive the sign-in on a shared browser.
+    const cleared = c.viewCache?.clear();
+    if (!cleared || typeof globalThis.setTimeout !== 'function') return cleared;
+    let timer;
+    return Promise.race([cleared, new Promise(resolve => { timer = globalThis.setTimeout(resolve, 1500); })]).finally(() => globalThis.clearTimeout?.(timer));
   };
   c.panelContext ??= {};
   c.panelContext.pickerSession = { initialize, check, fetch: scopedFetch, stop, beforeSignOut,

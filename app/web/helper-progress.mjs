@@ -1,7 +1,8 @@
+import { replaceView } from './browser-state.mjs';
 import { dataTable, progressChart } from './helper-charts.mjs';
 import { progressMetrics, progressDate, progressSeries, progressRecap } from './helper-progress-model.mjs';
 
-export function renderProgress(host, { document, api, member, stateRevision, isCurrent, draft }) {
+export function renderProgress(host, { viewCache, document, api, member, stateRevision, isCurrent, draft }) {
   const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
   const number = value => Number.isFinite(value) ? value.toLocaleString() : 'Not recorded';
   const controller = new AbortController(); let disposed = false, scope = draft?.scope ?? member.id;
@@ -51,15 +52,19 @@ export function renderProgress(host, { document, api, member, stateRevision, isC
     content.append(charts);
   }
   function load() {
-    status.textContent = 'Loading saved progress…';
+    const token = viewCache?.token(), key = member.id, cached = viewCache?.peek('progress', key, stateRevision);
+    status.textContent = cached ? 'Updating… · Last known saved progress' : 'Loading saved progress…';
+    if (cached) display(cached.value);
     api('/api/helper-progress', undefined, controller.signal).then(model => {
-      if (disposed || !isCurrent()) return;
-      if (model.stateRevision !== stateRevision) { status.textContent = 'The save changed while loading progress. Wait for the picker to refresh, then reopen Progress.'; return; }
-      status.textContent = `Saved counts as of ${progressDate(model.generatedAt)}.`; display(model);
+      if (disposed || !isCurrent() || viewCache && !viewCache.current(token)) return;
+      if (model.stateRevision !== stateRevision) { content.replaceChildren(); status.textContent = 'The save changed while loading progress. Wait for the picker to refresh, then reopen Progress.'; return; }
+      viewCache?.remember('progress', key, stateRevision, model);
+      status.textContent = `Saved counts as of ${progressDate(model.generatedAt)}.`;
+      if (!cached || JSON.stringify(cached.value) !== JSON.stringify(model)) replaceView(content, () => display(model), document);
     }).catch(error => {
-      if (disposed || error.name === 'AbortError') return;
-      status.textContent = `Could not load saved progress. ${error.message}`;
-      const retry = el('button', 'Try again'); retry.type = 'button'; retry.addEventListener('click', () => { content.replaceChildren(); load(); }); content.replaceChildren(retry);
+      if (disposed || !isCurrent() || viewCache && !viewCache.current(token) || error.name === 'AbortError') return;
+      status.textContent = `Could not load saved progress. ${error.message}${cached ? ' · Last known saved progress' : ''}`;
+      const retry = el('button', 'Try again'); retry.type = 'button'; retry.addEventListener('click', () => { content.replaceChildren(); load(); }); content.append(retry);
     });
   }
   load(); const dispose = () => { disposed = true; controller.abort(); content.replaceChildren(); };
