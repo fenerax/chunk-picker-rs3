@@ -19,7 +19,7 @@ import { createGamePlugin } from './game-plugin.mjs';
 // Main-screen panels; shared values and callbacks live in the explicit screen context.
 export function createScreenPanels(c) {
   c.mapDisplay = createMapDisplay(c);
-  c.panelContext = { ...c.panelContext, $: c.$, onTravelRoutes: rows => { c.travelRouteNames ??= new Map(); for (const row of rows) if (row.name) c.travelRouteNames.set(row.id, row.name); }, canWrite: c.canWrite, advanced: c.advanced, skillIcon, itemIcon, state: () => c.state, compatibleTaskRevision: revision => c.compatibleTaskRevision(revision), result: () => c.result, memberId: () => c.memberId, world: () => c.world, definitions: () => c.definitions, selectedChunkId: () => c.chunkId, isChunkOpen: () => !c.$('chunk-info').hidden,
+  c.panelContext = { ...c.panelContext, viewCache: c.viewCache, $: c.$, onTravelRoutes: rows => { c.travelRouteNames ??= new Map(); for (const row of rows) if (row.name) c.travelRouteNames.set(row.id, row.name); }, canWrite: c.canWrite, advanced: c.advanced, skillIcon, itemIcon, state: () => c.state, compatibleTaskRevision: revision => c.compatibleTaskRevision(revision), result: () => c.result, memberId: () => c.memberId, world: () => c.world, definitions: () => c.definitions, selectedChunkId: () => c.chunkId, isChunkOpen: () => !c.$('chunk-info').hidden,
     dialogGeneration: () => c.dialogGeneration, beginDialogRequest: c.beginDialogRequest, dialogCurrent: c.dialogCurrent, isDialogOpen: () => c.$('tool-dialog').open, closeDialog: c.closeDialog,
     questMapControls: options => c.questMap.controls(options),
     openXpChoices: id => c.openXpChoices(id),
@@ -46,7 +46,7 @@ export function createScreenPanels(c) {
 
   c.chunkPlanning = createChunkPlanning(c.panelContext);
 
-  if (c.supportsFeature?.('training') !== false) createHelperView({ api: c.api, command: c.command, usage: c.usage, canWrite: c.canWrite, getState: () => c.state, getPreferences: c.preferences, getMemberId: () => c.memberId, getResult: id => [c.fullResult, c.result, c.normalPlayResults.get(id)].find(value => value?.memberId === id && value.stateRevision === c.state?.revision) });
+  if (c.supportsFeature?.('training') !== false) createHelperView({ viewCache: c.viewCache, api: c.api, command: c.command, usage: c.usage, canWrite: c.canWrite, getState: () => c.state, getPreferences: c.preferences, getMemberId: () => c.memberId, getResult: id => [c.fullResult, c.result, c.normalPlayResults.get(id)].find(value => value?.memberId === id && value.stateRevision === c.state?.revision) });
 
   c.rulesPanel = createRulesPanel({ ...c.panelContext, registry: () => c.registry, download: c.download, readJSON: c.readJSON, jsonPreview: c.jsonPreview, historyDialog: c.historyDialog });
 

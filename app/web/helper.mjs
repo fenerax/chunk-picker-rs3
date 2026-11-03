@@ -6,7 +6,7 @@ export const helperSections = Object.freeze([
   { id: 'utilities', label: 'XP & combat', module: './helper-utilities.mjs', render: 'renderUtilities' },
   { id: 'progress', label: 'Progress', module: './helper-progress.mjs', render: 'renderProgress' },
 ]);
-export function createHelperView({ api, getState, getMemberId, getResult, getPreferences = () => ({}), canWrite = () => false, command, usage, document = globalThis.document }) {
+export function createHelperView({ viewCache, api, getState, getMemberId, getResult, getPreferences = () => ({}), canWrite = () => false, command, usage, document = globalThis.document }) {
   const launch = document.getElementById('helper-open'); if (!launch) return;
   const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
   let page, host, selector, nav, active = 'training', owner, generation = 0, dispose, timer, scope, lastResult, requestedTarget, renderedKey, countedSection, context;
@@ -28,7 +28,7 @@ export function createHelperView({ api, getState, getMemberId, getResult, getPre
     const section = helperSections.find(section => section.id === active);
     try {
       const module = await import(section.module); if (generation !== request || page.hidden) return;
-      host.replaceChildren(); renderedKey = `${owner}:${active}`; dispose = module[section.render](host, { document, api, member, f2p, command, canWrite, getState, getPreferences: () => getPreferences(member.id), advanced: canWrite() && getPreferences(member.id).advanced === true, partner: getState().members.find(other => other.id !== member.id), stateRevision: getState().revision, getResult: matchingResult, target: requestedTarget, draft: drafts.get(renderedKey),
+      host.replaceChildren(); renderedKey = `${owner}:${active}`; dispose = module[section.render](host, { viewCache, document, api, member, f2p, command, canWrite, getState, getPreferences: () => getPreferences(member.id), advanced: canWrite() && getPreferences(member.id).advanced === true, partner: getState().members.find(other => other.id !== member.id), stateRevision: getState().revision, getResult: matchingResult, target: requestedTarget, draft: drafts.get(renderedKey),
         isCurrent: () => generation === request && !page.hidden && scope === currentScope(),
         onPlan: (skill, level) => { requestedTarget = { skill, level }; active = 'training'; void render(); } });
       requestedTarget = undefined;

@@ -31,7 +31,7 @@ function fixture(t) {
     sandbox: {}, backupStatus: { refresh() {} }, stickerPicker: { isOpen: () => false }, el: () => new Node(), button: () => new Node(), input: () => new Node(),
   }, { get: (target, key) => key in target ? target[key] : noop });
   // These optional factories are absent until startup mounts them.
-  for (const key of ['mapCapture', 'poolRanking', 'phoneLayout']) c[key] = undefined;
+  for (const key of ['mapCapture', 'poolRanking', 'phoneLayout', 'viewCache', 'viewSession', 'memberId']) c[key] = undefined;
   return { c, $, doc };
 }
 

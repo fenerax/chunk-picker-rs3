@@ -21,9 +21,20 @@ export function createScreenTaskDialogs(c) {
     if (!owner) throw new Error('This player is no longer in the group. Refresh Tasks.');
     const cachedFull = ownerId === c.memberId ? c.fullResult : c.duoDetails.get(`${c.state.revision}:${ownerId}`);
     const loadedFull = cachedFull?.stateRevision === c.state.revision && cachedFull.memberId === ownerId ? cachedFull : undefined;
-    const ownerResult = review.result ?? (ownerId === c.memberId ? c.result ?? (c.duoEnabled() ? c.duoResults().results().get(ownerId) : undefined) : c.duoResults().results().get(ownerId));
-    const progressive = !c.sandbox.active && !detailed && ownerResult?.format === 'play-v1' && !task.id.startsWith('custom:') && ownerResult.tasks.some(row => row.id === task.id) && !loadedFull;
-    if (!detailed && !progressive && loadedFull) task = loadedFull.tasks.find(row => row.id === task.id) ?? task;
+    const ownerResult = review.result ?? (ownerId === c.memberId ? c.result ?? (c.shownResult?.memberId === ownerId ? c.shownResult : undefined) ?? (c.duoEnabled() ? c.duoResults().results().get(ownerId) : undefined) : c.duoResults().results().get(ownerId));
+    // A display-cache row at the current revision is still provisional until
+    // the live answer arrives (a release can change availability without a
+    // new save revision), so it gets the same Updating… path as an old one.
+    // Identity, not origin: a prerequisite opened from a cached dialog passes
+    // the same cached object back in as review.result.
+    const provisional = !c.sandbox.active && ownerId === c.memberId && !c.result && !!c.shownResult && ownerResult === c.shownResult;
+    const stale = !!ownerResult && (ownerResult.stateRevision !== c.state.revision || provisional);
+    const custom = task.id.startsWith('custom:');
+    // Validated details already loaded at this revision decide whether an old
+    // or cached row still exists; they never fall back to the cached row.
+    const removed = stale && !!loadedFull && !custom && !loadedFull.tasks.some(row => row.id === task.id);
+    const progressive = !c.sandbox.active && !custom && !loadedFull && (stale || (!detailed && ownerResult?.format === 'play-v1' && ownerResult.tasks.some(row => row.id === task.id)));
+    if ((!detailed || stale) && !progressive && loadedFull) task = loadedFull.tasks.find(row => row.id === task.id) ?? task;
     const detailResult = loadedFull ?? ownerResult;
     const commandTaskId = duoEntry?.id ?? task.id;
     const dialogMemberId = ownerId, dialogRevision = c.state.revision, status = owner.taskStatus?.[commandTaskId] ?? owner.taskStatus?.[task.id] ?? {}, name = owner.name;
@@ -42,6 +53,8 @@ export function createScreenTaskDialogs(c) {
     // What the task actually asks for, before any status detail.
     const asks = task.record?.Description ?? task.description;
     if (asks) stack.append(c.el('p', c.plain(asks), 'task-asks'));
+    const updating = c.el('p', 'Updating… · Last known task details', 'status-detail'); updating.hidden = !stale; updating.setAttribute('role', 'status');
+    if (stale) stack.append(updating);
     const topSlot = c.el('div', undefined, 'task-detail-slot'), bottomSlot = c.el('div', undefined, 'task-detail-slot');
     const mapSlot = c.el('div');
     if (task.category === 'Quest') stack.append(mapSlot);
@@ -53,7 +66,8 @@ export function createScreenTaskDialogs(c) {
       const guidance = renderTaskBlockerGuidance(c, full, result ?? {}, { memberId: dialogMemberId, openTask: row => c.showTask(row, true, { ...review, memberId: dialogMemberId, result }) });
       guidanceSlot.replaceChildren(...(guidance ? [guidance] : []));
     };
-    stack.append(c.el('p', `${task.category}${displayLevel && !(task.generated && task.category === 'BiS') ? ` · Level ${displayLevel}` : ''} · ${task.status}`, 'status-detail'), explanation, guidanceSlot);
+    const taskStatus = c.el('p', `${task.category}${displayLevel && !(task.generated && task.category === 'BiS') ? ` · Level ${displayLevel}` : ''} · ${task.status}`, 'status-detail');
+    stack.append(taskStatus, explanation, guidanceSlot);
     if (progressive) showGuidance(task, detailResult);
     const backlogBox = c.el('div', undefined, 'task-backlog-box');
     if (status.backlogged) backlogBox.append(c.el('p', status.backlogReason ? `Backlogged: ${status.backlogReason}` : 'Backlogged.', 'backlog-reason'), ...(c.canWrite() ? [c.button('Restore from backlog', () => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, backlogged: false }).then(() => c.closeDialog(generation)))] : []));
@@ -77,15 +91,26 @@ export function createScreenTaskDialogs(c) {
     if (task.wiki && c.supportsFeature?.('rsCatalogues') !== false) { const link = c.el('a', 'Open RuneScape Wiki'); link.href = task.wiki; link.target = '_blank'; link.rel = 'noopener noreferrer'; stack.append(link); }
     stack.append(bottomSlot);
     const fillDetails = (full, fullResultValue) => {
+      updating.hidden = true;
       if (full.category === 'Quest' && c.supportsFeature?.('quests') !== false) mapSlot.replaceChildren(c.questMap.controls({ task: full, guard: () => c.dialogCurrent(generation) }));
       const equipment = c.supportsFeature?.('equipment') === false ? null : renderTaskEquipment(full, fullResultValue, c.definitions.equipment, { document, iconLookup: itemIcon, advanced: c.advanced() });
       topSlot.replaceChildren(...(equipment ? [equipment] : []));
-      if (full.explanation) explanation.textContent = taskExplanation(full, fullResultValue);
+      const fullLevel = full.record?.RequirementAlternatives && full.level === 1 ? undefined : full.level;
+      taskStatus.textContent = `${full.category}${fullLevel && !(full.generated && full.category === 'BiS') ? ` · Level ${fullLevel}` : ''} · ${full.status}`;
+      explanation.textContent = taskExplanation(full, fullResultValue) || full.blockers?.[0]?.detail || '';
       showGuidance(full, fullResultValue);
       if (!asks && full.record?.Description) stack.prepend(c.el('p', c.plain(full.record.Description), 'task-asks'));
       bottomSlot.replaceChildren(...c.taskDetailSections(full, fullResultValue, () => generation, review));
     };
-    if (!progressive) fillDetails(task, detailResult);
+    // The shown row came from an older or cached answer; drop its status and
+    // controls so nothing on screen still claims it is current.
+    const showRemoved = () => {
+      updating.hidden = true;
+      for (const node of [taskStatus, explanation, guidanceSlot, backlogBox, completion]) node.remove?.();
+      bottomSlot.replaceChildren(c.el('p', 'This task is no longer in the current calculation. Refresh Tasks.', 'status-detail'));
+    };
+    if (removed) showRemoved();
+    else if (!progressive) fillDetails(task, detailResult);
     else {
       bottomSlot.append(c.el('p', 'Loading sources and details…', 'status-detail task-detail-loading'));
       const requestedMember = c.memberId, revision = c.state.revision;
@@ -94,7 +119,7 @@ export function createScreenTaskDialogs(c) {
         if (requestedMember !== c.memberId || revision !== c.state.revision || !c.dialogCurrent(generation)) return;
         if (value.memberId !== dialogMemberId || value.stateRevision !== revision) throw new Error('The saved task details changed. Open the task again.');
         const fullTask = value.tasks.find(row => row.id === task.id);
-        if (!fullTask) { bottomSlot.replaceChildren(c.el('p', 'This task is no longer in the current calculation. Refresh Tasks.', 'status-detail')); return; }
+        if (!fullTask) { showRemoved(); return; }
         fillDetails(fullTask, value);
       }).catch(error => { if (c.dialogCurrent(generation)) bottomSlot.replaceChildren(c.el('p', error.message || String(error), 'error')); });
     }
@@ -107,7 +132,8 @@ export function createScreenTaskDialogs(c) {
     const nodes = [], selectedMember = c.memberId, dialogRevision = c.state.revision;
     if (!task.id.startsWith('custom:')) {
       const why = c.el('div', undefined, 'task-detail-why');
-      appendTaskWhy(why, task, { document, button: c.button, icon: c.icon, readOnly: !c.canWrite(),
+      appendTaskWhy(why, task, { cache: c.viewCache, cacheKey: JSON.stringify([dialogMemberId, task.id]), revision: () => c.state.revision,
+        scope: () => JSON.stringify([c.memberId, c.state.revision, c.viewCache?.token(), c.dialogGeneration]), document, button: c.button, icon: c.icon, readOnly: !c.canWrite(),
         openRule: ruleId => Promise.resolve(c.rulesDialog({ ruleId, memberId: dialogMemberId })).catch(c.showError),
         load: async () => {
           const describeRule = catalogued(await createRuleDescriber(c.taskDisplayState?.() ?? c.state, dialogMemberId));

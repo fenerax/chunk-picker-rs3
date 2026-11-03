@@ -1,3 +1,4 @@
+import { replaceView } from './browser-state.mjs';
 import { baseLocationId, buildChunkPlanningIndex, buildChunkPlanningIndexIncremental } from '../tasks/chunk-planning-index.mjs';
 import { taskIcon } from './browser-task-icons.mjs';
 export { baseLocationId, buildChunkPlanningIndex, buildChunkPlanningIndexIncremental };
@@ -88,17 +89,26 @@ export function createChunkPlanning(context) {
     function derivedSection(title, category, build) {
       const body = el('div', undefined, 'form-stack'), section = details(title, body); section.className = 'chunk-section'; let loaded = false, loading = false;
       const load = async () => {
-        if (loaded || loading) return; loading = true; body.replaceChildren(note('Loading tasks for this chunk…'));
+        if (loaded || loading) return; loading = true;
+        const key = JSON.stringify([snapshot.memberId, snapshot.chunkId]), token = context.viewCache?.token();
+        const cached = context.viewCache?.peek('planning', key, snapshot.revision);
+        const hint = note(cached ? 'Updating… · Last known chunk tasks' : 'Loading tasks for this chunk…');
+        hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
+        body.replaceChildren(hint);
+        const compactIndex = result => ({ canonical: String, byLocation: new Map([[snapshot.chunkId, new Map(result.rows.map(row => [row.task.id, row]))]]), clueLocations: new Map([[snapshot.chunkId, result.clueLocations]]) });
+        if (cached) body.append(build(cached.value, compactIndex(cached.value)));
         try {
           const result = await (context.ensurePlanningResult ? context.ensurePlanningResult(snapshot.chunkId) : ensureResult());
-          if (!current() || section.isConnected === false) return;
+          if (!current() || section.isConnected === false || context.viewCache && !context.viewCache.current(token)) return;
           if (result.stateRevision != null && result.stateRevision !== snapshot.revision && !sameTasks(result.stateRevision)) throw new Error('Your task list changed. Reopen Chunk Info to refresh this location.');
           const index = result.format === 'chunk-planning-v1'
-            ? { canonical: String, byLocation: new Map([[snapshot.chunkId, new Map(result.rows.map(row => [row.task.id, row]))]]),
-              clueLocations: new Map([[snapshot.chunkId, result.clueLocations]]) }
+            ? compactIndex(result)
             : await indexForView(result, current);
-          if (!current() || section.isConnected === false) return;
-          body.replaceChildren(note('Tasks that use something in this chunk.'), build(result, index)); loaded = true;
+          if (!current() || section.isConnected === false || context.viewCache && !context.viewCache.current(token)) return;
+          if (result.format === 'chunk-planning-v1') context.viewCache?.remember('planning', key, context.state().revision, result);
+          if (!cached || JSON.stringify(cached.value) !== JSON.stringify(result)) replaceView(body, () => body.replaceChildren(note('Tasks that use something in this chunk.'), build(result, index)));
+          else hint.textContent = 'Tasks that use something in this chunk.';
+          loaded = true;
         } catch (error) { if (current()) body.replaceChildren(note(error.message, 'error'), button('Retry chunk tasks', load)); }
         finally { loading = false; }
       };

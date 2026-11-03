@@ -17,6 +17,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 export const quickTests = new Set([
   "warm-store.test.mjs",
   "warm-candidate.test.mjs",
+  "instant-screens.test.mjs",
   "prepared-collection.test.mjs",
   "q2-diff-engine.test.mjs",
   "q2-ci.test.mjs",

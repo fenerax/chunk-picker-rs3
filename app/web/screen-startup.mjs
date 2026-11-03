@@ -74,6 +74,10 @@ export function createScreenStartup(c) {
     c.$('invites-open').addEventListener('click', () => invites.open().catch(c.showError));
     const activeSession = await viewerSession;
     if (activeSession.multiPicker) c.panelContext?.pickerSession.registerStop(() => { startup.abort(); feedbackPanel.stop(); });
+    try { c.memberId = gameStorage().getItem('duo-member'); } catch {}
+    c.memberId ??= c.sessionMember ?? c.owners[0]?.id;
+    c.syncViewCache?.();
+    void c.paintStartupView();
     // Artwork is optional presentation. It must never hold the map's first paint.
     void loadArtStatus();
     const terrainManifest = c.supportsFeature?.('mapMetadata') === false ? Promise.resolve(null) : loadTerrainManifest();
@@ -92,6 +96,7 @@ export function createScreenStartup(c) {
     });
     try { c.memberId = (session.multiPicker ? gameStorage() : localStorage).getItem('duo-member'); } catch { /* Private browsing may block preference storage. */ }
     if (!loaded.state.members.some(item => item.id === c.memberId)) c.memberId = loaded.state.members.find(item => item.id === c.sessionMember)?.id ?? loaded.state.members[0]?.id;
+    try { gameStorage().setItem('duo-member', c.memberId); } catch { /* Display still works without preference storage. */ }
     c.map = new ChunkMap({ stage: c.$('map-stage'), baseCanvas: c.$('map-base'), stateCanvas: c.$('map-state'), pinCanvas: c.$('map-pins'), hoverCanvas: c.$('map-hover'), tooltip: c.$('map-tooltip'), deferFallback: true, onChunk: c.mapChunkClick,
       canChunkHold: () => !document.documentElement.classList.contains('screenshot-mode'),
       onChunkHold: (id, point) => c.chunkMenu(id, point.clientX, point.clientY, 'touch'),

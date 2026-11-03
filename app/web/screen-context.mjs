@@ -1,9 +1,13 @@
+import { createViewCache } from './browser-state.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { supportsDatasetFeature, applyDatasetFeatureControls, applyDatasetLaunchCopy } from './dataset-features.mjs';
 
 // One screen owns its saved view, request guards and bounded display caches.
 export function createScreenContext() {
   const c = {
+    viewCache: undefined,
+    viewSession: undefined,
+    startupSnapshot: undefined,
     accessSections: undefined,
     backupStatus: undefined,
     accessSectionsMember: undefined,
@@ -73,6 +77,8 @@ export function createScreenContext() {
     registry: undefined,
     result: undefined,
     rollBusy: undefined,
+    rollBusyOwner: 0,
+    backlogDrafts: undefined,
     rulesPanel: undefined,
     sandbox: undefined,
     sessionAdmin: undefined,
@@ -104,6 +110,12 @@ export function createScreenContext() {
     taskRequest: undefined,
     updates: undefined,
     world: undefined,
+  };
+  c.viewCache = createViewCache();
+  c.syncViewCache = () => {
+    if (!c.viewSession) return;
+    const session = c.viewSession;
+    c.viewCache.configure([c.dataset?.id, c.dataset?.digest, globalThis.location?.pathname, session.pickerId, session.accountId ?? session.account?.id, session.kind, session.actor?.kind, session.actor?.inviteId, session.capabilities, c.sessionMember, c.sessionAdmin, c.sessionReadOnly, c.memberId, c.sandbox?.signature?.()]);
   };
   c.owners = (selectedDataset.gameDefaults?.members ?? []).map(({ id, name, mapId }) => ({ id, name, ...(mapId ? { mapId } : {}) }));
   c.taskRequest = 0;

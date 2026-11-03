@@ -17,7 +17,7 @@ function createPoolSummaryClient(ctx, interest) {
   const watchId = !interest ? undefined : ctx.watchId ?? `pool_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('')}`;
   let visible = false, key, timer, generation = 0, request, nextPollAt = 0, nextIntentAt = 0, registered;
   let writes = Promise.resolve();
-  const scopeKey = scope => JSON.stringify([scope.memberId, scope.revision, scope.pickerId, scope.datasetDigest, scope.candidatesKey]);
+  const scopeKey = scope => JSON.stringify([scope.memberId, scope.revision, scope.pickerId, scope.datasetDigest, scope.candidatesKey, scope.actorScope]);
   const scope = () => ctx.scope();
   const readable = value => visible && !ctx.hidden() && !value.sandboxActive && !!value.memberId && Number.isSafeInteger(value.revision);
   const current = (value, token) => token === generation && readable(scope()) && scopeKey(scope()) === scopeKey(value);
@@ -82,17 +82,17 @@ export function createPassivePoolRankingClient(ctx) {
 }
 
 export function createScreenPoolRanking(c) {
-  let mounted = false, data, dataKey, sort = '', signature, skillOptionsSignature;
+  let mounted = false, data, dataKey, dataFresh = false, sort = '', signature, skillOptionsSignature;
   const nodes = new Map();
   const document = globalThis.document;
   const panel = c.$('pool-ranking-panel'), toggle = c.$('pool-ranking-toggle');
   const client = createPoolRankingClient({
     api: (...args) => c.api(...args),
-    scope: () => ({ memberId: c.memberId, revision: c.state?.revision, sandboxActive: !!c.sandbox?.active }),
+    scope: () => ({ memberId: c.memberId, revision: c.state?.revision, sandboxActive: !!c.sandbox?.active, actorScope: c.viewCache?.token() }),
     hidden: () => document.hidden,
     canWrite: c.canWrite,
     foregroundSettled: () => c.foregroundSettled(),
-    onUpdate: value => { data = value; render(); },
+    onUpdate: value => { c.viewCache?.remember('ranking', c.memberId, c.state.revision, value); data = value; dataFresh = true; render(); },
     onError: () => { signature = undefined; c.$('pool-ranking-status').textContent = 'Could not update the comparison. Retrying…'; },
   });
 
@@ -140,14 +140,14 @@ export function createScreenPoolRanking(c) {
 
   function render() {
     if (!mounted || panel.hidden) return;
-    const nextKey = `${c.memberId}:${c.state?.revision}`;
-    if (dataKey !== nextKey) { dataKey = nextKey; data = undefined; signature = undefined; nodes.clear(); c.$('pool-ranking-rows').replaceChildren(); }
+    const nextKey = `${c.memberId}:${c.state?.revision}:${c.viewCache?.token()}`;
+    if (dataKey !== nextKey) { dataKey = nextKey; data = c.viewCache?.peek('ranking', c.memberId, c.state.revision)?.value; dataFresh = false; signature = undefined; nodes.clear(); c.$('pool-ranking-rows').replaceChildren(); }
     const owner = c.member()?.name ?? 'Player';
     c.$('pool-ranking-owner').textContent = `${owner}’s saved roll pool`;
     c.$('pool-ranking-advanced').hidden = !c.advanced();
     c.$('pool-ranking-advanced-content').textContent = `New tasks are counted for ${owner}. Partner chunks can supply access, but these totals belong to this player. Save revision ${c.state?.revision}.`;
     if (!data) { c.$('pool-ranking-status').textContent = 'Loading the roll pool…'; return; }
-    const nextSignature = JSON.stringify([data, sort, c.advanced()]); if (nextSignature === signature) return; signature = nextSignature;
+    const nextSignature = JSON.stringify([data, dataFresh, sort, c.advanced()]); if (nextSignature === signature) return; signature = nextSignature;
     const skills = [...new Set(data.rows.flatMap(row => Object.keys(row.bySkill ?? {})))].sort();
     const select = c.$('pool-ranking-sort');
     // Retain the chosen skill while partial summaries arrive or a new save is checked.
@@ -159,7 +159,7 @@ export function createScreenPoolRanking(c) {
       select.replaceChildren(...options.map(value => { const option = c.el('option', value.label); option.value = value.value; return option; })); select.value = sort;
     }
     const checked = data.checked, remaining = Math.max(0, data.total - checked);
-    c.$('pool-ranking-status').textContent = data.total ? `${checked.toLocaleString()} of ${data.total.toLocaleString()} checked${remaining ? ` · ${remaining.toLocaleString()} still checking` : ''}` : 'No chunks in this roll pool.';
+    c.$('pool-ranking-status').textContent = !dataFresh ? 'Updating… · Last known roll pool comparison' : data.total ? `${checked.toLocaleString()} of ${data.total.toLocaleString()} checked${remaining ? ` · ${remaining.toLocaleString()} still checking` : ''}` : 'No chunks in this roll pool.';
     const list = c.$('pool-ranking-rows'), active = document.activeElement, focusInside = list.contains(active), scroller = panel.parentElement, scrollTop = scroller.scrollTop, listScrollTop = list.scrollTop;
     const ids = new Set(data.rows.map(row => String(row.id)));
     for (const [id, entry] of nodes) if (!ids.has(id)) { entry.node.remove(); nodes.delete(id); }

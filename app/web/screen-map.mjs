@@ -21,6 +21,7 @@ export function createScreenMap(c) {
   }
   function renderState() {
     if (!c.member()) return;
+    c.syncViewCache?.();
     c.originalSync.refresh();
     c.applyPreferences();
     const dropdown = c.$('member'); dropdown.replaceChildren(...c.state.members.map(item => { const node = c.el('option', item.name); node.value = item.id; return node; })); dropdown.value = c.memberId;

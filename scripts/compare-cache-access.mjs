@@ -36,7 +36,7 @@ export function observeTaskViews(state, memberId, result, controls = {}) {
   node('show-all').checked = controls.showAll ?? false;
   node('show-blocked').checked = controls.showBlocked ?? false;
   node('task-filter').value = controls.filter ?? '';
-  const context = createContext({ state, memberId, result, taskHover: undefined, taskFocus: undefined, duoHovers: new Map(), duoTaskView: undefined, duoInspectionCache: undefined, copyLists: undefined, tickActiveTasks: undefined, duoEnabled: () => false, member: () => member, preferences: () => prefs,
+  const context = createContext({ state, startupSnapshot: undefined, taskDisplayState: () => state, memberId, result, taskHover: undefined, taskFocus: undefined, duoHovers: new Map(), duoTaskView: undefined, duoInspectionCache: undefined, copyLists: undefined, tickActiveTasks: undefined, duoEnabled: () => false, member: () => member, preferences: () => prefs,
     sandbox: { active: false, signature: () => '' }, isCustomTask, personalCustomTaskRows,
     createTaskPinChecker, activeTaskFilters: () => ({ select(rows, options, { search = '' } = {}) {
       const selected = selectTaskFilters(rows, { ...options, filters: controls.taskFilters }).rows;
@@ -45,7 +45,7 @@ export function observeTaskViews(state, memberId, result, controls = {}) {
     $: node, map: {}, renderLegend() {}, list: value => value,
     // This snapshot renderer has no live foreground lifecycle or advisories.
     foregroundSettled: () => false, deathChunks: undefined, mapTaskCounts: undefined, groupGoals: undefined, renderCompleted() {},
-    taskRenderGeneration: 0, taskListRows, taskListDepthScope: undefined, taskListDepths: undefined, taskRenderDone: Promise.resolve(), paintTaskJobs: () => Promise.resolve(true),
+    taskRenderGeneration: 0, taskListRows, taskListDepthScope: undefined, taskListDepths: undefined, taskRenderDone: Promise.resolve(), paintTaskJobs: () => Promise.resolve(true), taskLoadError: undefined,
     taskFacts: task => facts.get(task.id, task.completionIds), taskFactsCache: facts, goalProgress,
     grouped: (target, rows) => { views[target.id] = Array.from(rows, row => row.id); } });
   runInContext(`${renderSource}\nrenderTasks();`, context);
