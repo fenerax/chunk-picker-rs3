@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-03",
+      "title": "Faster while you play and after updates",
+      "items": [
+        "While you're picking, your calculators stay ready instead of going to sleep, so Tasks and Preview answer sooner",
+        "Previews for your likely next chunks are prepared ahead in spare capacity",
+        "After an update or restart, the picker reuses its saved warm-up work instead of starting from scratch"
+      ]
+    },
+    {
       "date": "2026-11-02",
       "title": "Screens show up at once",
       "items": [
