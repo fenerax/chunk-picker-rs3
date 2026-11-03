@@ -114,8 +114,8 @@ async function command(context, command, expectedRevision = context.store.getInf
   const result = await send(context, '/api/command?view=play-v1', { body: { command, expectedRevision, ...extra } });
   assert.equal(result.status, 200, JSON.stringify(result.body)); return result.body;
 }
-async function viewer(context) {
-  const created = await send(context, '/api/invites', { body: { label: 'Observer', viewer: true } });
+async function viewer(context, readOnly = true) {
+  const created = await send(context, '/api/invites', { body: { label: 'Synthetic invite', viewer: readOnly } });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const url = new URL(created.body.link, 'http://127.0.0.1:8788');
   // The join route is deliberately handled by the same context boundary.
@@ -124,24 +124,64 @@ async function viewer(context) {
   return String(joined.headers.get('set-cookie')).split(';')[0];
 }
 
-test('picker A viewer sees only its own session and stream counts as picker B becomes active', async t => {
+test('picker A player and viewer cannot observe picker B activity through diagnostics, health or worker SSE', async t => {
+  const workers = [];
   const scheduler = await createTaskScheduler({ residency: { memoryBytes: 300, estimatedBytes: 100, maxResident: 3 },
-    calculatorMemoryUsage: () => 100, workerFactory() {
-      const worker = new EventEmitter(); worker.postMessage = () => {}; worker.terminate = async () => {};
+    calculatorMemoryUsage: worker => worker.bytes, workerFactory() {
+      const worker = new EventEmitter(); worker.bytes = 100; worker.messages = [];
+      worker.postMessage = message => worker.messages.push(message);
+      worker.terminate = async () => { worker.emit('exit', 0); };
+      workers.push(worker);
       queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
     } });
   t.after(() => scheduler.close());
   const taskWorker = Object.create(scheduler); taskWorker.closeCalls = 0;
   taskWorker.forPicker = id => scheduler.forPicker('p_' + (id === 'a' ? 'a' : 'b').repeat(32));
   const { a, b } = await fixture(t, { runtimeOptions: { taskWorker } });
-  const cookie = await viewer(a);
-  const diagnostics = async context => (await send(context, '/api/diagnostics', context === a ? { cookie } : {})).body.calculators.residency;
-  const before = await diagnostics(a);
-  assert.equal(before.sessions, 0); assert.equal(before.streams, 0);
+  const clients = [];
+  for (const readOnly of [true, false]) {
+    const cookie = await viewer(a, readOnly);
+    const stream = await send(a, '/api/events', { cookie, stream: true });
+    stream.request.on('error', () => {});
+    const health = (await send(a, '/api/health', { cookie })).body;
+    assert.deepEqual(health.worker, { status: 'ready', ready: true, restartRequired: false });
+    const diagnostics = await send(a, '/api/diagnostics', { cookie });
+    assert.equal(diagnostics.status, 403, 'aggregate diagnostics require admin access');
+    clients.push({ cookie, stream, health, diagnostics: diagnostics.body, events: stream.text() });
+  }
+  const assertPrivate = async () => {
+    for (const client of clients) {
+      const diagnostics = await send(a, '/api/diagnostics', { cookie: client.cookie });
+      assert.equal(diagnostics.status, 403);
+      assert.deepEqual(diagnostics.body, client.diagnostics);
+      assert.deepEqual((await send(a, '/api/health', { cookie: client.cookie })).body, client.health,
+        'compare the entire health response, including every worker activity field');
+      assert.equal(client.stream.text(), client.events, 'unrelated work must not change SSE payloads or event frequency');
+    }
+  };
+  const before = (await send(b, '/api/diagnostics')).body;
   await send(b, '/api/state');
   const stream = await send(b, '/api/events', { stream: true });
-  assert.equal((await diagnostics(b)).sessions, 1); assert.equal((await diagnostics(b)).streams, 1);
-  assert.deepEqual(await diagnostics(a), before);
+  stream.request.on('error', () => {});
+  const scope = taskWorker.forPicker('b'), state = { revision: 0, members: [{ id: 'one' }], rules: {} };
+  const requests = ['active', 'queued'].map(key => scope.evaluate(state, 'one', 'evaluate', undefined, key, 'input'));
+  const preview = scope.evaluate(state, 'one', 'predict', '12341', 'preview', 'input');
+  const settled = Promise.allSettled([...requests, preview]);
+  await nextTurn();
+  const busy = (await send(b, '/api/diagnostics')).body;
+  assert.ok(busy.counts.requested > before.counts.requested);
+  assert.equal(busy.queue.active, 1); assert.equal(busy.queue.depth, 1);
+  assert.equal(busy.calculators.active, 2); assert.equal(busy.calculators.residency.streams, 1);
+  assert.ok(busy.calculators.rssBytes > before.calculators.rssBytes);
+  await assertPrivate();
+  // Trigger global failure/recovery announcements and memory/eviction counters.
+  workers.forEach(worker => { worker.bytes = 400; });
+  scope.noteActivity(); await nextTurn(); await nextTurn();
+  assert.ok((await send(b, '/api/diagnostics')).body.calculators.memoryTrips > 0);
+  assert.ok((await send(b, '/api/health')).body.worker.idleStops !== undefined, 'admins retain operational health');
+  await assertPrivate();
+  await scheduler.close(); await settled;
+  for (const client of clients) client.stream.response.destroy();
   stream.response.destroy();
 });
 
@@ -389,6 +429,7 @@ test('revoking an invitation closes only that context stream and refuses its fur
 test('the extracted HTTP dispatcher retains explicit permission decisions for all API routes', async () => {
   const source = await readFile(new URL('../app/picker-context.mjs', import.meta.url), 'utf8');
   const { apiPermission } = await import('../app/picker-context-http.mjs');
+  for (const method of ['GET', 'HEAD']) assert.equal(apiPermission(method, '/api/diagnostics'), 'admin');
   const reads = source.slice(source.indexOf("if (request.method === 'GET' || request.method === 'HEAD')"), source.indexOf("} else if (request.method === 'POST')"));
   const writes = source.slice(source.indexOf("} else if (request.method === 'POST')"), source.indexOf("throw httpError(404, 'API route not found.');"));
   for (const [method, section] of [['GET', reads], ['POST', writes]]) {

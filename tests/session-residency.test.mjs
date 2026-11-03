@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { createSessionResidency, residencyDefaults } from '../app/tasks/session-residency.mjs';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 import { createCalculatorPool } from '../app/tasks/calculator-pool.mjs';
@@ -127,6 +129,23 @@ test('picker cancellation drops only its own residency interest and closed handl
   closeB(); await idleClock.advance(50); assert.equal(workers[0].terminated, true);
 });
 
+test('client readiness follows only its own foreground wake and keeps the browser recovery contract', async t => {
+  const { scheduler, scopes: [a, b], evaluate, workers, idleClock } = await fixture(t);
+  await idleClock.advance(150);
+  assert.equal(scheduler.getHealth().status, 'sleeping');
+  const changes = [];
+  const unsubscribe = scheduler.subscribe(() => changes.push(a.getClientHealth()));
+  t.after(unsubscribe);
+  const request = evaluate(a);
+  assert.deepEqual(a.getClientHealth(), { status: 'waking', ready: false, restartRequired: false });
+  assert.deepEqual(b.getClientHealth(), { status: 'ready', ready: true, restartRequired: false });
+  await tick(); await tick();
+  assert.deepEqual(a.getClientHealth(), { status: 'ready', ready: true, restartRequired: false });
+  assert.ok(changes.some(health => !health.ready));
+  assert.ok(changes.some(health => health.ready), 'the browser receives its own ready transition after compilation');
+  workers[1].finish(); await request;
+});
+
 test('memory pressure waits for a retiring worker instead of repeatedly evicting useful residents', async t => {
   const { scheduler, scopes: [a, b], evaluate, workers } = await fixture(t);
   const tasks = evaluate(a); workers[0].finish(); await tasks;
@@ -173,6 +192,83 @@ test('zero available budget creates no calculator', async () => {
   await assert.rejects(createTaskScheduler({ residency: { ...config, memoryBytes: 0 },
     workerFactory() { allocations++; } }), { status: 503 });
   assert.equal(allocations, 0);
+});
+
+test('admission and diagnostics use cached RSS without synchronous filesystem reads', async t => {
+  const { scheduler, evaluate, workers, idleClock } = await fixture(t, { calculatorMemoryUsage: undefined });
+  const worker = workers[0]; worker.pid = 123; worker.rssBytes = 180;
+  const original = fs.readFileSync;
+  let reads = 0;
+  fs.readFileSync = () => { reads++; throw new Error('synchronous filesystem read forbidden'); };
+  syncBuiltinESMExports();
+  try {
+    const request = evaluate();
+    assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 180);
+    for (const value of [undefined, NaN, -1, Infinity]) {
+      worker.rssBytes = value;
+      await idleClock.advance(100);
+      assert.equal(scheduler.getDiagnostics().calculators.rssBytes, 180);
+      assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 180);
+    }
+    Object.defineProperty(worker, 'rssBytes', { configurable: true, get() { throw new Error('sample unavailable'); } });
+    assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 180);
+    worker.finish(); await request;
+    Object.defineProperty(worker, 'rssBytes', { value: 0, writable: true });
+    assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 100, 'a valid low sample retains the reservation floor');
+    assert.equal(reads, 0, 'admission, maintenance, completion and diagnostics must make no synchronous filesystem read');
+  } finally { fs.readFileSync = original; syncBuiltinESMExports(); }
+});
+
+for (const emergency of [false, true]) test(`replacement calculators get a full idle lifetime after ${emergency ? 'an RSS trip' : 'small-host startup'}`, async t => {
+  const { scheduler, evaluate, workers, idleClock } = await fixture(t, emergency ? {}
+    : { residency: { ...config, memoryBytes: 150, estimatedBytes: 200 } });
+  if (emergency) {
+    const request = evaluate(), rejected = assert.rejects(request, { status: 503 });
+    workers[0].bytes = 400;
+    await idleClock.advance(100); await rejected;
+  } else await idleClock.advance(100);
+  assert.equal(workers[0].terminated, true);
+  const replacement = evaluate(undefined, 'replacement');
+  await tick(); await tick();
+  assert.equal(workers.length, 2);
+  // Busy time and pool age cannot consume the replacement's idle lifetime.
+  await idleClock.advance(25); workers[1].finish(); await replacement;
+  await idleClock.advance(19); scheduler.noteActivity(ids[0]); await tick();
+  assert.equal(workers[1].terminated, undefined);
+  await idleClock.advance(1);
+  assert.equal(workers[1].terminated, true);
+  assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 0);
+});
+
+test('a crash during emergency cancellation releases every admission charge and the reservation on exit', async t => {
+  const { scheduler, evaluate, workers, idleClock } = await fixture(t, { fairness: { maxOutstandingJobsPerPicker: 2 } });
+  const first = evaluate(undefined, 'crashing'), rejected = assert.rejects(first, { status: 503 });
+  const queued = evaluate(undefined, 'queued');
+  await assert.rejects(evaluate(undefined, 'over-budget'), { status: 429 });
+  const crashed = workers[0], post = crashed.postMessage;
+  let releaseExit;
+  const exited = new Promise(resolve => { releaseExit = () => { crashed.emit('exit', 1); resolve(); }; });
+  crashed.terminate = () => exited;
+  crashed.postMessage = message => {
+    post(message);
+    if (message.type === 'cancel') crashed.emit('error', new Error('synthetic crash during cancellation'));
+  };
+  crashed.bytes = 400;
+  await idleClock.advance(100); await rejected;
+  assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 400, 'crashing process stays charged until proven exit');
+  assert.equal(workers.length, 1);
+  releaseExit(); await tick(); await tick();
+  assert.equal(workers.length, 2, 'queued admission resumes after the crash exits');
+  workers[1].finish(); await queued;
+  // Filling the entire picker budget again detects a leaked charge from either
+  // the interrupted entry or the queued entry, even if failure settled twice.
+  const fresh = [evaluate(undefined, 'fresh-1'), evaluate(undefined, 'fresh-2')];
+  await assert.rejects(evaluate(undefined, 'fresh-over-budget'), { status: 429 });
+  workers[1].finish(); await tick(); workers[1].finish(); await Promise.all(fresh);
+  assert.equal(scheduler.getDiagnostics().retainedWork.pending, 0);
+  await idleClock.advance(20);
+  assert.equal(scheduler.getDiagnostics().calculators.reservedBytes, 0);
+  assert.equal(scheduler.getDiagnostics().calculators.resident, 0);
 });
 
 test('actual RSS above the ceiling cancels requested advisory work and queues replacements until exit', async t => {

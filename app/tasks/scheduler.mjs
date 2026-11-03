@@ -23,7 +23,7 @@ const pickerKey = (pickerId, key) => JSON.stringify([pickerId, key]);
 // bound facade; all lanes and their admission/memory limits remain shared.
 const pickerArguments = { peekPrediction: 4, cancelRankingPrewarm: 1, preparedEvaluation: 3, prepareRules: 2,
   evaluate: 12, supersede: 3, supersedeDisplay: 2, setRevision: 2, prewarm: 4, prewarmTasks: 4,
-  cancelPrewarm: 1, retireWarmPrediction: 0, noteActivity: 0, openSession: 0, getDiagnostics: 0 };
+  cancelPrewarm: 1, retireWarmPrediction: 0, noteActivity: 0, openSession: 0, getDiagnostics: 0, getClientHealth: 0 };
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
 const queueFull = () => Object.assign(new Error('Task calculation budget is full. Wait for pending tasks and retry.'), { status: 429, retryAfter: 1 });
 const positive = (value, name, minimum = 1) => {
@@ -479,6 +479,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       return prediction?.retireWarm(pickerId) ?? false;
     },
     resumePrewarm() { prediction?.noteInteractiveUse(); },
+    getClientHealth(pickerId = 'legacy-shared') { return foreground.getClientHealth(pickerJobId(pickerId)); },
     getHealth() {
       const health = foreground.getHealth(), lanes = { death: death?.getHealth() ?? { status: 'idle', ready: false },
         prediction: prediction?.getHealth() ?? { status: 'idle', ready: false }, duo: duo?.getHealth() ?? { status: 'idle', ready: false } };
@@ -1272,6 +1273,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         entry.warm = false; warmCounts.cancelled++;
         if (!entry.waiters.size && !served(entry)) cancel(entry, unavailable('Pool ranking cancelled.'));
       }
+    },
+    // Browser recovery needs readiness, not shared lane activity or lifetimes.
+    // An idle picker can submit work even when another picker's lane is waking.
+    getClientHealth(pickerId) {
+      const ownWork = [...pending.values()].some(entry => entry.pickerId === pickerId)
+        || active?.pickerId === pickerId;
+      const clientStatus = closed ? 'closed' : ownWork ? status : 'ready';
+      return { status: clientStatus, ready: clientStatus === 'ready', restartRequired: clientStatus === 'restart-required' };
     },
     getHealth() {
       const time = idleClock.now(), oldest = queue[0]?.queuedAt ?? warmQueue[0]?.queuedAt;

@@ -27,7 +27,7 @@ The candidate adds:
   idle grace; an open writable SSE stream renews interest until it closes, then
   the ten-minute grace starts. Viewer and monitoring reads do not renew leases.
 - `app/tasks/calculator-pool.mjs`: a shared physical-worker cap, conservative
-  reservations including starting/retiring workers, Linux process RSS sampling,
+  reservations including starting/retiring workers, asynchronous process RSS telemetry,
   and eviction of idle or expendable workers by the last served picker's activity.
   Already-retiring workers prevent replacement allocation until exit. Background
   completion cannot extend the session deadline. Shared compiled calculators
@@ -83,20 +83,34 @@ host with 8.5 GiB free yields a 6.5 GiB budget and three resident slots. A 2 GiB
 host with 1 GiB available yields a 0.5 GiB budget. Below one full reservation,
 keep-warm and all prepare-ahead are disabled: requested work uses at most one
 calculator, subject to the actual RSS ceiling and the original idle lifetime.
+Each replacement's idle lifetime starts at its own last completion, regardless
+of pool age. Session or pressure checks preserve that completion time.
 An SSE lease cannot extend that lifetime. A zero budget refuses calculator
 startup without allocating a worker. Several pickers share these slots, rather
 than allocating one calculator per picker. Diagnostics expose limits, actual
-RSS, eviction and emergency counts. Session/stream counters are scoped to the
-authenticated picker; only the internal scheduler exposes global counters.
+RSS, eviction and emergency counts only to private administrators.
+`/api/diagnostics` now requires administrator access; the operator's service
+health path also retains its aggregate worker health. Main already exposed
+global lane, queue and pool counters in diagnostics; those
+remain available to administrators, alongside the new memory/residency fields.
+Ordinary player/viewer health and worker SSE carry only foreground readiness
+for their own work: `status`, `ready` and `restartRequired`. An idle picker is
+ready to submit work even if shared calculators are sleeping or another picker
+is waking one. Unchanged worker events are suppressed, so another picker's
+transitions do not leak through event frequency. This preserves the browser's
+loading/recovery readiness contract; no browser code reads aggregate diagnostics.
+Session/stream diagnostics remain picker-scoped on the bound scheduler facade.
 The existing `RS3_WORKER_IDLE_MS`
 remains a fallback for session idle grace; `RS3_SESSION_IDLE_MS` takes precedence.
 Viewer expiry tests use a short session window and retain their sleep assertions.
 
 The RSS ceiling is enforced against requested work too. Native residency uses
 owned process workers on every platform, including when thread mode would
-otherwise be selected. The pool samples Linux process RSS every 100 ms and at
-admission/completion; process-host RSS reports provide the Windows fallback
-without waiting for a synchronous calculator to answer. Starting and retiring
+otherwise be selected. Process hosts report RSS asynchronously every 100 ms on
+all platforms, independently of the synchronous calculator. The pool's
+admission, completion, diagnostics and maintenance paths read that validated
+cache without filesystem reads. Failed, invalid or stale samples retain the
+last valid RSS and the configured reservation floor. Starting and retiring
 processes remain charged until exit. Admission queues work while the charged
 memory exceeds the ceiling; it cannot start a replacement beside a retiring
 process. Unrequested production and advisory graphs are reclaimed before
@@ -237,6 +251,24 @@ Gap memory samples are taken 50 ms after the idle-clock jump; START can still ha
 Keeping two calculators resident through active gaps spends roughly their summed RSS to remove cold waits. The final stress also exercises the third slot. All worker RSS is released after expiry in every trial. These measurements replace a private server/store footprint run, which is forbidden because it creates credentials.
 
 ### Commands and checks
+
+Follow-up review validation (synthetic inputs, Windows, one file at a time):
+
+- Final selections across 27 files: 563 passed, 0 failed (242.8 s of completed
+  runs). Required files: session-residency 23, process-worker 11, picker-context
+  27, prediction-server 7; the updated account-isolation audit also passes all
+  10 cases. No game/task calculation implementation changed.
+- Grepped `tests/` and `app/web/` for diagnostics, health and worker-event
+  consumers. Broader operator/server files used affected-case name selections;
+  the browser, invite, viewer and reliability suites ran in full. Private
+  companion variants and additional scheduler suites were left outside this
+  budget. An initial broad operator run was stopped to keep total test work
+  around five minutes; its partial results are excluded from the count above.
+- New checks cover every exposed activity field (and SSE event frequency),
+  picker-local browser recovery readiness, zero synchronous filesystem reads on
+  admission/maintenance/completion/diagnostics, invalid/stale RSS retention,
+  replacement idle age in both fallback modes, and a crash during emergency
+  cancellation with full admission/reservation recovery.
 
 Review-fix validation on Windows, with synthetic fixtures only, run one command
 at a time (no full suite):

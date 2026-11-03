@@ -30,7 +30,9 @@ export class ProcessWorker extends EventEmitter {
     this.#child.on('message', message => {
       try {
         if (message.kind === 'message') this.emit('message', decodeReceivedProcessMessage(message.payload));
-        else if (message.kind === 'memory-rss') this.rssBytes = message.rssBytes;
+        else if (message.kind === 'memory-rss') {
+          if (Number.isSafeInteger(message.rssBytes) && message.rssBytes >= 0) this.rssBytes = message.rssBytes;
+        }
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
         else if (message.kind === 'memory') {
           const request = this.#memory.get(message.id);

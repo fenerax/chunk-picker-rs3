@@ -165,6 +165,28 @@ test('a host that ignores graceful termination is killed before retirement resol
   } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
 });
 
+test('RSS telemetry validates samples and retains the last valid measurement without new reports', async () => {
+  const original = childProcesses.fork, child = new EventEmitter();
+  child.pid = 123; child.connected = true;
+  child.send = (_message, callback) => callback?.();
+  child.kill = () => { child.emit('exit', 0); return true; };
+  childProcesses.fork = () => child; syncBuiltinESMExports();
+  try {
+    const worker = new ProcessWorker({ definitions }, { trackRss: true });
+    child.emit('message', { kind: 'memory-rss', rssBytes: 200 });
+    assert.equal(worker.rssBytes, 200);
+    for (const rssBytes of [undefined, NaN, Infinity, -1, '0', 1.5]) {
+      child.emit('message', { kind: 'memory-rss', rssBytes });
+      assert.equal(worker.rssBytes, 200);
+    }
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(worker.rssBytes, 200, 'a missing report keeps the last measurement');
+    child.emit('message', { kind: 'memory-rss', rssBytes: 100 });
+    assert.equal(worker.rssBytes, 100, 'a valid new sample can lower the measurement');
+    await worker.terminate({ force: true });
+  } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
+});
+
 test('memory emergency upgrades an existing graceful retirement to immediate force-kill', async () => {
   const original = childProcesses.fork, child = new EventEmitter(), signals = [];
   child.pid = 123; child.connected = true;

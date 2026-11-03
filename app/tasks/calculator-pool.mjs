@@ -1,25 +1,28 @@
 import { EventEmitter } from 'node:events';
-import { readFileSync } from 'node:fs';
 
 // One server owns the physical calculators. Lanes borrow a slot for one job;
 // even a retiring calculator holds its slot until termination has completed.
 export function createCalculatorPool({ limit, workerFactory, workerData, onReady, idleMs = 600000, startupDeadlineMs = 30000,
-  sessions, clock = { now: () => performance.now(), setTimeout, clearTimeout }, memoryUsage = worker => {
-    if (!worker.pid) return 0;
-    try { return Number(/^VmRSS:\s+(\d+)/m.exec(readFileSync(`/proc/${worker.pid}/status`, 'utf8'))?.[1] ?? 0) * 1024; }
-    catch { return worker.rssBytes ?? 0; }
-  } }) {
+  sessions, clock = { now: () => performance.now(), setTimeout, clearTimeout }, memoryUsage = worker => worker.rssBytes }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false, evictions = 0, activityObserved = false;
   let memoryTrips = 0, optimizationsSuspended = false;
   const keepWarm = () => sessions?.enabled && !optimizationsSuspended;
-  const bootAt = clock.now();
   const remainingSession = () => sessions?.remainingAny() ?? 0;
   const idleRemaining = slot => sessions
-    ? keepWarm() && activityObserved ? remainingSession() : idleMs - (clock.now() - bootAt)
+    ? keepWarm() && activityObserved ? remainingSession() : idleMs - (clock.now() - slot.idleAt)
     : idleMs - (clock.now() - slot.idleAt);
   const activity = slot => sessions?.lastActive(slot.pickerId) ?? -Infinity;
-  const rss = slot => Math.max(0, memoryUsage(slot.worker) || 0);
+  // Process telemetry is sampled asynchronously, independently of calculation.
+  // Missing, failed or stale reports never erase the last valid measurement;
+  // reservations also retain their configured floor until proven process exit.
+  const rss = slot => {
+    try {
+      const bytes = memoryUsage(slot.worker);
+      if (Number.isFinite(bytes) && bytes >= 0 && bytes <= Number.MAX_SAFE_INTEGER) slot.rssBytes = Math.ceil(bytes);
+    } catch { /* Keep the last validated sample. */ }
+    return slot.rssBytes ?? 0;
+  };
   const estimate = () => Math.min(sessions.estimatedBytes, sessions.memoryBytes);
   const reservation = slot => sessions ? Math.max(estimate(), rss(slot)) : 0;
   const reserved = () => [...slots].reduce((sum, slot) => sum + reservation(slot), 0);
@@ -40,9 +43,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     }, () => { /* An unproven exit still occupies the hard cap. */ });
     return slot.stopping;
   }
-  function idle(slot) {
+  function idle(slot, reset = true) {
     clock.clearTimeout(slot.timer);
-    slot.idleAt = clock.now();
+    if (reset) slot.idleAt = clock.now();
     const check = () => {
       if (slot.owner || slot.stopping || closed) return;
       const remaining = Math.max(0, idleRemaining(slot));
@@ -212,7 +215,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       // Requested jobs may also be interrupted below: reservations are not a
       // licence for a synchronous calculator to grow without a bound.
       optimizationsSuspended = true; memoryTrips++;
-      for (const slot of live) if (slot.ready && !slot.owner) idle(slot);
+      for (const slot of live) if (slot.ready && !slot.owner) idle(slot, false);
     }
     if (totalActual > sessions.memoryBytes) for (const slot of slots) if (slot.stopping && !slot.forceStop) {
       slot.forceStop = true;
@@ -252,7 +255,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       if (sessions && pickerId) activityObserved = true;
       for (const slot of slots) if (slot.ready && !slot.owner && !slot.stopping) {
         // Preserve the last completion time when extending a session lease.
-        const at = slot.idleAt; idle(slot); slot.idleAt = at;
+        idle(slot, false);
       }
       enforceMemory(); pump();
     },
