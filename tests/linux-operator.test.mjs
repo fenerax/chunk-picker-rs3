@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { prewarmCandidate } from '../scripts/linux/prewarm.mjs';
+import { rootFilesystem } from './helpers/prewarm.mjs';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { assertReleased, encode, exclusive, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { assertSameRelease, readRelease } from '../scripts/linux/runtime.mjs';
@@ -337,9 +340,57 @@ for (const root of [false, true]) for (const changed of [false, true]) test(`onl
   const getuid = process.getuid; process.getuid = () => root ? 0 : 1000;
   t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
   await deployPrechecked({ ...f, savedIdentityAdditions: syntheticAdditions, check, capture, prewarm, request: healthy, wait: noWait });
-  assert.equal(warmed, root ? 0 : 1);
+  assert.equal(warmed, 1);
   assert.equal(checks, changed ? 2 : 1);
   assert.deepEqual(f.events, ['stop', 'start']);
+});
+
+for (const outcome of ['root owner', 'symlink owner', 'failed child', 'timed-out child', 'spawn error']) test(`root online deploy proceeds after optional prewarm miss: ${outcome}`,
+  { skip: process.platform !== 'linux' && 'Linux uid/gid and /proc descriptor semantics.' }, async t => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.candidate.config.coreRoot, 'scripts/linux'), { recursive: true });
+  await writeFile(path.join(f.candidate.config.coreRoot, 'scripts/linux/prewarm.mjs'), '');
+  f.candidate = await readRelease(f.candidate.pointerFile, f.settings.dataDir);
+  const getuid = process.getuid; process.getuid = () => 0;
+  t.after(() => { if (getuid) process.getuid = getuid; else delete process.getuid; });
+  if (outcome === 'timed-out child') t.mock.timers.enable({ apis: ['setTimeout'] });
+  const changes = [], descriptors = [], io = rootFilesystem(f.settings.dataDir, { changes, descriptors });
+  if (outcome === 'root owner' || outcome === 'symlink owner') {
+    const stat = io.lstat;
+    io.lstat = async file => Object.assign(await stat(file), file === f.settings.dataDir
+      ? outcome === 'root owner' ? { uid: 0 } : { isSymbolicLink: () => true } : {});
+  }
+  const { copyTree } = await import('../scripts/linux/files.mjs');
+  let spawned = 0, warmed = 0, killed = 0;
+  const capture = async () => {
+    const dir = path.join(f.scratch, 'captured/store');
+    await mkdir(path.dirname(dir)); await copyTree(f.settings.dataDir, dir);
+    await writeFile(dir + '.dataset.json', await readFile(f.settings.dataDir + '.dataset.json'));
+    return { dataDir: dir, cleanup: async () => { assert.deepEqual(f.events, []); } };
+  };
+  const prewarm = async args => {
+    warmed++; assert.deepEqual(f.events, []);
+    assert.equal(await prewarmCandidate({ ...args, filesystem: io, execute(node, argv, options) {
+      spawned++; assert.notEqual(options.uid, 0);
+      assert.equal(options.uid, 1201); assert.equal(options.gid, 1202);
+      assert.deepEqual(f.events, []);
+      const child = new EventEmitter();
+      child.kill = signal => { assert.equal(signal, 'SIGKILL'); killed++; child.emit('close', null); };
+      queueMicrotask(() => {
+        if (outcome === 'timed-out child') t.mock.timers.tick(180000);
+        else if (outcome === 'spawn error') child.emit('error', Error('Synthetic spawn failure.'));
+        else child.emit('close', 1);
+      });
+      return child;
+    } }), false);
+  };
+  const result = await deployPrechecked({ ...f, capture, check: async () => {}, prewarm, request: healthy, wait: noWait });
+  assert.equal(result.activated, true); assert.equal(warmed, 1);
+  assert.equal(spawned, outcome === 'root owner' || outcome === 'symlink owner' ? 0 : 1);
+  assert.equal(killed, outcome === 'timed-out child' ? 1 : 0);
+  assert.deepEqual(f.events, ['stop', 'start']);
+  assert(changes.every(({ file }) => !file.startsWith(f.settings.dataDir)));
+  assert(descriptors.every(handle => handle.fd === -1));
 });
 
 test('online preparation failure leaves the writer untouched', async t => {

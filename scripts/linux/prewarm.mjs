@@ -2,7 +2,9 @@
 // listener, credentials, or writes to the copied gameplay inputs.
 import path from 'node:path';
 import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, lstat, open, readdir } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { outside } from './files.mjs';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { getPriority, setPriority } from 'node:os';
@@ -12,26 +14,92 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerHooks } from 'node:module';
 
-export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn }) {
-  // Root deployments deliberately defer warming to the service's first start.
-  // Do not even inspect a candidate script or spawn an older root publisher.
-  if (!warmStoreAllowed()) return false;
+// Only the captured, root-created copy may have its permissions changed. Its
+// ancestors must prevent replacement; a root-owned sticky ancestor (e.g. /tmp)
+// is safe above the private parent. The live store is inspected with lstat only.
+async function serviceIdentity(settings, filesystem) {
+  const info = await filesystem.lstat(settings.dataDir);
+  const { uid, gid } = info;
+  if (!info.isDirectory() || info.isSymbolicLink()
+    || ![uid, gid].every(id => Number.isSafeInteger(id) && id > 0)
+    || (settings.serviceUid !== undefined || settings.serviceGid !== undefined)
+      && (settings.serviceUid !== uid || settings.serviceGid !== gid)) throw Error('Dedicated service owner required.');
+  for (let file = path.dirname(path.resolve(settings.dataDir)); ; file = path.dirname(file)) {
+    const ancestor = await filesystem.lstat(file);
+    if (!ancestor.isDirectory() || ancestor.isSymbolicLink()) throw Error('Ambiguous service directory.');
+    if (file === path.dirname(file)) break;
+  }
+  return { uid, gid };
+}
+async function readableSnapshot(settings, dataDir, gid, filesystem) {
+  dataDir = path.resolve(dataDir);
+  outside(settings.dataDir, dataDir); outside(dataDir, settings.dataDir);
+  const parent = path.dirname(dataDir);
+  for (let file = dataDir; ; file = path.dirname(file)) {
+    const info = await filesystem.lstat(file);
+    if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== 0
+      || (info.mode & 0o022) && !(file !== dataDir && file !== parent && (info.mode & 0o1000))) {
+      throw Error('Protected root snapshot required.');
+    }
+    if (file === path.dirname(file)) break;
+  }
+  const root = await filesystem.open(dataDir, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  async function share(file, handle, directory) {
+    const info = await handle.stat();
+    if (info.uid !== 0 || (info.mode & 0o022) || (directory ? !info.isDirectory() : !info.isFile() || info.nlink !== 1)) {
+      throw Error('Unsafe snapshot entry.');
+    }
+    if (directory) for (const entry of await filesystem.readdir(file, { withFileTypes: true })) {
+      const child = path.join(file, entry.name), isDirectory = entry.isDirectory();
+      const opened = await filesystem.open(child, constants.O_RDONLY | constants.O_NOFOLLOW | (isDirectory ? constants.O_DIRECTORY : constants.O_NONBLOCK));
+      try { await share(child, opened, isDirectory); } finally { await opened.close(); }
+    }
+    // Descriptor operations only, inside the protected copy. The service never
+    // gains write access, and the root-only parent stays inaccessible by path.
+    await handle.chown(0, gid); await handle.chmod(directory ? 0o550 : 0o440);
+  }
+  try { await share(dataDir, root, true); return root; }
+  catch (error) { await root.close(); throw error; }
+}
+export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn,
+  filesystem = { lstat, open, readdir } }) {
+  let snapshot;
   // Old releases remain deployable. This optional preparation never extends
   // the writer pause and cannot turn a failed warm-up into a deployment failure.
   try {
     const script = path.join(candidate.config.coreRoot, 'scripts/linux/prewarm.mjs');
     await access(script);
     const { runtimeEnvironment } = await import('./runtime.mjs');
+    const options = { env: runtimeEnvironment(candidate.config, { probe: true }), stdio: 'ignore', windowsHide: true };
+    let input = dataDir, guard = [];
+    if (process.getuid?.() === 0) {
+      if (process.platform !== 'linux') return false;
+      const { uid, gid } = await serviceIdentity(settings, filesystem);
+      snapshot = await readableSnapshot(settings, dataDir, gid, filesystem);
+      input = '/proc/self/fd/3';
+      // Node/libuv's Unix spawn clears supplementary groups with setgroups(0,
+      // NULL) before setgid/setuid. Also fail closed before candidate imports:
+      // libuv tolerates EPERM from setgroups on capability-restricted systems.
+      Object.assign(options, { uid, gid, stdio: ['ignore', 'ignore', 'ignore', snapshot.fd] });
+      options.env.HOME = settings.dataDir;
+      const check = `if (process.getuid() !== ${uid} || process.getgid() !== ${gid} || process.getgroups().some(group => group !== ${gid})) process.exit(1);`;
+      guard = ['--import', 'data:text/javascript,' + encodeURIComponent(check)];
+    }
     return await new Promise(resolve => {
-      const child = execute(candidate.config.nodePath ?? process.execPath, [script, '--root', candidate.config.coreRoot,
-        '--data-dir', dataDir, '--warm-dir', path.join(settings.dataDir, 'warm-store')],
-      { env: runtimeEnvironment(candidate.config, { probe: true }), stdio: 'ignore', windowsHide: true });
+      const child = execute(candidate.config.nodePath ?? process.execPath, [...guard, script, '--root', candidate.config.coreRoot,
+        '--data-dir', input, '--warm-dir', path.join(settings.dataDir, 'warm-store')], options);
       try { if (Number.isSafeInteger(child.pid)) setPriority(child.pid, Math.max(10, getPriority(child.pid))); } catch { /* Best-effort OS priority; bounded calculator remains optional. */ }
-      const timer = setTimeout(() => { child.kill('SIGKILL'); }, 180000);
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        try { child.kill('SIGKILL'); } catch { /* Still an optional miss. */ }
+        resolve(false);
+      }, 180000);
       child.once('error', () => { clearTimeout(timer); resolve(false); });
-      child.once('close', code => { clearTimeout(timer); resolve(code === 0); });
+      child.once('close', code => { clearTimeout(timer); resolve(!timedOut && code === 0); });
     });
   } catch { return false; }
+  finally { try { await snapshot?.close(); } catch { /* Optional descriptor cleanup. */ } }
 }
 
 export async function prewarmCalculation({ root, dataDir, warmDirectory, maxMembers = 8 }) {
