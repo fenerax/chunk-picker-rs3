@@ -125,7 +125,9 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   const sessions = residency ? createSessionResidency(residency, options.idleClock) : undefined;
   options.sessions = sessions;
   if (sessions?.memoryBytes === 0) throw unavailable('Insufficient memory for a task calculator.');
-  if (sessions) options.idleMs ??= Number(process.env.RS3_WORKER_IDLE_MS ?? sessions.idleMs);
+  // Ordinary retirement keeps its own short default; the session grace only
+  // applies while keep-warm is enabled (disabled or memory-suspended pools retire).
+  if (sessions) options.idleMs ??= Number(process.env.RS3_WORKER_IDLE_MS ?? 600000);
   if (sessions) maxCalculators = Math.min(maxCalculators ?? sessions.maxResident, sessions.maxResident, Math.max(1, Math.floor(sessions.memoryBytes / sessions.estimatedBytes)));
   if (options.warmStoreDirectory) options.workerData = { ...options.workerData, warmStoreDirectory: options.warmStoreDirectory };
   options.workerPreparation = createWorkerPreparation(options.workerData, { persistentDirectory: options.warmStoreDirectory });

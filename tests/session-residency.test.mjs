@@ -232,6 +232,18 @@ test('small budgets disable optional work and retain only the original idle life
   close();
 });
 
+test('disabled keep-warm retires on the ordinary ten-minute default, not the three-hour session grace', async t => {
+  if (process.env.RS3_WORKER_IDLE_MS !== undefined) return t.skip('RS3_WORKER_IDLE_MS overrides the default');
+  const { scheduler, evaluate, workers, idleClock } = await fixture(t, { idleMs: undefined,
+    residency: { ...config, idleMs: 3 * 60 * 60000, memoryBytes: 150, estimatedBytes: 200 } });
+  const request = evaluate(); workers[0].finish(); await request;
+  await idleClock.advance(599000);
+  assert.notEqual(workers[0].terminated, true, 'the ordinary lifetime is still ten minutes');
+  await idleClock.advance(2000);
+  assert.equal(workers[0].terminated, true, 'a disabled pool must not inherit the session grace');
+  assert.equal(scheduler.getDiagnostics().calculators.resident, 0);
+});
+
 test('zero available budget creates no calculator', async () => {
   let allocations = 0;
   await assert.rejects(createTaskScheduler({ residency: { ...config, memoryBytes: 0 },
