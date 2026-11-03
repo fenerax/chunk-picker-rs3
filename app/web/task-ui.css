@@ -79,14 +79,17 @@
   .task-row>a.icon-button{grid-column:5;margin:0}
   .task-row>.duo-task-backlog{grid-column:3 / -1;grid-row:var(--task-actions-row);justify-self:start;white-space:nowrap}
   .task-row>.task-why-panel,.task-row>.backlog-form,.task-row>.duo-task-chooser{grid-column:2 / -1;grid-row:auto;min-width:0}
-  @media(hover:hover){
-    /* Stay in the tab order, but take no track width while transparent.
+  /* Keep the action line even when all its icons are temporarily out of flow. */
+  .task-row:has(>.icon-button:not([hidden]))::after{content:"";grid-column:2;grid-row:var(--task-actions-row);min-height:var(--task-action-height,26px);pointer-events:none}
+  @media(hover:hover) and (min-width:721px) and (pointer:fine){
+    /* Match the opacity rules: phone widths and coarse pointers show icons.
+       Stay in the tab order, but take no track width while transparent.
        Focus-within reveals the row before the focused action is painted. */
     .task-row:not(:hover):not(:focus-within)>.icon-button:not(.task-backlog):not([aria-expanded=true]){position:absolute;inset-inline-end:0;inset-block-start:0;pointer-events:none}
   }
 }
-@media(max-width:720px),(max-width:980px) and (max-height:500px) and (pointer:coarse){
-  .task-list{--task-check-width:44px}
+@media(max-width:720px),(pointer:coarse){
+  .task-list{--task-check-width:44px;--task-action-height:44px}
   :root .task-row:has(>.task-how){grid-template-columns:var(--task-status-width,44px) minmax(0,1fr) auto auto auto auto}
   :root .duo-task-row:has(>.task-how){grid-template-columns:44px minmax(0,1fr) auto auto auto}
   .task-how{min-height:44px}

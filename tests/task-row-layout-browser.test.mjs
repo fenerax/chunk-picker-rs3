@@ -8,6 +8,7 @@ import { findChrome } from '../scripts/ci/gallery-support.mjs';
 import { openChrome, until } from '../scripts/perf/cdp.mjs';
 import { taskRowLayoutFixture } from './helpers/task-row-layout-fixture.mjs';
 
+const intersects = (a, b) => a.x < b.right && b.x < a.right && a.y < b.bottom && b.y < a.bottom;
 const web = new URL('../app/web/', import.meta.url);
 function statusRowBoxes() {
   const box = node => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, right:r.right, bottom:r.bottom }; };
@@ -62,11 +63,13 @@ test('task rows fit their list container and keep actions reachable', { timeout:
       document.head.append(style);
     })()`);
     const statusLayouts = [];
-    for (const [name, viewport, listWidth] of [['narrow-260', 1280, 260], ['narrow-320', 1280, 320], ['wide', 1440, 600], ['phone-390', 390, 360]]) {
+    for (const [name, viewport, listWidth] of [['narrow-260', 1280, 260], ['narrow-320', 1280, 320], ['wide', 1440, 600], ['phone-390', 390, 360], ['tablet-1024-coarse', 1024, 320], ['mouse-700', 700, 320]]) {
       await t.test(name, async () => {
         const phone = viewport === 390;
+        const touch = phone || name === 'tablet-1024-coarse';
+        const largeTargets = touch || viewport <= 720;
         await browser.send('Emulation.setDeviceMetricsOverride', { width: viewport, height: 1000, deviceScaleFactor: 1, mobile: phone });
-        await browser.send('Emulation.setTouchEmulationEnabled', { enabled: phone, maxTouchPoints: 1 });
+        await browser.send('Emulation.setTouchEmulationEnabled', { enabled: touch, maxTouchPoints: 1 });
         await browser.evaluate(`(() => { const s = getComputedStyle(document.querySelector('.task-sidebar'));
           const extra = ['paddingLeft','paddingRight','borderLeftWidth','borderRightWidth'].reduce((sum, key) => sum + parseFloat(s[key]), 0);
           document.documentElement.style.setProperty('--fixture-panel', (${listWidth} + extra) + 'px'); })()`);
@@ -100,22 +103,53 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         assert.deepEqual(metrics.overflow, [], 'rows, including duo/completed/backlog, must fit');
         assert.equal(metrics.claimLines, 1, 'claim stays on one line');
         if (listWidth <= 360) {
-          assert.ok(metrics.body.width > listWidth - (phone ? 60 : 35), 'text body uses the remaining first line');
+          assert.ok(metrics.body.width > listWidth - (largeTargets ? 60 : 35), 'text body uses the remaining first line');
           assert.ok(metrics.how.y >= metrics.body.bottom, 'How is below the task body');
           assert.equal(metrics.wordWrap, 'break-word', 'normal words wrap at spaces, long identifiers still fit');
           assert.deepEqual(metrics.splitWords, [], 'ordinary words must not break across lines');
-          if (!phone) assert.equal(metrics.whyPosition, 'absolute', 'hidden icons do not occupy a track');
+          if (!largeTargets) assert.equal(metrics.whyPosition, 'absolute', 'hidden icons do not occupy a track');
           assert.ok(metrics.expanded.y >= metrics.openBody.bottom, 'expanded How follows the body');
           assert.ok(metrics.expanded.width >= metrics.openBody.width - 1, 'expanded How keeps the full body width');
           assert.ok(metrics.form.y >= metrics.backlogBody.bottom, 'backlog form follows the body');
           for (const row of metrics.rows) {
-            assert.ok(row.body.width > listWidth - (phone ? 60 : 35), row.id + ' body gets the width');
+            assert.ok(row.body.width > listWidth - (largeTargets ? 60 : 35), row.id + ' body gets the width');
             assert.equal(row.body.x, metrics.body.x, row.id + ' keeps the task body aligned');
           }
         } else {
           assert.ok(metrics.how.y < metrics.body.bottom, 'wide layout retains inline How');
         }
-        if (phone) { assert.ok(metrics.checkbox.width >= 44); assert.ok(metrics.howHeight >= 44); }
+        if (largeTargets) { assert.ok(metrics.checkbox.width >= 44); assert.ok(metrics.howHeight >= 44); }
+        // Every row type keeps its geometry while actions appear. Compare painted
+        // controls, ignoring transparent icons and explicitly hidden actions.
+        const rowGeometry = async () => browser.evaluate(`(() => {
+          const box = node => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, right:r.right, bottom:r.bottom, height:r.height }; };
+          return [...document.querySelectorAll('.task-row')].map(row => ({ id:row.id, ...box(row),
+            controls:[...row.querySelectorAll(':scope > input[type=checkbox], :scope > .icon-button, .task-icon')]
+              .filter(node => { const s = getComputedStyle(node); return s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0; })
+              .map(node => ({ name:node.className || node.tagName, ...box(node) })) }));
+        })()`);
+        const checkIntersections = rows => {
+          for (const row of rows) for (let i = 0; i < row.controls.length; i++) for (let j = i + 1; j < row.controls.length; j++) {
+            assert.ok(!intersects(row.controls[i], row.controls[j]), name + ' ' + row.id + ': ' + row.controls[i].name + ' intersects ' + row.controls[j].name);
+          }
+        };
+        const resting = await rowGeometry();
+        checkIntersections(resting);
+        for (const row of resting) {
+          await browser.evaluate('document.activeElement?.blur()');
+          await browser.send('Input.dispatchMouseEvent', { type:'mouseMoved', x:1, y:1 });
+          const target = await browser.evaluate(`(() => { const r = document.getElementById(${JSON.stringify(row.id)}); r.scrollIntoView({block:'center'}); const b = r.getBoundingClientRect(); return { x:b.x + 2, y:b.y + 2 }; })()`);
+          await browser.send('Input.dispatchMouseEvent', { type:'mouseMoved', ...target });
+          const hovered = await rowGeometry();
+          checkIntersections(hovered);
+          assert.deepEqual(hovered.map(r => [r.id, r.height]), resting.map(r => [r.id, r.height]), row.id + ': hover must preserve every row height');
+          await browser.send('Input.dispatchMouseEvent', { type:'mouseMoved', x:1, y:1 });
+          await browser.evaluate(`document.getElementById(${JSON.stringify(row.id)}).querySelector('.task-why, .task-how, button, a').focus()`);
+          const focusedRows = await rowGeometry();
+          checkIntersections(focusedRows);
+          assert.deepEqual(focusedRows.map(r => [r.id, r.height]), resting.map(r => [r.id, r.height]), row.id + ': focus must preserve every row height');
+        }
+        await browser.evaluate("document.activeElement?.blur(); document.querySelector('#solo').scrollIntoView()");
         // Tab into a formerly transparent icon: focus-within must reveal it.
         await browser.evaluate("document.querySelector('#solo .task-how').focus()");
         await browser.send('Input.dispatchKeyEvent', { type:'keyDown', key:'Tab', code:'Tab', windowsVirtualKeyCode:9 });
