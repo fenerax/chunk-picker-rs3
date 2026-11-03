@@ -129,7 +129,8 @@ const probeChanged = async (store, before) => encode(await probeInput(store)) !=
 const legacyRefusal = () => Object.assign(new Error('Legacy picker is incompatible; service restore refused. Live data was not changed.'), { code: 'LEGACY_RESTORE_INCOMPATIBLE' });
 const progressFile = settings => path.join(settings.controlDir, 'service-restore', 'progress.json');
 const quarantineRoot = settings => path.join(settings.controlDir, 'quarantine');
-const identity = async dir => sha(encode(await inventory(dir)));
+const storeInventory = dir => inventory(dir, { ignoreRoot: ['warm-store'] });
+const identity = async dir => sha(encode(await storeInventory(dir)));
 async function checkedTarget(dir) { await noLinks(path.dirname(dir)); await assertReleased(dir); }
 async function empty(dir) {
   if (await exists(dir)) { await noLinks(dir); if ((await readdir(dir)).length) throw actionRequired(`Service recovery requires empty targets. Move ${dir} aside after checking the verified backup; then rerun.`); }
@@ -196,8 +197,8 @@ async function installPicker(settings, picker, stage, row, save, step) {
     if (!await exists(source)) throw actionRequired(`Repopulate ${source} from the verified backup; then rerun.`);
     if (await identity(source) !== row.digest) throw await restoreBytes(settings, picker, row, source);
     if (await exists(stageStore)) {
-      const expected = new Map((await inventory(source)).map(file => [file.path, encode(file)]));
-      if ((await inventory(stageStore)).some(file => expected.get(file.path) !== encode(file))) {
+      const expected = new Map((await storeInventory(source)).map(file => [file.path, encode(file)]));
+      if ((await storeInventory(stageStore)).some(file => expected.get(file.path) !== encode(file))) {
         throw actionRequired(`Move ${stageStore} aside after checking migration source ${source}; then rerun.`);
       }
     }
@@ -206,7 +207,7 @@ async function installPicker(settings, picker, stage, row, save, step) {
     }
     await mutate(step, 'install.reset-store', () => rm(stageStore, { recursive: true, force: true }));
     await mutate(step, 'install.reset-binding', () => rm(stageStore + '.dataset.json', { force: true }));
-    const files = await inventory(source);
+    const files = await storeInventory(source);
     await headroom(path.dirname(target), files.reduce((n, r) => n + (r.bytes ?? 0), 0), settings.minFreeBytes);
     await copyServiceTree(source, stageStore, step, 'install.copy-store');
     if (await identity(stageStore) !== row.digest) throw await restoreBytes(settings, picker, row, stageStore);
@@ -450,9 +451,9 @@ export async function listServicePickers(settings, id) {
   const rows = [];
   for (const picker of document.pickers.filter(p => id === undefined || p.id === id)) {
     const dir = pickerPath(settings, picker);
-    const files = await exists(dir) ? await inventory(dir) : [];
+    const files = await exists(dir) ? await storeInventory(dir) : [];
     const quarantined = await exists(path.join(quarantineRoot(settings), picker.id + '.json'));
-    const quarantineFiles = quarantined && await exists(path.join(quarantineRoot(settings), picker.id)) ? await inventory(path.join(quarantineRoot(settings), picker.id)) : [];
+    const quarantineFiles = quarantined && await exists(path.join(quarantineRoot(settings), picker.id)) ? await storeInventory(path.join(quarantineRoot(settings), picker.id)) : [];
     rows.push({ id: picker.id, lifecycle: picker.lifecycle, provisioning: picker.provisioning, quarantined,
       quarantineFiles: quarantineFiles.filter(r => !r.directory).length, quarantineBytes: quarantineFiles.reduce((n, r) => n + (r.bytes ?? 0), 0),
       files: files.filter(r => !r.directory).length, bytes: files.reduce((n, r) => n + (r.bytes ?? 0), 0) });

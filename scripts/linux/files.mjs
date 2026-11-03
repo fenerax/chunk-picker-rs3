@@ -61,8 +61,8 @@ export async function inventory(root, { ignoreRoot = [] } = {}) {
   }
   await walk(); return rows;
 }
-export async function copyTree(source, target) {
-  const before = await inventory(source);
+export async function copyTree(source, target, { ignoreRoot = [] } = {}) {
+  const before = await inventory(source, { ignoreRoot });
   await mkdir(target, { mode: 0o700 });
   for (const row of before) {
     if (row.directory) await mkdir(path.join(target, row.path), { mode: 0o700 });
@@ -71,7 +71,7 @@ export async function copyTree(source, target) {
       // copyFile preserves file mode; the containing directory is private.
     }
   }
-  if (encode(before) !== encode(await inventory(source)) || encode(before) !== encode(await inventory(target))) throw new Error('Recovery source changed while copying.');
+  if (encode(before) !== encode(await inventory(source, { ignoreRoot })) || encode(before) !== encode(await inventory(target))) throw new Error('Recovery source changed while copying.');
   return before;
 }
 export async function assertReleased(dataDir) {

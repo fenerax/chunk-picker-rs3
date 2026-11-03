@@ -33,7 +33,7 @@ export async function rehearse({ pointer, source, scratch, port, coreRoot }) {
   let app, downAt, downMs, heldMs;
   try {
     const dataDir = path.join(scratch, 'game');
-    await copyTree(source, dataDir); await copyFile(source + '.dataset.json', dataDir + '.dataset.json', 1);
+    await copyTree(source, dataDir, { ignoreRoot: ['warm-store'] }); await copyFile(source + '.dataset.json', dataDir + '.dataset.json', 1);
     const publicOriginFile = path.join(scratch, 'origin');
     await writeFile(publicOriginFile, 'https://picker.example');
     const config = { ...original, coreRoot: coreRoot ? path.resolve(coreRoot) : original.coreRoot,
