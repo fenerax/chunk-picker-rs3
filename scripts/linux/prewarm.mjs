@@ -81,23 +81,37 @@ async function readableSnapshot(settings, dataDir, gid, filesystem) {
   try { await share(dataDir, root, true); return root; }
   catch (error) { await root.close(); throw error; }
 }
+const budgetSpent = Symbol('prewarm budget spent');
 export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn,
   filesystem = { lstat, open, readdir }, queryIdentity = identityCommand, timeoutMs = 180000 }) {
-  let snapshot;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 180000) return false;
+  // One deadline from entry covers script checks, identity lookup, snapshot
+  // preparation, spawn and the child itself. Termination time is reserved
+  // inside the same budget (175s + 5s by default).
+  const terminationMs = Math.min(5000, Math.floor(timeoutMs / 10));
+  let deadlineReached = false, deadlineAction = () => {}, expire;
+  const expired = new Promise(resolve => { expire = resolve; });
+  const deadline = setTimeout(() => { deadlineReached = true; expire(budgetSpent); deadlineAction(); }, timeoutMs - terminationMs);
+  const bounded = async work => {
+    const value = await Promise.race([work, expired]);
+    if (value === budgetSpent) throw Error('Prewarm budget spent.');
+    return value;
+  };
+  let snapshot, pendingSnapshot;
   // Old releases remain deployable. This optional preparation never extends
   // the writer pause and cannot turn a failed warm-up into a deployment failure.
   try {
     const script = path.join(candidate.config.coreRoot, 'scripts/linux/prewarm.mjs');
-    await access(script);
-    const { runtimeEnvironment } = await import('./runtime.mjs');
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 180000) return false;
+    await bounded(access(script));
+    const { runtimeEnvironment } = await bounded(import('./runtime.mjs'));
     const options = { env: runtimeEnvironment(candidate.config, { probe: true }), stdio: 'ignore', windowsHide: true,
       ...(process.platform === 'linux' ? { detached: true } : {}) };
     let input = dataDir, guard = [];
     if (process.getuid?.() === 0) {
       if (process.platform !== 'linux') return false;
-      const { uid, gid } = await serviceIdentity(settings, queryIdentity);
-      snapshot = await readableSnapshot(settings, dataDir, gid, filesystem);
+      const { uid, gid } = await bounded(serviceIdentity(settings, queryIdentity));
+      pendingSnapshot = readableSnapshot(settings, dataDir, gid, filesystem);
+      snapshot = await bounded(pendingSnapshot);
       input = '/proc/self/fd/3';
       // Node/libuv's Unix spawn clears supplementary groups with setgroups(0,
       // NULL) before setgid/setuid. Also fail closed before candidate imports:
@@ -121,16 +135,18 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
       };
       const finish = result => {
         if (finished) return;
-        finished = true; clearTimeout(timer); clearTimeout(terminationTimer); clearTimeout(groupTimer); resolve(result);
+        finished = true; clearTimeout(deadline); clearTimeout(terminationTimer); clearTimeout(groupTimer); resolve(result);
       };
-      // Reserve termination time inside the outer budget (175s work + 5s
-      // cleanup by default). A stopped calculator cannot defer SIGKILL.
-      const terminationMs = Math.min(5000, Math.floor(timeoutMs / 10));
-      const timer = setTimeout(() => {
+      // The entry deadline kills the tree; the reserved termination time ends
+      // the wait. A stopped calculator cannot defer SIGKILL.
+      const onDeadline = () => {
+        if (finished || timedOut) return;
         timedOut = true;
         terminationTimer = setTimeout(() => finish(false), terminationMs);
         killTree();
-      }, timeoutMs - terminationMs);
+      };
+      deadlineAction = onDeadline;
+      if (deadlineReached) onDeadline();
       child.once('error', () => {
         if (finished) return;
         timedOut = true;
@@ -152,7 +168,12 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
       });
     });
   } catch { return false; }
-  finally { try { await snapshot?.close(); } catch { /* Optional descriptor cleanup. */ } }
+  finally {
+    clearTimeout(deadline);
+    // A snapshot still being prepared when the budget ran out closes when it lands.
+    if (!snapshot) pendingSnapshot?.then(handle => handle.close()).catch(() => {});
+    try { await snapshot?.close(); } catch { /* Optional descriptor cleanup. */ }
+  }
 }
 
 export async function prewarmCalculation({ root, dataDir, warmDirectory, maxMembers = 8 }) {

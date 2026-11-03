@@ -224,6 +224,43 @@ test('root prewarm reserves termination time inside the 180 second budget', linu
   t.mock.timers.tick(1); assert.equal(await result, false); assert.equal(killed, 'SIGKILL');
   assert(f.descriptors.every(handle => handle.fd === -1));
 });
+test('root prewarm counts a slow identity lookup inside the same 180 second budget', linuxOnly, async t => {
+  const f = await rootCandidateFixture(t); emulateRoot(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const query = f.queryIdentity;
+  let delayed = false, looked, started, killed;
+  const lookedUp = new Promise(resolve => { looked = resolve; });
+  f.queryIdentity = (...args) => {
+    if (delayed) return query(...args);
+    delayed = true; looked();
+    return new Promise(resolve => setTimeout(() => resolve(query(...args)), 100000));
+  };
+  const spawned = new Promise(resolve => { started = resolve; });
+  const result = prewarmCandidate({ ...f, execute() {
+    const child = new EventEmitter();
+    child.kill = signal => { killed = signal; child.emit('close', 0); };
+    started(); return child;
+  } });
+  await lookedUp;
+  t.mock.timers.tick(100000);
+  await spawned;
+  t.mock.timers.tick(74999); assert.equal(killed, undefined);
+  t.mock.timers.tick(1); assert.equal(await result, false); assert.equal(killed, 'SIGKILL');
+  assert(f.descriptors.every(handle => handle.fd === -1));
+});
+test('root prewarm abandons a hung identity lookup at the budget without spawning', linuxOnly, async t => {
+  const f = await rootCandidateFixture(t); emulateRoot(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let looked, settled = false;
+  const lookedUp = new Promise(resolve => { looked = resolve; });
+  f.queryIdentity = () => { looked(); return new Promise(() => {}); };
+  const result = prewarmCandidate({ ...f, execute() { assert.fail('Spawned after the budget was spent.'); } })
+    .then(value => { settled = true; return value; });
+  await lookedUp;
+  t.mock.timers.tick(174999); await Promise.resolve(); assert.equal(settled, false);
+  t.mock.timers.tick(1); assert.equal(await result, false);
+  assert.deepEqual(f.changes, []);
+});
 
 test('prewarm waits for exit after SIGKILL but never exceeds the outer budget', async t => {
   const f = await rootCandidateFixture(t);

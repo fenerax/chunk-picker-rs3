@@ -359,7 +359,10 @@ This also works with older prewarm scripts; candidates with no script skip it
 before any identity lookup or snapshot inspection. Linux children, including
 non-root launches, start detached in their own process group; calculator
 descendants inherit it. The reduced OS priority remains. The 180-second outer
-child budget reserves five seconds for termination: after 175 seconds the
+budget starts when the launcher is entered. It covers the script check, the identity
+lookup, snapshot preparation, spawn and the child, so a slow or hung
+preparation step returns a miss at the deadline without spawning. Five seconds
+are reserved for termination: 175 seconds after entry the
 launcher sends `SIGKILL` to the entire group, waits for child closure and group
 exit for up to five seconds, and returns a miss by the outer deadline. Killed orphan zombies may await
 init reaping, but cannot execute or write. An early parent exit also kills any
@@ -441,6 +444,8 @@ Current regression names (parameter suffixes shown in braces):
 - `root prewarm skips an ambiguous identity or unsafe copy: {root uid,root gid,missing identity,ambiguous identity,DynamicUser,partial settings,unprotected snapshot}`
 - `inherited snapshot descriptor reads copied state and static inputs in a real child`
 - `root prewarm reserves termination time inside the 180 second budget`
+- `root prewarm counts a slow identity lookup inside the same 180 second budget`
+- `root prewarm abandons a hung identity lookup at the budget without spawning`
 - `prewarm waits for exit after SIGKILL but never exceeds the outer budget`
 - `prewarm spawn errors with no PID return a miss without signalling`
 - `prewarm timeout kills a real child and SIGTERM-ignoring grandchild within the whole-tree budget`
