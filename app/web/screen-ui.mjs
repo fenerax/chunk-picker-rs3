@@ -75,6 +75,8 @@ export function shortMemberName(name) {
 /** Compact bars, chips and control labels retain their full accessible text. */
 // Elements whose role accepts aria-label; generic span/strong text ignores it.
 const NAMEABLE = /^(BUTTON|OPTION|A|SELECT|INPUT|SUMMARY)$/;
+// Nodes whose title/aria-label this helper set, so a later short name can clear them.
+const labelled = new WeakSet();
 export function memberDisplay(node, members) {
   // A repeat call on an already-split generic label starts from its full text.
   const spoken = node.querySelector?.(':scope > .member-name-full');
@@ -84,8 +86,15 @@ export function memberDisplay(node, members) {
   for (const { name } of members.filter(member => typeof member.name === 'string').sort((a, b) => b.name.length - a.name.length)) {
     if (name && full.includes(name)) display = display.replaceAll(name, shortMemberName(name));
   }
-  if (display === full) return node;
-  node.title = full;
+  if (display === full) {
+    if (labelled.has(node)) {
+      labelled.delete(node);
+      if (node.removeAttribute) { node.removeAttribute('title'); node.removeAttribute('aria-label'); }
+      else { node.title = ''; delete node.attributes?.['aria-label']; }
+    }
+    return node;
+  }
+  labelled.add(node); node.title = full;
   const document = node.ownerDocument;
   if (!node.tagName || NAMEABLE.test(node.tagName) || node.hasAttribute?.('role') || !document?.createElement) {
     node.textContent = display; node.setAttribute('aria-label', full);

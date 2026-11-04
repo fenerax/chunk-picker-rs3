@@ -97,3 +97,14 @@ test('a select that no longer needs shortening drops the previous long name', ()
   assert.equal(picker.title, 'Reed');
   assert.equal(picker.attributes['aria-label'], 'Task owner: Reed');
 });
+
+test('a reused label clears the old full name when the new name is short', () => {
+  const chip = node('Synthetic explorer with a long name');
+  memberDisplay(chip, [{ name:'Synthetic explorer with a long name' }]);
+  assert.equal(chip.attributes['aria-label'], 'Synthetic explorer with a long name');
+  chip.textContent = 'Reed';
+  memberDisplay(chip, [{ name:'Reed' }]);
+  assert.equal(chip.textContent, 'Reed');
+  assert.ok(!chip.title, 'old tooltip removed');
+  assert.equal(chip.attributes['aria-label'], undefined, 'old accessible name removed');
+});
