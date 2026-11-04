@@ -118,6 +118,11 @@ test('lazy producer witnesses preserve independent source constraints and exhaus
 });
 
 test('calculator input refuses installed paths, invalid checksums and escaped static references without storage', async t => {
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  if (major < 24 || major === 24 && minor < 20) {
+    t.skip('calculator input requires Node.js 24.20 or newer');
+    return;
+  }
   const [{ calculatorInput }, fs, { tmpdir }, path, { gzipSync }, { createHash }] = await Promise.all([
     import('../scripts/perf/calculator-input.mjs'), import('node:fs/promises'), import('node:os'), import('node:path'), import('node:zlib'), import('node:crypto'),
   ]);

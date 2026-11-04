@@ -8,6 +8,12 @@ export const sharedJSON = value => {
   const bytes = Buffer.from(JSON.stringify(value)), shared = new SharedArrayBuffer(bytes.length);
   Buffer.from(shared).set(bytes); return shared;
 };
+export function pruneCalculatorState(full) {
+  const { provenance, history, taskClaims, progressSnapshots, finishLine, groupGoals, ruleReviews, ...state } = full;
+  // Ordinary offers also need their origin's handSelected data when cancelled.
+  state.history = full.members.some(member => member.pendingRoll?.length) ? history : [];
+  return state;
+}
 export async function calculatorInput(directory) {
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major < 24 || major === 24 && minor < 20) throw Error('NodeVersionError');
@@ -39,8 +45,7 @@ export async function calculatorInput(directory) {
     }
   }
   const registry = rules.createRuleRegistry(), full = core.importBackup(document, registry);
-  const { provenance, history, taskClaims, progressSnapshots, finishLine, groupGoals, ruleReviews, ...state } = full;
-  state.history = full.members.some(m => core.hasRandomStartChoices(full, m)) ? history : [];
+  const state = pruneCalculatorState(full);
   const loaded = await bootstrap.loadDatasetInputs(dataset, { loadTaskMap: false });
   const definitions = pipeline.prepareServerDefinitions(JSON.parse(loaded.definitionBytes), dataset);
   const world = buildWorld(definitions, { dataset });

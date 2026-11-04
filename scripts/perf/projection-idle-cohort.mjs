@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { readFile, mkdir } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { cgroupSpareMemory } from './memory-admission.mjs';
 const { values: args } = parseArgs({ options: { 'data-dir': { type: 'string' }, out: { type: 'string' }, minutes: { type: 'string', default: '180' } } });
 const children = new Set();
 try {
@@ -10,9 +11,7 @@ try {
   await mkdir(args.out, { recursive: true });
   const exits = [];
   for (const [population, mode] of [['preview','0'],['preview','1'],['mixed','1'],['mixed','0']]) {
-    const limit = Number((await readFile('/sys/fs/cgroup/memory.max','utf8')).trim());
-    const used = Number(await readFile('/sys/fs/cgroup/memory.current','utf8'));
-    if (!(limit-used >= 4*1024**3)) throw Error('MemoryAdmissionError');
+    if (!(await cgroupSpareMemory() >= 4*1024**3)) throw Error('MemoryAdmissionError');
     const file = args.out + '/' + population + '-' + mode + '.json', trace = args.out + '/startup-' + population + '-' + mode;
     await mkdir(trace, { recursive: true });
     const argv = ['--expose-gc', '--import', new URL('./projection-idle.mjs', import.meta.url).href,

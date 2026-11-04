@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync, gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { calculatorInput, sha, sharedJSON } from './calculator-input.mjs';
+import { cgroupSpareMemory } from './memory-admission.mjs';
 import { pairedComparison } from './final-projection-ab.mjs';
 import { canonical } from '../../tools/calc-check/compare.mjs';
 export const warmPlan = Object.freeze({ preview: 48, mixed: 48, member1: 48, shared: 48 });
@@ -121,9 +122,9 @@ async function main(){
     if(block>=n)continue;
     const order=block%2?[1,0]:[0,1];
     if(order.every(mode=>report.trials.some(t=>t.population===population&&t.block===block&&t.mode===mode)))continue;
-    const limit=Number((await readFile('/sys/fs/cgroup/memory.max','utf8')).trim()),used=Number(await readFile('/sys/fs/cgroup/memory.current','utf8'));
-    if(!(limit-used>=5*1024**3))throw Error('MemoryAdmissionError');
-    report.memoryAdmission.push({population,block,spareBytes:limit-used});
+    const spareBytes=await cgroupSpareMemory();
+    if(!(spareBytes>=5*1024**3))throw Error('MemoryAdmissionError');
+    report.memoryAdmission.push({population,block,spareBytes});
     for(const mode of order){
       if(report.trials.some(t=>t.population===population&&t.block===block&&t.mode===mode))continue;
       const calc=await calculator(input,mode,population,{diagnostic:!!args.diagnostic});
