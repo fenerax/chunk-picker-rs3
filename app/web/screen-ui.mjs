@@ -105,13 +105,14 @@ const selects = new WeakMap();
 /** Keep the native dropdown arrow, full option names and selected-name tooltip. */
 export function memberSelect(node, members) {
   for (const option of node.children) memberDisplay(option, members);
-  if (![...node.children].some(option => option.title)) return node;
+  // Once installed, always refresh: rebuilt options may no longer need shortening.
+  if (!selects.has(node) && ![...node.children].some(option => option.title)) return node;
   if (!selects.has(node)) {
     // Extend only an explicit aria-label; adding one would override an associated <label>.
     const label = node.getAttribute?.('aria-label');
     const refresh = () => {
       const selected = [...node.children].find(option => option.value === node.value);
-      const name = selected?.title ?? selected?.textContent ?? '';
+      const name = selected?.title || selected?.textContent || '';
       node.title = name;
       if (label) node.setAttribute('aria-label', `${label}: ${name}`);
     };

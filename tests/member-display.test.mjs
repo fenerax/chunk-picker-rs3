@@ -85,3 +85,15 @@ test('short names leave labels untouched, even as substrings of other words', ()
   assert.equal(chip.title, undefined);
   assert.equal(chip.attributes['aria-label'], undefined);
 });
+
+test('a select that no longer needs shortening drops the previous long name', () => {
+  const long = { id:'one', name:'Synthetic explorer with a long name' }, short = { id:'two', name:'Reed' };
+  const picker = node(); picker.setAttribute('aria-label','Task owner');
+  picker.children = [Object.assign(node(long.name), { value:'one' })]; picker.value = 'one';
+  memberSelect(picker, [long]);
+  assert.equal(picker.title, long.name);
+  picker.children = [Object.assign(node(short.name), { value:'two', title:'' })]; picker.value = 'two';
+  memberSelect(picker, [short]);
+  assert.equal(picker.title, 'Reed');
+  assert.equal(picker.attributes['aria-label'], 'Task owner: Reed');
+});
