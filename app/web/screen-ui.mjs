@@ -75,12 +75,14 @@ export function shortMemberName(name) {
 /** Compact bars, chips and control labels retain their full accessible text. */
 // Elements whose role accepts aria-label; generic span/strong text ignores it.
 const NAMEABLE = /^(BUTTON|OPTION|A|SELECT|INPUT|SUMMARY)$/;
-// Nodes whose title/aria-label this helper set, so a later short name can clear them.
-const labelled = new WeakSet();
+// Nodes this helper shortened: their full and displayed text. A repeat call on
+// unchanged text restores the full name; new short text clears the old labels.
+const labelled = new WeakMap();
 export function memberDisplay(node, members) {
   // A repeat call on an already-split generic label starts from its full text.
   const spoken = node.querySelector?.(':scope > .member-name-full');
-  const full = String(spoken ? spoken.textContent : node.textContent ?? '');
+  const current = String(spoken ? spoken.textContent : node.textContent ?? ''), previous = labelled.get(node);
+  const full = previous && !spoken && current === previous.display ? previous.full : current;
   let display = full;
   // Replace longer names first so one member's name can be a prefix of another.
   for (const { name } of members.filter(member => typeof member.name === 'string').sort((a, b) => b.name.length - a.name.length)) {
@@ -94,7 +96,7 @@ export function memberDisplay(node, members) {
     }
     return node;
   }
-  labelled.add(node); node.title = full;
+  labelled.set(node, { full, display }); node.title = full;
   const document = node.ownerDocument;
   if (!node.tagName || NAMEABLE.test(node.tagName) || node.hasAttribute?.('role') || !document?.createElement) {
     node.textContent = display; node.setAttribute('aria-label', full);

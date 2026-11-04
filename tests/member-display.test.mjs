@@ -108,3 +108,18 @@ test('a reused label clears the old full name when the new name is short', () =>
   assert.ok(!chip.title, 'old tooltip removed');
   assert.equal(chip.attributes['aria-label'], undefined, 'old accessible name removed');
 });
+
+test('formatting the same select twice keeps full option names', () => {
+  const members = [{ id:'one', name:'Synthetic first explorer with a long name' }, { id:'two', name:'Synthetic second explorer with a long name' }];
+  const picker = node(); picker.setAttribute('aria-label','Helper player'); picker.value = 'one';
+  picker.children = members.map(member => Object.assign(node(member.name), { value:member.id }));
+  memberSelect(picker, members);
+  picker.value = 'two'; memberSelect(picker, members);
+  for (const [index, option] of picker.children.entries()) {
+    assert.equal(option.textContent, shortMemberName(members[index].name));
+    assert.equal(option.title, members[index].name);
+    assert.equal(option.attributes['aria-label'], members[index].name);
+  }
+  assert.equal(picker.title, members[1].name);
+  assert.equal(picker.attributes['aria-label'], 'Helper player: ' + members[1].name);
+});

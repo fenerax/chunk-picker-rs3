@@ -1,4 +1,4 @@
-import { memberSelect } from './screen-ui.mjs';
+import { memberSelect, refreshMemberSelect } from './screen-ui.mjs';
 // Sections are loaded on demand; closing Helper releases their data and requests.
 export const helperSections = Object.freeze([
   { id: 'training', label: 'Grind planner', module: './helper-training.mjs', render: 'renderTraining' },
@@ -38,7 +38,7 @@ export function createHelperView({ viewCache, api, getState, getMemberId, getRes
   }
   function watch() {
     if (page.hidden) return;
-    if (getMemberId() !== owner) { owner = getMemberId(); selector.value = owner; memberSelect(selector, getState().members); }
+    if (getMemberId() !== owner) { owner = getMemberId(); selector.value = owner; refreshMemberSelect(selector); }
     const result = matchingResult(), nextScope = currentScope();
     if (scope !== nextScope || (active === 'goals' && result !== lastResult)) void render();
     else if (result !== lastResult) { lastResult = result; dispose?.refreshResult?.(); }
