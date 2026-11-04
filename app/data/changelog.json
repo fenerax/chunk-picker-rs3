@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-04",
+      "title": "Faster first Preview and task lists",
+      "items": [
+        "The first Preview after the picker wakes up is about 1.7 seconds faster.",
+        "The first task list for each player is about 1 second faster."
+      ]
+    },
+    {
       "date": "2026-11-03",
       "title": "Stays ready longer, tidier thin task list",
       "items": [
