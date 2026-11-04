@@ -15,8 +15,9 @@ import { workerStartupSpans } from './profile-stack/worker-startup.mjs';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const clock = () => Number(process.hrtime.bigint()) / 1e6;
 const zip = promisify(gzip);
+const rss = pid => Number(/^VmRSS:\s+(\d+)/m.exec(readFileSync(`/proc/${pid}/status`, 'utf8'))?.[1] ?? 0) * 1024;
 const hwm = pid => Number(/^VmHWM:\s+(\d+)/m.exec(readFileSync(`/proc/${pid}/status`, 'utf8'))?.[1] ?? 0) * 1024;
-const { values: args } = parseArgs({ options: { 'data-dir': { type: 'string' }, out: { type: 'string' }, runs: { type: 'string', default: '5' }, trial: { type: 'boolean' }, 'fresh-preview': { type: 'boolean' }, 'fresh-member': { type: 'string' }, profile: { type: 'boolean' }, 'result-hashes': { type: 'boolean' } } });
+const { values: args } = parseArgs({ options: { 'data-dir': { type: 'string' }, out: { type: 'string' }, runs: { type: 'string', default: '5' }, trial: { type: 'boolean' }, 'fresh-preview': { type: 'boolean' }, 'fresh-member': { type: 'string' }, profile: { type: 'boolean' }, 'result-hashes': { type: 'boolean' }, phases: { type: 'boolean' } } });
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 24 || major === 24 && minor < 20) throw new Error('NodeVersionError');
 registerHooks({ load(url, context, next) {
@@ -77,12 +78,13 @@ async function trial() {
     });
   }
   function cpuSummary(profile, window) {
-    if (!window || window.start < profile.startTime || window.end > profile.endTime) throw new Error('ProfileClockError');
+    const windows = Array.isArray(window) ? window : [window];
+    if (windows.some(window => !window || window.start < profile.startTime || window.end > profile.endTime)) throw new Error('ProfileClockError');
     let time = profile.startTime;
     const nodes = new Map(profile.nodes.map(n => [n.id, n.callFrame])), totals = new Map();
     for (let i = 0; i < (profile.samples?.length ?? 0); i++) {
       const from = time; time += profile.timeDeltas?.[i] ?? 0;
-      const overlapMs = Math.max(0, Math.min(time, window.end) - Math.max(from, window.start)) / 1000;
+      const overlapMs = windows.reduce((total, window) => total + Math.max(0, Math.min(time, window.end) - Math.max(from, window.start)) / 1000, 0);
       if (!overlapMs) continue;
       const f = nodes.get(profile.samples[i]);
       // Only public module paths, builtins and V8 frames reach the summary.
@@ -95,8 +97,12 @@ async function trial() {
   async function measured(key, message, profile = false) {
     if (args.profile && profile) await request({ type: 'cancel', __engineProfile: 'cpu-start' });
     const start = clock(), result = await request(message), wallMs = clock() - start;
-    report.requests[key] = { wallMs, evaluationMs: result.evaluationMs, stages: result.timingMs, peakRSS: hwm(worker.pid) };
-    if (args.profile && profile) report.profiles[key] = cpuSummary((await request({ type: 'cancel', __engineProfile: 'cpu-stop' })).value, result.__hotspotsWindow);
+    report.requests[key] = { wallMs, evaluationMs: result.evaluationMs, stages: result.timingMs, peakRSS: hwm(worker.pid), ...(args.phases ? { phases: result.__incrementalProfile, projection: result.__finalProjectionProfile } : {}) };
+    if (args.profile && profile) {
+      const cpu = (await request({ type: 'cancel', __engineProfile: 'cpu-stop' })).value;
+      report.profiles[key] = cpuSummary(cpu, result.__hotspotsWindow);
+      if (result.__finalProjectionProfile?.length) (report.projectionProfiles ??= {})[key] = cpuSummary(cpu, result.__finalProjectionProfile);
+    }
     if (args['result-hashes']) {
       const decode = value => {
         if (value instanceof SharedArrayBuffer || value instanceof ArrayBuffer || Buffer.isBuffer(value)) {
@@ -127,7 +133,7 @@ async function trial() {
       preparedDatasetStages: pipeline.preparedDefinitionStages(definitions), world: { chunks: world.chunks, areas: world.areas, surface: world.surface }, extraRules: [], omitReadyCatalogue: !!args['fresh-preview'] };
     const start = clock();
     worker = new ProcessWorker(workerData,
-      { probeImport: args.profile ? new URL('./hotspots-cpu-probe.mjs', import.meta.url).href : undefined });
+      { probeImport: args.phases ? new URL('./incremental-engine-probe.mjs', import.meta.url).href : args.profile ? new URL('./hotspots-cpu-probe.mjs', import.meta.url).href : undefined });
     const spawnedAt = clock();
     const ready = await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
     const end = clock();
@@ -136,7 +142,7 @@ async function trial() {
     for (const file of await readdir(process.env.RS3_PROFILE_DIR)) if (file.startsWith(`${worker.pid}-`) && file.endsWith('.jsonl'))
       records.push(...(await readFile(path.join(process.env.RS3_PROFILE_DIR, file), 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse));
     const parts = workerStartupSpans([{ name: 'worker.startup.wait', start, end, spawnedAt, workerPid: worker.pid, layer: 'server' }], records);
-    report.startup = { wallMs: end - start, compileMs: ready.compileMs, peakRSS: hwm(worker.pid), parts: {} };
+    report.startup = { wallMs: end - start, compileMs: ready.compileMs, peakRSS: hwm(worker.pid), parts: {}, ...(args.phases ? { phases: ready.__incrementalProfile } : {}) };
     for (const part of parts) report.startup.parts[part.name] = (report.startup.parts[part.name] ?? 0) + part.end - part.start;
     const input = report.stateHash, snapshotKey = JSON.stringify([state.revision, input]);
     const stateJSON = shared(state);
@@ -149,6 +155,8 @@ async function trial() {
       const cold = await measured(`tasks-${member}-cold`, message, true);
       await measured(`tasks-${member}-warm`, message);
       await encode(`tasks-${member}`, Buffer.from(cold.duoJSON ?? cold.playJSON));
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      report.idleRSS = { worker: rss(worker.pid), parent: rss(process.pid) };
       report.peakRSS = { worker: hwm(worker.pid), parent: hwm(process.pid) };
       console.log(JSON.stringify(report));
       return;
@@ -161,6 +169,8 @@ async function trial() {
       const result = await measured('preview-cold', message, true);
       await measured('preview-warm', message);
       await encode('prediction', result.result);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      report.idleRSS = { worker: rss(worker.pid), parent: rss(process.pid) };
       report.peakRSS = { worker: hwm(worker.pid), parent: hwm(process.pid) };
       console.log(JSON.stringify(report));
       return;
@@ -201,7 +211,7 @@ async function trial() {
     const accepted = core.applyCommand(offered, { type: 'unlock-selection', memberId: state.members[0].id, chunkId: candidate }, { world, registry });
     report.acceptCommandMs = clock() - acceptStart;
     for (let member = 0; member < state.members.length; member++) await measured(`accept-recalculate-${member}`, { type: 'evaluate', state: accepted,
-      memberId: state.members[member].id, input: sha(JSON.stringify(accepted)), snapshotKey: JSON.stringify([accepted.revision, sha(JSON.stringify(accepted))]), resultTransport: 'json-shared-v1', resultView: 'play-v1', duoProjection: true });
+      memberId: state.members[member].id, input: sha(JSON.stringify(accepted)), snapshotKey: JSON.stringify([accepted.revision, sha(JSON.stringify(accepted))]), resultTransport: 'json-shared-v1', resultView: 'play-v1', duoProjection: true }, member === 0);
     stage = 6;
     // Why consumes full-result evidence. Select visible subjects by index only.
     const { savedWhyChain, forgetSavedWhyChain } = await import('../../app/task-why-http.mjs');
@@ -242,6 +252,8 @@ async function trial() {
       definitions: registry.definitions.map(({ candidates, exclude, ...metadata }) => metadata), defaults: registry.defaults, settings: registry.resolve(state.rules) });
     await encode('display-world', projectDisplayWorld(world));
     await encode('dataset-runtime', await datasetBrowserPayload(dataset));
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    report.idleRSS = { worker: rss(worker.pid), parent: rss(process.pid) };
     report.peakRSS = { worker: hwm(worker.pid), parent: hwm(process.pid) };
     console.log(JSON.stringify(report));
   } finally { await worker?.terminate(); }
@@ -254,7 +266,7 @@ async function main() {
   for (let run = 0; run < runs; run++) {
     const traceDir = path.join(args.out, `startup-${run}`); await mkdir(traceDir, { recursive: true });
     const child = spawn(process.execPath, ['--import', new URL('./profile-stack/bootstrap.mjs', import.meta.url).href, fileURLToPath(import.meta.url),
-      '--trial', '--data-dir', args['data-dir'], ...(args.profile ? ['--profile'] : []), ...(args['result-hashes'] ? ['--result-hashes'] : []), ...(args['fresh-preview'] ? ['--fresh-preview'] : []), ...(args['fresh-member'] === undefined ? [] : ['--fresh-member', args['fresh-member']])], { env: { ...process.env, RS3_PROFILE: '1', RS3_PROFILE_DIR: traceDir,
+      '--trial', '--data-dir', args['data-dir'], ...(args.profile ? ['--profile'] : []), ...(args.phases ? ['--phases'] : []), ...(args['result-hashes'] ? ['--result-hashes'] : []), ...(args['fresh-preview'] ? ['--fresh-preview'] : []), ...(args['fresh-member'] === undefined ? [] : ['--fresh-member', args['fresh-member']])], { env: { ...process.env, RS3_PROFILE: '1', RS3_PROFILE_DIR: traceDir,
         RS3_ENGINE_PROFILE_PROBE: args.profile ? '1' : '0', RS3_ENGINE_HEAP_PROFILE: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = ''; child.stdout.on('data', x => stdout += x); child.stderr.on('data', x => stderr += x);
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve); });
