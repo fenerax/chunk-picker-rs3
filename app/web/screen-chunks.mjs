@@ -245,6 +245,7 @@ export function createScreenChunks(c) {
     const right = Math.min((box.right ?? box.left + box.width), (viewport?.offsetLeft ?? 0) + (viewport?.width ?? globalThis.innerWidth ?? box.width)) - 8;
     const bottom = Math.min((box.bottom ?? box.top + box.height), (viewport?.offsetTop ?? 0) + (viewport?.height ?? globalThis.innerHeight ?? box.height), tabsTop) - 8;
     menu.style.maxWidth = `${Math.max(0, right - left)}px`;
+    menu.style.minWidth = `${Math.min(210, Math.max(0, right - left))}px`;
     menu.style.maxHeight = `${Math.max(0, bottom - top)}px`;
     menu.scrollTop = 0;
     const width = menu.offsetWidth || 220, height = menu.offsetHeight || 260;

@@ -94,7 +94,12 @@ test('permanent native overflow gate', { timeout: 120000 }, async t => {
         const hits=${JSON.stringify(result.hits)};
         return hits.map(hit => {
           const n=document.querySelector(hit.selector); if(!n)return null;
-          for(let p=n;p;p=p.parentElement){const s=getComputedStyle(p),r=p.getBoundingClientRect();if(s.clip!=='auto'&&s.position==='absolute'&&r.width<=1&&r.height<=1)return 'accessible-proxy';}
+          // Only the native map select may sit in its 1 px proxy, and only while every member has a visible, hit-testable switch button.
+          const proxy=n.closest('.member-switch:not(:empty)+.member-picker');
+          if(proxy&&n.matches('#member')){const s=getComputedStyle(proxy),r=proxy.getBoundingClientRect();
+            const buttons=[...document.querySelectorAll('#member-switch button')];
+            const reachable=buttons.length===n.options.length&&buttons.every(b=>{const q=b.getBoundingClientRect();if(!b.checkVisibility()||q.width<1||q.height<1)return false;const h=document.elementFromPoint(q.x+q.width/2,q.y+q.height/2);return h===b||b.contains(h);});
+            if(s.clip!=='auto'&&s.position==='absolute'&&r.width<=1&&r.height<=1&&reachable)return 'accessible-proxy';}
           const style=getComputedStyle(n);
           if(hit.kind==='hidden-group-overflow'&&n.matches('button,[role=button]')&&style.textOverflow==='ellipsis'&&style.whiteSpace==='nowrap'&&/hidden|clip/.test(style.overflowX))return 'visible-ellipsis';
           if(!['clipped-control','occluded-control'].includes(hit.kind))return null;

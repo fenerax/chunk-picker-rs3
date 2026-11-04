@@ -1,3 +1,4 @@
+import { memberSelect } from './screen-ui.mjs';
 // Generated overlay URLs stay in this closure; the DOM only receives metadata.
 export function createOverlayPanel({ api, el, button, openDialog, dialogCurrent, dialog, members = () => [], clipboard = globalThis.navigator?.clipboard }) {
   let secret, secretSection, lifetime = 0, panelEpoch = 0;
@@ -90,6 +91,7 @@ export function createOverlayPanel({ api, el, button, openDialog, dialogCurrent,
     const widget = select('Overlay', Object.entries(widgetNames), 'goals');
     const goals = select('Show goals', Object.entries(goalNames), 'personal');
     const player = select('Players', [['duo', 'Both players'], ...members().map(member => [member.id, member.name])], 'duo');
+    memberSelect(player, members());
     const variant = select('Layout', [['full', 'Full'], ['compact', 'Compact']], 'full');
     const size = select('Text size', [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], 'medium');
     const sizing = el('p', undefined, 'field-help');

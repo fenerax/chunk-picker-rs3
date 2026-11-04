@@ -73,20 +73,33 @@ export function shortMemberName(name) {
 }
 
 /** Compact bars, chips and control labels retain their full accessible text. */
+// Elements whose role accepts aria-label; generic span/strong text ignores it.
+const NAMEABLE = /^(BUTTON|OPTION|A|SELECT|INPUT|SUMMARY)$/;
 export function memberDisplay(node, members) {
-  const full = String(node.textContent ?? '');
-  let display = full, matched = false;
+  // A repeat call on an already-split generic label starts from its full text.
+  const spoken = node.querySelector?.(':scope > .member-name-full');
+  const full = String(spoken ? spoken.textContent : node.textContent ?? '');
+  let display = full;
   // Replace longer names first so one member's name can be a prefix of another.
   for (const { name } of members.filter(member => typeof member.name === 'string').sort((a, b) => b.name.length - a.name.length)) {
-    if (!name || !full.includes(name)) continue;
-    display = display.replaceAll(name, shortMemberName(name)); matched = true;
+    if (name && full.includes(name)) display = display.replaceAll(name, shortMemberName(name));
   }
-  if (matched) {
-    node.textContent = display; node.title = full;
-    node.setAttribute('aria-label', full);
+  if (display === full) return node;
+  node.title = full;
+  const document = node.ownerDocument;
+  if (!node.tagName || NAMEABLE.test(node.tagName) || node.hasAttribute?.('role') || !document?.createElement) {
+    node.textContent = display; node.setAttribute('aria-label', full);
+    return node;
   }
+  // Generic text: show the compact name, but let assistive technology read the full one.
+  const visible = document.createElement('span'); visible.textContent = display; visible.setAttribute('aria-hidden', 'true');
+  const hidden = document.createElement('span'); hidden.className = 'sr-only member-name-full'; hidden.textContent = full;
+  node.replaceChildren(visible, hidden);
   return node;
 }
+
+/** Re-sync a member select's title and label after code assigns its value directly. */
+export function refreshMemberSelect(node) { selects.get(node)?.(); return node; }
 
 const selects = new WeakMap();
 /** Keep the native dropdown arrow, full option names and selected-name tooltip. */
@@ -94,12 +107,13 @@ export function memberSelect(node, members) {
   for (const option of node.children) memberDisplay(option, members);
   if (![...node.children].some(option => option.title)) return node;
   if (!selects.has(node)) {
-    const label = node.getAttribute?.('aria-label') ?? 'Player';
+    // Extend only an explicit aria-label; adding one would override an associated <label>.
+    const label = node.getAttribute?.('aria-label');
     const refresh = () => {
       const selected = [...node.children].find(option => option.value === node.value);
       const name = selected?.title ?? selected?.textContent ?? '';
       node.title = name;
-      node.setAttribute('aria-label', `${label}: ${name}`);
+      if (label) node.setAttribute('aria-label', `${label}: ${name}`);
     };
     selects.set(node, refresh); node.addEventListener('change', refresh);
   }

@@ -125,10 +125,7 @@ test('trusted F2P catalogue hides unset member rewards and renders saved ones re
   assert(!headings.some(label => label.startsWith('Varrock')));
   assert(headings.some(label => label.startsWith('Lumbridge')));
   assert.equal(nodes.filter(row => row.textContent === 'Save choices').length, 1);
-  const player = nodes.find(row => row.tag === 'select' && row.attributes['aria-label']?.startsWith('XP choices player:'));
-  assert.equal(player.attributes['aria-label'], 'XP choices player: Player');
-  assert.equal(player.title, 'Player');
-  const rewardSelects = nodes.filter(row => row.tag === 'select' && !row.attributes['aria-label']?.startsWith('XP choices player:'));
+  const rewardSelects = nodes.filter(row => row.tag === 'select' && row.attributes['aria-label'] !== 'XP choices player');
   assert.equal(rewardSelects.length, 1);
   assert.match(rewardSelects[0].attributes['aria-label'], /Lumbridge/);
   for (const id of ['authored', 'imported']) {

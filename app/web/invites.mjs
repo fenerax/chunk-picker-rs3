@@ -1,4 +1,4 @@
-import { memberSelect } from './screen-ui.mjs';
+import { memberSelect, refreshMemberSelect } from './screen-ui.mjs';
 import { createPrivateLink } from './stream-safe.mjs';
 
 // Invite secrets live only in the creation result, never in saved browser data.
@@ -77,7 +77,7 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
               if (!current()) return;
               invites = invites.map(item => item.id === invite.id ? response.invite : item);
               report(player.value ? `${invite.label}’s link can now restore ${members().find(member => member.id === player.value)?.name ?? player.value}’s map.` : `${invite.label}’s link no longer owns a player’s map.`);
-            } catch (failure) { if (current()) { report(failure.message, true); player.value = invite.memberId ?? ''; } }
+            } catch (failure) { if (current()) { report(failure.message, true); player.value = invite.memberId ?? ''; refreshMemberSelect(player); } }
             finally { if (current()) player.disabled = false; }
           });
           const owns = el('label', undefined, 'invite-player'); owns.append(el('span', 'Player'), player);
@@ -127,7 +127,7 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
     const create = el('button', 'Create invite link', 'primary-action'); create.type = 'submit';
     const player = members().length ? playerSelect(null, 'invite-player-select') : null;
     // Typing a player's name picks their map; it can still be changed.
-    if (player) label.addEventListener('input', () => { const match = members().find(member => member.name.toLowerCase() === label.value.trim().toLowerCase()); if (match) player.value = match.id; });
+    if (player) label.addEventListener('input', () => { const match = members().find(member => member.name.toLowerCase() === label.value.trim().toLowerCase()); if (match) { player.value = match.id; refreshMemberSelect(player); } });
     const playerField = player ? field('Player (can restore this map from a backup)', player) : null;
     permission.addEventListener('change', () => { if (player) { player.disabled = permission.value === 'viewer'; playerField.hidden = player.disabled; } });
     form.append(el('h3', 'New invite link'), field('Person or label', label), field('Permission', permission), ...(playerField ? [playerField] : []),
@@ -164,7 +164,7 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
           el('p', 'This full link is shown only now. Copy it before closing this dialog or creating another link.', 'field-help'),
           privateLink.node, copy, copyStatus);
         secret = { link: privateLink, section, id: response.invite.id, title, heading }; content.append(section); if (!privateLink.masked()) { link.focus(); link.select(); } else copy.focus();
-        label.value = ''; permission.value = 'player'; if (player) { player.value = ''; player.disabled = false; playerField.hidden = false; } report('Invite link created. Copy the new link below.');
+        label.value = ''; permission.value = 'player'; if (player) { player.value = ''; refreshMemberSelect(player); player.disabled = false; playerField.hidden = false; } report('Invite link created. Copy the new link below.');
       } catch (error) { if (current()) report(error.message, true); }
       finally { creating = false; if (current()) create.disabled = label.disabled = permission.disabled = false; }
     });

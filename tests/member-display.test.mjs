@@ -56,5 +56,32 @@ test('ordinary task text is preserved even when it contains a long member name',
     const chooser = c.select([{value:'one',label:name}], 'one');
     assert.equal(chooser.children[0].textContent,shortMemberName(name));
     assert.equal(chooser.title,name);
+    assert.equal(chooser.getAttribute('aria-label'),null,'an associated <label> keeps naming the select');
   } finally { globalThis.document=previous; }
+});
+
+test('generic text keeps the full name for assistive technology without aria-label', () => {
+  const name = 'Synthetic explorer with a long name';
+  const document = { createElement: tag => Object.assign(node(), { tagName: tag.toUpperCase() }) };
+  const span = Object.assign(node(name + ' is doing this'), { tagName:'SPAN', ownerDocument:document,
+    replaceChildren(...items) { this.children = items; this.textContent = items.map(item => item.textContent).join(''); },
+    querySelector(selector) { return selector === ':scope > .member-name-full' ? this.children.find(child => child.className?.includes('member-name-full')) ?? null : null; },
+  });
+  memberDisplay(span, [{ name }]);
+  const [visible, spoken] = span.children;
+  assert.equal(visible.textContent, shortMemberName(name) + ' is doing this');
+  assert.equal(visible.attributes['aria-hidden'], 'true');
+  assert.equal(spoken.textContent, name + ' is doing this');
+  assert.match(spoken.className, /sr-only/);
+  assert.equal(span.attributes['aria-label'], undefined, 'generic elements are not named with aria-label');
+  memberDisplay(span, [{ name }]);
+  assert.equal(span.children[1].textContent, name + ' is doing this', 'repeat calls do not nest or lose text');
+});
+
+test('short names leave labels untouched, even as substrings of other words', () => {
+  const chip = node('Members-only land');
+  memberDisplay(chip, [{ name:'Me' }]);
+  assert.equal(chip.textContent, 'Members-only land');
+  assert.equal(chip.title, undefined);
+  assert.equal(chip.attributes['aria-label'], undefined);
 });
