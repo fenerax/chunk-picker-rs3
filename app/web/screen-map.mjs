@@ -1,4 +1,4 @@
-import { memberDisplay, memberSelect } from './screen-ui.mjs';
+import { memberDisplay, memberSelect, shortMemberName } from './screen-ui.mjs';
 import { gameStorage } from './screen-save-status.mjs';
 import { projectChunkState } from './command-state.mjs';
 import { chunkColourLegend } from './chunk-colour-picker.mjs';
@@ -100,9 +100,9 @@ export function createScreenMap(c) {
 
   function renderLegend() {
     const focusedLayer = /^map-activity-(clues|slayer)-legend$/.test(globalThis.document?.activeElement?.id ?? '') ? document.activeElement.id : null;
-    const item = (label, kind, color) => { const node = c.el('span', undefined, 'legend-item'); const swatch = c.el('i', undefined, `swatch swatch-${kind}`); if (color) swatch.style.setProperty('--swatch', color); swatch.setAttribute('aria-hidden', 'true'); node.append(swatch, memberDisplay(c.el('span', label), c.state.members)); return node; };
+    const item = (label, kind, color) => { const node = c.el('span', undefined, 'legend-item'); const swatch = c.el('i', undefined, `swatch swatch-${kind}`); if (color) swatch.style.setProperty('--swatch', color); swatch.setAttribute('aria-hidden', 'true'); node.append(swatch, label); return node; };
     const visible = c.$('group-view').checked ? c.map.members : c.map.members.filter(owner => owner.id === c.memberId);
-    const owners = c.$('group-view').checked && c.map.members.length > 1 ? c.map.members.filter(owner => owner.unlocked?.some(id => !c.map.members.every(other => other.unlocked?.includes(id)))).map(owner => item(`${owner.name} only`, 'tab', owner.color)) : [];
+    const owners = c.$('group-view').checked && c.map.members.length > 1 ? c.map.members.filter(owner => owner.unlocked?.some(id => !c.map.members.every(other => other.unlocked?.includes(id)))).map(owner => item(shortMemberName(owner.name) === owner.name ? `${owner.name} only` : memberDisplay(c.el('span', `${owner.name} only`), [owner]), 'tab', owner.color)) : [];
     const disconnected = c.$('group-view').checked && Object.values(c.map.connections?.byChunk ?? {}).some(connection => connection.connected === false);
     c.$('map-legend').replaceChildren(
       ...(visible.some(owner => owner.unlocked?.length) ? [item('Unlocked', 'border', c.preferences().unlockedBorderColor || '#FF0000')] : []), ...owners,
