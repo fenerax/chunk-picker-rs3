@@ -60,6 +60,11 @@ export function plainLabel(value) {
   return String(value).replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]).replace(/\*+$/g, '');
 }
 const array = value => value == null ? [] : Array.isArray(value) ? value : [value];
+// Share the iterator factory; each query supplies its own pure predicate.
+function* ownProducerSources(candidates, qualifies) {
+  for (const producer of candidates) if (qualifies(producer))
+    yield { kind: producer.kind, name: producer.task.rawLabel, category: producer.task.category };
+}
 const on = taskRuleEnabled;
 const F2P = datasetValue("app/tasks/engine.mjs#F2P");
 const TWENTY = datasetValue("app/tasks/engine.mjs#TWENTY");
@@ -204,7 +209,10 @@ export function createTaskEngine(definitions, options = {}) {
 
 function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, cacheResources = false, resourceCatalogue, resourceSelectors,
   cacheArchaeology = false, archaeologyCatalogue, metadataCorrections = false, equipmentCorrections = false, cacheShops = false, shopCatalogue,
-  lodestones, transportRoutes, transportFactsByMember, eligibilityBudget, earlyTravelUnlocks = false } = {}, accessIndexes = [], configureProviders = () => {}) {
+  lodestones, transportRoutes, transportFactsByMember, eligibilityBudget, earlyTravelUnlocks = false,
+  projectionFast = true } = {}, accessIndexes = [], configureProviders = () => {}) {
+  // On by default (IE1 phase 4: cold Preview + first repeat -1.7 s); RS3_FINAL_PROJECTION=0 always forces reference.
+  projectionFast = projectionFast === true && process.env.RS3_FINAL_PROJECTION !== '0';
   if (!definitions || typeof definitions.challenges !== 'object') throw new TypeError('Task definitions need challenges.');
   definitions = applyCacheShops(definitions, { enabled: cacheShops, shops: shopCatalogue });
   if (metadataCorrections) definitions = applyMetadataCorrections(definitions);
@@ -860,10 +868,19 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       // only below to define a task's own obligation, not to assert inventory.
       if (!task) return false;
       if (access.backloggedSources?.items?.[name]) return false;
-      const list = (producers.get(name) ?? []).filter(producer => (!f2p || !producer.task.record['Not F2P'] && !membershipByTask.get(producer.task).length)
-        && obligation(producer.task, new Set(visiting)) && (producer.kind === 'reward' || outputItems(producer.task, producer.output).some(item => item.name === name
-          && !(item.tables ?? []).some(table => sourceMembershipBlocker('DropItem', name, f2p, table)))))
-        .map(producer => ({ kind: producer.kind, name: producer.task.rawLabel, category: producer.task.category }));
+      const candidates = producers.get(name) ?? [];
+      if (projectionFast && !candidates.length) return false;
+      const qualifies = producer => (!f2p || !producer.task.record['Not F2P'] && !membershipByTask.get(producer.task).length)
+        && obligation(producer.task, projectionFast ? visiting : new Set(visiting), projectionFast) && (producer.kind === 'reward' || outputItems(producer.task, producer.output).some(item => item.name === name
+          && !(item.tables ?? []).some(table => sourceMembershipBlocker('DropItem', name, f2p, table))));
+      if (projectionFast) {
+        // The matcher consumes witnesses in catalogue order and stops only when
+        // every independent source constraint is satisfied. Unconsumed suffixes
+        // cannot change that boolean. Obligation footprints still capture every
+        // recursive read used by the selected proof, including cycle guards.
+        return matchesItemSources(ownProducerSources(candidates, qualifies), task?.record, task?.category, name);
+      }
+      const list = candidates.filter(qualifies).map(producer => ({ kind: producer.kind, name: producer.task.rawLabel, category: producer.task.category }));
       return matchesItemSources(list, task?.record, task?.category, name);
     }
     const availableLocation = name => /^\d+-\d+$/.test(name) ? access.sections.has(name) : access.bases.has(name) || access.areas.has(name);
@@ -878,11 +895,26 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // Spatial requirements define a task. Supplies may be sourced from the
     // capability map. Location-free item/dependency goals inherit own provenance.
     const ownRootProofs = new Set();
-    const obligationCache = createObligationCache({ enabled: reuseObligations });
-    function obligation(task, visiting = new Set()) {
-      const root = visiting.size === 0;
+    // Avoid FIFO churn during the full catalogue projection. Still private to
+    // this pass, cleared on exactly the same fact changes, and bounded at 32k.
+    const obligationCache = createObligationCache({ enabled: reuseObligations,
+      ...(projectionFast ? { maxEntries: Math.max(4096, Math.min(compiled.length, 32768)) } : {}) });
+    function referenceObligation(task, visiting) {
+      return obligationCache.evaluate(task, visiting, () => computeObligation(task, visiting));
+    }
+    function obligation(task, visiting = projectionFast ? undefined : new Set(), copyOnMiss = false) {
+      const root = visiting === undefined || visiting.size === 0;
       if (root && ownRootProofs.has(task)) return true;
-      const own = obligationCache.evaluate(task, visiting, () => computeObligation(task, visiting));
+      // Cache lookup only reads the caller's path. The shared evaluator copies
+      // each recursive path on a miss; hits allocate neither a Set nor a thunk.
+      // These predicates cannot recurse: computeObligation returns before its
+      // item/producer or task-dependency branches. The cache still observes the
+      // task's own cycle guard and propagates its read to any parent proof.
+      const leaf = projectionFast && (task.record.UnlocksArea || task.record.ConnectsSections || task.localRequirements.length
+        || !task.itemRequirements.length && !task.dependencies.length);
+      const own = projectionFast
+        ? (leaf ? obligationCache.evaluateLeaf : obligationCache.evaluate)(task, visiting, computeObligation, copyOnMiss)
+        : referenceObligation(task, visiting);
       // Personal reachability and source ownership only grow in this closure.
       // Recursive calls still use their path-specific cycle guard, and a fresh
       // replay gets a fresh proof cache whenever admissions retract/change mode.
@@ -902,7 +934,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (task.dependencies.length) return task.dependencies.every(dependency => (dependency.alternatives ?? [dependency.clean]).filter(name => {
         const target = byKey.get(keyOf(dependency.category, name.split('--')[0]));
         const relaxed = anyAchievements ? dependency.relaxedAny : dependency.relaxedAlways;
-        return target && (target.key === task.key || relaxed.has(name.split('--')[0]) || obligation(target, new Set(visiting)));
+        return target && (target.key === task.key || relaxed.has(name.split('--')[0]) || obligation(target, projectionFast ? visiting : new Set(visiting), projectionFast));
       }).length >= dependency.count);
       if (task.record.ClueTier) return (ownAccess.clues.get(task.record.ClueTier) ?? 0) > 0;
       return true;
@@ -1454,7 +1486,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         row.dialogueSupply = structuredClone(task.dialogueSupply);
         row.explanation += ` Payment: ${dialoguePaymentText(task.dialogueSupply)}. ${dialogueSupplyNote}`;
       }
-      const rewards = finiteRewardPreview(task.finiteRewards, { ...row, taskId: task.id });
+      const rewards = projectionFast
+        ? task.finiteRewards.length ? finiteRewardPreview(task.finiteRewards,
+          { status: row.status, personalCompleted: row.personalCompleted, taskId: task.id }) : []
+        : finiteRewardPreview(task.finiteRewards, { ...row, taskId: task.id });
       if (rewards.length) {
         row.finiteRewards = rewards;
         row.explanation += ` One-time completion reward: ${rewards.map(reward => `${reward.quantity} ${reward.item}`).join(', ')}. Held quantities are not tracked.`;
@@ -1471,6 +1506,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       Object.defineProperty(row, 'processingPrimary', { value: !!primaryEligible(task, true) });
       return row;
     });
+    if (proofSubject && projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
     if (proofSubject) return { howProof: proof.finish(howRequest.taskId, { tasks: rows }, howRequest.context) };
     const equipment = [];
     const houseStorage = evaluateHouseStorage({ rules, f2p, rows, items, sourceList, access, ownAccess, levels, caps, member, completed, challengeSatisfied });
@@ -1481,6 +1517,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     for (const rule of UNSUPPORTED_RULES) if (on(rules, rule, false)) diagnostics.push({ kind: 'unsupported-rule', rule, detail: `${rule} has no exact implementation.` });
     const unsupported = rows.filter(row => row.status === 'unsupported').length;
     const ownItemOrigins = ownItemQueries.filter(name => ownItemOrigin(name, null, new Set()));
+    // The remaining builders make no obligation queries. Drop scratch before
+    // serialization and warning-graph construction rather than awaiting GC.
+    if (projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
     const serializedAccess = serializeAccess(access);
     processing = selectProcessingSources(rows, [...items].map(name => ({ name, sources: sourceList(name) })),
       Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { passiveLevel: passive[skill], primary: trained.has(skill),
