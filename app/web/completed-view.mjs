@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 import { createCompletedModel, filterCompletedRows, groupCompletedRows } from './completed-model.mjs';
 import { completedRangeOptions, selectCompletedRange } from './completed-range.mjs';
 import { createCompletedRangePreference } from './completed-range-preference.mjs';
@@ -109,7 +110,7 @@ export function createCompletedView(context) {
     const players = el('div', undefined, 'completed-players'); players.setAttribute('role', 'group'); players.setAttribute('aria-label', 'Review completed tasks for');
     for (const owner of [...members(), { id: 'both', name: 'Both' }]) {
       const choice = button(owner.name, () => { if (selected === owner.id) return; selected = owner.id; attribution = 'all'; revision = undefined; refresh(true); }, 'completed-player');
-      choice.setAttribute('aria-pressed', String(selected === owner.id)); players.append(choice);
+      memberDisplay(choice, members()); choice.setAttribute('aria-pressed', String(selected === owner.id)); players.append(choice);
     }
     const search = input('search', query); search.placeholder = 'Find a completed task…'; search.setAttribute('aria-label', 'Filter completed tasks');
     // Only list content changes while typing, preserving focus and selection.
@@ -139,7 +140,7 @@ export function createCompletedView(context) {
     options.push({ value: 'game-plugin', label: 'Done in-game (Game plugin)' });
     for (const option of options) {
       const chip = button(option.label, () => { attribution = attribution === option.value ? 'all' : option.value; for (const node of chips.children) node.setAttribute('aria-pressed', String(node.dataset.filter === attribution)); renderList(); }, 'completed-chip');
-      chip.dataset.filter = option.value; chip.setAttribute('aria-pressed', String(attribution === option.value)); chips.append(chip);
+      chip.dataset.filter = option.value; memberDisplay(chip, members()); chip.setAttribute('aria-pressed', String(attribution === option.value)); chips.append(chip);
     }
     const listHeading = el('div', undefined, 'completed-list-heading');
     const status = el('h3', '', 'completed-result-count'); status.setAttribute('aria-live', 'polite'); status.dataset.role = 'count';
@@ -219,7 +220,7 @@ export function createCompletedView(context) {
     for (const completion of ticks) {
       const name = completion.name ?? completion.memberName;
       const untick = button(ticks.length > 1 ? `Untick ${name}` : 'Untick', () => confirmUntick(host, row, completion), 'completed-untick');
-      untick.setAttribute('aria-label', `Untick ${labelText} for ${name}`); untick.title = `Untick for ${name}`; untick.disabled = busy || context.isSandbox?.(); actions.append(untick);
+      memberDisplay(untick, [{name}]); untick.setAttribute('aria-label', `Untick ${labelText} for ${name}`); untick.title = `Untick for ${name}`; untick.disabled = busy || context.isSandbox?.(); actions.append(untick);
     }
     const backlogged = context.state().members.find(value => value.id === owner)?.taskStatus?.[task.id]?.backlogged;
     const ownerName = members().find(value => value.id === owner)?.name ?? owner;
@@ -241,7 +242,7 @@ export function createCompletedView(context) {
       try { await context.command({ type: 'set-task-status', memberId: completion.memberId, taskId: completion.taskId, challengeCompleted: false }, snapshot.revision); await refresh(true); }
       catch (error) { confirm.disabled = false; context.showError(error); }
     }, 'completed-confirm-action');
-    confirmation.append(confirm, button('Cancel', () => confirmation.remove())); host.append(confirmation); confirm.focus?.();
+    memberDisplay(confirm, [{name}]); confirmation.append(confirm, button('Cancel', () => confirmation.remove())); host.append(confirmation); confirm.focus?.();
   }
   async function open(memberId = context.memberId()) {
     if (context.isReviewReady && !context.isReviewReady()) throw new Error('Exit Sandbox to review saved completed tasks.');

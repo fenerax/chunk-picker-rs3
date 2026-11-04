@@ -1,3 +1,4 @@
+import { memberSelect } from './screen-ui.mjs';
 // Sections are loaded on demand; closing Helper releases their data and requests.
 export const helperSections = Object.freeze([
   { id: 'training', label: 'Grind planner', module: './helper-training.mjs', render: 'renderTraining' },
@@ -37,7 +38,7 @@ export function createHelperView({ viewCache, api, getState, getMemberId, getRes
   }
   function watch() {
     if (page.hidden) return;
-    if (getMemberId() !== owner) { owner = getMemberId(); selector.value = owner; }
+    if (getMemberId() !== owner) { owner = getMemberId(); selector.value = owner; memberSelect(selector, getState().members); }
     const result = matchingResult(), nextScope = currentScope();
     if (scope !== nextScope || (active === 'goals' && result !== lastResult)) void render();
     else if (result !== lastResult) { lastResult = result; dispose?.refreshResult?.(); }
@@ -61,7 +62,7 @@ export function createHelperView({ viewCache, api, getState, getMemberId, getRes
       document.addEventListener('keydown', event => { if (event.key === 'Escape' && !event.defaultPrevented && !page.hidden && !document.getElementById('tool-dialog')?.open) { event.preventDefault(); close(); } });
     }
     owner = getMemberId(); selector.replaceChildren();
-    for (const member of getState().members) { const option = el('option', member.name); option.value = member.id; selector.append(option); } selector.value = owner;
+    for (const member of getState().members) { const option = el('option', member.name); option.value = member.id; selector.append(option); } selector.value = owner; memberSelect(selector, getState().members);
     picker.hidden = true; page.hidden = false; launch.setAttribute('aria-pressed', 'true'); document.getElementById('helper-title').focus(); void render(); clearTimeout(timer); watch();
   }
   launch.addEventListener('click', () => page && !page.hidden ? close() : open()); launch.setAttribute('aria-pressed', 'false');

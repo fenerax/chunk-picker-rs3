@@ -173,5 +173,13 @@ test('roll labels follow the selected player while two choices remain one player
   assert.equal(nodes.pick.textContent, 'Roll for Player B');
   assert.match(nodes['roll-two'].title, /for Player B/);
   anywhere = true; c.renderRollControls(); assert.equal(nodes.pick.textContent, 'Roll anywhere for Player B');
+  owner = { ...owner, name: 'Synthetic explorer with an exceptionally long name' }; c.renderRollControls();
+  assert.equal(nodes.pick.textContent, 'Roll anywhere for Synthetic explorer w…');
+  assert.equal(nodes.pick.attributes['aria-label'], 'Roll anywhere for ' + owner.name);
+  assert.equal(nodes.pick.title, 'Roll one chunk for ' + owner.name);
+  assert.equal(nodes['roll-two'].title, 'Roll two choices for ' + owner.name + ', then choose which chunk to unlock');
   writable = false; c.renderRollControls(); assert.equal(nodes.pick.disabled, true); assert.equal(nodes['roll-two'].disabled, true);
+  owner = undefined; c.renderRollControls();
+  assert.equal(nodes.pick.textContent, 'Roll anywhere for selected player');
+  assert.equal(nodes.pick.attributes['aria-label'], 'Roll anywhere for selected player');
 });

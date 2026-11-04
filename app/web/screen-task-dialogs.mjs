@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 import { taskExplanation } from '../tasks/task-provenance.mjs';
 import { appendTaskWhy, catalogued, createRuleDescriber } from './task-why.mjs';
 import { createWhyChainDisclosure } from './task-why-chain.mjs';
@@ -45,9 +46,9 @@ export function createScreenTaskDialogs(c) {
     if (duoEntry) {
       const names = duoEntry.memberIds.map(id => c.state.members.find(value => value.id === id)?.name ?? id).join(' and ');
       const owners = c.el('div', undefined, 'duo-task-dialog-owners'); owners.append(c.el('span', `For ${names} · showing ${name}'s details`, 'task-meta'));
-      for (const id of duoEntry.memberIds.filter(id => id !== ownerId)) owners.append(c.button(`View for ${c.state.members.find(value => value.id === id)?.name ?? id}`, () => c.showTask(duoEntry.tasksByMember[id], false, {
+      for (const id of duoEntry.memberIds.filter(id => id !== ownerId)) owners.append(memberDisplay(c.button(`View for ${c.state.members.find(value => value.id === id)?.name ?? id}`, () => c.showTask(duoEntry.tasksByMember[id], false, {
         ...review, memberId: id, result: c.duoResults().results().get(id), loadResult: () => c.ensureDuoDetails(id),
-      })));
+      })), c.state.members));
       stack.append(owners);
     }
     // What the task actually asks for, before any status detail.
@@ -88,7 +89,7 @@ export function createScreenTaskDialogs(c) {
     completion.append(challengeCheck, challengeHelp, personalCheck, personalHelp);
     stack.append(completion, ...(c.canWrite() ? [c.check('Pin to the top of the list', !!status.favorite, value => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, favorite: value }))] : []));
     stack.append(createNoteEditor(c.panelContext, { label: 'Task note', saveLabel: 'Save note', payload: { type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId }, review: { revision: dialogRevision, original: owner.taskStatus?.[commandTaskId]?.note ?? '', value: status.note ?? '' }, isCurrent: () => c.dialogCurrent(generation) }));
-    if (task.wiki && c.supportsFeature?.('rsCatalogues') !== false) { const link = c.el('a', 'Open RuneScape Wiki'); link.href = task.wiki; link.target = '_blank'; link.rel = 'noopener noreferrer'; stack.append(link); }
+    if (task.wiki && c.supportsFeature?.('rsCatalogues') !== false) { const link = c.el('a', 'Open RuneScape Wiki', 'standalone-link'); link.href = task.wiki; link.target = '_blank'; link.rel = 'noopener noreferrer'; stack.append(link); }
     stack.append(bottomSlot);
     const fillDetails = (full, fullResultValue) => {
       updating.hidden = true;

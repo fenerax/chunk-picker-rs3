@@ -228,7 +228,7 @@ export function createScreenDialogs(c) {
       content.append(c.el('p', (c.dataset.status?.() ?? c.dataset).description || 'This small coordinate world and its goals were independently written.'), c.el('p', 'The map uses a plain grid and placeholder pictures. This dataset supports territory, tasks, notes, history and sharing.', 'status-detail'));
       c.openDialog('About / Map sources', content); return;
     }
-    const link = (label, href) => { const anchor = c.el('a', label); anchor.href = href; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; return anchor; };
+    const link = (label, href) => { const anchor = c.el('a', label, 'standalone-link'); anchor.href = href; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; return anchor; };
     content.append(c.el('p', 'RuneScape map artwork and icons belong to Jagex Limited. This independent picker is not endorsed by or affiliated with Jagex.'),
       link('Jagex Fan Content Policy', 'https://legal.jagex.com/docs/policies/fan-content-policy'));
     content.append(c.el('h3', 'Map contributors'), c.el('p', 'Terrain rendering and coordinate data: Mejrs and the RuneScape Wiki mapping contributors. RuneScape Wiki is operated by Weird Gloop.'),

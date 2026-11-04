@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 // Main-screen roll; shared values and callbacks live in the explicit screen context.
 export function createScreenRoll(c) {
   function renderRollControls() {
@@ -8,6 +9,8 @@ export function createScreenRoll(c) {
     const target = owner?.name ?? 'selected player';
     c.$('pick').textContent = c.preferences().randomStartAlways ? `Roll anywhere for ${target}` : `Roll for ${target}`;
     c.$('roll-two').textContent = `Roll 2 choices for ${target}`;
+    c.$('pick').setAttribute('aria-label', c.$('pick').textContent);
+    memberDisplay(c.$('pick'), owner ? [owner] : []); memberDisplay(c.$('roll-two'), owner ? [owner] : []);
     c.$('roll-two').title = `Roll two choices for ${target}, then choose which chunk to unlock`;
     c.$('roll-two').setAttribute('aria-label', `Roll two choices for ${target}`);
     c.$('pick').title = `Roll one chunk for ${target}`;

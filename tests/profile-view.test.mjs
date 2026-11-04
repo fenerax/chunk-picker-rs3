@@ -9,6 +9,7 @@ function node(tag, text = '', className = '') {
   return { tag, textContent: text, className, children: [], attributes: {}, listeners: {}, value: '',
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
     setAttribute(name, value) { this.attributes[name] = String(value); },
+    getAttribute(name) { return this.attributes[name] ?? null; },
     addEventListener(name, action) { this.listeners[name] = action; },
     focus() { this.focused = true; }, select() { this.selected = true; } };
 }
@@ -66,7 +67,7 @@ test('copy summary is bounded, Discord-safe and recovers when clipboard is unava
 test('Profile reuses cached results and dates across opens; player switch does not switch the map', async () => {
   const h = harness(); await h.view.open();
   assert.equal(h.details.length, 0);
-  const chooser = all(h.content).find(row => row.attributes['aria-label'] === 'Profile player');
+  const chooser = all(h.content).find(row => row.attributes['aria-label']?.startsWith('Profile player:'));
   chooser.value = 'reed'; await chooser.listeners.change();
   assert.ok(h.find('Reed')); assert.ok(h.find('2 chunks unlocked')); assert.equal(h.c.memberId, 'actor1');
   assert.deepEqual(h.details, ['reed']);

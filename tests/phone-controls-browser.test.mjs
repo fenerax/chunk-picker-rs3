@@ -108,7 +108,7 @@ for (const [label, name] of [
       }
       // Every case has a fresh browser profile: folded and unscrolled.
       await browser.send('Page.navigate', { url: app.inviteUrl });
-      await ready(`document.querySelector('#save-status')?.textContent === 'Saved' && document.querySelector('#pick')?.textContent.includes(${JSON.stringify(name)})`);
+      await ready(`document.querySelector('#save-status')?.textContent === 'Saved' && document.querySelector('#pick')?.textContent.includes(${JSON.stringify(name.length > 20 ? name.slice(0,20) + '…' : name)})`);
       if (delayedStartup) {
         await until(() => backupRequest && streamRequest && taskRequest);
         await ready("document.querySelector('#calculation-status')?.checkVisibility()");

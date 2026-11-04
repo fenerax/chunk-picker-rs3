@@ -235,9 +235,21 @@ export function createScreenChunks(c) {
     menu.querySelector('.chunk-colour-action')?.setAttribute('role', 'menuitem');
     const box = c.$('map-panel').getBoundingClientRect();
     c.$('map-tooltip').hidden = true; menu.hidden = false;
+    // DA2-02: map bounds can extend below a short landscape viewport.
+    // Reserve the fixed phone tabs and scroll a tall menu inside this rectangle.
+    const viewport = globalThis.visualViewport;
+    const left = Math.max(box.left, viewport?.offsetLeft ?? 0) + 8;
+    const top = Math.max(box.top, viewport?.offsetTop ?? 0) + 8;
+    const phoneTabs = c.$('phone-tabs');
+    const tabsTop = phoneTabs?.checkVisibility?.() ? phoneTabs.getBoundingClientRect().top : Infinity;
+    const right = Math.min((box.right ?? box.left + box.width), (viewport?.offsetLeft ?? 0) + (viewport?.width ?? globalThis.innerWidth ?? box.width)) - 8;
+    const bottom = Math.min((box.bottom ?? box.top + box.height), (viewport?.offsetTop ?? 0) + (viewport?.height ?? globalThis.innerHeight ?? box.height), tabsTop) - 8;
+    menu.style.maxWidth = `${Math.max(0, right - left)}px`;
+    menu.style.maxHeight = `${Math.max(0, bottom - top)}px`;
+    menu.scrollTop = 0;
     const width = menu.offsetWidth || 220, height = menu.offsetHeight || 260;
-    menu.style.left = `${Math.max(8, Math.min(x - box.left, box.width - width - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(y - box.top, box.height - height - 8))}px`;
+    menu.style.left = `${Math.max(left, Math.min(x, right - width)) - box.left}px`;
+    menu.style.top = `${Math.max(top, Math.min(y, bottom - height)) - box.top}px`;
     if (stickers) c.stickerFlyout = bindStickerFlyout({ picker: c.stickerPicker, trigger: stickers, menu, chunkId: id, closeMenu: c.closeChunkMenu });
     c.chunkMenuReturnFocus = typeof document !== 'undefined' ? document.activeElement : null;
     menu.querySelector('button')?.focus();

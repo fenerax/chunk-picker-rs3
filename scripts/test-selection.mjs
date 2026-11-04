@@ -15,6 +15,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "member-display.test.mjs",
   "session-residency.test.mjs",
   "live-timings.test.mjs",
   "live-timings-server.test.mjs",
@@ -349,6 +350,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "overflow-browser.test.mjs",
   "prewarm-process-tree.test.mjs",
   "warm-restart-worker.test.mjs",
   "worker-native-zlib.test.mjs",

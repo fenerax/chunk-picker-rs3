@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 import { buildFinishLineModel } from './finish-line-model.mjs';
 import { createFinishLineCopy } from './finish-line-copy.mjs';
 import { loadBiSMemberResult } from './bis-results.mjs';
@@ -9,7 +10,7 @@ export function renderFinishLine(c, model, { edit = false, expanded = new Set(),
   const overview = c.el('div', undefined, 'finish-line-overview');
   for (const member of [...model.members, { ...model.duo, name: 'Duo' }]) {
     const row = c.el('div', undefined, 'finish-line-total');
-    row.append(c.el('strong', `${member.name} ${member.percent}%`), c.el('span', `${member.done}/${member.total} done`, 'finish-line-note'));
+    row.append(memberDisplay(c.el('strong', `${member.name} ${member.percent}%`), [member]), c.el('span', `${member.done}/${member.total} done`, 'finish-line-note'));
     const progress = c.el('progress'); progress.max = 100; progress.value = member.percent;
     progress.setAttribute('aria-label', `${member.name} finish line progress`); row.append(progress); overview.append(row);
   }

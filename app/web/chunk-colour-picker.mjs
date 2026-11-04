@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 import { CHUNK_COLOURS, LEGACY_CHUNK_COLOURS, MAX_CHUNK_COLOUR_NAME_LENGTH, resolveMemberChunkColours, resolveMemberChunkColourNames } from '../core/chunk-colours.mjs';
 
 export function colourSwatch(el, id) {
@@ -86,7 +87,7 @@ export function createScreenChunkColours(c) {
     const members = c.$('group-view').checked ? c.state.members : [c.member()];
     for (const member of members) {
       const colours = resolveMemberChunkColours(c.state, member)[id] ?? [], names = resolveMemberChunkColourNames(c.state, member);
-      for (const colour of colours) { const chip = c.el('span', undefined, 'chunk-colour-label'); chip.append(colourSwatch(c.el, colour), `${member.name}: ${names[colour]}`); row.append(chip); }
+      for (const colour of colours) { const chip = c.el('span', undefined, 'chunk-colour-label'); chip.append(colourSwatch(c.el, colour), memberDisplay(c.el('span', `${member.name}: ${names[colour]}`), [member])); row.append(chip); }
     }
     return row;
   }
@@ -101,7 +102,7 @@ export function chunkColourLegend(c, members) {
   const group = c.el('div', undefined, 'legend-chunk-colours');
   for (const member of members) {
     const names = resolveMemberChunkColourNames(c.state, member), row = c.el('div', undefined, 'legend-colour-row');
-    row.append(c.el('span', `${member.name}’s colours`, 'legend-colour-title'));
+    row.append(memberDisplay(c.el('span', `${member.name}’s colours`, 'legend-colour-title'), [member]));
     const used = new Set(Object.values(resolveMemberChunkColours(c.state, member)).flat());
     const colours = [...CHUNK_COLOURS, ...LEGACY_CHUNK_COLOURS.filter(colour => !CHUNK_COLOURS.some(slot => slot.id === colour.id) && used.has(colour.id))];
     for (const colour of colours) { const key = c.el('span', undefined, 'legend-item'); key.append(colourSwatch(c.el, colour.id), names[colour.id]); row.append(key); }

@@ -1,3 +1,4 @@
+import { memberSelect } from './screen-ui.mjs';
 import { createPrivateLink } from './stream-safe.mjs';
 
 // Invite secrets live only in the creation result, never in saved browser data.
@@ -54,7 +55,7 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
         const option = el('option', safe(name)); option.value = id; option.selected = id === (value ?? ''); node.append(option);
       }
       node.value = value ?? '';
-      return node;
+      return memberSelect(node, members());
     };
     function renderRows() {
       rows.replaceChildren();

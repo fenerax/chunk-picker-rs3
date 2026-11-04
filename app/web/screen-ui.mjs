@@ -48,11 +48,61 @@ export function createScreenUi(c) {
 
   c.input = (type, value = '') => { const node = c.el('input'); node.type = type; node.value = value; return node; };
 
-  c.select = (values, value) => { const node = c.el('select'); for (const item of values) { const option = c.el('option', typeof item === 'string' ? item : item.label); option.value = typeof item === 'string' ? item : item.value; node.append(option); } node.value = value; return node; };
+  c.select = (values, value) => {
+    const node = c.el('select');
+    for (const item of values) {
+      const option = c.el('option', typeof item === 'string' ? item : item.label);
+      option.value = typeof item === 'string' ? item : item.value; node.append(option);
+    }
+    node.value = value;
+    const members = (c.state?.members ?? []).filter(member => [...node.children].some(option => option.value === member.id));
+    return members.length ? memberSelect(node, members) : node;
+  };
 
   c.list = values => { const node = c.el('ul'); values.forEach(value => node.append(c.el('li', value))); return node; };
 
   c.details = (title, ...children) => { const node = c.el('details'); node.append(c.el('summary', title), ...children); return node; };
 
   c.jsonPreview = value => c.el('pre', JSON.stringify(value, null, 2), 'data-preview');
+}
+
+// Display only: never write a shortened identity back into state or commands.
+export function shortMemberName(name) {
+  const characters = Array.from(String(name));
+  return characters.length > 20 ? characters.slice(0, 20).join('') + '…' : String(name);
+}
+
+/** Compact bars, chips and control labels retain their full accessible text. */
+export function memberDisplay(node, members) {
+  const full = String(node.textContent ?? '');
+  let display = full, matched = false;
+  // Replace longer names first so one member's name can be a prefix of another.
+  for (const { name } of members.filter(member => typeof member.name === 'string').sort((a, b) => b.name.length - a.name.length)) {
+    if (!name || !full.includes(name)) continue;
+    display = display.replaceAll(name, shortMemberName(name)); matched = true;
+  }
+  if (matched) {
+    node.textContent = display; node.title = full;
+    node.setAttribute('aria-label', full);
+  }
+  return node;
+}
+
+const selects = new WeakMap();
+/** Keep the native dropdown arrow, full option names and selected-name tooltip. */
+export function memberSelect(node, members) {
+  for (const option of node.children) memberDisplay(option, members);
+  if (![...node.children].some(option => option.title)) return node;
+  if (!selects.has(node)) {
+    const label = node.getAttribute?.('aria-label') ?? 'Player';
+    const refresh = () => {
+      const selected = [...node.children].find(option => option.value === node.value);
+      const name = selected?.title ?? selected?.textContent ?? '';
+      node.title = name;
+      node.setAttribute('aria-label', `${label}: ${name}`);
+    };
+    selects.set(node, refresh); node.addEventListener('change', refresh);
+  }
+  selects.get(node)();
+  return node;
 }

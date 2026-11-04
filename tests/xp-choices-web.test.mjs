@@ -7,7 +7,7 @@ import { describeHistoryEvent, historyChangeType } from '../app/web/history-text
 function node(tag, textContent = '', className = '') {
   return { tag, textContent, className, children: [], value: '', attributes: {}, listeners: {},
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
-    setAttribute(name, value) { this.attributes[name] = value; }, addEventListener(name, action) { this.listeners[name] = action; } };
+    setAttribute(name, value) { this.attributes[name] = value; }, getAttribute(name) { return this.attributes[name] ?? null; }, addEventListener(name, action) { this.listeners[name] = action; } };
 }
 const all = root => [root, ...root.children.flatMap(all)];
 const base = { el: node, plain: String, button: (label, action, cls) => ({ ...node('button', label, cls), action }) };
@@ -125,7 +125,10 @@ test('trusted F2P catalogue hides unset member rewards and renders saved ones re
   assert(!headings.some(label => label.startsWith('Varrock')));
   assert(headings.some(label => label.startsWith('Lumbridge')));
   assert.equal(nodes.filter(row => row.textContent === 'Save choices').length, 1);
-  const rewardSelects = nodes.filter(row => row.tag === 'select' && row.attributes['aria-label'] !== 'XP choices player');
+  const player = nodes.find(row => row.tag === 'select' && row.attributes['aria-label']?.startsWith('XP choices player:'));
+  assert.equal(player.attributes['aria-label'], 'XP choices player: Player');
+  assert.equal(player.title, 'Player');
+  const rewardSelects = nodes.filter(row => row.tag === 'select' && !row.attributes['aria-label']?.startsWith('XP choices player:'));
   assert.equal(rewardSelects.length, 1);
   assert.match(rewardSelects[0].attributes['aria-label'], /Lumbridge/);
   for (const id of ['authored', 'imported']) {
