@@ -247,3 +247,41 @@ test('shared cache evaluators copy paths only for computation and preserve the l
     assert.equal(caller.size, 0); assert.equal(calls, 5);
   }
 });
+
+test('projection is enabled by default and zero forces reference even with an explicit opt-in', () => {
+  const source = `
+    import { registerHooks } from 'node:module';
+    const calls = globalThis[Symbol.for('rs3.projection.default.proof')] = { evaluate: 0, evaluateLeaf: 0, release: 0 };
+    registerHooks({ load(url, context, next) {
+      const loaded = next(url, context);
+      if (!url.endsWith('/app/tasks/obligation-cache.mjs')) return loaded;
+      return { ...loaded, source: String(loaded.source).replace(
+        'export function createObligationCache(', 'function observedObligationCache(') +
+        '\\nexport function createObligationCache(...args) { const cache = observedObligationCache(...args);' +
+        "const calls = globalThis[Symbol.for('rs3.projection.default.proof')]; for (const method of Object.keys(calls)) { const operation = cache[method];" +
+        'cache[method] = (...values) => { calls[method]++; return operation(...values); }; } return cache; }' };
+    } });
+    const { createTaskEngine } = await import(${JSON.stringify(new URL('../app/tasks/engine.mjs', import.meta.url).href)});
+    const options = { reviewedOverlays: false, metadataCorrections: false, equipmentCorrections: false };
+    if (process.argv[1] === 'explicit') options.projectionFast = true;
+    const engine = createTaskEngine({ chunks: { 100: {} }, challenges: { Nonskill: { Local: { Chunks: ['100'] } } } }, options);
+    engine.evaluate({ rules: { 'content.f2p': false }, members: [{ id: 'm', unlocked: ['100'], completedTasks: [] }] }, 'm');
+    console.log(JSON.stringify(calls));`;
+  for (const [switchValue, explicit] of [[undefined, false], ['0', false], ['0', true]]) {
+    const env = { ...process.env };
+    if (switchValue === undefined) delete env.RS3_FINAL_PROJECTION;
+    else env.RS3_FINAL_PROJECTION = switchValue;
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', source, explicit ? 'explicit' : 'default'],
+      { env, encoding: 'utf8', timeout: 30000 });
+    assert.equal(child.status, 0, child.stderr);
+    const calls = JSON.parse(child.stdout);
+    if (switchValue === undefined) {
+      assert.ok(calls.evaluateLeaf > 0, 'the default engine uses the optimized literal evaluator');
+      assert.ok(calls.release > 0, 'the default engine releases projection scratch');
+    } else {
+      assert.equal(calls.evaluateLeaf, 0, 'zero disables the optimized evaluator');
+      assert.equal(calls.release, 0, 'zero uses the reference scratch lifecycle');
+      assert.ok(calls.evaluate > 0, 'zero executes reference obligations');
+    }
+  }
+});

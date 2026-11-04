@@ -1164,3 +1164,73 @@ unresolved warm bounds and transient mixed peak-memory increase; historical GC
 and idle summaries were supplied rather than independently repeated here.
 
 **Final Phase 4 decision: KEEP OFF. NEEDS-WORK. PARTIAL.**
+
+
+## Default-on proofs
+
+START `e7d108886e8f2619dd9ee2b4cf6b1ebf2b4d204a`, Node 24.21.0. The owner
+approved default activation, superseding the historical KEEP OFF release decision
+above. These are correctness proofs of the supplied default-on slice; no further
+runtime or performance changes were made. Every candidate runs with
+`RS3_FINAL_PROJECTION` unset. The self-check reference alone sets it to 0.
+
+- **Q2:** untouched START (the supplied current-main checkout) versus START plus
+  the exported candidate patch, without an activation substitution. Cached
+  origin/main was not used. The unchanged phase-3 recipe uses 12 synthetic cases
+  and the complete selected fixture harvest: 30 passed, 0 failed, 0 skipped.
+  **1,548/1,548 pairs, 0 differences, 0 harness errors**: 1,246 successful results
+  and 302 matching negative pairs; 174 synthetic and 1,374 harvest requests, with
+  successful coverage of all nine operations. Comparator, exclusions and floors
+  are unchanged. Final corpus SHA256:
+  `21485beb98657349badafa310adaaef459e93c1cb9b2f33490a4248f359bf378`.
+  Exported-patch SHA256:
+  `cc55c7e3fc790c49e173b133e8c6838dfa000bad2cdad5086b5ecabd6a682c06`.
+  The initial Q2 run also passed 1,548 pairs with zero differences/errors; the
+  final run includes the completed regression test. Subsequent edits are this report only.
+- **Forced-reference self-check:** **809 comparisons, 0 differences**, all
+  **37 candidates / 2 members** (pool counts **7, 30**), **3 sequences / 9 accepted
+  rolls per path**, **527 worker responses, 282 How and 282 Why per path**.
+  Full results, owner/partner predictions, prepared replies and decoded reuse
+  payloads use the existing canonical comparison. How/Why use the same three
+  visible-row indices as phase 3. Both aggregate hashes exactly match phase 3:
+  `edc980b91e47f84fcb2d3c05a63b6bea4b6b30ed47493c4132d96b93d78f949e`.
+  `--candidate-default` leaves the candidate switch unset; `--parallel` admitted
+  two ordinary process calculators only after the existing 10-GiB memory check.
+- **Tests:** 15 focused projection/engine/cache/selection files: **110 passed,
+  0 failed, 0 skipped** (78 open-F2P / 32 selected legacy cases). The completed
+  default-on quick suite: **3,632 passed, 1 failed, 68 skipped, 0 cancelled**
+  (3,701 total). Its only failure is `tests/rule-explanations.test.mjs:47`.
+  Isolated candidate and untouched START each reproduce **3 passed / 1 failed**
+  at that assertion with the same normal test defaults. No test assumed an old
+  opt-in default. `tests/final-projection.test.mjs` adds one behavioral probe
+  proving default execution uses projection and 0 uses reference, including an
+  explicit opt-in override. Its existing quick/open-F2P classification applies.
+  No test, catalogue or comparison policy was weakened; no full npm test ran.
+
+An earlier quick invocation mistakenly inherited the copied-save defaults file.
+It was stopped: **2,049 passed, 3 failed, 2 cancelled, 32 skipped**. With normal
+test defaults, the three affected synthetic fixtures pass **3/3** on both trees.
+Only the corrected completed quick run above supplies the suite gate.
+
+Final filesystem audit: **542 original files / 431 copied files, 0 differences,
+0 added or removed files, 0 credential artifacts**. The original manifest SHA256
+is unchanged at `7e3697921366f2c960ab93e5502e8710501eff785aae46980eeb6176da50af8c`;
+the copied manifest is unchanged at `cd61ec309add4e4a817ddca7c217f90629c7b957c8acd84132e2ec8b20df67f6`.
+Private inputs were validated from filesystem reads under /tmp and sent to
+ordinary calculator workers; no private store/server was opened or credentials created.
+
+Correctness-job diagnostics (one final run each): Q2 **118.659 s /
+1268.83 MiB** sampled owned-group peak; self-check
+**1607.417 s / 6915.82 MiB** sampled group peak.
+The respective samplers use 50 ms and 100 ms intervals. Jobs overlapped other
+correctness work; these are not before/after latency or per-calculator residency
+measurements. No new timing cohorts, medians or spread estimates are claimed.
+Historical warm bounds and transient memory risks were not remeasured.
+
+Reproduce Q2 with all RS3 selectors unset, the START ref and an ordinary exported
+working-tree patch using the existing Q2 supervisor recipe. After selecting the
+released inputs and preparing a validated /tmp copy, reproduce the private proof:
+
+`node scripts/perf/final-projection-check.mjs --data-dir "$COPIED_GAME" --out /tmp/default-on-check.json --candidate-default --parallel`
+
+**Recommendation: MERGE-CANDIDATE. SHIP.**
