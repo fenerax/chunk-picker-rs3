@@ -14,7 +14,7 @@ and import handler enforce the flag; changing browser state cannot enable it.
 Leave it off until the original project's maintainer has been told about the
 feature. This change does not enable the flag in any launch or release script.
 
-The entry appears in **More → Saves → Export / Import** on a compatible
+The entry appears in **More → Export / Import** on a compatible
 `duo-legacy` dataset with `surface-grid-v1` coordinates. Open F2P and starter
 datasets are refused: they need reviewed chunk/task correspondence before they
 can activate original progress. Stored drawing IDs are not plugin coordinates.
