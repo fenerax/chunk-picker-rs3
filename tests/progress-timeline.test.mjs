@@ -22,8 +22,9 @@ const counts = state => progressCounts(state, { questPoints });
 function observation(member, level = 30, at = start) {
   member.skillProgress = Object.fromEntries(playerControlSkills.map(skill => [skill, { level, xp: 1000, fetchedAt: at, source: 'runemetrics', runescapeName: member.runescapeName }]));
 }
-function questObservation(member, current = 0, at = start) {
-  member.questPointProgress = { current, max: 450, fetchedAt: at, source: 'platform-api', runescapeName: member.runescapeName };
+function questObservation(state, member, current = 0, at = start) {
+  state.provenance ??= {}; state.provenance.questPointProgress ??= {};
+  state.provenance.questPointProgress[member.id] = { current, max: 450, fetchedAt: at, source: 'platform-api', runescapeName: member.runescapeName };
 }
 function command(state, payload, seconds) {
   return applyCommand(state, payload, { now: () => new Date(Date.parse(start) + seconds * 1000) });
@@ -168,8 +169,8 @@ test('legacy daily quest-award sums stay portable without becoming an observed g
 test('safe-integer quest-point observations survive snapshots and overflowing combined totals remain unknown', () => {
   const state = fixture();
   for (const member of state.members) {
-    questObservation(member, Number.MAX_SAFE_INTEGER);
-    member.questPointProgress.max = Number.MAX_SAFE_INTEGER;
+    questObservation(state, member, Number.MAX_SAFE_INTEGER);
+    state.provenance.questPointProgress[member.id].max = Number.MAX_SAFE_INTEGER;
   }
   const captured = captureProgressSnapshot(state, { at: start });
   assert.equal(counts(captured).members[0].metrics.questPoints, Number.MAX_SAFE_INTEGER);
@@ -193,14 +194,39 @@ test('authoritative daily quest points survive History archival and current-acco
   assert.deepEqual(model.daily.points.map(point => point.members[0].metrics.questPoints), [17, 22]);
   assert.ok(state.progressSnapshots.days.every(row => row.length === 4), 'Legacy estimate tuples remain readable on rollback');
   assert.deepEqual(state.provenance.progressQuestPoints.days.map(row => row[2][0]), [17, 22]);
-  delete state.members[0].questPointProgress;
+  delete state.provenance.questPointProgress.actor1;
   assert.deepEqual(buildProgressModel(state).daily.points.map(point => point.members[0].metrics.questPoints), [17, 22]);
 });
 
+test('portable store restore preserves authoritative daily history through persistence and reopen', async t => {
+  let state = fixture();
+  for (const [day, current] of [[12, 17], [13, 22]]) {
+    const at = `2026-10-${day}T12:00:00.000Z`;
+    state = applyCommand(state, { type: 'apply-runemetrics', source: 'platform-api', memberId: 'actor1',
+      runescapeName: state.members[0].runescapeName, fetchedAt: at, skills: [], quests: [], questPoints: { current, max: 450 } }, { now: () => at });
+    state = captureProgressSnapshot(state, { questPoints, at });
+  }
+  const parent = path.resolve('.local/progress-tests'); await mkdir(parent, { recursive: true });
+  const dataDir = await mkdtemp(path.join(parent, 'restore-qp-'));
+  let store;
+  t.after(async () => { await store?.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const options = { dataDir, progressQuestPoints: questPoints, now: () => '2026-10-13T13:00:00Z', retention: false };
+  store = await openStore({ ...options, initialState: fixture() });
+  await store.replace(exportBackup(state), 0);
+  const values = () => store.getProgress().daily.points.map(point => point.members[0].metrics.questPoints);
+  assert.deepEqual(values(), [17, 22]);
+  assert.deepEqual(store.getState().provenance.progressQuestPoints, state.provenance.progressQuestPoints);
+  assert.equal(store.getProgress().current.members[0].metrics.questPoints, 22);
+  await store.close();
+  store = await openStore(options);
+  assert.deepEqual(values(), [17, 22]);
+  assert.deepEqual((await store.backup()).state.provenance.progressQuestPoints, state.provenance.progressQuestPoints);
+});
+
 test('a fresh current-day observation adds authoritative fields while leaving legacy estimates intact', () => {
-  let state = fixture(); questObservation(state.members[0], 17);
+  let state = fixture(); questObservation(state, state.members[0], 17);
   state = captureProgressSnapshot(state, { at: start });
-  delete state.provenance;
+  delete state.provenance.progressQuestPoints;
   const legacy = structuredClone(state);
   const replaced = captureProgressSnapshot(state, { at: start });
   assert.deepEqual(replaced.progressSnapshots, legacy.progressSnapshots);

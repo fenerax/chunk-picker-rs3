@@ -1,4 +1,4 @@
-import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember, validateObservedQuestPoints, isObservedProgressSource } from '../core/game-progress.mjs';
+import { questPointProgress, observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember, validateObservedQuestPoints, isObservedProgressSource } from '../core/game-progress.mjs';
 import { canonicalTitle, UNMAPPED_QUEST_REASONS } from './quest-mapping.mjs';
 
 export function previewProgressSnapshot(state, memberId, snapshot, questMapping) {
@@ -50,8 +50,8 @@ export function previewProgressSnapshot(state, memberId, snapshot, questMapping)
       ...(snapshot.message ? { message: snapshot.message } : {}),
       source: snapshot.source, sourceLabel: snapshot.sourceLabel, fetchedAt: snapshot.fetchedAt, cached: snapshot.cached, skills, quests, unmatched,
       ...(snapshot.questPoints !== undefined ? { questPoints: {
-        before: progressBelongsToMember(member.questPointProgress, member)
-          ? { current: member.questPointProgress.current, max: member.questPointProgress.max } : null,
+        before: progressBelongsToMember(questPointProgress(state, member), member)
+          ? { current: questPointProgress(state, member).current, max: questPointProgress(state, member).max } : null,
         after: snapshot.questPoints } } : {}),
       counts: { completedQuests, matchedQuests, unmatchedQuests: unmatched.quests.length } },
     command: { type: snapshot.source === 'game-plugin' ? 'apply-game-progress' : 'apply-runemetrics', memberId,

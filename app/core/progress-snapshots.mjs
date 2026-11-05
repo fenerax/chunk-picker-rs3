@@ -7,6 +7,19 @@ const sum = values => {
   return Number.isSafeInteger(total) ? total : null;
 };
 
+export function validateProgressCompletionBaseline(value) {
+  const fail = () => { throw new TypeError('Progress completion baseline must contain matching member IDs and personal completion lists'); };
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).some(key => !['memberIds', 'completedTasks'].includes(key))
+    || !Array.isArray(value.memberIds) || !value.memberIds.length || value.memberIds.length > 16
+    || value.memberIds.some(id => typeof id !== 'string' || !id.trim())
+    || new Set(value.memberIds).size !== value.memberIds.length
+    || !Array.isArray(value.completedTasks) || value.completedTasks.length !== value.memberIds.length) fail();
+  for (const tasks of value.completedTasks) {
+    if (!Array.isArray(tasks) || tasks.some(id => typeof id !== 'string' || !id.trim()) || new Set(tasks).size !== tasks.length) fail();
+  }
+}
+
 /** Account QP observations live outside the legacy estimate tuples. Provenance
  * is extensible in older releases, so rollback can still read those tuples. */
 export function validateProgressQuestPoints(value) {

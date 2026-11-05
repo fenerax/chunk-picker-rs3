@@ -89,7 +89,7 @@ test('Platform API profile facts retain account binding and authoritative quest 
   const state = fixture(), member = state.members[0];
   member.skillProgress = { Mining: { ...observation(55), source: 'platform-api' } };
   member.runeMetricsSync = { ...observation(), source: 'platform-api' };
-  member.questPointProgress = { current: 33, max: 456, source: 'platform-api', fetchedAt: at, runescapeName: 'PLAYER' };
+  state.provenance = { questPointProgress: { [member.id]: { current: 33, max: 456, source: 'platform-api', fetchedAt: at, runescapeName: 'PLAYER' } } };
   member.taskStatus.quest = { challengeCompleted: true };
   member.completedTasks = ['quest'];
   state.tasks = [{ id: 'quest', category: 'Quest', label: 'A Complete the quest', record: { QuestPoints: 999 } }];
@@ -97,9 +97,9 @@ test('Platform API profile facts retain account binding and authoritative quest 
   assert.equal(model.skills.rows.find(row => row.skill === 'Mining').level, 55);
   assert.equal(model.skills.lastSyncAt, at);
   assert.deepEqual(model.questPoints, { current: 33, max: 456, source: 'platform-api', fetchedAt: at });
-  delete member.questPointProgress;
+  delete state.provenance.questPointProgress[member.id];
   assert.equal(buildProfileModel(state, 'one').questPoints, null, 'Quest records and challenge ticks never manufacture account QP.');
-  member.questPointProgress = { current: 33, max: 456, source: 'platform-api', fetchedAt: at, runescapeName: 'Old player' };
+  state.provenance = { questPointProgress: { [member.id]: { current: 33, max: 456, source: 'platform-api', fetchedAt: at, runescapeName: 'Old player' } } };
   assert.equal(buildProfileModel(state, 'one').questPoints, null);
   member.runescapeName = 'new player';
   assert.equal(buildProfileModel(state, 'one').skills.knownCount, 0);

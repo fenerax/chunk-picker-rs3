@@ -2,7 +2,7 @@ import { buildTrainingAvailability } from './training-availability.mjs';
 import { trainingMethodBlockers } from './training-planner.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { skillCaps } from './engine.mjs';
-import { isGameProgressSource, sameRuneScapeName } from '../core/game-progress.mjs';
+import { questPointProgress, isGameProgressSource, sameRuneScapeName } from '../core/game-progress.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 export const questGroupName = row => row.baseQuest ?? row.record?.BaseQuest ?? /~\|([^|]+)\|~/.exec(row.rawLabel ?? '')?.[1]?.split('#')[0] ?? row.label;
@@ -92,7 +92,7 @@ export function buildQuestReadiness(result, state, memberId, definitions = {}) {
   const skills = { ...availability.skills };
   const combatSkills = ['Attack', 'Strength', 'Defence', 'Constitution', 'Ranged', 'Prayer', 'Magic', 'Summoning', 'Necromancy'];
   if (combatSkills.every(skill => Number.isFinite(skills[skill]))) skills.Combat = combatLevelFromSkills(skills, { f2p: availability.members !== true });
-  const member = state.members.find(owner => owner.id === memberId), observedPoints = member?.questPointProgress;
+  const member = state.members.find(owner => owner.id === memberId), observedPoints = questPointProgress(state, member);
   skills.QuestPointsNeeded = isGameProgressSource(observedPoints?.source) && sameRuneScapeName(observedPoints.runescapeName, member.runescapeName)
     && Number.isSafeInteger(observedPoints.current) && observedPoints.current >= 0 ? observedPoints.current
     : quests.filter(row => isWholeQuestTask(row) && completed.has(row.id)).reduce((total, row) => total + Number(row.record.QuestPoints || 0), 0);

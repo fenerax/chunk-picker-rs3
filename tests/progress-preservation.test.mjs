@@ -19,7 +19,8 @@ function legacySave() {
   return state;
 }
 function observe(state, values = [17, 7]) {
-  state.members.forEach((member, index) => { member.questPointProgress = { current: values[index], max: 450,
+  state.provenance ??= {}; state.provenance.questPointProgress = {};
+  state.members.forEach((member, index) => { state.provenance.questPointProgress[member.id] = { current: values[index], max: 450,
     source: 'platform-api', runescapeName: member.runescapeName, fetchedAt: later }; });
   return state;
 }
@@ -40,6 +41,45 @@ test('unknown daily metrics cannot overwrite known member or duo values', () => 
   const next = captureProgressSnapshot(updated, { at: later });
   assert.deepEqual(next.progressSnapshots.days[0][2].map(row => row.slice(2)), [[13, 800, 78], [5, 900, 80]]);
   assert.deepEqual(next.progressSnapshots.days[0][3].slice(2), [18, 1700, 158]);
+});
+
+test('ordinary captures with an empty quest index preserve estimates until personal completions change', () => {
+  const state = legacySave();
+  const captured = captureProgressSnapshot(state, { questPoints: new Map(), at: later });
+  assert.deepEqual(captured.progressSnapshots, state.progressSnapshots);
+  const nextDay = captureProgressSnapshot(captured, { questPoints: new Map(), at: '2026-11-05T12:00:00Z' });
+  assert.deepEqual(nextDay.progressSnapshots.days.at(-1)[2].map(row => row[2]), [13, 5]);
+  assert.equal(nextDay.progressSnapshots.days.at(-1)[3][2], 18);
+  const removed = structuredClone(nextDay);
+  removed.members[0].completedTasks = [];
+  const changed = captureProgressSnapshot(removed, { questPoints, at: '2026-11-05T13:00:00Z' });
+  assert.deepEqual(changed.progressSnapshots.days.at(-1)[2].map(row => row[2]), [0, 5]);
+  assert.equal(changed.progressSnapshots.days.at(-1)[3][2], 5);
+});
+
+test('capture cannot lower authoritative daily values without a personal completion change', () => {
+  const state = captureProgressSnapshot(observe(legacySave()), { questPoints, at: later });
+  const lower = observe(structuredClone(state), [0, 0]);
+  const unchanged = captureProgressSnapshot(lower, { questPoints: new Map(), at: '2026-11-04T14:00:00Z' });
+  assert.deepEqual(unchanged.provenance.progressQuestPoints.days.at(-1)[2], [17, 7]);
+  const nextDay = captureProgressSnapshot(unchanged, { questPoints: new Map(), at: '2026-11-05T12:00:00Z' });
+  assert.deepEqual(nextDay.provenance.progressQuestPoints.days.at(-1).slice(2), [[17, 7], 24]);
+  const removed = structuredClone(nextDay);
+  removed.members[0].completedTasks = [];
+  const changed = captureProgressSnapshot(removed, { questPoints, at: '2026-11-05T13:00:00Z' });
+  assert.deepEqual(changed.provenance.progressQuestPoints.days.at(-1).slice(2), [[0, 7], 7]);
+});
+
+test('equal-total completion replacements cannot authorize a later empty-index decrease', () => {
+  const points = new Map([...questPoints, ['replacement-quest', 13]]);
+  let state = captureProgressSnapshot(legacySave(), { questPoints: points, at: '2026-11-05T12:00:00Z' });
+  state.members[0].completedTasks = ['replacement-quest'];
+  state = captureProgressSnapshot(state, { questPoints: points, at: '2026-11-05T13:00:00Z' });
+  const captured = captureProgressSnapshot(state, { questPoints: new Map(), at: '2026-11-05T14:00:00Z' });
+  assert.deepEqual(captured.progressSnapshots.days.at(-1)[2].map(row => row[2]), [13, 5]);
+  const invalid = structuredClone(captured);
+  invalid.provenance.progressCompletionBaseline.completedTasks = null;
+  assert.throws(() => validateState(invalid), /Progress completion baseline/);
 });
 
 test('same-day upgrade and restart leave persisted tuples, revision and History identical without an observation', async t => {

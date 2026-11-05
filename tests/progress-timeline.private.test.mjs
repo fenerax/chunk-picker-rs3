@@ -21,8 +21,9 @@ const counts = state => progressCounts(state, { questPoints });
 function observation(member, level = 30, at = start) {
   member.skillProgress = Object.fromEntries(playerControlSkills.map(skill => [skill, { level, xp: 1000, fetchedAt: at, source: 'runemetrics', runescapeName: member.runescapeName }]));
 }
-function questObservation(member, current = 0, at = start) {
-  member.questPointProgress = { current, max: 450, fetchedAt: at, source: 'platform-api', runescapeName: member.runescapeName };
+function questObservation(state, member, current = 0, at = start) {
+  state.provenance ??= {}; state.provenance.questPointProgress ??= {};
+  state.provenance.questPointProgress[member.id] = { current, max: 450, fetchedAt: at, source: 'platform-api', runescapeName: member.runescapeName };
 }
 function command(state, payload, seconds) {
   return applyCommand(state, payload, { now: () => new Date(Date.parse(start) + seconds * 1000) });
@@ -37,7 +38,7 @@ test('personal and duo counts deduplicate chunks, explicit checks, aliases and E
   state.members[1].completedTasks = ['quest', second];
   state.members[1].taskStatus = { task: { challengeCompleted: true } };
   observation(state.members[0]); observation(state.members[1], 40);
-  questObservation(state.members[0], 17); questObservation(state.members[1], 23);
+  questObservation(state, state.members[0], 17); questObservation(state, state.members[1], 23);
   const result = counts(state);
   assert.deepEqual(result.members.map(member => member.metrics.completedTasks), [4, 3]);
   assert.equal(result.duo.metrics.completedTasks, 4);
@@ -61,13 +62,13 @@ test('unknown or renamed observations never manufacture account totals', () => {
 
 test('daily tuples upsert, retain unchanged revision/history, bound dates, and survive portable backup', () => {
   const state = fixture(); observation(state.members[0]); observation(state.members[1]);
-  questObservation(state.members[0]); questObservation(state.members[1]);
+  questObservation(state, state.members[0]); questObservation(state, state.members[1]);
   let captured = captureProgressSnapshot(state, { questPoints, at: start });
   assert.equal(captureProgressSnapshot(captured, { questPoints, at: '2026-10-12T12:30:00.000Z' }), captured, 'Unchanged same-day counts need no write or new timestamp');
   const previous = structuredClone(captured);
   captured.members[0].completedTasks.push('quest');
   assert.equal(counts(captured).members[0].metrics.questPoints, 0, 'A challenge check cannot create account points');
-  questObservation(captured.members[0], 5, '2026-10-12T15:00:00.000Z');
+  questObservation(captured, captured.members[0], 5, '2026-10-12T15:00:00.000Z');
   captured = captureProgressSnapshot(captured, { questPoints, at: '2026-10-12T15:00:00.000Z' });
   assert.equal(captured.progressSnapshots.days.length, 1); assert.equal(captured.progressSnapshots.days[0][3][2], 0, 'Account observations preserve the prior completion estimate');
   assert.equal(captured.provenance.progressQuestPoints.days[0][3], 5, 'Account totals have separate daily fields');
@@ -86,7 +87,7 @@ test('daily tuples upsert, retain unchanged revision/history, bound dates, and s
 test('trustworthy dated records use saved observation timestamps, never completion play dates', () => {
   const state = fixture(); observation(state.members[0]); state.members[0].completedTasks = ['quest'];
   state.members[0].questProgress = { quest: { title: 'Quest', source: 'runemetrics', fetchedAt: start, runescapeName: state.members[0].runescapeName } };
-  questObservation(state.members[0], 17);
+  questObservation(state, state.members[0], 17);
   let records = buildProgressModel(state, { questPoints }).datedRecords;
   assert.equal(records.length, 2); assert.ok(records.every(record => record.at === start));
   assert.match(records.find(record => record.kind === 'quest').label, /observation/);
@@ -133,7 +134,7 @@ test('a newly observed quest batch never masquerades as the account quest-point 
   assert.equal(buildProgressModel(state, { questPoints: points }).datedRecords.length, 0);
   member.questProgress.quest.fetchedAt = '2026-10-11T12:00:00.000Z';
   assert.equal(buildProgressModel(state, { questPoints: points }).datedRecords.length, 0, 'Mixed-time partial batches are not cumulative total observations');
-  questObservation(member, 17);
+  questObservation(state, member, 17);
   const observed = buildProgressModel(state, { questPoints: points });
   assert.equal(observed.current.members[0].metrics.questPoints, 17);
   assert.equal(observed.datedRecords[0].metrics.questPoints, 17, 'An explicit account total has its own observation date');

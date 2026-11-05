@@ -546,6 +546,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // resolved. Keep its provenance and invalidate browser/ranking caches too.
       const randomStarts = current.members.filter(member => hasRandomStartChoices(current, member)).map(member => [member.id, member.pendingRoll]);
       input.history = randomStarts.length ? history : [];
+      // Account QP affects quest readiness; archival/source metadata does not.
+      if (provenance?.questPointProgress) input.provenance = { questPointProgress: provenance.questPointProgress };
       let state, stateJSON, taskInputKey, rollInputKey;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
       const inputKey = gameplayFingerprint();
@@ -1049,7 +1051,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       else precedingEvidence.push(event);
     }
     const previousHistory = [...precedingEvidence, ...[...preceding.values()].sort((a, b) => a.revision - b.revision)];
-    ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
+    // Progress reads these live extension fields. Archive other imported
+    // provenance, especially historyArchive, under the restore boundary.
+    ready.provenance = {
+      ...(['dataset', 'progressQuestPoints', 'questPointProgress', 'progressCompletionBaseline'].reduce((kept, key) =>
+        ready.provenance?.[key] === undefined ? kept : { ...kept, [key]: ready.provenance[key] }, {})), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
       ...(completeIncoming.provenance !== undefined ? { incomingProvenance: completeIncoming.provenance } : {}) } };
     ready.revision = revision;
     // A replacement establishes a new undo boundary. Earlier snapshots may

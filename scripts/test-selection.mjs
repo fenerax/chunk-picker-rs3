@@ -356,6 +356,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "platform-rollback.test.mjs",
   "prewarm-process-tree.test.mjs",
   "warm-restart-worker.test.mjs",
   "worker-native-zlib.test.mjs",

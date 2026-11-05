@@ -1,12 +1,12 @@
 import { combatLevelFromSkills } from './combat-level.mjs';
 import { playerControlSkills } from './player-controls.mjs';
-import { progressBelongsToMember, sameRuneScapeName, validateQuestPointProgress, validateRuneMetricsTimestamp } from './game-progress.mjs';
+import { questPointProgress, restoreQuestPointChange, progressBelongsToMember, sameRuneScapeName, validateQuestPointProgress, validateRuneMetricsTimestamp } from './game-progress.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { finishLineCommandTypes } from './finish-line.mjs';
 import { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots, validateProgressQuestPoints } from './progress-snapshots.mjs';
 export { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots } from './progress-snapshots.mjs';
 const DAY = 86_400_000;
-const metricFields = new Set(['unlocked', 'completedTasks', 'taskStatus', 'skillProgress', 'questProgress', 'questPointProgress', 'runescapeName']);
+const metricFields = new Set(['unlocked', 'completedTasks', 'taskStatus', 'skillProgress', 'questProgress', 'runeMetricsSync', 'runescapeName']);
 const validAt = value => { try { return validateRuneMetricsTimestamp(value); } catch { return null; } };
 const tuple = metrics => PROGRESS_METRICS.map(key => metrics[key]);
 const metrics = values => Object.fromEntries(PROGRESS_METRICS.map((key, index) => [key, values[index]]));
@@ -28,8 +28,8 @@ function observedSkills(member) {
     && Number.isSafeInteger(value.level) && value.level >= 1 && value.level <= 120 && validAt(value.fetchedAt)));
 }
 
-function observedQuestPoints(member) {
-  const value = member.questPointProgress;
+function observedQuestPoints(state, member) {
+  const value = questPointProgress(state, member);
   if (!value || !sameRuneScapeName(value.runescapeName, member.runescapeName)) return null;
   try { validateQuestPointProgress(value); return value; } catch { return null; }
 }
@@ -50,7 +50,7 @@ export function progressCounts(state, { questPoints } = {}) {
     const actual = new Set(member.completedTasks.map(id => resolveSavedTaskId(state.identityRegistry, id)));
     return { memberId: member.id, name: member.name, metrics: { unlockedChunks: new Set(member.unlocked).size,
       completedTasks: completionSets[index].size,
-      questPoints: observedQuestPoints(member)?.current ?? null,
+      questPoints: observedQuestPoints(state, member)?.current ?? null,
       questPointEstimate: questPoints ? sum([...actual].map(id => questPoints.get(id) ?? 0)) : null,
       ...skillCounts(member, f2p) } };
   });
@@ -81,8 +81,18 @@ export function captureProgressSnapshot(state, { questPoints, at = new Date().to
   for (const row of previous?.days ?? []) if (row[4] === 1 && !observations.some(value => value[0] === row[0])) {
     observations.push([row[0], row[1], row[2].map(member => member[2]), row[3][2]]);
   }
+  const prior = old ?? days.findLast(row => row[0] < day);
+  const completionBaseline = state.provenance?.progressCompletionBaseline;
+  const completedTasks = state.members.map(member => [...new Set(member.completedTasks.map(id => resolveSavedTaskId(state.identityRegistry, id)))].sort());
+  // Catalogue availability is not evidence of lost progress. Only an exact
+  // change in personal completions can authorize a decrease, even across days.
+  const completionsChanged = memberIds.map((id, index) => completionBaseline?.memberIds?.[index] === id
+    && JSON.stringify(completionBaseline.completedTasks[index]) !== JSON.stringify(completedTasks[index]));
+  const preservePoints = (value, before, changed) => before != null && (value == null || value < before && !changed) ? before : value;
   const observedIndex = observations.findIndex(row => row[0] === day), observedBefore = observations[observedIndex];
-  let accountPoints = counts.members.map((member, index) => member.metrics.questPoints ?? observedBefore?.[2][index] ?? null);
+  const priorObservation = observedBefore ?? observations.findLast(row => row[0] < day);
+  let accountPoints = counts.members.map((member, index) => preservePoints(member.metrics.questPoints,
+    priorObservation?.[2][index], completionsChanged[index]) ?? null);
   if (sum(accountPoints) === null && observedBefore?.[3] != null) accountPoints = [...observedBefore[2]];
   const accountChanged = accountPoints.some((value, index) => value !== (observedBefore?.[2][index] ?? null));
   // Startup has no command evidence for changing existing daily counts. Only a
@@ -92,12 +102,12 @@ export function captureProgressSnapshot(state, { questPoints, at = new Date().to
     const row = [day, time, accountPoints, sum(accountPoints)];
     if (observedIndex >= 0) observations[observedIndex] = row; else observations.push(row);
   }
-  const estimateTuple = (row, before) => tuple(row.metrics).map((value, index) =>
-    (index === 2 ? accountChanged && before?.[index] != null ? before[index] : row.metrics.questPointEstimate : value) ?? before?.[index] ?? null);
+  const estimateTuple = (row, before, changed) => tuple(row.metrics).map((value, index) =>
+    (index === 2 ? accountChanged && before?.[index] != null ? before[index] : preservePoints(row.metrics.questPointEstimate, before?.[index], changed) : value) ?? before?.[index] ?? null);
   // The four-slot legacy tuple remains completion-derived, readable on rollback.
   // Unknown observations must never replace any known stored metric.
   const entry = startup && old ? old : [day, time,
-    counts.members.map((member, index) => estimateTuple(member, old?.[2][index])), estimateTuple(counts.duo, old?.[3])];
+    counts.members.map((member, index) => estimateTuple(member, prior?.[2][index], completionsChanged[index])), estimateTuple(counts.duo, prior?.[3], completionsChanged.some(Boolean))];
   if (entry !== old) {
     // Existing PR-format rows retain their source semantics; new rows use the
     // rollback-compatible estimate format and the separate observation record.
@@ -114,18 +124,23 @@ export function captureProgressSnapshot(state, { questPoints, at = new Date().to
     }
   }
   const tupleChanged = !old || JSON.stringify(old.slice(2)) !== JSON.stringify(entry.slice(2));
-  if (!tupleChanged && !accountChanged) return state;
+  const provenance = { ...state.provenance, progressCompletionBaseline: { memberIds, completedTasks } };
+  if (!tupleChanged && !accountChanged) {
+    // Equal totals can hide a completion replacement. Consume that evidence
+    // now so a later capture cannot use it to justify a spurious decrease.
+    return completionsChanged.some(Boolean) ? { ...state, provenance } : state;
+  }
   if (index >= 0) {
     if (tupleChanged) days[index] = entry;
   } else days.push(entry);
   days.sort((a, b) => a[0] - b[0]);
   const progressSnapshots = { schemaVersion: 1, memberIds, days: days.slice(-MAX_PROGRESS_DAYS), truncated: (previous?.truncated ?? false) || days.length > MAX_PROGRESS_DAYS };
   validateProgressSnapshots(progressSnapshots);
-  if (!observations.length) return { ...state, progressSnapshots };
+  if (!observations.length) return { ...state, progressSnapshots, provenance };
   observations.sort((a, b) => a[0] - b[0]);
   const progressQuestPoints = { schemaVersion: 1, memberIds, days: observations.slice(-MAX_PROGRESS_DAYS) };
   validateProgressQuestPoints(progressQuestPoints);
-  return { ...state, progressSnapshots, provenance: { ...state.provenance, progressQuestPoints } };
+  return { ...state, progressSnapshots, provenance: { ...provenance, progressQuestPoints } };
 }
 
 function writeSide(member, changes, side) {
@@ -162,6 +177,7 @@ function rewind(state, event, events) {
       else if (target.command?.type === 'set-profile') state.rules = { ...target.command.rules };
       else return 'Undo lacks reversible rule after-values';
     }
+    restoreQuestPointChange(state, target, 'after');
     for (const change of target.undo.memberChanges ?? []) {
       const member = state.members.find(member => member.id === change.id);
       if (!member) return 'History has a different player roster';
@@ -174,6 +190,7 @@ function rewind(state, event, events) {
     const unrelated = ['set-note', 'set-journal', 'set-preference', 'set-teleport', 'set-teleport-override', 'set-transport-facts', 'set-skill-levels', 'set-primary-override', 'set-task-rule', 'reset-task-rule', 'set-slayer-lock', 'set-section', 'set-source-backlog', 'set-boss-unlock', 'set-area', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-sticker', 'set-chunk-colour', 'rename-chunk-colour', 'cancel-roll'];
     return unrelated.includes(event.type) ? null : 'History lacks reversible state evidence';
   }
+  restoreQuestPointChange(state, event);
   if (undo.rules) state.rules = { ...undo.rules };
   for (const snapshot of undo.members ?? []) {
     const index = state.members.findIndex(member => member.id === snapshot.id);
@@ -236,7 +253,7 @@ export function buildProgressModel(state, { questPoints, now = new Date().toISOS
     const observed = observedSkills(member), times = new Set(Object.values(observed).map(value => value.fetchedAt));
     const counts = skillCounts(member, state.rules?.['content.f2p'] !== false);
     if (times.size === 1 && (counts.totalLevel !== null || counts.combatLevel !== null)) datedRecords.push({ at: [...times][0], memberId: member.id, kind: 'skills', label: 'Saved skill observation', metrics: counts });
-    const questObservation = observedQuestPoints(member);
+    const questObservation = observedQuestPoints(state, member);
     if (questObservation) datedRecords.push({ at: questObservation.fetchedAt, memberId: member.id, kind: 'quest',
       label: 'Saved account quest-point observation', metrics: { questPoints: questObservation.current } });
   }

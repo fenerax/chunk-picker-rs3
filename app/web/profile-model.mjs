@@ -1,6 +1,6 @@
 import { playerControlSkills } from '../core/player-controls.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
-import { progressBelongsToMember } from '../core/game-progress.mjs';
+import { questPointProgress, progressBelongsToMember } from '../core/game-progress.mjs';
 import { permanentTaskId } from '../tasks/identity.mjs';
 import { projectMemberTaskFacts, resolveSavedTaskId } from '../tasks/fact-projection.mjs';
 import { helperTrialCaps } from './helper-model.mjs';
@@ -72,7 +72,7 @@ export function buildProfileModel(state, memberId, result, definitions = {}, rol
     lastSyncAt: [observed(sync, member) ? timestamp(sync.fetchedAt) : null,
       ...rows.filter(row => row.level !== null && member.skillProgress?.[row.skill]?.source === 'game-plugin').map(row => row.fetchedAt)]
       .filter(Boolean).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null, f2p };
-  const qp = member.questPointProgress;
+  const qp = questPointProgress(state, member);
   const questPoints = observed(qp, member) && Number.isSafeInteger(qp.current) && qp.current >= 0
     && Number.isSafeInteger(qp.max) && qp.max >= qp.current
     ? { current: qp.current, max: qp.max, source: qp.source, fetchedAt: timestamp(qp.fetchedAt) } : null;

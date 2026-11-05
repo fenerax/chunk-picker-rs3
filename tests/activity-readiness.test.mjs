@@ -19,9 +19,9 @@ test('current-account authoritative QP controls readiness even when catalogue co
   const f = fixture([finish, prior]);
   f.member.completedTasks = ['prior'];
   assert.equal(buildQuestReadiness(f.result, f.state, 'a').get('finish').canDoNow, true, 'Legacy personal completion evidence remains available');
-  const observePoints = (current, name = 'Alice') => { f.member.questPointProgress = {
+  const observePoints = (current, name = 'Alice') => { f.state.provenance = { questPointProgress: { [f.member.id]: {
     current, max: 450, source: 'platform-api', runescapeName: name, fetchedAt: '2026-11-04T12:00:00Z',
-  }; };
+  } } }; };
   observePoints(25);
   assert.equal(buildQuestReadiness(f.result, f.state, 'a').get('finish').canDoNow, false);
   f.member.completedTasks = [];

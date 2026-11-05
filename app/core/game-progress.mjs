@@ -120,3 +120,26 @@ export function validateItemProgress(taskId, value, tasks, memberId) {
   if (typeof value.seen !== 'string' || !value.seen.trim() || value.seen.length > 80 || /[\x00-\x1f\x7f-\x9f]/.test(value.seen)) throw new TypeError('Item progress seen must contain 1 through 80 characters without controls');
   if (!tasks.has(taskId)) throw new TypeError(`Item progress references absent task: ${taskId}`);
 }
+
+// Member schemas in the live release are closed; top-level provenance is an
+// extension container. Keep account QP here so a rollback can still load saves.
+export function questPointProgress(state, member) {
+  return member ? state.provenance?.questPointProgress?.[member.id] : undefined;
+}
+
+export function setQuestPointProgress(state, memberId, value) {
+  const points = { ...state.provenance?.questPointProgress };
+  if (value == null) delete points[memberId]; else points[memberId] = structuredClone(value);
+  state.provenance = { ...state.provenance, questPointProgress: points };
+}
+
+export function restoreQuestPointChange(state, event, side = 'before') {
+  const change = event.questPointChange;
+  if (!change) return;
+  const member = state.members.find(member => member.id === event.command.memberId);
+  const expected = side === 'before' ? change.after : change.before;
+  if (JSON.stringify(questPointProgress(state, member) ?? null) !== JSON.stringify(expected)) {
+    throw new TypeError('A later command changed the same saved quest points');
+  }
+  setQuestPointProgress(state, member.id, change[side]);
+}

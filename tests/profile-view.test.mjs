@@ -38,7 +38,7 @@ const deferred = () => { let resolve; const promise = new Promise(yes => { resol
 
 test('Profile and copied summary show synced QP with provenance and hide a previous account’s total', () => {
   const state = fixture();
-  state.members[0].questPointProgress = { current: 33, max: 456, source: 'platform-api', fetchedAt: '2026-11-04T12:00:00Z', runescapeName: 'DemoExplorer' };
+  state.provenance = { questPointProgress: { [state.members[0].id]: { current: 33, max: 456, source: 'platform-api', fetchedAt: '2026-11-04T12:00:00Z', runescapeName: 'DemoExplorer' } } };
   let model = buildProfileModel(state, 'actor1', result());
   let nodes = all(renderProfile(context, model));
   assert.ok(nodes.some(row => row.textContent === '33 / 456 quest points'));
