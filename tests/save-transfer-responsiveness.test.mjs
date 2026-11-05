@@ -48,8 +48,9 @@ for (const maximum of [false, true]) test(`${maximum ? 'maximum accepted' : 'rea
   const directory = await mkdtemp(path.join(tmpdir(), 'synthetic-transfer-responsiveness-'));
   let hookCount = 0;
   const store = await openStore({ dataDir: directory, initialState: createGroupState(roster), retention: false,
+    world: { chunks: new Map([['100', { id: '100' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) },
     prepareImportState(summary) { hookCount++; assert.equal(summary.tasks, undefined); assert.equal(summary.history, undefined); assert.ok(summary.digest); },
-    beforeCommit(change) { assert.equal(change.state.tasks, undefined); assert.ok(change.digest); } });
+    beforeCommit(change) { if (change.operation === 'replace') { assert.equal(change.state.tasks, undefined); assert.ok(change.digest); } } });
   t.after(async () => { await store.close(); await rm(directory, { recursive: true, force: true }); });
   let document = realisticSave();
   const realisticBytes = Buffer.byteLength(JSON.stringify({ backup: document }));
@@ -76,7 +77,7 @@ for (const maximum of [false, true]) test(`${maximum ? 'maximum accepted' : 'rea
     const parsed = await readBackupRequest(request, { defer: true }); bytes = undefined;
     return store.prepareTransfer(parsed.input, { dataset: { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} },
       route: '/api/restore/preview', responseView: 'play-v1',
-      world: { chunks: new Map(), neighbors: new Map(), walkable: new Set(), f2p: new Set(), sectionTopology: new Map() }, importDeadline: parsed.deadline });
+      world: { chunks: new Map(), neighbors: new Map(), walkable: new Set(), f2p: new Set(), sectionTopology: new Map() }, importBudget: parsed.budget });
   });
   const applied = await measure(() => store.applyTransfer(preview.result.ticket, 0));
   assert.equal(applied.result.state.tasks.length, 20_503);
@@ -84,25 +85,60 @@ for (const maximum of [false, true]) test(`${maximum ? 'maximum accepted' : 'rea
   assert.equal(applied.result.state.provenance.restore.incomingProvenance.taskIdentityMigration.archives[0].tasks.length, 20_503);
   assert.equal(hookCount, 1);
   assert.throws(() => { applied.result.state.members[0].name = 'External mutation'; }, TypeError);
+  const jsonExport = await measure(() => store.exportBackup());
+  const gzipExport = await measure(() => store.exportBackup({ gzip: true }));
+  assert.equal(jsonExport.result.plainBytes, gzipExport.result.plainBytes);
+  // Every boundary-sized accepted save must download in both formats and pass
+  // the importer again after restore provenance has been added.
+  const request = Object.assign(Readable.from([jsonExport.result.bytes]), { headers: { 'content-type': 'application/json' }, complete: true });
+  const exported = (await readBackupRequest(request)).body;
+  assert.deepEqual(exported.state, applied.result.state, 'The portable round trip retains every registry, History and archive field.');
+  await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '100', note: 'Synthetic note' }, 1, { view: 'play-v1' });
+  const undone = await measure(() => store.commandSerialized({ type: 'undo' }, 2, { view: 'play-v1' }));
+  assert.equal(store.getInfo().revision, 3);
   t.diagnostic(JSON.stringify({ maximum, bytes: size, realisticBytes, portableBytes, limit: MAX_BACKUP_BYTES,
     previewMs: preview.ms, previewGapMs: preview.gap, workerMs: preview.result.workerMs,
-    applyMs: applied.ms, applyGapMs: applied.gap, peakRSSMiB: Math.max(preview.peakRSS, applied.peakRSS) / 1024 ** 2,
+    applyMs: applied.ms, applyGapMs: applied.gap,
+    jsonExportMs: jsonExport.ms, jsonExportGapMs: jsonExport.gap,
+    gzipExportMs: gzipExport.ms, gzipExportGapMs: gzipExport.gap,
+    undoMs: undone.ms, undoGapMs: undone.gap,
+    peakRSSMiB: Math.max(preview.peakRSS, applied.peakRSS, jsonExport.peakRSS, gzipExport.peakRSS, undone.peakRSS) / 1024 ** 2,
     lifetimePeakRSSMiB: process.resourceUsage().maxRSS / 1024 }));
   // 100 ms target, 150 ms ceiling allows shared CI scheduling/GC variance.
-  assert.ok(preview.gap < 150, `preview timer gap ${preview.gap.toFixed(1)} ms`);
-  assert.ok(applied.gap < 150, `apply timer gap ${applied.gap.toFixed(1)} ms`);
-  if (!maximum) {
-    const exported = await store.backup();
-    assert.deepEqual(exported.state, applied.result.state, 'The real-sized portable round trip retains every registry, History and archive field.');
+  for (const [name, result] of Object.entries({ preview, apply: applied, jsonExport, gzipExport }))
+    assert.ok(result.gap < 150, `${name} timer gap ${result.gap.toFixed(1)} ms`);
+
+});
+
+test('four users can preview realistic 49 MiB saves without spending their active budget in the queue', async t => {
+  let document = realisticSave();
+  const bytes = Buffer.from(JSON.stringify({ backup: document })); document = undefined;
+  const stores = [];
+  for (let i = 0; i < IMPORT_QUEUE_LIMIT; i++) {
+    const directory = await mkdtemp(path.join(tmpdir(), 'synthetic-queued-transfer-'));
+    const store = await openStore({ dataDir: directory, initialState: createGroupState(roster), retention: false });
+    stores.push(store);
+    t.after(async () => { await store.close(); await rm(directory, { recursive: true, force: true }); });
   }
+  const start = performance.now();
+  const results = await Promise.all(stores.map(async (store, i) => {
+    const request = Object.assign(Readable.from([bytes]), { headers: { 'content-type': 'application/json' }, complete: true });
+    const parsed = await readBackupRequest(request, { defer: true });
+    const preview = await store.prepareTransfer(parsed.input, { importBudget: parsed.budget, importUserId: `queued-user-${i}`,
+      dataset: { datasetId: 'duo-legacy', capabilities: {} }, route: '/api/restore/preview', world: { chunks: new Map() } });
+    assert.equal(preview.response.preview.taskCounts.added, 20_503);
+    return Math.round(performance.now() - start);
+  }));
+  t.diagnostic(`Four realistic previews completed after ${results.join(', ')} ms`);
 });
 
 test('transfer bytes preserve proto keys as own data, metadata, and long string ropes', async () => {
   const source = { value: JSON.parse('{"__proto__":{"safe":true}}'), text: 'synthetic'.repeat(100_000), map: new Map([[undefined, new Set(['a'])]]),
     topology: new Uint32Array([65_536, 4_294_967_295]) };
-  source.sameTopology = source.topology;
+  source.sameTopology = source.topology; source.textCopies = [source.text, source.text];
   const expected = structuredClone(source);
   const encoded = await encodeImportBytes(source);
+  assert.ok(encoded.buffers.reduce((total, bytes) => total + bytes.byteLength, 0) < source.text.length * 2, 'Repeated immutable evidence strings cross the worker boundary once.');
   const decoded = await decodeImportBytes(structuredClone(encoded, { transfer: encoded.buffers }));
   assert.deepEqual(decoded, expected);
   assert.equal(Object.getPrototypeOf(decoded.value), Object.prototype);

@@ -13,6 +13,7 @@ import { selectDuoTaskLists } from '../app/web/duo-task-lists.mjs';
 import { createDuoBacklogView } from '../app/web/duo-backlog-view.mjs';
 import { createMembersStart } from '../app/web/members-start.mjs';
 import { createProfileView } from '../app/web/profile-view.mjs';
+import { BACKUP_LIMIT_LABEL } from '../app/web/backup-limits.mjs';
 import { createBackupUpload, downloadFullBackup } from '../app/web/backup-transfer.mjs';
 import { createFinishLineView } from '../app/web/finish-line-view.mjs';
 import { createPartnerSupplyView } from '../app/web/partner-supply-view.mjs';
@@ -74,6 +75,7 @@ export function runScreenGraph(context, modules) {
   context.createDuoBacklogView ??= createDuoBacklogView;
   context.createMembersStart ??= createMembersStart;
   context.createProfileView ??= createProfileView;
+  context.BACKUP_LIMIT_LABEL ??= BACKUP_LIMIT_LABEL;
   context.createBackupUpload ??= createBackupUpload;
   context.downloadFullBackup ??= downloadFullBackup;
   context.createFinishLineView ??= createFinishLineView;

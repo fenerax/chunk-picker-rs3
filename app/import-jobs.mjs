@@ -1,7 +1,8 @@
 import { Worker } from 'node:worker_threads';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
 
-export const IMPORT_TIMEOUT_MS = 15_000;
+export const IMPORT_TIMEOUT_MS = 120_000;
+export const IMPORT_QUEUE_WAIT_MS = 120_000;
 // Shared by every picker and every import stage. A failed job cannot poison the
 // queue; terminate before admitting the next job so large heaps never accumulate.
 let queue = Promise.resolve();
@@ -14,23 +15,32 @@ export function reserveImportUser(userId) {
   let active = true;
   return () => { if (active) { active = false; requests.delete(userId); } };
 }
-export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, deadline, request, maxUploadBytes, prepareHook, userId = Symbol(), workerURL = new URL('./import-worker.mjs', import.meta.url) } = {}) {
+export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queueWaitMs = IMPORT_QUEUE_WAIT_MS, request, maxUploadBytes, prepareHook, userId = Symbol(), workerURL = new URL(job.kind === 'parse' ? './import-parser-worker.mjs' : './import-worker.mjs', import.meta.url) } = {}) {
   if (users.has(userId) || users.size >= IMPORT_QUEUE_LIMIT) return Promise.reject(busy());
   users.add(userId);
+  let expired = false, waitTimer;
+  const waiting = new Promise((resolve, reject) => {
+    waitTimer = setTimeout(() => { expired = true; reject(busy()); }, queueWaitMs);
+  });
   const result = queue.then(async () => {
-    const timeout = () => Object.assign(new Error('This backup took too long to check (15 seconds). No records were imported. Try another backup.'), { status: 422 });
-    if (deadline && deadline <= Date.now()) throw timeout();
+    clearTimeout(waitTimer);
+    if (expired) return;
+    const activeStart = performance.now();
+    const available = Math.min(timeoutMs, budget?.remainingMs ?? timeoutMs);
+    const timeout = () => Object.assign(new Error(`This backup took too long to check (${Math.ceil(timeoutMs / 1000)} seconds of active work). No records were imported. Try another backup.`), { status: 422 });
+    if (available <= 0) throw timeout();
     const bytes = await encodeImportBytes({ ...job, prepareHook: Boolean(prepareHook) });
+    if (performance.now() - activeStart >= available) throw timeout();
     const worker = new Worker(workerURL, { workerData: bytes, transferList: bytes.buffers, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
     const controller = new AbortController();
     let timer, decoding = false, cleanup = () => {};
     try {
       return await new Promise((resolve, reject) => {
-        timer = setTimeout(() => reject(timeout()), deadline ? Math.min(timeoutMs, Math.max(1, deadline - Date.now())) : timeoutMs);
+        timer = setTimeout(() => reject(timeout()), Math.max(1, available - (performance.now() - activeStart)));
         worker.on('message', async message => {
           decoding = true;
           try {
-            const decoded = await decodeImportBytes(message, { freezeStates: true, signal: controller.signal });
+            const decoded = await decodeImportBytes(message, { freezeStates: job.kind !== 'backup', signal: controller.signal });
             if (decoded.hook) {
               await prepareHook(decoded.summary, decoded.context);
               const reply = await encodeImportBytes({ hookResult: true });
@@ -47,6 +57,7 @@ export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, deadline, req
           let bytes = 0, sending = Promise.resolve();
           const data = chunk => {
             request.pause();
+            if (typeof chunk === 'string') chunk = Buffer.from(chunk);
             bytes += chunk.length;
             if (bytes > maxUploadBytes) reject(Object.assign(new Error('This backup is too large. Choose a smaller backup.'), { status: 413 }));
             else {
@@ -69,10 +80,10 @@ export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, deadline, req
           request.on('error', error); request.on('aborted', error); request.on('end', end); request.on('data', data);
         }
       });
-    } finally { controller.abort(); cleanup(); clearTimeout(timer); await worker.terminate(); }
+    } finally { controller.abort(); cleanup(); clearTimeout(timer); await worker.terminate(); if (budget) budget.remainingMs -= performance.now() - activeStart; }
   });
-  const tracked = result.finally(() => users.delete(userId));
-  queue = tracked.catch(() => {});
+  const tracked = Promise.race([result, waiting]).finally(() => users.delete(userId));
+  queue = result.catch(() => {});
   return tracked;
 }
 

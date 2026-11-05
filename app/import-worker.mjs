@@ -1,18 +1,18 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { serialize, deserialize } from 'node:v8';
-import { Readable } from 'node:stream';
-import { readBackupRequest, backupPreviewState } from './backup-transfer.mjs';
+import { deserialize } from 'node:v8';
+import { backupPreviewState, MAX_PORTABLE_BACKUP_BYTES } from './backup-transfer.mjs';
 import { openStore } from './storage/store.mjs';
 import { createRuleRegistryFromDefinitions } from './core/rule-registry.mjs';
 import { importBackup, previewRestore, applyValidatedCommand, validateState } from './core/state.mjs';
 import { decodeCompletionDocument } from './storage/completion-codec.mjs';
-import { mapTransferRoster, requireTransferDataset, transferDigest, transferReport, quarantineTransferChunks } from './save-transfer.mjs';
+import { mapTransferRoster, requireTransferDataset, transferReport, quarantineTransferChunks, transferManifest } from './save-transfer.mjs';
 import { migrationSummary, convertLegacyCapture } from './picker-context-http.mjs';
 import { migrateOwnedGameplay } from './tasks/migration.mjs';
 import { preserveGameIdentity } from './game-profile.mjs';
 import { taskRuleDefinitions } from './data/settings.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { projectPlayState, PLAY_VIEW } from './play-view.mjs';
 import { projectBrowserState } from './web/browser-state.mjs';
@@ -31,36 +31,17 @@ function mergeGuards(previous = [], rows = []) {
   for (const row of rows) if (!keys.has(key(row))) { keys.add(key(row)); merged.push(row); }
   return merged;
 }
+function portableBackupBytes(backup, dataset) {
+  if (dataset) backup = { ...backup,
+    state: { ...backup.state, provenance: { ...backup.state.provenance,
+      dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } } },
+    transfer: transferManifest(dataset, backup.state.members) };
+  const bytes = Buffer.from(JSON.stringify(backup));
+  if (bytes.length > MAX_PORTABLE_BACKUP_BYTES) fail(413, 'This replacement would exceed the portable backup limit. No records were imported.');
+  return bytes;
+}
 const start = performance.now();
 async function run(job) {
-  if (job.kind === 'parse') {
-    const request = Object.assign(job.chunks ? Readable.from(job.chunks.map(chunk => Buffer.from(chunk))) : new Readable({ read() {} }), { headers: job.headers, complete: Boolean(job.chunks) });
-    if (!job.chunks) parentPort.on('message', message => {
-      if (message.end) { request.complete = true; request.push(null); }
-      else request.push(Buffer.from(message.chunk));
-    });
-    const imported = await readBackupRequest(request, job.options);
-    if (!job.defer) return imported;
-    const body = imported.body, selectors = new Set();
-    const pending = [body];
-    while (pending.length) {
-      const item = pending.pop();
-      for (const [key, value] of Object.entries(item)) {
-        if (key === 'picker' || key === 'pickerId') {
-          if (typeof value !== 'string' || value.length > 128) fail(403, 'Picker access denied.');
-          selectors.add(value);
-          if (selectors.size > 1) fail(403, 'Picker access denied.');
-        } else if (value && typeof value === 'object') pending.push(value);
-      }
-    }
-    for (const key of ['memberId', 'sourceMemberId', 'previewToken']) if (body[key] !== undefined && (typeof body[key] !== 'string' || body[key].length > 128)) fail(400, 'Invalid backup import options.');
-    if (body.expectedRevision !== undefined && !Number.isSafeInteger(body.expectedRevision)) fail(400, 'Invalid expected revision.');
-    const transferHash = transferDigest({ backup: body.backup, backupId: body.backupId, document: body.document,
-      members: body.members, memberId: body.memberId, sourceMemberId: body.sourceMemberId, rosterMapping: body.rosterMapping });
-    return { uploaded: imported.uploaded, input: serialize(body),
-      body: { expectedRevision: body.expectedRevision, memberId: body.memberId, previewToken: body.previewToken, transferHash,
-        selectors: [...selectors].map(pickerId => ({ pickerId })) } };
-  }
   const registry = job.rules ? createRuleRegistryFromDefinitions(job.rules) : undefined;
   const options = job.options ?? {};
   const migrateState = options.migration ? (state, context) => {
@@ -87,6 +68,12 @@ async function run(job) {
   const store = await openStore({ dataDir: job.dataDir, registry, readOnly: true, importReader: true, migrateState, prepareState, now: options.now,
     retention: job.retention, progressQuestPoints: job.progressQuestPoints, completionCodec: job.completionCodec });
   try {
+    if (job.kind === 'backup' || job.kind === 'export') {
+      const backup = await store.backup();
+      if (job.kind === 'backup') return JSON.parse(JSON.stringify(backup));
+      const bytes = portableBackupBytes(backup, job.exportDataset);
+      return { bytes: job.gzip ? gzipSync(bytes, { level: 1 }) : bytes, plainBytes: bytes.length };
+    }
     const current = store.getState();
     if (current.revision !== job.baseRevision) fail(409, 'The destination changed. Preview the backup again.');
     if (job.kind === 'replacement') return (await store.previewReplacement(job.document, { actor: job.actor })).state;
@@ -193,6 +180,9 @@ async function run(job) {
     summary.rules = boundedOutput(preview.rules);
     summary.warnings = warningOutput(preview.warnings);
     summary.taskCounts = Object.fromEntries(['added', 'removed', 'changed'].map(key => [key, preview.tasks[key].length]));
+    // Include the destination's retained evidence and the exact portable
+    // manifest before accepting: metadata must never strand an accepted save.
+    portableBackupBytes({ format: 'rs3-chunk-picker', schemaVersion: 1, state }, dataset);
     const publication = await store.prepareImportPublication(state, operation);
     if (options.responseView !== undefined) {
       const saved = publication.state, builtInRegistry = createRuleRegistry();
@@ -211,7 +201,7 @@ async function run(job) {
     }
     return { publication, operation, workerMs: performance.now() - start,
       response: { preview: summary, state: route.startsWith('/api/member-restore') && body.backup !== undefined ? undefined
-        : boundedOutput(legacy && !options.uploaded ? state : backupPreviewState(state)), sourceRoster,
+        : legacy && !options.uploaded ? { ...boundedOutput(state), ...backupPreviewState(state) } : backupPreviewState(state), sourceRoster,
         ...(legacy && options.uploaded ? { format: 'play-v1', schemaVersion: 1 } : {}),
         warnings: warningOutput(warnings), transferReport: report } };
   } finally { await store.close(); }

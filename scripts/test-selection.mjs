@@ -361,6 +361,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "save-transfer-review.test.mjs",
   "save-transfer-regressions.test.mjs",
   "save-transfer-responsiveness.test.mjs",
   "save-transfer-platform-durability.test.mjs",

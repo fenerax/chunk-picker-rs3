@@ -1,4 +1,4 @@
-import { transferManifest, createTransferReviews } from './save-transfer.mjs';
+import { createTransferReviews } from './save-transfer.mjs';
 import { reserveImportUser } from './import-jobs.mjs';
 import { originalChunkURL } from './original-chunk-url.mjs';
 import { noteTiming } from './live-timings.mjs';
@@ -22,7 +22,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { isImportRoute, readBackupRequest, sendGzipBackup } from './backup-transfer.mjs';
+import { isImportRoute, readBackupRequest, sendPreparedBackup } from './backup-transfer.mjs';
 import { createTaskReuseFingerprint } from './tasks/unlock-reuse.mjs';
 import { createPoolRanking } from './tasks/pool-ranking.mjs';
 import { openStore } from './storage/store.mjs';
@@ -1421,11 +1421,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               settings: ruleRegistry.resolve(store.getRules()) }))); return;
           }
           if (route === '/api/backup') {
-            const backup = await store.backup();
-            backup.state.provenance = { ...backup.state.provenance, dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
-            backup.transfer = transferManifest(dataset, backup.state.members);
-            if (new URL(request.url, 'http://localhost').searchParams.get('download') === 'gzip') await sendGzipBackup(response, backup, { head: request.method === 'HEAD' });
-            else await json(request, response, 200, backup, { 'Content-Disposition': 'attachment; filename="rs3-duo-backup.json"' });
+            const gzip = new URL(request.url, 'http://localhost').searchParams.get('download') === 'gzip';
+            const prepared = await store.exportBackup({ dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
+              digest: dataset.digest, coordinateSystem: dataset.coordinateSystem, identityNamespace: dataset.identityNamespace }, gzip });
+            await sendPreparedBackup(response, prepared, { gzip, head: request.method === 'HEAD' });
             return;
           }
           if (route === '/api/export/original-chunks') {
@@ -1786,7 +1785,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 if (!identity.admin && (!identity.memberId || identity.memberId !== body.memberId)) throw httpError(403, 'This link can only restore its own player’s map.');
               } else if (!(ownerRestore && identity.role === 'owner')) requireAdmin();
               const result = await store.prepareTransfer(importedFile.input, {
-                route, pickerId, uploaded: importedFile.uploaded, importDeadline: importedFile.deadline, dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
+                route, pickerId, uploaded: importedFile.uploaded, importBudget: importedFile.budget, dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
                   digest: dataset.digest, coordinateSystem: dataset.coordinateSystem, identityNamespace: dataset.identityNamespace,
                   capabilities: dataset.capabilities },
                 world: indexedWorld,
@@ -1899,7 +1898,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       // Optional full-state tools share these small, pure travel helpers. Their
       // catalogue dependencies already use the selected dataset's static routes.
       else if (['/core/rule-registry.mjs', '/core/progress-index.mjs', '/core/automatic-transport.mjs', '/core/travel-inputs.mjs', '/core/progress-snapshots.mjs', '/core/teleport-returns.mjs', '/core/teleport-return-cache.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
-      else if (['/teleports.mjs', '/teleports.css', '/backup-status.mjs', '/backup-transfer.mjs', '/map-display.mjs', '/map-display.css', '/map-task-counts.mjs', '/map-task-count-renderer.mjs', '/map-task-count-obstacles.mjs', '/map-place-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/teleports.mjs', '/teleports.css', '/backup-status.mjs', '/backup-transfer.mjs', '/backup-limits.mjs', '/map-display.mjs', '/map-display.css', '/map-task-counts.mjs', '/map-task-count-renderer.mjs', '/map-task-count-obstacles.mjs', '/map-place-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/stream-safe.mjs', '/stream-safe.css', '/feedback-badge.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-roll-stats.mjs', '/roll-stats.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/profile-view.mjs', '/profile-model.mjs', '/profile-copy.mjs', '/profile.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2010,7 +2009,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
         ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
-        ...(error.code === 'REVISION_CONFLICT' ? error.importConflict ? { revision: error.state.revision } : await viewEnvelope(error.state, viewFor(request)) : {}),
+        ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),
         ...((routeIsRuneMetrics(request) || (request.url ?? '').startsWith('/api/original-sync/')) && error.code !== 'REVISION_CONFLICT' && error.code ? { code: error.code } : {}) });
     } finally { if (ownsImport) importingBackup = false; releaseImportUser?.(); }

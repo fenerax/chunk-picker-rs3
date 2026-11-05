@@ -1,11 +1,19 @@
 import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
-import { backupJSONChunks } from './backup-transfer.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 export function transferDigest(value) {
   const hash = createHash('sha256');
-  for (const chunk of backupJSONChunks(value)) hash.update(chunk);
+  // Native serialization runs only in the checker worker. Hash large batches,
+  // rather than reconstructing JSON and entering crypto for every leaf.
+  const json = JSON.stringify(value);
+  for (let offset = 0; offset < json.length;) {
+    // Keep UTF-16 surrogate pairs together when converting a batch to UTF-8.
+    let end = Math.min(json.length, offset + 64 * 1024);
+    if (end < json.length && /[\uD800-\uDBFF]/.test(json[end - 1])) end--;
+    hash.update(json.slice(offset, end));
+    offset = end;
+  }
   return hash.digest('hex');
 }
 export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives'],

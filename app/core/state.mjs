@@ -1402,8 +1402,10 @@ export function applyCommand(state, command, { expectedRevision, world, registry
 
 /** Storage-only capability check, not an eligibility or authorization check. */
 export function hasRetainedSparseUndo(state, command) {
-  if (command?.type !== 'undo' || command.undoRevision === undefined) return false;
-  const undo = state.history.find(event => event.revision === command.undoRevision)?.undo;
+  if (command?.type !== 'undo') return false;
+  const undo = (command.undoRevision === undefined
+    ? state.history.findLast(event => event.undo && event.undoneRevision === undefined && event.type !== 'undo')
+    : state.history.find(event => event.revision === command.undoRevision))?.undo;
   return Boolean((undo?.memberChanges || undo?.taskClaimChanges) && !undo.members && !undo.rules && !undo.tasks && !undo.taskChanges);
 }
 

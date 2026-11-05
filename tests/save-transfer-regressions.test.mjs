@@ -126,7 +126,7 @@ test('hostile warning and repeated long-label report stay bounded while the HTTP
   const timer = new Promise(resolve => setTimeout(() => { fired = performance.now() - start; resolve(); }, 20));
   const checking = (async () => {
     const parsed = await readBackupRequest(Object.assign(Readable.from([bytes]), { headers: { 'content-type': 'application/json' }, complete: true }), { defer: true });
-    return store.prepareTransfer(parsed.input, { ...transferOptions, importDeadline: parsed.deadline,
+    return store.prepareTransfer(parsed.input, { ...transferOptions, importBudget: parsed.budget,
       migration: { definitions: { challenges: {} }, taskMap: {}, catalogue: [] } });
   })();
   await timer;

@@ -6,7 +6,7 @@ import { serialize, deserialize } from 'node:v8';
 const TURN_MS = 4, BATCH_BYTES = 64 * 1024;
 const pause = () => new Promise(resolve => setImmediate(resolve));
 export async function encodeImportBytes(value) {
-  const buffers = [], blocks = [], binary = new Map();
+  const buffers = [], blocks = [], binary = new Map(), strings = new Map();
   let tokens = [], size = 0, turn = performance.now();
   function flush() {
     if (!tokens.length) return;
@@ -21,10 +21,18 @@ export async function encodeImportBytes(value) {
     if (performance.now() - turn >= TURN_MS) { await pause(); turn = performance.now(); }
   }
   async function visit(item) {
-    if (typeof item === 'string' && item.length > 16_384) {
-      await emit(4);
+    // Strings are immutable. Reuse repeated large evidence leaves instead of
+    // allocating and transporting a separate copy for each archive occurrence.
+    const sharedString = typeof item === 'string' && item.length >= 256 && item.length <= 1024 * 1024;
+    if (sharedString && strings.has(item)) {
+      await emit(10, strings.get(item));
+    } else if (typeof item === 'string' && item.length > 16_384) {
+      const id = sharedString ? strings.size : undefined; if (sharedString) strings.set(item, id);
+      await emit(4, id);
       for (let i = 0; i < item.length; i += 16_384) await emit(5, item.slice(i, i + 16_384));
       await emit(6);
+    } else if (sharedString) {
+      strings.set(item, strings.size); await emit(11, item);
     } else if (ArrayBuffer.isView(item) || item instanceof ArrayBuffer) {
       // Parser buffers are exclusively owned; pooled small buffers need a copy.
       const bytes = item instanceof ArrayBuffer ? item : item.byteOffset === 0 && item.byteLength === item.buffer.byteLength
@@ -49,8 +57,8 @@ export async function encodeImportBytes(value) {
 }
 
 export async function decodeImportBytes({ buffers, blocks }, { freezeStates = false, signal } = {}) {
-  let result, text, turn = performance.now();
-  const stack = [], binary = new Map();
+  let result, text, textId, turn = performance.now();
+  const stack = [], binary = new Map(), strings = [];
   function put(value) {
     const frame = stack.at(-1);
     if (!frame) result = value;
@@ -75,9 +83,11 @@ export async function decodeImportBytes({ buffers, blocks }, { freezeStates = fa
         put(value); stack.push({ value, freeze });
       }
       else if (type === 3) { const frame = stack.pop(); if (frame.freeze) Object.freeze(frame.value); }
-      else if (type === 4) text = '';
+      else if (type === 4) { text = ''; textId = value; }
       else if (type === 5) text += value;
-      else if (type === 6) { put(text); text = undefined; }
+      else if (type === 6) { if (textId !== undefined) strings[textId] = text; put(text); text = undefined; textId = undefined; }
+      else if (type === 10) put(strings[value]);
+      else if (type === 11) { strings.push(value); put(value); }
       else if (type === 7) {
         if (!binary.has(value.index)) { binary.set(value.index, buffers[value.index]); buffers[value.index] = undefined; }
         const bytes = binary.get(value.index);

@@ -1,6 +1,6 @@
 import { isMainThread } from 'node:worker_threads';
 import { runImportJob, registryMetadata } from '../import-jobs.mjs';
-import { MAX_BACKUP_BYTES } from '../backup-transfer.mjs';
+import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
@@ -389,12 +389,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // keeps durable writes bounded without changing portable backup semantics.
   const serialized = (state, ledger = receipts) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}}\n`;
   async function importDocument(bytes) {
-    const document = await parseJSONStream([bytes], { maxBytes: MAX_BACKUP_BYTES });
+    const document = await parseJSONStream([bytes], { maxBytes: MAX_PORTABLE_BACKUP_BYTES });
     return document;
   }
   async function decodeStoredBytes(bytes, forImport) {
-    try { return await gunzipAsync(bytes, forImport ? { maxOutputLength: MAX_BACKUP_BYTES } : {}); }
-    catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') (() => { throw Object.assign(new Error('This backup is too large. The limit is 208 MiB after decompression.'), { status: 413 }); })(); throw error; }
+    try { return await gunzipAsync(bytes, forImport ? { maxOutputLength: MAX_PORTABLE_BACKUP_BYTES } : {}); }
+    catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') (() => { throw Object.assign(new Error(`This backup is too large. The limit is ${BACKUP_LIMIT_LABEL} after decompression.`), { status: 413 }); })(); throw error; }
   }
   async function readStaticField(key, reference, forImport = false) {
     const match = STATIC_ID.exec(reference?.id ?? '');
@@ -665,6 +665,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return observed;
   }
   async function prepared(state, operation) {
+    // The built-in identity-only hook explicitly proves that a gameplay command
+    // kept its dataset stamp. Caller hooks keep their full copy/validation path.
+    if (operation === 'command' && prepareState?.commandIsCurrent?.(state)
+      && (!migrateState || migrateState.isCurrent?.(state))) return state;
     if (operation === 'load' && prepareState?.isCurrent?.(state) === true
       && (!migrateState || migrateState.isCurrent?.(state) === true)) return state;
     // Gameplay commands start from an already migrated private state. Caller
@@ -1282,7 +1286,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       retention: { policy, activeHistoryEntries: current.history.length, historyArchives: current.provenance?.historyArchive?.length ?? 0,
         ...(retentionFailure ? { failure: retentionFailure } : {}) } }),
     prepareSnapshot: () => enqueueMaintenance(maintainRetention),
-    backup: async () => envelope((await hydrateHistory(current)).state),
+    backup: () => isMainThread ? enqueueMaintenance(() => runImportJob({ kind: 'backup', dataDir: directory,
+      rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true })
+      : hydrateHistory(current).then(({ state }) => envelope(state)),
+    exportBackup: ({ dataset, gzip = false } = {}) => enqueueMaintenance(() => runImportJob({ kind: 'export', dataDir: directory,
+      exportDataset: dataset, gzip, rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true }),
     async listBackups() {
       return enqueueMaintenance(async () => {
         const byId = new Map([...(await retainedArchiveIndex()).values()].map(item => [item.metadata.id, { ...item.metadata }]));
@@ -1450,7 +1458,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const revision = current.revision;
       const checkpoint = currentDiskSerialized;
       const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options: { ...options, now: timestamp() },
-        rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec }, { deadline: options.importDeadline, userId: options.importUserId,
+        rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec }, { budget: options.importBudget, userId: options.importUserId,
         prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
       const ticket = {};
       importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint });
