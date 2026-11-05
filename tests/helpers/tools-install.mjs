@@ -84,7 +84,9 @@ try {
   assert.equal(restored.writerRestarted, false); assert.deepEqual(await inventory(await realpath(toolsRoot)), before);
   assert.equal((await lstat(toolsRoot)).isSymbolicLink(), false);
   await assertToolsEntrypoints(toolsRoot, account, runtimeCliChecks, { linked: false });
-  await assert.rejects(switchTools({ settings, toolsRoot, rollbackReceipt: installed.receiptFile, idle }), /receipt/);
+  const repeatedRollback = await install({ settings, toolsRoot, rollbackReceipt: installed.receiptFile, idle });
+  assert.equal(repeatedRollback.alreadyCompleted, true);
+  assert.equal(repeatedRollback.receiptFile, restored.receiptFile);
   // After re-migrating the restored directory, later symlink updates need no exchange.
   const next = await install({ settings, toolsRoot, packageRoot: pkg, idle });
   const update = await install({ settings, toolsRoot, packageRoot: pkg, idle, exchange: async () => { throw Error('unnecessary exchange'); } });

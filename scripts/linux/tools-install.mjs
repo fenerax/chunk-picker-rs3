@@ -3,7 +3,7 @@ import { isMain } from '../release/vps/entrypoint.mjs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { chmod, lstat, mkdir, open, readlink, realpath, rename, rm, symlink } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readdir, readlink, realpath, rename, rm, symlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { atomic, copyTree, encode, exclusive, exists, inventory, json, noLinks, outside, sha } from './files.mjs';
@@ -75,6 +75,37 @@ async function ownedTree(root, parent) {
     if (info.uid !== 0 || info.mode & 0o022) refuse('ownership');
   }
 }
+const sameSelection = (first, second) => !!first && !!second && first.root === second.root && first.linked === second.linked
+  && first.treeIdentity === second.treeIdentity && first.toolsIdentity === second.toolsIdentity;
+async function checkedSelection(toolsRoot, versions, identity) {
+  let current;
+  try { current = await selection(toolsRoot); } catch { refuse('selection'); }
+  if (current.linked && (path.dirname(current.root) !== versions || (await lstat(toolsRoot)).uid !== 0)) refuse('selection');
+  await ownedTree(current.root, path.dirname(toolsRoot));
+  let account;
+  try { account = await identity(); } catch { refuse('access'); }
+  const checks = current.toolsIdentity ? toolsCliChecks : runtimeCliChecks;
+  await assertServiceAccess(current.root, account, checks.map(row => row[0]));
+  await assertToolsEntrypoints(current.root, account, checks, { linked: current.linked });
+  return current;
+}
+// A missing journal is not proof of success. Only an immutable successful
+// receipt whose installed selection still matches can identify completed work.
+async function matchingReceipt(settings, toolsRoot, current, accepts = () => true) {
+  for (const name of (await readdir(settings.controlDir)).sort().reverse()) {
+    if (!/^tools-receipt-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.json$/.test(name)) continue;
+    const receiptFile = path.join(settings.controlDir, name);
+    try { await noLinks(receiptFile); } catch { refuse('receipt'); }
+    const info = await lstat(receiptFile);
+    if (!info.isFile() || info.uid !== 0 || info.mode & 0o022) refuse('receipt');
+    let record;
+    try { record = await json(receiptFile); } catch { refuse('receipt'); }
+    if (record?.format === 'picker-tools-switch-v1' && record.result === 'success'
+      && ['install', 'rollback'].includes(record.action) && record.toolsRoot === toolsRoot
+      && sameSelection(record.installed, current) && accepts(record)) return receiptFile;
+  }
+  return null;
+}
 // Reconcile an interrupted switch to its previous selection. Atomic exchanges
 // leave the real tree at exactly one journaled path, even after SIGKILL. Never
 // remove a fence until hashes, access and runtime behavior have been verified.
@@ -89,6 +120,13 @@ export async function recoverToolsSwitch({ settings, toolsRoot, idle = operatorU
   return runLocked(async () => {
     await idle();
     const transaction = path.join(settings.controlDir, 'tools-transaction.json');
+    if (!await exists(transaction)) {
+      await cleanToolsEvidence(settings, { locked: true });
+      const current = await checkedSelection(toolsRoot, versions, identity);
+      const receiptFile = await matchingReceipt(settings, toolsRoot, current);
+      await idle();
+      return { result: 'no-pending-switch', selection: current, receiptFile, writerRestarted: false };
+    }
     await noLinks(transaction);
     let record;
     try { record = await json(transaction); } catch { refuse('receipt'); }
@@ -157,7 +195,9 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
   const parent = path.dirname(toolsRoot), versions = path.join(parent, 'tools-versions');
   await noLinks(parent); await noLinks(settings.controlDir);
   outside(settings.controlDir, toolsRoot); outside(toolsRoot, settings.controlDir);
-  await cleanToolsEvidence(settings); await idle();
+  // exclusive() owns guarded dead-owner recovery; existence alone cannot tell
+  // a dead installer from a live backup/health owner. Recheck all gates inside.
+  await cleanToolsEvidence(settings, { locked: true }); await idle();
   const runLocked = work => settings.multiPicker ? serviceOperation(settings, 'tools-switch', work)
     : exclusive(path.join(settings.controlDir, 'operation.lock'), work);
   return runLocked(async () => {
@@ -176,9 +216,17 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
       await noLinks(rollbackReceipt);
       try { undo = await json(rollbackReceipt); } catch { refuse('receipt'); }
       if (undo?.format !== 'picker-tools-switch-v1' || undo.result !== 'success' || undo.action !== 'install'
-        || undo.toolsRoot !== toolsRoot || undo.installed?.toolsIdentity !== previous.toolsIdentity
-        || undo.installed?.treeIdentity !== previous.treeIdentity || typeof undo.previous?.root !== 'string'
+        || undo.toolsRoot !== toolsRoot || typeof undo.previous?.root !== 'string'
         || path.dirname(undo.previous.root) !== versions) refuse('receipt');
+      if (!sameSelection(undo.installed, previous)) {
+        const receiptFile = await matchingReceipt(settings, toolsRoot, previous, record => record.action === 'rollback'
+          && sameSelection(record.previous, undo.installed) && record.target === undo.previous.root
+          && sameSelection(record.targetIdentity, undo.previous));
+        if (!receiptFile) refuse('receipt');
+        const current = await checkedSelection(toolsRoot, versions, identity);
+        await idle();
+        return { receiptFile, toolsIdentity: current.toolsIdentity, writerRestarted: false, alreadyCompleted: true };
+      }
       target = undo.previous.root; await verifySelection(target, undo.previous); targetIdentity = undo.previous;
     } else {
       packageRoot = path.resolve(packageRoot);
@@ -256,6 +304,8 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
       const installed = await selection(toolsRoot);
       const receipt = { ...record, previous, installed, completedAt: new Date().toISOString(), result: 'success' };
       await atomic(receiptFile, encode(receipt));
+      // Journal deletion commits the selection. A later dead lock cannot undo
+      // that receipt-backed success; prepared orphan trees remain for inspection.
       await rm(maintenance); await rm(transaction); await syncDirectory(settings.controlDir);
       return { receiptFile, toolsIdentity: installed.toolsIdentity, writerRestarted: false };
     } catch (error) {

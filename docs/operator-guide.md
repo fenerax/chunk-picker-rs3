@@ -132,6 +132,12 @@ the named condition or wait for its existing run to finish, then retry.
    reconcile privately before further operator or start actions. A crash record
    names both the temporary exchange path and retained legacy destination;
    neither an absent receipt nor an incomplete phase means success.
+   Journal deletion is the commit boundary: the selected tree and successful
+   receipt have been verified and published, and maintenance has been removed.
+   A process killed after that deletion leaves the committed selection in place.
+   Ordinary retries reclaim only a provably dead lock through guarded acquisition;
+   a repeated committed rollback recognizes its matching successful receipt.
+   Live, arbitrary or unverifiable locks are refused and retained.
    Legacy rollback uses the same `renameat2(RENAME_EXCHANGE)` syscall to put
    the retained real directory back at `tools`, since old main-module guards
    cannot execute through a symlink. There is no missing-path window. The
@@ -155,6 +161,13 @@ the named condition or wait for its existing run to finish, then retry.
    restored tree. It durably writes a recovery receipt before removing the
    maintenance/transaction gates. The writer is never stopped or restarted. Unknown,
    modified or incomplete state stays fenced for private inspection.
+   With no journal, recovery checks all remaining gates, root ownership, the
+   current selection and service-account probes. It reports `no-pending-switch`
+   with that selection and a matching successful receipt, when one exists.
+   This status does not establish that the interrupted command succeeded.
+   Maintenance or other pending evidence still causes a specific refusal.
+   Keep unselected prepared version trees and exchange paths for inspection;
+   recovery does not remove them.
 7. During the next separately approved release, retain
    `control/phase-receipts/activate-<id>.json` and derive receipts. They include
    tools identity, drain, online/stopped copy and hash, each probe, pointer,
