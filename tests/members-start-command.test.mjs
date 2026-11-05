@@ -34,6 +34,7 @@ function fixture() {
       chunkColours: { [base]: 'blue' }, chunkColourNames: { blue: 'Later' },
       skillProgress: { Mining: { ...provenance, level: 40, xp: 40000 } },
       questProgress: { 'quest:retained': { ...provenance, title: 'Retained quest' } }, runeMetricsSync: provenance,
+      questPointProgress: { current: 17, max: 450, ...provenance, source: 'platform-api' },
       achievementProgress: { 'diary:retained': { title: 'Retained diary task', achievementId: 7, source: 'game-plugin', fetchedAt: now(), memberId: member.id } },
       itemProgress: { 'diary:retained': { title: 'Retained item', gameItemId: 1205, evidence: 'owned', seen: 'owned when first seen; source unknown', source: 'game-plugin', fetchedAt: now(), memberId: member.id } },
       originalPickerSync: { sourceMapId: index ? 'qxb' : 'qxa', capturedAt: now(), appliedAt: now(), sourceHash: `sha256:${'a'.repeat(64)}`, groups: ['chunks', 'tasks'] },

@@ -13,12 +13,16 @@ const start = '2026-10-12T12:00:00.000Z';
 const questPoints = new Map([['quest', 5]]);
 function fixture() {
   const state = createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
+  state.members[0].runescapeName = 'FixtureOne'; state.members[1].runescapeName = 'FixtureTwo';
   state.tasks = [{ id: 'quest', category: 'Quest', label: 'Quest' }, { id: 'task', category: 'Mining', label: 'Task' }];
   return state;
 }
 const counts = state => progressCounts(state, { questPoints });
 function observation(member, level = 30, at = start) {
   member.skillProgress = Object.fromEntries(playerControlSkills.map(skill => [skill, { level, xp: 1000, fetchedAt: at, source: 'runemetrics', runescapeName: member.runescapeName }]));
+}
+function questObservation(member, current = 0, at = start) {
+  member.questPointProgress = { current, max: 450, fetchedAt: at, source: 'platform-api', runescapeName: member.runescapeName };
 }
 function command(state, payload, seconds) {
   return applyCommand(state, payload, { now: () => new Date(Date.parse(start) + seconds * 1000) });
@@ -33,14 +37,15 @@ test('personal and duo counts deduplicate chunks, explicit checks, aliases and E
   state.members[1].completedTasks = ['quest', second];
   state.members[1].taskStatus = { task: { challengeCompleted: true } };
   observation(state.members[0]); observation(state.members[1], 40);
+  questObservation(state.members[0], 17); questObservation(state.members[1], 23);
   const result = counts(state);
   assert.deepEqual(result.members.map(member => member.metrics.completedTasks), [4, 3]);
   assert.equal(result.duo.metrics.completedTasks, 4);
   assert.equal(result.duo.metrics.unlockedChunks, 3);
-  assert.equal(result.duo.metrics.questPoints, 10, 'Per-account quest points sum even when quest task overlaps');
+  assert.equal(result.duo.metrics.questPoints, 40, 'Observed account totals sum independently of overlapping quest tasks');
   assert.equal(result.duo.metrics.totalLevel, 29 * 70);
   assert.equal(result.duo.metrics.combatLevel, result.members[0].metrics.combatLevel + result.members[1].metrics.combatLevel);
-  state.members[0].completedTasks = []; assert.equal(counts(state).members[0].metrics.questPoints, 0, 'Challenge checks award no points');
+  state.members[0].completedTasks = []; assert.equal(counts(state).members[0].metrics.questPoints, 17, 'Challenge checks cannot change account points');
 });
 
 test('unknown or renamed observations never manufacture account totals', () => {
@@ -56,10 +61,13 @@ test('unknown or renamed observations never manufacture account totals', () => {
 
 test('daily tuples upsert, retain unchanged revision/history, bound dates, and survive portable backup', () => {
   const state = fixture(); observation(state.members[0]); observation(state.members[1]);
+  questObservation(state.members[0]); questObservation(state.members[1]);
   let captured = captureProgressSnapshot(state, { questPoints, at: start });
   assert.equal(captureProgressSnapshot(captured, { questPoints, at: '2026-10-12T12:30:00.000Z' }), captured, 'Unchanged same-day counts need no write or new timestamp');
   const previous = structuredClone(captured);
   captured.members[0].completedTasks.push('quest');
+  assert.equal(counts(captured).members[0].metrics.questPoints, 0, 'A challenge check cannot create account points');
+  questObservation(captured.members[0], 5, '2026-10-12T15:00:00.000Z');
   captured = captureProgressSnapshot(captured, { questPoints, at: '2026-10-12T15:00:00.000Z' });
   assert.equal(captured.progressSnapshots.days.length, 1); assert.equal(captured.progressSnapshots.days[0][3][2], 5);
   assert.equal(previous.progressSnapshots.days[0][3][2], 0);
@@ -77,6 +85,7 @@ test('daily tuples upsert, retain unchanged revision/history, bound dates, and s
 test('trustworthy dated records use saved observation timestamps, never completion play dates', () => {
   const state = fixture(); observation(state.members[0]); state.members[0].completedTasks = ['quest'];
   state.members[0].questProgress = { quest: { title: 'Quest', source: 'runemetrics', fetchedAt: start, runescapeName: state.members[0].runescapeName } };
+  questObservation(state.members[0], 17);
   let records = buildProgressModel(state, { questPoints }).datedRecords;
   assert.equal(records.length, 2); assert.ok(records.every(record => record.at === start));
   assert.match(records.find(record => record.kind === 'quest').label, /observation/);
@@ -116,11 +125,16 @@ test('a newly observed quest batch never masquerades as the account quest-point 
   const member = state.members[0]; member.completedTasks = ['quest', 'new-quest'];
   member.questProgress = { 'new-quest': { title: 'New quest', source: 'runemetrics', fetchedAt: start, runescapeName: member.runescapeName } };
   const model = buildProgressModel(state, { questPoints: points });
-  assert.equal(model.current.members[0].metrics.questPoints, 13);
+  assert.equal(model.current.members[0].metrics.questPoints, null);
   assert.equal(model.datedRecords.filter(record => record.kind === 'quest').length, 0, 'One observed point is not the known 13-point total');
   member.questProgress.quest = { title: 'Prior quest', source: 'runemetrics', fetchedAt: start, runescapeName: member.runescapeName };
-  assert.equal(buildProgressModel(state, { questPoints: points }).datedRecords[0].metrics.questPoints, 13);
+  assert.equal(buildProgressModel(state, { questPoints: points }).current.members[0].metrics.questPoints, null, 'Even a complete quest batch cannot invent an account total');
+  assert.equal(buildProgressModel(state, { questPoints: points }).datedRecords.length, 0);
   member.questProgress.quest.fetchedAt = '2026-10-11T12:00:00.000Z';
   assert.equal(buildProgressModel(state, { questPoints: points }).datedRecords.length, 0, 'Mixed-time partial batches are not cumulative total observations');
+  questObservation(member, 17);
+  const observed = buildProgressModel(state, { questPoints: points });
+  assert.equal(observed.current.members[0].metrics.questPoints, 17);
+  assert.equal(observed.datedRecords[0].metrics.questPoints, 17, 'An explicit account total has its own observation date');
 });
 

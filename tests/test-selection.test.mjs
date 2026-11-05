@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 // Candidate inventory remains strict and runs in the ordinary candidate lane.
 test('quick suite covers small state, presentation and helper models', async () => {
   const files = await discoverTests();
-  for (const name of ['state', 'command-state', 'history-text', 'settings', 'settings-panel', 'rules-panel', 'task-filters', 'helper-model', 'test-selection']) {
+  for (const name of ['state', 'command-state', 'history-text', 'settings', 'settings-panel', 'rules-panel', 'task-filters', 'helper-model', 'test-selection', 'platform-api']) {
     assert.ok(files.includes(`${name}.test.mjs`), name);
   }
   // Private-only cases split from a reviewed quick file run in quick beside it.
