@@ -10,7 +10,7 @@ permissions:
 # A newer push or pull request update cancels the older run for the same ref.
 # Main keeps one run per commit.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-independence-proof-${{ github.sha }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
