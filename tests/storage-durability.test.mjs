@@ -5,6 +5,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { openInviteStore } from '../app/storage/invites.mjs';
 import { gunzipSync } from 'node:zlib';
 import { createGroupState, importBackup } from '../app/core/state.mjs';
 import { openStore } from '../app/storage/store.mjs';
@@ -96,3 +98,158 @@ test('registry JSON and its exclusive lock retain their shared publication API',
   } finally { await release(); }
   const next = await lockRegistry(dataDir); await next();
 });
+
+
+// Inject the filesystem boundary while retaining real temporary writes and renames.
+// The synthetic directory handle works on Windows too, where opening a directory
+// normally fails before its sync method can be reached.
+function publicationFailure(t, file, phase = 'directory-sync', onWarning = () => {}) {
+  const failure = Object.assign(new Error('Synthetic private payload must never be logged'), { code: 'EIO' });
+  const { open, rename } = fs.promises;
+  let published = false, syncFailures = 0;
+  t.mock.method(fs.promises, 'rename', async (from, to) => {
+    if (to === file && phase === 'rename') throw failure;
+    await rename(from, to);
+    if (to === file) published = true;
+  });
+  t.mock.method(fs.promises, 'open', async (target, flags, ...options) => {
+    if (target === path.dirname(file) && flags === 'r' && published && phase === 'directory-sync') {
+      return { async sync() { syncFailures++; throw failure; }, async close() {} };
+    }
+    const handle = await open(target, flags, ...options);
+    if (typeof target === 'string' && target.startsWith(file + '.') && flags === 'wx') {
+      if (phase === 'temp-sync') t.mock.method(handle, 'sync', async () => { throw failure; });
+      if (phase === 'temp-write') t.mock.method(handle, 'writeFile', async () => { throw failure; });
+    }
+    return handle;
+  });
+  const warnings = [];
+  t.mock.method(console, 'warn', message => { warnings.push(message); onWarning(); });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  return { failure, warnings, get syncFailures() { return syncFailures; } };
+}
+
+test('post-rename folder sync failure adopts state, bytes and receipt before the next command', async t => {
+  const dataDir = await directory(t);
+  let executions = 0;
+  const store = await openStore({ dataDir, initialState: initialState(), now: firstDay,
+    world: { chunks: new Map(), neighbors: new Map(), walkable: new Set(), f2p: new Set() },
+    beforeCommit: () => { executions++; } });
+  t.after(() => store.close());
+  const session = await store.openActionSession(randomUUID());
+  const requestId = `v3.${session.scope}.${session.slot}.${session.generation}.1`;
+  const file = path.join(dataDir, 'state.json');
+  const command = { type: 'set-rule', ruleId: 'access.shared', value: false };
+  const fault = publicationFailure(t, file, 'directory-sync', () => {
+    // Warning is emitted only after in-memory state has caught up with rename.
+    assert.equal(store.getState().revision, executions);
+  });
+  const result = await store.commandSerialized(command, 0, { requestId });
+  const published = await readFile(file), document = JSON.parse(published);
+  assert.equal(result.receipt.revision, 1);
+  assert.equal(document.actionReceipts.slots[session.slot].receipt.requestId, requestId);
+  const { fingerprint, ...diskReceipt } = document.actionReceipts.slots[session.slot].receipt;
+  assert.deepEqual(result.receipt, diskReceipt);
+  assert.deepEqual(store.getState(), importBackup(document));
+  assert.equal(store.getInfo().durabilityWarnings, 1);
+  assert(Number.isFinite(Date.parse(store.getInfo().lastDurabilityWarningAt)));
+  assert.equal(fault.syncFailures, 1);
+
+  // Both a stale-revision retry and a current-revision retry must replay A.
+  for (const revision of [0, 1]) {
+    const replay = await store.commandSerialized(command, revision, { requestId });
+    assert.deepEqual(replay.receipt, result.receipt);
+  }
+  assert.equal(executions, 1);
+  assert.deepEqual(await readFile(file), published);
+  const next = await store.command({ ...command, value: true }, 1);
+  assert.equal(next.revision, 2);
+  assert.deepEqual(next, importBackup(await readFile(file, 'utf8')));
+  assert.equal(executions, 2);
+  const retained = (await readdir(path.join(dataDir, 'backups'))).find(name => name.startsWith('0000000000000001-'));
+  assert(retained);
+  assert.deepEqual(gunzipSync(await readFile(path.join(dataDir, 'backups', retained))), published);
+  assert.equal(fault.warnings.length, 2);
+  assert(fault.warnings.every(message => /published.*directory sync failed \(EIO\)/.test(message)));
+  assert(!fault.warnings.join(' ').includes(fault.failure.message));
+  assert.equal(store.getInfo().durabilityWarnings, 2);
+});
+
+for (const phase of ['temp-write', 'temp-sync', 'rename']) {
+  test(`a ${phase} failure rejects without adopting state or a receipt`, async t => {
+    const dataDir = await directory(t);
+    const store = await openStore({ dataDir, initialState: initialState(), now: firstDay });
+    t.after(() => store.close());
+    const session = await store.openActionSession(randomUUID());
+    const requestId = `v3.${session.scope}.${session.slot}.${session.generation}.1`;
+    const file = path.join(dataDir, 'state.json'), previous = await readFile(file), state = store.getState();
+    const fault = publicationFailure(t, file, phase);
+    const command = { type: 'set-rule', ruleId: 'access.shared', value: false };
+    await assert.rejects(store.command(command, 0, { requestId }), error => error === fault.failure);
+    assert.deepEqual(store.getState(), state);
+    assert.deepEqual(await readFile(file), previous);
+    assert.equal(await store.replayCommandSerialized(command, requestId), undefined);
+    assert.equal(store.getInfo().durabilityWarnings, 0);
+    assert.deepEqual(fault.warnings, []);
+  });
+}
+
+test('invites adopt published credentials, sessions and revocation after folder sync failures', async t => {
+  const dataDir = await directory(t);
+  const invites = await openInviteStore({ dataDir, masterToken: 'synthetic-master', masterLabel: 'Synthetic admin' });
+  t.after(() => invites.close());
+  const file = path.join(dataDir, 'invites.json');
+  const fault = publicationFailure(t, file, 'directory-sync', () => {
+    assert.equal(invites.list().length, 1);
+  });
+  const { invite, token } = await invites.create({ label: 'Synthetic invite' });
+  assert.equal(invites.inspectToken(token, {}).id, invite.id);
+  const session = await invites.join(token, {});
+  assert.equal(invites.authenticate({ headers: { cookie: `duo_access=${session}` } }, {}).inviteId, invite.id);
+  await invites.revoke(invite.id);
+  assert.equal(invites.authenticate({ headers: { cookie: `duo_access=${session}` } }, {}), null);
+  const disk = JSON.parse(await readFile(file));
+  assert.deepEqual(invites.list(), disk.invites.map(({ tokenHash, ...record }) => record));
+  assert.deepEqual(disk.sessions, []);
+  assert.equal(fault.syncFailures, 3);
+  assert.equal(fault.warnings.length, 3);
+  assert(fault.warnings.every(message => message.includes('invites: write published')));
+  for (const secret of [token, session, 'synthetic-master', fault.failure.message]) assert(!fault.warnings.join(' ').includes(secret));
+});
+
+test('plugin keys adopt published credentials and revocation after folder sync failures', async t => {
+  const dataDir = await directory(t), keys = await openPluginKeys({ dataDir });
+  t.after(() => keys.close());
+  const file = path.join(dataDir, 'plugin-keys.json');
+  const fault = publicationFailure(t, file, 'directory-sync', () => { assert.equal(keys.list().length, 1); });
+  const { key, record } = await keys.create('synthetic-player', 'Synthetic plugin');
+  assert.equal(keys.authenticate({ headers: { authorization: `Bearer ${key}` } }).id, record.id);
+  await keys.revoke(record.id);
+  assert.throws(() => keys.authenticate({ headers: { authorization: `Bearer ${key}` } }), { status: 401 });
+  const disk = JSON.parse(await readFile(file));
+  assert.deepEqual(keys.list(), disk.keys.map(({ tokenHash, ...record }) => record));
+  assert.equal(fault.syncFailures, 2);
+  assert.equal(fault.warnings.length, 2);
+  assert(fault.warnings.every(message => message.includes('plugin keys: write published')));
+  assert(!fault.warnings.join(' ').includes(key));
+  assert(!fault.warnings.join(' ').includes(fault.failure.message));
+});
+
+for (const kind of ['invites', 'plugin keys']) {
+  test(`${kind} reject rename failure without changing memory or disk`, async t => {
+    const dataDir = await directory(t);
+    const store = kind === 'invites'
+      ? await openInviteStore({ dataDir, masterToken: 'synthetic-master', masterLabel: 'Synthetic admin' })
+      : await openPluginKeys({ dataDir });
+    t.after(() => store.close());
+    const create = () => kind === 'invites' ? store.create({ label: 'Synthetic invite' }) : store.create('synthetic-player', 'Synthetic plugin');
+    await create();
+    const file = path.join(dataDir, kind === 'invites' ? 'invites.json' : 'plugin-keys.json');
+    const previous = await readFile(file), state = store.list(), fault = publicationFailure(t, file, 'rename');
+    await assert.rejects(create(), error => error === fault.failure);
+    assert.deepEqual(store.list(), state);
+    assert.deepEqual(await readFile(file), previous);
+    assert.deepEqual(fault.warnings, []);
+  });
+}

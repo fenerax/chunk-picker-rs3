@@ -10,7 +10,7 @@ export async function syncDirectory(directory, { filesystem = fs, platform = pro
   } finally { await handle?.close(); }
 }
 
-/** Publish an already synchronized temporary file, then persist its directory entry. */
+/** Rename is the publication boundary. A later sync failure cannot roll it back. */
 export async function publishFile(temporary, file, { filesystem = fs, platform = process.platform, wait = delay } = {}) {
   // Windows scanners can briefly hold the destination without delete-sharing.
   // Retry the same synchronized replacement; never remove the old file.
@@ -21,5 +21,17 @@ export async function publishFile(temporary, file, { filesystem = fs, platform =
       await wait(20 * 2 ** attempt);
     }
   }
-  await syncDirectory(path.dirname(file), { filesystem, platform });
+  try {
+    await syncDirectory(path.dirname(file), { filesystem, platform });
+    return { durable: true };
+  } catch (error) {
+    return { durable: false, error };
+  }
+}
+
+/** Never include file contents, credentials, paths or arbitrary error messages. */
+export function warnDurability(publication, store) {
+  if (publication?.durable !== false) return;
+  const code = /^[A-Z0-9_]{1,32}$/.test(publication.error?.code ?? '') ? publication.error.code : 'UNKNOWN';
+  console.warn(`[storage] ${store}: write published, but parent directory sync failed (${code}); crash durability is uncertain.`);
 }

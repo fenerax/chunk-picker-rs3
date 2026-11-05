@@ -1,6 +1,6 @@
 import { withStoreWrite } from './snapshot.mjs';
 import { open, readFile, rm } from 'node:fs/promises';
-import { publishFile } from './publication.mjs';
+import { publishFile, warnDurability } from './publication.mjs';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { loadGameDefaults } from '../game-defaults.mjs';
@@ -58,7 +58,7 @@ export async function atomicWrite(file, document) {
     handle = await open(temporary, 'wx', 0o600);
     await handle.writeFile(`${JSON.stringify(document)}\n`);
     await handle.sync(); await handle.close(); handle = undefined;
-    await publishFile(temporary, file);
+    return await publishFile(temporary, file);
   } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
 }
 
@@ -78,7 +78,8 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const next = structuredClone(current);
       next.sessions = next.sessions.filter(session => Date.parse(session.expiresAt) > now());
       const result = operation(next);
-      await atomicWrite(file, next); current = next;
+      const publication = await atomicWrite(file, next); current = next;
+      warnDurability(publication, 'invites');
       return result;
     }));
     queue = pending.catch(() => {});

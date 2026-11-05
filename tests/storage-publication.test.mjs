@@ -31,7 +31,7 @@ test('publication awaits rename before opening, syncing and closing the parent d
   const published = publishFile(temporary, file, { filesystem, platform: 'linux' });
   assert.deepEqual(events, [['rename', temporary, file]]);
   finishRename();
-  await published;
+  assert.deepEqual(await published, { durable: true });
   assert.deepEqual(events, [['rename', temporary, file], ['renamed'], ['open', path.dirname(file), 'r'], ['sync'], ['close']]);
 });
 
@@ -42,10 +42,10 @@ test('a failed rename never syncs the directory', async () => {
   assert.deepEqual(events, [['rename', temporary, file]]);
 });
 
-test('directory sync failure propagates and closes the directory handle', async () => {
+test('directory sync failure reports a published write and closes the directory handle', async () => {
   const failure = Object.assign(new Error('Synthetic sync failure'), { code: 'EIO' });
   const { filesystem, events } = spy({ syncFailure: failure });
-  await assert.rejects(publishFile(temporary, file, { filesystem, platform: 'linux' }), error => error === failure);
+  assert.deepEqual(await publishFile(temporary, file, { filesystem, platform: 'linux' }), { durable: false, error: failure });
   assert.deepEqual(events.slice(-2), [['sync'], ['close']]);
 });
 
@@ -76,8 +76,7 @@ test('unsupported directory sync errors are tolerated only on Windows', async ()
   for (const platform of ['linux', 'win32']) {
     const { filesystem, events } = spy({ syncFailure: failure });
     const published = publishFile(temporary, file, { filesystem, platform });
-    if (platform === 'win32') await published;
-    else await assert.rejects(published, error => error === failure);
+    assert.deepEqual(await published, platform === 'win32' ? { durable: true } : { durable: false, error: failure });
     assert.deepEqual(events.at(-1), ['close']);
   }
 });
@@ -85,5 +84,13 @@ test('unsupported directory sync errors are tolerated only on Windows', async ()
 test('Windows still reports directory I/O failures', async () => {
   const failure = Object.assign(new Error('Synthetic directory I/O failure'), { code: 'EIO' });
   const { filesystem } = spy({ openFailure: failure });
-  await assert.rejects(publishFile(temporary, file, { filesystem, platform: 'win32' }), error => error === failure);
+  assert.deepEqual(await publishFile(temporary, file, { filesystem, platform: 'win32' }), { durable: false, error: failure });
+});
+
+
+test('directory close failure after rename also reports a published write', async () => {
+  const failure = Object.assign(new Error('Synthetic close failure'), { code: 'EIO' });
+  const { filesystem } = spy();
+  filesystem.open = async () => ({ async sync() {}, async close() { throw failure; } });
+  assert.deepEqual(await publishFile(temporary, file, { filesystem, platform: 'linux' }), { durable: false, error: failure });
 });
