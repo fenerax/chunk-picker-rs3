@@ -1,7 +1,7 @@
 import { withStoreWrite } from './snapshot.mjs';
-import { open, readFile, rename, rm } from 'node:fs/promises';
+import { open, readFile, rm } from 'node:fs/promises';
+import { publishFile, warnDurability } from './publication.mjs';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 import { loadGameDefaults } from '../game-defaults.mjs';
 
@@ -51,20 +51,14 @@ export function validateInviteStore(document) {
   }
   return document;
 }
-export async function atomicWrite(file, document) {
+export async function atomicWrite(file, document, { onPostPublishSyncError = 'throw' } = {}) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
     handle = await open(temporary, 'wx', 0o600);
     await handle.writeFile(`${JSON.stringify(document)}\n`);
     await handle.sync(); await handle.close(); handle = undefined;
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; }
-      catch (failure) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(failure.code) || attempt >= 6) throw failure;
-        await delay(20 * 2 ** attempt);
-      }
-    }
+    return await publishFile(temporary, file, { onPostPublishSyncError });
   } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
 }
 
@@ -84,7 +78,8 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const next = structuredClone(current);
       next.sessions = next.sessions.filter(session => Date.parse(session.expiresAt) > now());
       const result = operation(next);
-      await atomicWrite(file, next); current = next;
+      const publication = await atomicWrite(file, next, { onPostPublishSyncError: 'warn' }); current = next;
+      warnDurability(publication, 'invites');
       return result;
     }));
     queue = pending.catch(() => {});

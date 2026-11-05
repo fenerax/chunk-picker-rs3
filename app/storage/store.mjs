@@ -1,11 +1,11 @@
 import { withStoreWrite } from './snapshot.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
-import { link, mkdir, open, readFile, readdir, realpath, rename, stat, unlink, utimes } from 'node:fs/promises';
+import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
+import { publishFile, warnDurability } from './publication.mjs';
 import path from 'node:path';
 import { hostname } from 'node:os';
 import { createServer as createNetServer } from 'node:net';
 import { execFile } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
@@ -205,7 +205,9 @@ async function acquireLock(directory, beforeLockRecovery) {
   throw new Error('Could not acquire the data-directory lock.');
 }
 
-async function atomicWrite(file, contents, beforeRename) {
+// Dependencies (backups, sidecars, archives and lock records) must be durable
+// before later writes can reference them or remove their previous source.
+async function atomicWrite(file, contents, { beforeRename, onPostPublishSyncError = 'throw' } = {}) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
@@ -215,15 +217,7 @@ async function atomicWrite(file, contents, beforeRename) {
     await handle.close();
     handle = undefined;
     if (beforeRename) await beforeRename();
-    // Windows scanners can briefly hold the destination without delete-sharing.
-    // Retry the same synchronized replacement; never remove the old state.
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; }
-      catch (error) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 6) throw error;
-        await delay(20 * 2 ** attempt);
-      }
-    }
+    return await publishFile(temporary, file, { onPostPublishSyncError });
   } catch (error) {
     if (handle) await handle.close().catch(() => {});
     await unlink(temporary).catch(() => {});
@@ -255,6 +249,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const archivesDir = path.join(backupsDir, 'archives');
   const staticDir = path.join(directory, 'static');
   const acknowledgementsFile = path.join(directory, 'action-acknowledgements.json');
+  let durabilityWarnings = 0, lastDurabilityWarningAt;
+  function reportDurability(publication) {
+    if (publication?.durable !== false) return;
+    durabilityWarnings++;
+    lastDurabilityWarningAt = new Date().toISOString();
+    warnDurability(publication, 'gameplay store');
+  }
   let current;
   // Receipts are private storage metadata, committed in the SAME replacement
   // as gameplay. Never evict IDs: an arbitrarily delayed retry must fail closed.
@@ -318,7 +319,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try { existing = await readFile(file); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (existing && !existing.equals(bytes)) throw new Error('Action receipt quarantine evidence changed.');
-    if (!existing) await atomicWrite(file, bytes);
+    if (!existing) reportDurability(await atomicWrite(file, bytes));
     receiptQuarantine = undefined;
   }
   let frozen = readOnly;
@@ -442,7 +443,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try { await readStaticField(key, reference); }
     catch (error) {
       if (error.cause?.code !== 'ENOENT') throw error;
-      await atomicWrite(path.join(staticDir, reference.id), await gzipAsync(bytes, { level: constants.Z_BEST_SPEED }));
+      reportDurability(await atomicWrite(path.join(staticDir, reference.id), await gzipAsync(bytes, { level: constants.Z_BEST_SPEED })));
     }
     staticReferences.set(value, reference);
     return reference;
@@ -626,8 +627,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized;
     const bytes = await gzipAsync(document, { level: constants.Z_BEST_SPEED });
     const file = path.join(backupsDir, name);
-    await atomicWrite(file, bytes);
-    if (label) await atomicWrite(`${file}.meta.json`, JSON.stringify({ label }));
+    reportDurability(await atomicWrite(file, bytes));
+    if (label) reportDurability(await atomicWrite(`${file}.meta.json`, JSON.stringify({ label })));
     const at = new Date(timestamp());
     await utimes(file, at, at);
   }
@@ -637,6 +638,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!Number.isFinite(date.getTime())) throw new TypeError('Invalid store timestamp.');
     return date.toISOString();
   };
+  function observeStartupProgress(state) {
+    if (readOnly || liveSwapStrict || progressQuestPoints === undefined) return state;
+    const observed = captureProgressSnapshot(state, { questPoints: progressQuestPoints, at: timestamp() });
+    if (observed !== state && coordination.has(state)) coordination.set(observed, coordinationOf(state));
+    return observed;
+  }
   async function prepared(state, operation) {
     if (operation === 'load' && prepareState?.isCurrent?.(state) === true
       && (!migrateState || migrateState.isCurrent?.(state) === true)) return state;
@@ -733,7 +740,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (updates.length) {
       const id = `history-${String(updates[0].revision).padStart(16, '0')}-${String(updates.at(-1).revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`;
       const bytes = await gzipAsync(JSON.stringify({ format: 'rs3-chunk-picker-history', events: updates }), { level: constants.Z_BEST_COMPRESSION });
-      await atomicWrite(path.join(historyDir, id), bytes);
+      reportDurability(await atomicWrite(path.join(historyDir, id), bytes));
       references.push({ id });
     }
     const trimmed = { ...state, history: state.history.slice(cutoff), provenance: { ...state.provenance, historyArchive: references } };
@@ -799,7 +806,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const pack = { format: 'rs3-chunk-picker-retained-archive', snapshots };
         const bytes = await gzipAsync(JSON.stringify(pack), { level: constants.Z_BEST_COMPRESSION });
         await mkdir(archivesDir, { recursive: true });
-        await atomicWrite(path.join(archivesDir, packId), bytes);
+        reportDurability(await atomicWrite(path.join(archivesDir, packId), bytes));
         const verified = await readDocument(path.join(archivesDir, packId));
         for (const snapshot of verified.snapshots) {
           await importStoredBackup(snapshot.document);
@@ -873,7 +880,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
       if (error.code !== 'ENOENT' || readOnly) throw error;
       token = randomBytes(32).toString('base64url');
-      await atomicWrite(tokenFile, `${token}\n`);
+      reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
     }
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
     let existing = false;
@@ -890,16 +897,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const seed = initialState === undefined
         ? createGroupState((await loadGameDefaults()).members.map(({ id, name }) => ({ id, name })), registry)
         : validateState(initialState, registry);
-      current = await prepared(seed, 'initialize');
+      current = observeStartupProgress(await prepared(seed, 'initialize'));
       currentDiskSerialized = await serializedDiskState(current);
-      await atomicWrite(stateFile, currentDiskSerialized);
+      reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
     currentDiskSerialized ??= await serializedDiskState(current);
     if (existing && (prepareState || migrateState)) {
       // Project retained events together with active events. Leaving the old
       // segment references attached could revive pre-boundary undo on export.
       const baseline = migrateState && current.provenance?.historyArchive?.length ? (await hydrateHistory(current)).state : current;
-      const ready = await prepared(baseline, 'load');
+      let ready = await prepared(baseline, 'load');
       if (baseline !== current && JSON.stringify(ready.history) === JSON.stringify(baseline.history)) {
         // Unchanged events can keep their existing retention segments. A
         // reusable migration must not turn mere hydration into a refresh.
@@ -918,11 +925,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         // here are a checked revision increment and this authored history event.
         await retainBackup(current, 'catalogue-refresh');
         if (coordination.has(current)) coordination.set(ready, { ...coordinationOf(current), lastNonClaimRevision: ready.revision });
+        // Include today's observation in this already-backed-up startup write.
+        ready = observeStartupProgress(ready);
         const diskDocument = await serializedDiskState(ready);
-        await atomicWrite(stateFile, diskDocument,
-          beforeCommit ? () => beforeCommit({ operation: 'catalogue-refresh', state: structuredClone(ready) }) : undefined);
+        const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
+          beforeRename: beforeCommit ? () => beforeCommit({ operation: 'catalogue-refresh', state: structuredClone(ready) }) : undefined });
         current = ready;
         currentDiskSerialized = diskDocument;
+        reportDurability(publication);
       }
     }
     // Confirm committed dependencies before recording startup observations.
@@ -930,12 +940,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Daily observation metadata is independent of commands/catalogue changes.
     // Startup records today's counts without incrementing revision or History.
     if (!readOnly && !liveSwapStrict && progressQuestPoints !== undefined) {
-      const observed = captureProgressSnapshot(current, { questPoints: progressQuestPoints, at: timestamp() });
+      const observed = observeStartupProgress(current);
       if (observed !== current) {
-        if (coordination.has(current)) coordination.set(observed, coordinationOf(current));
         const diskDocument = await serializedDiskState(observed);
-        await atomicWrite(stateFile, diskDocument);
+        // Observations keep the same revision, but still replace the durable save.
+        await retainBackup(current, 'progress-snapshot');
+        const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn' });
         current = observed; currentDiskSerialized = diskDocument;
+        reportDurability(publication);
       }
     }
     if (!readOnly && !liveSwapStrict) await maintainRetention();
@@ -969,8 +981,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!cleanup) await retainBackup(current, operation, backupLabel);
     const { ledger: nextReceipts, result: receiptResult } = commitActionReceipt(receipts, receipt, validated);
     const diskDocument = await serializedDiskState(validated, nextReceipts);
-    await atomicWrite(stateFile, diskDocument,
-      beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined);
+    const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
+      beforeRename: beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined });
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     const choicesChanged = JSON.stringify(current.members.map(member => [member.id, member.selected, member.pendingRoll]))
@@ -978,6 +990,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     current = validated;
     receipts = nextReceipts;
     currentDiskSerialized = diskDocument;
+    reportDurability(publication);
     if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
     for (const listener of listeners) {
       try { listener({ revision: current.revision, ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}), ...(choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
@@ -1219,7 +1232,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     getUndoEligibility: undoRevision => getUndoEligibility(current, undoRevision, { registry }),
     getStateJSONParts: () => ['{', ...stateFields(current), '}'],
     getGameplayFingerprint: gameplayFingerprint,
-    getInfo: () => ({ revision: current.revision, durable: true, schemaVersion: current.schemaVersion,
+    getInfo: () => ({ revision: current.revision, durable: durabilityWarnings === 0,
+      durabilityWarnings, ...(lastDurabilityWarningAt ? { lastDurabilityWarningAt } : {}), schemaVersion: current.schemaVersion,
       retention: { policy, activeHistoryEntries: current.history.length, historyArchives: current.provenance?.historyArchive?.length ?? 0,
         ...(retentionFailure ? { failure: retentionFailure } : {}) } }),
     prepareSnapshot: () => enqueueMaintenance(maintainRetention),
@@ -1278,8 +1292,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const result = openActionSession(receipts, clientId, actor);
         if (result.ledger !== receipts) {
           const bytes = await serializedDiskState(current, result.ledger);
-          await atomicWrite(stateFile, bytes);
+          const publication = await atomicWrite(stateFile, bytes, { onPostPublishSyncError: 'warn' });
           receipts = result.ledger; currentDiskSerialized = bytes;
+          reportDurability(publication);
         }
         return result.session;
       });
@@ -1293,8 +1308,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           // Keep the action+outcome atomic in state.json. This small, bounded
           // file confirms only its exact durable receipt; the next gameplay
           // write naturally embeds the resulting watermark without extra I/O.
-          await atomicWrite(acknowledgementsFile, `${JSON.stringify({ schemaVersion: 1, entries: next })}\n`);
+          const publication = await atomicWrite(acknowledgementsFile, `${JSON.stringify({ schemaVersion: 1, entries: next })}\n`, { onPostPublishSyncError: 'warn' });
           acknowledgements = next; receipts = result.ledger;
+          reportDurability(publication);
         }
         return result.session;
       });

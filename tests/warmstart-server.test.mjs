@@ -13,13 +13,23 @@ import { prepareGameStorage } from '../app/game-profile.mjs';
 const definitions = { chunks: { '12341': {}, '12342': {} }, walkableChunks: ['12341', '12342'],
   walkableChunksF2P: ['12341', '12342'], challenges: {} };
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
-async function directory(t) {
+async function startupReached(boundary, handle) {
+  // Initialization can fail before a hook/factory runs. Surface that error
+  // instead of leaving the test waiting on a promise nobody can resolve.
+  await Promise.race([boundary, handle.ready.then(() => { throw new Error('Startup skipped the expected test boundary.'); })]);
+}
+async function directory() {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'rs3-warmstart-'));
   const token = randomBytes(32).toString('base64url');
   await prepareGameStorage(dataDir, await resolveDataset());
   await writeFile(path.join(dataDir, 'access-token'), token);
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
   return { dataDir, token };
+}
+async function closeFixture(handle, dataDir) {
+  // Stop warm-store publication before removing its files. An ENOTEMPTY in
+  // an earlier removal hook would skip shutdown and leave the test alive.
+  await handle.close();
+  await rm(dataDir, { recursive: true, force: true });
 }
 const options = { definitions, taskMap: {}, port: 0, predictionPrewarm: false, shutdownDeadlineMs: 300 };
 function client(handle, token) {
@@ -28,16 +38,16 @@ function client(handle, token) {
     headers: { Authorization: `Bearer ${token}`, Origin: origin, ...init.headers } });
 }
 
-test('early private health answers while the store loads; refused commands never enter its queue', async t => {
-  const { dataDir, token } = await directory(t), entered = deferred(), release = deferred();
+test('early private health answers while the store loads; refused commands never enter its queue', { timeout: 60000 }, async t => {
+  const { dataDir, token } = await directory(), entered = deferred(), release = deferred();
   const initialState = createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['12341'] }]);
   let preparing = 0;
   const handle = await startServer({ ...options, dataDir, initialState, async prepareState(state) {
     preparing++; entered.resolve(); await release.promise; return state;
   } });
-  t.after(async () => { release.resolve(); await handle.close(); });
+  t.after(async () => { release.resolve(); await closeFixture(handle, dataDir); });
   const request = client(handle, token);
-  await entered.promise;
+  await startupReached(entered.promise, handle);
   for (let index = 0; index < 3; index++) {
     const health = await request('/api/health');
     assert.equal(health.status, 200);
@@ -61,19 +71,19 @@ test('early private health answers while the store loads; refused commands never
   assert.equal(app.store.getState().members[0].notes['12341'], 'Ready save');
 });
 
-test('initialization failure closes both early listeners and keeps the saved bytes intact', async t => {
-  const { dataDir, token } = await directory(t);
+test('initialization failure closes both early listeners and keeps the saved bytes intact', { timeout: 60000 }, async t => {
+  const { dataDir, token } = await directory();
   await writeFile(path.join(dataDir, 'state.json'), 'broken saved bytes');
   const handle = await startServer({ ...options, dataDir, loopbackPort: 0 });
-  t.after(() => handle.close());
+  t.after(() => closeFixture(handle, dataDir));
   await assert.rejects(handle.ready, /Cannot load the saved state/);
   assert.equal(handle.server.listening, false); assert.equal(handle.loopbackAddress(), null);
   assert.equal(await readFile(path.join(dataDir, 'state.json'), 'utf8'), 'broken saved bytes');
   assert.equal(await readFile(path.join(dataDir, 'access-token'), 'utf8'), token);
 });
 
-test('close during worker compilation cancels startup without waiting for its five minute allowance', async t => {
-  const { dataDir } = await directory(t), created = deferred();
+test('close during worker compilation cancels startup without waiting for its five minute allowance', { timeout: 60000 }, async t => {
+  const { dataDir } = await directory(), created = deferred();
   let terminated = false;
   const workerFactory = () => {
     const worker = new EventEmitter(); worker.postMessage = () => {};
@@ -81,18 +91,18 @@ test('close during worker compilation cancels startup without waiting for its fi
     created.resolve(); return worker; // deliberately never announces ready
   };
   const handle = await startServer({ ...options, dataDir, taskWorkerOptions: { workerFactory } });
-  t.after(() => handle.close());
-  await created.promise;
+  t.after(() => closeFixture(handle, dataDir));
+  await startupReached(created.promise, handle);
   await handle.close();
   await assert.rejects(handle.ready, { name: 'AbortError' });
   assert(terminated); assert.equal(handle.server.listening, false);
 });
 
-test('close while store preparation is pending closes health first and cleans the store at its safe boundary', async t => {
-  const { dataDir } = await directory(t), entered = deferred(), release = deferred();
+test('close while store preparation is pending closes health first and cleans the store at its safe boundary', { timeout: 60000 }, async t => {
+  const { dataDir } = await directory(), entered = deferred(), release = deferred();
   const handle = await startServer({ ...options, dataDir, async prepareState(state) { entered.resolve(); await release.promise; return state; } });
-  t.after(async () => { release.resolve(); await handle.close(); });
-  await entered.promise;
+  t.after(async () => { release.resolve(); await closeFixture(handle, dataDir); });
+  await startupReached(entered.promise, handle);
   const closing = handle.close();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(handle.server.listening, false);
@@ -101,11 +111,11 @@ test('close while store preparation is pending closes health first and cleans th
   await assert.rejects(readFile(path.join(dataDir, 'store.lock')), { code: 'ENOENT' });
 });
 
-test('an active session autonomously prepares both task lists without commands and keeps Preview available', async t => {
-  const { dataDir, token } = await directory(t);
+test('an active session autonomously prepares both task lists without commands and keeps Preview available', { timeout: 60000 }, async t => {
+  const { dataDir, token } = await directory();
   const initialState = createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['12341'] }, { id: 'reed', name: 'Reed', unlocked: ['12342'] }]);
   const handle = await startServer({ ...options, dataDir, initialState });
-  t.after(() => handle.close());
+  t.after(() => closeFixture(handle, dataDir));
   const app = await handle.ready, revision = app.store.getInfo().revision;
   const savedBytes = await readFile(path.join(dataDir, 'state.json'), 'utf8');
   const request = client(handle, token);
