@@ -81,7 +81,7 @@ test('every preview string source shares the wire cap and a repeatable sub-50 ms
     bytes = Buffer.from(JSON.stringify(preview.response));
     createHash('sha256').update(bytes).digest('hex');
     transferDigest(preview.response);
-  }, { maxGapMs: 50, label: 'preview response', beforeEach: () => Buffer.from(input) });
+  }, { maxGapMs: 50, hardGapMs: 250, label: 'preview response', beforeEach: () => Buffer.from(input) });
   function check(value) {
     if (typeof value === 'string') assert.ok(value.length <= DISPLAY_CHARACTERS);
     else if (value && typeof value === 'object') {
@@ -117,14 +117,15 @@ test('every preview string source shares the wire cap and a repeatable sub-50 ms
   t.diagnostic(JSON.stringify({ previewBytes: bytes.length, mainThreadGapsMs: sample.gaps, inflatedSources: ordinal, completionIdBytes: member.completedTasks[0].length }));
 });
 
-test('responsiveness sampling still rejects a repeatable stall above 250 ms', async () => {
+for (const stalledSamples of [[1, 2, 3], [1], [1, 3], [2]]) test(`responsiveness hard ceiling rejects stalls in samples ${stalledSamples}`, async () => {
   let attempts = 0;
   await assert.rejects(responsiveSample(() => {
-    attempts++;
-    const end = performance.now() + 275;
-    while (performance.now() < end) { /* Synthetic main-thread regression. */ }
-  }, { maxGapMs: 50 }), /every sample exceeded 50 ms/);
-  assert.equal(attempts, 3);
+    if (stalledSamples.includes(++attempts)) {
+      const end = performance.now() + 275;
+      while (performance.now() < end) { /* Synthetic main-thread regression. */ }
+    }
+  }, { maxGapMs: 50, hardGapMs: 250 }), /exceeded hard ceiling 250 ms/);
+  assert.equal(attempts, stalledSamples[0], 'A hard-ceiling miss fails immediately, including after a fast sample');
 });
 
 test('responsiveness retries rebuild transferable input and propagate operation failures', async () => {
@@ -133,15 +134,25 @@ test('responsiveness retries rebuild transferable input and propagate operation 
     const transferred = structuredClone(bytes, { transfer: [bytes.buffer] });
     assert.equal(transferred[0], 42);
     if (++attempts === 1) {
-      const end = performance.now() + 275;
+      const end = performance.now() + 75;
       while (performance.now() < end) { /* One noisy sample, followed by fresh input. */ }
     }
     return transferred[0];
-  }, { maxGapMs: 100, beforeEach: () => new Uint8Array([42]) });
+  }, { maxGapMs: 50, hardGapMs: 250, beforeEach: () => new Uint8Array([42]) });
   assert.equal(sample.result, 42);
-  assert.ok(sample.gaps.length >= 2);
+  assert.equal(sample.gaps.length, 3, 'Every sample runs even after meeting the tight bound');
   attempts = 0;
   const failure = new Error('Synthetic operation failure');
-  await assert.rejects(responsiveSample(() => { attempts++; throw failure; }, { maxGapMs: 50 }), error => error === failure);
+  await assert.rejects(responsiveSample(() => { attempts++; throw failure; }, { maxGapMs: 50, hardGapMs: 250 }), error => error === failure);
   assert.equal(attempts, 1, 'Functional failures must never be retried');
+});
+
+test('responsiveness sampling rejects consistently missing the tight bound below the hard ceiling', async () => {
+  let attempts = 0;
+  await assert.rejects(responsiveSample(() => {
+    attempts++;
+    const end = performance.now() + 75;
+    while (performance.now() < end) { /* Sustained latency regression. */ }
+  }, { maxGapMs: 50, hardGapMs: 250 }), /best sample exceeded 50 ms/);
+  assert.equal(attempts, 3);
 });

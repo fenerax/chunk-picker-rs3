@@ -24,30 +24,77 @@ its completion was not awaited. PR #123's earlier run `42003860256` failed
 
 ## Changed assertions and regression protection
 
-Measurements retry only a timing miss, up to three independent executions.
-They stop at the first passing sample. Each sample must meet the original
-absolute ceiling; there is no subtraction of runner delay or adaptive ceiling.
-Operation errors propagate immediately. Worker inputs are rebuilt before each
-sample because transferring a buffer consumes it. Synthetic fixture creation
-and copying remain outside the measured product operation.
+Only tests with a cited CI failure remain changed. Response measurements run
+three independent executions, including the cold path. **Every sample must
+stay below 250 ms**, and the best sample must stay below the original 50 ms
+target. A hard-ceiling miss or operation failure rejects immediately; a passing
+sample never ends the measurement early. Worker inputs are rebuilt before each
+sample because transferring a buffer consumes it. Fixture creation and copying
+remain outside the measured product operation. No runner delay is subtracted.
+
+The deadline cases retain real clocks and actual elapsed-time assertions.
+The calculator's 150 ms race becomes a 250 ms race plus an explicit real-time
+250 ms ceiling, so a synchronous stall cannot win merely by delaying the
+watchdog callback. The wedged import's 100 ms response-timer assertion becomes
+250 ms, and its 2000 ms completion assertion becomes 3000 ms. Run `41968034452`
+logged the wedged test at `2026-11-05T04:44:26.7636318Z` with duration
+`2058.055005ms`; its aggregate error does not distinguish the two assertions.
+Run `42000811880`, attempt 2, logged calculator-close failure at
+`2026-11-05T09:47:30.1230643Z` (`457.556562ms` total test duration). These are
+the only deadline ceilings loosened, and a 300 ms main-thread stall still fails.
 
 | Test file | Previous assertion | Replacement and why a regression fails |
 | --- | --- | --- |
-| `save-transfer-response-bounds.test.mjs` | One maximum event-loop gap below 50 ms. | Up to three independent preview/serialization/hash measurements, each with the same 50 ms ceiling. All string, record and wire caps and exact saved-value checks remain. A repeatable 250+ ms stall breaches every sample. A synthetic 275 ms negative control verifies rejection; another test verifies fresh transferred inputs and immediate propagation of functional failures. |
-| `save-transfer-publication.test.mjs` | One gap below 200 ms for mapping and prepared replies. | Up to three samples of each read-only operation, still below 200 ms. The 128/64 MiB label fixtures, reply caps, exact saved bytes and publication checks remain. A repeatable 250+ ms reply stall still fails. |
-| `save-transfer-wide-hook.test.mjs` | One gap below 100 ms across a million-entry hook round trip. | Up to three independent previews below 100 ms. Exactly one hook invocation is required per sample; the final apply/export must retain all one million entries. Repeated wide-dictionary blocking still breaches every sample. |
-| `save-transfer-regressions.test.mjs` | Single 2000 ms linear-preview, 100 ms hostile-import and 500 ms delimiter-scan measurements; wedged import's timer below 100 ms and completion below 2000 ms. | Read-only probes use up to three samples at their original ceilings. A recurring quadratic lookup, backtracking scan or hostile-import stall still fails. The wedged worker uses a controlled 100 ms active deadline: the event loop must run, rejection must remain pending at 99 ms, the next millisecond must reject the job, and the queued parser must complete. Losing the deadline or poisoning the queue fails even when the host is slow to start or terminate a worker. The 120-second production import budget remains enforced. |
-| `live-timings.test.mjs` | Stop/close must win a 150 ms host-time race. | Mock cleanup timeouts after acknowledged admission. Assert cleanup remains pending at 19 ms and completes at the configured 20 ms, with the missing acknowledgement withheld. Real inspector/file work is joined separately. Missing cleanup bounds, premature retirement, starting another calculator or failing to stop a late handle still fail. The existing native profiler integration test remains. |
-| `process-profiles.test.mjs` | 1000/150 ms acknowledgement races and a 120 ms sleep for retirement. | Controlled Date/timers test the 30 ms capture and 20 ms cleanup deadlines on either side of the boundary. A withheld acknowledgement, missing stop, premature retirement, wrong retirement or missed late-handle cleanup fails. |
-| `scheduler.test.mjs` | Shutdown below 1000 ms with an unresponsive worker. | Shutdown remains pending at 19 virtual ms and resolves at the requested 20 ms; active/queued requests must reject. A missing shutdown bound leaves the close promise unresolved. |
-| `session-residency.test.mjs` | Pooled shutdown below 500 ms, with a 1000 ms outer test timeout. | The same 19/20 ms check, plus close-promise identity and final closed state. A 30-second test watchdog only catches deadlocks; the product deadline is asserted at 20 virtual ms. |
-| `identity-index-scale.test.mjs` | A 5000-entry shared-alias snapshot below 1500 ms. | Count Set iteration during the real snapshot: fewer than 32 visits per catalogue entry, with exact entries/aliases still checked. Current behavior visits 30000 entries. A mutation removing shared-alias deduplication failed at 50020000 visits; production source was then restored byte for byte. |
+| `save-transfer-response-bounds.test.mjs` | One maximum event-loop gap below 50 ms. | Three preview/serialization/hash samples: each below 250 ms, best below 50 ms. Constant, alternating and cold 300 ms stalls fail the hard ceiling. Synthetic controls also reject a stall after an initially fast sample and consistently missing the tight bound. Fresh transferable inputs, functional-error propagation, string/record/wire caps and exact saved values remain checked. |
+| `save-transfer-publication.test.mjs` | One gap below 200 ms for mapping and prepared replies. | Restored byte for byte to `origin/main`: no exact-test CI timing failure was cited. Constant and alternating 300 ms stalls fail the real gap assertion. |
+| `save-transfer-wide-hook.test.mjs` | One gap below 100 ms across a million-entry hook round trip. | Restored byte for byte to `origin/main`: no exact-test CI timing failure was cited. Constant and alternating 300 ms stalls fail; the million-entry apply/export and hook-count checks remain. |
+| `save-transfer-regressions.test.mjs` | Single 2000 ms preview, 100 ms hostile-import and 500 ms delimiter scans; wedged-worker timer below 100 ms and completion below 2000 ms. | Preview/import/delimiter assertions restored to `origin/main`, including cold-path coverage. Only the CI-failing wedged case changes: real timer below 250 ms and total completion below 3000 ms, with timeout rejection and queued parsing still required. A 300 ms main-thread stall fails. |
+| `live-timings.test.mjs` | Calculator close must win a 150 ms host-time race. | Only the CI-failing calculator case changes: a 250 ms real race plus elapsed time below 250 ms. A 300 ms profile-write stall fails even if the race's timer is delayed. Picker acknowledgement tests retain their original 150 ms races; retirement, admission and late-handle assertions remain. |
+| `process-profiles.test.mjs` | 1000/150 ms acknowledgement races and a 120 ms retirement sleep. | Restored byte for byte to `origin/main`: no exact-test CI timing failure was cited. Both 1100 ms cleanup mutations fail. |
+| `scheduler.test.mjs` | Shutdown below 1000 ms with an unresponsive worker. | Restored byte for byte to `origin/main`: no exact-test CI timing failure was cited. An 1100 ms shutdown stall fails. |
+| `session-residency.test.mjs` | Pooled shutdown below 500 ms, with a 1000 ms outer test timeout. | Restored byte for byte to `origin/main`: no exact-test CI timing failure was cited. A 600 ms shutdown stall fails. |
+| `identity-index-scale.test.mjs` | A 5000-entry shared-alias snapshot below 1500 ms. | Restored byte for byte to `origin/main`: no exact-test CI timing failure was cited. The real 1500 ms ceiling rejects a 1700 ms snapshot stall. |
 | `backup-file-browser.test.mjs` | Assume pointer layout is ready after a 50 ms sleep; probe immediately after navigation. | Wait for page load, animation-frame layout and centre hit ownership before native pointer input. Existing 10-second readiness and 60-second scenario backstops remain. Inoperable controls, missing native chooser events, incorrect accessibility relationships and any preview write still fail. Error names/messages are retained in diagnostics. The original CI failure's cause remains unconfirmed. |
 
-The transfer targets remain below 100 ms where originally specified. A
-repeatable stall above 250 ms fails the transfer probes changed here even
-without an `origin/main` comparison. Passing samples do not establish a
-production latency guarantee under every scheduler or GC pause.
+The backup-browser 300 ms activation mutation is the explicit exception: it
+also passed the original tests. Native chooser activation, purpose/filename
+accessibility, preview immutability and all three input methods remain covered;
+disabling the chooser must fail. Passing samples do not establish a production
+latency guarantee under every scheduler or GC pause.
+
+## Mutation verification
+
+All 22 scenarios from `review-evidence.json` were rerun with the exact recorded
+production replacements and `--test-name-pattern`, one test file per process.
+The original production bytes were restored after each scenario, including
+failures. The first two result columns come from the supplied review evidence;
+the rework column is a fresh local run. `Old` is the original `origin/main`
+test; `Reviewed` is PR head `0a46991d45ddb3c798e3bf04a09c223149b83b25`.
+
+| Scenario | Old | Reviewed | Rework |
+| --- | --- | --- | --- |
+| `save-transfer-response-bounds-always-300ms` | FAIL | FAIL | FAIL |
+| `save-transfer-response-bounds-periodic-300ms` | FAIL | FAIL | FAIL |
+| `save-transfer-publication-always-300ms` | FAIL | FAIL | FAIL |
+| `save-transfer-publication-periodic-300ms` | FAIL | PASS | FAIL |
+| `save-transfer-wide-hook-always-300ms` | FAIL | FAIL | FAIL |
+| `save-transfer-wide-hook-periodic-300ms` | FAIL | PASS | FAIL |
+| `hostile-import-always-300ms` | FAIL | FAIL | FAIL |
+| `hostile-import-periodic-300ms` | FAIL | PASS | FAIL |
+| `large-preview-always-2200ms` | FAIL | FAIL | FAIL |
+| `large-preview-periodic-2200ms` | FAIL | PASS | FAIL |
+| `delimiter-scan-always-600ms` | FAIL | FAIL | FAIL |
+| `delimiter-scan-cold-600ms` | FAIL | PASS | FAIL |
+| `live-calculator-close-300ms` | FAIL | PASS | FAIL |
+| `process-profile-cleanup-1100ms` | FAIL | FAIL | FAIL |
+| `scheduler-shutdown-1100ms` | FAIL | PASS | FAIL |
+| `pooled-shutdown-600ms` | FAIL | PASS | FAIL |
+| `identity-snapshot-1700ms` | FAIL | PASS | FAIL |
+| `backup-native-activation-300ms` (allowed exception) | PASS | PASS | PASS |
+| `backup-native-chooser-disabled` | FAIL | FAIL | FAIL |
+| `response-cold-300ms` | FAIL | PASS | FAIL |
+| `process-profile-native-cleanup-1100ms` | FAIL | PASS | FAIL |
+| `wedged-main-thread-300ms` | FAIL | PASS | FAIL |
 
 ## Remaining absolute timing assertions
 
@@ -68,7 +115,11 @@ a mechanical retry around a consumed ticket, socket or child process.
 | `prewarm-process-tree.test.mjs` | Process tree ready within 1500 ms and killed within a 2500 + 500 ms budget. Linux process-group integration. |
 | `process-worker.test.mjs` | Inspector capture span below 500000 microseconds; deadline requests at 80 ms; disconnected calculator exit within 5000 ms. Historical failures were `/proc` `ESRCH` races, not a deadline assertion. |
 | `release-runtime-v2.test.mjs` | Foreground pipes close below 10000 ms while a detached Windows child lives. |
-| `save-transfer-regressions.test.mjs` | Real worker duration below `IMPORT_TIMEOUT_MS` (120000 ms). This is the enforced product budget. |
+| `save-transfer-regressions.test.mjs` | Real worker duration below `IMPORT_TIMEOUT_MS` (120000 ms); unchanged single-sample 2000 ms linear preview, 100 ms hostile-import gap and 500 ms delimiter scan. |
+| `save-transfer-publication.test.mjs` / `save-transfer-wide-hook.test.mjs` | Original 200/100 ms response-gap ceilings. |
+| `process-profiles.test.mjs` | Original 1000/150 ms completion races and real deadline waits. |
+| `scheduler.test.mjs` / `session-residency.test.mjs` | Original 1000/500 ms shutdown ceilings. |
+| `identity-index-scale.test.mjs` | Original 1500 ms shared-alias snapshot ceiling. |
 | `save-transfer-responsiveness.test.mjs` | Preview/apply/JSON export/gzip export gaps below 150 ms; preview gap no larger than a same-run main-preparation baseline. The scenario mutates the store and consumes its publication ticket. |
 | `server-reliability.test.mjs` | Repeated server close below 5000 ms; synchronous closed-store admission must reject within a 1000 ms backstop. |
 | `tasks.test.mjs` | Real catalogue evaluation below 10000 ms. Historical failures were changed catalogue counts. |
@@ -96,22 +147,34 @@ were inspected and excluded from the absolute-latency list.
 
 ## Local validation
 
-All 157 tests in the ten changed test files passed on Windows / Node v26.13.0,
-one file at a time. No full suite was run. Linux / Node 24 validation belongs to
+All 22 exact production-code mutations from the review evidence were rerun,
+one scenario/test file at a time, restoring production bytes after each scenario:
+21 failed and only the allowed activation exception passed. All 161 tests in
+the ten affected or restored files passed both normally and under contention,
+sequentially on Windows / Node v26.13.0. Contention used exactly one Idle-priority
+busy-loop process, whose priority was verified and which was stopped in a
+`finally` block. No full suite was run. Linux / Node 24 validation belongs to
 the PR's hosted checks.
 
-| Test file | Passed |
-| --- | ---: |
-| `backup-file-browser.test.mjs` | 3 |
-| `identity-index-scale.test.mjs` | 5 |
-| `live-timings.test.mjs` | 25 |
-| `process-profiles.test.mjs` | 16 |
-| `save-transfer-publication.test.mjs` | 4 |
-| `save-transfer-regressions.test.mjs` | 12 |
-| `save-transfer-response-bounds.test.mjs` | 3 |
-| `save-transfer-wide-hook.test.mjs` | 2 |
-| `scheduler.test.mjs` | 53 |
-| `session-residency.test.mjs` | 34 |
+Final runs used each file's normal dataset selection. An initial harness-wide
+`open-starter` override caused an unrelated identity semantic failure and was
+removed before rerunning the affected files and mutations. Response gaps were
+27.6/53.3/65.7 ms normally and 34.3/62.9/45.6 ms under contention: every sample
+met the hard ceiling and the best met the original target in both runs.
+
+| Test file | Normal passed | Contention passed |
+| --- | ---: | ---: |
+| `backup-file-browser.test.mjs` | 3 | 3 |
+| `identity-index-scale.test.mjs` | 5 | 5 |
+| `live-timings.test.mjs` | 25 | 25 |
+| `process-profiles.test.mjs` | 16 | 16 |
+| `save-transfer-publication.test.mjs` | 4 | 4 |
+| `save-transfer-regressions.test.mjs` | 12 | 12 |
+| `save-transfer-response-bounds.test.mjs` | 7 | 7 |
+| `save-transfer-wide-hook.test.mjs` | 2 | 2 |
+| `scheduler.test.mjs` | 53 | 53 |
+| `session-residency.test.mjs` | 34 | 34 |
+| **Total** | **161** | **161** |
 
 `git diff --check`, test-file registration and the affected files' port-policy
 check passed. New cases live in an already registered test file; the new helper

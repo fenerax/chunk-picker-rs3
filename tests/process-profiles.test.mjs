@@ -112,8 +112,7 @@ for (const operation of ['start', 'stop']) {
 }
 
 
-test('host deadline stops relay sampling while its start acknowledgement is missing', { timeout: 30000 }, async t => {
-  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
+test('host deadline stops relay sampling while its start acknowledgement is missing', async () => {
   const entered = Promise.withResolvers(), stopped = Promise.withResolvers(); let release;
   const calls = [];
   const f = fixture({ openSession: async () => ({ disconnect() { calls.push('disconnect'); }, post(method, callback) {
@@ -123,35 +122,28 @@ test('host deadline stops relay sampling while its start acknowledgement is miss
   } }) });
   const started = assert.rejects(f.profiles.start(Date.now() + 30), /cancelled/);
   await entered.promise;
-  t.mock.timers.tick(29); await new Promise(resolve => setImmediate(resolve));
-  assert.ok(!calls.includes('Profiler.stop'), 'relay deadline must not fire early');
-  t.mock.timers.tick(1); await stopped.promise;
+  await Promise.race([stopped.promise, delay(1000).then(() => assert.fail('relay deadline did not stop sampling'))]);
   assert.ok(calls.includes('disconnect')); assert.equal(f.retirements(), 0);
   release(); await started;
 });
 
-test('host deadline retires a calculator without waiting for its native start acknowledgement', { timeout: 30000 }, async t => {
-  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
-  const pending = Promise.withResolvers(), entered = Promise.withResolvers(); let stopped = 0;
-  const f = fixture({ stopTimeoutMs: 500, worker: { startCpuProfile: () => { entered.resolve(); return pending.promise; } } });
+test('host deadline retires a calculator without waiting for its native start acknowledgement', async () => {
+  const pending = Promise.withResolvers(); let stopped = 0;
+  const f = fixture({ stopTimeoutMs: 500, worker: { startCpuProfile: () => pending.promise } });
   f.online.resolve();
   const started = assert.rejects(f.profiles.start(Date.now() + 30), /cancelled|did not stop/);
   try {
-    await entered.promise;
-    t.mock.timers.tick(29); await new Promise(resolve => setImmediate(resolve));
-    assert.equal(f.retirements(), 0);
-    t.mock.timers.tick(1); await started;
+    await delay(120);
     assert.equal(f.retirements(), 1, 'deadline cleanup must not wait for the native handle');
   } finally {
     pending.resolve({ stop: async () => { stopped++; return {}; } });
     await started;
-    await new Promise(resolve => setImmediate(resolve));
+    await delay(5);
     assert.equal(stopped, 1, 'a late native handle still receives stop');
   }
 });
 
-for (const stage of ['Profiler.start', 'Profiler.stop']) test(`relay ${stage} acknowledgement cannot block deadline cleanup`, { timeout: 30000 }, async t => {
-  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
+for (const stage of ['Profiler.start', 'Profiler.stop']) test(`relay ${stage} acknowledgement cannot block deadline cleanup`, async () => {
   const entered = Promise.withResolvers(); let release, disconnected = false;
   const f = fixture({ openSession: async () => ({ disconnect() { disconnected = true; }, post(method, callback) {
     if (method === stage) { release = () => callback(null, { profile: {} }); entered.resolve(); }
@@ -159,16 +151,11 @@ for (const stage of ['Profiler.start', 'Profiler.stop']) test(`relay ${stage} ac
   } }) });
   f.online.resolve();
   const started = f.profiles.start(Date.now() + 30).catch(() => {});
-  if (stage === 'Profiler.stop') { await started; t.mock.timers.tick(30); }
   await entered.promise;
   const stopping = f.profiles.cancel().catch(() => {});
   try {
-    if (stage === 'Profiler.stop') {
-      t.mock.timers.tick(19); await new Promise(resolve => setImmediate(resolve));
-      assert.equal(disconnected, false);
-      t.mock.timers.tick(1);
-    }
-    await Promise.all([started, stopping]);
+    const completed = await Promise.race([Promise.all([started, stopping]).then(() => true), delay(150).then(() => false)]);
+    assert.equal(completed, true, 'capture cleanup must finish without an acknowledgement');
     assert.equal(disconnected, true);
     assert.equal(f.retirements(), 0);
   } finally { release(); await started; await stopping; }

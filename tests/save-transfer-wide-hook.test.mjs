@@ -4,7 +4,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { serialize } from 'node:v8';
-import { responsiveSample } from './helpers/responsiveness.mjs';
 process.env.RS3_DATASET = 'open-starter';
 const { createGroupState } = await import('../app/core/state.mjs');
 const { openStore } = await import('../app/storage/store.mjs');
@@ -36,16 +35,23 @@ test('one million small provenance entries with a no-op hook stay below a 100 ms
   for (let i = 0; i < 1_000_000; i++) state.provenance.syntheticWide[`entry-${i}`] = i % 10;
   const input = serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state } });
   const inputBytes = input.length;
+  let last = performance.now(), gap = 0;
+  const timer = setInterval(() => { const now = performance.now(); gap = Math.max(gap, now - last); last = now; }, 5);
+  const start = performance.now();
   let prepared;
-  const sample = await responsiveSample(async freshInput => {
-    prepared = await store.prepareTransfer(freshInput, { route: '/api/restore/preview',
+  try {
+    prepared = await store.prepareTransfer(input, { route: '/api/restore/preview',
       dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() } });
     JSON.stringify(prepared.response); transferDigest(prepared.response);
-  }, { maxGapMs: 100, label: 'wide-object main-thread', beforeEach: () => Buffer.from(input) });
-  assert.equal(calls, sample.gaps.length, 'Exactly one hook call per independent preview');
+    await new Promise(resolve => setTimeout(resolve, 5));
+    gap = Math.max(gap, performance.now() - last);
+  } finally { clearInterval(timer); }
+  const ms = performance.now() - start;
+  assert.equal(calls, 1);
+  assert.ok(gap < 100, `wide-object main-thread gap ${gap.toFixed(1)} ms`);
   await store.applyTransfer(prepared.ticket, 0);
   const exported = JSON.parse((await store.exportBackup()).bytes);
   assert.equal(Object.keys(exported.state.provenance.restore.incomingProvenance.syntheticWide).length, 1_000_000);
   assert.equal(exported.state.provenance.restore.incomingProvenance.syntheticWide['entry-999999'], 9);
-  t.diagnostic(JSON.stringify({ entries: 1_000_000, inputBytes, previewBytes: Buffer.byteLength(JSON.stringify(prepared.response)), previewMs: sample.ms, mainThreadGapsMs: sample.gaps }));
+  t.diagnostic(JSON.stringify({ entries: 1_000_000, inputBytes, previewBytes: Buffer.byteLength(JSON.stringify(prepared.response)), previewMs: ms, mainThreadGapMs: gap }));
 });

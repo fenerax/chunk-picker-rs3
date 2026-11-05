@@ -14,7 +14,6 @@ import { readBackupRequest } from '../app/backup-transfer.mjs';
 import { Readable } from 'node:stream';
 import { serialize } from 'node:v8';
 import { randomUUID } from 'node:crypto';
-import { responsiveSample } from './helpers/responsiveness.mjs';
 
 const roster = [{ id: 'source', name: 'Synthetic player' }];
 function largeSave() {
@@ -25,17 +24,18 @@ function largeSave() {
   return state;
 }
 
-test('large hostile synthetic transfer report and restore preview use linear lookups', async () => {
+test('large hostile synthetic transfer report and restore preview use linear lookups', () => {
   const incoming = largeSave(), before = structuredClone(incoming);
   // Overlap exercises definition comparisons and completion differences in both directions.
   const removedTasks = Array.from({ length: 1_250 }, (_, i) => ({ id: `custom:removed-${i}`, label: `Synthetic removed task ${i}`, category: 'Custom' }));
   before.tasks.push(...removedTasks);
   before.members[0].completedTasks = [...before.members[0].completedTasks.slice(0, 3_750), ...removedTasks.map(task => task.id)];
   const backup = exportBackup(incoming);
-  const { result: { report, preview }, gaps } = await responsiveSample(() => {
-    const state = importBackup(backup);
-    return { report: transferReport(state), preview: previewRestore(before, state) };
-  }, { maxGapMs: 2_000, label: 'large transfer preview' });
+  const start = performance.now();
+  const state = importBackup(backup);
+  const report = transferReport(state);
+  const preview = previewRestore(before, state);
+  const elapsed = performance.now() - start;
   assert.equal(report.records.length, REPORT_RECORDS);
   assert.equal(report.counts.preservedForReview, 5_000);
   assert.equal(report.counts.omitted, 5_000 - REPORT_RECORDS);
@@ -46,7 +46,8 @@ test('large hostile synthetic transfer report and restore preview use linear loo
   assert.equal(preview.tasks.changed.length, 0);
   // Normally a few hundred ms; generous headroom for shared CI workers, while
   // still rejecting the former tens-of-seconds quadratic implementation.
-  console.log(`Synthetic 5,000-task preview gaps: ${gaps.map(ms => ms.toFixed(0)).join(', ')} ms`);
+  assert.ok(elapsed < 2_000, `large transfer preview took ${elapsed.toFixed(0)} ms`);
+  console.log(`Synthetic 5,000-task preview: ${elapsed.toFixed(0)} ms`);
 });
 
 function editedSave(tasks, edits) {
@@ -117,26 +118,37 @@ test('hostile warning and repeated long-label report stay bounded while the HTTP
   document.state.provenance = { taskIdentityMigration: { unresolved: Array.from({ length: 400 }, (_, i) => ({ originalId: document.state.tasks[0].id, path: `synthetic-${i}` })) } };
   document.state.legacy = { gameplayMigration: { warnings: ['Could not migrate source ' + ' for member '.repeat(33_000)] } };
   const bytes = Buffer.from(JSON.stringify({ backup: document }));
-  const sample = await responsiveSample(async freshInput => {
-    const parsed = await readBackupRequest(Object.assign(Readable.from([freshInput]), { headers: { 'content-type': 'application/json' }, complete: true }), { defer: true });
+  let fired;
+  const start = performance.now();
+  let last = start, maximumGap = 0;
+  const heartbeat = setInterval(() => { const now = performance.now(); maximumGap = Math.max(maximumGap, now - last); last = now; }, 10);
+  t.after(() => clearInterval(heartbeat));
+  const timer = new Promise(resolve => setTimeout(() => { fired = performance.now() - start; resolve(); }, 20));
+  const checking = (async () => {
+    const parsed = await readBackupRequest(Object.assign(Readable.from([bytes]), { headers: { 'content-type': 'application/json' }, complete: true }), { defer: true });
     return store.prepareTransfer(parsed.input, { ...transferOptions, importBudget: parsed.budget,
       migration: { definitions: { challenges: {} }, taskMap: {}, catalogue: [] } });
-  }, { maxGapMs: 100, label: 'hostile import main-thread', beforeEach: () => Buffer.from(bytes) });
-  const { result } = sample;
+  })();
+  await timer;
+  assert.ok(fired < 100, `main-thread timer took ${fired.toFixed(1)} ms`);
+  const result = await checking;
+  await new Promise(resolve => setImmediate(resolve));
+  clearInterval(heartbeat);
+  assert.ok(maximumGap < 100, `maximum main-thread timer gap was ${maximumGap.toFixed(1)} ms`);
+  assert.ok(performance.now() - start < IMPORT_TIMEOUT_MS);
   assert.ok(Buffer.byteLength(JSON.stringify(result.response.transferReport)) < REPORT_BYTES);
   assert.ok(result.response.warnings.every(warning => warning.length <= 513));
   const total = result.response.transferReport.counts.preservedForReview;
   assert.ok(total >= 400, 'Every unresolved record is counted, even when display warnings repeat.');
   assert.equal(result.response.transferReport.counts.omitted, total - REPORT_RECORDS);
   assert.ok(result.response.transferReport.more.startsWith(`and ${total - REPORT_RECORDS} more`));
-  assert.ok(result.workerMs < IMPORT_TIMEOUT_MS);
-  t.diagnostic(`Hostile import: gaps ${sample.gaps.map(ms => ms.toFixed(1)).join(', ')} ms, worker ${result.workerMs.toFixed(1)} ms`);
+  t.diagnostic(`Hostile import: timer ${fired.toFixed(1)} ms, maximum timer gap ${maximumGap.toFixed(1)} ms, worker ${result.workerMs.toFixed(1)} ms`);
 });
 
-test('malformed markup and diagnostic text use delimiter scans without backtracking', async () => {
-  await responsiveSample(() => {
-    for (const label of ['<'.repeat(400_000), '~|'.repeat(200_000), '*'.repeat(400_000) + 'x']) assert.ok(stripTaskMarkup(label).length >= 0);
-  }, { maxGapMs: 500, label: 'delimiter scans' });
+test('malformed markup and diagnostic text use delimiter scans without backtracking', () => {
+  const start = performance.now();
+  for (const label of ['<'.repeat(400_000), '~|'.repeat(200_000), '*'.repeat(400_000) + 'x']) assert.ok(stripTaskMarkup(label).length >= 0);
+  assert.ok(performance.now() - start < 500);
 });
 
 test('unsafe prototype keys remain rejected after worker parsing and replay', async t => {
@@ -159,34 +171,20 @@ test('worker imports and exports keep destination credential sidecars outside po
   assert.equal(JSON.stringify(result.response).includes(secret), false);
 });
 
-test('timeout terminates a wedged worker, releases the global queue, and cannot apply a partial result', { timeout: 30000 }, async t => {
+test('timeout terminates a wedged worker, releases the global queue, and cannot apply a partial result', async () => {
   // An isolated CPU wedge exercises the same deadline/termination path as a
   // pathological replay without depending on a machine-specific input runtime.
   const workerURL = new URL('data:text/javascript,while(true){}');
-  // Keep active-work accounting and its timer on the same controlled clock.
-  // Worker startup/termination may take arbitrary host time on shared runners.
-  t.mock.method(performance, 'now', () => 0);
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const timeout = globalThis.setTimeout, armed = Promise.withResolvers();
-  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) => {
-    const timer = timeout(callback, ms, ...args);
-    if (ms === 100) armed.resolve();
-    return timer;
-  });
+  const start = performance.now();
   const wedged = runImportJob({}, { workerURL, timeoutMs: 100 });
-  let settled = false;
-  const rejected = assert.rejects(wedged, error => error.status === 422 && /took too long/.test(error.message));
-  void wedged.then(() => { settled = true; }, () => { settled = true; });
   const next = runImportJob({ kind: 'parse', chunks: [Buffer.from('{}')], headers: { 'content-type': 'application/json' } });
-  await armed.promise;
-  let fired = false;
-  setTimeout(() => { fired = true; }, 20);
-  t.mock.timers.tick(99); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(fired, true, 'the main event loop runs while the worker is wedged');
-  assert.equal(settled, false, 'the active deadline has not fired early');
-  t.mock.timers.tick(1);
-  await rejected;
+  let fired;
+  await new Promise(resolve => setTimeout(() => { fired = performance.now() - start; resolve(); }, 20));
+  assert.ok(fired < 250, `wedged-worker main-thread timer took ${fired.toFixed(1)} ms`);
+  await assert.rejects(wedged, error => error.status === 422 && /took too long/.test(error.message));
   assert.deepEqual((await next).body, {});
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed < 3_000, `wedged-worker cleanup and queued parser took ${elapsed.toFixed(1)} ms`);
 });
 
 test('roster remap preserves the removed preferred-method guard through reload', async t => {

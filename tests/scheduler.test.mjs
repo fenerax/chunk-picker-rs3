@@ -434,20 +434,14 @@ test('abandoned active work retains its watchdog and discards late results', asy
   const operation = evaluate('okay'); workers[1].finish(); await operation;
 });
 
-test('shutdown rejects pending calculations and bounds a worker that refuses to terminate', { timeout: 30000 }, async t => {
+test('shutdown rejects pending calculations and bounds a worker that refuses to terminate', async t => {
   const { workers, scheduler, evaluate } = await fixture(t);
   workers[0].terminate = () => new Promise(() => {});
   const active = evaluate('active'); const rejected = assert.rejects(active, /closing/);
   const queued = evaluate('queued', 0, 'reed'); const queuedRejected = assert.rejects(queued, /closing/);
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  let completed = false;
-  const closed = scheduler.close(20);
-  void closed.then(() => { completed = true; });
-  t.mock.timers.tick(19); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(completed, false);
-  t.mock.timers.tick(1); await closed;
+  const started = performance.now(); await scheduler.close(20);
   await Promise.all([rejected, queuedRejected]);
-  assert.equal(scheduler.getHealth().status, 'closed');
+  assert.ok(performance.now() - started < 1000); assert.equal(scheduler.getHealth().status, 'closed');
   workers[0].terminate = async () => {};
 });
 

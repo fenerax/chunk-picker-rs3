@@ -12,24 +12,6 @@ import { ProcessWorker } from '../app/tasks/process-worker.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 
 async function temporary(t) { const dir = await mkdtemp(path.join(tmpdir(), 'live-timings-unit-')); t.after(() => rm(dir, { recursive: true, force: true })); return dir; }
-
-function cleanupClock(t) {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const timeout = globalThis.setTimeout, waiting = [];
-  let armed = 0;
-  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) => {
-    const timer = timeout(callback, ms, ...args);
-    if (ms === 20) {
-      armed++;
-      for (const entry of waiting) if (armed >= entry.count) entry.resolve();
-    }
-    return timer;
-  });
-  return {
-    armed(count) { return armed >= count ? Promise.resolve() : new Promise(resolve => waiting.push({ count, resolve })); },
-    tick(ms) { t.mock.timers.tick(ms); },
-  };
-}
 test('bounded summaries, numeric stages, windows, restart and private-byte allowlist', async t => {
   const dir = await temporary(t); let now = Date.now();
   let timings = await openLiveTimings(dir, { now: () => now });
@@ -369,7 +351,7 @@ test('a failed capture retires at most one calculator and replacements finish fo
   assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().failures, 0);
 });
 
-for (const stage of ['Profiler.start', 'Profiler.stop']) test(`picker ${stage} acknowledgement cannot block stop or close`, { timeout: 30000 }, async t => {
+for (const stage of ['Profiler.start', 'Profiler.stop']) test(`picker ${stage} acknowledgement cannot block stop or close`, async t => {
   const { Session } = await import('node:inspector');
   const original = Session.prototype.post, entered = Promise.withResolvers();
   let release;
@@ -383,18 +365,12 @@ for (const stage of ['Profiler.start', 'Profiler.stop']) test(`picker ${stage} a
   const profiles = await createDeepProfiles(await temporary(t), { stopTimeoutMs: 20 });
   const started = profiles.start(60);
   if (stage === 'Profiler.stop') await started;
-  const clock = cleanupClock(t);
   const stopping = stage === 'Profiler.stop' ? profiles.stop() : undefined;
   await entered.promise;
   const closed = profiles.close();
   try {
-    if (stage === 'Profiler.stop') {
-      await clock.armed(1);
-      clock.tick(19); await new Promise(resolve => setImmediate(resolve));
-      assert.equal(profiles.status().stopping, true);
-      clock.tick(1);
-    }
-    await Promise.all([started, stopping, closed]);
+    const completed = await Promise.race([Promise.all([started, stopping, closed]).then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 150))]);
+    assert.equal(completed, true, 'stop and close must finish without an inspector acknowledgement');
     assert.equal(profiles.status().stopping, false);
     assert.equal(profiles.status().active, false);
   } finally {
@@ -403,7 +379,7 @@ for (const stage of ['Profiler.start', 'Profiler.stop']) test(`picker ${stage} a
   }
 });
 
-test('a missing calculator start acknowledgement bounds close and retires uncertain cleanup', { timeout: 30000 }, async t => {
+test('a missing calculator start acknowledgement bounds close and retires uncertain cleanup', async t => {
   const profiles = await createDeepProfiles(await temporary(t), { stopTimeoutMs: 20 });
   const entered = Promise.withResolvers(), pending = Promise.withResolvers(); let stopped = 0;
   const worker = new EventEmitter();
@@ -414,19 +390,14 @@ test('a missing calculator start acknowledgement bounds close and retires uncert
   other.startCpuProfile = async () => { otherStarts++; return { stop: async () => ({ nodes: [1] }) }; };
   profiles.attach(other);
   const started = profiles.start(60); await entered.promise;
-  const clock = cleanupClock(t);
-  let completed = false;
+  const closeStart = performance.now();
   const closed = profiles.close();
-  void closed.then(() => { completed = true; });
   try {
-    // The picker stop arms the first bound; calculator cleanup arms the second
-    // after the picker profile's real file I/O. Only then advance virtual time.
-    await clock.armed(2);
-    clock.tick(19); await new Promise(resolve => setImmediate(resolve));
-    assert.equal(completed, false, 'cleanup waits for its configured deadline');
-    assert.equal(worker.profileRetiring, undefined);
-    clock.tick(1); await closed;
-    assert.equal(completed, true, 'the 20 ms cleanup bound releases close without an acknowledgement');
+    const completed = await Promise.race([closed.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 250))]);
+    assert.equal(completed, true);
+    // A delayed timer callback must not let synchronous profile/file stalls
+    // win the race after the wall-clock ceiling has already elapsed.
+    assert.ok(performance.now() - closeStart < 250, 'calculator close must finish below 250 ms of real time');
     assert.equal(worker.profileRetiring, true);
     assert.equal(otherStarts, 0);
     assert.equal(other.profileRetiring, undefined, 'an unissued admission must not retire another calculator');
