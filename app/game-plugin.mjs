@@ -283,11 +283,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const id = GAME_TOOLBELT.get(`${name}=${level}`);
       if (id !== undefined) tools.push([id, null, false]);
     }
-    // Containers and legacy triples belong to the delivery world, as before. Four-field
-    // events carry their observation environment: live ones join the live record, beta
-    // and unknown ones their own journal record, whatever world delivers them.
+    // Containers describe the delivery world. Legacy journal triples cannot prove
+    // their observation world, so retain them as unknown catch-up evidence. Qualified
+    // events carry their observation environment, whatever world delivers them.
     const slotOf = event => {
-      if (event.length < 4) return 'delivery';
+      if (event.length < 4) return 'unknown';
       const scope = itemsBetaAsLive && event[3] === 'beta' ? 'live' : event[3];
       return scope === 'live' ? world === 'live' ? 'delivery' : 'live' : scope;
     };

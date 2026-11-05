@@ -388,34 +388,36 @@ for (const mode of ['lost-beta-ack', 'offline-beta', 'rotated-retained-beta', 'u
   });
 }
 
-// Legacy triples (today's plugin) keep the delivery world: no live goal is lost while
-// the plugin doesn't send observation worlds yet, and beta reports still tick nothing.
-for (const delivery of [false, true, null]) test(`legacy journal triples follow delivery world ${delivery}`, async t => {
+// Legacy senders cannot establish the observation world of queued events.
+for (const delivery of [false, true, null]) test(`legacy catch-up journal keeps unknown provenance on delivery world ${delivery}`, async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items());
-  const world = delivery === false ? 'live' : delivery ? 'beta' : 'unknown', live = world === 'live';
   const status = await f.send(items({ events: [[1, CHAINBODY, 'Synthetic worn item']] }), delivery);
   assert.equal(status.items.journal.event, 1);
   const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
-  assert.equal(Boolean(record.items[CHAINBODY]?.wornAt), live);
-  assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), live);
+  assert.equal(record.items[CHAINBODY], undefined);
+  assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), false);
   assert.equal(f.state.members[0].completedTasks.includes(WEAR_TASK), false);
-  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === world));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'));
+  await f.send(items());
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'), 'Acknowledged catch-up rows retain their provenance');
+  await f.restart();
+  await f.send(items({ events: [[1, CHAINBODY, 'Synthetic worn item']] }));
+  assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), false, 'A replay after restart cannot promote the event to live');
 });
 
-// Codex review r2, P3: tool belt evidence still follows the delivery world's journal
-// events, so a reported journal name keeps naming the item, as before.
-for (const delivery of [false, true]) test(`journal names win over tool belt names ${delivery ? 'beta' : 'live'}`, async t => {
+// Unqualified historical names cannot replace current container evidence.
+for (const delivery of [false, true]) test(`legacy journal names stay separate from tool belt evidence ${delivery ? 'beta' : 'live'}`, async t => {
   const f = await fixture(t, { durable: true });
   await f.send({ ...items({ events: [[1, RUNE_HATCHET, 'Synthetic reported hatchet name']] }), toolbelt: [['HATCHET_LEVEL', 6]] }, delivery);
   const hatchet = (f.review()?.items ?? []).filter(row => row.gameItemId === RUNE_HATCHET);
   if (delivery) {
     assert.ok(hatchet.length > 0);
-    for (const row of hatchet) assert.equal(row.gameName, 'Synthetic reported hatchet name');
+    for (const row of hatchet) assert.equal(row.gameName, 'Rune hatchet');
   } else {
-    for (const row of hatchet) assert.equal(row.gameName, 'Synthetic reported hatchet name');
+    for (const row of hatchet) assert.equal(row.gameName, 'Rune hatchet');
     const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
-    assert.equal(record.items[RUNE_HATCHET].name, 'Synthetic reported hatchet name');
+    assert.equal(record.items[RUNE_HATCHET].name, 'Rune hatchet');
   }
 });
 
@@ -438,11 +440,11 @@ test('acknowledged qualified journal rows stay in review on later reports', asyn
   assert.equal(record.items[CHAINBODY], undefined, 'Beta evidence never reaches disk');
 });
 
-// Codex review r1, finding 2: legacy-only reports keep main's single memory slot, so an
+// Codex review r1, finding 2: container reports keep main's single memory slot, so an
 // unknown-world report replaces beta memory and the next unreadable beta look waits.
-test('legacy beta memory is replaced by an unknown-world report, as before', async t => {
+test('beta container memory is replaced by an unknown-world report, as before', async t => {
   const f = await fixture(t);
-  assert.equal((await f.send(items({ events: [[1, CHAINBODY, 'Synthetic worn item']] }), true)).items.journal.event, 1);
+  assert.equal((await f.send(items({ worn: [[0, CHAINBODY, 1, 'Synthetic worn item']] }), true)).items.journal.event, 0);
   assert.equal((await f.send(items(), null)).items.journal.event, 0);
   const third = await f.send(items({ worn: null, events: [[2, YEW_SHORTBOW, 'Synthetic bow']] }), true);
   assert.equal(third.items.journal.event, 0, 'First readable look still needed; nothing new acknowledged');

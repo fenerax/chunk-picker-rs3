@@ -268,11 +268,11 @@ strictly increasing positive integers across that journal, regardless of environ
 ID restarts event counting, but does not change retained events' environments.
 The same journal ID/event ID must always retain the same item, name and environment.
 
-Legacy `[eventId, itemId, name]` triples are still accepted and keep the earlier
-rule: they take the **delivery** report's world. In a live report they can persist
-live owned/worn facts and tick live goals; in a beta or unknown-world report they
-stay labelled review rows. So an item worn on beta and still queued when a live
-report is sent counts as live. Closing that gap is what the four-field form is for.
+Legacy `[eventId, itemId, name]` triples are still accepted and acknowledged, but
+their observation world is **unknown**. They stay labelled review rows, even when
+delivered on a live world, and cannot automatically tick live goals or persist
+live item facts. Current containers in the same report retain their own world:
+an item also present in a live container still supplies live evidence.
 After a sender upgrade, send old queued events as `"unknown"` unless their
 observation environment was actually retained.
 Send four-field events only after observing `"item-journal-world"` in status;
@@ -335,11 +335,11 @@ Any live evidence and its watermark must reach the sidecar before that prefix is
 acknowledged. If the write fails, the prior journal acknowledgement is retained
 for retry. Beta and unknown evidence stays in memory and does not survive a
 receiver restart without a retransmission. A beta or unknown-world report's own
-containers and legacy triples share one memory slot, as before: the next beta or
-unknown report replaces it. Four-field beta and unknown events keep their own
+containers share one memory slot: the next beta or unknown report replaces it.
+Legacy triples and four-field beta and unknown events keep their own
 record per environment, and their rows stay in every later review (items or
 bank) until handled, even after the sender drops the acknowledged events. Legacy
-triples receive the same delivery acknowledgement in their delivery world.
+triples receive the same delivery acknowledgement while retaining unknown provenance.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;
 actual sender exposure would need separate verification before any migration.
