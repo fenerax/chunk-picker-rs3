@@ -13,7 +13,7 @@ const execute = (file, args, input) => execFileSync(file, args, { input, encodin
   stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 8 * 1024 ** 2, timeout: 1800000 });
 const normalize = address => address.replace(/^::ffff:/, '').toLowerCase();
 export async function scratchHostGuard(alias, { run = execute, resolve = lookup } = {}) {
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(alias ?? '') || ['picker-vps', 'chunkpicker.ca'].includes(alias.toLowerCase())) throw Error('Scratch target refused.');
+  if (alias !== 'picker-scratch') throw Error('Scratch target refused.');
   const production = new Set((await resolve('chunkpicker.ca', { all: true })).map(row => normalize(row.address)));
   if (!production.size) throw Error('Scratch target cannot be verified.');
   const config = run('ssh', ['-G', alias]);

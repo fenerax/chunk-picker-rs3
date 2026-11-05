@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { randomBytes } from 'node:crypto';
-import { installSecrets, installedB2Id, request, run, sshAlias } from './setup-common.mjs';
+import { installSecrets, installedB2Id, request, run, verifyDeployment } from './setup-common.mjs';
 
 export const lifecycle = Object.freeze([{ fileNamePrefix: '', daysFromUploadingToHiding: null, daysFromHidingToDeleting: 31 }]);
 export const uploadCapabilities = Object.freeze(['listBuckets', 'listFiles', 'readFiles', 'writeFiles']);
@@ -16,7 +16,7 @@ export function protectedBucket(bucket) {
 }
 function field(item, name) { return item.fields?.find(row => row.label === name)?.value; }
 export async function setupB2({ keyFile, alias, bucketName, vault }, { fetchImpl = fetch, execute = run } = {}) {
-  sshAlias(alias);
+  verifyDeployment(alias, execute);
   if (!/^[a-z0-9][a-z0-9-]{5,49}$/.test(bucketName ?? '') || !vault || vault.startsWith('-')) throw Error('Bucket and 1Password vault required.');
   const temporary = JSON.parse(await readFile(keyFile, 'utf8'));
   if (!temporary.applicationKeyId || !temporary.applicationKey) throw Error('Temporary setup key required.');

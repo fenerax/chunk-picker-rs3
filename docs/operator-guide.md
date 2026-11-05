@@ -145,9 +145,12 @@ internal/backend/b2/b2.go, Remove first attempts version deletion, then falls
 back to Hide on an authorization failure. Overwrites and hide markers leave
 previous versions recoverable. The 31-day clock starts when a version becomes
 hidden, including an old pack referenced by a recent snapshot. The VPS runs
-backup/check/snapshots with --no-lock, under the existing operator exclusion,
-so it does not create or remove restic lock objects. It never runs forget or
-prune. A malicious VPS can hide or overwrite names, stop uploading, consume
+backup with restic's normal repository lock; check/snapshots use --no-lock.
+All commands use --no-cache. Restic 0.18.1 backup ignores --no-lock, and a
+non-dry-run forget rejects it, so flags are selected per command. Removing a B2
+lock object with the upload key hides its version; it grants no permanent-delete
+authority. A separate offhost.lock coordinates upload/init and trusted cleanup.
+The VPS never runs forget or prune. A malicious VPS can hide or overwrite names, stop uploading, consume
 storage or expose its own current secrets. It cannot erase the protected
 versions. Recovery from a malicious hide/overwrite must reconstruct the
 repository's **version view from before the incident**, not just run restic
@@ -182,6 +185,17 @@ files belong in protected local storage. Generated keys and passwords are never
 written to PC files or printed; subprocess output is captured. SSH uses the
 existing picker-vps alias, with passwordless root/sudo and Python 3.
 
+Cloud setup, secret installation, installed-key lookup and cleanup accept only
+picker-vps. Before cloud mutations or sending credentials they verify the
+root-owned, non-writable-by-others /etc/chunk-picker/deployment.json marker:
+`{"format":"picker-deployment-v1","role":"production","alias":"picker-vps"}`.
+The bootstrap installation below creates it without replacing an existing value.
+An absent, linked, unsafe or different marker refuses setup. picker-scratch is
+reserved for the account-free scratch rehearsal, with a local restic repository
+and loopback notification receiver. Cloud setup and production credential
+installation always refuse picker-scratch; do not copy production credentials
+or recovery items there. Arbitrary aliases and address literals are refused.
+
 Run only one setup process at a time. The scripts refuse duplicate names, weaker bucket lifecycle rules, broader keys,
 conflicting installed values, or a lost independent recovery item. They do not
 silently rotate credentials. Re-running after an interrupted remote credential
@@ -198,7 +212,7 @@ check pass.
 
 1. Pass the disposable rehearsal from this branch. It now installs the pinned
    restic binary, exercises monitor/notifier against a loopback HTTP receiver on
-   port 8971, and backs up/restores/checks/prunes an encrypted **local** restic
+   an OS-assigned port, and backs up/restores/checks/prunes an encrypted **local** restic
    repository. No service account calls are made by that rehearsal. Its report
    includes alerts.restored, retentionChecked and notificationsReceived. It
    leaves synthetic evidence on the disposable host. This tests local encryption
@@ -212,26 +226,44 @@ check pass.
 
    ```sh
    sudo /usr/bin/node /var/tmp/chunk-alerts-source/scripts/ops/install-restic.mjs
-   sudo install -d -o root -g root -m 0700 /etc/chunk-picker/secrets
-   sudo install -o root -g root -m 0644 /var/tmp/chunk-alerts-source/scripts/linux/monitor.example.json /etc/chunk-picker/monitor.json
-   sudo install -o root -g root -m 0644 /var/tmp/chunk-alerts-source/scripts/linux/offhost.example.json /etc/chunk-picker/offhost.json
    ```
 
-   Edit only the non-secret configs to match the existing operator controlDir,
-   backup filesystem and chosen bucket. Keep secrets out of these JSON files.
+   Prepare non-secret monitor.json and offhost.json in that fresh staging
+   directory from the examples. Set the existing operator controlDir, backup
+   filesystem and chosen bucket there, then publish through the installer:
+
+   ```sh
+   sudo /usr/bin/node /var/tmp/chunk-alerts-source/scripts/linux/bootstrap-alerts.mjs picker-vps /var/tmp/chunk-alerts-source/monitor.json /var/tmp/chunk-alerts-source/offhost.json
+   ```
+
+   Publication is atomic and create-only, or requires byte-for-byte agreement
+   with an existing value. It explicitly sets file modes. Existing different
+   configs refuse; reconcile their reviewed contents rather than recopy examples.
+   Keep secrets out of these JSON files.
    Restic settings use repository b2:<bucket>:chunk-picker. The rebuild bundle
    includes /etc/chunk-picker (including secrets), the ten allowlisted units
    and their drop-ins, current pointer, selected release, pinned inputs and
-   selected immutable tools version. Files outside the release or dedicated
+   selected immutable tools version. Every selected pack and addon includes
+   its manifest and every referenced payload, with hashes checked after copying.
+   The manifest maps each original pin path to its staged manifest; restore its
+   entire containing payload directory, preserving relative paths.
+   Files outside the release or dedicated
    /opt/chunk-picker/packs root refuse the bundle. Store no unrelated data under
-   /etc/chunk-picker. Keep the 15 GiB reserve available for staging the bundle.
-3. Install the Discord webhook into the root-owned 0600 file
-   /etc/chunk-picker/secrets/discord-webhook over encrypted stdin. For example,
-   from PowerShell with an existing protected input file:
+   /etc/chunk-picker. Staging budgets the snapshot and rebuild copies on their
+   actual destination filesystem before copying and before each bounded write,
+   preserving operator minFreeBytes (15 GiB in production). Insufficient space
+   fails before upload and removes only this job's staging. Restic's cache is disabled.
+3. Install the Discord webhook from a protected input file through the validated
+   installer. It validates the complete URL before SSH, checks deployment identity,
+   sends secrets only over stdin, and publishes root-owned 0600 files atomically:
 
    ```powershell
-   Get-Content -Raw -LiteralPath <webhook-file> | ssh picker-vps "sudo -n sh -c 'umask 077; cat > /etc/chunk-picker/secrets/discord-webhook'"
+   node scripts/ops/setup-discord.mjs --key-file <webhook-file> --ssh picker-vps
    ```
+
+   Empty/partial input fails without touching the destination. Existing values
+   must agree. For a reviewed replacement, use the same command with --rotate;
+   this is the explicit rotation action. Never pipe directly into a secret file.
 
 4. On the PC, run the B2 setup script first, then Healthchecks. Arguments are
    file paths and non-secret labels, never key values:
@@ -294,8 +326,13 @@ check pass.
    channel and check name without URLs or values.
 8. Run systemctl start chunk-picker-backup.service. OnSuccess starts the off-site
    service after the verified backup finishes; direct operator backup calls also
-   request an upload after releasing the exclusion; it holds the operator exclusion
-   through source selection, bundle creation and all restic reads. Confirm both
+   request an upload after releasing the exclusion. The uploader holds it only
+   for source selection and immutable, verified staging. It releases operation.lock
+   before any restic/network work, so writer startup and local backups remain
+   available while upload is slow, even if the original snapshot is pruned.
+   offhost.lock spans the whole off-site job and fences cleanup. The application
+   deadline is 30 minutes across steps; systemd limits startup to 35 minutes and
+   teardown to 30 seconds. Confirm both
    services finish successfully and inspect their structured status privately.
    backup-status.json and offhost-status.json under controlDir must show success,
    a recent snapshotAt, and a recent off-site lastSuccessAt. Old manifests without
@@ -322,7 +359,11 @@ check pass.
 
 Notification state is durable under controlDir, with deduplication, recovery
 messages, at most four delivery attempts per ten minutes and at least 30 seconds
-between attempts. Unresolved critical/urgent faults repeat every six hours
+between attempts. A separate durable outbox retains unacknowledged incidents
+and resolutions even when a fault clears during a delivery outage. Delivery is
+at least once; an interruption after Discord accepts a message may duplicate it.
+Unreadable or partial monitor samples preserve unresolved faults and memory
+history; only a successful observation confirms recovery. Unresolved critical/urgent faults repeat every six hours
 (configurable within one to 24 hours); warnings repeat only on change. Messages
 contain fixed categories only, without journal text, paths, machine names, IPs
 or credentials. During a declared release, a root-owned release-window.json under
@@ -346,7 +387,7 @@ restic cache. It captures all repository output.
    sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /usr/bin/node /opt/chunk-picker/tools/scripts/linux/offhost-backup.mjs pause
    ```
 
-   The pause command takes the operator exclusion, so it refuses while an upload
+   The pause command takes offhost.lock, so it refuses while an upload
    is in flight. Wait and retry; never kill an operation or delete its lock.
    Its durable declaration fences both scheduled and direct module uploads.
    The monitor reports this pause. Keep the declaration through cleanup.
@@ -356,7 +397,8 @@ restic cache. It captures all repository output.
    node scripts/ops/prune-b2.mjs --ssh picker-vps --vault <vault> --item "Chunk picker B2 recovery chunk-picker-backups" --restic <absolute-restic-binary>
    ```
 
-   It refuses unless SSH metadata confirms the uploader has been drained and paused.
+   It verifies deployment identity and refuses unless SSH metadata confirms the
+   uploader has been drained and paused for the exact repository in the recovery item.
    It checks the repository, applies 30/8/12 retention and prune, then checks
    again. Failed cleanup leaves the uploader paused for explicit review.
 3. After success, run:

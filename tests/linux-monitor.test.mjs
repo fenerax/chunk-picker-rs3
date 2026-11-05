@@ -74,3 +74,42 @@ test('dead-man errors never escape the completed job and redirects are disabled'
   assert.equal(await deadman('backup', { read, fetchImpl: async (_url, options) => { assert.equal(options.redirect, 'error'); throw Error(); } }), false);
   assert.equal(await deadman('offhost', { read, fetchImpl: async () => ({ ok: true }) }), true);
 });
+test('whole short outage survives failed Discord and a healthy sample for every notifier category', async t => {
+  const { messages } = await import('../scripts/linux/notify.mjs');
+  for (const code of Object.keys(messages)) {
+    const controlDir = await fixture(t), sent = [];
+    await notify({ controlDir, faults: { [code]: 'critical' }, merge: true, now, send: async () => { throw Error(); } });
+    await notify({ controlDir, faults: {}, now: now + 1000, send: async () => { throw Error('must rate limit'); } });
+    const durable = JSON.parse(await readFile(path.join(controlDir, 'notify-state.json')));
+    assert.deepEqual(durable.pending.map(row => !!row.level), [true, false]);
+    await notify({ controlDir, faults: {}, now: now + 31000, send: async text => sent.push(text) });
+    assert.equal(sent.length, 1); assert.match(sent[0], /CRITICAL:.*\nRECOVERED:/);
+    await notify({ controlDir, faults: {}, now: now + 62000, send: async text => sent.push(text) });
+    assert.equal(sent.length, 1);
+  }
+});
+test('unavailable or partial observations preserve unresolved faults and RAM history without false recovery', async t => {
+  const controlDir = await fixture(t), sent = [], send = async text => sent.push(text), value = sample();
+  value.diskBytes = GiB; value.ramBytes = GiB / 2; value.offhost.result = 'failed';
+  const previous = await monitor({ controlDir }, { sample: value, now, send });
+  const failed = await monitor({ controlDir }, { collectSample: async () => { throw Error(); }, now: now + 31000, send });
+  for (const [code, level] of Object.entries(previous.faults)) assert.equal(failed.faults[code], level);
+  assert.equal(failed.lowRamSince, previous.lowRamSince); assert.equal(failed.faults['monitor-data'], 'critical');
+  assert(!failed.faults['writer-inactive']); assert(!failed.faults['backup-source']); assert(!sent.join('\n').includes('RECOVERED'));
+  const partial = await monitor({ controlDir }, { sample: { ...sample(), unreadable: true }, now: now + 62000, send });
+  assert.equal(partial.faults['disk-low'], 'urgent'); assert(!sent.join('\n').includes('RECOVERED'));
+  await monitor({ controlDir }, { sample: sample(), now: now + 93000, send });
+  assert.match(sent.at(-1), /RECOVERED: Disk/); assert.match(sent.at(-1), /RECOVERED: Available memory/);
+});
+test('a large incident outbox drains in Discord-sized batches without dropping resolutions', async t => {
+  const { messages } = await import('../scripts/linux/notify.mjs'), controlDir = await fixture(t), sent = [];
+  const faults = Object.fromEntries(Object.keys(messages).map(code => [code, 'critical']));
+  await notify({ controlDir, faults, now, send: async () => { throw Error(); } });
+  await notify({ controlDir, faults: {}, now: now + 1000, send: async () => { throw Error(); } });
+  for (let index = 1; index <= 4; index++) await notify({ controlDir, faults: {}, now: now + index * 31000,
+    send: async content => { assert(content.length < 2000); sent.push(content); } });
+  assert.deepEqual(JSON.parse(await readFile(path.join(controlDir, 'notify-state.json'))).pending, []);
+  for (const message of Object.values(messages)) {
+    assert(sent.join('\n').includes('CRITICAL: ' + message)); assert(sent.join('\n').includes('RECOVERED: ' + message));
+  }
+});

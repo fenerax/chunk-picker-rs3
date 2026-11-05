@@ -2,12 +2,15 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile, statfs } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
 import { notify, releaseWindow, failureUnits } from './notify.mjs';
 import { processIdentity } from './start-check.mjs';
 const execute = promisify(execFile), GiB = 1024 ** 3;
 export function evaluate(sample, previous = {}, now = Date.now()) {
+  // An unavailable observation proves neither a fault nor a recovery. Partial
+  // collection failures conservatively retain all unresolved observations.
+  if (sample.unreadable) return { faults: { ...previous.faults, 'monitor-data': 'critical' }, lowRamSince: previous.lowRamSince ?? null };
   const faults = {}, put = (code, level = 'warning') => { const rank = { warning: 1, critical: 2, urgent: 3 }; if (!faults[code] || rank[level] > rank[faults[code]]) faults[code] = level; };
   if (!sample.writerActive) put('writer-inactive', 'critical');
   const age = at => { const time = Date.parse(at); return !Number.isFinite(time) || time > now + 60000 ? Infinity : now - time; };
@@ -55,19 +58,19 @@ export async function collect(config) {
   if (!available) throw Error('Memory evidence unavailable.'); sample.ramBytes = Number(available[1]) * 1024;
   return sample;
 }
-export async function monitor(config, { sample, now = Date.now(), send } = {}) {
+export async function monitor(config, { sample, now = Date.now(), send, collectSample = collect } = {}) {
   await directory(config.controlDir);
   return exclusive(path.join(config.controlDir, 'monitor.lock'), async () => {
     const file = path.join(config.controlDir, 'monitor-state.json');
     const previous = await optional(file) ?? {};
-    try { sample ??= await collect(config); } catch { sample = { unreadable: true }; }
+    try { sample ??= await collectSample(config); } catch { sample = { unreadable: true }; }
     const result = evaluate(sample, previous, now);
     await atomic(file, encode({ ...result, at: new Date(now).toISOString() }));
-    await notify({ ...config, faults: result.faults, window: sample.window, now, ...(send ? { send } : {}) });
+    await notify({ ...config, faults: result.faults, merge: !!sample.unreadable, window: sample.window, now, ...(send ? { send } : {}) });
     return result;
   });
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try { await monitor(await json('/etc/chunk-picker/monitor.json')); }
   catch { process.stderr.write('Monitor failed; inspect privately.\n'); process.exitCode = 1; }
 }

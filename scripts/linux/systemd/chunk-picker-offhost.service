@@ -14,9 +14,10 @@ LoadCredential=b2-key:/etc/chunk-picker/secrets/b2-key
 LoadCredential=restic-password:/etc/chunk-picker/secrets/restic-password
 LoadCredential=offhost-ping:/etc/chunk-picker/secrets/offhost-ping
 UMask=0077
-# Bound each repository subprocess internally, but never SIGKILL while holding
-# the shared operator exclusion. The independent monitor flags long operations.
-TimeoutStartSec=infinity
+# One overall 30-minute application deadline; systemd bounds teardown too.
+TimeoutStartSec=35min
+TimeoutStopSec=30s
+KillMode=control-group
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict

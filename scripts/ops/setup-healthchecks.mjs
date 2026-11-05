@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { installSecrets, request, run, sshAlias } from './setup-common.mjs';
+import { installSecrets, request, run, verifyDeployment } from './setup-common.mjs';
 import { privateEndpoint } from '../linux/ops-status.mjs';
 export const checks = Object.freeze([
   { name: 'chunk-picker-health', period: 600, grace: 1800 },
@@ -10,7 +10,7 @@ export const checks = Object.freeze([
   { name: 'chunk-picker-offhost', period: 86400, grace: 43200 },
 ]);
 export async function setupHealthchecks({ keyFile, alias }, { fetchImpl = fetch, execute = run } = {}) {
-  sshAlias(alias);
+  verifyDeployment(alias, execute);
   const key = (await readFile(keyFile, 'utf8')).trim(); if (!key) throw Error('API key file required.');
   const base = 'https://healthchecks.io/api/v3/checks/';
   const headers = { 'X-Api-Key': key, 'Content-Type': 'application/json' };

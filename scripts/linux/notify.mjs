@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
 import { credential, privateEndpoint } from './ops-status.mjs';
 
@@ -39,36 +39,49 @@ export async function notify({ controlDir, faults, window, now = Date.now(), rep
     }
     const suppressed = new Set(releaseWindow(window, now) ? ['writer-inactive', 'maintenance', 'maintenance-abandoned', 'unit-writer'] : []);
     repeatMs = Math.max(3600000, Math.min(24 * 3600000, Number(repeatMs) || 6 * 3600000));
-    const events = [];
+    // Events outlive active conditions. Persist the outbox and attempt BEFORE
+    // sending; a crash can duplicate delivery but cannot acknowledge a loss.
+    const events = state.pending ?? [];
+    if (!state.pending) for (const [code, level] of Object.entries(state.active)) {
+      if (!state.announced[code]) events.push({ code, level });
+    }
     for (const [code, level] of Object.entries(active)) {
       const previous = state.announced[code];
-      if (!suppressed.has(code) && (!previous || previous.level !== level || level !== 'warning' && now - previous.at >= repeatMs))
-        events.push({ code, level, text: level.toUpperCase() + ': ' + messages[code] });
+      const latest = events.findLast(row => row.code === code);
+      if (!suppressed.has(code) && (latest ? latest.level !== level : !previous || previous.level !== level || level !== 'warning' && now - previous.at >= repeatMs))
+        events.push({ code, level });
     }
-    for (const code of Object.keys(state.announced)) if (!active[code]) events.push({ code, text: 'RECOVERED: ' + messages[code] });
+    for (const code of new Set([...Object.keys(state.announced), ...events.map(row => row.code)])) {
+      if (!active[code] && (events.findLast(row => row.code === code)?.level ?? (!events.some(row => row.code === code) && state.announced[code]?.level))) events.push({ code });
+    }
     const sent = state.sent.filter(at => at > now - 10 * 60000);
     const attempts = (state.attempts ?? state.sent).filter(at => at > now - 10 * 60000);
     const permitted = attempts.length < 4 && (!attempts.length || now - attempts.at(-1) >= 30000);
     let delivered = false;
+    const text = row => (row.level ? row.level.toUpperCase() + ': ' : 'RECOVERED: ') + messages[row.code];
+    const batch = []; let length = 13;
+    for (const row of events) { if (length + text(row).length + 1 > 1900) break; batch.push(row); length += text(row).length + 1; }
     if (events.length && permitted) {
       // Codes and fixed phrases only. Never interpolate journal/error/config input.
       attempts.push(now);
+      await atomic(file, encode({ active, announced: state.announced, sent, attempts, pending: events }));
       try {
-        await send('Chunk picker\n' + events.map(row => row.text).join('\n'));
-        for (const row of events) {
+        await send('Chunk picker\n' + batch.map(text).join('\n'));
+        for (const row of batch) {
           if (row.level) state.announced[row.code] = { level: row.level, at: now };
           else delete state.announced[row.code];
         }
         sent.push(now); delivered = true;
       } catch {} // Keep pending events durable for the next monitor attempt.
     }
-    await atomic(file, encode({ active, announced: state.announced, sent, attempts }));
-    return { delivered, pending: events.length > 0 && !delivered };
+    const pending = delivered ? events.slice(batch.length) : events;
+    await atomic(file, encode({ active, announced: state.announced, sent, attempts, pending }));
+    return { delivered, pending: pending.length > 0 };
   });
 }
 export const failureUnits = Object.freeze({ 'chunk-picker.service': 'unit-writer', 'chunk-picker-backup.service': 'unit-backup',
   'chunk-picker-health.service': 'unit-health', 'chunk-picker-offhost.service': 'unit-offhost', 'chunk-picker-monitor.service': 'unit-monitor' });
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const config = await json('/etc/chunk-picker/monitor.json'), command = process.argv[2];
     const code = command === 'test' ? 'test' : failureUnits[command];

@@ -29,6 +29,7 @@ export async function scratchCycle(staging) {
   await chown(path.join(base, 'releases'), 0, gid); await chmod(path.join(base, 'releases'), 0o750);
   const dataDir = '/var/lib/chunk-picker/game', controlDir = '/var/lib/chunk-picker/control';
   await mkdir('/etc/chunk-picker/secrets', { mode: 0o700 });
+  await writeFile('/etc/chunk-picker/deployment.json', encode({ format: 'picker-deployment-v1', role: 'rehearsal', alias: 'picker-scratch' }), { mode: 0o644, flag: 'wx' });
   for (const name of ['health-ping', 'backup-ping', 'offhost-ping', 'discord-webhook', 'b2-account', 'b2-key', 'restic-password']) await writeFile('/etc/chunk-picker/secrets/' + name, randomBytes(32).toString('base64url'), { mode: 0o600 });
   await writeFile('/etc/chunk-picker/monitor.json', encode({ controlDir, diskPath: '/var/backups/chunk-picker' }), { mode: 0o644 });
   await mkdir('/var/lib/chunk-picker', { mode: 0o755 });

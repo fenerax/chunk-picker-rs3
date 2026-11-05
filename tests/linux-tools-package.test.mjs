@@ -32,7 +32,7 @@ test('package is the exact runtime closure, including unit and child entrypoints
   const scratch = await fixture(t), { source, closure } = await sourceCopy(scratch), output = path.join(scratch, 'package');
   const manifest = await buildTools(source, output);
   assert.deepEqual(manifest.files, closure.files);
-  for (const module of ['notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts']) assert(manifest.files.some(row => row.path === 'scripts/linux/' + module + '.mjs'));
+  for (const module of ['notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts', 'staging', 'bootstrap-alerts']) assert(manifest.files.some(row => row.path === 'scripts/linux/' + module + '.mjs'));
   assert(!manifest.files.some(row => row.path === 'app/server.mjs'));
   assert(manifest.files.some(row => row.path === 'app/tasks/warm-store.mjs'));
   for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service', 'chunk-picker-monitor.service', 'chunk-picker-offhost.service', 'chunk-picker-notify@.service']) {
@@ -183,11 +183,11 @@ test('scratch guard blocks production aliases, DNS aliases and SSH forwarding be
   const resolve = async host => [{ address: host === 'chunkpicker.ca' ? '127.0.0.1' : '0.0.0.0' }];
   let calls = 0;
   const run = (_file, args) => { calls++; return args[0] === '-G' ? 'hostname scratch\n' : '0.0.0.0 1 0.0.0.0 2\n'; };
-  for (const alias of ['picker-vps', 'PICKER-VPS', 'chunkpicker.ca', '-unsafe']) await assert.rejects(scratchHostGuard(alias, { resolve, run }));
+  for (const alias of ['picker-vps', 'PICKER-VPS', 'chunkpicker.ca', '-unsafe', 'unapproved']) await assert.rejects(scratchHostGuard(alias, { resolve, run }));
   assert.equal(calls, 0);
-  await assert.rejects(scratchHostGuard('scratch', { resolve: async () => [{ address: '127.0.0.1' }], run }));
-  await assert.rejects(scratchHostGuard('scratch', { resolve, run: (_file, args) => args[0] === '-G' ? 'hostname scratch\n' : '0.0.0.0 1 127.0.0.1 2\n' }));
-  await assert.rejects(scratchHostGuard('scratch', { resolve: async () => { throw Error('offline'); }, run }));
-  await scratchHostGuard('scratch', { resolve, run });
+  await assert.rejects(scratchHostGuard('picker-scratch', { resolve: async () => [{ address: '127.0.0.1' }], run }));
+  await assert.rejects(scratchHostGuard('picker-scratch', { resolve, run: (_file, args) => args[0] === '-G' ? 'hostname picker-scratch\n' : '0.0.0.0 1 127.0.0.1 2\n' }));
+  await assert.rejects(scratchHostGuard('picker-scratch', { resolve: async () => { throw Error('offline'); }, run }));
+  await scratchHostGuard('picker-scratch', { resolve, run });
   assert(freshHostGuard.includes('/proc/net/tcp')); assert(freshHostGuard.includes('test ! -e /opt/chunk-picker'));
 });

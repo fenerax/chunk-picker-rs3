@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isMain } from '../release/vps/entrypoint.mjs';
 import { readFile, stat } from 'node:fs/promises';
 import { atomic, encode, json } from './files.mjs';
 
@@ -53,7 +53,7 @@ export async function deadman(kind, { fetchImpl = fetch, read = credential } = {
     return response.ok;
   } catch { return false; } // Delivery failure must never fail the completed job.
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   if (process.argv[2] === 'ping' && await deadman(process.argv[3])) process.stdout.write('Test ping accepted.\n');
   else { process.stderr.write('Test ping failed.\n'); process.exitCode = 1; }
 }

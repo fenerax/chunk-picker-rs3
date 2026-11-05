@@ -1,13 +1,23 @@
 // PC-only helpers. All child stdout/stderr is captured. Secrets travel in
 // memory and stdin, never argv, diagnostics, temporary files or receipts.
 import { execFileSync } from 'node:child_process';
+import { privateEndpoint } from '../linux/ops-status.mjs';
 export const run = (file, args, input) => {
   try { return execFileSync(file, args, { input, encoding: 'utf8', windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 4 * 1024 ** 2, timeout: 120000 }); }
   catch { throw Error('Setup subprocess failed; inspect account access privately.'); }
 };
-export function sshAlias(alias) {
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(alias ?? '')) throw Error('SSH alias required.'); return alias;
+export function sshAlias(alias, { rehearsal = false } = {}) {
+  if (alias !== 'picker-vps' && !(rehearsal && alias === 'picker-scratch')) throw Error('Approved deployment role required.'); return alias;
+}
+export const deploymentIdentity = alias => ({ format: 'picker-deployment-v1', role: alias === 'picker-vps' ? 'production' : 'rehearsal', alias });
+export function verifyDeployment(alias, execute = run) {
+  sshAlias(alias); // Cloud setup/cleanup never accepts a rehearsal destination.
+  const program = "import os,stat; p='/etc/chunk-picker/deployment.json'; s=os.lstat(p); assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_uid==0 and not s.st_mode&0o022; print(open(p).read())";
+  const value = JSON.parse(execute('ssh', [alias, `sudo -n python3 -c "${program}"`]));
+  const expected = deploymentIdentity(alias);
+  if (Object.keys(value).length !== 3 || Object.entries(expected).some(([key, entry]) => value[key] !== entry)) throw Error('Deployment identity differs.');
+  return value;
 }
 export async function request(url, options = {}, fetchImpl = fetch) {
   try {
@@ -17,19 +27,30 @@ export async function request(url, options = {}, fetchImpl = fetch) {
 }
 // One remote Python transaction, without any secret in the remote command.
 // Files are 0600, directories 0700, owner root. Existing values must agree.
-export function installSecrets(alias, secrets, execute = run) {
-  sshAlias(alias);
+export function installSecrets(alias, secrets, execute = run, { rotate = [] } = {}) {
+  const allowed = ['b2-account', 'b2-key', 'restic-password', 'health-ping', 'backup-ping', 'offhost-ping', 'discord-webhook'];
+  if (!Object.keys(secrets).length || Object.entries(secrets).some(([name, value]) => !allowed.includes(name)
+    || typeof value !== 'string' || !value || /[\r\n\0]/.test(value)) || rotate.some(name => !Object.hasOwn(secrets, name))) throw Error('Invalid credential input.');
+  for (const [name, value] of Object.entries(secrets)) {
+    if (name === 'discord-webhook') privateEndpoint(value, 'discord');
+    else if (name.endsWith('-ping')) privateEndpoint(value, 'healthchecks');
+  }
+  verifyDeployment(alias, execute);
   const program = String.raw`import json,os,stat,sys,tempfile
 base='/etc/chunk-picker/secrets'
 if os.geteuid()!=0: raise RuntimeError('root required')
+s=os.lstat('/etc/chunk-picker/deployment.json')
+if not stat.S_ISREG(s.st_mode) or s.st_nlink!=1 or s.st_uid!=0 or s.st_mode&0o022: raise RuntimeError('unsafe deployment')
+with open('/etc/chunk-picker/deployment.json') as f:
+ if json.load(f)!={'format':'picker-deployment-v1','role':'production','alias':'picker-vps'}: raise RuntimeError('deployment differs')
 for parent in ['/etc','/etc/chunk-picker']:
  s=os.lstat(parent)
  if not stat.S_ISDIR(s.st_mode) or s.st_uid!=0 or s.st_mode&0o022: raise RuntimeError('unsafe parent')
 os.makedirs(base,mode=0o700,exist_ok=True)
 s=os.lstat(base)
 if not stat.S_ISDIR(s.st_mode) or s.st_uid!=0 or s.st_mode&0o077: raise RuntimeError('unsafe secrets')
-values=json.load(sys.stdin)
-allowed={'b2-account','b2-key','restic-password','health-ping','backup-ping','offhost-ping'}
+payload=json.load(sys.stdin);values=payload['values'];rotate=payload['rotate']
+allowed={'b2-account','b2-key','restic-password','health-ping','backup-ping','offhost-ping','discord-webhook'}
 if not set(values)<=allowed: raise RuntimeError('unknown credential')
 for name,value in values.items():
  if not isinstance(value,str) or not value or '\n' in value: raise RuntimeError('invalid credential')
@@ -38,21 +59,26 @@ for name,value in values.items():
   s=os.lstat(target)
   if not stat.S_ISREG(s.st_mode) or s.st_nlink!=1 or s.st_uid!=0 or s.st_mode&0o077: raise RuntimeError('unsafe credential')
   with open(target) as f: previous=f.read().strip()
-  if previous!=value: raise RuntimeError('credential differs; explicit rotation required')
+  if previous!=value and name not in rotate: raise RuntimeError('credential differs; explicit rotation required')
 for name,value in values.items():
  target=base+'/'+name
- if not os.path.exists(target):
+ if not os.path.exists(target) or name in rotate:
   fd,tmp=tempfile.mkstemp(prefix='.setup-',dir=base)
   try:
    with os.fdopen(fd,'w') as f: f.write(value+'\n');f.flush();os.fsync(f.fileno())
-   os.chmod(tmp,0o600);os.link(tmp,target)
-  finally: os.unlink(tmp)
+   os.chmod(tmp,0o600);os.chown(tmp,0,0)
+   if name in rotate: os.replace(tmp,target)
+   else: os.link(tmp,target)
+  finally:
+   if os.path.exists(tmp): os.unlink(tmp)
+ os.chmod(target,0o600);os.chown(target,0,0)
 fd=os.open(base,os.O_RDONLY);os.fsync(fd);os.close(fd)
 `;
   const encoded = Buffer.from(program).toString('base64');
-  execute('ssh', [alias, `sudo -n python3 -c "import base64;exec(base64.b64decode('${encoded}'))"`], JSON.stringify(secrets));
+  execute('ssh', [alias, `sudo -n python3 -c "import base64;exec(base64.b64decode('${encoded}'))"`], JSON.stringify({ values: secrets, rotate }));
 }
 export function installedB2Id(alias, execute = run) {
+  verifyDeployment(alias, execute);
   const value = execute('ssh', [sshAlias(alias), "sudo -n sh -c 'if test -f /etc/chunk-picker/secrets/b2-account; then cat /etc/chunk-picker/secrets/b2-account; fi'"]).trim();
   if (value && !/^[A-Za-z0-9]+$/.test(value)) throw Error('Installed key metadata invalid.'); return value;
 }

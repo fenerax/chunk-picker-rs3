@@ -19,18 +19,20 @@ export async function verifyRestic(binary = '/usr/local/bin/restic') {
   const hash = createHash('sha256'); for await (const bytes of createReadStream(binary)) hash.update(bytes);
   if (hash.digest('hex') !== pin.binary) throw Error('Restic binary pin differs.');
 }
-export async function resticRunner(config) {
+// backup and forget require repository locks in 0.18.1; read-only commands
+// can avoid them. Locks on B2 do not grant the VPS permanent-delete authority.
+export const resticArgs = args => ['--no-cache', ...(['check', 'snapshots', 'restore'].includes(args[0]) ? ['--no-lock'] : []), ...args];
+export async function resticRunner(config, { signal } = {}) {
   const binary = '/usr/local/bin/restic'; await verifyRestic(binary);
   if (!/^b2:[a-z0-9][a-z0-9-]{5,49}:chunk-picker$/.test(config.repository ?? '')) throw Error('Private B2 repository required.');
   const credentials = process.env.CREDENTIALS_DIRECTORY;
   const env = { PATH: '/usr/bin:/bin', HOME: '/root', TZ: 'UTC', RESTIC_REPOSITORY: config.repository,
     RESTIC_PASSWORD_FILE: path.join(credentials ?? '', 'restic-password'),
-    B2_ACCOUNT_ID: await credential('b2-account'), B2_ACCOUNT_KEY: await credential('b2-key'),
-    RESTIC_CACHE_DIR: path.join(config.controlDir, 'restic-cache') };
+    B2_ACCOUNT_ID: await credential('b2-account'), B2_ACCOUNT_KEY: await credential('b2-key') };
   await credential('restic-password');
   return async args => {
     // No inherited RESTIC/B2 endpoints, hooks, proxy credentials or debug logs.
-    try { return (await execute(binary, ['--no-lock', ...args], { env, windowsHide: true,
+    try { return (await execute(binary, resticArgs(args), { env, signal, killSignal: 'SIGKILL', windowsHide: true,
       maxBuffer: 4 * 1024 ** 2, timeout: 25 * 60000 })).stdout; }
     catch { throw Error('Encrypted repository operation failed.'); }
   };

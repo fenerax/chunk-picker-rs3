@@ -2,10 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import { setupB2, lifecycle, uploadCapabilities } from '../scripts/ops/setup-b2.mjs';
 import { setupHealthchecks, checks } from '../scripts/ops/setup-healthchecks.mjs';
 import { pruneB2 } from '../scripts/ops/prune-b2.mjs';
+import { deploymentIdentity, installSecrets, installedB2Id, sshAlias, verifyDeployment } from '../scripts/ops/setup-common.mjs';
+import { setupDiscord } from '../scripts/ops/setup-discord.mjs';
+import { publishConfig } from '../scripts/linux/bootstrap-alerts.mjs';
 const base = fileURLToPath(new URL('../.local/ops-setup-tests/', import.meta.url));
 async function fixture(t, value) {
   await mkdir(base, { recursive: true }); const dir = await mkdtemp(path.join(base, 'run-'));
@@ -37,8 +41,9 @@ function b2Mock({ failInstall = false } = {}) {
       if (args[1] === 'create') { assert.equal(args[2], '-'); state.item = JSON.parse(input); return '{}'; }
     }
     if (command === 'ssh') {
+      if (args[1].includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
       if (!input) return state.secrets['b2-account'] ?? '';
-      const values = JSON.parse(input);
+      const { values } = JSON.parse(input);
       if (state.failInstall) { state.secrets['restic-password'] = values['restic-password']; state.failInstall = false; throw Error('Interrupted install'); }
       for (const [name, value] of Object.entries(values)) {
         assert(!state.secrets[name] || state.secrets[name] === value); state.secrets[name] = value;
@@ -61,8 +66,35 @@ test('B2 setup is idempotent, scopes keys, stores recovery before server install
   await setupB2(options, mock); assert.deepEqual(mock.state.secrets, saved); assert.equal(mock.state.keys.length, 2);
   assert.equal(mock.state.calls.filter(method => method === 'b2_create_bucket').length, 1);
   const create = mock.state.commands.findIndex(row => row.command === 'op' && row.args[1] === 'create');
-  const install = mock.state.commands.findIndex(row => row.command === 'ssh' && row.args[1].includes('python3'));
+  const install = mock.state.commands.findIndex(row => row.command === 'ssh' && row.args[1].includes('b64decode'));
   assert(create < install);
+});
+test('Linux secret transaction preserves existing values, refuses links and publishes rotation with explicit modes', { skip: process.platform !== 'linux' }, async t => {
+  const input = await fixture(t, '{}'), dir = path.dirname(input), base = path.join(dir, 'secrets');
+  await writeFile(path.join(dir, 'deployment.json'), JSON.stringify(deploymentIdentity('picker-vps')));
+  const execute = (_command, args, payload) => {
+    if (!payload) return JSON.stringify(deploymentIdentity('picker-vps'));
+    const encoded = args[1].match(/b64decode\('([^']+)'\)/)[1];
+    // Keep the production transaction intact; substitute only the synthetic
+    // filesystem root and its unprivileged test owner (CI runs as a non-root user).
+    const program = Buffer.from(encoded, 'base64').toString().replaceAll('/etc/chunk-picker', dir)
+      .replace("['/etc',", '[').replaceAll('os.geteuid()!=0', `os.geteuid()!=${process.getuid()}`)
+      .replaceAll('s.st_uid!=0', `s.st_uid!=${process.getuid()}`).replaceAll('os.chown(tmp,0,0)', `os.chown(tmp,${process.getuid()},${process.getgid()})`)
+      .replaceAll('os.chown(target,0,0)', `os.chown(target,${process.getuid()},${process.getgid()})`);
+    return execFileSync('python3', ['-c', program], { input: payload, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8' });
+  };
+  const webhook = suffix => 'https://' + 'discord.com/api/webhooks/synthetic/' + suffix;
+  installSecrets('picker-vps', { 'discord-webhook': webhook('first') }, execute);
+  const target = path.join(base, 'discord-webhook');
+  assert.equal((await stat(target)).mode & 0o777, 0o600); assert.equal((await stat(base)).mode & 0o777, 0o700);
+  installSecrets('picker-vps', { 'discord-webhook': webhook('first') }, execute);
+  assert.throws(() => installSecrets('picker-vps', { 'discord-webhook': webhook('second') }, execute));
+  assert.equal((await readFile(target, 'utf8')).trim(), webhook('first'));
+  installSecrets('picker-vps', { 'discord-webhook': webhook('second') }, execute, { rotate: ['discord-webhook'] });
+  assert.equal((await readFile(target, 'utf8')).trim(), webhook('second')); assert.equal((await stat(target)).mode & 0o777, 0o600);
+  await rm(target); await symlink(input, target);
+  assert.throws(() => installSecrets('picker-vps', { 'discord-webhook': webhook('third') }, execute, { rotate: ['discord-webhook'] }));
+  assert.equal(await readFile(input, 'utf8'), '{}');
 });
 test('interrupted credential publication resumes without rotation; unsafe bucket or broader installed key refuses', async t => {
   const keyFile = await fixture(t, JSON.stringify({ applicationKeyId: 'synthetic-setup', applicationKey: 'synthetic-only' }));
@@ -84,7 +116,8 @@ test('Healthchecks creates/updates exactly three checks and never prints or shel
     if (!stored.some(row => row.name === value.name)) stored.push({ ...value, update_url: String(url) + index });
     assert(value.period >= 600 && value.grace >= 1800); return { ok: true, json: async () => ({ ping_url }) };
   };
-  const execute = (_command, args, input) => { assert(!args.join(' ').includes('hc-ping')); writes.push(JSON.parse(input)); return ''; };
+  const execute = (_command, args, input) => { if (args[1].includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
+    assert(!args.join(' ').includes('hc-ping')); writes.push(JSON.parse(input).values); return ''; };
   for (let i = 0; i < 2; i++) await setupHealthchecks({ keyFile, alias: 'picker-vps' }, { fetchImpl, execute });
   assert.equal(stored.length, 3); assert.deepEqual(writes[0], writes[1]); assert.equal(Object.keys(writes[0]).length, 3);
 });
@@ -93,7 +126,8 @@ test('trusted prune refuses an unfenced uploader and keeps delete authority out 
   const item = { fields: Object.entries({ repository: 'b2:chunk-picker-backups:chunk-picker', 'repository-password': 'synthetic-only',
     'cleanup-id': 'synthetic-cleanup', 'cleanup-key': 'synthetic-value' }).map(([label, value]) => ({ label, value })) };
   const adapters = { verify: async () => {}, execute: (command, args) => {
-    if (command === 'ssh') { assert(!args.join(' ').includes('synthetic-value')); return JSON.stringify({ paused: masked }); }
+    if (command === 'ssh') { if (args[1].includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
+      assert(!args.join(' ').includes('synthetic-value')); return JSON.stringify({ paused: masked, repository: 'b2:chunk-picker-backups:chunk-picker' }); }
     assert.equal(command, 'op'); return JSON.stringify(item);
   }, repositoryRun: (_file, args, env) => {
     assert(!args.join(' ').includes('synthetic-value')); assert.equal(env.B2_ACCOUNT_KEY, 'synthetic-value');
@@ -101,5 +135,55 @@ test('trusted prune refuses an unfenced uploader and keeps delete authority out 
   } };
   const options = { alias: 'picker-vps', vault: 'Synthetic', item: 'Synthetic', binary: path.resolve('synthetic-restic') };
   await assert.rejects(pruneB2(options, adapters), /Pause and drain/); assert.equal(calls.length, 0);
-  masked = true; await pruneB2(options, adapters); assert.deepEqual(calls.map(args => args[2]), ['check', 'forget', 'check']);
+  masked = true; await pruneB2(options, adapters); assert.deepEqual(calls.map(args => args.find(arg => ['check', 'forget'].includes(arg))), ['check', 'forget', 'check']);
+  assert(!calls[1].includes('--no-lock'));
+  item.fields.find(row => row.label === 'repository').value = 'b2:other-backups:chunk-picker';
+  await assert.rejects(pruneB2(options, adapters), /repository identity/); assert.equal(calls.length, 3);
+});
+
+test('unapproved roles and absent/wrong deployment identities refuse before API calls or secret transfer', async t => {
+  const keyFile = await fixture(t, '{}');
+  for (const alias of ['picker-scratch', 'localhost', '127' + '.0.0.1', 'anything']) {
+    assert.throws(() => sshAlias(alias));
+    const adapters = { execute: () => { throw Error('unexpected SSH'); }, fetchImpl: () => { throw Error('unexpected API'); } };
+    await assert.rejects(setupB2({ alias, keyFile }, adapters), /Approved/);
+    await assert.rejects(setupHealthchecks({ alias, keyFile }, adapters), /Approved/);
+    assert.throws(() => installSecrets(alias, { 'restic-password': 'synthetic' }, adapters.execute), /Approved/);
+    assert.throws(() => installedB2Id(alias, adapters.execute), /Approved/);
+    await assert.rejects(pruneB2({ alias }, adapters), /Approved/);
+  }
+  for (const identity of [{}, deploymentIdentity('picker-scratch'), { ...deploymentIdentity('picker-vps'), role: 'wrong' }]) {
+    const adapters = { execute: (_command, args, input) => { assert(!input); assert(args[1].includes('deployment.json')); return JSON.stringify(identity); },
+      fetchImpl: () => { throw Error('unexpected API'); } };
+    await assert.rejects(setupB2({ alias: 'picker-vps', keyFile }, adapters), /identity differs/);
+    await assert.rejects(setupHealthchecks({ alias: 'picker-vps', keyFile }, adapters), /identity differs/);
+    assert.throws(() => installSecrets('picker-vps', { 'restic-password': 'synthetic' }, adapters.execute), /identity differs/);
+    assert.throws(() => installedB2Id('picker-vps', adapters.execute), /identity differs/);
+  }
+});
+test('webhook validates before SSH, is stdin-only, and replacement needs explicit rotation', async t => {
+  for (const input of ['', 'partial', 'https://' + 'discord.com/api/webhooks/only-id', 'invalid\npartial']) {
+    const keyFile = await fixture(t, input); let calls = 0;
+    await assert.rejects(setupDiscord({ alias: 'picker-vps', keyFile }, { execute: () => { calls++; } })); assert.equal(calls, 0);
+  }
+  const webhook = 'https://' + 'discord.com/api/webhooks/synthetic/synthetic-value', keyFile = await fixture(t, webhook), payloads = [];
+  const execute = (_command, args, input) => {
+    assert(!args.join(' ').includes(webhook));
+    if (!input) return JSON.stringify(deploymentIdentity('picker-vps'));
+    payloads.push(JSON.parse(input)); return '';
+  };
+  await setupDiscord({ alias: 'picker-vps', keyFile }, { execute });
+  await setupDiscord({ alias: 'picker-vps', keyFile, rotate: true }, { execute });
+  assert.deepEqual(payloads[0], { values: { 'discord-webhook': webhook }, rotate: [] });
+  assert.deepEqual(payloads[1].rotate, ['discord-webhook']);
+});
+test('bootstrap publication is create-only or exact-match; empty and partial input preserve working config', async t => {
+  const file = await fixture(t, '{"working":true}\n');
+  for (const value of ['', '{', '{"working":false}\n']) {
+    await assert.rejects(publishConfig(file, value));
+    assert.equal(await (await import('node:fs/promises')).readFile(file, 'utf8'), '{"working":true}\n');
+  }
+  await publishConfig(file, '{"working":true}\n');
+  const next = file + '-new'; await publishConfig(next, '{"working":true}\n');
+  await assert.rejects(publishConfig(next, '{"working":false}\n'), /differs/);
 });
