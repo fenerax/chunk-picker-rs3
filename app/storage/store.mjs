@@ -27,6 +27,7 @@ import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../
 import { loadGameDefaults } from '../game-defaults.mjs';
 import { ACTION_CLIENT_SLOTS, loadActionReceipts, inspectActionReceipt, commitActionReceipt, openActionSession, acknowledgeActionSession } from './action-receipts.mjs';
 import { reportActivationTiming } from '../live-swap-timing.mjs';
+import { rosterOutput } from '../import-output.mjs';
 
 const gzipAsync = promisify(gzip), gunzipAsync = promisify(gunzip);
 
@@ -1220,16 +1221,20 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return { stateRevision: captured.revision, event: structuredClone({ ...event, hasUndo: Boolean(undo) }) };
   }
   const store = {
-    async prepareImportPublication(next, operation) {
+    async prepareImportPublication(next, operation, { validateBackup } = {}) {
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
       importDependencies = [];
       const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
+      // Export observes snapshots and hydrated History, not the compact disk
+      // representation. Validate that complete envelope before preparing writes.
+      if (validateBackup) await validateBackup(envelope(observed.provenance?.historyArchive?.length
+        ? (await hydrateHistory(observed)).state : observed));
       const state = await compactHistory(observed);
       if (coordination.has(current)) coordination.set(state, { ...(operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} } : coordinationOf(current)), lastNonClaimRevision: state.revision });
       const disk = Buffer.from(await serializedDiskState(state));
       const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized, { level: constants.Z_BEST_SPEED });
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
-      const summary = { revision: state.revision, members: state.members.map(({ id, name }) => ({ id, name })), provenance: { dataset: state.provenance?.dataset } };
+      const summary = { revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } };
       return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
         coordination: coordination.get(state), receipts,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
@@ -1289,8 +1294,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     backup: () => isMainThread ? enqueueMaintenance(() => runImportJob({ kind: 'backup', dataDir: directory,
       rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true })
       : hydrateHistory(current).then(({ state }) => envelope(state)),
-    exportBackup: ({ dataset, gzip = false } = {}) => enqueueMaintenance(() => runImportJob({ kind: 'export', dataDir: directory,
-      exportDataset: dataset, gzip, rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true }),
+    exportBackup: ({ dataset, gzip = false, encoding } = {}) => enqueueMaintenance(() => runImportJob({ kind: 'export', dataDir: directory,
+      exportDataset: dataset, gzip, encoding, rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true }),
     async listBackups() {
       return enqueueMaintenance(async () => {
         const byId = new Map([...(await retainedArchiveIndex()).values()].map(item => [item.metadata.id, { ...item.metadata }]));

@@ -31,7 +31,11 @@ export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queue
     if (available <= 0) throw timeout();
     const bytes = await encodeImportBytes({ ...job, prepareHook: Boolean(prepareHook) });
     if (performance.now() - activeStart >= available) throw timeout();
-    const worker = new Worker(workerURL, { workerData: bytes, transferList: bytes.buffers, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
+    // Packed providers require the parent's verified selection in each isolate.
+    // Keep parser startup independent of catalogue initialization.
+    const datasetSelection = job.kind === 'parse' ? undefined
+      : (await import('./dataset-runtime.mjs')).selectedDataset.workerSelection();
+    const worker = new Worker(workerURL, { workerData: { ...bytes, datasetSelection }, transferList: bytes.buffers, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
     const controller = new AbortController();
     let timer, decoding = false, cleanup = () => {};
     try {

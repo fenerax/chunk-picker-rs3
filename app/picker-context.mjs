@@ -1422,9 +1422,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           }
           if (route === '/api/backup') {
             const gzip = new URL(request.url, 'http://localhost').searchParams.get('download') === 'gzip';
+            // A gzip file and negotiated HTTP gzip are distinct: the latter
+            // retains the JSON filename/type and must advertise its encoding.
+            const encoding = gzip ? 'identity' : negotiateEncoding(request.headers['accept-encoding']);
             const prepared = await store.exportBackup({ dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
-              digest: dataset.digest, coordinateSystem: dataset.coordinateSystem, identityNamespace: dataset.identityNamespace }, gzip });
-            await sendPreparedBackup(response, prepared, { gzip, head: request.method === 'HEAD' });
+              digest: dataset.digest, coordinateSystem: dataset.coordinateSystem, identityNamespace: dataset.identityNamespace }, gzip: gzip || encoding === 'gzip', encoding });
+            await sendPreparedBackup(response, prepared, { gzip, encoding, head: request.method === 'HEAD' });
             return;
           }
           if (route === '/api/export/original-chunks') {

@@ -68,6 +68,23 @@ test('sparse state retains both members facts, false and empty status, ambiguous
   assert.deepEqual(resolvePersistedIdentity('ambiguous', play.identityRegistry), resolveIdentity('ambiguous', state.identityRegistry));
   assert.deepEqual(play.members, state.members); assert.deepEqual(state, before);
 });
+test('each play projection reads fresh saved aliases and retains every competing identity', () => {
+  const state = createGroupState([{ id: 'synthetic-player', name: 'Synthetic player' }]);
+  const ids = ['rs3:task:synthetic-a', 'rs3:task:synthetic-b'];
+  state.tasks = ids.map(id => ({ id, category: 'Custom', label: 'Synthetic objective' }));
+  state.identityRegistry = { entries: Object.fromEntries(state.tasks.map(row => [row.id, { ...row, aliases: [] }])),
+    aliases: { 'synthetic-saved': ids[0] } };
+  state.members[0].completedTasks = ['synthetic-saved'];
+  const first = projectPlayState(state);
+  assert.deepEqual(first.tasks.map(row => row.id), [ids[0]]);
+  state.identityRegistry.aliases['synthetic-saved'] = ids;
+  const second = projectPlayState(state);
+  assert.deepEqual(second.tasks.map(row => row.id), ids);
+  assert.deepEqual(resolvePersistedIdentity('synthetic-saved', second.identityRegistry),
+    resolveIdentity('synthetic-saved', state.identityRegistry));
+  assert.deepEqual(first.tasks.map(row => row.id), [ids[0]]);
+});
+
 test('compact task whitelist retains empty completion evidence and hidden search fields; planning restores hidden display fields', () => {
   const row = { id: 'one', label: 'One', category: 'Quest', status: 'blocked', hidden: true, obligation: false,
     completionIds: [], completionGroup: 'family', aliases: ['old'], rawLabel: 'Raw', wiki: 'wiki', level: 40, primary: false,

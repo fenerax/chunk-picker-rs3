@@ -1,4 +1,4 @@
-import { displayText, readableMigrationWarning, replaceDelimited, trimTaskStars } from '../import-output.mjs';
+import { displayText, replaceDelimited, trimTaskStars } from '../import-output.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './gameplay-compat.mjs';
 import { projectMemberTaskFacts as projectFacts } from './fact-projection.mjs';
 import { buildIdentityIndex, legacyTaskId, permanentTaskId, isPermanentId, resolveIdentity, resolveTaskAlias, lookupPermanentId, isVerifiedProgressAlias } from './identity.mjs';
@@ -544,21 +544,10 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
     if (!taskIndex.has(id) && dynamicIndex.has(id)) taskIndex.set(id, cloneJson(dynamicIndex.get(id)));
   }
   const memberNames = new Map(next.members.map(member => [member.id, member.name]));
-  const mapNames = new Map();
-  for (const member of next.members) if (!mapNames.has(member.sourceMapId)) mapNames.set(member.sourceMapId, member.name);
-  const taskLabels = new Map(next.tasks.map(task => [task.id, task.label]));
   const previous = next.legacy?.gameplayMigration;
-  const warnings = cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []).map(warning => readableMigrationWarning(warning, { tasks: taskLabels, members: memberNames, maps: mapNames })
-    .replaceAll('it remains in legacy data.', 'it stays in the saved original-picker copy.')
-    .replaceAll('unsupported chunk key', 'unsupported chunk number')
-    .replaceAll('map-wide chunkNotes document with no base chunk key', 'map-wide note with no whole chunk number')
-    .replaceAll('malformed manual section data', 'invalid section access choices')
-    .replaceAll('malformed manual section', 'invalid section access choice')
-    .replaceAll('malformed manual area', 'invalid area access choice')
-    .replaceAll('non-primitive rule', 'invalid rule value for')
-    .replaceAll('Task identity collisions establish a new undo boundary; the complete preceding history is retained in migration archives.', 'Different saved task records match the same task. Undo now starts after this import; all earlier History is kept in the saved import archive.')
-    .replaceAll('task identity conflict(s) were preserved in migration provenance; explicit canonical fields take precedence.', 'conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.')
-    .replaceAll('task identity conflict(s) remain in migration provenance for review.', 'conflicting saved task records remain in the import details for review.'));
+  // Diagnostics are durable migration evidence. migrationSummary prepares the
+  // readable, bounded display copy without replacing the saved original text.
+  const warnings = cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []);
   const unresolved = cloneJson(previous?.unresolved ?? []);
   const provenance = new Map((previous?.taskStatusProvenance ?? []).map(entry => [`${entry.memberId}\u0000${entry.taskId}`, cloneJson(entry)]));
   const migratedMembers = cloneJson(Array.isArray(previous?.migratedMembers) ? previous.migratedMembers : []).filter(record);

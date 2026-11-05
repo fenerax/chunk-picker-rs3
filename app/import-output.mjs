@@ -2,6 +2,15 @@
 export const REPORT_RECORDS = 100;
 export const REPORT_BYTES = 256 * 1024;
 export const displayText = value => String(value ?? '').slice(0, 512);
+// Mapping uses exact IDs: reject unusable keys rather than truncating identity.
+export function rosterOutput(members) {
+  if (members.length > 32) throw Object.assign(new TypeError('A backup roster must contain at most 32 players.'), { status: 422 });
+  return members.map(({ id, name }) => {
+    if (typeof id !== 'string' || !id.trim() || id.length > 80 || /[\u0000-\u001f\u007f]/u.test(id))
+      throw Object.assign(new TypeError('Player identifiers must contain 1–80 characters without control characters.'), { status: 422 });
+    return { id, name: displayText(name) };
+  });
+}
 export function warningOutput(warnings, total) {
   const unique = [...new Set(warnings.map(displayText))];
   const count = total ?? unique.length;

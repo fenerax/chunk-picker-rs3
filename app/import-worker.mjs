@@ -12,11 +12,11 @@ import { preserveGameIdentity } from './game-profile.mjs';
 import { taskRuleDefinitions } from './data/settings.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
-import { gzipSync } from 'node:zlib';
+import { gzipSync, brotliCompressSync, constants } from 'node:zlib';
 import { createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { projectPlayState, PLAY_VIEW } from './play-view.mjs';
 import { projectBrowserState } from './web/browser-state.mjs';
-import { boundedOutput, displayText, warningOutput } from './import-output.mjs';
+import { boundedOutput, displayText, warningOutput, rosterOutput } from './import-output.mjs';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
 
 async function send(value) {
@@ -58,7 +58,7 @@ async function run(job) {
   const prepareState = async (state, context) => {
     if (job.prepareHook) await new Promise((resolve, reject) => {
       parentPort.once('message', message => decodeImportBytes(message).then(resolve, reject));
-      send({ hook: true, summary: { revision: state.revision, members: state.members.map(({ id, name }) => ({ id, name })),
+      send({ hook: true, summary: { revision: state.revision, members: rosterOutput(state.members),
         provenance: { dataset: state.provenance?.dataset }, digest: inputDigest }, context: { operation: context.operation } }).catch(reject);
     });
     return identityPreparation ? identityPreparation(state, context) : state;
@@ -72,7 +72,8 @@ async function run(job) {
       const backup = await store.backup();
       if (job.kind === 'backup') return JSON.parse(JSON.stringify(backup));
       const bytes = portableBackupBytes(backup, job.exportDataset);
-      return { bytes: job.gzip ? gzipSync(bytes, { level: 1 }) : bytes, plainBytes: bytes.length };
+      return { bytes: job.gzip ? gzipSync(bytes, { level: 1 }) : job.encoding === 'br'
+        ? brotliCompressSync(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } }) : bytes, plainBytes: bytes.length };
     }
     const current = store.getState();
     if (current.revision !== job.baseRevision) fail(409, 'The destination changed. Preview the backup again.');
@@ -92,7 +93,8 @@ async function run(job) {
     if (legacy && dataset.capabilities?.features?.originalSync === false) fail(422, 'Choose a backup from this starter game dataset.');
     const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry }) : null;
     const incoming = legacy ? imported.state : importBackup(backup, registry, { owned: true });
-    const sourceRoster = incoming.members.map(({ id, name }) => ({ id, name }));
+    const sourceRoster = rosterOutput(incoming.members);
+    const destinationRoster = rosterOutput(current.members);
     const knownRules = new Set(taskRuleDefinitions.map(rule => rule.id));
     const reportOptions = { world, taskIds: new Set(current.tasks.map(task => task.id)), knownRule: id => knownRules.has(id) };
     let state, operation = 'replace', preview, report, warnings = imported?.warnings ?? [];
@@ -101,7 +103,7 @@ async function run(job) {
       if (!owner) fail(400, 'Choose a known player.');
       if (!body.sourceMemberId && !incoming.members.some(member => member.id === owner.id && member.name === owner.name)) {
         if (!previewOnly) fail(422, 'Choose the source member in the preview first.');
-        return { response: { mappingRequired: true, sourceRoster, destinationRoster: [{ id: owner.id, name: owner.name }] } };
+        return { response: { mappingRequired: true, sourceRoster, destinationRoster: destinationRoster.filter(member => member.id === owner.id) } };
       }
       const sourceMemberId = body.sourceMemberId ?? owner.id;
       const source = incoming.members.find(member => member.id === sourceMemberId);
@@ -159,7 +161,7 @@ async function run(job) {
         : mapTransferRoster(incoming, current.members, body.rosterMapping, options.requiredMemberIds, { owned: true });
       if (!mapped) {
         if (!previewOnly) fail(422, 'Review and assign the source roster before importing.');
-        return { response: { mappingRequired: true, sourceRoster, destinationRoster: current.members.map(({ id, name }) => ({ id, name })) } };
+        return { response: { mappingRequired: true, sourceRoster, destinationRoster } };
       }
       warnings = [...warnings, ...migrationSummary(mapped).warnings];
       report = transferReport(mapped, { ...reportOptions, warnings });
@@ -182,8 +184,9 @@ async function run(job) {
     summary.taskCounts = Object.fromEntries(['added', 'removed', 'changed'].map(key => [key, preview.tasks[key].length]));
     // Include the destination's retained evidence and the exact portable
     // manifest before accepting: metadata must never strand an accepted save.
-    portableBackupBytes({ format: 'rs3-chunk-picker', schemaVersion: 1, state }, dataset);
-    const publication = await store.prepareImportPublication(state, operation);
+    const publication = await store.prepareImportPublication(state, operation, {
+      validateBackup: backup => { portableBackupBytes(backup, dataset); },
+    });
     if (options.responseView !== undefined) {
       const saved = publication.state, builtInRegistry = createRuleRegistry();
       const rollRegistry = createRuleRegistry((job.rules ?? []).filter(rule => !builtInRegistry.get(rule.id)));

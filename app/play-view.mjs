@@ -5,9 +5,22 @@ export const PLAY_VIEW = 'play-v1';
 const factKeys = ['id', 'label', 'category', 'status', 'hidden', 'obligation', 'aliases', 'completionGroup', 'completionIds'];
 const displayKeys = ['level', 'primary', 'generated', 'equipmentName', 'item', 'rawLabel', 'wiki'];
 
+function projectionResolver(registry) {
+  const resolutions = new Map();
+  return (id, category) => {
+    let categories = resolutions.get(id);
+    if (!categories) { categories = new Map(); resolutions.set(id, categories); }
+    if (!categories.has(category)) categories.set(category, resolveIdentity(id, registry, category));
+    return categories.get(category);
+  };
+}
+
 /** Materialize only the identities queried by browser facts, retaining every
  * competing candidate. The browser need not download the authored registry. */
 export function projectIdentityRegistry(state) {
+  return projectRegistry(state, projectionResolver(state.identityRegistry));
+}
+function projectRegistry(state, resolve) {
   const entries = {}, aliases = {}, savedAliases = {}, references = new Map();
   const add = (id, category) => {
     if (typeof id !== 'string') return;
@@ -27,7 +40,7 @@ export function projectIdentityRegistry(state) {
       .filter(target => state.identityRegistry?.entries?.[target]);
     if (saved.length) savedAliases[id] = saved;
     const candidates = new Set();
-    for (const category of categories) for (const target of resolveIdentity(id, state.identityRegistry, category).candidates) candidates.add(target);
+    for (const category of categories) for (const target of resolve(id, category).candidates) candidates.add(target);
     if (candidates.size && (candidates.size !== 1 || !candidates.has(id))) aliases[id] = [...candidates];
     for (const target of candidates) {
       const entry = state.identityRegistry?.entries?.[target] ?? lookupPermanentId(target);
@@ -47,11 +60,14 @@ export function projectIdentityRegistry(state) {
 /** A display projection, never a backup or an input to durable validation. */
 export function projectPlayState(state) {
   const { provenance, identityRegistry, progressSnapshots, ...display } = state;
+  // Selection and registry projection ask the same identity questions. Reuse
+  // answers within this projection only, including every category's ambiguity.
+  const resolve = projectionResolver(identityRegistry);
   const wanted = new Set();
   const add = (id, category) => {
     if (typeof id !== 'string') return;
     wanted.add(id);
-    for (const candidate of resolveIdentity(id, identityRegistry, category).candidates) wanted.add(candidate);
+    for (const candidate of resolve(id, category).candidates) wanted.add(candidate);
   };
   for (const member of state.members ?? []) {
     for (const id of member.completedTasks ?? []) add(id);
@@ -61,7 +77,7 @@ export function projectPlayState(state) {
   for (const id of Object.keys(state.taskClaims ?? {})) add(id);
   for (const goal of state.groupGoals ?? []) if (goal.link?.kind === 'task') add(goal.link.id);
   const tasks = (state.tasks ?? []).filter(task => task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id));
-  return { ...display, tasks, identityRegistry: projectIdentityRegistry({ ...state, tasks }) };
+  return { ...display, tasks, identityRegistry: projectRegistry({ ...state, tasks }, resolve) };
 }
 
 /** Browser facts always retain identity, scope and completion-family evidence.

@@ -8,13 +8,14 @@ Backup & Import downloads `.json.gz` and accepts both `.json` and `.json.gz`,
 including the JSON extracted from the scheduled backup ZIP. The helper still
 uses the ordinary `/api/backup` JSON response; its ZIP format is unchanged.
 
-The file ceiling is 208 MiB of UTF-8 JSON after decompression. A synthetic full
+The file ceiling is 256 MiB of UTF-8 JSON after decompression. A synthetic full
 catalogue, registry and hydrated archive with 2,000 History entries is 49.33 MiB,
-leaving 4.22 times that size. Wire requests allow 209 MiB for gzip overhead. These
+leaving over five times that size. Wire requests allow 257 MiB for gzip overhead. These
 limits apply only to import/restore routes; other request limits are unchanged.
 Imports run in a shared worker queue, one CPU job at a time. Parsing, validation,
 History replay, migration, preview and report preparation run outside the HTTP
-thread. Parsing and preparation share a 15-second deadline; a timed-out worker
+thread. Parsing and preparation share 120 seconds of active checking, with a
+separate 120-second queue wait per admission; a timed-out worker
 is terminated and the file is refused with HTTP 422 before any commit. Each job's
 worker is terminated after success or failure, releasing its save and caches.
 There are no task, History, collection-count or aggregate-work admission caps.

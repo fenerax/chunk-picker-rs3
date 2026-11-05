@@ -87,6 +87,25 @@ test('import apply streams worker state bytes with exact custom-hook pools', asy
   }
 });
 
+test('portable JSON backup negotiates gzip, Brotli, identity, HEAD and unacceptable encodings', async t => {
+  const f = await fixture(t);
+  for (const encoding of ['gzip', 'br', 'identity']) {
+    const response = await f.request('/api/backup', { headers: { 'Accept-Encoding': encoding } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-encoding'), encoding === 'identity' ? null : encoding);
+    assert.equal(response.headers.get('vary'), 'Accept-Encoding');
+    assert.match(response.headers.get('content-type'), /application\/json/);
+    assert.match(response.headers.get('content-disposition'), /filename="rs3-duo-backup.json"/);
+    assert.equal((await response.json()).format, 'rs3-chunk-picker');
+    const head = await f.request('/api/backup', { method: 'HEAD', headers: { 'Accept-Encoding': encoding } });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get('content-encoding'), encoding === 'identity' ? null : encoding);
+    assert.equal((await head.arrayBuffer()).byteLength, 0);
+  }
+  const refused = await f.request('/api/backup', { headers: { 'Accept-Encoding': '*;q=0, identity;q=0' } });
+  assert.equal(refused.status, 406);
+});
+
 test('browser file upload previews and applies a full backup above 32 MiB, with streamed gzip download', async t => {
   const f = await fixture(t);
   const incoming = state(); incoming.members[0].unlocked = ['102'];

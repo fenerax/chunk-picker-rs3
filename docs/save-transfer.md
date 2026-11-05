@@ -4,8 +4,9 @@ Open **More → Export / Import**. The existing dialog offers a **Full
 picker backup**, **Import a backup**, and **Copy link for the original picker**.
 No reference data, artwork, account credentials or service permissions transfer.
 
-Imports use an [isolated worker queue](backup-import.md) with a 15-second
-checking deadline and a 208 MiB expanded JSON limit. Large catalogues and
+Imports use an [isolated worker queue](backup-import.md) with 120 seconds of
+active checking and 120 seconds of queue wait per admission, and a 256 MiB
+portable JSON limit (257 MiB on the upload wire). Large catalogues and
 retained History are supported without count or combined-work caps.
 
 ## Backups between copies
@@ -83,12 +84,13 @@ in this feature, and no original implementation code is incorporated.
 
 ## Import isolation and reports
 
-The byte ceiling is 208 MiB for upload, restore and export (209 MiB on the
-compressed wire). Main previously used 256 MiB. A generated 20,503-task save
+The byte ceiling is 256 MiB for portable restore and export documents (257 MiB
+on the upload wire). Admission checks the published progress snapshot, hydrated
+History and transfer manifest before accepting a replacement. A generated 20,503-task save
 with 82,012 registry aliases, 2,000 History entries and a fully hydrated
 pre-migration archive is 51,724,708 bytes (49.33 MiB); its JSON request is
-51,724,719 bytes. The 218,103,808-byte ceiling leaves 4.22 times that portable
-size, and 5.72 times the previously documented 38,146,360-byte copied save.
+51,724,719 bytes. The reviewed 218,103,808-byte upload leaves 48 MiB of portable
+metadata headroom below the document ceiling.
 No private save was opened for these measurements. Each
 import worker exits after checking; timeout or validation failure leaves the
 save unchanged. Reports sample the first 100 unresolved records, truncate long
@@ -96,6 +98,9 @@ labels, and say how many more remain. Detailed evidence stays in the portable
 save. Preview counts cover the complete import even when displayed changes are
 sampled. Synthetic coverage includes 20,503 tasks with 2,000 History entries,
 restoring onto 501 destination History entries, and an upload above 32 MiB.
+Roster labels are limited to 512 display characters. Mapping uses exact player
+IDs of 1–80 characters without control characters, with at most 32 players.
+Original names and migration diagnostics remain intact in the saved evidence.
 
 Transfer reports index definitions and completions once. Restore previews also
 index catalogue differences, completion differences and task labels, so a large
@@ -125,11 +130,22 @@ worker-prepared play response; preview includes upload parsing and hydration):
 
 | Input | Preview | Preview maximum gap | Apply | Apply maximum gap | Peak RSS |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 49.33 MiB realistic save | 9,175 ms | 21.0 ms | 61.3 ms | 16.1 ms | 561.4 MiB |
-| 208 MiB exact ceiling | 10,856 ms | 53.0 ms | 61.9 ms | 16.0 ms | 1,667.7 MiB |
+| 49.33 MiB realistic save | 5,556 ms | 18.6 ms | 49.5 ms | 12.6 ms | 714.4 MiB |
+| 208 MiB reviewed upload | 9,978 ms | 30.3 ms | 51.7 ms | 13.9 ms | 2,062.1 MiB |
 
-The OS lifetime peaks were 561.4 and 1,667.7 MiB respectively. These isolated
+The OS lifetime peaks were 765.6 and 2,067.2 MiB respectively. These isolated
 process figures include synthetic fixture setup and worker heaps, not a running
 production server. The regression targets 100 ms and allows 150 ms for CI
 scheduling variance. The real-sized test also exports and compares the complete
-saved state, including the hydrated registry and archive. Only targeted tests ran.
+saved state, including the hydrated registry and archive. Standalone JSON/gzip
+export gaps were 18.2/18.7 ms for the realistic save and 25.7/19.4 ms for the
+reviewed upload. A separate HTTP probe measured JSON/gzip export gaps of
+20.9/16.8 ms and 20.5/17.3 ms respectively, with ordinary Undo gaps of 190.1
+and 172.6 ms. Identity resolution is reused within each play projection, with
+fresh results for every subsequent projection. Arbitrary full-state custom-hook
+Undo remains a follow-up; its gaps were 416.1 and 566.3 ms.
+The huge-name regression returned a 640-byte mapping response for a 128 MiB
+name, with an 18.8 ms gap; its prepared preview response had a 25.2 ms gap.
+The separate capacity regression exports an accepted 268,384,330-byte document
+with progress snapshots and hydrated destination History. Verification uses
+targeted suites and the release rehearsal; no full test suite was run this round.
