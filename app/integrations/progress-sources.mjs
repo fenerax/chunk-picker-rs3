@@ -75,6 +75,16 @@ export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () =>
       if (webSource === 'platform-api') {
         try { return overlay({ ...await platform.snapshot(member), sourceLabel: 'Platform API' }); }
         catch (error) { failure = error; }
+        // Policy B: RuneMetrics stays a full (quests + levels) fallback until it answers 404/410.
+        if (!retired && enabled()) {
+          try {
+            const web = await legacy.snapshot(member);
+            if (enabled()) return overlay(web); // Recheck a switch changed during a fetch.
+          } catch (error) {
+            if (error.code === 'SOURCE_RETIRED') retired = true;
+            // Keep the Platform API error as the reported cause; Hiscores is tried below.
+          }
+        }
       }
       if (webSource === 'runemetrics' && !closed) {
         try {
