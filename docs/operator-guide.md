@@ -227,10 +227,18 @@ written to PC files or printed; subprocess output is captured. SSH uses the
 existing picker-vps alias, with passwordless root/sudo and Python 3.
 
 Cloud setup, secret installation, installed-key lookup and cleanup accept only
-picker-vps. Before cloud mutations or sending credentials they verify the
-root-owned, non-writable-by-others /etc/chunk-picker/deployment.json marker:
+picker-vps. Before cloud mutations or sending credentials they require a local
+private pin for the production SSH host key fingerprint and machine-id hash.
+Run the explicit, read-only `capture-identity` operator step from
+[setup safeguards](alerts-offsite.md) once before using these helpers. Capture
+is never run by bootstrap or setup. All setup connections use strict checking
+against the pinned key and verify the machine-id hash; missing pins or a scratch
+identity refuse before any cloud mutation or credential transfer.
+They also verify the root-owned, non-writable-by-others
+/etc/chunk-picker/deployment.json marker:
 `{"format":"picker-deployment-v1","role":"production","alias":"picker-vps"}`.
-The bootstrap installation below creates it without replacing an existing value.
+The bootstrap installation below creates it without replacing an existing value;
+this role marker does not establish host identity.
 An absent, linked, unsafe or different marker refuses setup. picker-scratch is
 reserved for the account-free scratch rehearsal, with a local restic repository
 and loopback notification receiver. Cloud setup and production credential
@@ -262,7 +270,7 @@ check pass.
    using the merged stack's approved tools identity. Stage the complete matching committed public source under
    /var/tmp/chunk-alerts-source, including scripts/ops/install-restic.mjs and its
    imports, the systemd files and example configs. Use a fresh staging directory;
-   export HEAD with git archive rather than copying an uncommitted checkout. Install Python 3, bzip2 and CA
+   export HEAD with git archive rather than copying an uncommitted checkout. Install Python 3, bzip2, util-linux and CA
    certificates if absent, then run on the server:
 
    ```sh
@@ -293,7 +301,12 @@ check pass.
    /etc/chunk-picker. Staging budgets the snapshot and rebuild copies on their
    actual destination filesystem before copying and before each bounded write,
    preserving operator minFreeBytes (15 GiB in production). Insufficient space
-   fails before upload and removes only this job's staging. Restic's cache is disabled.
+   fails before upload and removes only this job's staging. Restic's cache is disabled;
+   its temporary packs use a separate private TMPDIR on the budgeted filesystem.
+   Pinned pack/concurrency options and a kernel file-size ceiling bound that
+   allocation to 193 MiB above minFreeBytes. A space watcher aborts the owned
+   upload before consuming the reserve and waits for exit before temp cleanup.
+   See [setup safeguards](alerts-offsite.md) for the bound and failure policy.
 3. Install the Discord webhook from a protected input file through the validated
    installer. It validates the complete URL before SSH, checks deployment identity,
    sends secrets only over stdin, and publishes root-owned 0600 files atomically:
@@ -403,6 +416,12 @@ messages, at most four delivery attempts per ten minutes and at least 30 seconds
 between attempts. A separate durable outbox retains unacknowledged incidents
 and resolutions even when a fault clears during a delivery outage. Delivery is
 at least once; an interruption after Discord accepts a message may duplicate it.
+Producers atomically persist assertion/recovery mailboxes before trying the
+sender lock. The fixed mailboxes and a compacted outbox bound storage during a
+delivery outage. Pending events are capped at 96 events and 16 KiB, retaining
+the oldest unresolved incident and newest state with an `N alerts were dropped`
+summary. Corrupt state is atomically moved aside and the notifier sends the
+fixed phrase `notifier state was reset` before resuming normal delivery.
 Unreadable or partial monitor samples preserve unresolved faults and memory
 history; only a successful observation confirms recovery. Unresolved critical/urgent faults repeat every six hours
 (configurable within one to 24 hours); warnings repeat only on change. Messages
