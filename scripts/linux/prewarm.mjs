@@ -30,23 +30,22 @@ export async function serviceIdentity(settings, query = identityCommand) {
     fields.set(match[1], match[2]);
   }
   if (fields.size !== 3 || fields.get('DynamicUser') !== 'no') throw Error('Static service required.');
-  let uid, gid;
-  if (settings.serviceUid !== undefined || settings.serviceGid !== undefined) {
-    ({ serviceUid: uid, serviceGid: gid } = settings);
-  } else {
-    const lookup = async (database, key, count) => {
-      if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*\$?$/.test(key)) throw Error('Missing service account.');
-      const row = (await run('/usr/bin/getent', [database, '--', key])).split(':');
-      if (row.length !== count || row.some(value => /[\r\n]/.test(value))) throw Error('Ambiguous service account.');
-      return row;
-    };
-    const account = await lookup('passwd', fields.get('User'), 7);
-    uid = /^\d+$/.test(account[2]) ? Number(account[2]) : NaN;
-    const group = fields.get('Group');
-    const groupId = group ? (await lookup('group', group, 4))[2] : account[3];
-    gid = /^\d+$/.test(groupId) ? Number(groupId) : NaN;
-  }
+  // Overrides are assertions about the installed unit, never an alternate
+  // identity. Always resolve the unit's actual account through NSS first.
+  const lookup = async (database, key, count) => {
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*\$?$/.test(key)) throw Error('Missing service account.');
+    const row = (await run('/usr/bin/getent', [database, '--', key])).split(':');
+    if (row.length !== count || row.some(value => /[\r\n]/.test(value))) throw Error('Ambiguous service account.');
+    return row;
+  };
+  const account = await lookup('passwd', fields.get('User'), 7);
+  const uid = /^\d+$/.test(account[2]) ? Number(account[2]) : NaN;
+  const group = fields.get('Group');
+  const groupId = group ? (await lookup('group', group, 4))[2] : account[3];
+  const gid = /^\d+$/.test(groupId) ? Number(groupId) : NaN;
   if (![uid, gid].every(id => Number.isSafeInteger(id) && id > 0)) throw Error('Dedicated service identity required.');
+  if ((settings.serviceUid !== undefined || settings.serviceGid !== undefined)
+    && (settings.serviceUid !== uid || settings.serviceGid !== gid)) throw Error('Service identity override differs from installed unit.');
   return { uid, gid };
 }
 // Only the captured, root-created copy may have its permissions changed. Its

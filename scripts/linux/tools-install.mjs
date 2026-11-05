@@ -11,7 +11,7 @@ import { operatorSettings } from './runtime.mjs';
 import { verifyTools } from './tools-package.mjs';
 import { serviceOperation } from './service-lock.mjs';
 import { assertServiceAccess, assertToolsEntrypoints, serviceIdentity } from './service-access.mjs';
-import { toolsCliChecks } from './entrypoint-checks.mjs';
+import { runtimeCliChecks, toolsCliChecks } from './entrypoint-checks.mjs';
 
 const execute = promisify(execFile);
 const refuse = category => { throw Object.assign(Error('Tools switch refused: ' + category + '.'), { code: 'TOOLS_' + category.toUpperCase() }); };
@@ -62,6 +62,93 @@ async function verifySelection(root, expected) {
   await noLinks(root);
   if (sha(encode(await inventory(root))) !== expected.treeIdentity) refuse('previous-hashes');
   if (expected.toolsIdentity && (await verifyTools(root)).toolsIdentity !== expected.toolsIdentity) refuse('previous-hashes');
+}
+async function ownedTree(root, parent) {
+  for (let at = root; ; at = path.dirname(at)) {
+    const info = await lstat(at);
+    if (info.isSymbolicLink() || info.uid !== 0 || (info.mode & 0o022)
+      && !(at !== root && at !== parent && info.mode & 0o1000)) refuse('ownership');
+    if (at === path.dirname(at)) break;
+  }
+  for (const row of await inventory(root)) {
+    const info = await lstat(path.join(root, row.path));
+    if (info.uid !== 0 || info.mode & 0o022) refuse('ownership');
+  }
+}
+// Reconcile an interrupted switch to its previous selection. Atomic exchanges
+// leave the real tree at exactly one journaled path, even after SIGKILL. Never
+// remove a fence until hashes, access and runtime behavior have been verified.
+export async function recoverToolsSwitch({ settings, toolsRoot, idle = operatorUnitsIdle,
+  exchange = exchangePaths, identity = () => serviceIdentity(settings) }) {
+  if (process.platform !== 'linux' || process.getuid() !== 0) refuse('linux-root');
+  toolsRoot = path.resolve(toolsRoot);
+  const parent = path.dirname(toolsRoot), versions = path.join(parent, 'tools-versions');
+  await noLinks(parent); await noLinks(settings.controlDir); await idle();
+  const runLocked = work => settings.multiPicker ? serviceOperation(settings, 'tools-switch-recover', work)
+    : exclusive(path.join(settings.controlDir, 'operation.lock'), work);
+  return runLocked(async () => {
+    await idle();
+    const transaction = path.join(settings.controlDir, 'tools-transaction.json');
+    await noLinks(transaction);
+    let record;
+    try { record = await json(transaction); } catch { refuse('receipt'); }
+    const id = path.basename(record?.temporary ?? '').replace(/^\.tools-switch-/, '');
+    if (record?.format !== 'picker-tools-switch-v1' || record.toolsRoot !== toolsRoot
+      || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id)
+      || record.temporary !== path.join(parent, '.tools-switch-' + id)
+      || !['install', 'rollback'].includes(record.action)
+      || typeof record.target !== 'string' || path.dirname(record.target) !== versions
+      || typeof record.previous?.linked !== 'boolean'
+      || (record.previous.linked ? path.dirname(record.previous.root ?? '') !== versions : record.previous.root !== toolsRoot)
+      || record.retainedRoot !== (record.previous.linked ? record.previous.root : path.join(versions, 'legacy-' + id))
+      || typeof record.restoreDirectory !== 'boolean' || !record.targetIdentity) refuse('receipt');
+    for (const name of ['activation.json', 'start-permit.json', 'transaction.json']) {
+      if (await exists(path.join(settings.controlDir, name))) refuse('transaction');
+    }
+    const maintenance = path.join(settings.controlDir, 'maintenance.json');
+    if (await exists(maintenance) && (await json(maintenance)).command !== 'tools-switch') refuse('maintenance');
+    const progress = path.join(settings.controlDir, 'service-restore', 'progress.json');
+    if (await exists(progress) && (await json(progress)).phase !== 'complete') refuse('transaction');
+    await atomic(maintenance, encode({ command: 'tools-switch' }));
+    const current = await selection(toolsRoot);
+    const alreadyPrevious = current.linked === record.previous.linked && current.treeIdentity === record.previous.treeIdentity
+      && (!current.linked || current.root === record.previous.root);
+    if (!alreadyPrevious && (current.treeIdentity !== record.targetIdentity.treeIdentity
+      || current.linked === record.restoreDirectory || current.linked && current.root !== record.target)) refuse('selection');
+    let previousRoot = alreadyPrevious ? current.root : record.previous.root;
+    if (!alreadyPrevious && !record.previous.linked) {
+      previousRoot = null;
+      for (const candidate of [record.temporary, record.retainedRoot]) {
+        if (await exists(candidate) && (await lstat(candidate)).isDirectory()) {
+          await verifySelection(candidate, record.previous); previousRoot = candidate; break;
+        }
+      }
+      if (!previousRoot) refuse('selection');
+    }
+    await verifySelection(previousRoot, record.previous); await ownedTree(previousRoot, parent);
+    let account;
+    try { account = await identity(); } catch { refuse('access'); }
+    await assertServiceAccess(previousRoot, account, runtimeCliChecks.map(row => row[0]));
+    await assertToolsEntrypoints(previousRoot, account, runtimeCliChecks, { linked: record.previous.linked });
+    await idle();
+    if (!alreadyPrevious) {
+      if (!record.previous.linked) await exchange(toolsRoot, previousRoot);
+      else if (record.restoreDirectory) {
+        if (!(await lstat(record.target)).isSymbolicLink() || await realpath(record.target) !== record.previous.root) refuse('selection');
+        await exchange(toolsRoot, record.target);
+      } else {
+        const temporary = path.join(parent, '.tools-recover-' + randomUUID());
+        await symlink(record.previous.root, temporary, 'dir'); await rename(temporary, toolsRoot);
+      }
+    }
+    await syncDirectory(parent); await syncDirectory(versions);
+    const restored = await selection(toolsRoot);
+    if (restored.linked !== record.previous.linked || restored.treeIdentity !== record.previous.treeIdentity) refuse('selection');
+    const receiptFile = path.join(settings.controlDir, 'tools-recovery-' + id + '.json');
+    await atomic(receiptFile, encode({ ...record, installed: restored, result: 'recovered', completedAt: new Date().toISOString() }));
+    await rm(maintenance); await rm(transaction); await syncDirectory(settings.controlDir);
+    return { receiptFile, toolsIdentity: restored.toolsIdentity, writerRestarted: false };
+  });
 }
 export async function switchTools({ settings, toolsRoot, packageRoot, rollbackReceipt,
   idle = operatorUnitsIdle, exchange = exchangePaths, identity = () => serviceIdentity(settings) }) {
@@ -131,9 +218,8 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
       const entries = manifest?.entries ?? (await inventory(root)).filter(row => /\.mjs$/.test(row.path)).map(row => row.path);
       await assertServiceAccess(root, account, entries);
       if (root === target) {
-        const checks = [];
-        for (const check of toolsCliChecks) if (manifest || await exists(path.join(root, check[0]))) checks.push(check);
-        if (checks.length) await assertToolsEntrypoints(root, account, checks);
+        await assertToolsEntrypoints(root, account, manifest ? toolsCliChecks : runtimeCliChecks,
+          { linked: !!manifest });
       }
     }
     await verifySelection(previous.root, previous); await idle();
@@ -141,16 +227,24 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
     const maintenance = path.join(settings.controlDir, 'maintenance.json');
     const receiptFile = path.join(settings.controlDir, 'tools-receipt-' + id + '.json');
     const record = { format: 'picker-tools-switch-v1', action: undo ? 'rollback' : 'install',
-      startedAt: new Date().toISOString(), toolsRoot, previous, target, writerRestarted: false, temporary,
+      startedAt: new Date().toISOString(), toolsRoot, previous, target, targetIdentity, writerRestarted: false, temporary,
+      restoreDirectory: !!undo && (!undo.previous.linked || !targetIdentity.toolsIdentity),
       retainedRoot: previous.linked ? previous.root : path.join(versions, 'legacy-' + id) };
     // Both gates persist if switching or verification becomes uncertain. Old
     // installed operators already understand maintenance.json.
     await atomic(transaction, encode(record)); await atomic(maintenance, encode({ command: 'tools-switch' }));
     let switched = false, retained;
     try {
-      await symlink(target, temporary, 'dir');
-      if (previous.linked) await rename(temporary, toolsRoot);
-      else { await exchange(toolsRoot, temporary); retained = temporary; }
+      if (record.restoreDirectory) {
+        // Legacy argv guards require a REAL directory. The retained tree and
+        // selected symlink exchange in one syscall, with neither path absent.
+        await exchange(toolsRoot, target);
+        await syncDirectory(versions);
+      } else {
+        await symlink(target, temporary, 'dir');
+        if (previous.linked) await rename(temporary, toolsRoot);
+        else { await exchange(toolsRoot, temporary); retained = temporary; }
+      }
       switched = true; await syncDirectory(parent);
       if (undo) await verifySelection(await realpath(toolsRoot), targetIdentity);
       else await verifyTools(await realpath(toolsRoot));
@@ -167,8 +261,9 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
     } catch (error) {
       // No automatic writer operation. Revert only a provably owned selection.
       // Uncertain failures retain both gates and all trees for reconciliation.
-      if (switched && await realpath(toolsRoot).catch(() => null) === target) {
-        if (!previous.linked && retained) await exchange(toolsRoot, retained);
+      if (switched && (record.restoreDirectory || await realpath(toolsRoot).catch(() => null) === target)) {
+        if (record.restoreDirectory) await exchange(toolsRoot, target);
+        else if (!previous.linked && retained) await exchange(toolsRoot, retained);
         else { await rm(temporary, { force: true }); await symlink(previous.root, temporary, 'dir'); await rename(temporary, toolsRoot); }
         await syncDirectory(parent);
       }
@@ -188,10 +283,13 @@ const refusalCategories = Object.freeze({
 export const toolsRefusal = error => 'Tools switch refused: '
   + (Object.hasOwn(refusalCategories, error?.code) ? refusalCategories[error.code] : 'unclassified')
   + '; inspect transaction evidence privately.\n';
-export async function toolsInstallCli(args, { settings = operatorSettings, switcher = switchTools,
+export async function toolsInstallCli(args, { settings = operatorSettings, switcher = switchTools, recover = recoverToolsSwitch,
   stdout = text => process.stdout.write(text), stderr = text => process.stderr.write(text) } = {}) {
   try {
     const [command, toolsRoot, input, ...extra] = args;
+    if (command === 'recover' && path.isAbsolute(toolsRoot ?? '') && input === undefined) {
+      stdout(encode(await recover({ settings: await settings(), toolsRoot }))); return 0;
+    }
     if (!['install', 'rollback'].includes(command) || !path.isAbsolute(toolsRoot ?? '') || !path.isAbsolute(input ?? '') || extra.length) refuse('arguments');
     const result = await switcher({ settings: await settings(), toolsRoot,
       ...(command === 'install' ? { packageRoot: input } : { rollbackReceipt: input }) });

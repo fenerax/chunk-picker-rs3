@@ -10,7 +10,7 @@ import { chown, readFile, rm } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { assertReleased, atomic, directory, encode, exclusive, exists, headroom, inventory, json, noLinks, sha } from './files.mjs';
-import { assertSameRelease, operatorSettings, readRelease, assertOperatorService } from './runtime.mjs';
+import { assertSameRelease, operatorSettings, readRelease, assertOperatorService, serviceIdentity } from './runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
 import { digestValue } from '../private-companion/release-identity.mjs';
@@ -198,12 +198,7 @@ export async function runOperator(command, argument, evidence, mode) {
     return runServiceOperator({ settings, command, argument, evidence,
       release: await readRelease(settings.current, settings.dataDir), controller: systemd(settings),
       request: privateRequest, healthRecovery, deployStopped,
-      serviceIdentity: async () => {
-        const uid = Number((await execute('id', ['-u', 'chunk-picker'])).stdout.trim());
-        const gid = Number((await execute('id', ['-g', 'chunk-picker'])).stdout.trim());
-        if (!Number.isSafeInteger(uid) || uid < 1 || !Number.isSafeInteger(gid) || gid < 1) throw new Error('Dedicated service identity required.');
-        return { uid, gid };
-      } });
+      serviceIdentity: () => serviceIdentity(settings) });
   }
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
