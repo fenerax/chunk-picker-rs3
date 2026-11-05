@@ -18,22 +18,28 @@ function projectionResolver(registry) {
 /** Materialize only the identities queried by browser facts, retaining every
  * competing candidate. The browser need not download the authored registry. */
 export function projectIdentityRegistry(state) {
-  return projectRegistry(state, projectionResolver(state.identityRegistry));
+  return finishProjection(projectRegistrySteps(state, projectionResolver(state.identityRegistry)));
 }
-function projectRegistry(state, resolve) {
+function finishProjection(steps) {
+  let next;
+  do { next = steps.next(); } while (!next.done);
+  return next.value;
+}
+function* projectRegistrySteps(state, resolve) {
   const entries = {}, aliases = {}, savedAliases = {}, references = new Map();
+  let visited = 0;
   const add = (id, category) => {
     if (typeof id !== 'string') return;
     const categories = references.get(id) ?? new Set();
     categories.add(category); references.set(id, categories);
   };
-  for (const task of state.tasks ?? []) { add(task.id); add(task.id, task.category); }
+  for (const task of state.tasks ?? []) { add(task.id); add(task.id, task.category); if (++visited % 256 === 0) yield; }
   for (const member of state.members ?? []) {
-    for (const id of member.completedTasks ?? []) add(id);
-    for (const id of Object.keys(member.taskStatus ?? {})) add(id);
-    for (const [category, groups] of Object.entries(member.taskAlternatives ?? {})) for (const id of Object.values(groups)) { add(id); add(id, category); }
+    for (const id of member.completedTasks ?? []) { add(id); if (++visited % 256 === 0) yield; }
+    for (const id of Object.keys(member.taskStatus ?? {})) { add(id); if (++visited % 256 === 0) yield; }
+    for (const [category, groups] of Object.entries(member.taskAlternatives ?? {})) for (const id of Object.values(groups)) { add(id); add(id, category); if (++visited % 256 === 0) yield; }
   }
-  for (const id of Object.keys(state.taskClaims ?? {})) add(id);
+  for (const id of Object.keys(state.taskClaims ?? {})) { add(id); if (++visited % 256 === 0) yield; }
   for (const [id, categories] of references) {
     const persisted = state.identityRegistry?.aliases?.[id];
     const saved = (typeof persisted === 'string' ? [persisted] : Array.isArray(persisted) ? persisted : [])
@@ -53,31 +59,44 @@ function projectRegistry(state, resolve) {
       entries[target] = { ...(entry.category ? { category: entry.category } : {}),
         ...(categoryAliases.length ? { aliases: categoryAliases } : {}) };
     }
+    if (++visited % 256 === 0) yield;
   }
   return { schemaVersion: 1, entries, aliases, savedAliases, unresolved: [] };
 }
 
 /** A display projection, never a backup or an input to durable validation. */
 export function projectPlayState(state) {
+  return finishProjection(projectPlayStateSteps(state));
+}
+
+// The writer drains these same steps in short turns before replying to HTTP.
+// Synchronous callers retain the identical projection and fresh resolver scope.
+export function* projectPlayStateSteps(state) {
   const { provenance, identityRegistry, progressSnapshots, ...display } = state;
   // Selection and registry projection ask the same identity questions. Reuse
   // answers within this projection only, including every category's ambiguity.
   const resolve = projectionResolver(identityRegistry);
   const wanted = new Set();
+  let visited = 0;
   const add = (id, category) => {
     if (typeof id !== 'string') return;
     wanted.add(id);
     for (const candidate of resolve(id, category).candidates) wanted.add(candidate);
   };
   for (const member of state.members ?? []) {
-    for (const id of member.completedTasks ?? []) add(id);
-    for (const id of Object.keys(member.taskStatus ?? {})) add(id);
-    for (const [category, groups] of Object.entries(member.taskAlternatives ?? {})) for (const id of Object.values(groups)) { add(id); add(id, category); }
+    for (const id of member.completedTasks ?? []) { add(id); if (++visited % 256 === 0) yield; }
+    for (const id of Object.keys(member.taskStatus ?? {})) { add(id); if (++visited % 256 === 0) yield; }
+    for (const [category, groups] of Object.entries(member.taskAlternatives ?? {})) for (const id of Object.values(groups)) { add(id); add(id, category); if (++visited % 256 === 0) yield; }
   }
-  for (const id of Object.keys(state.taskClaims ?? {})) add(id);
-  for (const goal of state.groupGoals ?? []) if (goal.link?.kind === 'task') add(goal.link.id);
-  const tasks = (state.tasks ?? []).filter(task => task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id));
-  return { ...display, tasks, identityRegistry: projectRegistry({ ...state, tasks }, resolve) };
+  for (const id of Object.keys(state.taskClaims ?? {})) { add(id); if (++visited % 256 === 0) yield; }
+  for (const goal of state.groupGoals ?? []) { if (goal.link?.kind === 'task') add(goal.link.id); if (++visited % 256 === 0) yield; }
+  const tasks = [];
+  for (const task of state.tasks ?? []) {
+    if (task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id)) tasks.push(task);
+    if (++visited % 256 === 0) yield;
+  }
+  const projectedRegistry = yield* projectRegistrySteps({ ...state, tasks }, resolve);
+  return { ...display, tasks, identityRegistry: projectedRegistry };
 }
 
 /** Browser facts always retain identity, scope and completion-family evidence.

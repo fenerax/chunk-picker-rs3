@@ -19,7 +19,7 @@ import { evaluateRollPool, partnerConnections, createRollPoolCache } from '../co
 import { captureProgressSnapshot, buildProgressModel } from '../core/progress-timeline.mjs';
 import { createGameplayFingerprint } from './gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../tasks/unlock-reuse.mjs';
-import { projectPlayState, PLAY_VIEW } from '../play-view.mjs';
+import { projectPlayState, projectPlayStateSteps, PLAY_VIEW } from '../play-view.mjs';
 import { projectBrowserState } from '../web/browser-state.mjs';
 import { readHistoryEvents } from './history-reader.mjs';
 import { computeRollStats, selectRollStatsEvent } from '../core/roll-stats.mjs';
@@ -27,7 +27,7 @@ import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../
 import { loadGameDefaults } from '../game-defaults.mjs';
 import { ACTION_CLIENT_SLOTS, loadActionReceipts, inspectActionReceipt, commitActionReceipt, openActionSession, acknowledgeActionSession } from './action-receipts.mjs';
 import { reportActivationTiming } from '../live-swap-timing.mjs';
-import { rosterOutput } from '../import-output.mjs';
+import { boundedOutput, rosterOutput } from '../import-output.mjs';
 
 const gzipAsync = promisify(gzip), gunzipAsync = promisify(gunzip);
 
@@ -508,6 +508,25 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     return projection;
   }
+  const playProjectionJobs = new WeakMap();
+  async function preparePlayProjection(state) {
+    if (playProjections.has(state)) return;
+    if (playProjectionJobs.has(state)) return playProjectionJobs.get(state);
+    const job = (async () => {
+      const steps = projectPlayStateSteps(state);
+      let next, turn = performance.now();
+      do {
+        next = steps.next();
+        if (performance.now() - turn >= 4) { await new Promise(resolve => setImmediate(resolve)); turn = performance.now(); }
+      } while (!next.done);
+      const projection = { state: next.value, tasksJSON: JSON.stringify(next.value.tasks) };
+      await new Promise(resolve => setImmediate(resolve));
+      projection.identityJSON = JSON.stringify(next.value.identityRegistry);
+      playProjections.set(state, projection);
+    })();
+    playProjectionJobs.set(state, job);
+    try { await job; } finally { playProjectionJobs.delete(state); }
+  }
   let taskCompletionCache;
   const taskCompletionReads = new Set();
   function completionHistoryCache(since) {
@@ -615,7 +634,17 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     fullPools = Object.fromEntries(values.map(([id, value]) => [id, value.pool]));
     playPools = Object.fromEntries(values.map(([id, value]) => [id, { ...value.pool, partnerConnections: value.partnerConnections }]));
   }
-  async function preparedCommandSnapshot(...args) { await prepareRollPools(); return commandSnapshot(...args); }
+  async function preparedCommandSnapshot(baseline, omitUnchanged, view) {
+    for (;;) {
+      const captured = current;
+      await prepareRollPools();
+      if (view === PLAY_VIEW) {
+        await preparePlayProjection(captured);
+        if (omitUnchanged && baseline) await preparePlayProjection(baseline);
+      }
+      if (current === captured) return commandSnapshot(baseline, omitUnchanged, view);
+    }
+  }
   function commandSnapshot(baseline, omitUnchanged = false, view) {
     const pools = rollPools(view);
     // Deleting omitted fields must never mutate the memoized full display view.
@@ -1060,8 +1089,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const next = applyValidatedCommand(input.state, command, { expectedRevision, world, registry, precomputedPool,
         random: ['go-members', 'setup-start'].includes(command.type) ? random ?? (() => randomBytes(6).readUIntBE(0, 6) / 2 ** 48) : random,
         now, taskCatalogue, actor: attribution, membersStartBanks, xpChoiceCatalogue });
+      // Undo validates a saved inverse, runs preparation and observes progress.
+      // Separate those stages so they cannot share one long HTTP-thread turn.
+      if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
       const ready = await prepared(next, 'command');
       if (ready.revision !== next.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
+      if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
       // Caller hooks can change more than the command requested. Only exact
       // authored coordination output keeps the conservative conflict proof.
       if (claimOnly && ready !== next) claimOnly = isDeepStrictEqual(ready, next);
@@ -1234,7 +1267,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const disk = Buffer.from(await serializedDiskState(state));
       const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized, { level: constants.Z_BEST_SPEED });
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
-      const summary = { revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } };
+      const summary = boundedOutput({ revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } });
       return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
         coordination: coordination.get(state), receipts,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),

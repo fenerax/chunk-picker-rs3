@@ -1,5 +1,6 @@
 import { Worker } from 'node:worker_threads';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
+import { displayText } from './import-output.mjs';
 
 export const IMPORT_TIMEOUT_MS = 120_000;
 export const IMPORT_QUEUE_WAIT_MS = 120_000;
@@ -44,14 +45,21 @@ export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queue
         worker.on('message', async message => {
           decoding = true;
           try {
-            const decoded = await decodeImportBytes(message, { freezeStates: job.kind !== 'backup', signal: controller.signal });
+            const decoded = await decodeImportBytes(message, { freezeStates: job.kind !== 'backup' && !message.hook, signal: controller.signal });
             if (decoded.hook) {
-              await prepareHook(decoded.summary, decoded.context);
-              const reply = await encodeImportBytes({ hookResult: true });
+              // The hook owns a mutable full-state input, exactly as on the
+              // normal preparation path. Chunked transport yields around the
+              // caller's work; validation stays with the authoritative worker.
+              if (decoded.migrationInput) decoded.context.migration.state = decoded.input;
+              const ready = await prepareHook(decoded.input, decoded.context) ?? decoded.input;
+              const reply = await encodeImportBytes({ hookResult: ready });
               worker.postMessage(reply, reply.buffers);
             } else if (decoded.error) reject(Object.assign(new Error(decoded.error.message), { status: decoded.error.status ?? 400 }));
             else resolve(decoded.result);
-          } catch (error) { reject(error); }
+          } catch (error) {
+            reject(Object.assign(new Error(displayText(error.message)), { name: displayText(error.name), status: error.status ?? 400,
+              ...(error.code ? { code: displayText(error.code) } : {}), ...(error.retryAfter ? { retryAfter: error.retryAfter } : {}) }));
+          }
         });
         worker.once('error', error => reject(Object.assign(new Error(error.code === 'ERR_WORKER_OUT_OF_MEMORY'
           ? 'This backup could not be checked within the available memory. No records were imported.'

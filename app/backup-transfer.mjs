@@ -6,7 +6,7 @@ import { createGunzip } from 'node:zlib';
 import { MAX_PORTABLE_BACKUP_BYTES, MAX_UPLOAD_BYTES, BACKUP_LIMIT_LABEL } from './web/backup-limits.mjs';
 export { MAX_BACKUP_BYTES, MAX_PORTABLE_BACKUP_BYTES, MAX_UPLOAD_BYTES, BACKUP_LIMIT_LABEL } from './web/backup-limits.mjs';
 import { parseJSONStream } from './storage/json-stream.mjs';
-import { boundedOutput, displayText, rosterOutput } from './import-output.mjs';
+import { boundedOutput, rosterOutput } from './import-output.mjs';
 
 export const BACKUP_UPLOAD_TYPE = 'application/vnd.rs3-backup-upload+json';
 export const isImportRoute = route => /^\/api\/(?:restore|import|member-restore)(?:\/preview)?$/.test(route);
@@ -15,16 +15,16 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 // A replacement review needs owner counts, not another copy of imported evidence.
 export function backupPreviewState(state) {
   const roster = rosterOutput(state.members);
-  return { schemaVersion: state.schemaVersion, revision: state.revision,
-    members: state.members.map((member, index) => ({ ...roster[index],
+  return boundedOutput({ schemaVersion: state.schemaVersion, revision: state.revision,
+    members: state.members.map((member, index) => boundedOutput({ ...roster[index],
       counts: { unlocked: member.unlocked.length, selected: member.selected.length, notes: Object.keys(member.notes ?? {}).length,
         completedTasks: member.completedTasks.length,
         challengeCompleted: Object.values(member.taskStatus ?? {}).filter(status => status.challengeCompleted).length },
       unlocked: member.unlocked.slice(0, 100), selected: member.selected.slice(0, 100),
       completedTasks: member.completedTasks.slice(0, 100), taskStatus: {},
-      obtainedEquipment: member.obtainedEquipment.slice(0, 100).map(displayText),
-      journal: member.journal === undefined ? undefined : displayText(member.journal),
-      notes: boundedOutput(member.notes ?? {}, { bytes: 8192 }) })) };
+      obtainedEquipment: member.obtainedEquipment.slice(0, 100),
+      journal: member.journal,
+      notes: boundedOutput(member.notes ?? {}, { bytes: 8192 }) }, { bytes: 16 * 1024 })) });
 }
 
 function limitBytes(maximum) {

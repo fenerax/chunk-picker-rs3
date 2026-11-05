@@ -162,7 +162,7 @@ export async function jsonBytes(request, response, status, bytes, headers = {}, 
 // whole imported-state string, Buffer concatenation, or main-thread digest.
 export async function importedStateJSON(request, response, { stateBytes, metadata }, pools) {
   const encoding = negotiateEncoding(request.headers['accept-encoding']);
-  const tail = Buffer.from(`,"pools":${JSON.stringify(pools)},${JSON.stringify(metadata).slice(1)}`);
+  const tail = Buffer.from(`,${JSON.stringify(boundedOutput({ pools, ...metadata })).slice(1)}`);
   response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE,
     Vary: 'Accept-Encoding', ...(encoding !== 'identity' ? { 'Content-Encoding': encoding } : {}) });
   async function* parts() {
@@ -248,9 +248,9 @@ export function migrationSummary(state) {
     .replaceAll('task identity conflict(s) remain in migration provenance for review.', 'conflicting saved task records remain in the import details for review.'));
   for (const item of (identities?.unresolved ?? []).slice(0, REPORT_RECORDS)) warnings.push(`Saved task ${displayText(tasks.get(item.originalId)?.label ?? item.originalId)} at ${displayText(item.path)} could not be matched; the original record is kept for review.`);
   if (identities?.conflicts?.length) warnings.push(`${identities.conflicts.length} conflicting saved task records remain in the import details for review.`);
-  return { stateRevision: state.revision, warnings: warningOutput(warnings, (migration?.warnings?.length ?? unresolved.length) + (identities?.unresolved?.length ?? 0) + (identities?.conflicts?.length ? 1 : 0)),
+  return boundedOutput({ stateRevision: state.revision, warnings: warningOutput(warnings, (migration?.warnings?.length ?? unresolved.length) + (identities?.unresolved?.length ?? 0) + (identities?.conflicts?.length ? 1 : 0)),
     report: boundedOutput({ ...(migration?.report ?? { catalogueTasks: state.tasks.length, unresolved, taskStatusProvenance: migration?.taskStatusProvenance ?? [] }),
-      ...(identities ? { identities: Object.fromEntries(Object.entries(identities).filter(([key]) => key !== 'archives')) } : {}) }) };
+      ...(identities ? { identities: Object.fromEntries(Object.entries(identities).filter(([key]) => key !== 'archives')) } : {}) }) });
 }
 
 export function convertLegacyCapture(document, { members, capturedAt, registry } = {}) {

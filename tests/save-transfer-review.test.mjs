@@ -55,3 +55,29 @@ test('heavy-note preview retains required renderer fields and exact counts', asy
   assert.match(JSON.stringify(rendered), /150 personal game completions/);
   assert.doesNotThrow(() => c.replacementSummary(preview.response.preview, { members: [{ id: 'one' }] }));
 });
+
+test('import hooks keep migration context and cannot publish an invalid returned state', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'synthetic-hook-context-'));
+  const roster = [{ id: 'one', name: 'Synthetic player' }];
+  const world = { chunks: new Map() }, migration = { definitions: { challenges: {} }, taskMap: {}, catalogue: [] };
+  let invalid = false;
+  const store = await openStore({ dataDir: directory, initialState: createGroupState(roster), retention: false, world,
+    prepareImportState(input, context) {
+      assert.equal(context.operation, 'replace');
+      assert.equal(context.world, world);
+      assert.equal(context.migration.state, input);
+      assert.equal(Object.isFrozen(input.members[0]), false);
+      assert.deepEqual(context.catalogue, migration.catalogue);
+      if (invalid) return { ...input, members: null };
+      (input.members[0].notes ??= {})['100'] = 'Synthetic context note';
+    } });
+  t.after(async () => { await store.close(); await rm(directory, { recursive: true, force: true }); });
+  const input = () => serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: createGroupState(roster) } });
+  const options = { route: '/api/restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} }, world, migration };
+  const prepared = await store.prepareTransfer(input(), options);
+  await store.applyTransfer(prepared.ticket, 0);
+  assert.equal((await store.backup()).state.members[0].notes['100'], 'Synthetic context note');
+  invalid = true;
+  await assert.rejects(store.prepareTransfer(input(), options), error => error.status === 400);
+  assert.equal(store.getInfo().revision, 1);
+});

@@ -14,6 +14,12 @@ const { runImportJob, reserveImportUser, IMPORT_QUEUE_LIMIT } = await import('..
 const { encodeImportBytes, decodeImportBytes } = await import('../app/import-bytes.mjs');
 
 const roster = [{ id: 'one', name: 'Synthetic player' }];
+function prepareSyntheticState(state, context) {
+  if (context.operation !== 'replace') return state;
+  assert.equal(state.tasks.length, 20_503); assert.equal(state.history.length, 2_000);
+  (state.members[0].notes ??= {})['100'] = 'Synthetic prepared note';
+  return state;
+}
 function realisticSave() {
   const state = createGroupState(roster);
   state.tasks = Array.from({ length: 20_503 }, (_, i) => ({ id: `rs3:task:synthetic-${i}`, category: 'Custom', label: `Synthetic objective ${i}` }));
@@ -49,7 +55,11 @@ for (const maximum of [false, true]) test(`${maximum ? 'maximum accepted' : 'rea
   let hookCount = 0;
   const store = await openStore({ dataDir: directory, initialState: createGroupState(roster), retention: false,
     world: { chunks: new Map([['100', { id: '100' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) },
-    prepareImportState(summary) { hookCount++; assert.equal(summary.tasks, undefined); assert.equal(summary.history, undefined); assert.ok(summary.digest); },
+    prepareImportState(state, context) {
+      hookCount++;
+      assert.equal(context.operation, 'replace');
+      return prepareSyntheticState(state, context);
+    },
     beforeCommit(change) { if (change.operation === 'replace') { assert.equal(change.state.tasks, undefined); assert.ok(change.digest); } } });
   t.after(async () => { await store.close(); await rm(directory, { recursive: true, force: true }); });
   let document = realisticSave();
@@ -81,6 +91,7 @@ for (const maximum of [false, true]) test(`${maximum ? 'maximum accepted' : 'rea
   });
   const applied = await measure(() => store.applyTransfer(preview.result.ticket, 0));
   assert.equal(applied.result.state.tasks.length, 20_503);
+  assert.equal(applied.result.state.members[0].notes['100'], 'Synthetic prepared note');
   assert.equal(applied.result.state.provenance.restore.incomingHistory.length, 2_000);
   assert.equal(applied.result.state.provenance.restore.incomingProvenance.taskIdentityMigration.archives[0].tasks.length, 20_503);
   assert.equal(hookCount, 1);
@@ -96,12 +107,24 @@ for (const maximum of [false, true]) test(`${maximum ? 'maximum accepted' : 'rea
   await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '100', note: 'Synthetic note' }, 1, { view: 'play-v1' });
   const undone = await measure(() => store.commandSerialized({ type: 'undo' }, 2, { view: 'play-v1' }));
   assert.equal(store.getInfo().revision, 3);
+  let mainPreparation;
+  if (!maximum) {
+    const baselineDirectory = await mkdtemp(path.join(tmpdir(), 'synthetic-main-preparation-'));
+    const baseline = await openStore({ dataDir: baselineDirectory, initialState: createGroupState(roster), retention: false,
+      prepareState: prepareSyntheticState });
+    try {
+      const sameInput = realisticSave();
+      mainPreparation = await measure(() => baseline.previewReplacement(sameInput));
+      assert.ok(preview.gap <= mainPreparation.gap, `worker hook path ${preview.gap} ms exceeds main preparation ${mainPreparation.gap} ms`);
+    } finally { await baseline.close(); await rm(baselineDirectory, { recursive: true, force: true }); }
+  }
   t.diagnostic(JSON.stringify({ maximum, bytes: size, realisticBytes, portableBytes, limit: MAX_BACKUP_BYTES,
     previewMs: preview.ms, previewGapMs: preview.gap, workerMs: preview.result.workerMs,
     applyMs: applied.ms, applyGapMs: applied.gap,
     jsonExportMs: jsonExport.ms, jsonExportGapMs: jsonExport.gap,
     gzipExportMs: gzipExport.ms, gzipExportGapMs: gzipExport.gap,
     undoMs: undone.ms, undoGapMs: undone.gap,
+    mainPreparationMs: mainPreparation?.ms, mainPreparationGapMs: mainPreparation?.gap,
     peakRSSMiB: Math.max(preview.peakRSS, applied.peakRSS, jsonExport.peakRSS, gzipExport.peakRSS, undone.peakRSS) / 1024 ** 2,
     lifetimePeakRSSMiB: process.resourceUsage().maxRSS / 1024 }));
   // 100 ms target, 150 ms ceiling allows shared CI scheduling/GC variance.

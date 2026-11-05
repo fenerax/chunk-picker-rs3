@@ -1,5 +1,6 @@
 import { createTransferReviews } from './save-transfer.mjs';
 import { reserveImportUser } from './import-jobs.mjs';
+import { boundedOutput, displayText } from './import-output.mjs';
 import { originalChunkURL } from './original-chunk-url.mjs';
 import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
@@ -880,7 +881,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (security.secure) response.setHeader('Strict-Transport-Security', 'max-age=31536000');
     response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
-    let savingSocket, ownsImport, releaseImportUser;
+    let savingSocket, ownsImport, releaseImportUser, route;
     function saveFinished() {
       if (!savingSocket) return;
       const socket = savingSocket; savingSocket = undefined;
@@ -892,7 +893,6 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     try {
       let identity;
       const rawPath = (request.url ?? '/').split('?')[0];
-      let route;
       try { route = decodeURIComponent(rawPath); } catch { throw httpError(400, 'Invalid URL.'); }
       if (route.includes('\\') || route.includes('\0') || route.split('/').some(part => part === '..' || part === '.')) throw httpError(404, 'Not found.');
       const ownerRestore = pickerId !== 'legacy' && /^\/api\/(?:restore|import)(?:\/preview)?$/.test(route);
@@ -2009,6 +2009,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       // Refuse unread/slow uploads without keeping their socket alive.
       if (!request.complete) response.setHeader('Connection', 'close');
       if (signInFlow.errorPage(request, response, security, error, status)) return;
+      if (isImportRoute(route)) {
+        // A stale import needs a fresh preview, not a full main-thread clone,
+        // projection, serialization and hash of the destination's saved state.
+        await json(request, response, status, boundedOutput({
+          message: status === 500 ? 'The save could not be completed. Your previous save remains available.'
+            : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(displayText(error.message)),
+          ...(error.code ? { code: error.code } : {}),
+          ...(error.code === 'REVISION_CONFLICT' ? { revision: store.getInfo().revision } : {}),
+        }));
+        return;
+      }
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
         ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),

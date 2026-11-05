@@ -113,11 +113,23 @@ Every worker message carries transferable byte buffers. Bounded binary token
 batches rebuild the owned in-memory state in short event-loop turns; the HTTP
 thread never clones or parses/stringifies a complete imported state. Workers
 prepare static dependencies, their hashes, the preceding checkpoint, replacement
-file and apply-response bytes. Hooks receive member IDs, dataset identity,
-revision and a digest, without imported fields. The writer checks the revision
+file and apply-response bytes. Caller-supplied `prepareState` hooks receive the
+same mutable full state and preparation context as ordinary commands, including
+migration context and the caller's world and registry. Transferable batches yield
+while sending the input and returned state; the worker validates and applies the
+return value (or the mutated input when the hook returns nothing). The writer checks the revision
 and private checkpoint, publishes dependencies and the retained backup, then
 fsyncs/renames the replacement and adopts its immutable state. Preparation hooks
-are admission checks; gameplay transformations run inside the worker.
+keep their gameplay transformation contract. Commit hooks receive bounded
+summaries and digests.
+
+All import display messages cross one shared bounding helper at worker egress:
+512 characters per string, 128 per object key, 100 items per collection and
+256 KiB per display payload, with depth and node limits. This includes compact
+state, restore differences, roster mapping, diagnostics, samples, migration and
+transfer reports, publication summaries and apply metadata. Counts describe the
+complete save. Exact saved values and portable publication/export bytes remain
+unchanged and use the cooperative binary transport.
 
 The global queue admits four users including the running job, with at most one
 import request per user across pickers. A full queue or duplicate returns 503:
@@ -130,22 +142,33 @@ worker-prepared play response; preview includes upload parsing and hydration):
 
 | Input | Preview | Preview maximum gap | Apply | Apply maximum gap | Peak RSS |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 49.33 MiB realistic save | 5,556 ms | 18.6 ms | 49.5 ms | 12.6 ms | 714.4 MiB |
-| 208 MiB reviewed upload | 9,978 ms | 30.3 ms | 51.7 ms | 13.9 ms | 2,062.1 MiB |
+| 49.33 MiB realistic save | 16,276 ms | 55.6 ms | 51.1 ms | 20.6 ms | 810.5 MiB |
+| 208 MiB reviewed upload | 16,832 ms | 49.8 ms | 51.6 ms | 17.4 ms | 2,037.9 MiB |
 
-The OS lifetime peaks were 765.6 and 2,067.2 MiB respectively. These isolated
+These runs use a full-state preparation hook that reads the catalogue and
+History and writes a note; the applied/exported state retains that note. The
+same hook on the existing main-thread preparation path took 2,826 ms with a
+1,661.2 ms maximum gap for the realistic save. Cooperative hook transport keeps
+the import gap below that baseline without changing the hook's input or output.
+The OS lifetime peaks were 867.3 and 2,073.7 MiB respectively. These isolated
 process figures include synthetic fixture setup and worker heaps, not a running
 production server. The regression targets 100 ms and allows 150 ms for CI
 scheduling variance. The real-sized test also exports and compares the complete
 saved state, including the hydrated registry and archive. Standalone JSON/gzip
-export gaps were 18.2/18.7 ms for the realistic save and 25.7/19.4 ms for the
+export gaps were 16.7/27.4 ms for the realistic save and 26.1/25.6 ms for the
 reviewed upload. A separate HTTP probe measured JSON/gzip export gaps of
-20.9/16.8 ms and 20.5/17.3 ms respectively, with ordinary Undo gaps of 190.1
-and 172.6 ms. Identity resolution is reused within each play projection, with
-fresh results for every subsequent projection. Arbitrary full-state custom-hook
-Undo remains a follow-up; its gaps were 416.1 and 566.3 ms.
+22.6/18.5 ms and 21.0/17.2 ms respectively, with ordinary Undo gaps of 150.0
+and 125.1 ms. Identity resolution is reused within each play projection and
+progress observation, with fresh results for every subsequent operation. HTTP
+play projections yield between batches; Undo validation, preparation and progress
+observation run in separate turns. The standalone full-state commit-hook Undo
+path remains a follow-up; its gaps were 380.0 and 587.1 ms.
 The huge-name regression returned a 640-byte mapping response for a 128 MiB
-name, with an 18.8 ms gap; its prepared preview response had a 25.2 ms gap.
+name, with an 18.9 ms gap; its prepared preview response had a 25.5 ms gap.
+The generic response regression discovers string sources from the production
+preview helpers and worker egress paths, including future fields. With 53
+inflated sources and a 32 MiB completion ID, serialization and hashing returned
+a 12,705-byte preview with a 28.1 ms maximum main-thread gap (50 ms ceiling).
 The separate capacity regression exports an accepted 268,384,330-byte document
 with progress snapshots and hydrated destination History. Verification uses
 targeted suites and the release rehearsal; no full test suite was run this round.

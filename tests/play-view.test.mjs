@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { projectIdentityRegistry, projectPlayState, projectPlayResult, projectPlayTask } from '../app/play-view.mjs';
+import { projectIdentityRegistry, projectPlayState, projectPlayStateSteps, projectPlayResult, projectPlayTask } from '../app/play-view.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { resolveIdentity, authoredIdentityRegistry } from '../app/tasks/identity.mjs';
 import { resolvePersistedIdentity } from '../app/tasks/fact-projection.mjs';
@@ -83,6 +83,23 @@ test('each play projection reads fresh saved aliases and retains every competing
   assert.deepEqual(resolvePersistedIdentity('synthetic-saved', second.identityRegistry),
     resolveIdentity('synthetic-saved', state.identityRegistry));
   assert.deepEqual(first.tasks.map(row => row.id), [ids[0]]);
+});
+
+test('cooperative projections retain competing identities and category evidence across turns', () => {
+  const state = createGroupState([{ id: 'one', name: 'Synthetic player' }]);
+  state.tasks = Array.from({ length: 1_000 }, (_, index) => ({ id: `rs3:task:synthetic-${index}`, category: 'Custom', label: 'Synthetic objective' }));
+  state.identityRegistry = { entries: Object.fromEntries(state.tasks.map(task => [task.id, { ...task, aliases: ['rs3:Historical:synthetic'] }])),
+    aliases: { synthetic: state.tasks.slice(0, 2).map(task => task.id) } };
+  state.members[0].completedTasks = ['synthetic', ...state.tasks.map(task => task.id)];
+  state.members[0].taskAlternatives = { Historical: { synthetic: 'synthetic' } };
+  const steps = projectPlayStateSteps(state);
+  let next, turns = 0;
+  do { next = steps.next(); if (!next.done) turns++; } while (!next.done);
+  assert.ok(turns > 1);
+  for (const category of [undefined, 'Custom', 'Historical']) assert.deepEqual(resolvePersistedIdentity('synthetic', next.value.identityRegistry, category),
+    resolveIdentity('synthetic', state.identityRegistry, category));
+  assert.equal(next.value.tasks.length, state.tasks.length);
+  assert.deepEqual(next.value, projectPlayState(state));
 });
 
 test('compact task whitelist retains empty completion evidence and hidden search fields; planning restores hidden display fields', () => {

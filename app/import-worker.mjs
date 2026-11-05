@@ -16,12 +16,12 @@ import { gzipSync, brotliCompressSync, constants } from 'node:zlib';
 import { createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { projectPlayState, PLAY_VIEW } from './play-view.mjs';
 import { projectBrowserState } from './web/browser-state.mjs';
-import { boundedOutput, displayText, warningOutput, rosterOutput } from './import-output.mjs';
+import { boundedImportMessage, boundedOutput, displayText, warningOutput, rosterOutput } from './import-output.mjs';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
 
 async function send(value) {
-  const bytes = await encodeImportBytes(value);
-  parentPort.postMessage(bytes, bytes.buffers);
+  const bytes = await encodeImportBytes(boundedImportMessage(value));
+  parentPort.postMessage({ ...bytes, hook: value.hook === true }, bytes.buffers);
 }
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
@@ -54,12 +54,15 @@ async function run(job) {
   // Loading is an exact read of the writer's committed baseline. Only the
   // replacement passes through first-party migration and identity preparation.
   const identityPreparation = options.dataset ? preserveGameIdentity(options.dataset) : undefined;
-  const inputDigest = job.input ? createHash('sha256').update(job.input).digest('hex') : undefined;
   const prepareState = async (state, context) => {
-    if (job.prepareHook) await new Promise((resolve, reject) => {
-      parentPort.once('message', message => decodeImportBytes(message).then(resolve, reject));
-      send({ hook: true, summary: { revision: state.revision, members: rosterOutput(state.members),
-        provenance: { dataset: state.provenance?.dataset }, digest: inputDigest }, context: { operation: context.operation } }).catch(reject);
+    if (job.prepareHook) state = await new Promise((resolve, reject) => {
+      parentPort.once('message', message => decodeImportBytes(message).then(reply => resolve(reply.hookResult), reject));
+      const { world, registry, ...preparationContext } = context;
+      // world/registry contain caller functions. The writer restores its exact
+      // instances; migration/catalogue context travels unchanged with the input.
+      const migrationInput = preparationContext.migration?.state === state;
+      if (migrationInput) preparationContext.migration = { ...preparationContext.migration, state: undefined };
+      send({ hook: true, input: state, context: preparationContext, migrationInput }).catch(reject);
     });
     return identityPreparation ? identityPreparation(state, context) : state;
   };
@@ -103,7 +106,7 @@ async function run(job) {
       if (!owner) fail(400, 'Choose a known player.');
       if (!body.sourceMemberId && !incoming.members.some(member => member.id === owner.id && member.name === owner.name)) {
         if (!previewOnly) fail(422, 'Choose the source member in the preview first.');
-        return { response: { mappingRequired: true, sourceRoster, destinationRoster: destinationRoster.filter(member => member.id === owner.id) } };
+        return { response: boundedOutput({ mappingRequired: true, sourceRoster, destinationRoster: destinationRoster.filter(member => member.id === owner.id) }) };
       }
       const sourceMemberId = body.sourceMemberId ?? owner.id;
       const source = incoming.members.find(member => member.id === sourceMemberId);
@@ -161,7 +164,7 @@ async function run(job) {
         : mapTransferRoster(incoming, current.members, body.rosterMapping, options.requiredMemberIds, { owned: true });
       if (!mapped) {
         if (!previewOnly) fail(422, 'Review and assign the source roster before importing.');
-        return { response: { mappingRequired: true, sourceRoster, destinationRoster } };
+        return { response: boundedOutput({ mappingRequired: true, sourceRoster, destinationRoster }) };
       }
       warnings = [...warnings, ...migrationSummary(mapped).warnings];
       report = transferReport(mapped, { ...reportOptions, warnings });
@@ -191,22 +194,22 @@ async function run(job) {
       const saved = publication.state, builtInRegistry = createRuleRegistry();
       const rollRegistry = createRuleRegistry((job.rules ?? []).filter(rule => !builtInRegistry.get(rule.id)));
       const projected = options.responseView === PLAY_VIEW ? projectPlayState(saved) : projectBrowserState(saved);
-      const metadata = { ...(options.responseView === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}), warnings: warningOutput(warnings), transferReport: report };
+      const metadata = boundedOutput({ ...(options.responseView === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}), warnings: warningOutput(warnings), transferReport: report });
       if (options.inlineRollPools) publication.reply = { stateBytes: Buffer.from(JSON.stringify(projected)), metadata };
       else {
         const pools = Object.fromEntries(saved.members.map(member => {
           const pool = evaluateRollPool(world, saved, member.id, rollRegistry);
           return [member.id, options.responseView === PLAY_VIEW ? { ...pool, partnerConnections: partnerConnections(world, saved, member.id, rollRegistry) } : pool];
         }));
-        const bytes = Buffer.from(JSON.stringify({ state: projected, pools, ...metadata }));
+        const bytes = Buffer.from(JSON.stringify({ state: projected, ...boundedOutput({ pools, ...metadata }) }));
         publication.reply = { bytes, etag: `"${createHash('sha256').update(bytes).digest('hex')}"` };
       }
     }
     return { publication, operation, workerMs: performance.now() - start,
-      response: { preview: summary, state: route.startsWith('/api/member-restore') && body.backup !== undefined ? undefined
+      response: boundedOutput({ preview: summary, state: route.startsWith('/api/member-restore') && body.backup !== undefined ? undefined
         : legacy && !options.uploaded ? { ...boundedOutput(state), ...backupPreviewState(state) } : backupPreviewState(state), sourceRoster,
         ...(legacy && options.uploaded ? { format: 'play-v1', schemaVersion: 1 } : {}),
-        warnings: warningOutput(warnings), transferReport: report } };
+        warnings: warningOutput(warnings), transferReport: report }) };
   } finally { await store.close(); }
 }
 try { await send({ result: await run(await decodeImportBytes(workerData)) }); }

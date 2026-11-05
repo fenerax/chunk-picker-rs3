@@ -1,22 +1,25 @@
 // Display limits never remove evidence from the save or its portable archives.
 export const REPORT_RECORDS = 100;
 export const REPORT_BYTES = 256 * 1024;
-export const displayText = value => String(value ?? '').slice(0, 512);
+export const DISPLAY_CHARACTERS = 512;
+export const displayText = value => boundedOutput(String(value ?? ''));
 // Mapping uses exact IDs: reject unusable keys rather than truncating identity.
 export function rosterOutput(members) {
   if (members.length > 32) throw Object.assign(new TypeError('A backup roster must contain at most 32 players.'), { status: 422 });
-  return members.map(({ id, name }) => {
+  return boundedOutput(members.map(({ id, name }) => {
     if (typeof id !== 'string' || !id.trim() || id.length > 80 || /[\u0000-\u001f\u007f]/u.test(id))
       throw Object.assign(new TypeError('Player identifiers must contain 1–80 characters without control characters.'), { status: 422 });
     return { id, name: displayText(name) };
-  });
+  }));
 }
 export function warningOutput(warnings, total) {
-  const unique = [...new Set(warnings.map(displayText))];
-  const count = total ?? unique.length;
-  if (count <= REPORT_RECORDS) return unique;
-  const shown = unique.slice(0, REPORT_RECORDS - 1);
-  return [...shown, `and ${count - shown.length} more warnings; complete evidence is retained in the backup`];
+  const shown = [...new Set(warnings.slice(0, REPORT_RECORDS).map(displayText))];
+  const count = total ?? warnings.length;
+  if (count > REPORT_RECORDS) {
+    shown.length = Math.min(shown.length, REPORT_RECORDS - 1);
+    shown.push(`and ${count - shown.length} more warnings; complete evidence is retained in the backup`);
+  }
+  return boundedOutput(shown);
 }
 export function displayList(values, label = value => value) {
   return values.slice(0, REPORT_RECORDS).map(value => displayText(label(value))).join(', ')
@@ -44,24 +47,50 @@ export function replaceDelimited(text, open, close, replacement = () => '') {
 export function boundedOutput(value, { bytes = REPORT_BYTES } = {}) {
   let remaining = bytes, nodes = 4096;
   function visit(item, depth = 0) {
-    if (--nodes < 0 || remaining < 16 || depth > 12) return '[more retained in backup]';
+    if (--nodes < 0 || depth > 12) { remaining -= 4; return null; }
     if (typeof item === 'string') {
-      const text = item.slice(0, Math.min(512, Math.floor(remaining / 6)));
+      // Six bytes per UTF-16 unit covers JSON escaping, including lone
+      // surrogates. Never stringify/encode the original untrusted string.
+      const text = item.slice(0, Math.min(DISPLAY_CHARACTERS, Math.max(0, Math.floor((remaining - 2) / 6))));
       remaining -= text.length * 6 + 2;
-      return text.length < item.length ? `${text}…` : text;
+      return text;
     }
     if (!item || typeof item !== 'object') { remaining -= 24; return item; }
     const output = Array.isArray(item) ? [] : {};
+    remaining -= 2;
     let count = 0;
-    for (const [key, child] of Object.entries(item)) {
+    // Do not allocate Object.entries for an unbounded array/object. Enumerate
+    // only the prefix that fits the shared node, item and wire-byte budget.
+    for (const key in item) {
+      if (!Object.hasOwn(item, key)) continue;
       if (remaining < 64 || nodes < 2 || count++ >= REPORT_RECORDS) break;
-      const safeKey = key.slice(0, Math.min(128, Math.floor(remaining / 12)));
-      remaining -= safeKey.length * 6 + 8;
-      Object.defineProperty(output, safeKey, { value: visit(child, depth + 1), enumerable: true, configurable: true, writable: true });
+      if (Array.isArray(output)) { remaining--; output.push(visit(item[key], depth + 1)); }
+      else {
+        const safeKey = key.slice(0, Math.min(128, Math.floor((remaining - 32) / 12)));
+        remaining -= safeKey.length * 6 + 4;
+        Object.defineProperty(output, safeKey, { value: visit(item[key], depth + 1), enumerable: true, configurable: true, writable: true });
+      }
     }
     return output;
   }
   return visit(value);
+}
+
+// One mandatory worker egress for display data. Exact state/publication bytes
+// use the yielding transfer protocol instead: truncating those would lose saves.
+// Keeping this at send(), after every branch has built its result, also bounds
+// future preview fields and early mapping/error replies.
+export const IMPORT_DISPLAY_PATHS = Object.freeze([
+  ['error'], ['result', 'response'], ['result', 'publication', 'summary'], ['result', 'publication', 'reply', 'metadata'],
+].map(Object.freeze));
+export function boundedImportMessage(message) {
+  for (const path of IMPORT_DISPLAY_PATHS) {
+    let owner = message;
+    for (const key of path.slice(0, -1)) owner = owner?.[key];
+    const key = path.at(-1);
+    if (owner?.[key]) owner[key] = boundedOutput(owner[key]);
+  }
+  return message;
 }
 
 // Legacy diagnostic messages are a fixed sentence format. Delimiter searches

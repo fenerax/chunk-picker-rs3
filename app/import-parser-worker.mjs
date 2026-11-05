@@ -4,7 +4,7 @@ import { serialize } from 'node:v8';
 import { Readable } from 'node:stream';
 import { readBackupRequest } from './backup-transfer.mjs';
 import { transferDigest } from './save-transfer.mjs';
-import { displayText } from './import-output.mjs';
+import { boundedImportMessage, displayText } from './import-output.mjs';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 async function run(job) {
@@ -36,7 +36,7 @@ async function run(job) {
       selectors: [...selectors].map(pickerId => ({ pickerId })) } };
 }
 async function send(value) {
-  const bytes = await encodeImportBytes(value);
+  const bytes = await encodeImportBytes(boundedImportMessage(value));
   parentPort.postMessage(bytes, bytes.buffers);
 }
 try { await send({ result: await run(await decodeImportBytes(workerData)) }); }

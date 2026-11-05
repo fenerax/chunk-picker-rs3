@@ -363,6 +363,7 @@ const fullOnlyPatterns = [
 const fullOnlyTests = new Set([
   "save-transfer-publication.test.mjs",
   "save-transfer-review.test.mjs",
+  "save-transfer-response-bounds.test.mjs",
   "save-transfer-regressions.test.mjs",
   "save-transfer-responsiveness.test.mjs",
   "save-transfer-platform-durability.test.mjs",
@@ -556,6 +557,7 @@ const fullOnlyTests = new Set([
 // synthetic fixtures can exceed 2 GiB and measure timer gaps that unrelated
 // test processes would distort.
 export const soloTests = new Set([
+  "save-transfer-response-bounds.test.mjs",
   "save-transfer-publication.test.mjs",
   "activity.test.mjs",
   "area-check-server.private.test.mjs",

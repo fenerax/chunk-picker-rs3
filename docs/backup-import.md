@@ -49,7 +49,11 @@ redundant full clones. Transferable binary batches rebuild an immutable writer
 snapshot cooperatively, including large string leaves. Workers also prepare file
 bytes, dependency hashes, the previous checkpoint and HTTP apply-response bytes;
 the writer publishes these with the existing fsync/atomic-rename durability rules.
-Hooks carry only small summaries and digests. Four users may be queued/running,
+Caller `prepareState` hooks keep their full mutable state, context and validated
+return-value contract. Their input and output use the same cooperative transfer
+protocol; commit hooks carry bounded summaries and digests. Display responses
+share string, collection and total-byte limits at worker egress; exact portable
+state is preserved. Four users may be queued/running,
 with one import per user across pickers; excess work receives a retry message.
 Origin, authentication, administrator access for whole-save replacement,
 player-only restoration, session rechecks, revision checks, previous-state

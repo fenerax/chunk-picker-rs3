@@ -69,6 +69,44 @@ async function fixture(t, initialState = state(), options = {}) {
   return { application, origin, cookie, request, json, upload, invite };
 }
 
+test('import preparation persists a returned normalized state and keeps the normal hook context', async t => {
+  const operations = [];
+  const f = await fixture(t, state(), { prepareState(input, context) {
+    operations.push(context.operation);
+    assert.ok(context.world.chunks.has('100'));
+    assert.equal(typeof context.registry.get, 'function');
+    if (context.operation !== 'replace') return input;
+    // Return a different object: mutating a discarded summary cannot pass.
+    return { ...input, members: input.members.map(member => ({ ...member, notes: { '100': 'Synthetic normalized note' } })) };
+  } });
+  const file = backupFile(exportBackup(state()));
+  const preview = await f.upload('/api/restore/preview', file);
+  assert.equal(preview.status, 200, await preview.clone().text());
+  assert.equal(f.application.store.getInfo().revision, 0);
+  const applied = await f.upload('/api/restore?view=play-v1', file, { expectedRevision: 0 });
+  assert.equal(applied.status, 200, await applied.clone().text());
+  const downloaded = await (await f.request('/api/backup')).json();
+  assert.equal(downloaded.state.members[0].notes['100'], 'Synthetic normalized note');
+  assert.ok(operations.includes('initialize'));
+  assert.equal(operations.filter(operation => operation === 'replace').length, 2);
+});
+
+test('import preparation reads gameplay fields and mutates its full state input', async t => {
+  const f = await fixture(t, state(), { prepareState(input, context) {
+    assert.ok(input.tasks.every(task => typeof task.id === 'string'));
+    assert.ok(Array.isArray(input.history));
+    assert.ok(input.members[0].unlocked.includes('100'));
+    if (context.operation === 'replace') (input.members[0].notes ??= {})['100'] = 'Synthetic mutated note';
+    // Undefined has always meant use the mutated input.
+  } });
+  const file = backupFile(exportBackup(state()));
+  const preview = await f.upload('/api/restore/preview', file);
+  assert.equal(preview.status, 200, await preview.clone().text());
+  const applied = await f.upload('/api/restore?view=play-v1', file, { expectedRevision: 0 });
+  assert.equal(applied.status, 200, await applied.clone().text());
+  assert.equal((await (await f.request('/api/backup')).json()).state.members[0].notes['100'], 'Synthetic mutated note');
+});
+
 test('import apply streams worker state bytes with exact custom-hook pools', async t => {
   const registry = createRuleRegistry([{ id: 'house.synthetic', label: 'Synthetic destination', type: 'boolean', default: true,
     candidates: ({ value }) => value ? [{ id: '102', detail: 'Synthetic custom destination.' }] : [] }]);
@@ -185,7 +223,10 @@ test('gzip file roundtrip and ordinary gzip JSON restore retain revision conflic
   const before = await f.application.store.backup();
   const stale = await f.request('/api/restore?view=play-v1', await ({ ...upload, expectedRevision: 0 }).toBackupRequest());
   assert.equal(stale.status, 409);
-  assert.equal((await stale.json()).state.revision, 1);
+  const conflict = await stale.json();
+  assert.equal(conflict.revision, 1);
+  assert.equal(conflict.state, undefined);
+  assert.ok(Buffer.byteLength(JSON.stringify(conflict)) < 4096);
   assert.deepEqual(await f.application.store.backup(), before);
   const ordinary = await f.request('/api/restore?view=play-v1', { method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip' },
