@@ -97,7 +97,7 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
       await click(page, "document.getElementById('backup-open').closest('details').querySelector('summary')");
     }
     await click(page, element('#backup-open'));
-    await wait(page, () => document.getElementById('tool-dialog').open && document.getElementById('dialog-title').textContent === 'Backup & Import');
+    await wait(page, () => document.getElementById('tool-dialog').open && document.getElementById('dialog-title').textContent === 'Export / Import');
   };
   await open();
   const button = element('#tool-dialog .file-picker button'), preview = dialogButton('Preview restore');
@@ -105,7 +105,7 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
     .some(node => node.checkVisibility() && node.textContent.includes(text)), text);
   await click(page, preview);
   await alert('Choose');
-  await click(page, dialogButton('Download full backup'));
+  await click(page, dialogButton('Full picker backup'));
   // Chrome renames its .crdownload only after the actual download completes.
   const downloaded = await until(async () => (await readdir(downloads)).find(name => name.endsWith('.json.gz')), 10000);
   const backup = await readFile(path.join(downloads, downloaded));

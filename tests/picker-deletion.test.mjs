@@ -173,7 +173,9 @@ test('pre-deletion uploads and retained backups cannot restore old ownership, su
   }
   // A gameplay-only upload can recover the owner's own progress into the new
   // picker, but carries no service identity or capability records.
-  const restored = await f.send('/api/restore', fresh, { body: { backup, expectedRevision: 0 } });
+  const review = await f.send('/api/restore/preview', fresh, { body: { backup } });
+  assert.equal(review.status, 200, review.text);
+  const restored = await f.send('/api/restore', fresh, { body: { backup, expectedRevision: 0, previewToken: review.json().previewToken } });
   assert.equal(restored.status, 200, restored.text);
   assert.equal(await f.picker('101'), freshId);
   assert.equal((await f.send('/api/plugin/v1/status', null, { headers: { Authorization: 'Bearer ' + key } })).status, 401);

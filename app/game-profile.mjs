@@ -71,5 +71,6 @@ export function preserveGameIdentity(dataset, prepareState) {
     return identity && Object.keys(identity).length === 3 && identity.id === dataset.datasetId
       && identity.contractVersion === dataset.datasetContractVersion && identity.digest === dataset.digest;
   };
+  if (!prepareState) prepare.commandIsCurrent = prepare.isCurrent;
   return prepare;
 }

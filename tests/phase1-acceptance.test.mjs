@@ -223,7 +223,9 @@ test('P1.3 colliding requests, receipts, revisions, undo and retained backups st
   assert.equal((await command(f, a, 2, { type: 'undo' })).status, 200);
   assert.equal((await stateOf(f, a)).members[0].notes['12341'], 'Player 1');
   assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 4');
-  assert.equal((await f.send('/api/restore', b, { body: { backupId: backups[0], expectedRevision: 2 } })).status, 200);
+  const review = await f.send('/api/restore/preview', b, { body: { backupId: backups[0] } });
+  assert.equal(review.status, 200, review.text);
+  assert.equal((await f.send('/api/restore', b, { body: { backupId: backups[0], expectedRevision: 2, previewToken: review.json().previewToken } })).status, 200);
   assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 2');
   assert.equal((await stateOf(f, a)).members[0].notes['12341'], 'Player 1');
 });
@@ -529,8 +531,9 @@ test('P1.9 owner capabilities remain scoped and account/global limits remain sha
   for (const route of ['/api/shutdown', '/api/worker-restart', '/api/operator/snapshot']) assert.equal((await f.send(route, a, { body: {} })).status, 403, route);
   assert.equal((await f.note(a, 'Player 1', 0)).status, 200); assert.equal((await f.note(b, 'Player 2', 0)).status, 200);
   const backup = (await f.send('/api/backup', a)).json();
-  assert.equal((await f.send('/api/restore/preview', a, { body: { backup } })).status, 200);
-  assert.equal((await f.send('/api/restore', a, { body: { backup, expectedRevision: 1 } })).status, 200);
+  const review = await f.send('/api/restore/preview', a, { body: { backup } });
+  assert.equal(review.status, 200, review.text);
+  assert.equal((await f.send('/api/restore', a, { body: { backup, expectedRevision: 1, previewToken: review.json().previewToken } })).status, 200);
   assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 2');
   for (const cookie of [a, a2]) assert.equal((await f.send('/api/tasks?memberId=owner', cookie)).status, 200);
   const accountLimit = await f.send('/api/tasks?memberId=owner', a2); assert.equal(accountLimit.status, 429); assert.ok(accountLimit.headers['retry-after']);

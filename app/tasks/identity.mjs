@@ -1,9 +1,10 @@
 import { datasetValue, selectedDataset } from "../dataset-runtime.mjs";
+import { trimTaskStars } from '../import-output.mjs';
 import { identityRegistryVersion, authoredTasks, authoredEntities, authoredGoals, authoredSources } from '../data/identity-registry.mjs';
 
 const normalized = value => String(value).normalize('NFC');
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-const plain = value => normalized(value).replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]).replace(/\*+$/g, '');
+const plain = value => trimTaskStars(normalized(value).replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]));
 const candidatesOf = value => typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
 const entryMap = new Map(), aliasMap = new Map(), entityMap = new Map();
 const sourceMap = new Map();
@@ -309,12 +310,14 @@ export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}
   };
   const snapshot = ids => {
     const retained = ids === undefined ? new Set([...entryMap.keys(), ...layers.keys()]) : new Set(ids);
-    const rows = {}, savedAliases = structuredClone(savedRegistry?.aliases ?? {});
+    const rows = {}, savedAliases = structuredClone(savedRegistry?.aliases ?? {}), visitedAliases = new Set();
     for (const id of retained) {
       const value = lookup(id);
       if (!value) continue;
       rows[id] = value;
       for (const alias of value.aliases) {
+        if (visitedAliases.has(alias)) continue;
+        visitedAliases.add(alias);
         // Saved candidates first, then retained known targets, without repeats.
         const known = aliases.get(alias), saved = savedAliases[alias];
         if (saved === undefined && typeof known === 'string') { if (retained.has(known)) savedAliases[alias] = known; continue; }

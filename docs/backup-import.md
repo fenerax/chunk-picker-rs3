@@ -1,12 +1,29 @@
 # Large portable backups
 
+The current player entry is **More → Export / Import**. See
+[Save transfer](save-transfer.md) for owned picker transfers, roster mapping,
+coverage, transfer reports and original-compatible chunk links.
+
 Backup & Import downloads `.json.gz` and accepts both `.json` and `.json.gz`,
 including the JSON extracted from the scheduled backup ZIP. The helper still
 uses the ordinary `/api/backup` JSON response; its ZIP format is unchanged.
 
-The file ceiling is 256 MiB of UTF-8 JSON after decompression, about seven times
-the 2026-10-13 full save. Wire requests allow 257 MiB for gzip overhead. These
+The file ceiling is 256 MiB of UTF-8 JSON after decompression. A synthetic full
+catalogue, registry and hydrated archive with 2,000 History entries is 49.33 MiB,
+leaving over five times that size. Wire requests allow 257 MiB for gzip overhead. These
 limits apply only to import/restore routes; other request limits are unchanged.
+Imports run in a shared worker queue, one CPU job at a time. Parsing, validation,
+History replay, migration, preview and report preparation run outside the HTTP
+thread. Parsing and preparation share 120 seconds of active checking, with a
+separate 120-second queue wait per admission; a timed-out worker
+is terminated and the file is refused with HTTP 422 before any commit. Each job's
+worker is terminated after success or failure, releasing its save and caches.
+There are no task, History, collection-count or aggregate-work admission caps.
+Destination History is preserved independently of the incoming file. The writer
+accepts only its private validated result, rechecks the revision and caller, then
+retains the preceding save and uses its usual fsync/atomic-rename commit.
+Reports list up to 100 records with bounded text and an accurate omitted count;
+complete evidence remains in the save and export.
 Compressed downloads check the JSON size before starting, so the dialog never
 offers a completed download above the import ceiling. This remains a finite
 memory safeguard, rather than a promise to restore arbitrarily large JSON.
@@ -20,21 +37,29 @@ extracted JSON file. The browser does not parse or stringify the full save.
 
 `app/backup-transfer.mjs` bounds compressed and expanded bytes and feeds
 `app/storage/json-stream.mjs`. That parser builds objects from primitive tokens,
-validates UTF-8 and JSON syntax, and limits nesting to 128 levels. Source text
+validates UTF-8 and JSON syntax, and limits nesting to 128 levels. It yields
+between 32 KiB slices, even when its source supplies one large chunk. Source text
 is retained only for the current token/chunk, not the whole document. Downloads
 serialize bounded batches into gzip instead of building a complete JSON string
 and Buffer. A single import admission covers receiving, previewing or applying
 one backup; additional import requests receive a retry message.
 
-The complete parsed state and existing validation/storage copies still require
-memory. Large individual string tokens also need their complete string text.
-This change removes transport-sized text copies and a redundant full restore
-validation; it does not replace the state model or its validation boundary.
+The complete parsed state still requires memory. Worker-owned validation avoids
+redundant full clones. Transferable binary batches rebuild an immutable writer
+snapshot cooperatively, including large string leaves. Workers also prepare file
+bytes, dependency hashes, the previous checkpoint and HTTP apply-response bytes;
+the writer publishes these with the existing fsync/atomic-rename durability rules.
+Caller `prepareState` hooks keep their full mutable state, context and validated
+return-value contract. Their input and output use the same cooperative transfer
+protocol; commit hooks carry bounded summaries and digests. Display responses
+share string, collection and total-byte limits at worker egress; exact portable
+state is preserved. Four users may be queued/running,
+with one import per user across pickers; excess work receives a retry message.
 Origin, authentication, administrator access for whole-save replacement,
 player-only restoration, session rechecks, revision checks, previous-state
 retention and the restore Undo boundary remain in the existing server paths.
 
-## Copied-save findings
+## Historical copied-save findings (2026-10-13)
 
 Measured only on a copy of `.local/duo`, excluding `store.lock` and `access-token`.
 The source save was never changed. Sizes below are compact UTF-8 JSON; no save

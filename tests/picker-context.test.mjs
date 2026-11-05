@@ -500,11 +500,24 @@ test('revoking an invitation closes only that context stream and refuses its fur
 test('the extracted HTTP dispatcher retains explicit permission decisions for all API routes', async () => {
   const source = await readFile(new URL('../app/picker-context.mjs', import.meta.url), 'utf8');
   const { apiPermission } = await import('../app/picker-context-http.mjs');
+  const { isImportRoute } = await import('../app/backup-transfer.mjs');
   for (const method of ['GET', 'HEAD']) assert.equal(apiPermission(method, '/api/diagnostics'), 'admin');
   const reads = source.slice(source.indexOf("if (request.method === 'GET' || request.method === 'HEAD')"), source.indexOf("} else if (request.method === 'POST')"));
   const writes = source.slice(source.indexOf("} else if (request.method === 'POST')"), source.indexOf("throw httpError(404, 'API route not found.');"));
   for (const [method, section] of [['GET', reads], ['POST', writes]]) {
     const routes = [...section.matchAll(/route === '(\/api\/[^']+)'/g)].map(match => match[1]);
+    if (method === 'POST') {
+      // Transfers share one dispatcher after parsing moved into the worker.
+      assert.match(section, /if \(isImportRoute\(route\)\)/);
+      for (const prefix of ['/api/restore', '/api/import', '/api/member-restore']) {
+        for (const suffix of ['', '/preview']) {
+          const route = prefix + suffix;
+          assert.equal(isImportRoute(route), true);
+          assert.equal(apiPermission(method, route), prefix === '/api/member-restore' ? 'write' : 'admin');
+          routes.push(route);
+        }
+      }
+    }
     assert.ok(routes.length > 25, `${method} dispatcher was found`);
     for (const route of routes) assert.ok(apiPermission(method, route), `${method} ${route} has a permission`);
   }

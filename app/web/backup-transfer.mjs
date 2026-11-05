@@ -1,6 +1,6 @@
 // Files stay as streams/Blobs: never parse or stringify a full save in the browser.
-export const MAX_BACKUP_BYTES = 256 * 1024 * 1024;
-const MAX_UPLOAD_BYTES = MAX_BACKUP_BYTES + 1024 * 1024;
+import { MAX_PORTABLE_BACKUP_BYTES as MAX_BACKUP_BYTES, MAX_UPLOAD_BYTES, BACKUP_LIMIT_LABEL } from './backup-limits.mjs';
+export { MAX_PORTABLE_BACKUP_BYTES as MAX_BACKUP_BYTES, MAX_PORTABLE_BACKUP_BYTES } from './backup-limits.mjs';
 export const BACKUP_UPLOAD_TYPE = 'application/vnd.rs3-backup-upload+json';
 const encoder = new TextEncoder();
 
@@ -16,7 +16,7 @@ function bounded(stream, maximum, message) {
 export function createBackupUpload(file, metadata = {}, { onStage = () => {} } = {}) {
   if (!file) throw new Error('Choose a .json or .json.gz backup.');
   const compressed = /\.gz$/i.test(file.name ?? '');
-  if (file.size > (compressed ? MAX_UPLOAD_BYTES : MAX_BACKUP_BYTES)) throw new Error('This backup is too large. The limit is 256 MiB after decompression.');
+  if (file.size > (compressed ? MAX_UPLOAD_BYTES : MAX_BACKUP_BYTES)) throw new Error(`This backup is too large. The limit is ${BACKUP_LIMIT_LABEL} after decompression.`);
   let prepared;
   const prepare = async signal => {
     signal?.throwIfAborted();
@@ -26,7 +26,7 @@ export function createBackupUpload(file, metadata = {}, { onStage = () => {} } =
       if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot open gzip backups. Unzip the file and choose the .json backup.');
       input = input.pipeThrough(new DecompressionStream('gzip'));
     }
-    input = bounded(input, MAX_BACKUP_BYTES, 'This backup is too large. The limit is 256 MiB after decompression.');
+    input = bounded(input, MAX_BACKUP_BYTES, `This backup is too large. The limit is ${BACKUP_LIMIT_LABEL} after decompression.`);
     if (signal) input = input.pipeThrough(new TransformStream(), { signal });
     const reader = input.getReader();
     let phase = 'prefix';
@@ -55,7 +55,7 @@ export function createBackupUpload(file, metadata = {}, { onStage = () => {} } =
     signal?.throwIfAborted();
     // Metadata stays small and separate, so Apply reuses the compressed file.
     return { method: 'POST', headers: { 'Content-Type': BACKUP_UPLOAD_TYPE, ...(gzip ? { 'Content-Encoding': 'gzip' } : {}),
-      'X-RS3-Import': JSON.stringify({ ...metadata, ...(this.expectedRevision !== undefined ? { expectedRevision: this.expectedRevision } : {}) }) }, body: blob };
+      'X-RS3-Import': JSON.stringify({ ...metadata, ...(this.expectedRevision !== undefined ? { expectedRevision: this.expectedRevision } : {}), ...(this.rosterMapping ? { rosterMapping: this.rosterMapping } : {}), ...(this.sourceMemberId ? { sourceMemberId: this.sourceMemberId } : {}), ...(this.previewToken ? { previewToken: this.previewToken } : {}) }) }, body: blob };
   }, async sendBackupRequest(path, signal, fetchRequest = globalThis.fetch, send = (path, options, transport) => transport(path, options)) {
     const request = await this.toBackupRequest({ signal });
     onStage('Uploading…');

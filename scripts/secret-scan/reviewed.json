@@ -30,6 +30,10 @@
       "reason": "The upstream picker this project derives from."
     },
     {
+      "host": "gitgeddes.github.io",
+      "reason": "Public legacy RS3 picker targeted by the documented chunk URL export format."
+    },
+    {
       "host": "mejrs.github.io",
       "reason": "Public RuneScape map and cache viewer credited as a source."
     },

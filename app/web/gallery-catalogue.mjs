@@ -30,7 +30,7 @@ export const galleryEntries = [
   entry('history', 'History', 'screen-history.mjs', 'history', ['history']),
   entry('coordination', 'Partner changes and catch-up', 'duo-coordination.mjs', 'coordination', ['dom:duo-live', 'dom:duo-catchup']),
   entry('partner-undo', 'Undo partner change', 'duo-coordination.mjs', 'partner-undo', ['dialog:partner-undo']),
-  entry('backup', 'Backup & Import', 'screen-dialogs.mjs', 'backup', ['backup']),
+  entry('backup', 'Export / Import', 'screen-dialogs.mjs', 'backup', ['backup']),
   entry('migration', 'Migration report', 'screen-dialogs.mjs', 'migration', ['backup:migration-report']),
   entry('teleports', 'Teleports', 'teleports.mjs', 'teleports', ['teleports']),
   entry('search', 'Search', 'screen-search.mjs', 'search', ['search']),

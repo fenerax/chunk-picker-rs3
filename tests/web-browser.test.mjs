@@ -375,7 +375,7 @@ for (const legacy of [true, false]) test(`backup picker associates its button wi
 test('Advanced gates History commands and backup reports without removing the ordinary actions', () => {
   const h = harness(); h.run("state.history = [{ revision: 7, type: 'set-note', at: '2026-10-12T12:00:00Z', command: { type: 'set-note' } }]; renderHistory(state.history)");
   assert.ok(h.find('strong', 'set-note')); assert.ok(!h.find('summary', 'Change details'));
-  h.run('backupDialog()'); assert.ok(h.find('button', 'Download full backup')); assert.ok(!h.find('button', 'View migration report'));
+  h.run('backupDialog()'); assert.ok(h.find('button', 'Full picker backup')); assert.ok(!h.find('button', 'View migration report'));
   h.run('state.members[0].preferences.advanced = true; renderHistory(state.history)');
   assert.ok(h.find('summary', 'Change details'));
   h.run('backupDialog()'); assert.ok(h.find('button', 'View migration report'));
@@ -3237,7 +3237,7 @@ test('browsing retained backups keeps a reviewed restore usable and normal apply
   h.all().find(node => node.type === 'file').files = [new File([JSON.stringify({ format: 'rs3-chunk-picker', state: h.snapshot() })], 'fixture.json')];
   h.route(path => path.endsWith('/preview') ? { preview } : path === '/api/backups' ? { backups: [] } : { state: { ...h.snapshot(), revision: 8 }, pools: {} });
   await h.click('Preview import / restore'); await h.click('Browse previous saves'); await h.click('Apply reviewed replacement');
-  assert.equal(h.nodes.get('tool-dialog').open, false); assert.equal(h.run('state.revision'), 8); assert.ok(h.find('span', 'Import saved. Your imported records and previous save are kept in the backup.'));
+  assert.equal(h.nodes.get('tool-dialog').open, true); assert.ok(h.find('button', 'Download transfer report')); assert.equal(h.run('state.revision'), 8); assert.ok(h.find('span', 'Import saved. Your imported records and previous save are kept in the backup.'));
 });
 
 test('retained saves preview and apply by ID with revision checks for both restore scopes', async () => {
@@ -3246,7 +3246,7 @@ test('retained saves preview and apply by ID with revision checks for both resto
     h.run('backupDialog()');
     h.route(path => path === '/api/backups' ? { backups: [{ id: 'snapshot-7.json.gz', revision: 7, at: '2026-10-12T12:00:00Z', bytes: 8192 }] }
       : path.endsWith('/preview') ? { preview, state: incoming } : { state: { ...incoming, revision: 8 }, pools: {} });
-    if (memberId) h.all().find(node => node.tagName === 'SELECT' && node.children.some(option => option.value === memberId)).value = memberId;
+    if (memberId) h.all().find(node => node.tagName === 'SELECT' && node.children.some(option => option.value === '') && node.children.some(option => option.value === memberId)).value = memberId;
     await h.click('Browse previous saves'); await h.click('Preview selected snapshot');
     const route = memberId ? '/api/member-restore' : '/api/restore', previewCall = h.calls.find(call => call.path === `${route}/preview`);
     assert.deepEqual(JSON.parse(JSON.stringify(previewCall.body)), { backupId: 'snapshot-7.json.gz', ...(memberId ? { memberId } : {}) });
@@ -3279,7 +3279,7 @@ test('changing the retained save or restore scope invalidates pending and comple
     h.run('backupDialog()');
     h.route(path => path === '/api/backups' ? { backups: ['snapshot-a', 'snapshot-b'].map(id => ({ id, revision: 7, at: '2026-10-12T12:00:00Z', bytes: 8192 })) } : pending.promise);
     await h.click('Browse previous saves');
-    const control = h.all().find(node => node.tagName === 'SELECT' && node.children.some(option => option.value === (changed === 'save' ? 'snapshot-a' : 'reed')));
+    const control = h.all().find(node => node.tagName === 'SELECT' && (changed === 'save' || node.children.some(option => option.value === '')) && node.children.some(option => option.value === (changed === 'save' ? 'snapshot-a' : 'reed')));
     const loading = h.click('Preview selected snapshot'); await flush();
     control.value = changed === 'save' ? 'snapshot-b' : 'reed'; await control.emit('change');
     pending.resolve({ preview, state: h.snapshot() }); await loading;
@@ -4389,4 +4389,52 @@ test('instant screens: two roll choices remain usable while task calculations ar
     const choices = h.nodes.get('pending-panel').querySelectorAll('button');
     assert.ok(choices.length > 0); assert.ok(choices.every(button => !button.disabled));
   } finally { calculation.resolve(taskResult(8)); await rolling; }
+});
+test('save-transfer owner maps differing rosters and keeps the report download after applying', async () => {
+  const h = harness(), preview = { currentRevision: 7, members: [], rules: { changed: [] }, warnings: [] };
+  h.run("panelContext.account = { isOwner: () => true }; backupDialog()");
+  h.all().find(node => node.type === 'file').files = [new File(['{"format":"rs3-chunk-picker","state":{}}'], 'synthetic.json')];
+  h.route((path, body) => path.endsWith('/preview') ? body.rosterMapping ? { preview, previewToken: 'synthetic-preview', transferReport: { records: [], counts: { dropped: 0 } } }
+    : { mappingRequired: true, sourceRoster: [{ id: 'first', name: 'Player 1' }, { id: 'second', name: 'Player 2' }], destinationRoster: [{ id: 'actor1', name: 'Player 1' }, { id: 'reed', name: 'Player 2' }] }
+    : { state: { ...h.snapshot(), revision: 8 }, pools: {}, transferReport: { records: [], counts: { dropped: 0 } } });
+  await h.click('Preview import / restore');
+  assert.ok(h.find('h3', 'Match the players')); assert.equal(h.find('button', 'Apply reviewed replacement'), undefined);
+  const choices = h.all().filter(node => node.tagName === 'SELECT' && node.children.some(option => option.textContent === 'Choose destination…'));
+  assert.equal(choices.length, 2); choices[0].value = 'actor1'; choices[1].value = 'reed';
+  await h.click('Preview mapped backup');
+  assert.ok(h.find('button', 'Apply reviewed replacement'));
+  assert.ok(h.find('button', 'Download transfer report'));
+  await h.click('Apply reviewed replacement');
+  const apply = h.calls.find(call => call.path === '/api/restore');
+  assert.deepEqual(apply.body.rosterMapping, { first: 'actor1', second: 'reed' });
+  assert.equal(apply.body.previewToken, 'synthetic-preview');
+  assert.equal(h.nodes.get('tool-dialog').open, true);
+  assert.ok(h.find('h3', 'Import complete')); assert.ok(h.find('button', 'Download transfer report'));
+  await h.click('Done'); assert.equal(h.nodes.get('tool-dialog').open, false);
+});
+
+test('save-transfer member preview asks which source member belongs to the destination', async () => {
+  const h = harness(), preview = { currentRevision: 7, members: [], rules: { changed: [] }, warnings: [] };
+  h.run("sessionAdmin = false; sessionMember = 'reed'; backupDialog()");
+  h.all().find(node => node.type === 'file').files = [new File(['{"format":"rs3-chunk-picker","state":{}}'], 'synthetic.json')];
+  h.route((path, body) => body.sourceMemberId ? { preview, previewToken: 'synthetic-preview' } : { mappingRequired: true, sourceRoster: [{ id: 'source', name: 'Player 1' }], destinationRoster: [{ id: 'reed', name: 'Player 1' }] });
+  await h.click('Preview import / restore'); await h.click('Preview mapped backup');
+  const reviewed = h.calls.at(-1);
+  assert.equal(reviewed.path, '/api/member-restore/preview');
+  assert.equal(reviewed.body.sourceMemberId, 'source'); assert.equal(reviewed.body.memberId, 'reed');
+  assert.ok(h.find('button', 'Apply reviewed replacement'));
+});
+test('save-transfer chunk export supplies a selectable fallback and ignores stale responses', async () => {
+  const h = harness(); h.context.navigator = { clipboard: { writeText: async () => { throw new Error('Synthetic clipboard denial'); } } };
+  h.run('backupDialog()');
+  h.route(() => ({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', message: 'Only unlocked chunks carry over.' }));
+  await h.click('Copy link for the original picker');
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Export unlocked chunks');
+  const link = h.all().find(node => node.tagName === 'INPUT' && node.readOnly);
+  assert.equal(link.value, 'https://gitgeddes.github.io/ChunkPicker/?fv');
+  assert.equal(h.context.document.activeElement, link);
+  h.run('backupDialog()'); const pending = deferred(); h.route(() => pending.promise);
+  const request = h.click('Copy link for the original picker'); await flush(); h.run('settingsPanels.settings()');
+  pending.resolve({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', message: 'Only chunks.' }); await request;
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Settings');
 });

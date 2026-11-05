@@ -10,11 +10,11 @@ export function backupSaveLabel(backup, lookups) {
 }
 
 const warnings = {
-  failed: 'The latest backup failed. Review Backup & Import and check the backup destination.',
+  failed: 'The latest backup failed. Review Export / Import and check the backup destination.',
   stale: 'No successful backup in the last two days. Check that the desktop and backup destination are available.',
-  'not-configured': 'Automatic backups are not configured. Download a full backup from Backup & Import.',
+  'not-configured': 'Automatic backups are not configured. Download a full backup from Export / Import.',
   'not-run': 'Automatic backups have not run yet. Download a full backup while waiting for the first run.',
-  unavailable: 'Backup status is unavailable. Open Backup & Import to check again or download a full backup.',
+  unavailable: 'Backup status is unavailable. Open Export / Import to check again or download a full backup.',
 };
 
 function when(value) {

@@ -1,6 +1,9 @@
+import { boundedOutput, displayText, readableMigrationWarning, REPORT_RECORDS, warningOutput } from './import-output.mjs';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { createGzip } from 'node:zlib';
+import { createGzip, createBrotliCompress, constants } from 'node:zlib';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
 import { importLegacyMaps } from './core/state.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
@@ -8,7 +11,7 @@ import { TICK_ACTIVE_TASKS } from './core/tick-active-tasks.mjs';
 import { PLAY_VIEW } from './play-view.mjs';
 import { createRepresentation, sendRepresentation, negotiateEncoding, PRIVATE_NO_STORE } from './http-response.mjs';
 
-// Backup routes use their separate streaming 256 MiB limit.
+// Backup routes use their separate streaming 208 MiB limit.
 export const MAX_BODY = 1024 * 1024;
 // About one task recalculation plus the usual quiet window on the real save.
 export const NOTE_PREWARM_QUIET_MS = 5000;
@@ -34,7 +37,7 @@ export const routePermissions = Object.freeze({
     '/api/helper-drops': 'read', '/api/helper-progress': 'read', '/api/xp-choices': 'read', '/api/backup-status': 'admin',
     '/api/teleports': 'write', '/api/skill-guide-catalogue': 'read', '/api/training-plan': 'write',
     '/api/task-why': 'read', '/api/task-how': 'write', '/api/tasks': 'saved-tasks', '/api/area-check': 'read', '/api/backlog-search': 'read', '/api/pool-ranking': 'read', '/api/predict': 'write', '/api/death-estimates': 'write', '/api/chunk-planning': 'write',
-    '/api/migration': 'read', '/api/rules': 'read', '/api/backup': 'write', '/api/backups': 'write',
+    '/api/export/original-chunks': 'write', '/api/migration': 'read', '/api/rules': 'read', '/api/backup': 'write', '/api/backups': 'write',
     '/api/backups/:id': 'write', '/api/members-start': 'write', '/api/events': 'read',
   }),
   POST: Object.freeze({
@@ -137,7 +140,7 @@ export function acceptsFastGzip(request) {
   try { return negotiateEncoding(`${request.headers['accept-encoding'] ?? ''}, br;q=0`) === 'gzip'; }
   catch (error) { if (error.status !== 406) throw error; return false; }
 }
-export async function jsonBytes(request, response, status, bytes, headers = {}) {
+export async function jsonBytes(request, response, status, bytes, headers = {}, { identityETag } = {}) {
   const unacceptable = () => { response.writeHead(406, { 'Cache-Control': PRIVATE_NO_STORE, Vary: 'Accept-Encoding', 'Content-Length': 0 }); response.end(); };
   if (status === 406) { unacceptable(); return; }
   try {
@@ -146,12 +149,33 @@ export async function jsonBytes(request, response, status, bytes, headers = {}) 
     const compactTasks = (request.url ?? '').split('?')[0] === '/api/tasks' && new URL(request.url, 'http://localhost').searchParams.get('view') === PLAY_VIEW;
     const transport = compactTasks && acceptsFastGzip(request) ? { method: request.method,
       headers: { ...request.headers, 'accept-encoding': 'gzip, identity;q=0' } } : request;
-    return await sendRepresentation(transport, response, createRepresentation(bytes, { cacheControl: PRIVATE_NO_STORE }),
+    return await sendRepresentation(transport, response, createRepresentation(bytes, { cacheControl: PRIVATE_NO_STORE, identityETag }),
       { status, headers, conditional: false });
   } catch (error) {
     if (error.status !== 406 || response.headersSent) throw error;
     unacceptable();
   }
+}
+
+// Custom JavaScript roll hooks stay in the caller. Their complete pool response
+// is joined to worker-serialized state bytes through a bounded stream, without a
+// whole imported-state string, Buffer concatenation, or main-thread digest.
+export async function importedStateJSON(request, response, { stateBytes, metadata }, pools) {
+  const encoding = negotiateEncoding(request.headers['accept-encoding']);
+  const tail = Buffer.from(`,${JSON.stringify({ pools, ...metadata }).slice(1)}`);
+  response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE,
+    Vary: 'Accept-Encoding', ...(encoding !== 'identity' ? { 'Content-Encoding': encoding } : {}) });
+  async function* parts() {
+    yield Buffer.from('{"state":');
+    let turn = performance.now();
+    for (let offset = 0; offset < stateBytes.length; offset += 64 * 1024) {
+      yield stateBytes.subarray(offset, offset + 64 * 1024);
+      if (performance.now() - turn >= 4) { await new Promise(resolve => setImmediate(resolve)); turn = performance.now(); }
+    }
+    yield tail;
+  }
+  await pipeline(Readable.from(parts()), ...(encoding === 'gzip' ? [createGzip({ level: 1 })]
+    : encoding === 'br' ? [createBrotliCompress({ params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })] : []), response);
 }
 
 // Storage returns immutable JSON from the committed snapshot. Reusing it avoids
@@ -204,14 +228,14 @@ export async function containedFile(directory, relative) {
 }
 
 export function migrationSummary(state) {
+  const tasks = new Map(state.tasks.map(task => [task.id, task]));
+  const members = new Map(state.members.map(member => [member.id, member]));
+  const maps = new Map();
+  for (const member of state.members) if (!maps.has(member.sourceMapId)) maps.set(member.sourceMapId, member);
   const migration = state.legacy?.gameplayMigration;
   const unresolved = migration?.unresolved ?? [];
   const identities = state.provenance?.taskIdentityMigration;
-  const warnings = [...(migration?.warnings ?? unresolved.map(item => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${state.members.find(member => member.id === item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`))].map(warning => String(warning)
-    .replace(/Could not migrate ([^ ]+) (.+?) for member ([^:]+): (.+?)\./g, (_, source, task, memberId, reason) => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[source] ?? source} ${task} for ${state.members.find(member => member.id === memberId)?.name ?? memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[reason] ?? reason}.`)
-    .replace(/Unresolved saved task ID ([^ ]+) at (.+); the original record is preserved for review\./g, (_, id, path) => `Saved task ${state.tasks.find(task => task.id === id)?.label ?? id} at ${path} could not be matched; the original record is kept for review.`)
-    .replace(/Map ([^ ]+) has /g, (_, id) => `${state.members.find(member => member.sourceMapId === id)?.name ?? id}’s original map has `)
-    .replace(/Member ([^ ]+) references missing legacy map ([^.]+)\./g, (_, id, mapId) => `${state.members.find(member => member.id === id)?.name ?? id}’s original map ${mapId} is missing from this save.`)
+  const warnings = [...(migration?.warnings?.slice(0, REPORT_RECORDS) ?? unresolved.slice(0, REPORT_RECORDS).map(item => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${members.get(item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`))].map(warning => readableMigrationWarning(warning, { tasks: tasks, members: members, maps: maps })
     .replaceAll('it remains in legacy data.', 'it stays in the saved original-picker copy.')
     .replaceAll('unsupported chunk key', 'unsupported chunk number')
     .replaceAll('map-wide chunkNotes document with no base chunk key', 'map-wide note with no whole chunk number')
@@ -222,11 +246,11 @@ export function migrationSummary(state) {
     .replaceAll('Task identity collisions establish a new undo boundary; the complete preceding history is retained in migration archives.', 'Different saved task records match the same task. Undo now starts after this import; all earlier History is kept in the saved import archive.')
     .replaceAll('task identity conflict(s) were preserved in migration provenance; explicit canonical fields take precedence.', 'conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.')
     .replaceAll('task identity conflict(s) remain in migration provenance for review.', 'conflicting saved task records remain in the import details for review.'));
-  for (const item of identities?.unresolved ?? []) warnings.push(`Saved task ${state.tasks.find(task => task.id === item.originalId)?.label ?? item.originalId} at ${item.path} could not be matched; the original record is kept for review.`);
+  for (const item of (identities?.unresolved ?? []).slice(0, REPORT_RECORDS)) warnings.push(`Saved task ${displayText(tasks.get(item.originalId)?.label ?? item.originalId)} at ${displayText(item.path)} could not be matched; the original record is kept for review.`);
   if (identities?.conflicts?.length) warnings.push(`${identities.conflicts.length} conflicting saved task records remain in the import details for review.`);
-  return { stateRevision: state.revision, warnings: [...new Set(warnings)],
-    report: { ...(migration?.report ?? { catalogueTasks: state.tasks.length, unresolved, taskStatusProvenance: migration?.taskStatusProvenance ?? [] }),
-      ...(identities ? { identities: Object.fromEntries(Object.entries(identities).filter(([key]) => key !== 'archives')) } : {}) } };
+  return boundedOutput({ stateRevision: state.revision, warnings: warningOutput(warnings, (migration?.warnings?.length ?? unresolved.length) + (identities?.unresolved?.length ?? 0) + (identities?.conflicts?.length ? 1 : 0)),
+    report: boundedOutput({ ...(migration?.report ?? { catalogueTasks: state.tasks.length, unresolved, taskStatusProvenance: migration?.taskStatusProvenance ?? [] }),
+      ...(identities ? { identities: Object.fromEntries(Object.entries(identities).filter(([key]) => key !== 'archives')) } : {}) }) });
 }
 
 export function convertLegacyCapture(document, { members, capturedAt, registry } = {}) {

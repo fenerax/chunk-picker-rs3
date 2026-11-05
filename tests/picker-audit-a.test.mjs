@@ -192,7 +192,9 @@ test('MP12A-2: restoring a source binding cannot read the shared original maps',
   assert.deepEqual(backup.state.members.map(member => member.id), ['owner']);
   // The attacker changes only their own exported gameplay, never another store.
   backup.state.members[0].sourceMapId = legacyMembers[0].mapId;
-  const restored = await f.send('/api/restore', cookie, { body: { backup, expectedRevision: 0 } });
+  const review = await f.send('/api/restore/preview', cookie, { body: { backup } });
+  assert.equal(review.status, 200, review.text);
+  const restored = await f.send('/api/restore', cookie, { body: { backup, expectedRevision: 0, previewToken: review.json().previewToken } });
   assert.equal(restored.status, 200, restored.text);
   assert.equal(reads, 0);
   const preview = await f.send('/api/original-sync/preview', cookie, { body: {} });
@@ -202,7 +204,9 @@ test('MP12A-2: restoring a source binding cannot read the shared original maps',
   const command = await f.send('/api/command', cookie, { body: { expectedRevision: 1,
     command: { type: 'sync-original', previewId: randomUUID(), members: [] } } });
   assert.equal(command.status, 404);
-  const memberRestored = await f.send('/api/member-restore', cookie, { body: { backup, memberId: 'owner', expectedRevision: 1 } });
+  const personalReview = await f.send('/api/member-restore/preview', cookie, { body: { backup, memberId: 'owner' } });
+  assert.equal(personalReview.status, 200, personalReview.text);
+  const memberRestored = await f.send('/api/member-restore', cookie, { body: { backup, memberId: 'owner', expectedRevision: 1, previewToken: personalReview.json().previewToken } });
   assert.equal(memberRestored.status, 200, memberRestored.text);
   assert.equal((await f.send('/api/original-sync/preview', cookie, { body: {} })).status, 404);
   const imported = await f.send('/api/import', cookie, { body: { expectedRevision: 2,

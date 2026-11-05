@@ -386,6 +386,18 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       await point('account-recorded', account.defaultPickerId);
       const picker = await ensureDefault(account.id); return { account: requireAccount(current, account.id), picker };
     }); },
+    // Reserve gameplay slots before a replacement commit. This only grows the
+    // roster allowlist, never assigns accounts or capabilities. If a state write
+    // fails, unused slots are harmless and the preceding state remains loadable.
+    reserveTransferMembers(pickerId, memberIds) { return enqueue(async () => {
+      registryMembers(memberIds);
+      const next = copy(current), picker = activePicker(next, pickerId);
+      if (picker.kind !== 'default') throw error(403, 'Only owned pickers can reserve imported member slots.');
+      const required = next.accounts.flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId));
+      if (required.some(id => !memberIds.includes(id))) throw error(422, 'Roster mapping must keep every assigned participant.');
+      picker.memberIds = [...new Set([...picker.memberIds, ...memberIds])];
+      enforceCaps(next, ledger); await save(next); return picker;
+    }); },
     ensureDefaultPicker(accountId) { return enqueue(() => ensureDefault(accountId)); },
     attachMembership(accountId, membership) { return enqueue(async () => {
       const next = copy(current), account = requireAccount(next, accountId), picker = activePicker(next, membership?.pickerId);

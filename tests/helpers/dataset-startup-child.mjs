@@ -31,6 +31,15 @@ try {
     assert.equal(runtime.headers.get('content-security-policy'), "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
     const payload = await get('/api/dataset-runtime'); assert.equal(payload.status, 200);
     const selected = await payload.json(); assert.equal(selected.dataset.digest, config.digest);
+    // The release startup probe calls backup() after serving tasks. Its worker
+    // must inherit the verified packed selection, just like calculation workers.
+    const backup = await application.store.backup();
+    assert.equal(backup.state.revision, application.store.getInfo().revision);
+    const { datasetEngineContext } = await import('../../app/dataset-runtime.mjs');
+    for (const gzip of [false, true]) {
+      const exported = await application.store.exportBackup({ dataset: datasetEngineContext(application.dataset), gzip });
+      assert.ok(exported.bytes.length > 0);
+    }
     const staticPayload = await get('/data/dataset-runtime.json'); assert.equal(staticPayload.status, 200);
     assert.deepEqual(await staticPayload.json(), selected);
     assert.equal((await get(`/data/training/methods.f2p.json?digest=${'0'.repeat(64)}`)).status, 409);

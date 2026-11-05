@@ -15,6 +15,8 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "save-transfer.test.mjs",
+  "save-transfer-server.test.mjs",
   "session-residency.test.mjs",
   "live-timings.test.mjs",
   "live-timings-server.test.mjs",
@@ -359,6 +361,13 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "save-transfer-publication.test.mjs",
+  "save-transfer-review.test.mjs",
+  "save-transfer-response-bounds.test.mjs",
+  "save-transfer-wide-hook.test.mjs",
+  "save-transfer-regressions.test.mjs",
+  "save-transfer-responsiveness.test.mjs",
+  "save-transfer-platform-durability.test.mjs",
   "platform-rollback.test.mjs",
   "prewarm-process-tree.test.mjs",
   "warm-restart-worker.test.mjs",
@@ -545,7 +554,13 @@ const fullOnlyTests = new Set([
 // Solo: files that fail on open-f2p (duo rules, storage identity or catalogue data) and
 // still peak at 550 MiB or more on duo-legacy. They run first, alone, so three files at
 // once stay bounded by the ordinary files (top 12 at three at once: 1.45 GiB).
+// Import responsiveness and publication boundaries also run alone: their large
+// synthetic fixtures can exceed 2 GiB and measure timer gaps that unrelated
+// test processes would distort.
 export const soloTests = new Set([
+  "save-transfer-response-bounds.test.mjs",
+  "save-transfer-wide-hook.test.mjs",
+  "save-transfer-publication.test.mjs",
   "activity.test.mjs",
   "area-check-server.private.test.mjs",
   "art-pack-server.test.mjs",
@@ -586,6 +601,7 @@ export const soloTests = new Set([
   "preview-resource-contents.test.mjs",
   "retained-unsupported-corrections.test.mjs",
   "runemetrics-server.test.mjs",
+  "save-transfer-responsiveness.test.mjs",
   "scheduling-server.private.test.mjs",
   "server-reliability.private.test.mjs",
   "server.test.mjs",
