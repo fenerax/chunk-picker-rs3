@@ -22,7 +22,7 @@ export function restoreChildError(record) {
 }
 
 // Human reporters keep their original stacks and assertion diffs. The ledger
-// separately uses childErrorRecord(), which excludes all of these payloads.
+// separately builds records using only its allowlisted public vocabulary.
 export function transportChildError(error, depth = 0) {
   const record = childErrorRecord(error);
   if (!record || depth > 8 || typeof error !== 'object') return record;

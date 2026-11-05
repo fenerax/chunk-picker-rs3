@@ -67,7 +67,7 @@ if (process.argv.includes('--help')) {
       if (coverage) await coverage.write(process.env.RS3_COVERAGE_REPORT, { passed: result.passed });
       process.exitCode = result.exitCode;
     } finally {
-      if (ledger) console.log('File telemetry: ' + JSON.stringify(ledger.finish()));
+      ledger?.report();
       for (const key of [...held.keys()]) await flush(key).catch(() => {});
       events.end();
       await reporting;

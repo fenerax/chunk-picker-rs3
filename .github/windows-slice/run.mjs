@@ -9,8 +9,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createCoverageReporter } from '../../scripts/ci/coverage-reporter.mjs';
-import { createFileLedger } from '../../scripts/ci/file-ledger.mjs';
-import { childErrorRecord } from '../../scripts/test-child-errors.mjs';
+import { createFileLedger, errorRedactor } from '../../scripts/ci/file-ledger.mjs';
 
 // Audited against all 116 skips in run 39603812368. Keep equal to
 // scripts/private-companion/neutral-lane.mjs windowsBoundTests.
@@ -74,6 +73,7 @@ const ledger = createFileLedger({ destination: path.join(work, 'windows-ledger.j
 try {
 console.log(`Node ${process.version}; memory ${(freemem() / GiB).toFixed(1)} of ${(totalmem() / GiB).toFixed(1)} GiB free; ${windowsFiles.length} files`);
 const output = new Map(), failures = new Map(), coverage = new Map();
+const redactError = errorRedactor();
 const keyOf = file => path.basename(file);
 const onEvent = async ({ type, data }) => {
   const file = data?.entryFile ?? data?.file;
@@ -82,9 +82,9 @@ const onEvent = async ({ type, data }) => {
   coverage.get(key)?.onEvent({ type, data });
   if (type === 'test:stdout' || type === 'test:stderr') output.set(key, (output.get(key) ?? '') + data.message);
   if (type === 'test:fail' && data.details?.type !== 'suite') {
-    const cause = childErrorRecord(data.details?.error?.cause ?? data.details?.error);
+    const cause = redactError(data.details?.error?.cause ?? data.details?.error);
     const list = failures.get(key) ?? [];
-    list.push(`${data.name}: ${JSON.stringify(cause)}`);
+    list.push(JSON.stringify(cause));
     failures.set(key, list);
   }
 };
@@ -166,5 +166,5 @@ if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SU
 console.log('\n' + lines.join('\n'));
 process.exitCode = summary.passed ? 0 : 1;
 } finally {
-  console.log('File telemetry: ' + JSON.stringify(ledger.finish()));
+  ledger.report();
 }

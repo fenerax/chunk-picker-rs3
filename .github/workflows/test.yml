@@ -95,6 +95,7 @@ jobs:
           RS3_TEST_FILE_LEDGER: ${{ runner.temp }}/test-ledger.jsonl
       - name: Keep file telemetry
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-ledger-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -141,6 +142,7 @@ jobs:
         run: ./.github/windows-slice/run.ps1 -Checkout . -Work "${{ runner.temp }}/ws"
       - name: Keep file telemetry
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-ledger-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

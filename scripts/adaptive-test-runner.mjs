@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
 import { childErrorRecord, restoreChildError, transportChildError } from './test-child-errors.mjs';
+import { datasetIdentity, telemetryAttempt, warnTelemetry } from './test-telemetry.mjs';
 
 export const GiB = 1024 ** 3;
 const self = fileURLToPath(import.meta.url);
@@ -134,10 +135,12 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
   let datasetReceipt;
   if (datasetRoot) {
     const start = performance.now();
-    await mkdir(datasetRoot, { recursive: true });
-    datasetReceipt = path.join(datasetRoot, randomUUID() + '.jsonl');
-    environment.RS3_TEST_DATASET_RECEIPT = datasetReceipt;
-    telemetryMs += performance.now() - start;
+    try {
+      await mkdir(datasetRoot, { recursive: true });
+      datasetReceipt = path.join(datasetRoot, randomUUID() + '.jsonl');
+      environment.RS3_TEST_DATASET_RECEIPT = datasetReceipt;
+    } catch { warnTelemetry(); }
+    finally { telemetryMs += performance.now() - start; }
   }
   let traceDirectory;
   if (traceRoot) {
@@ -167,7 +170,7 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
     if (type === 'rs3:telemetry-cost') { telemetryMs += data.overheadMs; return; }
     if (data?.details?.error) {
       const start = performance.now();
-      if (type === 'test:complete' && !data.details.passed) errors.push(childErrorRecord(data.details.error));
+      if (type === 'test:complete' && !data.details.passed) telemetryAttempt(() => errors.push(childErrorRecord(data.details.error)));
       data.details.error = restoreChildError(data.details.error);
       telemetryMs += performance.now() - start;
     }
@@ -201,12 +204,15 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
       const identities = new Map();
       for (const line of (await readFile(datasetReceipt, 'utf8')).split('\n').filter(Boolean)) {
         let value; try { value = JSON.parse(line); } catch { continue; }
-        if (Number.isFinite(value.overheadMs)) telemetryMs += value.overheadMs;
-        else if (['duo-legacy', 'open-f2p', 'open-starter'].includes(value.id) && /^[a-f0-9]{64}$/.test(value.digest ?? '')) identities.set(value.id + ':' + value.digest, value);
+        if (Number.isFinite(value?.overheadMs) && value.overheadMs >= 0) telemetryMs += value.overheadMs;
+        else {
+          const { datasetId: id, datasetDigest: digest } = datasetIdentity(value);
+          if (id && digest) identities.set(id + ':' + digest, { id, digest });
+        }
       }
       datasets.push(...identities.values());
-    } catch { /* A diagnostic read cannot change the test outcome. */ }
-    await rm(datasetReceipt, { force: true }).catch(() => {});
+    } catch (error) { if (error.code !== 'ENOENT') warnTelemetry(); }
+    await rm(datasetReceipt, { force: true }).catch(() => warnTelemetry());
     telemetryMs += performance.now() - start;
   }
   const telemetry = { completedAt, errors, datasets, telemetryMs, cancelled: signal?.aborted === true };
@@ -402,7 +408,10 @@ async function worker(file) {
     }
     await new Promise((resolve, reject) => process.send(event, error => error ? reject(error) : resolve()));
   }
-  await new Promise((resolve, reject) => process.send({ type: 'rs3:telemetry-cost', data: { overheadMs: telemetryMs } }, error => error ? reject(error) : resolve()));
+  await new Promise(resolve => {
+    try { process.send({ type: 'rs3:telemetry-cost', data: { overheadMs: telemetryMs } }, error => { if (error) warnTelemetry(); resolve(); }); }
+    catch { warnTelemetry(); resolve(); }
+  });
   process.exitCode = success ? 0 : 1;
   process.disconnect();
 }

@@ -1,41 +1,44 @@
 import path from 'node:path';
 import { closeSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { hostname } from 'node:os';
 import { performance } from 'node:perf_hooks';
-import { childErrorRecord } from '../test-child-errors.mjs';
+import { datasetIdentity, telemetryAttempt, warnTelemetry } from '../test-telemetry.mjs';
+export { datasetIdentity } from '../test-telemetry.mjs';
 
 const duration = value => Number.isFinite(value) && value >= 0 ? Math.round(value * 1000) / 1000 : null;
-const ids = new Set(['duo-legacy', 'open-f2p', 'open-starter']);
-export const datasetIdentity = value => ({ datasetId: ids.has(value?.datasetId ?? value?.id) ? value.datasetId ?? value.id : null,
-  datasetDigest: /^[a-f0-9]{64}$/.test(value?.datasetDigest ?? value?.digest ?? '') ? value.datasetDigest ?? value.digest : null });
+const errorNames = new Set(['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError',
+  'TypeError', 'URIError', 'AggregateError', 'AssertionError', 'AbortError', 'DOMException', 'SystemError']);
+const failureTypes = new Set(['testCodeFailure', 'subtestsFailed', 'cancelledByParent', 'testTimeoutFailure',
+  'hookFailed', 'parentAlreadyFinished', 'testAborted', 'uncaughtException', 'unhandledRejection',
+  'callbackAndPromisePresent', 'multipleCallbackInvocations', 'asyncActivity']);
+const redacted = '[redacted]';
+const scalar = (value, allowed) => typeof value === 'boolean' || Number.isFinite(value) ? value
+  : typeof value === 'string' && allowed(value) ? value : redacted;
+const timestamp = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)
+  && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
 
-// Never copy arbitrary Error properties, assertion actual/expected, stacks or
-// output. Redact known identities/credentials as well as paths and endpoints.
-export function errorRedactor(env = process.env) {
-  const privateValues = [...new Set([hostname(), env.COMPUTERNAME, env.USERNAME, env.USER, env.LOGNAME,
-    ...Object.entries(env).filter(([key]) => /TOKEN|SECRET|PASSWORD|(?:^|_)KEY(?:_|$)|API_?KEY|CREDENTIAL/i.test(key)).map(([, value]) => value)]
-    .filter(value => typeof value === 'string' && value.length >= 3))].sort((a, b) => b.length - a.length);
-  const clean = value => {
-    let text = String(value);
-    for (const value of privateValues) text = text.replace(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '[redacted]');
-    return text.replace(/\b(?:Bearer\s+\S+|(?:token|password|secret|api[_-]?key|credential|authorization)\s*[:=]\s*\S+)/gi, '[credential]')
-      .replace(/(?:https?|wss?):\/\/[^\s'"<>]+/gi, '[endpoint]')
-      .replace(/\b[A-Z]:[\\/][^\s'"<>]*/gi, '[path]').replace(/(?:^|(?<=[\s('"=]))\/(?:[^\s'"<>]+\/)*[^\s'"<>]*/g, '[path]')
-      .replace(/\b[\w.+-]+@[\w.-]+\b/g, '[email]')
-      .replace(/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g, '[address]')
-      .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,63}\b(?::\d+)?/gi, '[host]')
-      .replace(/\[?[a-f0-9]*::[a-f0-9:.%]*\]?(?::\d+)?/gi, '[address]')
-      .replace(/\b(?:localhost|[a-f0-9]*:[a-f0-9:]+:[a-f0-9]*)\b/gi, '[address]').slice(0, 4096);
+// Public vocabulary only. Never inspect, stringify or enumerate free-form
+// payloads, including message, stack, actual/expected and primitive causes.
+export function errorRedactor() {
+  const visit = (error, depth, seen) => {
+    if (error == null) return null;
+    if (depth >= 8 || seen.has(error)) return { message: '[cause truncated]' };
+    if (typeof error !== 'object') return { message: scalar(error, () => false) };
+    seen.add(error);
+    const record = { message: scalar(error.message, () => false) };
+    for (const [key, allowed] of [
+      ['name', value => errorNames.has(value)],
+      ['code', value => /^(?:E[A-Z0-9_]+|ERR_[A-Z0-9_]+)$/.test(value)],
+      ['failureType', value => failureTypes.has(value)],
+    ]) {
+      const value = error[key];
+      if (value !== undefined) record[key] = scalar(value, allowed);
+    }
+    const cause = error.cause;
+    if (cause !== undefined) record.cause = visit(cause, depth + 1, seen);
+    return record;
   };
-  const redact = error => {
-    const record = childErrorRecord(error);
-    if (!record) return null;
-    const visit = record => Object.fromEntries(Object.entries(record).map(([key, value]) => [key, key === 'cause' ? visit(value)
-      : typeof value === 'number' ? value : clean(key === 'message' && (record.code === 'ERR_ASSERTION' || record.name === 'AssertionError') ? value.split('\n')[0] : value)]));
-    return visit(record);
-  };
-  return redact;
+  return error => telemetryAttempt(() => visit(error, 0, new Set())) ?? (error == null ? null : { message: redacted });
 }
 
 const emptyAttempt = () => ({ outcome: 'not-admitted', admittedAt: null, completedAt: null, queueWaitMs: null,
@@ -65,68 +68,97 @@ export function readFileLedger(source) {
   return { ...header, receipts: [...receipts.values()], summary };
 }
 
-export function createFileLedger({ destination, cwd = process.cwd(), files, lane = 'test', env = process.env } = {}) {
-  if (!['test', 'windows', 'differential', 'engine-differential'].includes(lane)) throw Error('Invalid ledger lane');
-  const paths = /^[A-Za-z]:[\\/]/.test(cwd) ? path.win32 : path.posix;
-  const relative = file => {
-    const name = paths.relative(cwd, paths.resolve(cwd, file)).replaceAll('\\', '/');
-    if (!/^tests\/[a-zA-Z0-9_.-]+\.mjs$/.test(name)) throw Error('Invalid ledger file');
-    return name;
-  };
-  const expected = files.map(relative).sort();
-  if (!expected.length || new Set(expected).size !== expected.length) throw Error('Invalid ledger inventory');
-  const inventory = new Set(expected), admitted = new Set(), completed = new Set();
-  const redact = errorRedactor(env);
-  let overheadMs = 0, descriptor, finalSummary;
+export function createFileLedger(options = {}) {
+  let descriptor, disabled = false, finalSummary, overheadMs = 0, state;
   const measure = action => { const start = performance.now(); try { return action(); } finally { overheadMs += performance.now() - start; } };
-  const append = record => measure(() => writeSync(descriptor, JSON.stringify(record) + '\n'));
-  measure(() => {
+  const close = () => {
+    if (descriptor === undefined) return;
+    const fd = descriptor; descriptor = undefined;
+    telemetryAttempt(() => closeSync(fd));
+  };
+  const attempt = action => {
+    if (disabled) return;
+    try { return measure(action); }
+    catch { disabled = true; warnTelemetry(); close(); }
+  };
+  // No raw strings or Error objects reach this sink. Every record is built
+  // below from fixed enums, validated public metadata and numeric/boolean data.
+  const append = record => {
+    const bytes = JSON.stringify(record) + '\n';
+    if (writeSync(descriptor, bytes) !== Buffer.byteLength(bytes)) throw Error('Incomplete telemetry write');
+  };
+  attempt(() => {
+    const { destination, cwd = process.cwd(), files, lane = 'test', env = process.env } = options;
+    if (!['test', 'windows', 'differential', 'engine-differential'].includes(lane)) throw Error('Invalid ledger lane');
+    const paths = /^[A-Za-z]:[\\/]/.test(cwd) ? path.win32 : path.posix;
+    const relative = file => {
+      const name = paths.relative(cwd, paths.resolve(cwd, file)).replaceAll('\\', '/');
+      if (!/^tests\/[a-zA-Z0-9_.-]+\.mjs$/.test(name)) throw Error('Invalid ledger file');
+      return name;
+    };
+    const expected = Array.from(files, relative).sort();
+    if (!expected.length || new Set(expected).size !== expected.length) throw Error('Invalid ledger inventory');
+    state = { expected, relative, inventory: new Set(expected), admitted: new Set(), completed: new Set() };
     mkdirSync(path.dirname(destination), { recursive: true });
     descriptor = openSync(destination, 'w');
-    writeSync(descriptor, JSON.stringify({ schema: 'rs3-file-ledger-v1', lane,
-      sha: /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? '') ? env.GITHUB_SHA : null,
-      runId: /^\d+$/.test(env.GITHUB_RUN_ID ?? '') ? env.GITHUB_RUN_ID : null,
-      runAttempt: /^\d+$/.test(env.GITHUB_RUN_ATTEMPT ?? '') ? Number(env.GITHUB_RUN_ATTEMPT) : null,
-      selectedAt: new Date().toISOString(), files: expected }) + '\n');
+    const publicString = (value, pattern) => typeof value === 'string' && pattern.test(value) ? value : null;
+    append({ schema: 'rs3-file-ledger-v1', lane,
+      sha: publicString(env.GITHUB_SHA, /^[a-f0-9]{40}$/),
+      runId: publicString(env.GITHUB_RUN_ID, /^\d+$/),
+      runAttempt: duration(Number(publicString(env.GITHUB_RUN_ATTEMPT, /^\d+$/))) || null,
+      selectedAt: new Date().toISOString(), files: expected });
   });
   const key = (file, attempt) => {
-    file = relative(file);
-    if (!inventory.has(file) || ![1, 2].includes(attempt)) throw Error('Unexpected ledger attempt');
+    file = state.relative(file);
+    if (!state.inventory.has(file) || ![1, 2].includes(attempt)) throw Error('Unexpected ledger attempt');
     return [file, `${file}:${attempt}`];
   };
-  return {
-    onAdmit(info, attempt = 1) {
-      const [file, id] = key(info.file, attempt);
-      if (admitted.has(id)) throw Error('Duplicate ledger admission');
-      append({ type: 'admitted', file, attempt, value: { outcome: 'interrupted', admittedAt: info.admittedAt,
-        queueWaitMs: duration(info.queueWaitMs), solo: info.solo, concurrency: info.concurrency,
-        ...datasetIdentity({ datasetId: info.datasetId }) } });
-      admitted.add(id);
-    },
-    onFile(result, attempt = 1) {
-      const [file, id] = key(result.file, attempt);
-      if (!admitted.has(id) || completed.has(id)) throw Error('Invalid ledger completion');
-      const value = measure(() => {
-        const datasets = (result.datasets ?? []).map(datasetIdentity).filter(item => item.datasetId && item.datasetDigest);
-        return { outcome: result.timedOut ? 'timeout' : result.cancelled ? 'cancelled' : result.passed ? 'pass' : 'fail',
-          completedAt: result.completedAt, processWallMs: duration(result.processWallMs), fileWallMs: duration(result.fileWallMs), bodyMs: duration(result.bodyMs),
-          datasets, ...(datasets.length === 1 ? datasets[0] : {}), errors: (result.errors ?? []).map(redact) };
+  const redact = errorRedactor();
+  const ledger = {
+    onAdmit(info, number = 1) {
+      return attempt(() => {
+        const [file, id] = key(info.file, number);
+        if (state.admitted.has(id) || finalSummary) throw Error('Duplicate ledger admission');
+        append({ type: 'admitted', file, attempt: number, value: { outcome: 'interrupted', admittedAt: timestamp(info.admittedAt),
+          queueWaitMs: duration(info.queueWaitMs), solo: typeof info.solo === 'boolean' ? info.solo : null,
+          concurrency: Number.isSafeInteger(info.concurrency) && info.concurrency > 0 ? info.concurrency : null,
+          ...datasetIdentity({ datasetId: info.datasetId }) } });
+        state.admitted.add(id);
       });
-      overheadMs += duration(result.telemetryMs) ?? 0;
-      append({ type: 'completed', file, attempt, value });
-      completed.add(id);
+    },
+    onFile(result, number = 1) {
+      return attempt(() => {
+        const [file, id] = key(result.file, number);
+        if (!state.admitted.has(id) || state.completed.has(id) || finalSummary) throw Error('Invalid ledger completion');
+        const datasets = Array.from(result.datasets ?? [], datasetIdentity).filter(item => item.datasetId && item.datasetDigest);
+        const value = { outcome: result.timedOut === true ? 'timeout' : result.cancelled === true ? 'cancelled' : result.passed === true ? 'pass' : 'fail',
+          completedAt: timestamp(result.completedAt), processWallMs: duration(result.processWallMs), fileWallMs: duration(result.fileWallMs), bodyMs: duration(result.bodyMs),
+          datasets, ...(datasets.length === 1 ? datasets[0] : {}), errors: Array.from(result.errors ?? [], redact) };
+        overheadMs += duration(result.telemetryMs) ?? 0;
+        append({ type: 'completed', file, attempt: number, value });
+        state.completed.add(id);
+      });
     },
     finish() {
       if (finalSummary) return finalSummary;
-      // Includes all serializing, redacting and synchronous ledger I/O above.
-      const summary = { type: 'summary', selectedFiles: expected.length, completedAttempts: completed.size, overheadMs: duration(overheadMs) };
-      append(summary);
-      closeSync(descriptor);
-      return finalSummary = summary;
+      const value = attempt(() => {
+        const summary = { type: 'summary', selectedFiles: state.expected.length, completedAttempts: state.completed.size, overheadMs: duration(overheadMs) };
+        append(summary);
+        return summary;
+      });
+      close();
+      return finalSummary = value;
+    },
+    report() {
+      return telemetryAttempt(() => {
+        const summary = ledger.finish();
+        if (summary) writeSync(1, 'File telemetry: ' + JSON.stringify(summary) + '\n');
+      });
     },
   };
+  return ledger;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  console.log(JSON.stringify(readFileLedger(readFileSync(process.argv[2], 'utf8')), null, 2));
+  telemetryAttempt(() => writeSync(1, JSON.stringify(readFileLedger(readFileSync(process.argv[2], 'utf8')), null, 2) + '\n'));
 }

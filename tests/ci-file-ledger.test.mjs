@@ -49,7 +49,7 @@ test('every selected file has exactly one receipt, including unadmitted files on
   assert.ok(first.admittedAt); assert.ok(first.completedAt); assert.ok(first.queueWaitMs >= 0);
   assert.equal(first.solo, true); assert.equal(first.concurrency, 1); assert.equal(first.datasetId, 'open-f2p');
   assert.deepEqual(value.receipts.slice(1).map(row => row.firstAttempt.outcome), ['not-admitted', 'not-admitted']);
-  assert.throws(() => f.ledger.onFile(result.files[0]), /Invalid ledger completion/);
+  assert.doesNotThrow(() => f.ledger.onFile(result.files[0]));
 });
 
 for (const retryPasses of [true, false]) test(`isolated retry preserves the first failure when retry ${retryPasses ? 'passes as FLAKY' : 'fails'}`, async t => {
@@ -65,7 +65,7 @@ for (const retryPasses of [true, false]) test(`isolated retry preserves the firs
   const { receipts: [receipt] } = await f.read();
   assert.equal(receipt.firstAttempt.outcome, 'fail'); assert.equal(receipt.retry.outcome, retryPasses ? 'pass' : 'fail');
   assert.equal(receipt.retry.concurrency, 1);
-  assert.equal(receipt.firstAttempt.errors[0].message, 'original child failure');
+  assert.equal(receipt.firstAttempt.errors[0].message, '[redacted]');
   assert.equal(receipt.firstAttempt.errors[0].code, 'E_CHILD');
   assert.equal(receipt.firstAttempt.errors[0].cause.code, 'E_ROOT');
 });
@@ -129,10 +129,10 @@ test('the CLI writes its own complete ledger and coverage report in a one-file s
   const f = await fixture(t);
   await mkdir(path.join(f.cwd, 'scripts/ci'), { recursive: true });
   await mkdir(path.join(f.cwd, 'tests'));
-  for (const name of ['test.mjs', 'adaptive-test-runner.mjs', 'test-child-errors.mjs', 'test-run-environment.mjs', 'ci/file-ledger.mjs', 'ci/coverage-reporter.mjs']) {
+  for (const name of ['test.mjs', 'adaptive-test-runner.mjs', 'test-child-errors.mjs', 'test-run-environment.mjs', 'ci/file-ledger.mjs', 'ci/coverage-reporter.mjs', 'test-telemetry.mjs']) {
     await cp(new URL('../scripts/' + name, import.meta.url), path.join(f.cwd, 'scripts', name));
   }
-  await writeFile(path.join(f.cwd, 'scripts/test-selection.mjs'), `export const discoverTests = async () => ['a.test.mjs']; export const adaptiveOptionsFor = () => ({ minConcurrency: 1, maxConcurrency: 1 });`);
+  await writeFile(path.join(f.cwd, 'scripts/test-selection.mjs'), `export const discoverTests = async () => ['a.test.mjs']; export const adaptiveOptionsFor = () => ({ minConcurrency: 1, maxConcurrency: 1, memory: () => 8 * 1024 ** 3 });`);
   await writeFile(path.join(f.cwd, 'tests/a.test.mjs'), `import test from 'node:test'; test('synthetic pass', () => {});`);
   const destination = path.join(f.cwd, 'cli-ledger.jsonl');
   const env = { ...process.env, RS3_TEST_FILE_LEDGER: destination, RS3_COVERAGE_REPORT: path.join(f.cwd, 'coverage.json') };
@@ -151,10 +151,10 @@ test('error receipts exclude payloads, credentials, paths and endpoints', () => 
   const redact = errorRedactor({ USERNAME: 'synthetic-user', API_KEY: 'synthetic-credential', PRIVATE_KEY: 'synthetic-key-value' });
   const value = redact(Object.assign(new Error('SYNTHETIC-USER synthetic-credential synthetic-key-value at C:\\private\\file on https://service.example/path 192.0.2.1 localhost [2001:db8::1] ::1 machine.invalid user@example.invalid token=private-value'),
     { code: 'E_CHILD', actual: { private: 'payload' }, stack: 'private stack', cause: { message: 'cause survives', code: 'E_ROOT' } }));
-  assert.equal(value.code, 'E_CHILD'); assert.equal(value.cause.message, 'cause survives');
+  assert.equal(value.code, 'E_CHILD'); assert.equal(value.cause.message, '[redacted]');
   for (const forbidden of ['SYNTHETIC-USER', 'synthetic-credential', 'synthetic-key-value', 'private-value', 'C:\\', 'service.example', '192.0.2.1', 'localhost', '2001:db8', '::1', 'machine.invalid', 'user@', 'payload', 'stack']) assert.ok(!JSON.stringify(value).includes(forbidden), forbidden);
   const assertion = redact({ name: 'AssertionError', code: 'ERR_ASSERTION', message: 'expected child shutdown\n\nprivate assertion payload' });
-  assert.equal(assertion.message, 'expected child shutdown');
+  assert.equal(assertion.message, '[redacted]');
 });
 
 test('750-file journal bookkeeping stays below the two-second per-job budget', async t => {

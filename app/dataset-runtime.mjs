@@ -46,13 +46,16 @@ export let selectedDataset = await (async () => {
 // Each entrypoint records its first resolved runtime provider. Descendants
 // inherit the destination; exclusive creation avoids repeated I/O for workers.
 if (node && process.env.RS3_TEST_DATASET_RECEIPT) {
-  const { openSync, writeSync, closeSync } = await import('node:fs');
   const start = performance.now();
-  let descriptor;
+  let descriptor, closeSync;
   try {
-    descriptor = openSync(process.env.RS3_TEST_DATASET_RECEIPT, 'wx');
-    writeSync(descriptor, JSON.stringify({ id: selectedDataset.id, digest: selectedDataset.digest }) + '\n');
-    writeSync(descriptor, JSON.stringify({ overheadMs: performance.now() - start }) + '\n');
+    const fs = await import('node:fs');
+    closeSync = fs.closeSync;
+    const id = ['duo-legacy', 'open-f2p', 'open-starter'].includes(selectedDataset.id) ? selectedDataset.id : null;
+    const digest = typeof selectedDataset.digest === 'string' && /^[a-f0-9]{64}$/.test(selectedDataset.digest) ? selectedDataset.digest : null;
+    descriptor = fs.openSync(process.env.RS3_TEST_DATASET_RECEIPT, 'wx');
+    fs.writeSync(descriptor, JSON.stringify({ id, digest }) + '\n');
+    fs.writeSync(descriptor, JSON.stringify({ overheadMs: performance.now() - start }) + '\n');
   } catch { /* Diagnostics must not change application or test outcomes. */ }
   finally { if (descriptor !== undefined) try { closeSync(descriptor); } catch {} }
 }
