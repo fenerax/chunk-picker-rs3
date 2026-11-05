@@ -1,8 +1,8 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
-import { open, readFile, rename, rm } from 'node:fs/promises';
+import { open, readFile, rm } from 'node:fs/promises';
+import { publishFile, warnDurability } from './storage/publication.mjs';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const hash = token => createHash('sha256').update(token).digest('hex');
@@ -28,12 +28,7 @@ async function write(file, value) {
   try {
     handle = await open(temporary, 'wx', 0o600); await handle.writeFile(`${JSON.stringify(validate(value))}\n`);
     await handle.sync(); await handle.close(); handle = null;
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; } catch (error) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 6) throw error;
-        await delay(20 * 2 ** attempt);
-      }
-    }
+    return await publishFile(temporary, file, { onPostPublishSyncError: 'warn' });
   } finally { await handle?.close(); await rm(temporary, { force: true }); }
 }
 
@@ -50,7 +45,8 @@ export async function openPluginKeys({ dataDir, clock = Date.now, maxActiveKeysP
     const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       if (closed) throw fail(503, 'The picker is stopping.');
       const next = structuredClone(current), result = operation(next);
-      await write(file, next); current = next; dirty = false; return result;
+      const publication = await write(file, next); current = next; dirty = false;
+      warnDurability(publication, 'plugin keys'); return result;
     })); queue = pending.catch(() => {}); return pending;
   }
   return {
@@ -83,6 +79,6 @@ export async function openPluginKeys({ dataDir, clock = Date.now, maxActiveKeysP
       record.lastUsedAt = new Date(clock()).toISOString(); if (world !== undefined) record.lastWorld = structuredClone(world); dirty = true;
     },
     async flush() { await mutate(() => {}); },
-    async close() { await queue; await withStoreWrite(dataDir, async () => { if (dirty) await write(file, current); closed = true; }); },
+    async close() { await queue; await withStoreWrite(dataDir, async () => { if (dirty) { const publication = await write(file, current); dirty = false; warnDurability(publication, 'plugin keys'); } closed = true; }); },
   };
 }
