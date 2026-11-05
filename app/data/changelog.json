@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-11-04",
+      "title": "Level and quest sync, safer saves",
+      "items": [
+        "Levels and quests now sync through Jagex's new RuneScape Platform API, ahead of RuneMetrics closing on November 10.",
+        "RuneMetrics is still tried as a backup until it closes.",
+        "Saving now also writes the folder changes to disk, so a crash during a write cannot lose saved data. A backup is taken before the first write at startup."
+      ]
+    },
+    {
+      "date": "2026-11-04",
       "title": "Faster first Preview and task lists",
       "items": [
         "The first Preview after the picker wakes up is about 1.7 seconds faster.",
