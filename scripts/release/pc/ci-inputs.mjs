@@ -1,3 +1,4 @@
+import { isMain } from '../vps/entrypoint.mjs';
 // Read-only admission. In particular, gh writes neither an artifact nor a token
 // to disk: the bounded ZIP goes straight to the existing verifier in memory.
 import { execFileSync } from 'node:child_process';
@@ -174,7 +175,7 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   main().catch(error => {
     // No native stderr, JSON values, machine paths or credentials escape.
     const message = /^[a-z-]+ refused\.$/.test(error.message) ? error.message : 'CI inputs refused.';

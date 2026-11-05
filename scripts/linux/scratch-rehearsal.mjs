@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Run locally: exports committed public code and provisions ONLY a fresh host.
 // No live-save input exists. All subprocess output is captured, never echoed.
 import path from 'node:path';
@@ -84,7 +85,7 @@ chmod -R go-w /opt/chunk-picker/source
   await writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
   return { reportFile: path.join(output, 'report.json'), ...report };
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const [alias, archive, sha, ...extra] = process.argv.slice(2);
     if (!archive || extra.length) throw Error();

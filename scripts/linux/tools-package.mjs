@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Dependency-free package builder. Computed release loaders are an explicit
 // boundary; an unfamiliar loader refuses the build rather than widening it.
 import path from 'node:path';
@@ -119,7 +120,7 @@ export async function verifyTools(root) {
     throw Object.assign(Error('Tools manifest hashes differ or package is invalid.'), { code: 'TOOLS_HASH' });
   }
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const [command, root, output, ...extra] = process.argv.slice(2);
     if (extra.length || !root || (command !== 'build' && command !== 'verify') || (command === 'build' && !output)) throw Error();

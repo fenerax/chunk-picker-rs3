@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // One-command private release preparation, exact gates and managed handover.
 import path from 'node:path';
 import os from 'node:os';
@@ -827,7 +828,7 @@ export async function parseArgs(args) {
   result['retry-once-in-isolation'] = resolveRetryPolicy(result, manifest);
   return result;
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === here) {
+if (isMain(import.meta.url)) {
   try {
     const command = process.argv[2];
     if(command==='--help'||command==='help'){console.log('Usage: release-v2.mjs prepare|release|freeze|promote|run|rollback|recover|assert-identity --kit PATH [--release PATH] [--gates-only] [--evidence-dir PATH] [--idle-state PATH] [--public-ci-ref REF] [--public-ci-local-fallback]\nGo-live is three steps, in this order:\n  1. release --kit KIT --release RELEASE --current POINTER --gates-only\n  2. freeze --kit KIT --release RELEASE --current POINTER\n  3. release (same as promote) --kit KIT --release RELEASE --current POINTER   approved activation; refuses until step 2 has sealed frozen-bundle.json\nrun = prepare plus all three steps.\nRequest inspection: check-request --kit KIT --input REQUEST --current POINTER\nPractice: release --practice --kit TOOLING_KIT --current POINTER --repo CORE_REPO --output ABSENT_SCRATCH');process.exit(0);}

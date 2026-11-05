@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Invoked only by scratch-rehearsal after its fresh-machine guards. This file
 // has no save/credential/host argument and cannot adopt an existing install.
 import path from 'node:path';
@@ -119,7 +120,7 @@ export async function scratchCycle(staging) {
     toolsIdentity: manifest.toolsIdentity, writerRestartedForInstall: installed.writerRestarted,
     stoppedToReadyMs: activation.stoppedToReadyMs, rehearsal, alerts, phases: receipts };
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try { process.stdout.write(encode(await scratchCycle(process.argv[2]))); }
   catch { process.stderr.write('Synthetic cycle failed; retain scratch evidence.\n'); process.exitCode = 1; }
 }

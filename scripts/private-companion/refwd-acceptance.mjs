@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Disposable acceptance for the actual Windows managed-release entrypoint.
 // No gates, installer, live save, scheduled task, or real release lock is used.
 import assert from 'node:assert/strict';
@@ -251,7 +252,7 @@ export async function run(f,{smoke=false}={}) {
   }
   await put(path.join(f.root,'acceptance-result.json'),report);return report;
 }
-if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
+if(isMain(import.meta.url)) {
   const o={};for(let i=2;i<process.argv.length;i++){const key=process.argv[i];if(key==='--run')o.run=true;else if(key==='--smoke'){o.smoke=true;o.run=true;}else if(key.startsWith('--')&&process.argv[i+1])o[key.slice(2)]=process.argv[++i];else throw Error('Invalid acceptance arguments');}
   try {const f=o.resume?await json(path.join(o.resume,'fixture.json')):await prepare(o);const result=o.run?await run(f,{smoke:o.smoke}):{prepared:true,root:f.root};console.log(JSON.stringify(result));}
   catch(e){console.error(e.stack);process.exitCode=1;}

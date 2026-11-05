@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Read-only release intake. No locks, assembly, builders, servers or gate receipts.
 import path from 'node:path';
 import { readFile, readdir, lstat, mkdir, writeFile, realpath } from 'node:fs/promises';
@@ -387,7 +388,7 @@ export function parseArguments(args) {
   result.ref ??= 'HEAD';
   return result;
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const result = await releasePreflight(parseArguments(process.argv.slice(2)), { progress: text => console.error(text) });
     console.error(`${result.passed ? 'PASS' : 'FAIL'} preflight: ${result.checks.filter(c => c.status === 'pass').length}/${result.checks.length} checks passed in ${result.seconds}s.`);

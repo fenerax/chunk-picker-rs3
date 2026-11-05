@@ -1,3 +1,4 @@
+import { isMain } from '../vps/entrypoint.mjs';
 // Builds a release folder from one commit that GitHub has already tested, then
 // proves it opens a copy of the live save. This is all the release PC runs: an
 // export, the data packs built from that export, the profile/addon build and
@@ -355,7 +356,7 @@ export async function prepareSwap({ current, releaseDir }) {
     fromBase64: binding.toString('base64'), toBase64: bytes(pair.to).toString('base64') }, probes };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const { positionals: [command], values } = parseArgs({ allowPositionals: true, options: {
       repo: { type: 'string' }, commit: { type: 'string' }, current: { type: 'string' }, releases: { type: 'string' },

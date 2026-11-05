@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Byte seals are integrity records, not release authority. Windows activation
 // locks and rehashes these exact files before trusting prior validation.
 import path from 'node:path';
@@ -90,6 +91,6 @@ export function phaseSummary(rows) {
   return {totalSeconds:measured.reduce((n,row)=>n+row.seconds,0),slowestPhase:slowest?.stage??null,slowestSeconds:slowest?.seconds??0};
 }
 
-if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
+if(isMain(import.meta.url)) {
   if(process.argv[2]!=='platform'||process.argv.length!==4||process.argv[3]!==activationPlatformDigest())process.exitCode=1;
 }

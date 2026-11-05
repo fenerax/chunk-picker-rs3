@@ -76,6 +76,15 @@ try {
   const nextReceipt = await json(next.receiptFile);
   await writeFile(path.join(nextReceipt.previous.root, 'legacy.mjs'), 'changed');
   await assert.rejects(install({ settings, toolsRoot, rollbackReceipt: next.receiptFile, idle }), /previous-hashes/);
+  // A hash-valid package with a no-op main guard must fail the service-account
+  // behavioral check through the alias, before any selection or gate changes.
+  const operator = path.join(source, 'scripts/linux/operator.mjs');
+  await writeFile(operator, (await readFile(operator, 'utf8')).replace('if (isMain(import.meta.url))', 'if (false)'));
+  const noOpPackage = path.join(scratch, 'no-op-package'); await buildTools(source, noOpPackage);
+  const selected = await realpath(toolsRoot);
+  await assert.rejects(install({ settings, toolsRoot, packageRoot: noOpPackage, idle }), { code: 'TOOLS_ENTRYPOINT' });
+  assert.equal(await realpath(toolsRoot), selected);
+  assert.equal(await exists(path.join(controlDir, 'tools-transaction.json')), false);
   // An injected failure after initial exchange restores selection and leaves
   // durable maintenance/transaction evidence; start-check cannot bypass it.
   const badParent = path.join(scratch, 'failed'); await mkdir(badParent, { mode: 0o755 });

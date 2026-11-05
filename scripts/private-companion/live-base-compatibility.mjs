@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Bounded compatibility with the currently selected immutable release. This
 // never runs old full test lanes, imports a live app, or opens a live save.
 import path from 'node:path';
@@ -448,7 +449,7 @@ export async function assertLiveBaseCompatibility({ kit, current, previousConfig
   return report;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   if (process.argv.includes('--help')) console.log('Bounded compatibility is a library: checkLiveBaseCompatibility({kit,current,repo,evidenceDir,output,port,loopbackPort}).');
   else { console.error('Use the bounded compatibility library through the release tooling.'); process.exitCode = 1; }
 }

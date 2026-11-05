@@ -155,11 +155,11 @@ test('nested and deferred maintenance cannot escape the snapshot barrier', async
 
 test('release staging has no activation by default and explicit activation binds the reviewed receipt', async t => {
   const { scratch } = await fixture(t);
-  for (const name of ['release.tar', 'source-config.json', 'release-manifest.json', 'transfer.json', 'bundle.mjs']) await writeFile(path.join(scratch, name), '{}');
+  for (const name of ['release.tar', 'source-config.json', 'release-manifest.json', 'transfer.json', 'bundle.mjs', 'entrypoint.mjs']) await writeFile(path.join(scratch, name), '{}');
   const calls = [], options = { out: scratch, host: 'synthetic-alias', upload: '/var/tmp/new-upload', target: '/opt/picker/releases/new', 'operator-config': '/etc/picker/operator.json', 'tools-root': '/opt/picker/tools', node: '/opt/node/bin/node' };
   const execute = (file, args) => { calls.push({ file, args }); };
   await releaseVps('stage', options, execute);
-  assert.equal(calls.filter(call => call.file === 'scp').length, 5);
+  assert.equal(calls.filter(call => call.file === 'scp').length, 6);
   assert(!calls.some(call => call.args.some(arg => arg.includes('operator.mjs'))));
   calls.length = 0;
   await assert.rejects(releaseVps('activate', options, execute), /explicit/);

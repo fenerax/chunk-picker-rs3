@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Off-PC Phase B operator tool. Three commands, none of which touches the live save,
 // data dirs or a kit:
 //   packs    --packs DIR --out DIR [--pin FILE]   build one deterministic .tar.gz per
@@ -133,6 +134,6 @@ async function main([command, ...rest]) {
   throw Error('Commands: packs, dispatch, verify.');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   main(process.argv.slice(2)).catch(error => { console.error(error.code ? `${error.message}` : error.message); process.exitCode = 1; });
 }

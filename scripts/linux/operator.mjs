@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 import { configDescriptor, bindingBytes } from '../private-companion/release-pack-check.mjs';
 import { prewarmCandidate } from './prewarm.mjs';
 import { captureOnline } from './online.mjs';
@@ -316,7 +317,7 @@ async function runOperatorImpl(settings, command, argument, evidence, mode) {
     return { completed: command };
   }, { skipBusy: command === 'health', maxBusyMs: command === 'health' ? 1800000 : Infinity });
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try { const result = await runOperator(...process.argv.slice(2)); if (!result?.skipped) process.stdout.write(['list', 'inspect', 'quarantine-release', 'relink-code'].includes(process.argv[2]) ? encode(result) : 'Operator command completed.\n'); }
   catch (error) {
     if (error.code === 'LEGACY_RESTORE_INCOMPATIBLE') process.stderr.write(error.message + '\n');

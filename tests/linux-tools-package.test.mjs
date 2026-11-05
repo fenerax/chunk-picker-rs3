@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { toolsClosure, buildTools, verifyTools, toolsEntrypoints } from '../scripts/linux/tools-package.mjs';
 import { cleanToolsEvidence, operatorUnitsIdle, toolsInstallCli } from '../scripts/linux/tools-install.mjs';
@@ -11,6 +11,7 @@ import { scratchHostGuard, freshHostGuard } from '../scripts/linux/scratch-rehea
 import { reviewRefusal } from '../scripts/release/vps/review.mjs';
 import { releaseVps } from '../scripts/release/vps/release.mjs';
 import { encode, json } from '../scripts/linux/files.mjs';
+import { toolsCliChecks } from '../scripts/linux/entrypoint-checks.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 async function fixture(t) {
@@ -60,6 +61,53 @@ test('new static, dynamic, template and child imports cannot escape or silently 
   await writeFile(path.join(scratch, 'outside.mjs'), 'export {};');
   await assert.rejects(toolsClosure(source), /escapes/);
 });
+
+test('all installed CLI and unit entrypoints act through a symlink, including maintenance refusal', async t => {
+  const scratch = await fixture(t), output = path.join(scratch, 'package'), alias = path.join(scratch, 'tools');
+  const { source: copied } = await sourceCopy(scratch);
+  const manifest = await buildTools(copied, output);
+  await symlink(output, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const controlDir = path.join(scratch, 'control'); await mkdir(controlDir);
+  const current = path.join(scratch, 'current.json'), config = path.join(scratch, 'operator.json');
+  await writeFile(current, '{}'); await writeFile(path.join(controlDir, 'maintenance.json'), '{}');
+  await writeFile(config, encode({ service: 'chunk-picker.service', current, controlDir,
+    dataDir: path.join(scratch, 'game'), scratchRoot: path.join(scratch, 'scratch'), backupDir: path.join(scratch, 'backups') }));
+  const env = { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', RS3_OPERATOR_CONFIG: config };
+  const checked = new Set(toolsCliChecks.map(row => row[0]));
+  for (const row of manifest.files.filter(row => row.path.endsWith('.mjs'))) {
+    const source = await readFile(path.join(output, row.path), 'utf8');
+    if (/if\s*\(isMain\(import\.meta\.url\)/.test(source)) assert(checked.has(row.path), 'Missing CLI behavior check: ' + row.path);
+    if (row.path !== 'scripts/release/vps/entrypoint.mjs') assert(!/process\.argv\[1\].*===.*(?:fileURLToPath|import\.meta\.url)/.test(source), row.path);
+  }
+  for (const [entry, args, diagnostic] of toolsCliChecks) {
+    let failed = false;
+    try { execFileSync(process.execPath, [path.join(alias, entry), ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 15000 }); }
+    catch (error) {
+      failed = true; assert.equal(error.status, 1, entry); assert.equal(error.stdout.toString(), '', entry);
+      assert(error.stderr.toString().startsWith(diagnostic), entry + ': ' + error.stderr);
+    }
+    assert(failed, entry + ' silently exited without its action');
+  }
+  const verified = JSON.parse(execFileSync(process.execPath, [path.join(alias, 'scripts/linux/tools-package.mjs'), 'verify', output],
+    { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }));
+  assert.equal(verified.toolsIdentity, manifest.toolsIdentity);
+  for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service']) {
+    const source = await readFile(path.join(repo, 'scripts/linux/systemd', unit), 'utf8');
+    for (const match of source.matchAll(/\/opt\/chunk-picker\/tools\/([^\s]+)/g)) assert(checked.has(match[1]), unit);
+  }
+});
+
+test('detached release transport includes the shared main helper and executes its CLI', async t => {
+  const scratch = await fixture(t), upload = path.join(scratch, 'upload'); await mkdir(upload);
+  for (const name of ['bundle.mjs', 'entrypoint.mjs']) await writeFile(path.join(upload, name), await readFile(path.join(repo, 'scripts/release/vps', name)));
+  let refused = false;
+  try { execFileSync(process.execPath, [path.join(upload, 'bundle.mjs')], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }); }
+  catch (error) {
+    refused = true; assert.equal(error.status, 1); assert.equal(error.stdout.toString(), '');
+    assert.equal(error.stderr.toString(), 'Candidate preparation refused; inspect private staging evidence.\n');
+  }
+  assert(refused);
+});
 test('all refusal gates run before switching; malformed and incomplete evidence stays fenced', async t => {
   const controlDir = await fixture(t), settings = { controlDir };
   for (const [name, category] of [['operation.lock', 'lock'], ['maintenance.json', 'maintenance'],
@@ -97,7 +145,7 @@ test('phase receipts survive unfinished and failed phases, with numeric time and
 test('installer CLI prints only allowlisted structured refusal categories', async () => {
   const cases = { 'TOOLS_ACTIVE-RUN': 'timer active', TOOLS_LOCK: 'lock held', EEXIST: 'lock held',
     TOOLS_MAINTENANCE: 'maintenance', TOOLS_TRANSACTION: 'transaction evidence', TOOLS_RECEIPT: 'receipt invalid',
-    TOOLS_OWNERSHIP: 'ownership/access', TOOLS_ACCESS: 'ownership/access', TOOLS_HASH: 'hash mismatch',
+    TOOLS_OWNERSHIP: 'ownership/access', TOOLS_ACCESS: 'ownership/access', TOOLS_HASH: 'hash mismatch', TOOLS_ENTRYPOINT: 'entrypoint behavior',
     'TOOLS_PREVIOUS-HASHES': 'hash mismatch', UNKNOWN_PRIVATE_SENTINEL: 'unclassified', toString: 'unclassified' };
   for (const [code, category] of Object.entries(cases)) {
     let out = '', err = '';

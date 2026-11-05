@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Online preparation from an explicitly captured copy. No server, store,
 // listener, credentials, or writes to the copied gameplay inputs.
 import path from 'node:path';
@@ -241,7 +242,7 @@ export async function prewarmCalculation({ root, dataDir, warmDirectory, maxMemb
     return { members: Math.min(state.members.length, maxMembers), requests: sequence, durationMs: performance.now() - started };
   } finally { await worker?.terminate(); await prepared.clear(); }
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     registerHooks({ load(url, context, next) {
       if (['/app/server.mjs', '/app/storage/store.mjs', '/app/picker-context.mjs'].some(suffix => url.endsWith(suffix))) throw Error('Forbidden warm import.');

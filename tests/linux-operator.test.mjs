@@ -618,7 +618,7 @@ test('in-process rehearsal callers retain operator configuration for subsequent 
     process.env.RS3_OPERATOR_CONFIG = configFile;
     t.after(() => { if (saved === undefined) delete process.env.RS3_OPERATOR_CONFIG; else process.env.RS3_OPERATOR_CONFIG = saved; });
     const result = await rehearse({ pointer: f.current.pointerFile, source: f.settings.dataDir,
-      scratch: path.join(f.scratch, 'rehearsal'), port: 8900 + Math.floor(Math.random() * 49) * 2 });
+      scratch: path.join(f.scratch, 'rehearsal'), port: 0 });
     assert.equal(result.recoveryFormat, 'picker-recovery-v1');
     assert.equal(process.env.RS3_OPERATOR_CONFIG, configFile);
     assert.equal((await operatorSettings()).current, f.settings.current);
