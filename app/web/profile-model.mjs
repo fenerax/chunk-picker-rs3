@@ -72,6 +72,10 @@ export function buildProfileModel(state, memberId, result, definitions = {}, rol
     lastSyncAt: [observed(sync, member) ? timestamp(sync.fetchedAt) : null,
       ...rows.filter(row => row.level !== null && member.skillProgress?.[row.skill]?.source === 'game-plugin').map(row => row.fetchedAt)]
       .filter(Boolean).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null, f2p };
+  const qp = member.questPointProgress;
+  const questPoints = observed(qp, member) && Number.isSafeInteger(qp.current) && qp.current >= 0
+    && Number.isSafeInteger(qp.max) && qp.max >= qp.current
+    ? { current: qp.current, max: qp.max, source: qp.source, fetchedAt: timestamp(qp.fetchedAt) } : null;
 
   const catalogue = new Map();
   const resolve = id => resolveSavedTaskId(state.identityRegistry, id);
@@ -130,5 +134,5 @@ export function buildProfileModel(state, memberId, result, definitions = {}, rol
   const firstUnlockAt = array(rollMember?.timeline).map(row => timestamp(row.at)).filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
   return { header: { memberId, name: member.name ?? member.id, runescapeName: member.runescapeName ?? null,
     unlockedCount: new Set(array(member.unlocked)).size, firstUnlockAt, firstUnlockLabel: 'First recorded unlock' },
-    skills, tasks, quests, achievements, gear: recordedGear(member, current) };
+    skills, tasks, quests, questPoints, achievements, gear: recordedGear(member, current) };
 }

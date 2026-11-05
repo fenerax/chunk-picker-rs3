@@ -12,6 +12,7 @@ export function formatProfileSummary(model) {
     `Levels: ${skills.knownCount}/${skills.totalCount} recorded${skills.lastSyncAt ? ` · Last synced: ${safe(skills.lastSyncAt.slice(0, 10))}` : ''}`,
     `Completed tasks: ${tasks.completedCount} · ${tasks.categories.map(row => `${safe(row.category)} ${row.completed}`).join(' · ')}`,
     `Quests: ${quests.completed}/${number(quests.total)} recorded complete`,
+    model.questPoints ? `Quest points: ${model.questPoints.current}/${model.questPoints.max} (${model.questPoints.source === 'platform-api' ? 'Platform API' : 'RuneMetrics'})` : 'Quest points: not synced',
     `Diaries / achievements: ${achievements.ticked} ticked in the picker`,
     gear.totalRecorded == null ? 'Gear: recorded details not loaded' : `Gear: ${gear.totalRecorded} items recorded obtained`,
   ];

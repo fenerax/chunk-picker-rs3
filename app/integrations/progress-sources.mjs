@@ -1,4 +1,5 @@
 import { progressBelongsToMember } from '../core/game-progress.mjs';
+import { createPlatformApiClient } from './platform-api.mjs';
 import { createRuneMetricsSource } from './runemetrics.mjs';
 import { createOfficialApiSource } from './official-api.mjs';
 export { createOfficialApiSource } from './official-api.mjs';
@@ -50,11 +51,12 @@ export function mergePluginProgress(member, web, live) {
  * tenths), quest titles/statuses and fetchedAt, or available:false + message.
  * Providers never write state. Only reviewed commands can save observations. */
 export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () => null,
-  webSource = 'runemetrics', officialApi = createOfficialApiSource(), hiscores,
+  webSource = 'platform-api', officialApi = createOfficialApiSource(), hiscores,
   runeMetricsEnabled = () => process.env.RS3_RUNEMETRICS_ENABLED !== '0',
   clock = runeMetrics.clock ?? Date.now } = {}) {
-  if (!['runemetrics', 'official-api'].includes(webSource)) throw new TypeError('Unknown web progress source.');
+  if (!['runemetrics', 'official-api', 'platform-api'].includes(webSource)) throw new TypeError('Unknown web progress source.');
   const legacy = createRuneMetricsSource({ ...runeMetrics, clock });
+  const platform = createPlatformApiClient({ ...runeMetrics, clock });
   const fallback = hiscores ?? createHiscoresSource({ clock });
   let retired = false;
   const enabled = () => typeof runeMetricsEnabled === 'function' ? runeMetricsEnabled() : runeMetricsEnabled;
@@ -62,14 +64,18 @@ export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () =>
     async snapshot(member) {
       const plugin = () => mergePluginProgress(member, null, pluginSnapshot(member));
       const overlay = web => mergePluginProgress(member, web, pluginSnapshot(member));
-      let failure, closed = retired || !enabled();
+      let failure, closed = webSource === 'runemetrics' && (retired || !enabled());
       const unavailable = { available: false, source: 'runemetrics', sourceLabel: 'RuneMetrics',
         message: RUNE_METRICS_CLOSED_MESSAGE };
       if (!member.runescapeName) return closed ? overlay(unavailable) : plugin() ?? {
-        available: false, source: 'runemetrics', sourceLabel: 'RuneMetrics',
+        available: false, source: webSource, sourceLabel: webSource === 'platform-api' ? 'Platform API' : 'RuneMetrics',
         message: 'Connect the game plugin or save this player’s RuneScape name to sync progress.' };
       if (webSource === 'official-api') return overlay(await officialApi.snapshot(member));
-      if (!closed) {
+      if (webSource === 'platform-api') {
+        try { return overlay({ ...await platform.snapshot(member), sourceLabel: 'Platform API' }); }
+        catch (error) { failure = error; }
+      }
+      if (webSource === 'runemetrics' && !closed) {
         try {
           const web = await legacy.snapshot(member);
           if (enabled()) return overlay(web); // Recheck a switch changed during a fetch.
@@ -80,7 +86,7 @@ export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () =>
           if (error.code === 'SOURCE_RETIRED') retired = true;
         }
       }
-      if (closed) {
+      if (webSource === 'runemetrics' && closed) {
         try {
           const replacement = await officialApi.snapshot(member);
           if (replacement.available !== false) return overlay(replacement);
@@ -103,7 +109,7 @@ export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () =>
         throw failure;
       }
     },
-    close() { legacy.close(); officialApi.close?.(); fallback.close?.(); },
+    close() { platform.close(); legacy.close(); officialApi.close?.(); fallback.close?.(); },
   };
 }
 

@@ -6,6 +6,7 @@ import { createRuneMetricsControls, skillChangeText } from '../app/web/runemetri
 import { createInfoPanels } from '../app/web/info-panels.mjs';
 
 const snapshot = revision => ({
+  source: 'platform-api', questPoints: { before: { current: 9, max: 450 }, after: { current: 17, max: 455 } },
   previewId: 'review-a', stateRevision: revision, memberId: 'a', runescapeName: 'AccountA', fetchedAt: '2026-10-07T12:00:00Z', cached: true,
   skills: [
     { skill: 'Mining', before: { level: 5, xp: 400 }, after: { level: 6, xp: 550.5 } },
@@ -75,6 +76,7 @@ test('preview shows increases, decreases, unknown prior XP, personal quests and 
   assert.equal(h.attempts.fetch[0][0], '/api/runemetrics/preview');
   assert.deepEqual(h.attempts.fetch[0][1], { memberId: 'a' });
   assert.match(h.text(), /recent saved result/);
+  assert.match(h.text(), /Quest points: 9 \/ 450 → 17 \/ 455 \(Platform API\)/);
   assert.match(h.text(), /13 completed quests returned · 12 matched · 1 unmatched/);
   assert.ok(h.find('li', 'Mining: level 5 → 6 (+1) · XP 400 → 550.5 (+150.5)'));
   assert.equal(h.find('li', 'Attack: level 4 → 3 (−1) · XP 300 → 200 (−100)').className, 'warning');
@@ -213,9 +215,9 @@ test('a preview for a different member or account cannot be accepted', async () 
   }
 });
 
-test('Activity Info displays observed account progress separately from planning controls', async () => {
+for (const source of ['platform-api', 'runemetrics']) test(`Activity Info displays ${source} account progress separately from planning controls`, async () => {
   const h = harness();
-  h.state.members[0].skillProgress.Mining = { level: 6, xp: 550.5, source: 'runemetrics', runescapeName: 'AccountA', fetchedAt: '2026-10-07T12:00:00Z' };
+  h.state.members[0].skillProgress.Mining = { level: 6, xp: 550.5, source, runescapeName: 'AccountA', fetchedAt: '2026-10-07T12:00:00Z' };
   const result = { memberId: 'a', stateRevision: 7, tasks: [], playerControls: {}, activityInfo: {
     skills: [{ skill: 'Mining', reachableLevel: 99, availableTasks: [], blockedTasks: [], primaryMethods: [], selectedGoals: [], explanation: 'Planning ceiling.' }],
     quests: [], achievements: [], activities: [], slayer: {}, clues: { tiers: [], limitations: [] }, coverage: { limitations: [] },
@@ -230,7 +232,7 @@ test('Activity Info displays observed account progress separately from planning 
   const tile = h.walk(h.ui.nodes).find(node => node.tag === 'button' && node.attributes?.['aria-label']?.startsWith('Mining: level 6'));
   assert.ok(tile, 'Mining tile carries the observed level');
   await tile.events.click();
-  assert.match(h.text(), /Level 6 · 550\.5 XP \(RuneMetrics\)/);
+  assert.ok(h.text().includes(`Level 6 · 550.5 XP (${source === 'platform-api' ? 'Platform API' : 'RuneMetrics'})`));
   const manual = h.walk(h.ui.nodes).find(node => node.tag === 'details' && node.children[0]?.textContent === 'Training assumptions');
   manual.open = true; manual.events.toggle();
   assert.match(h.text(), /Progress sync records actual account levels and XP separately/);
@@ -287,7 +289,7 @@ test('main never dispatches abandoned or stale queued reviews and never retries 
     assert.equal(h.requests.length, 0, invalidation);
   }
   const h = saveHarness(); h.ctx.failure = Object.assign(new Error('Stale save'), { status: 409 });
-  await assert.rejects(h.ctx.applyRuneMetrics('review-a', 7), /Fetch a new RuneMetrics preview/);
+  await assert.rejects(h.ctx.applyRuneMetrics('review-a', 7), /Fetch a new progress preview/);
   assert.equal(h.requests.length, 1); assert.equal(h.statuses.at(-1)[0], 'Save failed');
 });
 

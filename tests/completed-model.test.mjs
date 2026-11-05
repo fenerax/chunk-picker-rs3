@@ -13,6 +13,19 @@ const model = (saved, result, memberId = 'actor1', now = '2026-10-09T12:00:00Z')
 const statusEvent = (revision, memberId, taskId, challengeCompleted, extra = {}) => ({ id: `revision-${revision}`, revision,
   type: 'set-task-status', at: `2026-10-0${revision}T12:00:00Z`, command: { memberId, taskId, challengeCompleted }, ...extra });
 
+test('account-sync attribution includes Platform API and preserves its source alongside legacy observations', () => {
+  const quests = [task('new', 'New quest', 'Quest'), task('old', 'Old quest', 'Quest')];
+  const saved = state(quests, [member('actor1', 'Player', { completedTasks: ['new', 'old'], questProgress: {
+    new: { source: 'platform-api', fetchedAt: '2026-11-04T12:00:00Z', runescapeName: 'Test' },
+    old: { source: 'runemetrics', fetchedAt: '2026-10-04T12:00:00Z', runescapeName: 'Test' },
+  } })]);
+  const ledger = model(saved, { tasks: quests });
+  const filtered = filterCompletedRows(ledger.rows, { attribution: 'runemetrics' });
+  assert.equal(filtered.length, 2);
+  assert.equal(filtered.find(row => row.task.id === 'new').completions[0].source, 'platform-api');
+  assert.ok(filtered.every(row => row.latestAt === null), 'Observation dates are never completion dates.');
+});
+
 test('achievement provenance marks personal game completions without inventing completion dates', () => {
   const row = task('achievement', 'Achievement task'), saved = state([row], [member('actor1', 'Player', {
     completedTasks: ['achievement'],

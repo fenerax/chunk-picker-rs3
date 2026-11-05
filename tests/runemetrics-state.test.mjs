@@ -9,6 +9,7 @@ const now = () => '2026-10-07T18:00:00.000Z';
 const quest = { id: 'quest:cooks-assistant', label: "Cook's Assistant", category: 'Quest' };
 function group() {
   const state = createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }, { id: 'other', name: 'Other' }]);
+  state.members[0].runescapeName = 'DemoExplorer'; state.members[1].runescapeName = 'SecondActor1';
   state.tasks = [quest, { id: 'skill:cook', label: 'Cook food', category: 'Cooking' }];
   return state;
 }
@@ -55,12 +56,43 @@ test('invalid RuneMetrics batches fail atomically before history time and stale 
     { skills: [...batch().skills, ...batch().skills] }, { quests: [...batch().quests, ...batch().quests] },
     { quests: [{ taskId: 'unknown', title: 'Unknown' }] }, { quests: [{ taskId: 'skill:cook', title: 'Cook food' }] },
     { quests: [{ taskId: quest.id, title: '' }] }, { skills: [{ ...batch().skills[0], source: 'manual' }] },
-    { quests: [{ ...batch().quests[0], completed: true }] }, { source: 'manual' },
+    { quests: [{ ...batch().quests[0], completed: true }] }, { source: 'manual' }, { source: null },
+    ...[null, {}, [], { current: 1 }, { current: -1, max: 10 }, { current: 2, max: 1 },
+      { current: 1.5, max: 10 }, { current: 1, max: Number.MAX_SAFE_INTEGER + 1 },
+      { current: 1, max: 10, extra: true }].map(questPoints => ({ questPoints })),
   ];
   const options = { expectedRevision: 0, now: () => { throw new Error('Rejected command must not request a timestamp'); } };
   for (const extra of invalid) assert.throws(() => applyCommand(state, batch(extra), options), error => error instanceof TypeError);
   assert.throws(() => applyCommand(state, batch(), { expectedRevision: 1, now }), /Revision conflict/);
   assert.equal(JSON.stringify(state), before);
+});
+
+test('Platform API observations coexist with legacy facts and round trip through restore and sparse undo', () => {
+  const state = apply(group(), batch());
+  const next = apply(state, batch({ source: 'platform-api', questPoints: { current: 42, max: 450 },
+    skills: [{ skill: 'Crafting', level: 10, xp: 1200 }] }));
+  const provenance = { source: 'platform-api', fetchedAt, runescapeName: 'DemoExplorer' };
+  assert.deepEqual(next.members[0].questPointProgress, { current: 42, max: 450, ...provenance });
+  assert.deepEqual(next.members[0].runeMetricsSync, provenance);
+  assert.equal(next.members[0].skillProgress.Crafting.source, 'platform-api');
+  assert.equal(next.members[0].skillProgress.Cooking.source, 'runemetrics');
+  assert.equal(next.members[0].questProgress[quest.id].source, 'platform-api');
+  assert.deepEqual(importBackup(exportBackup(next)), next);
+  const preview = previewRestore(next, state);
+  assert.equal(preview.members[0].questPointProgress.changed, true);
+  assert.equal(preview.members[0].questPointProgress.after, null);
+  assert.ok(preview.warnings.some(warning => /personal quest points/.test(warning)));
+  const noPoints = apply(next, batch({ source: 'platform-api', fetchedAt: '2026-10-07T17:30:00Z', skills: [], quests: [] }));
+  assert.deepEqual(noPoints.members[0].questPointProgress, next.members[0].questPointProgress, 'Missing endpoint data cannot erase saved observations');
+  assert.deepEqual(apply(apply(noPoints, { type: 'undo' }), { type: 'undo' }).members, state.members);
+  for (const mutate of [
+    value => { value.members[0].questPointProgress.current = 451; },
+    value => { value.members[0].questPointProgress.source = 'manual'; },
+    value => { value.history.at(-1).undo.memberChanges[0].changes.find(change => change.path[0] === 'questPointProgress').after.value.max = -1; },
+  ]) {
+    const invalid = structuredClone(next); mutate(invalid);
+    assert.throws(() => validateState(invalid), TypeError);
+  }
 });
 
 

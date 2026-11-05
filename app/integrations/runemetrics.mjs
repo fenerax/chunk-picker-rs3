@@ -17,7 +17,7 @@ export function normalizeRuneMetricsSnapshot(snapshot) {
     unmatchedSkills: RUNE_METRICS_SKILLS.flatMap((skill, id) => seen.has(id) ? [] : [{ id, skill, reason: 'Skill was not returned; saved progress will be kept.' }]) };
 }
 export function previewRuneMetrics(state, memberId, snapshot, questMapping) {
-  return previewProgressSnapshot(state, memberId, normalizeRuneMetricsSnapshot(snapshot), questMapping);
+  return previewProgressSnapshot(state, memberId, snapshot.source === 'platform-api' ? snapshot : normalizeRuneMetricsSnapshot(snapshot), questMapping);
 }
 
 function runeMetricsError(code, message, status) { return Object.assign(new Error(message), { code, status }); }

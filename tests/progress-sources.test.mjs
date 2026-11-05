@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProgressSources as createSources, createPluginProgressSource, createOfficialApiSource, previewProgress } from '../app/integrations/progress-sources.mjs';
+import { platformResponse } from './helpers/platform-api-fixtures.mjs';
 import { createRuneMetricsClient } from '../app/integrations/runemetrics.mjs';
 import { createQuestMapping } from '../app/integrations/quest-mapping.mjs';
 import { RUNE_METRICS_SUNSET_AT, PLUGIN_PROGRESS_FRESH_MS } from '../app/integrations/progress-source-policy.mjs';
@@ -11,7 +12,7 @@ import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { personalSkillProgress } from '../app/web/helper-model.mjs';
 import { customTaskDoable } from '../app/web/custom-tasks-model.mjs';
 
-const createProgressSources = options => createSources({ hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...options });
+const createProgressSources = options => createSources({ webSource: 'runemetrics', hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...options });
 const beforeSunset = RUNE_METRICS_SUNSET_AT - 1000;
 const owner = { id: 'actor1', runescapeName: 'Player x' };
 const live = (at, extra = {}) => ({ sentAt: new Date(at).toISOString(), world: { beta: false },
@@ -180,4 +181,37 @@ test('plugin progress works without a web account name and older reports cannot 
   assert.equal((await sources.snapshot(unnamed)).skills[0].level, 5);
   plugin.clear();
   assert.equal((await sources.snapshot(unnamed)).available, false);
+});
+
+
+test('default Platform web source overlays plugin facts and keeps authoritative QP', async t => {
+  const sources = createSources({ runeMetrics: { fetchImpl: async url => platformResponse(url) },
+    pluginSnapshot: () => ({ source: 'game-plugin', sourceLabel: 'Game plugin', fetchedAt: '2026-11-04T12:00:00Z',
+      skills: [{ skill: 'Attack', level: 8, xp: 850.5 }], quests: [] }),
+    hiscores: { async snapshot() { throw new Error('Fallback must not run on a successful pair'); } } });
+  t.after(() => sources.close());
+  const member = { id: 'actor1', runescapeName: 'ExampleHero' };
+  const snapshot = await sources.snapshot(member);
+  assert.equal(snapshot.source, 'platform-api'); assert.equal(snapshot.sourceLabel, 'Platform API + game plugin');
+  assert.equal(snapshot.skills.find(row => row.skill === 'Attack').level, 8);
+  assert.equal(snapshot.skills.find(row => row.skill === 'Attack').provenance.source, 'game-plugin');
+  assert.equal(snapshot.skills.find(row => row.skill === 'Defence').level, 9);
+  assert.deepEqual(snapshot.questPoints, { current: 17, max: 450 });
+  const review = previewProgress({ revision: 0, members: [{ ...member, completedTasks: [] }], tasks: [] }, member.id, snapshot, new Map());
+  assert.equal(review.command.skills.find(row => row.skill === 'Attack').xp, 850.5, 'Plugin XP precision survives the Platform overlay');
+});
+
+test('default Platform failure retains the nondecreasing Hiscores fallback and saved QP', async t => {
+  let calls = 0;
+  const sources = createSources({ runeMetrics: { fetchImpl: async () => { calls++; throw new Error('Synthetic outage'); } },
+    hiscores: { async snapshot() { return { source: 'hiscores', sourceLabel: 'RS3 hiscores', fetchedAt: '2026-11-04T12:00:00Z', cached: false,
+      skills: [{ skill: 'Attack', level: 4, xp: 300 }, { skill: 'Defence', level: 9, xp: 1000 }], quests: [] }; } } });
+  t.after(() => sources.close());
+  const member = { id: 'actor1', runescapeName: 'ExampleHero',
+    skillProgress: { Attack: { source: 'platform-api', runescapeName: 'ExampleHero', level: 7, xp: 700 } },
+    questPointProgress: { source: 'platform-api', runescapeName: 'ExampleHero', current: 17, max: 450 } };
+  const before = structuredClone(member), snapshot = await sources.snapshot(member);
+  assert.equal(snapshot.source, 'hiscores'); assert.equal(calls, 2);
+  assert.deepEqual(snapshot.skills.map(row => row.skill), ['Defence']);
+  assert.equal(snapshot.questPoints, undefined); assert.deepEqual(member, before);
 });

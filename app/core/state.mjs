@@ -8,7 +8,7 @@ import { validateProgressSnapshots } from './progress-snapshots.mjs';
 import { preferenceDefinitions, validatePreference } from './preferences.mjs';
 import { validateControlSkill, validateControlLevel, validateSlayerLock } from './player-controls.mjs';
 import { defaultRuneScapeNames, validateRuneScapeName, sameRuneScapeName, validateRuneMetricsTimestamp,
-  validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance, validateGamePluginProvenance } from './game-progress.mjs';
+  isGameProgressSource, validateObservedQuestPoints, validateQuestPointProgress, validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance, validateGamePluginProvenance } from './game-progress.mjs';
 import { applyChunkColourCommand, validateChunkColour, validateChunkColourName } from './chunk-colours.mjs';
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
 import { validateTransportFacts } from './transport-access.mjs';
@@ -39,13 +39,13 @@ const GAMEPLAY_KEYS = new Set(['rules', 'chunkOrder', 'settings', 'chunkinfo', '
   'activeSubTabs', 'topbarSelection', 'manualPrimary', 'recentFancyRollTime',
   'recent', 'recentTime', 'randomLoot', 'chunkNotes', 'userTasks', 'friends', 'friendsAlt']);
 const STATE_KEYS = new Set(['schemaVersion', 'revision', 'rules', 'members', 'tasks', 'history', 'legacy', 'provenance', 'identityRegistry', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews']);
-export const MEMBER_KEYS = new Set(['id', 'name', 'sourceMapId', 'unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports', 'teleportOverrides', 'notes', 'journal', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'runescapeName', 'skillProgress', 'questProgress', 'achievementProgress', 'itemProgress', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap', 'xpChoices', 'bossUnlocks']);
+export const MEMBER_KEYS = new Set(['id', 'name', 'sourceMapId', 'unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports', 'teleportOverrides', 'notes', 'journal', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'runescapeName', 'skillProgress', 'questProgress', 'questPointProgress', 'achievementProgress', 'itemProgress', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap', 'xpChoices', 'bossUnlocks']);
 const SOURCE_KINDS = new Set(['objects', 'npcs', 'monsters', 'shops', 'spawns', 'items']);
 const MEMBER_ARRAY_FIELDS = new Set(['unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports']);
 const MEMBER_PROGRESSION_FIELDS = new Set(['unlocked', 'selected', 'pendingRoll']);
 const MEMBER_DICTIONARY_FIELDS = new Set(['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'itemProgress', 'teleportOverrides', 'xpChoices', 'bossUnlocks']);
 const MEMBER_NESTED_DICTIONARY_FIELDS = new Set(['sourceBacklogs', 'taskAlternatives']);
-const MEMBER_VALUE_FIELDS = new Set(['journal', 'slayerLock', 'runescapeName', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap']);
+const MEMBER_VALUE_FIELDS = new Set(['journal', 'slayerLock', 'runescapeName', 'runeMetricsSync', 'questPointProgress', 'originalPickerSync', 'transportFacts', 'f2pMap']);
 const ORIGINAL_SYNC_FIELDS = new Map([['chunks', 'unlocked'], ['selections', 'selected'], ['blacklist', 'blacklisted'], ['pendingRoll', 'pendingRoll'], ['rules', 'taskRules'], ['tasks', 'tasks']]);
 const UNSAFE_PROPERTIES = new Set(['__proto__', 'prototype', 'constructor']);
 const COMMAND_KEYS = new Map([
@@ -93,7 +93,7 @@ const COMMAND_KEYS = new Map([
   ['set-skill-levels', new Set(['type', 'memberId', 'skill', 'passiveLevel', 'maxLevel'])],
   ['set-runescape-name', new Set(['type', 'memberId', 'name'])],
   ['replace-member', new Set(['type', 'memberId', 'member', 'source'])],
-  ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests', 'source'])],
+  ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests', 'source', 'questPoints'])],
   ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests', 'achievements', 'items'])],
   ['sync-original', new Set(['type', 'capturedAt', 'sourceHash', 'members'])],
   ['set-slayer-lock', new Set(['type', 'memberId', 'lock'])],
@@ -414,6 +414,7 @@ function validatePatchValue(path, value, tasks, memberId) {
   if (field === 'slayerLock') { validateSlayerLock(value); return; }
   if (field === 'transportFacts') { validateTransportFacts(value); return; }
   if (field === 'runescapeName') { if (validateRuneScapeName(value) !== value) fail('Undo RuneScape name must be trimmed'); return; }
+  if (field === 'questPointProgress') { validateQuestPointProgress(value); return; }
   if (field === 'runeMetricsSync') { validateRuneMetricsProvenance(value); return; }
   if (field === 'originalPickerSync') { validateOriginalPickerSync(value); return; }
   if (field === 'f2pMap') { validateF2PMap(value); return; }
@@ -723,6 +724,7 @@ function validateStateCopy(copy, registry) {
     if (member.achievementProgress !== undefined) dictionary(member.achievementProgress, `${path}.achievementProgress`, (value, id) => validateAchievementProgress(id, value, taskRows, member.id));
     if (member.itemProgress !== undefined) dictionary(member.itemProgress, `${path}.itemProgress`, (value, id) => validateItemProgress(id, value, taskRows, member.id));
     if (member.xpChoices !== undefined) dictionary(member.xpChoices, `${path}.xpChoices`, (value, id) => { if (!tasks.has(id)) fail('XP choices reference absent task'); validateSavedXpChoices(value); });
+    if (member.questPointProgress !== undefined) validateQuestPointProgress(member.questPointProgress);
     if (member.runeMetricsSync !== undefined) validateRuneMetricsProvenance(member.runeMetricsSync);
     if (member.originalPickerSync !== undefined) validateOriginalPickerSync(member.originalPickerSync);
     if (member.chunkColours !== undefined) dictionary(member.chunkColours, `${path}.chunkColours`, (value, id) => { chunk(id, 'colour chunk'); validateChunkColour(value); });
@@ -996,6 +998,7 @@ export function previewRestore(current, incoming, registry) {
       maxLevels: dictionaryChanges(oldMember?.maxLevels, newMember?.maxLevels),
       skillProgress: dictionaryChanges(oldMember?.skillProgress, newMember?.skillProgress),
       questProgress: dictionaryChanges(oldMember?.questProgress, newMember?.questProgress),
+      questPointProgress: { before: oldMember?.questPointProgress ?? null, after: newMember?.questPointProgress ?? null, changed: JSON.stringify(oldMember?.questPointProgress) !== JSON.stringify(newMember?.questPointProgress) },
       achievementProgress: dictionaryChanges(oldMember?.achievementProgress, newMember?.achievementProgress),
       itemProgress: dictionaryChanges(oldMember?.itemProgress, newMember?.itemProgress),
       runeMetricsSync: { before: oldMember?.runeMetricsSync ?? null, after: newMember?.runeMetricsSync ?? null, changed: JSON.stringify(oldMember?.runeMetricsSync) !== JSON.stringify(newMember?.runeMetricsSync) },
@@ -1045,7 +1048,8 @@ export function previewRestore(current, incoming, registry) {
       if (member[field].removed.length || member[field].changed.length) warnings.push(`Restore removes or changes ${({ notes: 'notes', taskStatus: 'task checks and backlog choices', taskRules: 'task rules', sectionOverrides: 'section access choices', areaOverrides: 'area access choices', sourceBacklogs: 'backlogged item sources', preferences: 'settings', primaryOverrides: 'main training method assumptions', passiveLevels: 'levels possible without a main training method', maxLevels: 'training level limits', stickers: 'map stickers', chunkColours: 'chunk colours', chunkColourNames: 'chunk colour names', taskAlternatives: 'chosen task methods', skillProgress: 'personal levels and XP', questProgress: 'personal quest progress', achievementProgress: 'personal achievement progress', itemProgress: 'personal item evidence', xpChoices: 'XP reward choices', bossUnlocks: 'bosses unlocked by hand' })[field]} for ${member.identity.name.before ?? member.name}.`);
     }
     if (member.slayerLock.changed) warnings.push(`Restore changes the Slayer lock for ${member.identity.name.before ?? member.name}.`);
-    if (member.runeMetricsSync.changed) warnings.push(`Restore changes the last RuneMetrics sync for ${member.identity.name.before ?? member.name}.`);
+    if (member.questPointProgress.changed) warnings.push(`Restore changes personal quest points for ${member.identity.name.before ?? member.name}.`);
+    if (member.runeMetricsSync.changed) warnings.push(`Restore changes the last account sync for ${member.identity.name.before ?? member.name}.`);
   }
   const provenance = { changed: JSON.stringify(before.provenance) !== JSON.stringify(after.provenance),
     removedPaths: removedPaths(before.provenance, after.provenance, 'provenance') };
@@ -1872,14 +1876,15 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
     case 'apply-game-progress':
     case 'apply-runemetrics': {
       const member = findMember(next, payload.memberId);
-      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : payload.source === 'hiscores' ? 'RS3 hiscores' : payload.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics';
-      if (!plugin && payload.source !== undefined && !['runemetrics', 'official-api', 'hiscores'].includes(payload.source)) fail('Unknown web progress source.');
+      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : payload.source === 'hiscores' ? 'RS3 hiscores' : payload.source === 'platform-api' ? 'Platform API' : payload.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics';
+      if (!plugin && payload.source !== undefined && !isGameProgressSource(payload.source)) fail('Unknown web progress source.');
       if (!plugin) {
         const name = validateRuneScapeName(payload.runescapeName);
-        if (!sameRuneScapeName(name, member.runescapeName)) fail('RuneMetrics name does not match the current member account binding');
+        if (!sameRuneScapeName(name, member.runescapeName)) fail('Account sync name does not match the current member account binding');
       }
       validateRuneMetricsTimestamp(payload.fetchedAt, sourceLabel);
       if (!Array.isArray(payload.skills) || !Array.isArray(payload.quests)) fail(`${sourceLabel} skills and quests must be arrays`);
+      if (payload.questPoints !== undefined) validateObservedQuestPoints(payload.questPoints);
       const achievements = plugin && payload.achievements !== undefined ? payload.achievements : [];
       if (!Array.isArray(achievements)) fail('Game plugin achievements must be an array');
       const items = plugin && payload.items !== undefined ? payload.items : [];
@@ -1936,6 +1941,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
         member.itemProgress = { ...(member.itemProgress ?? {}), ...Object.fromEntries(newItems.map(({ taskId, title, gameItemId, evidence, seen }) => [taskId, { title, gameItemId, evidence, seen, ...provenance }])) };
         member.completedTasks = [...member.completedTasks, ...newItems.map(({ taskId }) => taskId)];
       }
+      if (payload.questPoints !== undefined) member.questPointProgress = { ...payload.questPoints, ...provenance };
       if (!plugin) member.runeMetricsSync = provenance;
       break;
     }

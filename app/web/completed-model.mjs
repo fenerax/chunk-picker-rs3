@@ -1,3 +1,4 @@
+import { isGameProgressSource } from '../core/game-progress.mjs';
 import { createTaskFactsIndex } from '../core/progress-index.mjs';
 import { projectMemberTaskFacts, resolveSavedTaskId } from '../tasks/fact-projection.mjs';
 
@@ -109,7 +110,7 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
   }
   for (const owner of state.members) for (const [id, fact] of Object.entries(owner.questProgress ?? {})) {
     if (timestamp(fact.fetchedAt) && (fact.source === 'game-plugin' && fact.memberId === owner.id
-      || ['runemetrics', 'official-api'].includes(fact.source) && typeof fact.runescapeName === 'string' && fact.runescapeName.trim())) {
+      || ['runemetrics', 'platform-api', 'official-api'].includes(fact.source) && typeof fact.runescapeName === 'string' && fact.runescapeName.trim())) {
       observations.set(key(owner.id, resolve(id)), fact);
     }
   }
@@ -125,7 +126,7 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
         ...(observation ? { source: observation.source, observedAt: observation.fetchedAt,
           ...(achievement ? { achievementId: achievement.achievementId } : {}),
           ...(item && !achievement ? { gameItemId: item.gameItemId, itemSeen: item.seen } : {}),
-          ...(['runemetrics', 'official-api'].includes(observation.source) ? { runescapeName: observation.runescapeName } : {}) } : {}) };
+          ...(['runemetrics', 'platform-api', 'official-api'].includes(observation.source) ? { runescapeName: observation.runescapeName } : {}) } : {}) };
       const entries = evidence.get(id) ?? []; entries.push(completion); evidence.set(id, entries);
     };
     for (const [id, status] of Object.entries(owner.taskStatus ?? {})) if (status.challengeCompleted === true) add(id, 'ticked');
@@ -170,7 +171,7 @@ export function filterCompletedRows(rows, { query = '', attribution = 'all', sor
     if (attribution.startsWith('ticked:')) return completion.kind === 'ticked' && completion.memberId === attribution.slice(7);
     if (attribution.startsWith('done:')) return completion.memberId === attribution.slice(5);
     if (attribution === 'imported') return completion.imported;
-    if (attribution === 'runemetrics') return completion.kind === 'game' && completion.source === 'runemetrics';
+    if (attribution === 'runemetrics') return completion.kind === 'game' && isGameProgressSource(completion.source);
     if (attribution === 'game-plugin') return completion.source === 'game-plugin';
     if (attribution === 'ticked' || attribution === 'game') return completion.kind === attribution;
     return completion.memberId === attribution;

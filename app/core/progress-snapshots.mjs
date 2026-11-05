@@ -1,7 +1,11 @@
 export const PROGRESS_METRICS = Object.freeze(['unlockedChunks', 'completedTasks', 'questPoints', 'totalLevel', 'combatLevel']);
 export const MAX_PROGRESS_DAYS = 3660;
 const DAY = 86_400_000;
-const sum = values => values.some(value => value === null) ? null : values.reduce((total, value) => total + value, 0);
+const sum = values => {
+  if (values.some(value => value === null)) return null;
+  const total = values.reduce((total, value) => total + value, 0);
+  return Number.isSafeInteger(total) ? total : null;
+};
 
 /** Validate tiny portable daily count tuples independently of calculators. */
 export function validateProgressSnapshots(value) {
@@ -15,14 +19,15 @@ export function validateProgressSnapshots(value) {
   const check = (row, combined = false) => {
     if (!Array.isArray(row) || row.length !== PROGRESS_METRICS.length) fail('need five numeric counts');
     row.forEach((number, index) => {
-      const maximum = index === 3 ? 3480 : index === 4 ? 200 : 1_000_000;
+      const maximum = index === 2 ? Number.MAX_SAFE_INTEGER : index === 3 ? 3480 : index === 4 ? 200 : 1_000_000;
       if (number === null && index >= 2) return;
       if (!Number.isSafeInteger(number) || number < 0 || number > maximum * (combined ? value.memberIds.length : 1)) fail('contain an invalid count');
     });
   };
   let previous = -1;
   for (const row of value.days) {
-    if (!Array.isArray(row) || row.length !== 4) fail('contain an invalid day tuple');
+    if (!Array.isArray(row) || (row.length !== 4 && row.length !== 5)
+      || (row.length === 5 && row[4] !== 1)) fail('contain an invalid day tuple');
     const [day, at, members, duo] = row;
     if (!Number.isSafeInteger(day) || day < 0 || day <= previous || !Number.isSafeInteger(at) || at < 0
       || at > 253402300799999 || Math.floor(at / DAY) !== day) fail('need ordered unique valid UTC dates');

@@ -36,6 +36,21 @@ function harness() {
 }
 const deferred = () => { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
 
+test('Profile and copied summary show synced QP with provenance and hide a previous account’s total', () => {
+  const state = fixture();
+  state.members[0].questPointProgress = { current: 33, max: 456, source: 'platform-api', fetchedAt: '2026-11-04T12:00:00Z', runescapeName: 'DemoExplorer' };
+  let model = buildProfileModel(state, 'actor1', result());
+  let nodes = all(renderProfile(context, model));
+  assert.ok(nodes.some(row => row.textContent === '33 / 456 quest points'));
+  assert.ok(nodes.some(row => /Platform API · Synced/.test(row.textContent)));
+  assert.match(formatProfileSummary(model), /Quest points: 33\/456 \(Platform API\)/);
+  state.members[0].runescapeName = 'Different';
+  model = buildProfileModel(state, 'actor1', result());
+  nodes = all(renderProfile(context, model));
+  assert.ok(nodes.some(row => row.textContent === 'Quest points not synced yet.'));
+  assert.doesNotMatch(formatProfileSummary(model), /33\/456/);
+});
+
 
 test('recorded gear has icons and a display-only style switch', () => {
   const model = buildProfileModel(fixture(), 'actor1', result('actor1', { currentBiS: { owned: {

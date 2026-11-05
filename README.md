@@ -176,3 +176,7 @@ replace `<script>` with the script's repository-relative path.
 
 RuneScape is a Jagex trademark. This project is unofficial and non-commercial.
 See [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Account progress sync
+
+Activity Info offers on-demand **Sync progress** through the RuneScape Platform API for levels, whole XP, completed quests and authoritative quest points, with preview, apply and undo. Plugin observations retain priority. See [Account progress sync](docs/runemetrics.md) for mapping and limits.

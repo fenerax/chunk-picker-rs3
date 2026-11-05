@@ -1,16 +1,20 @@
 import { combatLevelFromSkills } from './combat-level.mjs';
 import { playerControlSkills } from './player-controls.mjs';
-import { progressBelongsToMember, validateRuneMetricsTimestamp } from './game-progress.mjs';
+import { progressBelongsToMember, sameRuneScapeName, validateQuestPointProgress, validateRuneMetricsTimestamp } from './game-progress.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { finishLineCommandTypes } from './finish-line.mjs';
 import { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots } from './progress-snapshots.mjs';
 export { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots } from './progress-snapshots.mjs';
 const DAY = 86_400_000;
-const metricFields = new Set(['unlocked', 'completedTasks', 'taskStatus', 'skillProgress', 'questProgress', 'runescapeName']);
+const metricFields = new Set(['unlocked', 'completedTasks', 'taskStatus', 'skillProgress', 'questProgress', 'questPointProgress', 'runescapeName']);
 const validAt = value => { try { return validateRuneMetricsTimestamp(value); } catch { return null; } };
 const tuple = metrics => PROGRESS_METRICS.map(key => metrics[key]);
 const metrics = values => Object.fromEntries(PROGRESS_METRICS.map((key, index) => [key, values[index]]));
-const sum = values => values.some(value => value === null) ? null : values.reduce((total, value) => total + value, 0);
+const sum = values => {
+  if (values.some(value => value === null)) return null;
+  const total = values.reduce((total, value) => total + value, 0);
+  return Number.isSafeInteger(total) ? total : null;
+};
 
 /** Exactly the Every Drop item family used by collection.mjs; other collection
  * kinds retain their source-specific obligations. Unknown aliases stay distinct. */
@@ -22,6 +26,12 @@ function observedSkills(member) {
   return Object.fromEntries(Object.entries(member.skillProgress ?? {}).filter(([skill, value]) => playerControlSkills.includes(skill)
     && progressBelongsToMember(value, member)
     && Number.isSafeInteger(value.level) && value.level >= 1 && value.level <= 120 && validAt(value.fetchedAt)));
+}
+
+function observedQuestPoints(member) {
+  const value = member.questPointProgress;
+  if (!value || !sameRuneScapeName(value.runescapeName, member.runescapeName)) return null;
+  try { validateQuestPointProgress(value); return value; } catch { return null; }
 }
 function skillCounts(member, f2p) {
   const observed = observedSkills(member), levels = Object.fromEntries(Object.entries(observed).map(([skill, value]) => [skill, value.level]));
@@ -37,10 +47,9 @@ export function progressCounts(state, { questPoints } = {}) {
   const completionSets = state.members.map(member => new Set([...member.completedTasks,
     ...Object.entries(member.taskStatus ?? {}).filter(([, value]) => value.challengeCompleted === true).map(([id]) => id)].map(id => completionKey(state, id))));
   const members = state.members.map((member, index) => {
-    const actual = new Set(member.completedTasks.map(id => resolveSavedTaskId(state.identityRegistry, id)));
     return { memberId: member.id, name: member.name, metrics: { unlockedChunks: new Set(member.unlocked).size,
       completedTasks: completionSets[index].size,
-      questPoints: questPoints ? [...actual].reduce((total, id) => total + (questPoints.get(id) ?? 0), 0) : null,
+      questPoints: observedQuestPoints(member)?.current ?? null,
       ...skillCounts(member, f2p) } };
   });
   return { members, duo: { metrics: { unlockedChunks: new Set(state.members.flatMap(member => member.unlocked)).size,
@@ -59,7 +68,9 @@ export function captureProgressSnapshot(state, { questPoints, at = new Date().to
   const sameRoster = !state.progressSnapshots || JSON.stringify(state.progressSnapshots.memberIds) === JSON.stringify(memberIds);
   const previous = sameRoster ? state.progressSnapshots : { days: [], truncated: true };
   const counts = progressCounts(state, { questPoints }), time = Date.parse(at), day = Math.floor(time / DAY);
-  const entry = [day, time, counts.members.map(member => tuple(member.metrics)), tuple(counts.duo.metrics)];
+  // Marker 1 records that QP counts came from account observations (including
+  // explicit unknowns), so their meaning survives History archival and renames.
+  const entry = [day, time, counts.members.map(member => tuple(member.metrics)), tuple(counts.duo.metrics), 1];
   const days = [...(previous?.days ?? [])];
   const index = days.findIndex(row => row[0] === day);
   if (index >= 0) {
@@ -154,25 +165,26 @@ export function buildProgressModel(state, { questPoints, now = new Date().toISOS
   points.reverse();
   if (!boundary && recent.length && validAt(recent[0].at)) points.unshift({ at: recent[0].at, revision: recent[0].revision - 1, type: 'baseline', position: 'before', ...progressCounts(replay, { questPoints }) });
   const snapshots = state.progressSnapshots;
-  const dailyPoints = (snapshots?.days ?? []).map(([day, at, members, duo]) => ({ at: new Date(at).toISOString(), date: new Date(day * DAY).toISOString().slice(0, 10),
-    members: snapshots.memberIds.map((memberId, index) => ({ memberId, metrics: metrics(members[index]) })), duo: { metrics: metrics(duo) } }));
+  // Older daily tuples summed quest awards and have no source marker. Keep the
+  // portable records intact, but never compare those estimates with an account
+  // observation as if the correction were a gameplay gain.
+  const dailyPoints = (snapshots?.days ?? []).map(([day, at, members, duo, sourceVersion]) => {
+    const rows = snapshots.memberIds.map((memberId, index) => {
+      const row = metrics(members[index]);
+      if (sourceVersion !== 1) row.questPoints = null;
+      return { memberId, metrics: row };
+    });
+    return { at: new Date(at).toISOString(), date: new Date(day * DAY).toISOString().slice(0, 10),
+      members: rows, duo: { metrics: { ...metrics(duo), questPoints: sum(rows.map(row => row.metrics.questPoints)) } } };
+  });
   const datedRecords = [];
   for (const member of state.members) {
     const observed = observedSkills(member), times = new Set(Object.values(observed).map(value => value.fetchedAt));
     const counts = skillCounts(member, state.rules?.['content.f2p'] !== false);
     if (times.size === 1 && (counts.totalLevel !== null || counts.combatLevel !== null)) datedRecords.push({ at: [...times][0], memberId: member.id, kind: 'skills', label: 'Saved skill observation', metrics: counts });
-    const batches = new Map();
-    for (const [id, observation] of Object.entries(member.questProgress ?? {})) {
-      if (!member.completedTasks.includes(id) || !progressBelongsToMember(observation, member) || !validAt(observation.fetchedAt) || !questPoints?.has(id)) continue;
-      const batch = batches.get(observation.fetchedAt) ?? new Map(); batch.set(resolveSavedTaskId(state.identityRegistry, id), questPoints.get(id)); batches.set(observation.fetchedAt, batch);
-    }
-    // A sync batch can contain just one newly observed quest alongside older
-    // undated completions. Its points are a delta, never an account total.
-    const actualQuests = new Set(member.completedTasks.map(id => resolveSavedTaskId(state.identityRegistry, id)).filter(id => questPoints?.has(id)));
-    for (const [at, batch] of batches) {
-      if (!actualQuests.size || batch.size !== actualQuests.size || [...actualQuests].some(id => !batch.has(id))) continue;
-      datedRecords.push({ at, memberId: member.id, kind: 'quest', label: 'Saved personal quest-point observation', metrics: { questPoints: sum([...batch.values()]) } });
-    }
+    const questObservation = observedQuestPoints(member);
+    if (questObservation) datedRecords.push({ at: questObservation.fetchedAt, memberId: member.id, kind: 'quest',
+      label: 'Saved account quest-point observation', metrics: { questPoints: questObservation.current } });
   }
   datedRecords.sort((a, b) => a.at.localeCompare(b.at) || a.memberId.localeCompare(b.memberId));
   return { schemaVersion: 1, stateRevision: state.revision, generatedAt: now, current,

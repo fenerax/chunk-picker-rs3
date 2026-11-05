@@ -51,8 +51,12 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
     content.append(el('h4', `Review ${value.sourceLabel ?? 'RuneMetrics'} for ${owner.name} · ${value.runescapeName}`),
       el('p', `Source: ${value.sourceLabel ?? 'RuneMetrics'}`, 'info-meta'),
       el('p', `Fetched ${time(value.fetchedAt)}${value.cached ? ' · recent saved result' : ''}${advanced() ? ` · Saved revision ${value.stateRevision}` : ''}`, 'info-meta'),
-      el('p', `${value.counts.completedQuests} completed quests returned · ${value.counts.matchedQuests} matched · ${value.counts.unmatchedQuests} unmatched`, 'info-meta'),
-      el('h5', `Observed skill changes (${value.skills.length})`));
+      el('p', `${value.counts.completedQuests} completed quests returned · ${value.counts.matchedQuests} matched · ${value.counts.unmatchedQuests} unmatched`, 'info-meta'));
+    if (value.questPoints) {
+      const { before, after } = value.questPoints;
+      content.append(el('p', `Quest points: ${before ? `${number(before.current)} / ${number(before.max)}` : 'not previously synced'} → ${number(after.current)} / ${number(after.max)} (Platform API)`, 'status-detail'));
+    }
+    content.append(el('h5', `Observed skill changes (${value.skills.length})`));
     if (value.skills.length) {
       const rows = el('ul');
       for (const skill of value.skills) {
@@ -67,7 +71,7 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
     content.append(value.unmatched.skills.length ? list(value.unmatched.skills.map(skill => `${skill.skill ?? skill.name ?? (advanced() ? `Skill ID ${skill.id}` : 'Unknown skill')}${skill.level == null ? '' : ` · reported level ${skill.level}`}${advanced() && skill.reason ? ` · ${skill.reason}` : ''}`)) : el('p', 'All returned skills matched.', 'info-meta'));
     content.append(el('h5', `Unmatched completed quests (${value.unmatched.quests.length})`));
     content.append(value.unmatched.quests.length ? list(value.unmatched.quests.map(quest => `${quest.title} · ${advanced() ? quest.reason : 'Could not match this to a quest completion in this app.'}`)) : el('p', 'All completed quests matched.', 'info-meta'));
-    content.append(el('p', 'Apply saves your levels, XP, the listed completed quests and the sync date. Skills and quests that could not be matched are skipped.', 'info-meta'));
+    content.append(el('p', 'Apply saves your levels, XP, quest points, the listed completed quests and the sync date. Skills and quests that could not be matched are skipped.', 'info-meta'));
     const cancel = button('Cancel preview', () => { if (current() && !busy) discard(); });
     const apply = button('Apply progress snapshot', async () => {
       if (!current() || busy || preview !== value) return;

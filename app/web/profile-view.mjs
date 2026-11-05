@@ -37,7 +37,7 @@ export function renderProfile(context, model, { openBiS, openXpChoices, refresh 
   }
   skills.append(grid, el('p', model.skills.lastSyncAt ? `Last synced ${date(model.skills.lastSyncAt)}`
     : model.skills.knownCount ? 'Recorded account levels · Last sync date unknown.'
-      : 'No synced levels yet. Open RuneMetrics sync or Game plugin in Activity Info.', 'profile-note'));
+      : 'No synced levels yet. Open Progress sync or Game plugin in Activity Info.', 'profile-note'));
   if (model.skills.knownCount > 0 && model.skills.knownCount < model.skills.totalCount) skills.append(el('p', `${model.skills.knownCount}/${model.skills.totalCount} levels recorded. Total needs all skills; combat needs all combat skills.`, 'profile-note'));
   if (openXpChoices) skills.append(button('XP choices', openXpChoices));
   const progress = el('div', undefined, 'profile-progress');
@@ -48,6 +48,8 @@ export function renderProfile(context, model, { openBiS, openXpChoices, refresh 
   tasks.append(counts, el('p', 'Your personal completions and picker ticks, counted once.', 'profile-note'));
   if (model.tasks.unknownCount) tasks.append(el('p', `${value(model.tasks.unknownCount)} saved tasks have no known category.`, 'profile-note'));
   const quests = el('section', undefined, 'profile-quests'); quests.append(el('h3', 'Quests'),
+    el('p', model.questPoints ? `${value(model.questPoints.current)} / ${value(model.questPoints.max)} quest points` : 'Quest points not synced yet.', 'profile-progress-value'),
+    el('p', model.questPoints ? `${model.questPoints.source === 'platform-api' ? 'Platform API' : 'RuneMetrics'}${model.questPoints.fetchedAt ? ` · Synced ${date(model.questPoints.fetchedAt)}` : ''}` : 'Sync from Platform API to record your account’s quest points.', 'profile-note'),
     el('p', `${value(model.quests.completed)} / ${value(model.quests.total)} recorded complete`, 'profile-progress-value'),
     el('p', 'Known quests under the current content rules.', 'profile-note'));
   const achievements = el('section', undefined, 'profile-achievements'); achievements.append(el('h3', 'Diaries / achievements'),

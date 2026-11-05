@@ -264,7 +264,7 @@ export function createScreenCommands(c) {
     const reviewedMember = c.memberId, generation = c.dialogGeneration;
     const current = () => c.memberId === reviewedMember && c.dialogCurrent(generation);
     const task = c.queue.then(async () => {
-      if (!current()) throw Object.assign(new Error('The RuneMetrics review was closed or the selected player changed. Open Activity Info and review a new preview.'), { reviewAbandoned: true });
+      if (!current()) throw Object.assign(new Error('The progress review was closed or the selected player changed. Open Activity Info and review a new preview.'), { reviewAbandoned: true });
       c.saved('Saving…');
       try {
         if (c.state.revision !== expectedRevision) throw Object.assign(new Error('Saved state changed.'), { status: 409 });
@@ -273,7 +273,7 @@ export function createScreenCommands(c) {
         c.saved('Saved', false, c.state.revision, { confirmed: true });
         return response;
       } catch (error) {
-        if (error.status === 409) error.message = 'Saved state changed. Fetch a new RuneMetrics preview and review it before applying.';
+        if (error.status === 409) error.message = 'Saved state changed. Fetch a new progress preview and review it before applying.';
         throw error;
       }
     });

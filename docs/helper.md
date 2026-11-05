@@ -12,7 +12,7 @@ The existing administrator and invitation rules apply to every data request.
 
 **Grind planner** uses `/api/training-catalogue` and the existing authenticated
 `/api/training-plan` endpoint. Its starting level and exact XP come from the
-selected member's current-account RuneMetrics observation. A renamed account or
+selected member's current-account Platform API or saved RuneMetrics observation. A renamed account or
 missing observation asks for a temporary level; this is never saved. Choose an
 active task's level or enter a target. The plan uses that player's quests and
 admitted source access, including the partner's connected chunks under the
@@ -208,13 +208,11 @@ Each has an accessible captioned table. Weeks start Monday in UTC. History is
 reconstructed backwards from validated undo evidence, including selective Undo;
 unsupported evidence, restore and catalogue changes create an explicit boundary.
 The first count is a baseline, not progress earned that week. Saved/synced dates
-are not claimed as play dates. Current-account RuneMetrics observations can add
-earlier skill or quest-point totals only when their complete same-time evidence
-supports an account total. Missing totals break the graph line.
+are not claimed as play dates. Current-account observations can add earlier skill totals when their complete same-time evidence supports an account total. Quest points use Jagex’s authoritative synced total; missing totals remain unknown. Legacy daily quest-award estimates appear as unknown so migration corrections do not appear as gameplay gains. Fresh daily records mark QP as authoritative, and retain that evidence after History archiving. Missing totals break the graph line.
 
 The store records `progressSnapshots` at startup and normal durable saves, outside
 commands and without changing revision or History. One latest numeric tuple per
-UTC day stores five counts per player plus the duo counts. It contains no task
+UTC day stores five counts per player plus the duo counts. New tuples include an authoritative-QP marker; old tuples remain readable. It contains no task
 lists, XP or daily identity trees; member IDs appear once. Up to 3,660 observed
 days (about ten years) fit below 400 KB for the duo and survive portable backups,
 restore and restart. A visible notice marks retention when that cap is reached.
@@ -288,67 +286,6 @@ while supplying all requested levels 1–99. The estimate preferences are saved;
 temporary target/start fields remain drafts. Existing viewer permissions still
 prevent new training-plan calculations.
 
-## Copied-save verification — October 12
+## Verification
 
-Progress was also checked on an isolated revision-97 copy. All saved gameplay,
-provenance and revision remained unchanged; only the automatic daily-count row
-was added at startup. Opening Progress sent no commands and made no writes.
-Personal graphs, duo graphs, all four accessible tables, and the recap were
-checked. Before and after totals were identical:
-
-| Saved total | Player 1 before → after | Player 2 before → after | Duo before → after |
-| --- | ---: | ---: | ---: |
-| Chunks unlocked | 158 → 158 | 114 → 114 | 163 → 163 |
-| Tasks completed | 119 → 119 | 285 → 285 | 394 → 394 |
-| Recorded quest points | 19 → 19 | 0 → 0 | 19 → 19 |
-| Total level | 976 → 976 | Unknown → unknown | Unknown → unknown |
-| Combat level | 78 → 78 | Unknown → unknown | Unknown → unknown |
-
-Player 2's zero is the picker's recorded personal quest-point sum, not a claim about
-his current in-game account. His unsynced levels stay unknown. Retained History
-has 64 usable count points beginning October 9 at the latest restore/catalogue
-boundary; daily counts begin October 12. The copied save's current Monday recap
-is “This week: 0 chunks, 0 tasks, +0 quest points.” The preceding partial week
-shows four new distinct duo chunks and 12 net task checks.
-
-All six desktop (1440px) and narrow (390px) dark/gray/light layouts fit without
-page-width overflow. An independent screenshot review confirmed the final
-numeric alignment and chart label size. Captures are under
-`.local/screenshots/progress-{desktop,390px}-{dark,gray,light}.png`; the compact
-report is `.local/progress-browser-report.json`. The exported backup includes the
-165-byte daily row. [Performance](performance.md#helper-progress--october-12)
-records serial measurements and their limits.
-
-Progress's final `npm test -- --test-concurrency=1`: **2,400 tests**, **2,399
-passed**, zero failures/cancellations and one existing generated-PNG skip, in
-**752.30 seconds**. The restart/no-write regression passes. Owned browser and
-performance processes are closed; private save copies and the archived baseline
-have been deleted. Local captures and reports remain ignored in this worktree.
-
-An isolated copy of the real duo save was checked through the normal signed-in
-browser and APIs. Its state file SHA-256 and the complete play-state response
-stayed unchanged; the browser sent no save commands and reported no exceptions.
-Player 1's saved Firemaking stayed **65 → 65**, and Player 2's unsynced Firemaking
-stayed **unknown → unknown**. Their active task lists stayed **25 → 25** and
-**26 → 26**, respectively.
-
-- Player 1, Firemaking 65 → 70: **282,995.3 XP**, **2,696 willow bonfire logs**,
-  about **3.9 hours** of estimated processing.
-- Player 2, temporary Firemaking 42 → 60: **228,213 XP**, **2,174 willow bonfire logs**,
-  about **3.2 hours** of estimated processing. Level 42 is an input for this example,
-  not a saved observation.
-
-Both estimates exclude gathering and travel. The browser also checked the goals
-chart/table, combined drop odds, XP/combat tools and retention of unsent values
-between sections. Desktop gray (1440px) and mobile light (390px) captures have
-no page-width overflow. Reports and screenshots remain ignored under
-`.local/helper-verification.json` and `.local/screenshots/helper-*.png`.
-Performance measurements and their limits are in [performance.md](performance.md#helper--october-12).
-
-Final `npm test -- --test-concurrency=1`: **2,379 tests**, **2,378 passed**, zero
-failures/cancellations, one existing generated-PNG check skipped, in **773.68s**.
-Helper tests cover personal/alias scope, trial caps, XP and drop boundaries,
-authenticated reads, stale/aborted responses, target refresh and temporary drafts.
-All owned scratch servers and Chrome processes closed; the private save copy and
-archived baseline source were deleted after verification. Prediction goldens and
-data provenance hashes are unchanged.
+Earlier private browser checks exercised Progress and Helper against temporary copies without changing the original save. Personal levels, XP, quest-point totals, task counts and training estimates are omitted from public documentation. Public regression tests use synthetic state. The Platform API port was verified with focused tests only; its pull request records the counts and timing.

@@ -84,3 +84,24 @@ test('personally marked achievement tasks are included even without a separate c
   state.members[0].completedTasks = ['diary'];
   assert.equal(buildProfileModel(state, 'one').achievements.ticked, 1);
 });
+
+test('Platform API profile facts retain account binding and authoritative quest points independently of ticks', () => {
+  const state = fixture(), member = state.members[0];
+  member.skillProgress = { Mining: { ...observation(55), source: 'platform-api' } };
+  member.runeMetricsSync = { ...observation(), source: 'platform-api' };
+  member.questPointProgress = { current: 33, max: 456, source: 'platform-api', fetchedAt: at, runescapeName: 'PLAYER' };
+  member.taskStatus.quest = { challengeCompleted: true };
+  member.completedTasks = ['quest'];
+  state.tasks = [{ id: 'quest', category: 'Quest', label: 'A Complete the quest', record: { QuestPoints: 999 } }];
+  const model = buildProfileModel(state, 'one');
+  assert.equal(model.skills.rows.find(row => row.skill === 'Mining').level, 55);
+  assert.equal(model.skills.lastSyncAt, at);
+  assert.deepEqual(model.questPoints, { current: 33, max: 456, source: 'platform-api', fetchedAt: at });
+  delete member.questPointProgress;
+  assert.equal(buildProfileModel(state, 'one').questPoints, null, 'Quest records and challenge ticks never manufacture account QP.');
+  member.questPointProgress = { current: 33, max: 456, source: 'platform-api', fetchedAt: at, runescapeName: 'Old player' };
+  assert.equal(buildProfileModel(state, 'one').questPoints, null);
+  member.runescapeName = 'new player';
+  assert.equal(buildProfileModel(state, 'one').skills.knownCount, 0);
+  assert.equal(buildProfileModel(state, 'one').skills.lastSyncAt, null);
+});

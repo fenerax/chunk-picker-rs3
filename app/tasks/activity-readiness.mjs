@@ -2,6 +2,7 @@ import { buildTrainingAvailability } from './training-availability.mjs';
 import { trainingMethodBlockers } from './training-planner.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { skillCaps } from './engine.mjs';
+import { isGameProgressSource, sameRuneScapeName } from '../core/game-progress.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 export const questGroupName = row => row.baseQuest ?? row.record?.BaseQuest ?? /~\|([^|]+)\|~/.exec(row.rawLabel ?? '')?.[1]?.split('#')[0] ?? row.label;
@@ -91,7 +92,10 @@ export function buildQuestReadiness(result, state, memberId, definitions = {}) {
   const skills = { ...availability.skills };
   const combatSkills = ['Attack', 'Strength', 'Defence', 'Constitution', 'Ranged', 'Prayer', 'Magic', 'Summoning', 'Necromancy'];
   if (combatSkills.every(skill => Number.isFinite(skills[skill]))) skills.Combat = combatLevelFromSkills(skills, { f2p: availability.members !== true });
-  skills.QuestPointsNeeded = quests.filter(row => isWholeQuestTask(row) && completed.has(row.id)).reduce((total, row) => total + Number(row.record.QuestPoints || 0), 0);
+  const member = state.members.find(owner => owner.id === memberId), observedPoints = member?.questPointProgress;
+  skills.QuestPointsNeeded = isGameProgressSource(observedPoints?.source) && sameRuneScapeName(observedPoints.runescapeName, member.runescapeName)
+    && Number.isSafeInteger(observedPoints.current) && observedPoints.current >= 0 ? observedPoints.current
+    : quests.filter(row => isWholeQuestTask(row) && completed.has(row.id)).reduce((total, row) => total + Number(row.record.QuestPoints || 0), 0);
   const totalSkills = Object.keys(skillCaps).filter(skill => skill !== 'Combat');
   if (totalSkills.every(skill => Number.isFinite(skills[skill]))) skills.TotalLevelNeeded = totalSkills.reduce((total, skill) => total + skills[skill], 0);
   // Kudos, CombatScore and virtual totals have no saved personal observation.
