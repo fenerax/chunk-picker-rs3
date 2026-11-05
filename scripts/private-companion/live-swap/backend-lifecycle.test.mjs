@@ -13,13 +13,23 @@ async function child(t) {
   const address = pipe(), process = fork(new URL('./backend-control.fixture.mjs', import.meta.url), [address], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const messages = [], exited = once(process, 'exit'); process.on('message', value => messages.push(value));
   const wait = async event => {
-    const until = Date.now() + 10000;
-    while (Date.now() < until) { const found = messages.find(value => value.event === event); if (found) return found; if (process.exitCode !== null) throw new Error('Fixture exited.'); await new Promise(resolve => setTimeout(resolve, 5)); }
-    throw new Error('Fixture event timeout.');
+    const signal = AbortSignal.timeout(10000);
+    for (;;) {
+      const found = messages.find(value => value.event === event); if (found) return found;
+      if (process.exitCode !== null || process.signalCode !== null) throw new Error(`Fixture exited before ${event}.`);
+      await once(process, 'message', { signal });
+    }
   };
+  t.after(async () => {
+    if (process.exitCode === null && process.connected && !messages.some(message => message.event === 'shutdown')) {
+      process.send({ method: 'release-factory' });
+      if (!messages.some(message => message.event === 'shutdown-started')) process.send({ method: 'shutdown' });
+    }
+    await exited;
+  });
   await wait('ready');
-  t.after(async () => { if (process.exitCode === null && process.connected) process.send({ method: 'shutdown' }); await exited; });
-  return { address, process, messages, wait, call: (method, argument) => runtimeCall(address, token, identity, method, argument, 10000) };
+  const barrier = event => { process.send({ method: 'barrier', event }); return wait(event); };
+  return { address, process, messages, wait, barrier, call: (method, argument) => runtimeCall(address, token, identity, method, argument, 10000) };
 }
 async function raw(address, value) {
   return new Promise((resolve, reject) => {
@@ -81,11 +91,29 @@ test('real child rejects replay and wrong MAC without executing commands', { ski
   assert.equal(wrong.value.error, 'LIVE_SWAP_RUNTIME_AUTH'); assert.equal((await fixture.call('status')).state, 'standby');
 });
 test('real child shutdown queued behind start never opens an orphan application', { skip: process.platform !== 'win32' }, async t => {
-  const fixture = await child(t); fixture.process.send({ method: 'delay', ms: 150 }); await fixture.wait('delay-set');
-  const activation = fixture.call('activate', checkpoint).catch(() => null); await fixture.wait('factory-start');
-  fixture.process.send({ method: 'shutdown' }); const result = await fixture.wait('shutdown'); await activation;
+  const fixture = await child(t); fixture.process.send({ method: 'hold-factory' }); await fixture.wait('factory-held');
+  const activation = assert.rejects(fixture.call('activate', checkpoint)); await fixture.wait('factory-start');
+  // Round trips on both sides prove the child is processing IPC while factory
+  // completion stays blocked. Elapsed time cannot release the application.
+  assert.deepEqual(await fixture.barrier('before-shutdown'), { event: 'before-shutdown', closing: false, active: false, factoryWaiting: true });
+  fixture.process.send({ method: 'shutdown' }); assert.equal((await fixture.wait('shutdown-started')).closing, true);
+  assert.deepEqual(await fixture.barrier('after-shutdown'), { event: 'after-shutdown', closing: true, active: false, factoryWaiting: true });
+  assert.ok(!fixture.messages.some(message => message.event === 'factory-return'));
+  fixture.process.send({ method: 'release-factory' });
+  const result = await fixture.wait('shutdown'); await activation;
   assert.equal(result.active, false); assert.ok(!fixture.messages.some(message => message.event === 'listen'));
   assert.ok(fixture.messages.some(message => message.event === 'closed'));
+  assert.deepEqual(fixture.messages.filter(message => ['factory-return', 'closed', 'shutdown'].includes(message.event)).map(message => message.event), ['factory-return', 'closed', 'shutdown']);
+});
+test('real child factory released before shutdown listens and then closes', { skip: process.platform !== 'win32' }, async t => {
+  const fixture = await child(t); fixture.process.send({ method: 'hold-factory' }); await fixture.wait('factory-held');
+  const activation = fixture.call('activate', checkpoint); await fixture.wait('factory-start');
+  assert.equal((await fixture.barrier('before-release')).factoryWaiting, true);
+  fixture.process.send({ method: 'release-factory' }); assert.equal((await activation).state, 'active');
+  assert.deepEqual(await fixture.barrier('after-release'), { event: 'after-release', closing: false, active: true, factoryWaiting: false });
+  fixture.process.send({ method: 'shutdown' }); assert.equal((await fixture.wait('shutdown-started')).closing, true);
+  assert.equal((await fixture.wait('shutdown')).active, false);
+  assert.deepEqual(fixture.messages.filter(message => ['factory-return', 'listen', 'closed', 'shutdown'].includes(message.event)).map(message => message.event), ['factory-return', 'listen', 'closed', 'shutdown']);
 });
 test('foreign pipe squatter cannot forge a mutually authenticated runtime reply', { skip: process.platform !== 'win32' }, async () => {
   const address = pipe(); let received;
