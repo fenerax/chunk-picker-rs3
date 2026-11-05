@@ -52,7 +52,7 @@ test('VPS review derives on a verified backup copy, requires its exact digest, a
   assert.deepEqual(result.savedIdentityAdditions, syntheticAdditions);
   assert.equal(result.digest, digestValue(syntheticAdditions)); assert.equal(result.accepted, false);
   assert.equal((await json(f.receiptFile)).savedIdentityAdditions, undefined);
-  await assert.rejects(deriveVpsAdditions({ ...f, acceptDigest: '0'.repeat(64) }), /digest differs/);
+  await assert.rejects(deriveVpsAdditions({ ...f, acceptDigest: '0'.repeat(64) }), error => error.reviewCategory === 'digest' && /digest differs/.test(error.message));
   assert.equal((await json(f.receiptFile)).savedIdentityAdditionsReviewed, undefined);
   const accepted = await deriveVpsAdditions({ ...f, acceptDigest: result.digest });
   assert.equal(accepted.accepted, true);
@@ -67,11 +67,20 @@ test('VPS review derives on a verified backup copy, requires its exact digest, a
 
 test('VPS review refuses absent verified backups and changed staged inputs', async t => {
   const f = await fixture(t); await mkdir(f.settings.backupDir);
-  await assert.rejects(deriveVpsAdditions(f), /No verified/);
+  await assert.rejects(deriveVpsAdditions(f), error => error.reviewCategory === 'newest backup' && /No verified/.test(error.message));
   await f.backup();
   const receipt = await json(f.receiptFile);
   await writeFile(f.receiptFile, encode({ ...receipt, candidateIdentity: 'changed' }));
-  await assert.rejects(deriveVpsAdditions(f), /receipt changed/);
+  await assert.rejects(deriveVpsAdditions(f), error => error.reviewCategory === 'receipt' && /receipt changed/.test(error.message));
+});
+
+test('review names the lock and maintenance precondition without exposing evidence', async t => {
+  const f = await fixture(t);
+  for (const [name, category] of [['operation.lock', 'lock'], ['maintenance.json', 'maintenance']]) {
+    const file = path.join(f.settings.controlDir, name); await writeFile(file, '{}');
+    await assert.rejects(deriveVpsAdditions(f), error => error.reviewCategory === category);
+    await rm(file);
+  }
 });
 
 test('activation re-derives additions on a fresh snapshot and refuses a difference before stopping', async t => {

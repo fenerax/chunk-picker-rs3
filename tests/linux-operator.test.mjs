@@ -13,6 +13,8 @@ import { backupStopped, checkStoppedCompatibility, restoreStopped, verifyBackup,
 import { deployStopped, deployPrechecked, backupOnline, healthRecovery } from '../scripts/linux/operator.mjs';
 import { readBackupStatus } from '../app/storage/backup-status.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
+import { snapshotStore, snapshotPath } from '../app/storage/snapshot.mjs';
+import { phaseReceipt } from '../scripts/linux/phases.mjs';
 import { compatibilityReports, syntheticAdditions, syntheticCore } from './helpers/release-compatibility.mjs';
 
 // Set before importing any state/server code. All writes stay in this worktree.
@@ -261,7 +263,12 @@ test('candidate readiness failure rechecks the latest save before rollback; fail
 test('activation selects the candidate; a readiness failure can return to old code without replacing newer gameplay', async t => {
   const { settings, current, candidate, controller, events } = await fixture(t);
   const check = async ({ assertStopped }) => { await assertStopped(); return { passed: true }; };
-  assert.deepEqual(await deployStopped({ settings, current, candidate, controller, check, request: healthy, wait: noWait }), { activated: true });
+  const activation = await deployStopped({ settings, current, candidate, controller, check, request: healthy, wait: noWait });
+  assert.equal(activation.activated, true);
+  const timings = await json(activation.phaseReceipt);
+  assert.equal(timings.result, 'success');
+  for (const name of ['drain', 'release-hash', 'pointer', 'start-gate', 'started-to-ready']) assert(timings.phases.some(row => row.name === name && row.result === 'success'));
+  assert(Number.isFinite(timings.stoppedToReadyMs));
   assert.deepEqual(await readFile(settings.current), candidate.pointerBytes);
   assert.deepEqual(events, ['stop', 'start']);
   await writeFile(settings.current, current.pointerBytes); events.length = 0;
@@ -450,4 +457,38 @@ test('warm artifacts never change save identity or enter stopped recovery snapsh
   };
   const backup = await backupStopped({ ...settings, release: current, probe });
   assert(!(await inventory(backup.target)).some(row => row.path.split('/').includes('warm-store')));
+});
+
+test('online, stopped and recovery identities agree while preserving every credential sidecar', async t => {
+  const { settings, current } = await fixture(t);
+  const { randomUUID } = await import('node:crypto');
+  await mkdir(path.join(settings.dataDir, 'warm-store'));
+  await writeFile(path.join(settings.dataDir, 'warm-store/cache'), 'disposable');
+  const expected = await storeIdentity(settings.dataDir), id = randomUUID();
+  await snapshotStore(settings.dataDir, id);
+  const online = path.join(snapshotPath(settings.dataDir, id), 'store');
+  assert.deepEqual(await storeIdentity(online), expected);
+  for (const name of ['access-token', 'accounts.json', 'invites.json', 'plugin-keys.json', 'overlays.json', 'signin-sidecars/opaque.bin']) {
+    assert(expected.files.some(row => row.path === name), name);
+    assert.deepEqual(await readFile(path.join(online, name)), await readFile(path.join(settings.dataDir, name)));
+  }
+  const backup = await backupStopped({ ...settings, release: current, probe: async (_release, dir, output) => {
+    await writeFile(output, encode(await json(path.join(dir, 'state.json'))));
+  } });
+  assert.deepEqual(await storeIdentity(path.join(backup.target, 'store')), expected);
+  await writeFile(path.join(settings.dataDir, 'signin-sidecars/opaque.bin'), 'changed synthetic sidecar');
+  assert.notDeepEqual(await storeIdentity(settings.dataDir), expected);
+});
+
+test('each compatibility probe and copy gets a durable phase receipt', async t => {
+  const f = await fixture(t), timings = await phaseReceipt(f.settings.controlDir, 'derive');
+  const { before } = compatibilityReports();
+  await checkStoppedCompatibility({ ...f.settings, current: f.current, candidate: f.candidate, timings, phase: 'derive',
+    assertStopped: async () => {}, probe: async () => structuredClone(before) });
+  await timings.finish('success');
+  const saved = await json(timings.file);
+  for (let index = 0; index < 4; index++) for (const kind of ['copy', 'probe']) {
+    const row = saved.phases.find(row => row.name === `derive:${kind}-${index}`);
+    assert.equal(row.result, 'success'); assert(Number.isFinite(row.durationMs));
+  }
 });

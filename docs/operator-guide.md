@@ -1,6 +1,131 @@
+# Installed Linux tools refresh
+
+This procedure prepares a later install. Opening the tools-refresh PR does not
+authorize installing it. First rehearse on a rented disposable machine; retain
+its report and obtain the live-install decision separately. Use Node 24.20.0
+or a newer 24.x release for local tooling; the disposable provisioner deliberately
+pins 24.20.0. Keep the desktop writer stopped while server hosting is active.
+
+## Package and release boundary
+
+`node scripts/linux/tools-package.mjs build . ../tools-package` follows all static
+imports, re-exports, literal dynamic imports, declared computed loaders and
+URL-relative child entrypoints from the systemd and release entrypoints. Its
+manifest lists each file's relative path, byte size and SHA-256. `toolsIdentity`
+is SHA-256 over the canonical manifest body (everything except that digest).
+Verification recomputes both hashes and the closure and rejects extra files,
+missing dependencies, links and unmodeled computed imports. There are currently
+46 files, including the small app helpers imported directly by tools. Unit
+files are installed separately; none of their paths changes.
+
+The selected release still supplies the application server and state decoder,
+compatibility identity/dataset seams, calculator/worker modules and their
+transitive dependencies. The prewarm launcher executes the selected release's
+prewarm child. Profiles, packs and addons remain pinned release inputs. The
+PC prepare/verify helper also loads build/check modules from its selected core.
+The manifest records these computed-import boundaries; a tools package is not
+a self-contained application release. Do not copy all of `app/` into tools.
+
+The shared store identity policy excludes only `warm-store`. Snapshots also
+omit ownership lock files. Account/provider records, invitations, plugin keys,
+the master credential and opaque credential sidecars remain in the identity
+and recovery validation.
+
+## Disposable rehearsal
+
+Provision an empty Debian or Ubuntu VM with SSH, passwordless root/sudo and a
+configured SSH alias. Supply a trusted Linux Node **24.20.0** `.tar.xz` archive
+for that VM's architecture and its independently reviewed SHA-256. The script
+installs base packages and Node from this archive, so it needs no preinstalled
+Node, project checkout, data pack, save or credential. No provider account or
+VM purchase is automated.
+
+1. Run from the clean committed source:
+   `node scripts/linux/scratch-rehearsal.mjs <scratch-alias> <node-archive> <sha256>`.
+   It refuses `picker-vps`, production DNS addresses, the SSH connection's
+   production address, existing picker installs and any HTTP(S) listener or
+   web-proxy configuration. DNS or SSH uncertainty refuses before provisioning.
+2. The provisioner exports committed public source only, installs the unchanged
+   units and complete tools package, and creates an invented open-starter game
+   and fresh random credentials. It runs the normal bundle stage/rebase,
+   installed-operator online backup, derive/accept, isolated rehearsal, health
+   check, activation and pointer/private-readiness verification. Timers are
+   enabled after the measured cycle.
+3. Inspect `.local/tools-scratch/<run>/report.json`. It reports install identity,
+   stopped-to-ready, the isolated rehearsal, and every derive/activation phase.
+   Source, package, transaction and synthetic backup evidence remain on the
+   disposable machine after failures. Destroy the rented VM after retaining the
+   report; never repurpose it as a production installation.
+
+The target for an unchanged persistent store is about **20–30 seconds** from
+stopped to ready. That is an expectation, not a measured result of this change.
+Player or credential-sidecar writes can still select all four stopped probes.
+Synthetic timing cannot establish production timing or real-save compatibility.
+
+## Later live-install steps
+
+Keep each release's explicit activation decision separate from this tools-only
+install. Do not stop timers or the writer to evade an install refusal. Resolve
+the named condition or wait for its existing run to finish, then retry.
+
+1. Check the merged source, its CI result, the disposable rehearsal report and
+   the approved tools identity. Build the package in a new sibling directory,
+   then run `node scripts/linux/tools-package.mjs verify ../tools-package`.
+2. Read non-secret unit/config metadata through `ssh picker-vps`. Confirm the
+   current tools path, Node, operator configuration and active release still
+   match the reviewed plan. Confirm a current verified recovery backup and a
+   separate restore drill; the installer neither creates nor exports a backup.
+3. After live-install authorization, upload the complete package to a new
+   private staging directory. Do not overlay the installed tools directory.
+   On the server run the **staged** installer with the existing configuration:
+
+   ```sh
+   sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /opt/node/bin/node /var/tmp/tools-package/scripts/linux/tools-install.mjs install /opt/chunk-picker/tools /var/tmp/tools-package
+   ```
+
+   Staging paths are examples and must be new. The installer refuses an existing
+   operation lock, maintenance marker, active/transitioning backup or health
+   unit, activation/start-permit/transaction evidence, incomplete service
+   recovery, unsafe ownership, or mismatched hashes. It uses the service mutex
+   as well when multi-picker mode is selected.
+4. Record the returned `tools-receipt-<id>.json` under the control directory.
+   The installer copies into a new root-owned `tools-versions/<digest>-<id>`,
+   synchronizes it, then atomically switches `/opt/chunk-picker/tools`. For the
+   first migration, Linux `renameat2(RENAME_EXCHANGE)` swaps the real directory
+   with a symlink in one step; Python 3 with libc `renameat2` and a supporting
+   filesystem are required. The old directory is retained as `legacy-<id>`.
+   Later switches use atomic symlink rename. Installed hashes and import closure
+   are verified again after switching. No unit edits or daemon reload is needed.
+5. Recheck the private health/pointer metadata, units and receipt. The running
+   writer continues its already loaded code and release; **no writer restart
+   is required for install or rollback**. The next ordinary service start loads
+   the selected tools. The installer never starts a second writer.
+6. If rollback is needed, run the installer from the retained staged package:
+
+   ```sh
+   sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /opt/node/bin/node /var/tmp/tools-package/scripts/linux/tools-install.mjs rollback /opt/chunk-picker/tools /var/lib/chunk-picker/control/tools-receipt-<id>.json
+   ```
+
+   Rollback requires the exact installed identity and unchanged previous tree;
+   it atomically selects that retained tree and writes a new receipt. If a
+   switch/verification fails, the installer attempts selection reversal only
+   when ownership is provable. It retains maintenance and transaction evidence
+   even after a successful reversal. Preserve every directory and receipt and
+   reconcile privately before further operator or start actions. A crash record
+   names both the temporary exchange path and retained legacy destination;
+   neither an absent receipt nor an incomplete phase means success.
+7. During the next separately approved release, retain
+   `control/phase-receipts/activate-<id>.json` and derive receipts. They include
+   tools identity, drain, online/stopped copy and hash, each probe, pointer,
+   start gate, started-to-ready and stopped-to-ready. A phase is written before
+   starting and after finishing, so an interrupted phase remains `running`.
+   Optional `release.mjs --phase-dir <local-directory>` adds local transport
+   timings; those are distinct from writer downtime. Review refusals print only
+   `lock`, `maintenance`, `receipt`, `newest backup` or `digest`.
+
 # Using the private picker
 
-The application uses Node.js 22 or newer and has no runtime package installation. It serves the authored `app/web` interface and local reference data. It never saves to the original author’s Firebase service.
+The application uses Node.js 24.20.0 or a newer 24.x release and has no runtime package installation. It serves the authored `app/web` interface and local reference data. It never saves to the original author’s Firebase service.
 
 ## Start and share
 

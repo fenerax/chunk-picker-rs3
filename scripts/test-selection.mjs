@@ -365,6 +365,8 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "linux-tools-package.test.mjs",
+  "linux-tools-install.test.mjs",
   "save-transfer-publication.test.mjs",
   "save-transfer-review.test.mjs",
   "save-transfer-response-bounds.test.mjs",

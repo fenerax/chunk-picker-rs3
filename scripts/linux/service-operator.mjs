@@ -88,6 +88,7 @@ export async function runServiceOperator({ settings, command, argument, evidence
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
   return serviceOperation(settings, command, async () => {
+    if (await exists(path.join(settings.controlDir, 'tools-transaction.json'))) throw new Error('Tools transaction requires reconciliation.');
     if (command === 'inspect' && !argument) throw new Error('Inspect requires a picker ID.');
     if (['list', 'inspect'].includes(command)) return listServicePickers(settings, command === 'inspect' ? argument : undefined);
     const stopped = () => assertServiceStopped(settings, controller);

@@ -7,6 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { assertReleased, atomic, copyTree, directory, encode, exists, headroom, inventory, json, noLinks, outside, sha } from './files.mjs';
 import { assertSameRelease } from './runtime.mjs';
 import { assertCompatibleStep } from '../private-companion/release-compatibility.mjs';
+import { STORE_IDENTITY_EXCLUSIONS } from '../../app/storage/store-identity-policy.mjs';
+import { inPhase } from './phases.mjs';
 
 export async function runProbe(release, dataDir, output) {
   return runChildProbe(release, dataDir, output, 'portable');
@@ -31,10 +33,10 @@ async function runChildProbe(release, dataDir, output, mode) {
 export async function storeIdentity(dataDir) {
   await assertReleased(dataDir);
   await noLinks(bindingPath(dataDir));
-  return { files: await inventory(dataDir, { ignoreRoot: ['warm-store'] }), binding: sha(await readFile(bindingPath(dataDir))) };
+  return { files: await inventory(dataDir, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS }), binding: sha(await readFile(bindingPath(dataDir))) };
 }
 async function snapshot(dataDir, target, binding) {
-  await copyTree(dataDir, target, { ignoreRoot: ['warm-store'] });
+  await copyTree(dataDir, target, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
   await writeFile(bindingPath(target), binding ?? await readFile(bindingPath(dataDir)), { flag: 'wx', mode: 0o600 });
 }
 export async function backupStopped({ dataDir, backupDir, scratchRoot, release, keep = 30, minFreeBytes, probe = runProbe }) {
@@ -110,17 +112,17 @@ export async function restoreStopped({ backup, dataDir, scratchRoot, release, mi
       else { await copyFile(path.join(backup, row.path), target, 1); await chmod(target, 0o600); }
     }
     const expected = await inventory(path.join(backup, 'store'));
-    if (encode(expected) !== encode(await inventory(dataDir, { ignoreRoot: ['warm-store'] }))) throw new Error('Restored store verification failed; keep service stopped.');
+    if (encode(expected) !== encode(await inventory(dataDir, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS }))) throw new Error('Restored store verification failed; keep service stopped.');
     await assertReleased(dataDir);
     return { verified: true };
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 // Call under the deploy/health/backup exclusion, AFTER graceful systemd stop and
 // immediately BEFORE binding/pointer CAS. Even equal descriptors are probed.
-export async function checkStoppedCompatibility({ dataDir, scratchRoot, current, candidate, candidateBinding, minFreeBytes, assertStopped, savedIdentityAdditions, probe = runCompatibilityProbe }) {
+export async function checkStoppedCompatibility({ dataDir, scratchRoot, current, candidate, candidateBinding, minFreeBytes, assertStopped, savedIdentityAdditions, probe = runCompatibilityProbe, timings, phase = 'stopped' }) {
   if (typeof assertStopped !== 'function') throw new Error('A stopped-service ownership check is required.');
   await assertStopped();
-  const before = await storeIdentity(dataDir);
+  const before = await inPhase(timings, phase + ':hash', () => storeIdentity(dataDir));
   const binding = await readFile(bindingPath(dataDir));
   outside(dataDir, scratchRoot); await directory(scratchRoot);
   await headroom(scratchRoot, before.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0) * 6, minFreeBytes);
@@ -130,8 +132,8 @@ export async function checkStoppedCompatibility({ dataDir, scratchRoot, current,
     const reports = [];
     for (const [index, release] of [current, candidate, current, candidate].entries()) {
       const copy = path.join(scratch, String(index));
-      await snapshot(source, copy, index % 2 ? candidateBinding ?? binding : binding);
-      const report = await probe(release, copy, path.join(scratch, index + '.json'));
+      await inPhase(timings, phase + ':copy-' + index, () => snapshot(source, copy, index % 2 ? candidateBinding ?? binding : binding));
+      const report = await inPhase(timings, phase + ':probe-' + index, () => probe(release, copy, path.join(scratch, index + '.json')));
       const derived = assertCompatibleStep(reports.at(-1), report, { forward: index === 1,
         ...(index === 1 ? { declaredAdditions: savedIdentityAdditions } : {}) });
       if (index === 1) additions = derived;

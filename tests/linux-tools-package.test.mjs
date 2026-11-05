@@ -1,0 +1,123 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { toolsClosure, buildTools, verifyTools, toolsEntrypoints } from '../scripts/linux/tools-package.mjs';
+import { cleanToolsEvidence, operatorUnitsIdle } from '../scripts/linux/tools-install.mjs';
+import { phaseReceipt } from '../scripts/linux/phases.mjs';
+import { scratchHostGuard, freshHostGuard } from '../scripts/linux/scratch-rehearsal.mjs';
+import { reviewRefusal } from '../scripts/release/vps/review.mjs';
+import { releaseVps } from '../scripts/release/vps/release.mjs';
+import { encode, json } from '../scripts/linux/files.mjs';
+
+const repo = fileURLToPath(new URL('../', import.meta.url));
+async function fixture(t) {
+  const root = path.join(repo, '.local', 'tools-package-tests'); await mkdir(root, { recursive: true });
+  const scratch = await mkdtemp(path.join(root, 'run-'));
+  t.after(async () => { assert(path.relative(root, scratch).startsWith('run-')); await rm(scratch, { recursive: true, force: true }); });
+  return scratch;
+}
+async function sourceCopy(root) {
+  const source = path.join(root, 'source'), closure = await toolsClosure(repo);
+  for (const row of closure.files) {
+    const file = path.join(source, row.path); await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, await readFile(path.join(repo, row.path)));
+  }
+  return { source, closure };
+}
+test('package is the exact runtime closure, including unit and child entrypoints; it loads without checkout fallbacks', async t => {
+  const scratch = await fixture(t), { source, closure } = await sourceCopy(scratch), output = path.join(scratch, 'package');
+  const manifest = await buildTools(source, output);
+  assert.deepEqual(manifest.files, closure.files);
+  assert(!manifest.files.some(row => row.path === 'app/server.mjs'));
+  assert(manifest.files.some(row => row.path === 'app/tasks/warm-store.mjs'));
+  for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service']) {
+    const text = await readFile(path.join(repo, 'scripts/linux/systemd', unit), 'utf8');
+    for (const match of text.matchAll(/\/opt\/chunk-picker\/tools\/([^\s]+)/g)) assert(toolsEntrypoints.includes(match[1]));
+  }
+  const script = `import {registerHooks} from 'node:module'; import {pathToFileURL,fileURLToPath} from 'node:url';
+    import path from 'node:path'; const root=${JSON.stringify(output)};
+    registerHooks({load(url,c,next){if(url.startsWith('file:') && !fileURLToPath(url).startsWith(root+path.sep)) throw Error('Import outside package');return next(url,c);}});
+    for(const file of ${JSON.stringify(toolsEntrypoints.filter(name => !name.endsWith('/serve.mjs')))}) await import(pathToFileURL(path.join(root,file)));`;
+  execFileSync(process.execPath, ['--input-type=module', '-e', script], { stdio: 'pipe', windowsHide: true,
+    env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', RS3_DATASET: 'open-starter' } });
+  await writeFile(path.join(output, 'scripts/linux/unlisted.mjs'), 'export {};');
+  await assert.rejects(verifyTools(output), /hashes differ/);
+});
+test('new static, dynamic, template and child imports cannot escape or silently disappear from the closure', async t => {
+  const scratch = await fixture(t), { source } = await sourceCopy(scratch);
+  const entry = path.join(source, 'scripts/linux/operator.mjs'), original = await readFile(entry, 'utf8');
+  for (const edge of ["import '../../outside.mjs';", "await import('../../outside.mjs');", "`${await import('../../outside.mjs')}`;",
+    "await import(process.env.UNMODELED_IMPORT);", "new URL('./missing-child.mjs', import.meta.url);",
+    "new URL(process.env.UNMODELED_CHILD, import.meta.url);"] ) {
+    await writeFile(entry, original + '\n' + edge);
+    await assert.rejects(toolsClosure(source));
+  }
+  await writeFile(entry, original + "\nimport '../../../outside.mjs';");
+  await writeFile(path.join(scratch, 'outside.mjs'), 'export {};');
+  await assert.rejects(toolsClosure(source), /escapes/);
+});
+test('all refusal gates run before switching; malformed and incomplete evidence stays fenced', async t => {
+  const controlDir = await fixture(t), settings = { controlDir };
+  for (const [name, category] of [['operation.lock', 'lock'], ['maintenance.json', 'maintenance'],
+    ['activation.json', 'transaction'], ['transaction.json', 'transaction'], ['start-permit.json', 'transaction'], ['tools-transaction.json', 'transaction']]) {
+    await writeFile(path.join(controlDir, name), '{}');
+    await assert.rejects(cleanToolsEvidence(settings), error => error.message.includes(category));
+    await rm(path.join(controlDir, name));
+  }
+  await mkdir(path.join(controlDir, 'service-restore'));
+  await writeFile(path.join(controlDir, 'service-restore/progress.json'), '{"phase":"copying"}');
+  await assert.rejects(cleanToolsEvidence(settings), /transaction/);
+  await writeFile(path.join(controlDir, 'service-restore/progress.json'), '{"phase":"complete"}');
+  await cleanToolsEvidence(settings);
+  for (const state of ['active', 'activating', 'deactivating', 'reloading']) {
+    await assert.rejects(operatorUnitsIdle(async () => ({ stdout: `ActiveState=${state}\nSubState=running\nMainPID=12\n` })), /active-run/);
+  }
+  await assert.rejects(operatorUnitsIdle(async () => ({ stdout: '' })), /active-run/);
+  await operatorUnitsIdle(async () => ({ stdout: 'ActiveState=inactive\nSubState=dead\nMainPID=0\n' }));
+});
+test('phase receipts survive unfinished and failed phases, with numeric time and no error payloads', async t => {
+  const control = await fixture(t); let clock = 0;
+  const receipt = await phaseReceipt(control, 'activate', { now: () => clock });
+  await receipt.mark('stopped');
+  await receipt.run('probe-0', async () => {
+    assert.equal((await json(receipt.file)).phases[0].result, 'running'); clock = 9;
+  });
+  await assert.rejects(receipt.run('probe-1', async () => { clock = 15; throw Error('private diagnostic sentinel'); }));
+  await receipt.mark('ready'); await receipt.finish('failed');
+  const saved = await json(receipt.file);
+  assert.equal(saved.stoppedToReadyMs, 15); assert.deepEqual(saved.phases.map(row => row.durationMs), [9, 6]);
+  assert.deepEqual(saved.phases.map(row => row.result), ['success', 'failed']);
+  assert(!encode(saved).includes('private diagnostic sentinel'));
+});
+test('review diagnostics identify only the failed category', () => {
+  for (const reviewCategory of ['lock', 'maintenance', 'receipt', 'newest backup', 'digest']) {
+    assert.equal(reviewRefusal({ reviewCategory, message: 'private diagnostic sentinel' }), `VPS additions review refused: ${reviewCategory}; inspect privately.\n`);
+  }
+});
+test('release transport receipts distinguish local command time from remote downtime', async t => {
+  const control = await fixture(t), calls = [];
+  const values = { host: 'picker-vps', upload: '/var/tmp/upload', target: '/opt/chunk-picker/releases/candidate',
+    'operator-config': '/etc/chunk-picker/operator.json', 'tools-root': '/opt/chunk-picker/tools', node: '/opt/node/bin/node', 'phase-dir': control };
+  await releaseVps('derive', values, (file, args) => { calls.push({ file, args }); });
+  assert.equal(calls.length, 1); assert.equal(calls[0].file, 'ssh');
+  const { readdir } = await import('node:fs/promises');
+  const files = await readdir(path.join(control, 'phase-receipts'));
+  const receipt = await json(path.join(control, 'phase-receipts', files[0]));
+  assert.equal(receipt.operation, 'release-derive'); assert.equal(receipt.result, 'success');
+  assert.equal(receipt.stoppedToReadyMs, undefined); assert.equal(receipt.phases[0].name, 'derive');
+});
+test('scratch guard blocks production aliases, DNS aliases and SSH forwarding before writes', async () => {
+  const resolve = async host => [{ address: host === 'chunkpicker.ca' ? '127.0.0.1' : '0.0.0.0' }];
+  let calls = 0;
+  const run = (_file, args) => { calls++; return args[0] === '-G' ? 'hostname scratch\n' : '0.0.0.0 1 0.0.0.0 2\n'; };
+  for (const alias of ['picker-vps', 'PICKER-VPS', 'chunkpicker.ca', '-unsafe']) await assert.rejects(scratchHostGuard(alias, { resolve, run }));
+  assert.equal(calls, 0);
+  await assert.rejects(scratchHostGuard('scratch', { resolve: async () => [{ address: '127.0.0.1' }], run }));
+  await assert.rejects(scratchHostGuard('scratch', { resolve, run: (_file, args) => args[0] === '-G' ? 'hostname scratch\n' : '0.0.0.0 1 127.0.0.1 2\n' }));
+  await assert.rejects(scratchHostGuard('scratch', { resolve: async () => { throw Error('offline'); }, run }));
+  await scratchHostGuard('scratch', { resolve, run });
+  assert(freshHostGuard.includes('/proc/net/tcp')); assert(freshHostGuard.includes('test ! -e /opt/chunk-picker'));
+});

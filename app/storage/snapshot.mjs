@@ -2,6 +2,7 @@ import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { lstat, mkdir, open, readdir, rm, statfs, writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
+import { SNAPSHOT_EXCLUSIONS } from './store-identity-policy.mjs';
 
 const barriers = new Map(), context = new AsyncLocalStorage();
 function barrier(dataDir) {
@@ -69,7 +70,7 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
     async function walk(relative = '') {
       for (const name of (await readdir(path.join(dataDir, relative))).sort()) {
         budget();
-        if (!relative && ['store.lock', 'store.lock.recovery', 'warm-store'].includes(name)) continue;
+        if (!relative && SNAPSHOT_EXCLUSIONS.includes(name)) continue;
         const rel = relative ? relative + '/' + name : name;
         const file = path.join(dataDir, rel), info = await lstat(file);
         if (info.isDirectory()) { directories.push('store/' + rel); await walk(rel); }

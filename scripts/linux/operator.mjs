@@ -13,6 +13,7 @@ import { assertSameRelease, operatorSettings, readRelease, assertOperatorService
 import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
 import { digestValue } from '../private-companion/release-identity.mjs';
+import { phaseReceipt, inPhase } from './phases.mjs';
 
 const execute = promisify(execFile);
 export function systemd(settings) {
@@ -30,13 +31,15 @@ export function systemd(settings) {
         activeForMs: uptime() * 1000 - Number(fields.ActiveEnterTimestampMonotonic) / 1000 };
     },
     stop: () => command(['stop']),
-    async start() {
-      const lock = await readFile(path.join(settings.controlDir, 'operation.lock'));
-      if (JSON.parse(lock).pid !== process.pid) throw new Error('Service start requires the current operator lock.');
-      const permit = path.join(settings.controlDir, 'start-permit.json');
-      await atomic(permit, encode({ lockSha256: sha(lock), pointerSha256: sha(await readFile(settings.current)),
-        processIdentity: await processIdentity(process.pid), expiresAt: Date.now() + 30000 }));
-      try { return await command(['start']); } finally { await rm(permit, { force: true }); }
+    async start(timings) {
+      return inPhase(timings, 'start-permit', async () => {
+        const lock = await readFile(path.join(settings.controlDir, 'operation.lock'));
+        if (JSON.parse(lock).pid !== process.pid) throw new Error('Service start requires the current operator lock.');
+        const permit = path.join(settings.controlDir, 'start-permit.json');
+        await atomic(permit, encode({ lockSha256: sha(lock), pointerSha256: sha(await readFile(settings.current)),
+          processIdentity: await processIdentity(process.pid), expiresAt: Date.now() + 30000 }));
+        try { return await command(['start']); } finally { await rm(permit, { force: true }); }
+      });
     },
   };
 }
@@ -92,25 +95,43 @@ export async function healthRecovery({ settings, release, controller, request = 
   await controller.start(); await waitReady(release, request, wait, controller);
   return { recovered: 'writer' };
 }
-export async function deployStopped({ settings, current, candidate, controller, candidateBinding, checkedIdentity, savedIdentityAdditions, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
+async function activationReceipt(settings, timings, work) {
+  const owned = !timings;
+  timings ??= await phaseReceipt(settings.controlDir, 'activate');
+  try {
+    const result = await work(timings);
+    if (owned) await timings.finish('success');
+    return { ...result, phaseReceipt: timings.file };
+  } catch (error) { if (owned) await timings.finish('failed'); throw error; }
+}
+export async function deployStopped(options) {
+  return activationReceipt(options.settings, options.timings, timings => deployStoppedImpl({ ...options, timings }));
+}
+async function deployStoppedImpl({ settings, current, candidate, controller, candidateBinding, checkedIdentity, savedIdentityAdditions, check = checkStoppedCompatibility, request = privateRequest, wait = delay, timings }) {
   const stopped = () => assertStopped(controller, settings.dataDir);
-  await controller.stop(); await stopped();
+  await inPhase(timings, 'drain', async () => { await controller.stop(); await stopped(); });
+  await timings.mark('stopped');
   const originalBinding = await readFile(settings.dataDir + '.dataset.json');
   let swapped = false, rebound = false;
   try {
-    if (!checkedIdentity || encode(checkedIdentity) !== encode(await storeIdentity(settings.dataDir))) {
+    if (!checkedIdentity || encode(checkedIdentity) !== encode(await inPhase(timings, 'stopped:identity-hash', () => storeIdentity(settings.dataDir)))) {
       await check({ dataDir: settings.dataDir, scratchRoot: settings.scratchRoot, minFreeBytes: settings.minFreeBytes,
-        current, candidate, candidateBinding, savedIdentityAdditions, assertStopped: stopped });
+        current, candidate, candidateBinding, savedIdentityAdditions, assertStopped: stopped, timings });
     }
-    await stopped(); await assertSameRelease(current); await assertSameRelease(candidate);
+    await inPhase(timings, 'release-hash', async () => { await stopped(); await assertSameRelease(current); await assertSameRelease(candidate); });
     if (sha(await readFile(settings.dataDir + '.dataset.json')) !== sha(originalBinding)) throw new Error('Binding changed before activation.');
     // Write a durable recovery breadcrumb before either selection changes.
-    await atomic(path.join(settings.controlDir, 'activation.json'), encode({ phase: 'prepared', previousPointerBase64: current.pointerBytes.toString('base64'),
-      previousBindingBase64: originalBinding.toString('base64'), candidatePointerSha256: sha(candidate.pointerBytes) }));
-    if (candidateBinding) { await atomic(settings.dataDir + '.dataset.json', candidateBinding, 0o644); rebound = true; }
-    if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Current pointer changed before activation.');
-    await atomic(settings.current, candidate.pointerBytes, 0o644); swapped = true;
-    await controller.start(); await waitReady(candidate, request, wait, controller);
+    await inPhase(timings, 'pointer', async () => {
+      await atomic(path.join(settings.controlDir, 'activation.json'), encode({ phase: 'prepared', previousPointerBase64: current.pointerBytes.toString('base64'),
+        previousBindingBase64: originalBinding.toString('base64'), candidatePointerSha256: sha(candidate.pointerBytes) }));
+      if (candidateBinding) { await atomic(settings.dataDir + '.dataset.json', candidateBinding, 0o644); rebound = true; }
+      if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Current pointer changed before activation.');
+      await atomic(settings.current, candidate.pointerBytes, 0o644); swapped = true;
+    });
+    await inPhase(timings, 'start-gate', () => controller.start(timings));
+    await timings.mark('started');
+    await inPhase(timings, 'started-to-ready', () => waitReady(candidate, request, wait, controller));
+    await timings.mark('ready');
     await rm(path.join(settings.controlDir, 'activation.json'));
     return { activated: true };
   } catch (error) {
@@ -121,7 +142,7 @@ export async function deployStopped({ settings, current, candidate, controller, 
       // Re-prove reverse compatibility against any candidate-startup writes.
       const selected = await readRelease(settings.current, settings.dataDir);
       await check({ dataDir: settings.dataDir, scratchRoot: settings.scratchRoot, minFreeBytes: settings.minFreeBytes,
-        current: swapped ? selected : candidate, candidate: current, candidateBinding: originalBinding, assertStopped: stopped });
+        current: swapped ? selected : candidate, candidate: current, candidateBinding: originalBinding, assertStopped: stopped, timings, phase: 'rollback' });
       const expected = swapped ? candidate.pointerBytes : current.pointerBytes;
       if (sha(await readFile(settings.current)) !== sha(expected)) throw new Error('Rollback pointer ownership changed.');
       if (rebound) await atomic(settings.dataDir + '.dataset.json', originalBinding, 0o644);
@@ -130,28 +151,32 @@ export async function deployStopped({ settings, current, candidate, controller, 
       await assertSameRelease(current);
       if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Old pointer changed; automatic restart refused.');
     }
-    await controller.start(); await waitReady(current, request, wait, controller);
+    await inPhase(timings, 'rollback:start-gate', () => controller.start(timings));
+    await inPhase(timings, 'rollback:started-to-ready', () => waitReady(current, request, wait, controller));
     await rm(path.join(settings.controlDir, 'activation.json'), { force: true });
     throw error;
   }
 }
-export async function deployPrechecked({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions,
-  capture = captureOnline, check = checkStoppedCompatibility, request = privateRequest, wait = delay, prewarm = prewarmCandidate }) {
-  const snapshot = await capture({ settings, release: current, request });
+export async function deployPrechecked(options) {
+  return activationReceipt(options.settings, options.timings, timings => deployPrecheckedImpl({ ...options, timings }));
+}
+async function deployPrecheckedImpl({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions,
+  capture = captureOnline, check = checkStoppedCompatibility, request = privateRequest, wait = delay, prewarm = prewarmCandidate, timings }) {
+  const snapshot = await inPhase(timings, 'online:copy', () => capture({ settings, release: current, request }));
   let checkedIdentity;
   try {
-    const before = await storeIdentity(snapshot.dataDir);
+    const before = await inPhase(timings, 'online:identity-hash', () => storeIdentity(snapshot.dataDir));
     await check({ ...settings, dataDir: snapshot.dataDir, current, candidate, candidateBinding, savedIdentityAdditions,
-      assertStopped: () => assertReleased(snapshot.dataDir) });
+      assertStopped: () => assertReleased(snapshot.dataDir), timings, phase: 'online' });
     if (encode(before) !== encode(await storeIdentity(snapshot.dataDir))) throw new Error('Checked snapshot changed.');
     checkedIdentity = before;
     // The captured snapshot is read-only calculator input; publication targets
     // the persistent data directory while the old writer remains online. The
     // launcher drops root privileges before running any candidate code.
-    try { await prewarm({ settings, candidate, dataDir: snapshot.dataDir }); } catch { /* Optional cache miss. */ }
+    try { await inPhase(timings, 'online:prewarm', () => prewarm({ settings, candidate, dataDir: snapshot.dataDir })); } catch { /* Optional cache miss. */ }
   } finally { await snapshot.cleanup(); }
   // No start/stop has happened if any of the online preparation failed.
-  return deployStopped({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions, checkedIdentity, check, request, wait });
+  return deployStopped({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions, checkedIdentity, check, request, wait, timings });
 }
 export async function backupOnline({ settings, release, request = privateRequest, capture = captureOnline, probe }) {
   if (settings.multiPicker) {
@@ -179,6 +204,7 @@ export async function runOperator(command, argument, evidence, mode) {
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
   return exclusive(path.join(settings.controlDir, 'operation.lock'), async () => {
+    if (await exists(path.join(settings.controlDir, 'tools-transaction.json'))) throw new Error('Tools transaction requires reconciliation.');
     if (await exists(pause)) throw Object.assign(new Error('Maintenance evidence remains; reconcile it before continuing.'), { code: 'OPERATOR_MAINTENANCE' });
     const release = await readRelease(settings.current, settings.dataDir), controller = systemd(settings);
     assertOperatorService(settings, release);

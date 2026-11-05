@@ -20,6 +20,7 @@ export async function checkStart(settings, { identity = processIdentity, now = D
     if (await exists(progress) && (await json(progress)).phase !== 'complete') throw new Error('Service recovery is incomplete.');
   }
   const control = settings.controlDir, permitFile = path.join(control, 'start-permit.json');
+  if (await exists(path.join(control, 'tools-transaction.json'))) throw new Error('Tools transaction requires reconciliation.');
   const evidence = ['operation.lock', 'maintenance.json', 'activation.json'];
   if (!(await Promise.all(evidence.map(name => exists(path.join(control, name))))).some(Boolean)) {
     await rm(permitFile, { force: true }); return;
