@@ -11,6 +11,16 @@ uses the ordinary `/api/backup` JSON response; its ZIP format is unchanged.
 The file ceiling is 256 MiB of UTF-8 JSON after decompression, about seven times
 the 2026-10-13 full save. Wire requests allow 257 MiB for gzip overhead. These
 limits apply only to import/restore routes; other request limits are unchanged.
+The shared server also refuses work above 5,000 catalogue tasks, 500 live
+History events, 1 MiB of string/key characters, or 100,000 aggregate work units.
+Each JSON value and property consumes a unit. Archives, codec expansion,
+ambiguous alias candidates, and History × catalogue/member-reference work
+consume the same budget. The incoming save and retained destination evidence
+must fit together; migration output is checked again before validation.
+These conservative CPU limits protect other players from long synchronous
+imports. A file below the byte ceiling can therefore still receive HTTP 413
+with a safe-import-work-limit message. Reduce History or archived evidence
+and export a smaller file; refusal leaves the current save unchanged.
 Compressed downloads check the JSON size before starting, so the dialog never
 offers a completed download above the import ceiling. This remains a finite
 memory safeguard, rather than a promise to restore arbitrarily large JSON.
@@ -24,7 +34,8 @@ extracted JSON file. The browser does not parse or stringify the full save.
 
 `app/backup-transfer.mjs` bounds compressed and expanded bytes and feeds
 `app/storage/json-stream.mjs`. That parser builds objects from primitive tokens,
-validates UTF-8 and JSON syntax, and limits nesting to 128 levels. Source text
+validates UTF-8 and JSON syntax, and limits nesting to 128 levels. It yields
+between 32 KiB slices, even when its source supplies one large chunk. Source text
 is retained only for the current token/chunk, not the whole document. Downloads
 serialize bounded batches into gzip instead of building a complete JSON string
 and Buffer. A single import admission covers receiving, previewing or applying

@@ -1,3 +1,4 @@
+import { assertImportWork } from '../import-work.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
@@ -575,13 +576,16 @@ function restoreMemberChanges(member, changes) {
     writePath(member, patch.path, { exists: false });
   }
 }
-function restoreTaskChanges(state, changes) {
+function restoreTaskChanges(state, changes, positions = new Map(state.tasks.map((task, index) => [task.id, index]))) {
   // Catalogue refreshes can change every row. Check each after-value against
   // one index instead of rescanning the entire catalogue for every change.
-  const positions = new Map(state.tasks.map((task, index) => [task.id, index]));
   for (const change of changes) {
     const index = positions.get(change.id);
     if ((index !== undefined) !== change.after.exists || (index !== undefined && (index !== change.after.index || JSON.stringify(state.tasks[index]) !== JSON.stringify(change.after.value)))) fail('Stale undo: task catalogue has changed');
+  }
+  if (changes.every(change => change.before.exists && change.after.exists && change.before.index === change.after.index)) {
+    for (const change of changes) state.tasks[positions.get(change.id)] = change.before.value;
+    return;
   }
   const ids = new Set(changes.map(change => change.id));
   const unchanged = state.tasks.filter(task => !ids.has(task.id));
@@ -597,6 +601,8 @@ function restoreTaskChanges(state, changes) {
   }
   while (cursor < unchanged.length) restored.push(unchanged[cursor++]);
   state.tasks = restored;
+  positions.clear();
+  restored.forEach((task, index) => positions.set(task.id, index));
 }
 
 // Backups have a JSON boundary. Reject values JSON would silently lose or alter.
@@ -818,7 +824,9 @@ function validateStateCopy(copy, registry) {
     get(id) {
       const timeline = taskTimeline.get(id);
       if (!timeline) return historicalTasks.get(id);
-      const side = timeline.findLast(change => change.revision <= revision)?.after ?? timeline[0].before;
+      let low = 0, high = timeline.length;
+      while (low < high) { const middle = (low + high) >>> 1; if (timeline[middle].revision <= revision) low = middle + 1; else high = middle; }
+      const side = low ? timeline[low - 1].after : timeline[0].before;
       return side.exists ? side.value : historicalTasks.get(id);
     },
   });
@@ -880,6 +888,7 @@ function validateStateCopy(copy, registry) {
   if (copy.history.some(event => event.undo?.memberChanges || event.undo?.taskChanges || event.undo?.taskClaimChanges || event.undo?.finishLineChange || event.undo?.groupGoalChanges || event.undo?.ruleReviewChange)) {
     const replay = { members: jsonClone(copy.members), tasks: [...copy.tasks], ...(copy.taskClaims !== undefined ? { taskClaims: jsonClone(copy.taskClaims) } : {}), ...(copy.finishLine !== undefined ? { finishLine: jsonClone(copy.finishLine) } : {}), ...(copy.groupGoals !== undefined ? { groupGoals: jsonClone(copy.groupGoals) } : {}), ...(copy.ruleReviews !== undefined ? { ruleReviews: jsonClone(copy.ruleReviews) } : {}) };
     let replayTaskIds = new Set(copy.tasks.map(task => task.id));
+    let replayPositions = new Map(copy.tasks.map((task, index) => [task.id, index]));
     for (let index = copy.history.length - 1; index >= 0; index--) {
       const event = copy.history[index];
       if (!event.undo || event.undoneRevision !== undefined || event.type === 'undo') continue;
@@ -894,9 +903,9 @@ function validateStateCopy(copy, registry) {
       if (event.undo.finishLineChange) restoreFinishLineChange(replay, event.undo.finishLineChange);
       if (event.undo.groupGoalChanges) restoreGroupGoalChanges(replay, event.undo.groupGoalChanges);
       if (event.undo.ruleReviewChange) restoreRuleReviewChange(replay, event.undo.ruleReviewChange);
-      if (event.undo.tasks) { replay.tasks = [...event.undo.tasks]; replayTaskIds = new Set(replay.tasks.map(task => task.id)); }
+      if (event.undo.tasks) { replay.tasks = [...event.undo.tasks]; replayTaskIds = new Set(replay.tasks.map(task => task.id)); replayPositions = new Map(replay.tasks.map((task, index) => [task.id, index])); }
       if (event.undo.taskChanges) {
-        restoreTaskChanges(replay, event.undo.taskChanges);
+        restoreTaskChanges(replay, event.undo.taskChanges, replayPositions);
         for (const change of event.undo.taskChanges) {
           if (change.before.exists) replayTaskIds.add(change.id);
           else replayTaskIds.delete(change.id);
@@ -943,11 +952,14 @@ export function exportBackup(state, registry) {
 export function importBackup(document, registry) {
   let backup = document;
   if (typeof backup === 'string') {
+    assertImportWork(backup);
     try { backup = JSON.parse(backup); } catch { fail('Backup is not valid JSON'); }
   }
+  assertImportWork(backup);
   record(backup, 'backup');
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
-  backup = decodeCompletionDocument(backup);
+  backup = decodeCompletionDocument(backup, { maxExpandedBytes: 1024 * 1024 });
+  assertImportWork(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
   return validateState(backup.state, registry);
 }

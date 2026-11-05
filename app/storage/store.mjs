@@ -1,3 +1,5 @@
+import { parseJSONStream } from './json-stream.mjs';
+import { assertImportWork, IMPORT_WORK_LIMITS, refuseImportWork } from '../import-work.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, rename, stat, unlink, utimes } from 'node:fs/promises';
@@ -376,7 +378,17 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Registries and exact migration archives can dwarf gameplay. Compact JSON
   // keeps durable writes bounded without changing portable backup semantics.
   const serialized = (state, ledger = receipts) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}}\n`;
-  async function readStaticField(key, reference) {
+  async function importDocument(bytes) {
+    const document = await parseJSONStream([bytes], { maxBytes: 8 * IMPORT_WORK_LIMITS.text,
+      maxTokenBytes: IMPORT_WORK_LIMITS.text, maxValues: IMPORT_WORK_LIMITS.units });
+    assertImportWork(document);
+    return document;
+  }
+  async function decodeStoredBytes(bytes, forImport) {
+    try { return await gunzipAsync(bytes, forImport ? { maxOutputLength: 8 * IMPORT_WORK_LIMITS.text } : {}); }
+    catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') refuseImportWork(); throw error; }
+  }
+  async function readStaticField(key, reference, forImport = false) {
     const match = STATIC_ID.exec(reference?.id ?? '');
     if (!match || reference?.sha256 !== match[1] || Object.keys(reference).some(name => !['id', 'sha256'].includes(name))) {
       throw new TypeError(`Invalid static field reference: ${key}`);
@@ -394,16 +406,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       if (error.code === 'ENOENT') throw new Error(`Missing static field dependency: ${reference.id}`, { cause: error });
       throw error;
     }
-    const bytes = await gunzipAsync(compressed);
+    const bytes = await decodeStoredBytes(compressed, forImport);
     if (createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new TypeError(`Static field checksum mismatch: ${key}`);
-    const result = { value: JSON.parse(bytes.toString('utf8')) };
+    const result = { value: forImport ? await importDocument(bytes) : JSON.parse(bytes.toString('utf8')) };
     if (readOnly) {
       if (standbyStaticFields.size >= reusableFields.size) standbyStaticFields.delete(standbyStaticFields.keys().next().value);
       standbyStaticFields.set(cacheKey, result);
     }
     return result;
   }
-  async function hydrateStaticDocument(document, ownsDocument) {
+  async function hydrateStaticDocument(document, ownsDocument, forImport = false) {
     if (document?.storage === undefined) return ownsDocument ? document : { ...document, state: structuredClone(document?.state) };
     const metadata = document.storage;
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || metadata.schemaVersion !== 1
@@ -413,14 +425,18 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const state = ownsDocument ? { ...document.state } : structuredClone(document.state);
     for (const [key, reference] of Object.entries(metadata.fields)) {
       if (!reusableFields.has(key) || Object.hasOwn(state, key)) throw new TypeError(`Invalid stored static field: ${key}`);
-      const loaded = await readStaticField(key, reference);
+      const loaded = await readStaticField(key, reference, forImport);
       state[key] = loaded.value;
     }
     return { ...document, state };
   }
-  async function importStoredBackup(document, ownsDocument = false) {
-    document = decodeCompletionDocument(parseSavedDocument(document));
-    const state = importSavedState(await hydrateStaticDocument(document, ownsDocument), registry);
+  async function importStoredBackup(document, ownsDocument = false, forImport = false) {
+    if (forImport) assertImportWork(document);
+    document = decodeCompletionDocument(parseSavedDocument(document), forImport ? { maxExpandedBytes: IMPORT_WORK_LIMITS.text } : undefined);
+    if (forImport) assertImportWork(document);
+    document = await hydrateStaticDocument(document, ownsDocument, forImport);
+    if (forImport) assertImportWork(document);
+    const state = importSavedState(document, registry);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
       const value = state[key];
@@ -652,28 +668,31 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // onto new identities or establish an archived undo boundary. Caller hooks
     // receive that authoritative baseline, rather than permission to erase it.
     if (migrateState) {
-      input = validateOwnedState(await migrateState(input, context) ?? input, registry);
+      input = await migrateState(input, context) ?? input;
+      if (operation === 'replace') assertImportWork(input);
+      input = validateOwnedState(input, registry);
       if (input.revision !== state.revision) throw new TypeError('Migration must preserve the authoritative revision.');
     }
     if (!prepareState) return input;
     const history = operation === 'load' ? JSON.stringify(input.history) : undefined;
     const output = await prepareState(input, context);
+    if (operation === 'replace') assertImportWork(output ?? input);
     const ready = validateState(output ?? input, registry);
     if (operation === 'load' && (ready.revision !== state.revision || JSON.stringify(ready.history) !== history)) {
       throw new TypeError('Load preparation must preserve the authoritative revision and history.');
     }
     return ready;
   }
-  async function hydrateHistory(state, cache) {
-    const archived = new Map();
+  async function hydrateHistory(state, cache, forImport = false) {
+    const archived = new Map(), importBudget = {};
     const references = state.provenance?.historyArchive ?? [];
     if (!Array.isArray(references)) throw new TypeError('Invalid history archive references.');
     for (const reference of references) {
       if (!HISTORY_ID.test(reference?.id)) throw new TypeError('Invalid history archive ID.');
       let document = cache?.documents.get(reference.id)?.document;
       if (!document) {
-        const bytes = await gunzipAsync(await readFile(path.join(historyDir, reference.id)));
-        document = JSON.parse(bytes.toString('utf8'));
+        const bytes = await decodeStoredBytes(await readFile(path.join(historyDir, reference.id)), forImport);
+        document = forImport ? await importDocument(bytes) : JSON.parse(bytes.toString('utf8'));
         if (cache && bytes.length <= 8 * 1024 * 1024) {
           while (cache.bytes + bytes.length > 8 * 1024 * 1024 && cache.documents.size) {
             const oldest = cache.documents.keys().next().value;
@@ -684,6 +703,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           cache.bytes += bytes.length;
         }
       }
+      if (forImport) assertImportWork(document, { budget: importBudget });
       if (document.format !== 'rs3-chunk-picker-history' || !Array.isArray(document.events)) throw new TypeError('Invalid history archive.');
       // Later committed segments contain overrides, including an old undo
       // target's undoneRevision. Unreferenced interrupted writes are ignored.
@@ -700,7 +720,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       complete.provenance = { ...complete.provenance };
       delete complete.provenance.historyArchive;
     }
+    if (forImport) assertImportWork(complete, { additionalWork: Object.keys(coordinationOf(state).invalidatedUndo).length * complete.history.length });
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
+    if (forImport) await new Promise(resolve => setImmediate(resolve));
     const validated = validateState(complete, registry);
     coordination.set(validated, coordinationOf(state));
     return { state: validated, archived };
@@ -752,21 +774,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return { id: entry.name, revision: Number(BACKUP_ID.exec(entry.name)[1]), bytes: info.size, at: info.mtime.toISOString(), ...(label ? { label } : {}) };
     }));
   }
-  async function readDocument(file, compressed = true) {
-    const bytes = await readFile(file);
-    return JSON.parse((compressed ? await gunzipAsync(bytes) : bytes).toString('utf8'));
+  async function readDocument(file, compressed = true, forImport = false) {
+    const source = await readFile(file);
+    const bytes = compressed ? await decodeStoredBytes(source, forImport) : source;
+    return forImport ? importDocument(bytes) : JSON.parse(bytes.toString('utf8'));
   }
-  async function retainedArchiveIndex() {
+  async function retainedArchiveIndex(forImport = false) {
     if (archiveIndex) return archiveIndex;
     const entries = await readdir(archivesDir, { withFileTypes: true }).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
     const index = new Map();
     for (const entry of entries) {
       if (!entry.isFile() || !ARCHIVE_ID.test(entry.name)) continue;
-      const pack = await readDocument(path.join(archivesDir, entry.name));
+      const pack = await readDocument(path.join(archivesDir, entry.name), true, forImport);
       if (pack.format !== 'rs3-chunk-picker-retained-archive' || !Array.isArray(pack.snapshots)) throw new TypeError('Invalid retained backup archive.');
       for (const snapshot of pack.snapshots) {
         if (!BACKUP_ID.test(snapshot?.id)) throw new TypeError('Invalid archived backup ID.');
-        const state = await importStoredBackup(snapshot.document);
+        const state = await importStoredBackup(snapshot.document, false, forImport);
+        if (forImport) await new Promise(resolve => setImmediate(resolve));
         if (state.revision !== Number(BACKUP_ID.exec(snapshot.id)[1])) throw new TypeError('Archived backup revision does not match its ID.');
         index.set(snapshot.id, { packId: entry.name, metadata: { id: snapshot.id, revision: Number(BACKUP_ID.exec(snapshot.id)[1]), bytes: snapshot.bytes, at: snapshot.at } });
       }
@@ -1037,12 +1061,17 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     });
   }
   async function replacementState(document, base, actor) {
+    assertImportWork({ document, base });
     const incoming = document?.format ? importBackup(document, registry) : typeof document === 'string' ? importBackup(document, registry) : validateState(document, registry);
+    // Keep separate bounded validation/migration phases off the same event-loop turn.
+    await new Promise(resolve => setImmediate(resolve));
     const ready = await prepared(incoming, 'replace');
+    assertImportWork({ ready, base });
+    await new Promise(resolve => setImmediate(resolve));
     const revision = base.revision + 1;
     if (!Number.isSafeInteger(revision)) throw new RangeError('State revision limit reached.');
-    const previous = (await hydrateHistory(base)).state;
-    const completeIncoming = (await hydrateHistory(ready)).state;
+    const previous = (await hydrateHistory(base, undefined, true)).state;
+    const completeIncoming = (await hydrateHistory(ready, undefined, true)).state;
     const preceding = new Map(), precedingEvidence = [];
     for (const event of [...(previous.provenance?.restore?.previousHistory ?? []), ...previous.history]) {
       if (Number.isSafeInteger(event?.revision)) preceding.set(event.revision, event);
@@ -1055,6 +1084,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A replacement establishes a new undo boundary. Earlier snapshots may
     // describe another roster and must never rewrite the restored gameplay.
     ready.history = [{ id: `revision-${revision}`, revision, type: 'restore', at: timestamp(), ...(actor ? { actor } : {}) }];
+    assertImportWork(ready);
     return validateState(ready, registry);
   }
   function historyRecord(event) {
@@ -1235,7 +1265,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         return backups.sort((a, b) => b.revision - a.revision || b.at.localeCompare(a.at) || a.id.localeCompare(b.id));
       }, { backupRead: true });
     },
-    async readBackup(id) {
+    async readBackup(id, { forImport = false } = {}) {
       if (typeof id !== 'string' || !BACKUP_ID.test(id)) throw new TypeError('Invalid retained backup ID.');
       return enqueueMaintenance(async () => {
         let file;
@@ -1245,22 +1275,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           if (path.dirname(file) !== base) throw new TypeError('Invalid retained backup location.');
         } catch (error) {
           if (error.code === 'ENOENT') {
-            const archived = (await retainedArchiveIndex()).get(id);
+            const archived = (await retainedArchiveIndex(forImport)).get(id);
             if (!archived) throw Object.assign(new Error('Retained backup not found.'), { code: 'ENOENT' });
-            const pack = await readDocument(path.join(archivesDir, archived.packId));
+            const pack = await readDocument(path.join(archivesDir, archived.packId), true, forImport);
             const snapshot = pack.snapshots.find(item => item.id === id);
             if (!snapshot) throw new TypeError('Retained backup archive is missing its snapshot.');
-            const state = await importStoredBackup(snapshot.document);
+            const state = await importStoredBackup(snapshot.document, false, forImport);
             if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-            return envelope((await hydrateHistory(state)).state);
+            return envelope((await hydrateHistory(state, undefined, forImport)).state);
           }
           throw error;
         }
         const bytes = await readFile(file);
-        const decoded = id.endsWith('.gz') ? await gunzipAsync(bytes) : bytes;
-        const state = await importStoredBackup(decoded.toString('utf8'));
+        const decoded = id.endsWith('.gz') ? await decodeStoredBytes(bytes, forImport) : bytes;
+        const document = forImport ? await importDocument(decoded) : decoded.toString('utf8');
+        const state = await importStoredBackup(document, false, forImport);
         if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-        return envelope((await hydrateHistory(state)).state);
+        return envelope((await hydrateHistory(state, undefined, forImport)).state);
       }, { backupRead: true });
     },
     getAccessToken: () => token,

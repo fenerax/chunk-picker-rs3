@@ -1,7 +1,9 @@
+import { assertImportWork } from './import-work.mjs';
 import { transferManifest, requireTransferDataset, mapTransferRoster, quarantineTransferChunks, transferReport, createTransferReviews } from './save-transfer.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { originalChunkURL } from './original-chunk-url.mjs';
 import { taskRuleDefinitions } from './data/settings.mjs';
+const knownTaskRuleIds = new Set(taskRuleDefinitions.map(rule => rule.id));
 import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
@@ -302,13 +304,15 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (backup === undefined) { if (!datasetFeature(dataset, 'originalSync')) throw httpError(422, 'Choose a backup from this starter game dataset.'); return undefined; }
       if (!backup || typeof backup !== 'object' || Array.isArray(backup)) throw httpError(400, 'Backup must be a JSON object.');
       if (backup.format !== BACKUP_FORMAT) throw httpError(400, 'Unsupported backup format.');
-      backup = decodeCompletionDocument(backup);
+      assertImportWork(backup);
+      backup = decodeCompletionDocument(backup, { maxExpandedBytes: 1024 * 1024 });
+      assertImportWork(backup);
       if (backup.schemaVersion !== SCHEMA_VERSION) throw httpError(400, 'Unsupported backup schema version.');
       requireTransferDataset(dataset, backup);
       return requireGameBackup(dataset, backup);
     }
     if (Object.hasOwn(body, 'backup') || Object.hasOwn(body, 'document')) throw httpError(400, 'Choose either a retained save or an uploaded backup.');
-    const backup = await store.readBackup(body.backupId);
+    const backup = await store.readBackup(body.backupId, { forImport: true });
     requireTransferDataset(dataset, backup);
     return requireGameBackup(dataset, backup);
   }
@@ -1493,6 +1497,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           const importedFile = isImportRoute(route) ? (routedBody(request)?.imported ?? await readBackupRequest(request)) : null;
           if (importedFile) importBodyChecks.get(request)?.(importedFile.body);
           const body = importedFile ? importedFile.body : await bodyJSON(request, route === '/api/sandbox/evaluate' ? 64 * 1024 : route === '/api/worker-restart' || route === '/api/prediction-intent' || route === '/api/pool-ranking-intent' || route.startsWith('/api/game-plugin/') || route.startsWith('/api/runemetrics/') || route.startsWith('/api/invites') ? 8192 : route.startsWith('/api/feedback') ? 16384 : MAX_BODY);
+          if (isImportRoute(route)) assertImportWork(body);
           if (importedFile?.uploaded && body.document && route.startsWith('/api/restore')) route = route.replace('/api/restore', '/api/import');
           // Keep slow uploads and reviewed sync-original commands excluded. Only
           // ordinary accepted commands may drain across the freeze boundary.
@@ -1810,6 +1815,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const legacy = backup === undefined;
               const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry: ruleRegistry }) : null;
               const incoming = legacy ? imported.state : importBackup(backup, registry);
+              assertImportWork({ incoming, current });
               if (!body.sourceMemberId && !incoming.members.some(m => m.id === owner.id && m.name === owner.name)) {
                 if (!route.endsWith('/preview')) throw httpError(422, 'Choose the source member in the preview first.');
                 await json(request, response, 200, { mappingRequired: true, sourceRoster: incoming.members.map(({ id, name }) => ({ id, name })), destinationRoster: [{ id: owner.id, name: owner.name }] }); return;
@@ -1822,7 +1828,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               if (legacy) member.obtainedEquipment = [...(owner.obtainedEquipment ?? [])];
               const command = { type: 'replace-member', memberId: owner.id, member, source: legacy ? 'Original picker import' : 'Backup' };
               const warnings = imported?.warnings ?? [];
-              const report = transferReport(incoming, { world: indexedWorld, taskIds: new Set(current.tasks.map(t => t.id)), knownRule: id => taskRuleDefinitions.some(rule => rule.id === id), warnings, memberId: sourceMemberId });
+              const report = transferReport(incoming, { world: indexedWorld, taskIds: new Set(current.tasks.map(t => t.id)), knownRule: id => knownTaskRuleIds.has(id), warnings, memberId: sourceMemberId });
               const referenced = new Set([...member.completedTasks, ...['taskStatus', 'questProgress', 'achievementProgress', 'itemProgress', 'xpChoices'].flatMap(field => Object.keys(member[field] ?? {})), ...Object.values(member.taskAlternatives ?? {}).flatMap(groups => Object.values(groups))]);
               const scopedTasks = incoming.tasks.filter(task => !task.memberIds || task.memberIds.includes(sourceMemberId) || referenced.has(task.id));
               const currentTasks = new Map(current.tasks.map(task => [task.id, task]));
@@ -1860,13 +1866,14 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if (route === '/api/restore/preview' || route === '/api/restore') {
               const backup = await restoreBackup(body), current = store.getState();
               const incoming = importBackup(backup, registry);
+              assertImportWork({ incoming, current });
               const mapped = mapTransferRoster(incoming, current.members, body.rosterMapping, pickerRouting?.requiredMemberIds?.());
               const sourceRoster = incoming.members.map(({ id, name }) => ({ id, name }));
               if (!mapped) {
                 if (!route.endsWith('/preview')) throw httpError(422, 'Review and assign the source roster before importing.');
                 await json(request, response, 200, { mappingRequired: true, sourceRoster, destinationRoster: current.members.map(({ id, name }) => ({ id, name })) }); return;
               }
-              const report = transferReport(mapped, { world: indexedWorld, taskIds: new Set(current.tasks.map(t => t.id)), knownRule: id => taskRuleDefinitions.some(rule => rule.id === id), warnings: migrationSummary(mapped).warnings });
+              const report = transferReport(mapped, { world: indexedWorld, taskIds: new Set(current.tasks.map(t => t.id)), knownRule: id => knownTaskRuleIds.has(id), warnings: migrationSummary(mapped).warnings });
               quarantineTransferChunks(mapped, indexedWorld);
               if (route.endsWith('/preview')) {
                 const replacement = await store.previewReplacement({ ...backup, state: mapped });
@@ -1941,7 +1948,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/top-bar-buttons.mjs', '/top-bar.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/banking-settings.mjs', '/banking-display.mjs', '/banking.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/training/mining-rates.mjs', '/training/mining-rules.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'training'), route.slice('/training/'.length));
-      else if (['/dataset-runtime.mjs', '/startup-read.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app'), route.slice(1));
+      else if (['/dataset-runtime.mjs', '/startup-read.mjs', '/import-work.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app'), route.slice(1));
       else if (route === '/data/dataset-runtime.json') {
         await sendCached(request, response, cachedValue(`dataset-runtime:${dataset.digest}`, () => browserDataset)); return;
       }

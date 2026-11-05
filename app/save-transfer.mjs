@@ -70,6 +70,7 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   for (const field of ['migratedMembers', 'journalMigratedMembers', 'unresolved', 'taskStatusProvenance']) {
     for (const row of migration?.[field] ?? []) if (row.memberId !== undefined) row.memberId = mapped(row.memberId);
   }
+  for (const row of next.provenance?.taskIdentityMigration?.legacyAlternativeMembers ?? []) row.memberId = mapped(row.memberId);
   for (const task of next.tasks) if (task.memberIds) task.memberIds = task.memberIds.map(mapped);
   for (const claim of Object.values(next.taskClaims ?? {})) claim.memberId = mapped(claim.memberId);
   for (const goal of next.groupGoals ?? []) goal.completedBy = goal.completedBy.map(mapped);

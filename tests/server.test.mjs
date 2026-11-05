@@ -391,7 +391,7 @@ test('backup preview/import restore are memory-only until an expected-revision c
   const backup = exportBackup(incoming);
   const preview = await api('/api/restore/preview', { backup });
   assert.equal(preview.status, 200);
-  assert.deepEqual((await preview.json()).members[0].unlocked.added, ['100']);
+  assert.deepEqual((await preview.json()).preview.members[0].unlocked.added, ['100']);
   assert.equal((await (await api('/api/state')).json()).state.revision, 0);
   const committed = await api('/api/restore', { backup, expectedRevision: 0 });
   assert.equal(committed.status, 200);

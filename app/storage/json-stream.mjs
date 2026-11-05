@@ -28,9 +28,10 @@ export async function parseJSONStream(chunks, {
   maxBytes = DEFAULT_MAX_BYTES,
   maxDepth = 128,
   maxTokenBytes = maxBytes,
+  maxValues = Number.MAX_SAFE_INTEGER,
   onProgress,
 } = {}) {
-  for (const [name, value] of Object.entries({ maxBytes, maxDepth, maxTokenBytes })) {
+  for (const [name, value] of Object.entries({ maxBytes, maxDepth, maxTokenBytes, maxValues })) {
     if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`${name} must be a nonnegative safe integer`);
   }
   if (onProgress !== undefined && typeof onProgress !== 'function') throw new TypeError('onProgress must be a function');
@@ -38,9 +39,11 @@ export async function parseJSONStream(chunks, {
   // Preserve a leading BOM so it is rejected, as it is by JSON.parse.
   const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
   const stack = [];
+  let values = 0;
   let result, rootSeen = false, bytesRead = 0, token = null;
 
   function value(value) {
+    if (++values > maxValues) throw tooLarge('This backup exceeds the safe import work limit for this shared server. Export a smaller backup.');
     const frame = stack.at(-1);
     if (!frame) {
       if (rootSeen) throw invalid('unexpected value after the root value');
@@ -161,7 +164,12 @@ export async function parseJSONStream(chunks, {
     if (!(chunk instanceof Uint8Array)) throw new TypeError('JSON stream chunks must be Uint8Array byte chunks');
     bytesRead += chunk.byteLength;
     if (bytesRead > maxBytes) throw tooLarge(`JSON input exceeds the ${limitLabel(maxBytes)} size limit.`);
-    consume(decode(chunk, { stream: true }));
+    // Network and decompressor chunks can be arbitrarily large. Yield between
+    // bounded parser slices so even rejected uploads let other pickers run.
+    for (let offset = 0; offset < chunk.byteLength; offset += 32 * 1024) {
+      consume(decode(chunk.subarray(offset, offset + 32 * 1024), { stream: true }));
+      await new Promise(resolve => setImmediate(resolve));
+    }
     await onProgress?.({ bytesRead });
   }
   consume(decode());

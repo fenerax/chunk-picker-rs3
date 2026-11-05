@@ -61,7 +61,7 @@ test('journal API follows note permissions, persists both players, guards revisi
   const saved = structuredClone(backup.state.members);
   await send('Changed plan', 'actor1');
   const preview = await api('/api/restore/preview', { backup }); assert.equal(preview.status, 200);
-  assert.deepEqual((await preview.json()).members[0].journal, { before: 'Changed plan', after: 'First journal\n<b>literal</b>', changed: true });
+  assert.deepEqual((await preview.json()).preview.members[0].journal, { before: 'Changed plan', after: 'First journal\n<b>literal</b>', changed: true });
   const personalPreview = await api('/api/member-restore/preview', { backup, memberId: 'actor1' }, player);
   assert.equal(personalPreview.status, 200); assert.equal((await personalPreview.json()).preview.members[0].journal.changed, true);
   const restored = await api('/api/restore', { backup, expectedRevision: state.revision }); assert.equal(restored.status, 200);

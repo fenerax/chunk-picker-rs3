@@ -1,8 +1,12 @@
 # Export / Import
 
-Open **More → Saves → Export / Import**. The existing dialog offers a **Full
+Open **More → Export / Import**. The existing dialog offers a **Full
 picker backup**, **Import a backup**, and **Copy link for the original picker**.
 No reference data, artwork, account credentials or service permissions transfer.
+
+Imports also have a [shared-server work budget](backup-import.md). Preview and
+Apply refuse oversized catalogues, History, archives or combined work with a
+clear message, even when the compressed file fits the upload byte limit.
 
 ## Backups between copies
 

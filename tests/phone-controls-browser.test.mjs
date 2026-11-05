@@ -258,7 +258,7 @@ for (const [label, name] of [
       await tap('#more-tools > summary');
       await reveal('#backup-open', phone ? '#phone-more' : '#more-tools > .more-tools-menu');
       await tap('#backup-open');
-      await ready("document.querySelector('#tool-dialog').open && /Backup/i.test(document.querySelector('#dialog-title').textContent)");
+      await ready("document.querySelector('#tool-dialog').open && document.querySelector('#dialog-title').textContent === 'Export / Import'");
       await tap('#tool-dialog .close-button');
       if (phone) await tap('#phone-tab-map');
     } finally {

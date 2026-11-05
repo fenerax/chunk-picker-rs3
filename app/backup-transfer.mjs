@@ -1,3 +1,4 @@
+import { assertImportWork, IMPORT_WORK_LIMITS } from './import-work.mjs';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip, createGzip } from 'node:zlib';
@@ -83,9 +84,10 @@ export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_B
   const decoded = new Transform({ transform(chunk, encoding, callback) { callback(null, chunk); } });
   const transfer = pipeline(input, limitBytes(maxUploadBytes), ...(encoding === 'gzip' ? [createGunzip()] : []), decoded).catch(error => error);
   try {
-    const value = await parseJSONStream(decoded, { maxBytes: maxBackupBytes + (type === BACKUP_UPLOAD_TYPE ? 9 : 0) });
+    const value = await parseJSONStream(decoded, { maxBytes: maxBackupBytes + (type === BACKUP_UPLOAD_TYPE ? 9 : 0), maxTokenBytes: IMPORT_WORK_LIMITS.text, maxValues: IMPORT_WORK_LIMITS.units });
     const error = await transfer;
     if (error) throw error;
+    assertImportWork(value);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail(400, 'The backup must be a JSON object.');
     if (type !== BACKUP_UPLOAD_TYPE) return { body: value, uploaded: false };
     const rawMetadata = request.headers['x-rs3-import'] ?? '{}';
@@ -100,7 +102,7 @@ export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_B
       ? { backup: document } : { document, capturedAt: document.capturedAt }) } };
   } catch (error) {
     input.destroy(); decoded.destroy(); await transfer;
-    if (error.status === 413) throw fail(413, 'This backup is too large. The limit is 256 MiB after decompression.');
+    if (error.status === 413) throw error;
     if (error.status) throw error;
     throw fail(400, encoding === 'gzip' && /^Z_/.test(error.code ?? '')
       ? 'This gzip backup is corrupt or incomplete. Choose another backup.' : 'The backup is not valid JSON. Choose another backup.');
