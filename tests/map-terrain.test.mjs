@@ -291,10 +291,12 @@ test('native terrain pages bound draws and memory and dispose their backing stor
 
 function queuedTerrain(t, options = {}) {
   const frames = new Map(), cancelled = [], canvases = [], images = [], changes = [];
-  let nextFrame = 0;
+  let nextFrame = 0, clock = 0;
   const tiles = [];
   for (let x = 29; x < 45; x++) for (let y = 68; y <= 71; y++) tiles.push([x, y]);
   const terrain = new MapTerrain(manifest(options.tiles ?? tiles), { cacheLimit: 48,
+    // Existing staging tests model expensive patches that exhaust the budget.
+    now: () => (clock += 5),
     fallbackImage: { naturalWidth: 6016, naturalHeight: 6400 },
     canvasFactory(width, height) {
       const calls = [], ctx = { drawImage: (...args) => calls.push(args), clearRect() {} };
@@ -727,4 +729,48 @@ test('pins are tile-centred, filtered and hidden below the zoom threshold', () =
   assert.equal(circles.length, 0);
   assert.equal(renderer.at({ x: 11, y: 147 }), null);
   renderer.dispose();
+});
+
+
+test('small overview patches batch within a frame and publish identical ordered mip operations', t => {
+  const tiles = Array.from({ length: 16 }, (_, x) => [29 + x, 71]);
+  const fast = queuedTerrain(t, { tiles, now: () => 0 });
+  const slow = queuedTerrain(t, { tiles });
+  const view = { left: 0, top: 0, right: 2048, bottom: 128 };
+  for (const run of [fast, slow]) { run.changes.length = 0; run.terrain.setView(view, 0.5); run.loadAll(); }
+  fast.step();
+  assert.equal(fast.frames.size, 0, 'Four cheap patches settle in one callback');
+  assert.equal(fast.terrain.committedKeys.size, tiles.length);
+  assert.equal(fast.changes.length, 1, 'The complete viewport publishes atomically');
+  slow.flush();
+  const operations = terrain => [...terrain.levels].map(([scale, level]) => [scale,
+    ...['colour', 'gray'].map(mode => level[mode].calls.map(args => args.slice(1)))]);
+  assert.deepEqual(operations(fast.terrain), operations(slow.terrain));
+  assert.deepEqual([...fast.terrain.committedKeys], [...slow.terrain.committedKeys]);
+});
+
+test('overview batching yields at the time budget even when more patches are ready', t => {
+  let clock = 0;
+  const run = queuedTerrain(t, { now: () => (clock += 2) });
+  run.changes.length = 0;
+  run.terrain.setView({ left: 0, top: 0, right: 2048, bottom: 512 }, 0.5);
+  run.loadAll(); run.step();
+  assert.equal(run.terrain.stagedPreviews.size, 2);
+  assert.equal(run.terrain.committedKeys.size, 0, 'Partial batches stay private');
+  assert.equal(run.changes.length, 0);
+  assert.equal(run.frames.size, 1);
+  run.flush();
+  assert.equal(run.changes.length, 1);
+});
+
+test('overview batching has a hard eight-patch bound even with a coarse clock', t => {
+  const tiles = Array.from({ length: 40 }, (_, x) => [29 + x, 71]);
+  const run = queuedTerrain(t, { tiles, now: () => 0 });
+  run.changes.length = 0;
+  run.terrain.setView({ left: 0, top: 0, right: 5120, bottom: 128 }, 0.5);
+  run.loadAll(); run.step();
+  assert.equal(run.terrain.stagedPreviews.size, 8);
+  assert.equal(run.terrain.committedKeys.size, 0);
+  assert.equal(run.frames.size, 1);
+  run.flush(); assert.equal(run.changes.length, 1);
 });

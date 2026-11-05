@@ -46,7 +46,7 @@ export function isBlankTerrainPixels(pixels) {
 export class MapTerrain {
   constructor(manifest, { changed = () => {}, imageFactory = () => new Image(), canvasFactory = defaultCanvas,
     cacheLimit = 256, concurrency = 6, fallbackImage = null, waitForFallback = false,
-    requestFrame = defaultRequestFrame, cancelFrame = defaultCancelFrame } = {}) {
+    requestFrame = defaultRequestFrame, cancelFrame = defaultCancelFrame, now = () => performance.now() } = {}) {
     this.changed = changed; this.imageFactory = imageFactory; this.canvasFactory = canvasFactory;
     this.cacheLimit = cacheLimit; this.concurrency = concurrency;
     this.waitForFallback = waitForFallback;
@@ -55,7 +55,7 @@ export class MapTerrain {
     this.failed = new Set(); this.pending = new Map(); this.queue = new Map(); this.nativeKeys = new Set();
     this.levels = new Map(); this.pages = new Map(); this.pageLimit = Math.max(1, Math.floor(cacheLimit / (PAGE_CELLS ** 2)));
     this.nativePages = new Set(); this.disposed = false;
-    this.requestFrame = requestFrame; this.cancelFrame = cancelFrame;
+    this.requestFrame = requestFrame; this.cancelFrame = cancelFrame; this.now = now;
     this.pageQueue = new Set(); this.updateFrame = null; this.pageWorkScheduled = false;
     this.visibleKeys = new Set(); this.unpublishedKeys = new Set(); this.committedKeys = new Set();
     this.chunkListeners = new Map();
@@ -517,9 +517,18 @@ export class MapTerrain {
           this.stagedPages.set(key, page);
         } else this.nativePages.delete(key);
       } else if (this.viewLoaded() && this.previewQueue.size) {
-        const key = this.previewQueue.values().next().value; this.previewQueue.delete(key);
-        const patch = this.previewPage(key);
-        if (patch) this.stagedPreviews.set(key, patch);
+        // Overview patches are only 256px, unlike 1024px native pages. Waiting
+        // one frame per patch adds almost a second to a wide cold viewport.
+        // Keep their order and atomic publication, but spend at most 4ms or
+        // eight patches here; always yield after one expensive patch.
+        const started = this.now();
+        let patches = 0;
+        do {
+          const key = this.previewQueue.values().next().value; this.previewQueue.delete(key);
+          const patch = this.previewPage(key);
+          if (patch) this.stagedPreviews.set(key, patch);
+          patches++;
+        } while (this.previewQueue.size && patches < 8 && this.now() - started < 4);
       }
       this.publishView();
       this.schedulePageWork();
