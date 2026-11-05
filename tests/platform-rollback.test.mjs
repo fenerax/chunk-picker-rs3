@@ -6,7 +6,7 @@ import path from 'node:path';
 import { applyCommand, createGroupState, importBackup, exportBackup } from '../app/core/state.mjs';
 import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { createPlatformApiClient } from '../app/integrations/platform-api.mjs';
-import { previewRuneMetrics, createQuestMapping } from '../app/integrations/runemetrics.mjs';
+import { previewRuneMetrics, createQuestMapping } from './helpers/legacy-runemetrics.mjs';
 import { platformResponse } from './helpers/platform-api-fixtures.mjs';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import { openStore } from '../app/storage/store.mjs';

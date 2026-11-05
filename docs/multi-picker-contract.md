@@ -71,7 +71,7 @@ Each picker context owns these resources:
 | Private state/static fields, custom tasks, aliases, evidence, rules, notes and progress | Reusable fields at `app/storage/store.mjs:344`, compressed static storage at `app/storage/store.mjs:437`. A content hash does not make private provenance public or safe to intern as mutable state. |
 | Response, identity, task, calculation and preview caches | State cache uses revision/view at `app/server.mjs:689`; one identity index at `app/server.mjs:705`, member task cache at `app/server.mjs:724`, calculation snapshot at `app/server.mjs:947`, progress previews at `app/server.mjs:651`. Keep these in the context or key every shared entry by picker ID and provenance. |
 | SSE subscribers and revocation | One client set/broadcast at `app/server.mjs:715`, `app/server.mjs:717`, revocation check at `app/server.mjs:828`, stream route at `app/server.mjs:1678`. No private revision, task-ready, plugin or overlay event crosses a picker. |
-| Plugin keys, reports, upload fragments, sequencing and evidence | One key file/hash lookup at `app/plugin-keys.mjs:41`, `app/plugin-keys.mjs:60`; state maps at `app/game-plugin.mjs:42`; evidence at `app/plugin-items.mjs:43`, `app/plugin-achievements.mjs:72`; member/name cache at `app/integrations/runemetrics.mjs:66`. |
+| Plugin keys, reports, upload fragments, sequencing and evidence | One key file/hash lookup at `app/plugin-keys.mjs:41`, `app/plugin-keys.mjs:60`; state maps at `app/game-plugin.mjs:42`; evidence at `app/plugin-items.mjs:43`, `app/plugin-achievements.mjs:72`; member/name cache at `app/integrations/platform-api.mjs`. |
 | Invitations, overlay capabilities, feedback and usage records | Sidecars close over one directory/store at `app/server.mjs:617`, `app/server.mjs:621`, `app/server.mjs:625`; overlay file/subscribers at `app/overlays.mjs:89`, `app/overlays.mjs:94`; usage actors at `app/storage/usage.mjs:66`. |
 | Backups, binding, backup status and restore scope | Snapshot barrier/spool/capture at `app/storage/snapshot.mjs:6`, `app/storage/snapshot.mjs:27`, `app/storage/snapshot.mjs:38`; sibling backup status at `app/storage/backup-status.mjs:59`. Give each picker distinct status and backup namespaces. |
 
@@ -427,11 +427,11 @@ the shared calculator.
   jobs, snapshots, reuse and delivery now carry picker identity, and context close
   abandons only its own jobs. MP4 below adds authenticated routing and bounded
   context eviction; fair sharing remains later work.
-- **RuneMetrics member/name cache — closed against G15:** each context calls
-  `createProgressSources` independently. Its RuneMetrics adapter constructs its
+- **Web progress member/name cache — closed against G15:** each context calls
+  `createProgressSources` independently. Its Platform API adapter constructs its
   own client with member/name-keyed cache, pending requests and abort controllers;
   identical bindings in different pickers never share that cache. The default
-  official-API adapter is stateless and the default Hiscores adapter owns its
+  official-API slot uses that Platform client and the default Hiscores adapter owns its
   abort controllers per client. Context close calls `progressClient.close()` and
   clears its preview map; it cannot close another context's provider. Injected
   provider objects remain operator-supplied test/integration dependencies and

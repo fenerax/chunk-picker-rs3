@@ -102,7 +102,7 @@ test('automatic mode is explicitly shared and its revision-reviewed save refresh
   assert.match(h.text(), /On for both of you/);
   assert.equal(h.checkbox('Automatic availability').checked, true);
   assert.equal(h.ui.fetch.length, 2);
-  assert.match(h.text(), /RuneMetrics sync supplies levels and quests, but not lodestone activations/);
+  assert.match(h.text(), /Progress sync supplies levels and quests, but not lodestone activations/);
   assert.match(h.text(), /choose “I can use it” in its Override dropdown/);
   assert.match(h.text(), /Do this separately for each player/);
   assert.match(h.text(), /Teleports need a way back to your chunks/);

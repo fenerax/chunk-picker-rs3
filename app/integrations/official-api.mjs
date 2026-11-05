@@ -1,8 +1,6 @@
-import { RUNE_METRICS_CLOSED_MESSAGE } from './progress-source-policy.mjs';
+import { createPlatformApiClient } from './platform-api.mjs';
 
-// Implement this adapter when Jagex publishes its replacement API contract.
-// Return normalized skills (actual XP) and quests; never write saved progress.
-export function createOfficialApiSource() {
-  return { async snapshot() { return { available: false, source: 'official-api', sourceLabel: 'RuneScape API',
-    message: RUNE_METRICS_CLOSED_MESSAGE }; } };
+// Compatibility factory for callers using the former replacement-API slot.
+export function createOfficialApiSource(options) {
+  return createPlatformApiClient(options);
 }

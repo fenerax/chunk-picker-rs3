@@ -74,7 +74,7 @@ The authored `app/tasks/collection.mjs` now implements **Kill X, Every Drop, All
 
 The inventory is complete within the stated retained-source scope. Functional upstream parity is incomplete despite scalar-control coverage, including the listed adaptations and engine limits in the rule catalogue. The threshold-zero and converted-rule-provenance fixes address specific audited regressions; they do not remove those remaining limits.
 
-RuneMetrics fetch/review/apply/undo is exposed in Activity Info for each character’s observed levels, XP and completed quests; inventory, achievements and quest-step state remain outside that integration. The Training plan UI/API offers Fastest, Balanced and Makes money routes from the reviewed F2P catalogue, with unknown rate/supply boundaries. Pick for me, unpick reselection and invitation revocation are also delivered. See [the October 8 review](research/switchover-parity-2026-10-08.md) for current task and migration limits.
+Platform API fetch/review/apply/undo is exposed in Activity Info for each character’s observed levels, XP and completed quests; inventory, achievements and quest-step state remain outside that integration. The Training plan UI/API offers Fastest, Balanced and Makes money routes from the reviewed F2P catalogue, with unknown rate/supply boundaries. Pick for me, unpick reselection and invitation revocation are also delivered. See [the October 8 review](research/switchover-parity-2026-10-08.md) for current task and migration limits.
 
 ## Original application settings
 

@@ -1,3 +1,4 @@
+import { observedSkills } from '../../app/core/game-progress.mjs';
 // Synthetic official API responses with invented account progress.
 // Totals deliberately differ from summed quest awards (historical/replay cases).
 export const platformProfile = (name = 'exampleGIMab') => ({ name, skills: [
@@ -20,4 +21,13 @@ export function platformResponse(url) {
   const quest = url.pathname.includes('/playerQuests/');
   const name = quest ? decodeURIComponent(url.pathname.split('/').at(-1)) : url.searchParams.get('player');
   return apiJson(quest ? platformQuests(name) : platformProfile(name));
+}
+
+// Convert invented legacy fixtures to the published Platform shape.
+export function recordedPlatformResponse(url, fixture) {
+  const name = url.searchParams.get('player') ?? decodeURIComponent(url.pathname.split('/').at(-1));
+  return apiJson(url.pathname.includes('/playerQuests/')
+    ? { name, qp: 1, qp_max: 450, quests: Object.fromEntries(fixture.quests.quests.map((row, id) => [id, row])) }
+    : { name: fixture.profile.name ?? name, skills: fixture.profile.skillvalues.map(row => ({ ...row,
+      id: row.id + 1, name: observedSkills[row.id] ?? 'Future skill', xp: Math.floor(row.xp / 10) })) });
 }
