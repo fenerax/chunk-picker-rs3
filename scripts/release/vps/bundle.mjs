@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { chmod, chown, lstat, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { chmod, chown, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -107,7 +107,8 @@ export async function rebaseBundle(upload, target, operatorFile, toolsRoot) {
   const sourceBytes = await readFile(path.join(upload, 'source-config.json'));
   if (sha(sourceBytes) !== manifest.configSha256) throw new Error('Config mismatch.');
   const source = JSON.parse(sourceBytes), settings = await json(operatorFile);
-  const { readRelease } = await import(pathToFileURL(path.join(toolsRoot, 'scripts/linux/runtime.mjs')).href);
+  const { readRelease, serviceIdentity, assertServiceAccess } = await import(pathToFileURL(path.join(toolsRoot, 'scripts/linux/runtime.mjs')).href);
+  const account = await serviceIdentity(settings);
   const current = await readRelease(settings.current, settings.dataDir);
   for (const pin of pins(source)) {
     pin.path = path.join(target, relativePin(manifest.sourceRoot, pin.path));
@@ -121,8 +122,9 @@ export async function rebaseBundle(upload, target, operatorFile, toolsRoot) {
   await writeFile(configPath, bytes, { flag: 'wx', mode: 0o644 });
   const pointer = path.join(target, 'pointer.json');
   await writeFile(pointer, encode({ config: { path: configPath, sha256: sha(bytes) } }), { flag: 'wx', mode: 0o644 });
-  // Same owner and modes as the installed releases beside it.
-  await lockRelease(target, (await stat(path.dirname(target))).gid);
+  // Resolve the unit identity, never inherit a potentially drifted root group.
+  await lockRelease(target, account.gid);
+  await assertServiceAccess(target, account, ['core/app/server.mjs']);
   const candidate = await readRelease(pointer, settings.dataDir);
   await writeFile(path.join(upload, 'verified.json'), encode({ candidateIdentity: candidate.identity,
     previousPointerSha256: sha(current.pointerBytes), pointer,

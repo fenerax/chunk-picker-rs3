@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { toolsClosure, buildTools, verifyTools, toolsEntrypoints } from '../scripts/linux/tools-package.mjs';
-import { cleanToolsEvidence, operatorUnitsIdle } from '../scripts/linux/tools-install.mjs';
+import { cleanToolsEvidence, operatorUnitsIdle, toolsInstallCli } from '../scripts/linux/tools-install.mjs';
 import { phaseReceipt } from '../scripts/linux/phases.mjs';
 import { scratchHostGuard, freshHostGuard } from '../scripts/linux/scratch-rehearsal.mjs';
 import { reviewRefusal } from '../scripts/release/vps/review.mjs';
@@ -91,6 +91,27 @@ test('phase receipts survive unfinished and failed phases, with numeric time and
   assert.equal(saved.stoppedToReadyMs, 15); assert.deepEqual(saved.phases.map(row => row.durationMs), [9, 6]);
   assert.deepEqual(saved.phases.map(row => row.result), ['success', 'failed']);
   assert(!encode(saved).includes('private diagnostic sentinel'));
+});
+
+test('installer CLI prints only allowlisted structured refusal categories', async () => {
+  const cases = { 'TOOLS_ACTIVE-RUN': 'timer active', TOOLS_LOCK: 'lock held', EEXIST: 'lock held',
+    TOOLS_MAINTENANCE: 'maintenance', TOOLS_TRANSACTION: 'transaction evidence', TOOLS_RECEIPT: 'receipt invalid',
+    TOOLS_OWNERSHIP: 'ownership/access', TOOLS_ACCESS: 'ownership/access', TOOLS_HASH: 'hash mismatch',
+    'TOOLS_PREVIOUS-HASHES': 'hash mismatch', UNKNOWN_PRIVATE_SENTINEL: 'unclassified', toString: 'unclassified' };
+  for (const [code, category] of Object.entries(cases)) {
+    let out = '', err = '';
+    const status = await toolsInstallCli(['install', repo, repo], { settings: async () => ({}),
+      switcher: async () => { throw Object.assign(Error('private diagnostic sentinel'), { code }); },
+      stdout: value => { out += value; }, stderr: value => { err += value; } });
+    assert.equal(status, 1); assert.equal(out, '');
+    assert.equal(err, `Tools switch refused: ${category}; inspect transaction evidence privately.\n`);
+  }
+  const script = path.join(repo, 'scripts/linux/tools-install.mjs');
+  try { execFileSync(process.execPath, [script, 'invalid'], { stdio: 'pipe', windowsHide: true }); assert.fail('must refuse'); }
+  catch (error) {
+    assert.equal(error.status, 1);
+    assert.equal(error.stderr.toString(), 'Tools switch refused: arguments invalid; inspect transaction evidence privately.\n');
+  }
 });
 test('review diagnostics identify only the failed category', () => {
   for (const reviewCategory of ['lock', 'maintenance', 'receipt', 'newest backup', 'digest']) {

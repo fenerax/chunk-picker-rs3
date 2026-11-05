@@ -97,23 +97,25 @@ export async function healthRecovery({ settings, release, controller, request = 
 }
 async function activationReceipt(settings, timings, work) {
   const owned = !timings;
-  timings ??= await phaseReceipt(settings.controlDir, 'activate');
   try {
+    timings ??= await phaseReceipt(settings.controlDir, 'activate');
     const result = await work(timings);
     if (owned) await timings.finish('success');
     return { ...result, phaseReceipt: timings.file };
-  } catch (error) { if (owned) await timings.finish('failed'); throw error; }
+  } catch (error) { if (owned && timings) await timings.finish('failed'); throw error; }
 }
 export async function deployStopped(options) {
   return activationReceipt(options.settings, options.timings, timings => deployStoppedImpl({ ...options, timings }));
 }
 async function deployStoppedImpl({ settings, current, candidate, controller, candidateBinding, checkedIdentity, savedIdentityAdditions, check = checkStoppedCompatibility, request = privateRequest, wait = delay, timings }) {
   const stopped = () => assertStopped(controller, settings.dataDir);
-  await inPhase(timings, 'drain', async () => { await controller.stop(); await stopped(); });
-  await timings.mark('stopped');
-  const originalBinding = await readFile(settings.dataDir + '.dataset.json');
-  let swapped = false, rebound = false;
+  await timings.preflight();
+  let originalBinding;
+  let swapped = false, rebound = false, drained = false;
   try {
+    await inPhase(timings, 'drain', async () => { await controller.stop(); await stopped(); drained = true; });
+    await timings.mark('stopped');
+    originalBinding = await readFile(settings.dataDir + '.dataset.json');
     if (!checkedIdentity || encode(checkedIdentity) !== encode(await inPhase(timings, 'stopped:identity-hash', () => storeIdentity(settings.dataDir)))) {
       await check({ dataDir: settings.dataDir, scratchRoot: settings.scratchRoot, minFreeBytes: settings.minFreeBytes,
         current, candidate, candidateBinding, savedIdentityAdditions, assertStopped: stopped, timings });
@@ -135,6 +137,7 @@ async function deployStoppedImpl({ settings, current, candidate, controller, can
     await rm(path.join(settings.controlDir, 'activation.json'));
     return { activated: true };
   } catch (error) {
+    if (!drained) throw error; // Uncertain stop/ownership must stay fenced.
     // A failed final probe takes this path without writing the store or pointer.
     // After candidate startup, use its LATEST save: never restore an old backup.
     await controller.stop(); await stopped();
@@ -281,6 +284,9 @@ export async function runOperator(command, argument, evidence, mode) {
     } catch (error) {
       // Safe rollback may have restarted the old writer. Reconcile evidence
       // explicitly; a failed rollback retains pause and prevents health actions.
+      // This code is issued only by the receipt preflight, before drain. There
+      // has been no writer/pointer change and this invocation owns the pause.
+      if (command === 'deploy' && error.code === 'PHASE_RECEIPT_UNWRITABLE') await rm(pause);
       if (command === 'backup') {
         try { await writeBackupStatus(settings.dataDir, { result: 'failed' }); } catch {}
         // Online backup never stops or replaces the writer; a failed capture

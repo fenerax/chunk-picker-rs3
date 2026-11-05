@@ -162,7 +162,12 @@ export async function runServiceOperator({ settings, command, argument, evidence
           if (await exists(path.join(dataDir, 'state.json'))) await checkStoppedCompatibility({ ...options, dataDir, assertStopped: stopped });
         }
       };
-      result = await deployStopped({ settings, current: release, candidate, controller, request, check, savedIdentityAdditions });
+      try { result = await deployStopped({ settings, current: release, candidate, controller, request, check, savedIdentityAdditions }); }
+      catch (error) {
+        // Receipt preflight happens before drain; this invocation owns the pause.
+        if (error.code === 'PHASE_RECEIPT_UNWRITABLE') await rm(pause);
+        throw error;
+      }
     }
     if (['restore', 'quarantine-release'].includes(command)) await repairServiceOwnership({ settings, ...await serviceIdentity() });
     await rm(pause); return result;

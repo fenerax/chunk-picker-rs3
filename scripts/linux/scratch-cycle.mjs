@@ -9,7 +9,8 @@ import { encode, json, sha } from './files.mjs';
 import { buildTools } from './tools-package.mjs';
 import { switchTools } from './tools-install.mjs';
 import { prepareBundle } from '../release/vps/bundle.mjs';
-import { readRelease } from './runtime.mjs';
+import { readRelease, assertServiceAccess } from './runtime.mjs';
+import { lockRelease } from '../release/vps/bundle.mjs';
 import { privateRequest } from './operator.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -17,16 +18,22 @@ const run = (command, args) => execFileSync(command, args, { stdio: ['ignore', '
 export async function scratchCycle(staging) {
   if (process.platform !== 'linux' || process.getuid() !== 0 || !/^\/var\/tmp\/chunk-tools-scratch-[a-f0-9-]{36}$/.test(staging)) throw Error('Scratch environment required.');
   const base = '/opt/chunk-picker', source = path.join(base, 'source'), toolsRoot = path.join(base, 'tools');
+  // The unit is installed later; resolve the already provisioned account here.
+  const uid = Number(run('id', ['-u', 'chunk-picker']).trim()), gid = Number(run('id', ['-g', 'chunk-picker']).trim());
+  if (![uid, gid].every(id => Number.isSafeInteger(id) && id > 0)) throw Error('Dedicated service identity required.');
+  const account = { uid, gid };
   // Exclusive creation is the final guard. Never rerun on an adopted service.
   await mkdir(path.join(base, 'releases'), { mode: 0o755 });
+  await chown(path.join(base, 'releases'), 0, gid); await chmod(path.join(base, 'releases'), 0o750);
   const dataDir = '/var/lib/chunk-picker/game', controlDir = '/var/lib/chunk-picker/control';
   await mkdir('/var/lib/chunk-picker', { mode: 0o755 });
   await mkdir(dataDir, { mode: 0o700 }); await mkdir(controlDir, { mode: 0o700 });
-  const uid = Number(run('id', ['-u', 'chunk-picker']).trim()), gid = Number(run('id', ['-g', 'chunk-picker']).trim());
+  for (const [dir, mode] of [['/var/lib/chunk-picker', 0o755], [dataDir, 0o700], [controlDir, 0o700]]) await chmod(dir, mode);
   await chown(dataDir, uid, gid);
   // The service can publish snapshots without owning the control directory's
   // parent. Root-owned ancestors also permit privilege-dropped prewarming.
   await mkdir(dataDir + '.snapshots', { mode: 0o700 }); await chown(dataDir + '.snapshots', uid, gid);
+  await chmod(dataDir + '.snapshots', 0o700);
   process.env.RS3_DATASET = 'open-starter'; process.env.RS3_SIGNIN = 'off';
   for (const key of Object.keys(process.env)) if (/^RS3_/.test(key) && !['RS3_DATASET', 'RS3_SIGNIN'].includes(key)) delete process.env[key];
   const { createGroupState, exportBackup } = await import('../../app/core/state.mjs');
@@ -47,13 +54,17 @@ export async function scratchCycle(staging) {
   const configFile = path.join(seed, 'config.json'), configBytes = encode(config);
   await writeFile(configFile, configBytes, { mode: 0o644 });
   const pointerBytes = encode({ config: { path: configFile, sha256: sha(configBytes) } });
+  await lockRelease(seed, gid);
+  await assertServiceAccess(seed, account, ['core/app/server.mjs']);
   const settings = { current: '/var/lib/chunk-picker/current.json', dataDir, controlDir,
     backupDir: '/var/backups/chunk-picker', scratchRoot: '/var/lib/chunk-picker/scratch', service: 'chunk-picker.service', minFreeBytes: 0, keep: 2 };
   await writeFile(settings.current, pointerBytes, { mode: 0o644 });
   await writeFile('/etc/chunk-picker/operator.json', encode(settings), { mode: 0o644 });
   process.env.RS3_OPERATOR_CONFIG = '/etc/chunk-picker/operator.json';
   await writeFile('/etc/chunk-picker/runtime.env', 'RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json\nRS3_SIGNIN=off\n', { mode: 0o644 });
+  for (const file of [origin, settings.current, '/etc/chunk-picker/operator.json', '/etc/chunk-picker/runtime.env']) await chmod(file, 0o644);
   await mkdir(toolsRoot, { mode: 0o755 }); // empty legacy layout exercises exchange
+  await chmod(toolsRoot, 0o755);
   const packageRoot = path.join(staging, 'package');
   const manifest = await buildTools(source, packageRoot);
   // Use the installed operator path even on the initial synthetic machine.
@@ -82,9 +93,9 @@ export async function scratchCycle(staging) {
   const derived = review(); review(derived.digest);
   // Rehearse from the synthetic backup, with the helper's isolated controller.
   const { newestVerifiedBackup } = await import(pathToFileURL(path.join(toolsRoot, 'scripts/release/vps/review.mjs')));
-  const { rehearse } = await import(pathToFileURL(path.join(toolsRoot, 'scripts/linux/rehearse.mjs')));
   const backup = await newestVerifiedBackup(settings.backupDir);
-  const rehearsal = await rehearse({ pointer, source: path.join(backup.backup, 'store'), scratch: path.join(staging, 'rehearsal'), port: 8963 });
+  const rehearsal = JSON.parse(run('/opt/node/bin/node', [path.join(toolsRoot, 'scripts/linux/rehearse.mjs'),
+    '--pointer', pointer, '--source', path.join(backup.backup, 'store'), '--scratch', path.join(staging, 'rehearsal'), '--port', '8963']));
   installedRun('health'); installedRun('deploy', pointer, receiptFile);
   const selected = await readRelease(settings.current, dataDir), health = await privateRequest(selected, '/api/health');
   if (!health.ready || !health.savesReady || sha(await readFile(settings.current)) !== sha(await readFile(pointer))) throw Error('Synthetic activation verification failed.');

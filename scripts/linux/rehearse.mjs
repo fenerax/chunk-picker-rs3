@@ -5,6 +5,8 @@ import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { assertReleased, copyTree, encode, noLinks, outside, sha } from './files.mjs';
 import { readRelease, openApplication } from './runtime.mjs';
 import { backupOnline, deployPrechecked, privateRequest } from './operator.mjs';
@@ -17,6 +19,15 @@ async function freePort(port) {
   await new Promise(resolve => server.close(resolve));
 }
 export async function rehearse({ pointer, source, scratch, port, coreRoot }) {
+  // openApplication deliberately configures process-global module state and env.
+  // Library callers must have the same process isolation as the CLI caller.
+  const args = ['--pointer', pointer, '--source', source, '--scratch', scratch, '--port', String(port)];
+  if (coreRoot) args.push('--core-root', coreRoot);
+  const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.url), ...args],
+    { timeout: 600000, maxBuffer: 1024 * 1024, windowsHide: true });
+  return JSON.parse(stdout);
+}
+async function rehearseInProcess({ pointer, source, scratch, port, coreRoot }) {
   port = Number(port);
   if (!Number.isInteger(port) || port < 8900 || port > 8998) throw new Error('Use two free scratch ports in 8900–8999.');
   scratch = path.resolve(scratch); source = path.resolve(source);
@@ -69,7 +80,7 @@ export async function rehearse({ pointer, source, scratch, port, coreRoot }) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const { values } = parseArgs({ options: Object.fromEntries(['pointer', 'source', 'scratch', 'port', 'core-root'].map(key => [key, { type: 'string' }])) });
-    const result = await rehearse({ ...values, coreRoot: values['core-root'] });
+    const result = await rehearseInProcess({ ...values, coreRoot: values['core-root'] });
     process.stdout.write(encode(result));
   } catch { process.stderr.write('Scratch rehearsal refused; inspect privately.\n'); process.exitCode = 1; }
 }

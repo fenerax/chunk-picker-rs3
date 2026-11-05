@@ -63,12 +63,15 @@ echo "$2  $1/node.tar.xz" | sha256sum -c - >/dev/null
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq >"$1/provision.log" 2>&1
 apt-get install -y -qq python3 xz-utils util-linux ca-certificates >>"$1/provision.log" 2>&1
+umask 022
 mkdir /opt/node /opt/chunk-picker /etc/chunk-picker
+chmod 0755 /opt/node /opt/chunk-picker /etc/chunk-picker
 tar -xf "$1/node.tar.xz" --strip-components=1 -C /opt/node
 test "$(/opt/node/bin/node --version)" = v24.20.0
 ln -sf /opt/node/bin/node /usr/bin/node
 id chunk-picker >/dev/null 2>&1 || useradd --system --home-dir /var/lib/chunk-picker --shell /usr/sbin/nologin chunk-picker
 mkdir /opt/chunk-picker/source
+chmod 0755 /opt/chunk-picker/source
 tar -xf "$1/source.tar" -C /opt/chunk-picker/source
 chown -R root:root /opt/chunk-picker/source
 chmod -R go-w /opt/chunk-picker/source

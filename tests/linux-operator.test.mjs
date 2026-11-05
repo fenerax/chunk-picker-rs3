@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { prewarmCandidate } from '../scripts/linux/prewarm.mjs';
 import { rootFilesystem, serviceQuery } from './helpers/prewarm.mjs';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
-import { assertReleased, encode, exclusive, inventory, json, sha } from '../scripts/linux/files.mjs';
+import { assertReleased, atomic, encode, exclusive, exists, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { assertSameRelease, readRelease } from '../scripts/linux/runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, verifyBackup, writeBackupStatus, storeIdentity } from '../scripts/linux/recovery.mjs';
 import { deployStopped, deployPrechecked, backupOnline, healthRecovery } from '../scripts/linux/operator.mjs';
@@ -16,6 +16,8 @@ import { checkStart } from '../scripts/linux/start-check.mjs';
 import { snapshotStore, snapshotPath } from '../app/storage/snapshot.mjs';
 import { phaseReceipt } from '../scripts/linux/phases.mjs';
 import { compatibilityReports, syntheticAdditions, syntheticCore } from './helpers/release-compatibility.mjs';
+import { rehearse } from '../scripts/linux/rehearse.mjs';
+import { operatorSettings } from '../scripts/linux/runtime.mjs';
 
 // Set before importing any state/server code. All writes stay in this worktree.
 process.env.RS3_DATASET = 'open-starter';
@@ -492,3 +494,131 @@ test('each compatibility probe and copy gets a durable phase receipt', async t =
     assert.equal(row.result, 'success'); assert(Number.isFinite(row.durationMs));
   }
 });
+
+test('timing receipt preflight failures leave the writer running', async t => {
+  const f = await fixture(t);
+  const failure = Object.assign(Error('private timing write failure'), { code: 'ENOSPC' });
+  await assert.rejects(phaseReceipt(f.settings.controlDir, 'activate', { write: async () => { throw failure; } }), { code: 'PHASE_RECEIPT_UNWRITABLE' });
+  let writes = 0;
+  const timings = await phaseReceipt(f.settings.controlDir, 'activate', {
+    write: async (...args) => { if (++writes > 1) throw failure; await atomic(...args); },
+  });
+  await assert.rejects(deployStopped({ ...f, timings, check: async () => {} }), { code: 'PHASE_RECEIPT_UNWRITABLE' });
+  assert.deepEqual(f.events, []); assert((await f.controller.state()).active);
+  assert.deepEqual(await readFile(f.settings.current), f.current.pointerBytes);
+});
+
+const activationPhases = ['drain', 'stopped:identity-hash', 'stopped:hash', 'release-hash', 'pointer', 'start-gate', 'start-permit', 'started-to-ready'];
+for (let i = 0; i < 4; i++) activationPhases.push('stopped:copy-' + i, 'stopped:probe-' + i);
+const rollbackPhases = ['rollback:hash', 'rollback:start-gate', 'rollback:started-to-ready'];
+for (let i = 0; i < 4; i++) rollbackPhases.push('rollback:copy-' + i, 'rollback:probe-' + i);
+
+for (const rollback of [false, true]) for (const edge of ['before', 'after']) {
+  test(`timing write failures at every ${rollback ? 'rollback' : 'activation'} phase ${edge} preserve recovery`, async t => {
+    for (const phase of rollback ? rollbackPhases : activationPhases) {
+      const f = await fixture(t); let injected = false;
+      const timings = await phaseReceipt(f.settings.controlDir, 'activate', { write: async (file, bytes) => {
+        const doc = JSON.parse(bytes), row = doc.phases.find(row => row.name === phase);
+        if (row && (edge === 'before' ? row.result === 'running' : row.result !== 'running')) injected = true;
+        if (injected) throw Error('private receipt failure');
+        await atomic(file, bytes);
+      } });
+      // Exercise the real compatibility phases, using deterministic decoder
+      // reports so this failure matrix does not start dozens of app processes.
+      const { before } = compatibilityReports();
+      const check = args => checkStoppedCompatibility({ ...args, probe: async () => structuredClone(before) });
+      const start = f.controller.start;
+      f.controller.start = timing => timing.run('start-permit', start);
+      const request = async release => ({ ready: !rollback || release === f.current, savesReady: true });
+      const operation = deployStopped({ ...f, timings, checkedIdentity: {}, check, request, wait: noWait });
+      if (rollback) await assert.rejects(operation, /readiness did not recover/);
+      else assert.equal((await operation).activated, true);
+      assert(injected, phase); assert((await f.controller.state()).active, phase);
+      assert.deepEqual(await readFile(f.settings.current), (rollback ? f.current : f.candidate).pointerBytes, phase);
+      assert.equal(await exists(path.join(f.settings.controlDir, 'activation.json')), false, phase);
+      assert.deepEqual(f.events, rollback ? ['stop', 'start', 'stop', 'start'] : ['stop', 'start'], phase);
+    }
+  });
+}
+
+for (const event of ['stopped', 'started', 'ready', 'finish']) test(`timing ${event} failure cannot strand successful activation`, async t => {
+  const f = await fixture(t); let injected = false;
+  const timings = await phaseReceipt(f.settings.controlDir, 'activate', { write: async (file, bytes) => {
+    const doc = JSON.parse(bytes);
+    if (event === 'finish' ? doc.result === 'success' : doc.events[event]) injected = true;
+    if (injected) throw Error('private receipt failure');
+    await atomic(file, bytes);
+  } });
+  await deployStopped({ ...f, timings, check: async () => {}, request: healthy, wait: noWait });
+  await timings.finish('success');
+  assert(injected); assert((await f.controller.state()).active);
+  assert.equal(await exists(path.join(f.settings.controlDir, 'activation.json')), false);
+});
+
+for (const edge of ['before', 'after']) test(`online timing failure ${edge} copy keeps its cleanup handle`, async t => {
+  const f = await fixture(t); let injected = false, cleaned = false;
+  const timings = await phaseReceipt(f.settings.controlDir, 'activate', { write: async (file, bytes) => {
+    const row = JSON.parse(bytes).phases.at(-1);
+    if (row?.name === 'online:copy' && (edge === 'before' ? row.result === 'running' : row.result !== 'running')) injected = true;
+    if (injected) throw Error('private receipt failure');
+    await atomic(file, bytes);
+  } });
+  const capture = async () => ({ dataDir: f.settings.dataDir, cleanup: async () => { cleaned = true; } });
+  await assert.rejects(deployPrechecked({ ...f, timings, capture, check: async () => {}, prewarm: async () => {} }), { code: 'PHASE_RECEIPT_UNWRITABLE' });
+  assert(injected); assert(cleaned); assert.deepEqual(f.events, []);
+  assert((await f.controller.state()).active);
+});
+
+for (const edge of ['before', 'after']) test(`online phase timing failures ${edge} preserve results and preparation checks`, async t => {
+  const phases = ['online:copy', 'online:identity-hash', 'online:hash', 'online:prewarm'];
+  for (let i = 0; i < 4; i++) phases.push('online:copy-' + i, 'online:probe-' + i);
+  for (const phase of phases) {
+    const f = await fixture(t); let injected = false, cleaned = false;
+    const timings = await phaseReceipt(f.settings.controlDir, 'activate', { write: async (file, bytes) => {
+      const row = JSON.parse(bytes).phases.find(row => row.name === phase);
+      if (!injected && row && (edge === 'before' ? row.result === 'running' : row.result !== 'running')) {
+        injected = true; throw Error('one injected receipt failure');
+      }
+      await atomic(file, bytes);
+    } });
+    const { before } = compatibilityReports();
+    const check = args => checkStoppedCompatibility({ ...args, probe: async () => structuredClone(before) });
+    const result = await deployPrechecked({ ...f, timings,
+      capture: async () => ({ dataDir: f.settings.dataDir, cleanup: async () => { cleaned = true; } }),
+      prewarm: async () => {}, check, request: healthy, wait: noWait });
+    assert(injected, phase); assert(cleaned, phase); assert.equal(result.activated, true);
+    assert((await f.controller.state()).active);
+  }
+});
+
+test('timing failures never weaken mandatory compatibility checks or activation evidence', async t => {
+  const f = await fixture(t); let stopped = false;
+  const stop = f.controller.stop; f.controller.stop = async () => { await stop(); stopped = true; };
+  const timings = await phaseReceipt(f.settings.controlDir, 'activate', { write: async (...args) => {
+    if (stopped) throw Error('timing unavailable'); await atomic(...args);
+  } });
+  await assert.rejects(deployStopped({ ...f, timings, check: async () => { throw Error('mandatory safety refusal'); }, request: healthy }), /mandatory safety refusal/);
+  assert.deepEqual(f.events, ['stop', 'stop', 'start']);
+  assert.deepEqual(await readFile(f.settings.current), f.current.pointerBytes);
+  // A transaction write failure must still refuse the candidate selection.
+  const g = await fixture(t);
+  await mkdir(path.join(g.settings.controlDir, 'activation.json'));
+  await assert.rejects(deployStopped({ ...g, check: async () => {}, request: healthy }));
+  assert.deepEqual(await readFile(g.settings.current), g.current.pointerBytes);
+  assert((await g.controller.state()).active);
+  assert(await exists(path.join(g.settings.controlDir, 'activation.json')));
+});
+
+test('in-process rehearsal callers retain operator configuration for subsequent commands',
+  { skip: process.platform !== 'linux' && 'Real isolated rehearsal runs in the Linux CI slice.', timeout: 60000 }, async t => {
+    const f = await fixture(t), configFile = path.join(f.scratch, 'operator.json');
+    await writeFile(configFile, encode({ ...f.settings, service: 'chunk-picker.service' }));
+    const saved = process.env.RS3_OPERATOR_CONFIG;
+    process.env.RS3_OPERATOR_CONFIG = configFile;
+    t.after(() => { if (saved === undefined) delete process.env.RS3_OPERATOR_CONFIG; else process.env.RS3_OPERATOR_CONFIG = saved; });
+    const result = await rehearse({ pointer: f.current.pointerFile, source: f.settings.dataDir,
+      scratch: path.join(f.scratch, 'rehearsal'), port: 8900 + Math.floor(Math.random() * 49) * 2 });
+    assert.equal(result.recoveryFormat, 'picker-recovery-v1');
+    assert.equal(process.env.RS3_OPERATOR_CONFIG, configFile);
+    assert.equal((await operatorSettings()).current, f.settings.current);
+  });

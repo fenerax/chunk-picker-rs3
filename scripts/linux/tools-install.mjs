@@ -9,6 +9,7 @@ import { atomic, copyTree, encode, exclusive, exists, inventory, json, noLinks, 
 import { operatorSettings } from './runtime.mjs';
 import { verifyTools } from './tools-package.mjs';
 import { serviceOperation } from './service-lock.mjs';
+import { assertServiceAccess, serviceIdentity } from './service-access.mjs';
 
 const execute = promisify(execFile);
 const refuse = category => { throw Object.assign(Error('Tools switch refused: ' + category + '.'), { code: 'TOOLS_' + category.toUpperCase() }); };
@@ -28,7 +29,11 @@ export async function cleanToolsEvidence(settings, { locked = false } = {}) {
     if (await exists(path.join(control, name))) refuse('transaction');
   }
   const recovery = path.join(control, 'service-restore', 'progress.json');
-  if (await exists(recovery) && (await json(recovery)).phase !== 'complete') refuse('transaction');
+  if (await exists(recovery)) {
+    let progress;
+    try { progress = await json(recovery); } catch { refuse('receipt'); }
+    if (progress?.phase !== 'complete') refuse('transaction');
+  }
 }
 async function syncDirectory(directory) {
   const handle = await open(directory, 'r'); try { await handle.sync(); } finally { await handle.close(); }
@@ -57,7 +62,7 @@ async function verifySelection(root, expected) {
   if (expected.toolsIdentity && (await verifyTools(root)).toolsIdentity !== expected.toolsIdentity) refuse('previous-hashes');
 }
 export async function switchTools({ settings, toolsRoot, packageRoot, rollbackReceipt,
-  idle = operatorUnitsIdle, exchange = exchangePaths }) {
+  idle = operatorUnitsIdle, exchange = exchangePaths, identity = () => serviceIdentity(settings) }) {
   if (process.platform !== 'linux' || process.getuid() !== 0) refuse('linux-root');
   toolsRoot = path.resolve(toolsRoot);
   const parent = path.dirname(toolsRoot), versions = path.join(parent, 'tools-versions');
@@ -73,12 +78,18 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
     if (previous.linked && path.dirname(previous.root) !== versions) refuse('selection');
     const id = randomUUID(), temporary = path.join(parent, '.tools-switch-' + id);
     await mkdir(versions, { recursive: true, mode: 0o755 }); await noLinks(versions);
+    // mkdir's mode is filtered through the caller's umask. This namespace is
+    // installer-owned; existing ancestors and retained trees are validated below
+    // rather than broadening permissions on unrelated system directories.
+    await chmod(versions, 0o755);
     let target, targetIdentity, undo;
     if (rollbackReceipt) {
-      await noLinks(rollbackReceipt); undo = await json(rollbackReceipt);
-      if (undo.format !== 'picker-tools-switch-v1' || undo.result !== 'success' || undo.action !== 'install'
-        || undo.toolsRoot !== toolsRoot || undo.installed.toolsIdentity !== previous.toolsIdentity
-        || undo.installed.treeIdentity !== previous.treeIdentity || path.dirname(undo.previous.root) !== versions) refuse('receipt');
+      await noLinks(rollbackReceipt);
+      try { undo = await json(rollbackReceipt); } catch { refuse('receipt'); }
+      if (undo?.format !== 'picker-tools-switch-v1' || undo.result !== 'success' || undo.action !== 'install'
+        || undo.toolsRoot !== toolsRoot || undo.installed?.toolsIdentity !== previous.toolsIdentity
+        || undo.installed?.treeIdentity !== previous.treeIdentity || typeof undo.previous?.root !== 'string'
+        || path.dirname(undo.previous.root) !== versions) refuse('receipt');
       target = undo.previous.root; await verifySelection(target, undo.previous); targetIdentity = undo.previous;
     } else {
       packageRoot = path.resolve(packageRoot);
@@ -97,14 +108,26 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
       await syncDirectory(target); await syncDirectory(versions);
       await verifyTools(target); targetIdentity = await selection(target);
     }
-    for (const root of new Set([parent, versions, target, previous.root])) {
-      const rows = root === parent || root === versions ? [] : await inventory(root);
+    const ancestors = [];
+    for (let at = parent; ; at = path.dirname(at)) {
+      ancestors.push(at); if (at === path.dirname(at)) break;
+    }
+    for (const root of new Set([...ancestors, versions, target, previous.root])) {
+      const rows = ancestors.includes(root) || root === versions ? [] : await inventory(root);
       const parentInfo = await lstat(root);
-      if (parentInfo.uid !== 0 || parentInfo.mode & 0o022) refuse('ownership');
+      if (parentInfo.uid !== 0 || (parentInfo.mode & 0o022)
+        && !(ancestors.includes(root) && root !== parent && parentInfo.mode & 0o1000)) refuse('ownership');
       for (const row of rows) {
         const info = await lstat(path.join(root, row.path));
         if (info.uid !== 0 || info.mode & 0o022) refuse('ownership');
       }
+    }
+    let account;
+    try { account = await identity(); } catch { refuse('access'); }
+    for (const root of new Set([target, previous.root])) {
+      const manifest = await exists(path.join(root, 'tools-manifest.json')) ? await verifyTools(root) : null;
+      const entries = manifest?.entries ?? (await inventory(root)).filter(row => /\.mjs$/.test(row.path)).map(row => row.path);
+      await assertServiceAccess(root, account, entries);
     }
     await verifySelection(previous.root, previous); await idle();
     const transaction = path.join(settings.controlDir, 'tools-transaction.json');
@@ -147,12 +170,26 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
     }
   });
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const refusalCategories = Object.freeze({
+  TOOLS_ACTIVE_RUN: 'timer active', 'TOOLS_ACTIVE-RUN': 'timer active', TOOLS_LOCK: 'lock held', EEXIST: 'lock held',
+  OPERATOR_LOCK_LONG_HELD: 'lock held', TOOLS_MAINTENANCE: 'maintenance', TOOLS_TRANSACTION: 'transaction evidence',
+  TOOLS_RECEIPT: 'receipt invalid', TOOLS_OWNERSHIP: 'ownership/access', TOOLS_ACCESS: 'ownership/access',
+  EACCES: 'ownership/access', EPERM: 'ownership/access', TOOLS_HASH: 'hash mismatch', 'TOOLS_PREVIOUS-HASHES': 'hash mismatch',
+  TOOLS_SELECTION: 'selection invalid', 'TOOLS_LINUX-ROOT': 'Linux root required', TOOLS_ARGUMENTS: 'arguments invalid',
+});
+export const toolsRefusal = error => 'Tools switch refused: '
+  + (Object.hasOwn(refusalCategories, error?.code) ? refusalCategories[error.code] : 'unclassified')
+  + '; inspect transaction evidence privately.\n';
+export async function toolsInstallCli(args, { settings = operatorSettings, switcher = switchTools,
+  stdout = text => process.stdout.write(text), stderr = text => process.stderr.write(text) } = {}) {
   try {
-    const [command, toolsRoot, input, ...extra] = process.argv.slice(2);
-    if (!['install', 'rollback'].includes(command) || !path.isAbsolute(toolsRoot ?? '') || !path.isAbsolute(input ?? '') || extra.length) throw Error();
-    const result = await switchTools({ settings: await operatorSettings(), toolsRoot,
+    const [command, toolsRoot, input, ...extra] = args;
+    if (!['install', 'rollback'].includes(command) || !path.isAbsolute(toolsRoot ?? '') || !path.isAbsolute(input ?? '') || extra.length) refuse('arguments');
+    const result = await switcher({ settings: await settings(), toolsRoot,
       ...(command === 'install' ? { packageRoot: input } : { rollbackReceipt: input }) });
-    process.stdout.write(encode(result));
-  } catch { process.stderr.write('Tools switch refused; inspect transaction evidence privately.\n'); process.exitCode = 1; }
+    stdout(encode(result)); return 0;
+  } catch (error) { stderr(toolsRefusal(error)); return 1; }
+}
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = await toolsInstallCli(process.argv.slice(2));
 }

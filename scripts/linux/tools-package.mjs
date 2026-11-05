@@ -104,6 +104,7 @@ export async function buildTools(root, output) {
   return manifest;
 }
 export async function verifyTools(root) {
+  try {
   await noLinks(root);
   const manifest = JSON.parse(await readFile(path.join(root, 'tools-manifest.json'), 'utf8'));
   const { toolsIdentity, ...body } = manifest;
@@ -113,6 +114,10 @@ export async function verifyTools(root) {
   const closure = await toolsClosure(root);
   if (encode(closure) !== encode({ entries: body.entries, files: body.files, boundaries: body.boundaries })) throw Error('Tools import closure differs.');
   return manifest;
+  } catch (error) {
+    if (['EACCES', 'EPERM'].includes(error.code)) throw error;
+    throw Object.assign(Error('Tools manifest hashes differ or package is invalid.'), { code: 'TOOLS_HASH' });
+  }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
