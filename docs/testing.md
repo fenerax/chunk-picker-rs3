@@ -112,7 +112,8 @@ or torn last line is supported. Windows retries populate `retry` without
 replacing `firstAttempt`; the existing pass/FLAKY/fail policy is unchanged.
 `errors` retains only bounded message/name/code/failureType/cause records,
 with credentials, known user/machine identities, paths, emails and endpoints
-redacted. No environment dump, stdout, stack or assertion payload is retained.
+redacted. Assertion messages retain their first diagnostic line and omit rendered
+diffs. No environment dump, stdout, stack or assertion payload is retained.
 
 The final summary reports selected files, completed attempts and `overheadMs`:
 measured ledger initialization, serialization, redaction and synchronous I/O,

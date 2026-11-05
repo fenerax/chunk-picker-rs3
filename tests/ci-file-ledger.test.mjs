@@ -148,11 +148,13 @@ test('the CLI writes its own complete ledger and coverage report in a one-file s
 });
 
 test('error receipts exclude payloads, credentials, paths and endpoints', () => {
-  const redact = errorRedactor({ USERNAME: 'synthetic-user', API_KEY: 'synthetic-credential' });
-  const value = redact(Object.assign(new Error('synthetic-user synthetic-credential at C:\\private\\file on https://service.example/path 192.0.2.1 localhost [2001:db8::1] user@example.invalid token=private-value'),
+  const redact = errorRedactor({ USERNAME: 'synthetic-user', API_KEY: 'synthetic-credential', PRIVATE_KEY: 'synthetic-key-value' });
+  const value = redact(Object.assign(new Error('SYNTHETIC-USER synthetic-credential synthetic-key-value at C:\\private\\file on https://service.example/path 192.0.2.1 localhost [2001:db8::1] ::1 machine.invalid user@example.invalid token=private-value'),
     { code: 'E_CHILD', actual: { private: 'payload' }, stack: 'private stack', cause: { message: 'cause survives', code: 'E_ROOT' } }));
   assert.equal(value.code, 'E_CHILD'); assert.equal(value.cause.message, 'cause survives');
-  for (const forbidden of ['synthetic-user', 'synthetic-credential', 'private-value', 'C:\\', 'service.example', '192.0.2.1', 'localhost', '2001:db8', 'user@', 'payload', 'stack']) assert.ok(!JSON.stringify(value).includes(forbidden), forbidden);
+  for (const forbidden of ['SYNTHETIC-USER', 'synthetic-credential', 'synthetic-key-value', 'private-value', 'C:\\', 'service.example', '192.0.2.1', 'localhost', '2001:db8', '::1', 'machine.invalid', 'user@', 'payload', 'stack']) assert.ok(!JSON.stringify(value).includes(forbidden), forbidden);
+  const assertion = redact({ name: 'AssertionError', code: 'ERR_ASSERTION', message: 'expected child shutdown\n\nprivate assertion payload' });
+  assert.equal(assertion.message, 'expected child shutdown');
 });
 
 test('750-file journal bookkeeping stays below the two-second per-job budget', async t => {

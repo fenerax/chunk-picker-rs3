@@ -14,23 +14,25 @@ export const datasetIdentity = value => ({ datasetId: ids.has(value?.datasetId ?
 // output. Redact known identities/credentials as well as paths and endpoints.
 export function errorRedactor(env = process.env) {
   const privateValues = [...new Set([hostname(), env.COMPUTERNAME, env.USERNAME, env.USER, env.LOGNAME,
-    ...Object.entries(env).filter(([key]) => /TOKEN|SECRET|PASSWORD|API_?KEY|CREDENTIAL/i.test(key)).map(([, value]) => value)]
+    ...Object.entries(env).filter(([key]) => /TOKEN|SECRET|PASSWORD|(?:^|_)KEY(?:_|$)|API_?KEY|CREDENTIAL/i.test(key)).map(([, value]) => value)]
     .filter(value => typeof value === 'string' && value.length >= 3))].sort((a, b) => b.length - a.length);
   const clean = value => {
     let text = String(value);
-    for (const value of privateValues) text = text.split(value).join('[redacted]');
-    return text.replace(/\b(?:Bearer\s+\S+|(?:token|password|secret|api[_-]?key)\s*[:=]\s*\S+)/gi, '[credential]')
+    for (const value of privateValues) text = text.replace(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '[redacted]');
+    return text.replace(/\b(?:Bearer\s+\S+|(?:token|password|secret|api[_-]?key|credential|authorization)\s*[:=]\s*\S+)/gi, '[credential]')
       .replace(/(?:https?|wss?):\/\/[^\s'"<>]+/gi, '[endpoint]')
       .replace(/\b[A-Z]:[\\/][^\s'"<>]*/gi, '[path]').replace(/(?:^|(?<=[\s('"=]))\/(?:[^\s'"<>]+\/)*[^\s'"<>]*/g, '[path]')
       .replace(/\b[\w.+-]+@[\w.-]+\b/g, '[email]')
       .replace(/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g, '[address]')
-      .replace(/\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|local|internal|test|example)\b(?::\d+)?/gi, '[host]')
+      .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,63}\b(?::\d+)?/gi, '[host]')
+      .replace(/\[?[a-f0-9]*::[a-f0-9:.%]*\]?(?::\d+)?/gi, '[address]')
       .replace(/\b(?:localhost|[a-f0-9]*:[a-f0-9:]+:[a-f0-9]*)\b/gi, '[address]').slice(0, 4096);
   };
   const redact = error => {
     const record = childErrorRecord(error);
     if (!record) return null;
-    const visit = record => Object.fromEntries(Object.entries(record).map(([key, value]) => [key, key === 'cause' ? visit(value) : typeof value === 'number' ? value : clean(value)]));
+    const visit = record => Object.fromEntries(Object.entries(record).map(([key, value]) => [key, key === 'cause' ? visit(value)
+      : typeof value === 'number' ? value : clean(key === 'message' && (record.code === 'ERR_ASSERTION' || record.name === 'AssertionError') ? value.split('\n')[0] : value)]));
     return visit(record);
   };
   return redact;
