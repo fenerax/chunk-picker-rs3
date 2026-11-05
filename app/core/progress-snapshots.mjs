@@ -7,6 +7,30 @@ const sum = values => {
   return Number.isSafeInteger(total) ? total : null;
 };
 
+/** Account QP observations live outside the legacy estimate tuples. Provenance
+ * is extensible in older releases, so rollback can still read those tuples. */
+export function validateProgressQuestPoints(value) {
+  const fail = message => { throw new TypeError(`Progress snapshots quest points ${message}`); };
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.schemaVersion !== 1
+    || Object.keys(value).some(key => !['schemaVersion', 'memberIds', 'days'].includes(key))) fail('have an unsupported schema');
+  if (!Array.isArray(value.memberIds) || !value.memberIds.length || value.memberIds.length > 16
+    || value.memberIds.some(id => typeof id !== 'string' || !id.trim() || id.length > 128)
+    || new Set(value.memberIds).size !== value.memberIds.length) fail('need unique member IDs');
+  if (!Array.isArray(value.days) || value.days.length > MAX_PROGRESS_DAYS) fail('exceed the daily limit');
+  const count = value => value === null || Number.isSafeInteger(value) && value >= 0;
+  let previous = -1;
+  for (const row of value.days) {
+    if (!Array.isArray(row) || row.length !== 4) fail('contain an invalid day tuple');
+    const [day, at, members, duo] = row;
+    if (!Number.isSafeInteger(day) || day <= previous || !Number.isSafeInteger(at) || at < 0
+      || at > 253402300799999 || Math.floor(at / DAY) !== day) fail('need ordered unique valid UTC dates');
+    previous = day;
+    if (!Array.isArray(members) || members.length !== value.memberIds.length || !members.every(count)
+      || !count(duo) || duo !== sum(members)) fail('have inconsistent account counts');
+  }
+  return value;
+}
+
 /** Validate tiny portable daily count tuples independently of calculators. */
 export function validateProgressSnapshots(value) {
   const fail = message => { throw new TypeError(`Progress snapshots ${message}`); };

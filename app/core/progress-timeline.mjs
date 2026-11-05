@@ -3,7 +3,7 @@ import { playerControlSkills } from './player-controls.mjs';
 import { progressBelongsToMember, sameRuneScapeName, validateQuestPointProgress, validateRuneMetricsTimestamp } from './game-progress.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { finishLineCommandTypes } from './finish-line.mjs';
-import { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots } from './progress-snapshots.mjs';
+import { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots, validateProgressQuestPoints } from './progress-snapshots.mjs';
 export { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots } from './progress-snapshots.mjs';
 const DAY = 86_400_000;
 const metricFields = new Set(['unlocked', 'completedTasks', 'taskStatus', 'skillProgress', 'questProgress', 'questPointProgress', 'runescapeName']);
@@ -36,7 +36,7 @@ function observedQuestPoints(member) {
 function skillCounts(member, f2p) {
   const observed = observedSkills(member), levels = Object.fromEntries(Object.entries(observed).map(([skill, value]) => [skill, value.level]));
   const combatSkills = ['Attack', 'Strength', 'Ranged', 'Magic', 'Necromancy', 'Defence', 'Constitution', 'Prayer', ...(f2p ? [] : ['Summoning'])];
-  return { totalLevel: playerControlSkills.every(skill => observed[skill]) ? sum(playerControlSkills.map(skill => levels[skill])) : null,
+  return { totalLevel: playerControlSkills.length > 0 && playerControlSkills.every(skill => observed[skill]) ? sum(playerControlSkills.map(skill => levels[skill])) : null,
     combatLevel: combatSkills.every(skill => observed[skill]) ? combatLevelFromSkills(levels, { f2p }) : null };
 }
 
@@ -47,19 +47,21 @@ export function progressCounts(state, { questPoints } = {}) {
   const completionSets = state.members.map(member => new Set([...member.completedTasks,
     ...Object.entries(member.taskStatus ?? {}).filter(([, value]) => value.challengeCompleted === true).map(([id]) => id)].map(id => completionKey(state, id))));
   const members = state.members.map((member, index) => {
+    const actual = new Set(member.completedTasks.map(id => resolveSavedTaskId(state.identityRegistry, id)));
     return { memberId: member.id, name: member.name, metrics: { unlockedChunks: new Set(member.unlocked).size,
       completedTasks: completionSets[index].size,
       questPoints: observedQuestPoints(member)?.current ?? null,
+      questPointEstimate: questPoints ? sum([...actual].map(id => questPoints.get(id) ?? 0)) : null,
       ...skillCounts(member, f2p) } };
   });
   return { members, duo: { metrics: { unlockedChunks: new Set(state.members.flatMap(member => member.unlocked)).size,
     completedTasks: new Set(completionSets.flatMap(ids => [...ids])).size,
-    ...Object.fromEntries(['questPoints', 'totalLevel', 'combatLevel'].map(key => [key, sum(members.map(member => member.metrics[key]))])) } } };
+    ...Object.fromEntries(['questPoints', 'questPointEstimate', 'totalLevel', 'combatLevel'].map(key => [key, sum(members.map(member => member.metrics[key]))])) } } };
 }
 
 /** Called by normal durable writes/startup, never a game command. Replaces
  * today's latest counts without touching authoritative revision or History. */
-export function captureProgressSnapshot(state, { questPoints, at = new Date().toISOString() } = {}) {
+export function captureProgressSnapshot(state, { questPoints, at = new Date().toISOString(), startup = false } = {}) {
   if (!validAt(at)) throw new TypeError('Progress snapshot timestamp must be a valid ISO UTC timestamp');
   const memberIds = state.members.map(member => member.id);
   if (!memberIds.length || memberIds.length > 16) return state;
@@ -68,19 +70,62 @@ export function captureProgressSnapshot(state, { questPoints, at = new Date().to
   const sameRoster = !state.progressSnapshots || JSON.stringify(state.progressSnapshots.memberIds) === JSON.stringify(memberIds);
   const previous = sameRoster ? state.progressSnapshots : { days: [], truncated: true };
   const counts = progressCounts(state, { questPoints }), time = Date.parse(at), day = Math.floor(time / DAY);
-  // Marker 1 records that QP counts came from account observations (including
-  // explicit unknowns), so their meaning survives History archival and renames.
-  const entry = [day, time, counts.members.map(member => tuple(member.metrics)), tuple(counts.duo.metrics), 1];
   const days = [...(previous?.days ?? [])];
   const index = days.findIndex(row => row[0] === day);
+  if (index >= 0 && days[index][1] > time) return state;
+  const old = days[index];
+  const saved = state.provenance?.progressQuestPoints;
+  const sameAccounts = saved && JSON.stringify(saved.memberIds) === JSON.stringify(memberIds);
+  const observations = [...(sameAccounts ? saved.days : [])];
+  // Accept the short-lived PR format too; its fifth slot marked account QP.
+  for (const row of previous?.days ?? []) if (row[4] === 1 && !observations.some(value => value[0] === row[0])) {
+    observations.push([row[0], row[1], row[2].map(member => member[2]), row[3][2]]);
+  }
+  const observedIndex = observations.findIndex(row => row[0] === day), observedBefore = observations[observedIndex];
+  let accountPoints = counts.members.map((member, index) => member.metrics.questPoints ?? observedBefore?.[2][index] ?? null);
+  if (sum(accountPoints) === null && observedBefore?.[3] != null) accountPoints = [...observedBefore[2]];
+  const accountChanged = accountPoints.some((value, index) => value !== (observedBefore?.[2][index] ?? null));
+  // Startup has no command evidence for changing existing daily counts. Only a
+  // newly available account observation may add data on a same-day restart.
+  if (startup && old && !accountChanged) return state;
+  if (accountChanged) {
+    const row = [day, time, accountPoints, sum(accountPoints)];
+    if (observedIndex >= 0) observations[observedIndex] = row; else observations.push(row);
+  }
+  const estimateTuple = (row, before) => tuple(row.metrics).map((value, index) =>
+    (index === 2 ? accountChanged && before?.[index] != null ? before[index] : row.metrics.questPointEstimate : value) ?? before?.[index] ?? null);
+  // The four-slot legacy tuple remains completion-derived, readable on rollback.
+  // Unknown observations must never replace any known stored metric.
+  const entry = startup && old ? old : [day, time,
+    counts.members.map((member, index) => estimateTuple(member, old?.[2][index])), estimateTuple(counts.duo, old?.[3])];
+  if (entry !== old) {
+    // Existing PR-format rows retain their source semantics; new rows use the
+    // rollback-compatible estimate format and the separate observation record.
+    if (old?.[4] === 1) {
+      entry.push(1);
+      entry[2].forEach((row, index) => { row[2] = accountPoints[index]; });
+    }
+    for (const metric of [2, 3, 4]) {
+      entry[3][metric] = sum(entry[2].map(member => member[metric]));
+      if (entry[3][metric] === null && old?.[3][metric] != null) {
+        entry[2].forEach((row, index) => { row[metric] = old[2][index][metric]; });
+        entry[3][metric] = old[3][metric];
+      }
+    }
+  }
+  const tupleChanged = !old || JSON.stringify(old.slice(2)) !== JSON.stringify(entry.slice(2));
+  if (!tupleChanged && !accountChanged) return state;
   if (index >= 0) {
-    if (days[index][1] > time || JSON.stringify(days[index].slice(2)) === JSON.stringify(entry.slice(2))) return state;
-    days[index] = entry;
+    if (tupleChanged) days[index] = entry;
   } else days.push(entry);
   days.sort((a, b) => a[0] - b[0]);
   const progressSnapshots = { schemaVersion: 1, memberIds, days: days.slice(-MAX_PROGRESS_DAYS), truncated: (previous?.truncated ?? false) || days.length > MAX_PROGRESS_DAYS };
   validateProgressSnapshots(progressSnapshots);
-  return { ...state, progressSnapshots };
+  if (!observations.length) return { ...state, progressSnapshots };
+  observations.sort((a, b) => a[0] - b[0]);
+  const progressQuestPoints = { schemaVersion: 1, memberIds, days: observations.slice(-MAX_PROGRESS_DAYS) };
+  validateProgressQuestPoints(progressQuestPoints);
+  return { ...state, progressSnapshots, provenance: { ...state.provenance, progressQuestPoints } };
 }
 
 function writeSide(member, changes, side) {
@@ -165,18 +210,27 @@ export function buildProgressModel(state, { questPoints, now = new Date().toISOS
   points.reverse();
   if (!boundary && recent.length && validAt(recent[0].at)) points.unshift({ at: recent[0].at, revision: recent[0].revision - 1, type: 'baseline', position: 'before', ...progressCounts(replay, { questPoints }) });
   const snapshots = state.progressSnapshots;
-  // Older daily tuples summed quest awards and have no source marker. Keep the
-  // portable records intact, but never compare those estimates with an account
-  // observation as if the correction were a gameplay gain.
+  const accountSnapshots = state.provenance?.progressQuestPoints;
+  const accountDays = new Map((accountSnapshots?.days ?? []).map(row => [row[0], row]));
+  // Keep estimates and account observations distinct, including when graphing
+  // them. A change of source is a new baseline, never a gameplay gain.
   const dailyPoints = (snapshots?.days ?? []).map(([day, at, members, duo, sourceVersion]) => {
     const rows = snapshots.memberIds.map((memberId, index) => {
       const row = metrics(members[index]);
-      if (sourceVersion !== 1) row.questPoints = null;
+      const accountIndex = accountSnapshots?.memberIds.indexOf(memberId) ?? -1;
+      row.questPointEstimate = sourceVersion === 1 ? null : row.questPoints;
+      row.questPoints = accountDays.get(day)?.[2][accountIndex] ?? (sourceVersion === 1 ? row.questPoints : null);
       return { memberId, metrics: row };
     });
-    return { at: new Date(at).toISOString(), date: new Date(day * DAY).toISOString().slice(0, 10),
-      members: rows, duo: { metrics: { ...metrics(duo), questPoints: sum(rows.map(row => row.metrics.questPoints)) } } };
+    return { at: new Date(Math.max(at, accountDays.get(day)?.[1] ?? at)).toISOString(), date: new Date(day * DAY).toISOString().slice(0, 10),
+      members: rows, duo: { metrics: { ...metrics(duo), questPointEstimate: sourceVersion === 1 ? null : duo[2],
+        questPoints: sum(rows.map(row => row.metrics.questPoints)) } } };
   });
+  for (const row of current.members) {
+    const savedEstimate = dailyPoints.findLast(point => Number.isFinite(point.members.find(member => member.memberId === row.memberId)?.metrics.questPointEstimate));
+    row.metrics.questPointEstimate = savedEstimate?.members.find(member => member.memberId === row.memberId).metrics.questPointEstimate ?? row.metrics.questPointEstimate;
+  }
+  current.duo.metrics.questPointEstimate = sum(current.members.map(row => row.metrics.questPointEstimate));
   const datedRecords = [];
   for (const member of state.members) {
     const observed = observedSkills(member), times = new Set(Object.values(observed).map(value => value.fetchedAt));

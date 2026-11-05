@@ -4,7 +4,7 @@ import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { createTaskFactsIndex } from './progress-index.mjs';
 import { createRuleRegistry, evaluateRollPool, sampleRoll, checkedPrecomputedRollPool } from './rules.mjs';
-import { validateProgressSnapshots } from './progress-snapshots.mjs';
+import { validateProgressSnapshots, validateProgressQuestPoints } from './progress-snapshots.mjs';
 import { preferenceDefinitions, validatePreference } from './preferences.mjs';
 import { validateControlSkill, validateControlLevel, validateSlayerLock } from './player-controls.mjs';
 import { defaultRuneScapeNames, validateRuneScapeName, sameRuneScapeName, validateRuneMetricsTimestamp,
@@ -657,6 +657,7 @@ function validateStateCopy(copy, registry) {
   if (copy.identityRegistry !== undefined) validateIdentityRegistry(copy.identityRegistry);
   canonicalizeTaskClaimAliases(copy);
   if (copy.progressSnapshots !== undefined) validateProgressSnapshots(copy.progressSnapshots);
+  if (copy.provenance?.progressQuestPoints !== undefined) validateProgressQuestPoints(copy.provenance.progressQuestPoints);
   if (copy.identityRegistry && Array.isArray(copy.members) && Array.isArray(copy.tasks)) {
     for (const member of copy.members) {
       uniqueStrings(member.completedTasks, 'completedTasks');

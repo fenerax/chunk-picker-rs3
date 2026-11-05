@@ -89,7 +89,7 @@ test('restore validation rejects oversized, malformed, inconsistent or unsafe sn
     value => { value.days[0][3][2] = 99; },
     value => { value.days[0][4] = 2; },
     value => { value.days[0][4] = '1'; },
-    value => { value.days[0].push(1); },
+    value => { value.days[0].push(1, 1); },
     value => { value.days = Array(MAX_PROGRESS_DAYS + 1).fill(value.days[0]); },
   ]) {
     const bad = structuredClone(state); mutate(bad.progressSnapshots);
@@ -106,7 +106,7 @@ test('normal store startup/save/restore lifecycle preserves daily counts without
   const initial = store.getState(); assert.equal(initial.revision, 0); assert.deepEqual(initial.history, []);
   time = '2026-10-12T13:00:00.000Z';
   await store.command({ type: 'complete-task', memberId: 'actor1', taskId: 'quest', completed: true }, 0);
-  const backup = await store.backup(); assert.equal(backup.state.progressSnapshots.days.length, 1); assert.equal(backup.state.progressSnapshots.days[0][3][2], null);
+  const backup = await store.backup(); assert.equal(backup.state.progressSnapshots.days.length, 1); assert.equal(backup.state.progressSnapshots.days[0][3][2], 5, 'Legacy fields retain completion estimates');
   await store.close();
   time = '2026-10-13T00:00:00.000Z';
   store = await openStore({ dataDir, now: () => time, progressQuestPoints: questPoints, retention: false });
@@ -191,18 +191,20 @@ test('authoritative daily quest points survive History archival and current-acco
   const model = buildProgressModel(state);
   assert.equal(model.current.members[0].metrics.questPoints, null, 'Current totals remain bound to the current account');
   assert.deepEqual(model.daily.points.map(point => point.members[0].metrics.questPoints), [17, 22]);
-  assert.ok(state.progressSnapshots.days.every(row => row.length === 5 && row[4] === 1));
+  assert.ok(state.progressSnapshots.days.every(row => row.length === 4), 'Legacy estimate tuples remain readable on rollback');
+  assert.deepEqual(state.provenance.progressQuestPoints.days.map(row => row[2][0]), [17, 22]);
   delete state.members[0].questPointProgress;
   assert.deepEqual(buildProgressModel(state).daily.points.map(point => point.members[0].metrics.questPoints), [17, 22]);
 });
 
-test('only a fresh current-day snapshot replaces legacy provenance, even when counts match', () => {
+test('a fresh current-day observation adds authoritative fields while leaving legacy estimates intact', () => {
   let state = fixture(); questObservation(state.members[0], 17);
   state = captureProgressSnapshot(state, { at: start });
-  state.progressSnapshots.days[0].length = 4;
+  delete state.provenance;
   const legacy = structuredClone(state);
   const replaced = captureProgressSnapshot(state, { at: start });
-  assert.equal(replaced.progressSnapshots.days[0][4], 1);
+  assert.deepEqual(replaced.progressSnapshots, legacy.progressSnapshots);
+  assert.equal(replaced.provenance.progressQuestPoints.days[0][2][0], 17);
   assert.equal(legacy.progressSnapshots.days[0].length, 4);
   assert.equal(buildProgressModel(legacy).daily.points[0].members[0].metrics.questPoints, null);
   assert.equal(buildProgressModel(replaced).daily.points[0].members[0].metrics.questPoints, 17);

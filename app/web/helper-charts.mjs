@@ -53,10 +53,12 @@ export function progressChart(document, rows, { title, bars = false }) {
     svg.append(shape(document, 'line', { x1: 70, x2: 640, y1: y(value), y2: y(value), class: 'helper-gridline' }), shape(document, 'text', { x: 55, y: y(value) + 5, 'text-anchor': 'end' }, value.toLocaleString()));
   }
   const stride = bars ? 1 : Math.max(1, Math.ceil(rows.length / 180)), shown = rows.filter((row, index) => index % stride === 0 || index === rows.length - 1 || row.value === null || rows[index - 1]?.value === null);
-  let segment = [];
+  let segment = [], source;
   const flush = () => { if (segment.length) svg.append(shape(document, 'polyline', { points: segment.join(' '), fill: 'none', class: 'helper-chance-line' })); segment = []; };
   for (const row of shown) {
     if (!Number.isFinite(row.value)) { flush(); continue; }
+    if (row.source !== source) flush();
+    source = row.source;
     const date = new Date(row.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
     if (bars) {
       const width = Math.max(4, Math.min(56, slot * 0.6));
@@ -67,7 +69,7 @@ export function progressChart(document, rows, { title, bars = false }) {
       if (segment.length) segment.push(`${x(row.at)},${segment.at(-1).split(',')[1]}`);
       segment.push(`${x(row.at)},${y(row.value)}`);
       const dot = shape(document, 'circle', { cx: x(row.at), cy: y(row.value), r: 3, class: 'helper-target-dot' });
-      dot.append(shape(document, 'title', {}, `${date}: ${row.value.toLocaleString()}`)); svg.append(dot);
+      dot.append(shape(document, 'title', {}, `${date}: ${row.value.toLocaleString()}${row.source ? ` (${row.source})` : ''}`)); svg.append(dot);
     }
   }
   flush();

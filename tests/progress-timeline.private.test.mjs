@@ -69,7 +69,8 @@ test('daily tuples upsert, retain unchanged revision/history, bound dates, and s
   assert.equal(counts(captured).members[0].metrics.questPoints, 0, 'A challenge check cannot create account points');
   questObservation(captured.members[0], 5, '2026-10-12T15:00:00.000Z');
   captured = captureProgressSnapshot(captured, { questPoints, at: '2026-10-12T15:00:00.000Z' });
-  assert.equal(captured.progressSnapshots.days.length, 1); assert.equal(captured.progressSnapshots.days[0][3][2], 5);
+  assert.equal(captured.progressSnapshots.days.length, 1); assert.equal(captured.progressSnapshots.days[0][3][2], 0, 'Account observations preserve the prior completion estimate');
+  assert.equal(captured.provenance.progressQuestPoints.days[0][3], 5, 'Account totals have separate daily fields');
   assert.equal(previous.progressSnapshots.days[0][3][2], 0);
   captured = captureProgressSnapshot(captured, { questPoints, at: '2026-10-13T00:00:00.000Z' });
   assert.equal(captured.progressSnapshots.days.length, 2); assert.equal(captured.revision, 0); assert.deepEqual(captured.history, []);

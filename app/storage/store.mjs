@@ -930,7 +930,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Daily observation metadata is independent of commands/catalogue changes.
     // Startup records today's counts without incrementing revision or History.
     if (!readOnly && !liveSwapStrict && progressQuestPoints !== undefined) {
-      const observed = captureProgressSnapshot(current, { questPoints: progressQuestPoints, at: timestamp() });
+      const observed = captureProgressSnapshot(current, { questPoints: progressQuestPoints, at: timestamp(), startup: true });
       if (observed !== current) {
         if (coordination.has(current)) coordination.set(observed, coordinationOf(current));
         const diskDocument = await serializedDiskState(observed);
