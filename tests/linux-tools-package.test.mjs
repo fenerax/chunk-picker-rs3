@@ -31,9 +31,10 @@ test('package is the exact runtime closure, including unit and child entrypoints
   const scratch = await fixture(t), { source, closure } = await sourceCopy(scratch), output = path.join(scratch, 'package');
   const manifest = await buildTools(source, output);
   assert.deepEqual(manifest.files, closure.files);
+  for (const module of ['notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts']) assert(manifest.files.some(row => row.path === 'scripts/linux/' + module + '.mjs'));
   assert(!manifest.files.some(row => row.path === 'app/server.mjs'));
   assert(manifest.files.some(row => row.path === 'app/tasks/warm-store.mjs'));
-  for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service']) {
+  for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service', 'chunk-picker-monitor.service', 'chunk-picker-offhost.service', 'chunk-picker-notify@.service']) {
     const text = await readFile(path.join(repo, 'scripts/linux/systemd', unit), 'utf8');
     for (const match of text.matchAll(/\/opt\/chunk-picker\/tools\/([^\s]+)/g)) assert(toolsEntrypoints.includes(match[1]));
   }

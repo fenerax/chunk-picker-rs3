@@ -1,0 +1,16 @@
+[Unit]
+Description=Chunk Picker fixed-category failure notification
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/node /opt/chunk-picker/tools/scripts/linux/notify.mjs %i
+LoadCredential=discord-webhook:/etc/chunk-picker/secrets/discord-webhook
+UMask=0077
+TimeoutStartSec=30s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/chunk-picker

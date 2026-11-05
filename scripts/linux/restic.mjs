@@ -1,0 +1,37 @@
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { credential } from './ops-status.mjs';
+const execute = promisify(execFile);
+// Compressed sums checked against upstream v0.18.1 SHA256SUMS; binary sums
+// independently calculated from those verified archives on 2026-11-05.
+export const resticPin = Object.freeze({ version: '0.18.1',
+  windowsX64: { archive: '0c1a713440578cb400d2e76208feb24f1b339426b075a21f73b6b2132692515d', binary: '034b7bf67a23049d30d58ddf4fb318239726cc74728b80bff876de824f2fc786' },
+  x64: { archive: '680838f19d67151adba227e1570cdd8af12c19cf1735783ed1ba928bc41f363d', binary: '01143daba61a1dc8afb0cb3d03ba83e6b118f55b6b146b27473a09efc3df13d6' },
+  arm64: { archive: '87f53fddde38764095e9c058a3b31834052c37e5826d2acf34e18923c006bd45', binary: 'f04a6bf766a33fba44b5be068e29091259dda5ef37f1e68ba9a8e0cda053120e' } });
+export const retentionArgs = Object.freeze(['forget', '--tag', 'chunk-picker', '--group-by', 'host,tags',
+  '--keep-daily', '30', '--keep-weekly', '8', '--keep-monthly', '12', '--prune']);
+export async function verifyRestic(binary = '/usr/local/bin/restic') {
+  const pin = process.platform === 'win32' && process.arch === 'x64' ? resticPin.windowsX64 : resticPin[process.arch];
+  if (!pin || !path.isAbsolute(binary)) throw Error('Unsupported restic platform.');
+  const hash = createHash('sha256'); for await (const bytes of createReadStream(binary)) hash.update(bytes);
+  if (hash.digest('hex') !== pin.binary) throw Error('Restic binary pin differs.');
+}
+export async function resticRunner(config) {
+  const binary = '/usr/local/bin/restic'; await verifyRestic(binary);
+  if (!/^b2:[a-z0-9][a-z0-9-]{5,49}:chunk-picker$/.test(config.repository ?? '')) throw Error('Private B2 repository required.');
+  const credentials = process.env.CREDENTIALS_DIRECTORY;
+  const env = { PATH: '/usr/bin:/bin', HOME: '/root', TZ: 'UTC', RESTIC_REPOSITORY: config.repository,
+    RESTIC_PASSWORD_FILE: path.join(credentials ?? '', 'restic-password'),
+    B2_ACCOUNT_ID: await credential('b2-account'), B2_ACCOUNT_KEY: await credential('b2-key'),
+    RESTIC_CACHE_DIR: path.join(config.controlDir, 'restic-cache') };
+  await credential('restic-password');
+  return async args => {
+    // No inherited RESTIC/B2 endpoints, hooks, proxy credentials or debug logs.
+    try { return (await execute(binary, ['--no-lock', ...args], { env, windowsHide: true,
+      maxBuffer: 4 * 1024 ** 2, timeout: 25 * 60000 })).stdout; }
+    catch { throw Error('Encrypted repository operation failed.'); }
+  };
+}

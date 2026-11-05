@@ -1,0 +1,17 @@
+[Unit]
+Description=Chunk Picker independent resource and job observer
+After=network-online.target
+OnFailure=chunk-picker-notify@%n.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/node /opt/chunk-picker/tools/scripts/linux/monitor.mjs
+LoadCredential=discord-webhook:/etc/chunk-picker/secrets/discord-webhook
+UMask=0077
+TimeoutStartSec=90s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/chunk-picker

@@ -8,7 +8,7 @@ import { encode, inventory, noLinks, outside, sha } from './files.mjs';
 
 export const toolsEntrypoints = Object.freeze([
   ...['operator', 'recovery', 'online', 'files', 'runtime', 'start-check', 'serve', 'probe',
-    'prewarm', 'rehearse', 'tools-package', 'tools-install'].map(name => `scripts/linux/${name}.mjs`),
+    'prewarm', 'rehearse', 'notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts', 'tools-package', 'tools-install'].map(name => `scripts/linux/${name}.mjs`),
   'app/tasks/warm-store.mjs', 'scripts/release/vps/release.mjs', 'scripts/release/vps/review.mjs',
 ]);
 // Keys are exact expressions recognized by the existing tooling lexer. No

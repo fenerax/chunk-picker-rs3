@@ -1,0 +1,5 @@
+{
+  "controlDir": "/var/lib/chunk-picker/control",
+  "diskPath": "/var/backups/chunk-picker",
+  "repeatMs": 21600000
+}

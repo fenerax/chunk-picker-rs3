@@ -8,6 +8,7 @@ import { assertReleased, atomic, directory, encode, exists, headroom, inventory,
 import { assertSameRelease, readRelease } from './runtime.mjs';
 import { captureServiceCheckpoint, pickerPath, publishServiceBackup, validateServicePaths } from './service-checkpoint.mjs';
 import { listServicePickers, releaseServiceQuarantine, restoreServiceStopped } from './service-recovery.mjs';
+import { recordStatus } from './ops-status.mjs';
 import { captureOnline } from './online.mjs';
 import { serviceOperation } from './service-lock.mjs';
 import { checkStoppedCompatibility, writeBackupStatus } from './recovery.mjs';
@@ -55,11 +56,13 @@ export async function assertServiceStopped(settings, controller) {
   }
 }
 
-export async function serviceBackupWarnings(settings, { now = Date.now(), write = text => process.stderr.write(text) } = {}) {
-  try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { write('Recovery disk free-space reserve is unavailable.\n'); }
+export async function serviceBackupWarnings(settings, { now = Date.now(), write } = {}) {
+  const faults = [];
+  try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { faults.push('disk-reserve'); write?.('Recovery disk free-space reserve is unavailable.\n'); }
   let status;
   try { status = await json(path.join(path.dirname(settings.dataDir), 'backup-status.json')); } catch {}
-  if (!status?.lastSuccessAt || !Number.isFinite(Date.parse(status.lastSuccessAt)) || now - Date.parse(status.lastSuccessAt) > 172800000) write('Recovery backup is missing or older than two days.\n');
+  if (!status?.lastSuccessAt || !Number.isFinite(Date.parse(status.lastSuccessAt)) || now - Date.parse(status.lastSuccessAt) > 172800000) { faults.push('backup-stale'); write?.('Recovery backup is missing or older than two days.\n'); }
+  if (settings.controlDir) await recordStatus(settings.controlDir, 'health', { result: 'running', faults });
 }
 function sameService(settings, release) {
   for (const key of ['registryDir', 'pickerRoot', 'tombstoneDir']) if (settings.multiPicker[key] !== release.config.multiPicker?.[key]) throw new Error('Service roots differ from the pinned release.');

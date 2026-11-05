@@ -15,7 +15,7 @@ manifest lists each file's relative path, byte size and SHA-256. `toolsIdentity`
 is SHA-256 over the canonical manifest body (everything except that digest).
 Verification recomputes both hashes and the closure and rejects extra files,
 missing dependencies, links and unmodeled computed imports. There are currently
-46 files, including the small app helpers imported directly by tools. Unit
+54 files, including the small app helpers imported directly by tools. Unit
 files are installed separately; none of their paths changes.
 
 The selected release still supplies the application server and state decoder,
@@ -45,7 +45,7 @@ VM purchase is automated.
    It refuses `picker-vps`, production DNS addresses, the SSH connection's
    production address, existing picker installs and any HTTP(S) listener or
    web-proxy configuration. DNS or SSH uncertainty refuses before provisioning.
-2. The provisioner exports committed public source only, installs the unchanged
+2. The provisioner exports committed public source only, installs the matching
    units and complete tools package, and creates an invented open-starter game
    and fresh random credentials. It runs the normal bundle stage/rebase,
    installed-operator online backup, derive/accept, isolated rehearsal, health
@@ -122,6 +122,277 @@ the named condition or wait for its existing run to finish, then retry.
    Optional `release.mjs --phase-dir <local-directory>` adds local transport
    timings; those are distinct from writer downtime. Review refusals print only
    `lock`, `maintenance`, `receipt`, `newest backup` or `digest`.
+
+# Independent server alerts and encrypted B2 recovery
+
+This is a later deployment procedure. The alerts/off-site PR authorizes code and
+review only. Obtain the live-install decision after CI and the disposable
+rehearsal. Keep the existing PC copies. UptimeRobot is configured separately.
+The current adapter supports the single-picker recovery format; it refuses
+multi-picker mode rather than omit any service roots.
+
+## Protection and retained copies
+
+The private, dedicated B2 bucket has one lifecycle rule: retain hidden versions
+for **31 days**, with no rule that hides files based on upload age. The VPS key
+has only listBuckets, listFiles, readFiles and writeFiles, restricted to this
+bucket and the chunk-picker/ prefix. It has no deleteFiles, writeBuckets,
+writeKeys or retention-management authority. Its credential cannot permanently
+remove existing versions or shorten their protection.
+
+This follows restic **0.18.1** native B2 behavior. In upstream
+internal/backend/b2/b2.go, Remove first attempts version deletion, then falls
+back to Hide on an authorization failure. Overwrites and hide markers leave
+previous versions recoverable. The 31-day clock starts when a version becomes
+hidden, including an old pack referenced by a recent snapshot. The VPS runs
+backup/check/snapshots with --no-lock, under the existing operator exclusion,
+so it does not create or remove restic lock objects. It never runs forget or
+prune. A malicious VPS can hide or overwrite names, stop uploading, consume
+storage or expose its own current secrets. It cannot erase the protected
+versions. Recovery from a malicious hide/overwrite must reconstruct the
+repository's **version view from before the incident**, not just run restic
+against its damaged current view. Detect and recover within 31 days.
+
+The clean-up key adds deleteFiles, with the same bucket/prefix restriction. It
+stays in a 1Password recovery item, together with the repository password and a
+copy of the upload credentials for interrupted setup recovery. Only the upload
+credentials and repository password go to the VPS. Monthly trusted-PC cleanup
+keeps **30 daily, 8 weekly and 12 monthly** snapshots, grouped by host and tags.
+Until cleanup runs, extra snapshots consume storage; they are never pruned by
+the VPS. Object Lock is not used: normal native B2 prune permanently deletes
+versions, which would conflict with locked pack/index objects. Separating the
+delete key keeps pruning explicit without giving the VPS that authority.
+
+The restic archive and extracted binary checksums are pinned in
+scripts/linux/restic.mjs for Linux x64/arm64 and the Windows x64 cleanup client.
+They were checked against upstream v0.18.1 SHA256SUMS, with extracted binary
+hashes calculated from the verified archives. The server checks the installed
+binary hash before each run. Treat upgrading restic or changing lifecycle/key
+capabilities as a new reviewed change.
+
+## Inputs needed from the owner
+
+Have a private Discord channel webhook, a Healthchecks project with a full API
+key, a temporary B2 setup key, and an unlocked 1Password CLI session in the
+chosen vault. Choose a globally unique private bucket name; the examples use
+chunk-picker-backups. The setup key file is JSON with applicationKeyId and
+applicationKey. It needs listBuckets/writeBuckets and listKeys/writeKeys/deleteKeys
+for setup. The Healthchecks key file contains only its API key. Existing input
+files belong in protected local storage. Generated keys and passwords are never
+written to PC files or printed; subprocess output is captured. SSH uses the
+existing picker-vps alias, with passwordless root/sudo and Python 3.
+
+Run only one setup process at a time. The scripts refuse duplicate names, weaker bucket lifecycle rules, broader keys,
+conflicting installed values, or a lost independent recovery item. They do not
+silently rotate credentials. Re-running after an interrupted remote credential
+write reuses the values in 1Password. Keep access to that vault independently of
+the VPS and this PC. Add a B2 usage alert with a $1 monthly budget.
+
+## Install order
+
+Do not enable the new timers until the credentials, configurations and receipt
+tests below are complete. Commands in this section are for the later approved
+installation. Never put credential values in a command, transcript or shell
+history; use file contents/stdin. Do not remove maintenance evidence to make a
+check pass.
+
+1. Pass the disposable rehearsal from this branch. It now installs the pinned
+   restic binary, exercises monitor/notifier against a loopback HTTP receiver on
+   port 8971, and backs up/restores/checks/prunes an encrypted **local** restic
+   repository. No service account calls are made by that rehearsal. Its report
+   includes alerts.restored, retentionChecked and notificationsReceived. It
+   leaves synthetic evidence on the disposable host. This tests local encryption
+   and recovery, not B2 policy enforcement or a human receiving a message.
+2. Follow the tools-package build/verify and atomic install procedure above,
+   using the merged stack's approved tools identity. Stage the complete matching committed public source under
+   /var/tmp/chunk-alerts-source, including scripts/ops/install-restic.mjs and its
+   imports, the systemd files and example configs. Use a fresh staging directory;
+   export HEAD with git archive rather than copying an uncommitted checkout. Install Python 3, bzip2 and CA
+   certificates if absent, then run on the server:
+
+   ```sh
+   sudo /usr/bin/node /var/tmp/chunk-alerts-source/scripts/ops/install-restic.mjs
+   sudo install -d -o root -g root -m 0700 /etc/chunk-picker/secrets
+   sudo install -o root -g root -m 0644 /var/tmp/chunk-alerts-source/scripts/linux/monitor.example.json /etc/chunk-picker/monitor.json
+   sudo install -o root -g root -m 0644 /var/tmp/chunk-alerts-source/scripts/linux/offhost.example.json /etc/chunk-picker/offhost.json
+   ```
+
+   Edit only the non-secret configs to match the existing operator controlDir,
+   backup filesystem and chosen bucket. Keep secrets out of these JSON files.
+   Restic settings use repository b2:<bucket>:chunk-picker. The rebuild bundle
+   includes /etc/chunk-picker (including secrets), the ten allowlisted units
+   and their drop-ins, current pointer, selected release, pinned inputs and
+   selected immutable tools version. Files outside the release or dedicated
+   /opt/chunk-picker/packs root refuse the bundle. Store no unrelated data under
+   /etc/chunk-picker. Keep the 15 GiB reserve available for staging the bundle.
+3. Install the Discord webhook into the root-owned 0600 file
+   /etc/chunk-picker/secrets/discord-webhook over encrypted stdin. For example,
+   from PowerShell with an existing protected input file:
+
+   ```powershell
+   Get-Content -Raw -LiteralPath <webhook-file> | ssh picker-vps "sudo -n sh -c 'umask 077; cat > /etc/chunk-picker/secrets/discord-webhook'"
+   ```
+
+4. On the PC, run the B2 setup script first, then Healthchecks. Arguments are
+   file paths and non-secret labels, never key values:
+
+   ```powershell
+   node scripts/ops/setup-b2.mjs --key-file <temporary-setup-key-file> --ssh picker-vps --bucket chunk-picker-backups --vault <vault>
+   node scripts/ops/setup-healthchecks.mjs --key-file <healthchecks-key-file> --ssh picker-vps
+   ```
+
+   B2 setup creates/verifies the private bucket and protection, saves and verifies
+   the independent recovery item before publishing VPS credentials, and creates
+   no PC key files. The root-only files are b2-account, b2-key and restic-password.
+   Healthchecks idempotently creates/updates three named checks, then writes
+   health-ping, backup-ping and offhost-ping only under the same server secrets
+   directory. It prints none of their URLs. Health uses a 10-minute period plus
+   30-minute grace; backup and off-site each use a 24-hour period plus 12-hour
+   grace. Configure Discord/email recipients for all three in Healthchecks and
+   verify their association. Revoke the temporary B2 setup key after verification.
+5. Install all ten matching unit/timer files with root ownership and mode 0644,
+   including the writer's OnFailure change:
+
+   ```sh
+   sudo install -o root -g root -m 0644 /var/tmp/chunk-alerts-source/scripts/linux/systemd/chunk-picker*.service /etc/systemd/system/
+   sudo install -o root -g root -m 0644 /var/tmp/chunk-alerts-source/scripts/linux/systemd/chunk-picker*.timer /etc/systemd/system/
+   sudo systemctl daemon-reload
+   ```
+
+   LoadCredential supplies per-service credential files; runtime.env contains
+   only the existing non-secret operator-config path and runtime settings.
+   Initialize the new restic repository exactly once under a credential-bearing
+   transient unit:
+
+   ```sh
+   sudo systemd-run --unit=chunk-picker-offhost-init --wait --collect --pipe -p EnvironmentFile=/etc/chunk-picker/runtime.env -p LoadCredential=b2-account:/etc/chunk-picker/secrets/b2-account -p LoadCredential=b2-key:/etc/chunk-picker/secrets/b2-key -p LoadCredential=restic-password:/etc/chunk-picker/secrets/restic-password /usr/bin/node /opt/chunk-picker/tools/scripts/linux/offhost-backup.mjs init
+   ```
+
+   Initialization refuses an existing repository. Never delete its config/key
+   objects to retry. The setup scripts themselves are safe to re-run.
+6. Verify picker-footprint.service is retired: inspect systemctl show for
+   FragmentPath/Transient/ActiveState, systemctl cat, and list-timers; confirm
+   no installed unit, drop-in, timer or operator workflow still invokes it. If
+   that confirms the retained failure is only the retired transient harness:
+
+   ```sh
+   sudo systemctl reset-failed picker-footprint.service
+   ```
+
+   Retain any other failed unit for investigation; do not clear all failures.
+7. Send a test notification and test ping explicitly:
+
+   ```sh
+   sudo systemd-run --unit=chunk-picker-alert-test --wait --collect --pipe -p LoadCredential=discord-webhook:/etc/chunk-picker/secrets/discord-webhook /usr/bin/node /opt/chunk-picker/tools/scripts/linux/notify.mjs test
+   sudo systemd-run --unit=chunk-picker-ping-test --wait --collect --pipe -p LoadCredential=health-ping:/etc/chunk-picker/secrets/health-ping /usr/bin/node /opt/chunk-picker/tools/scripts/linux/ops-status.mjs ping health
+   ```
+
+   Confirm the test notification is actually visible on the owner's phone or
+   desktop. Confirm the ping timestamp in Healthchecks, then use its integration
+   test to deliver a notification and confirm human receipt. A successful HTTP
+   response alone does not prove someone receives alerts. Record receipt time,
+   channel and check name without URLs or values.
+8. Run systemctl start chunk-picker-backup.service. OnSuccess starts the off-site
+   service after the verified backup finishes; direct operator backup calls also
+   request an upload after releasing the exclusion; it holds the operator exclusion
+   through source selection, bundle creation and all restic reads. Confirm both
+   services finish successfully and inspect their structured status privately.
+   backup-status.json and offhost-status.json under controlDir must show success,
+   a recent snapshotAt, and a recent off-site lastSuccessAt. Old manifests without
+   capture time are excluded. A backup from another selected release refuses
+   upload; make a fresh backup after activation. Failed upload/check retains
+   local and existing remote restore points. Healthchecks ping failure never
+   changes a successful job to failed.
+9. Enable/start the backup, health, monitor and off-site timers:
+
+   ```sh
+   sudo systemctl enable --now chunk-picker-backup.timer chunk-picker-health.timer chunk-picker-monitor.timer chunk-picker-offhost.timer
+   sudo systemctl start chunk-picker-health.service chunk-picker-monitor.service
+   ```
+
+   The monitor observes every five minutes, even if health skips an inactive
+   writer. It warns at 36-hour source/delivery age and escalates at 48 hours;
+   checks both off-site capture time and delivery time; warns below 15 GiB disk
+   and urgently alerts below 5 GiB; warns below 2 GiB available RAM for ten
+   minutes and urgently alerts below 1 GiB. It reports failed units, durable
+   operator faults, marker presence/abandonment and operations over 30 minutes.
+   The retry timer runs hourly at minute 30 with up to five minutes jitter and
+   Persistent=yes, independent of local backup success. It skips a busy operator
+   and retries later. Observe one scheduled run and all three dead-man timestamps.
+
+Notification state is durable under controlDir, with deduplication, recovery
+messages, at most four delivery attempts per ten minutes and at least 30 seconds
+between attempts. Unresolved critical/urgent faults repeat every six hours
+(configurable within one to 24 hours); warnings repeat only on change. Messages
+contain fixed categories only, without journal text, paths, machine names, IPs
+or credentials. During a declared release, a root-owned release-window.json under
+controlDir may contain startedAt/endsAt UTC timestamps for at most 30 minutes.
+It suppresses writer/maintenance notifications only. Resource/job faults still
+alert. Expired/invalid declarations alert until explicitly reconciled. The
+monitor never deletes maintenance.json or other transaction evidence.
+
+## Monthly cleanup and incident recovery
+
+Use a trusted PC and a verified restic 0.18.1 client. Download/extract its release
+archive; prune-b2.mjs checks the binary SHA-256 against the pin before accessing
+credentials. Do not copy the clean-up key to the VPS. The script uses the key
+and repository password only in child-process memory and disables the local
+restic cache. It captures all repository output.
+
+1. Allow any off-site run to finish, then run:
+
+   ```sh
+   sudo systemctl stop chunk-picker-offhost.timer
+   sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /usr/bin/node /opt/chunk-picker/tools/scripts/linux/offhost-backup.mjs pause
+   ```
+
+   The pause command takes the operator exclusion, so it refuses while an upload
+   is in flight. Wait and retry; never kill an operation or delete its lock.
+   Its durable declaration fences both scheduled and direct module uploads.
+   The monitor reports this pause. Keep the declaration through cleanup.
+2. On the PC:
+
+   ```powershell
+   node scripts/ops/prune-b2.mjs --ssh picker-vps --vault <vault> --item "Chunk picker B2 recovery chunk-picker-backups" --restic <absolute-restic-binary>
+   ```
+
+   It refuses unless SSH metadata confirms the uploader has been drained and paused.
+   It checks the repository, applies 30/8/12 retention and prune, then checks
+   again. Failed cleanup leaves the uploader paused for explicit review.
+3. After success, run:
+
+   ```sh
+   sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /usr/bin/node /opt/chunk-picker/tools/scripts/linux/offhost-backup.mjs resume
+   sudo systemctl start chunk-picker-offhost.timer chunk-picker-offhost.service
+   ```
+
+   Verify a fresh off-site success and
+   human alert recovery. Resume removes only the explicit off-site pause
+   declaration. Keep the writer running
+   throughout this maintenance. Set a monthly reminder outside this code change.
+
+For suspected VPS compromise, revoke the upload key immediately, preserve B2
+versions and stop lifecycle expiration through the trusted account. Use the
+clean-up key only from a clean machine. Choose a cutoff before the incident;
+list all versions/hide markers under chunk-picker/, select each name's latest
+version at that cutoff, and copy those exact file IDs into a **new private
+recovery bucket** using temporary recovery authority. Never repair the sole
+repository in place or run prune first. This restores overwritten config,
+keys, snapshots, indexes and packs as a consistent version view. Verify the
+repository with restic check --read-data before selecting a snapshot. The
+ordinary case needs the B2 repository, key and independently saved repository
+password; a damaged version view additionally needs this B2 version recovery.
+
+Quarterly, restore to disposable Linux with outbound integrations disabled.
+Verify the snapshot's manifest/binding and rebuild-manifest inventory. Reinstall
+Node and checksum-pinned restic; restore the selected release, pins and tools;
+map their original paths from the encrypted manifest; restore /etc/chunk-picker
+and units with root-only permissions and the service-owned store with its
+binding. Rotate provider/webhook/invite credentials before enabling integrations.
+Use test credentials and scratch ports to check representative reads,
+calculation and a saved command, then record the source snapshot time and
+recovery time. Do not point a drill at the production save or reuse its outbound
+credentials. A local restic roundtrip is not a complete application restore drill.
 
 # Using the private picker
 

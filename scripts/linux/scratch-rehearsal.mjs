@@ -62,7 +62,7 @@ test ! -e /opt/chunk-picker
 echo "$2  $1/node.tar.xz" | sha256sum -c - >/dev/null
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq >"$1/provision.log" 2>&1
-apt-get install -y -qq python3 xz-utils util-linux ca-certificates >>"$1/provision.log" 2>&1
+apt-get install -y -qq python3 xz-utils bzip2 util-linux ca-certificates >>"$1/provision.log" 2>&1
 umask 022
 mkdir /opt/node /opt/chunk-picker /etc/chunk-picker
 chmod 0755 /opt/node /opt/chunk-picker /etc/chunk-picker
@@ -75,6 +75,7 @@ chmod 0755 /opt/chunk-picker/source
 tar -xf "$1/source.tar" -C /opt/chunk-picker/source
 chown -R root:root /opt/chunk-picker/source
 chmod -R go-w /opt/chunk-picker/source
+/opt/node/bin/node /opt/chunk-picker/source/scripts/ops/install-restic.mjs >>"$1/provision.log" 2>&1
 /opt/node/bin/node /opt/chunk-picker/source/scripts/linux/scratch-cycle.mjs "$1"
 `;
   const result = run('ssh', [alias, 'sudo -n -- sh -s -- ' + quote(remote) + ' ' + quote(expectedSha)], bootstrap);
