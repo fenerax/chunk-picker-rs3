@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { credential } from './ops-status.mjs';
 import { directory, headroom } from './files.mjs';
@@ -37,13 +37,31 @@ export function executeRestic(binary, args, { env, signal }) {
     signal?.throwIfAborted();
     // Do not give execFile an AbortSignal: its abort callback may precede exit.
     // Wait for the normal close callback before allowing temp cleanup.
-    const child = execFile('prlimit', [`--fsize=${resticPackLimit}:${resticPackLimit}`, '--', binary, ...args],
+    // Linux has a hard per-pack ceiling. The trusted Windows PC uses the
+    // same private temp directory, reserve admission and sampled byte budget.
+    const child = execFile(process.platform === 'win32' ? binary : 'prlimit',
+      process.platform === 'win32' ? args : [`--fsize=${resticPackLimit}:${resticPackLimit}`, '--', binary, ...args],
       { env, killSignal: 'SIGKILL', windowsHide: true, maxBuffer: 4 * 1024 ** 2, timeout: 25 * 60000 },
       (error, stdout) => { signal?.removeEventListener('abort', abort); error || signal?.aborted ? reject(Error('Encrypted repository operation failed.')) : resolve(stdout); });
     const abort = () => child.kill('SIGKILL');
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
   });
+}
+async function tempBudget(root) {
+  let bytes = 0;
+  async function walk(dir) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) await walk(file);
+      else {
+        const info = await lstat(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
+        if (!info) continue; // A pack can disappear while it is uploaded.
+        if (!info.isFile() || info.size > resticPackLimit || (bytes += info.size) > resticTempBound) throw Error('Restic temporary budget exceeded.');
+      }
+    }
+  }
+  await walk(root);
 }
 export async function guardedRestic({ root, reserve, binary, args, env, signal,
   check = headroom, execute = executeRestic, intervalMs = 250 }) {
@@ -60,11 +78,14 @@ export async function guardedRestic({ root, reserve, binary, args, env, signal,
       if (checking) return;
       // Retain another full write envelope between samples. No other writer's
       // future allocations are assumed; loss of headroom fails closed.
-      checking = check(temporary, resticTempBound, reserve).catch(error => { fault = error; controller.abort(); }).finally(() => { checking = null; });
+      checking = Promise.all([check(temporary, resticTempBound, reserve), tempBudget(temporary)])
+        .catch(error => { fault = error; controller.abort(); }).finally(() => { checking = null; });
     }, intervalMs);
-    const result = await execute(binary, resticArgs(args), { env: { ...env, TMPDIR: temporary, GOMAXPROCS: '1' }, signal: controller.signal });
+    const result = await execute(binary, resticArgs(args), { env: { ...env, TMPDIR: temporary, TMP: temporary, TEMP: temporary,
+      RESTIC_CACHE_DIR: path.join(temporary, 'cache'), GOMAXPROCS: '1' }, signal: controller.signal });
     await checking;
     if (fault) throw fault;
+    await tempBudget(temporary);
     controller.signal.throwIfAborted();
     signal?.throwIfAborted();
     return result;

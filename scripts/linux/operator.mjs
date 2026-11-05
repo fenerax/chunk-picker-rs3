@@ -13,7 +13,7 @@ import { assertReleased, atomic, directory, encode, exclusive, exists, headroom,
 import { assertSameRelease, operatorSettings, readRelease, assertOperatorService, serviceIdentity } from './runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
-import { digestValue } from '../private-companion/release-identity.mjs';
+import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
 import { deadman, recordStatus, withStatus } from './ops-status.mjs';
 import { phaseReceipt, inPhase } from './phases.mjs';
 
@@ -234,18 +234,7 @@ async function runOperatorImpl(settings, command, argument, evidence, mode) {
     }
     if (!['backup', 'restore', 'deploy'].includes(command)) throw new Error('Use health, backup, restore or deploy.');
     const candidate = command === 'deploy' ? await readRelease(argument, settings.dataDir) : null;
-    let savedIdentityAdditions;
-    if (command === 'deploy' && evidence && evidence !== '--stopped') {
-      const receipt = await json(evidence);
-      if (receipt.previousPointerSha256 !== sha(release.pointerBytes) || receipt.candidateIdentity !== candidate.identity
-        || path.resolve(receipt.pointer) !== path.resolve(argument)) throw new Error('Staged deployment receipt changed.');
-      if (receipt.savedIdentityAdditionsReviewed !== true
-        || !Array.isArray(receipt.savedIdentityAdditions)
-        || digestValue(receipt.savedIdentityAdditions) !== receipt.savedIdentityAdditionsDigest) {
-        throw Object.assign(new Error('VPS additions require explicit review.'), { code: 'OPERATOR_ADDITIONS_REVIEW' });
-      }
-      savedIdentityAdditions = receipt.savedIdentityAdditions;
-    }
+    const savedIdentityAdditions = command === 'deploy' ? await reviewedDeploymentAdditions(evidence, argument, release, candidate) : undefined;
     let candidateBinding;
     if (candidate?.config.packs?.data) {
       const old = await configDescriptor(release.pointer.config.path), next = await configDescriptor(candidate.pointer.config.path);

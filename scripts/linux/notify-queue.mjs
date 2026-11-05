@@ -1,7 +1,21 @@
 import path from 'node:path';
 import { readFile, rename, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { atomic, directory, encode } from './files.mjs';
+import { atomic, directory, encode, exists } from './files.mjs';
+
+const resetRow = () => ({ code: 'notifier-reset', level: 'critical', at: 0 });
+async function quarantine(file, target, controlDir) {
+  // A fixed, coalescing intent is fsynced (including its directory) BEFORE
+  // removing corrupt evidence from the normal retry path. Only the sender,
+  // under notify.lock, publishes or acknowledges this marker.
+  await atomic(path.join(controlDir, 'notify-reset.json'), encode(resetRow()));
+  await rename(file, target);
+}
+export async function resetIntent(controlDir) {
+  const file = path.join(controlDir, 'notify-reset.json');
+  // Presence is the intent; never interpret possibly corrupt marker bytes.
+  return await exists(file) ? [{ file, row: { ...resetRow(), reset: true } }] : [];
+}
 
 export const outboxLimits = Object.freeze({ events: 96, bytes: 16384, stateBytes: 32768 });
 // Fixed mailboxes per category and transition. Repeated identical transitions
@@ -26,8 +40,8 @@ export async function drain(spool, codes) {
       return row;
     } catch (error) {
       if (error.code === 'ENOENT') throw error;
-      await rename(file, path.join(path.dirname(spool), 'notify-mailbox.reset-' + randomUUID()));
-      return { code: 'notifier-reset', level: 'critical', at: 0 };
+      await quarantine(file, path.join(path.dirname(spool), 'notify-mailbox.reset-' + randomUUID()), path.dirname(spool));
+      return resetRow();
     }
   };
   // Resume claimed mailboxes first after a crash. Claim by rename before read:
@@ -44,6 +58,8 @@ export async function drain(spool, codes) {
   }
   return files.sort((a, b) => a.row.at - b.row.at || Number(!a.row.level) - Number(!b.row.level));
 }
+// Call only after atomic() has fsynced the replacement outbox. An unlink lost
+// on reboot can replay evidence, but cannot erase the pending delivery.
 export async function acknowledge(entries) { for (const { file } of entries) await rm(file, { force: true }); }
 export function compact(events, dropped = 0, limits = outboxLimits) {
   const rows = [];
@@ -89,7 +105,7 @@ export async function loadState(file, codes, severity, now) {
     if (error.code === 'ENOENT') return fresh();
     // Never include corrupt bytes in an alert. Rename preserves evidence and
     // atomically removes the bad state from the delivery path.
-    await rename(file, file + '.reset-' + randomUUID());
-    return { ...fresh(), pending: [{ code: 'notifier-reset', level: 'critical', at: 0 }] };
+    await quarantine(file, file + '.reset-' + randomUUID(), path.dirname(file));
+    return fresh();
   }
 }

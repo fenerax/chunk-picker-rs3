@@ -366,6 +366,7 @@ const fullOnlyPatterns = [
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
   "linux-monitor.test.mjs",
+  "linux-notify-crash.test.mjs",
   "linux-offhost.test.mjs",
   "linux-offhost-restic.test.mjs",
   "linux-ops-setup.test.mjs",

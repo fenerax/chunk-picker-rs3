@@ -12,6 +12,7 @@ import { recordStatus } from './ops-status.mjs';
 import { captureOnline } from './online.mjs';
 import { serviceOperation } from './service-lock.mjs';
 import { checkStoppedCompatibility, writeBackupStatus } from './recovery.mjs';
+import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
 
 // Hands restored service files back to the service user. The tombstone
 // ledger is repaired explicitly: an operator that died after MP5 replaced it
@@ -88,6 +89,15 @@ export async function serviceBackup({ settings, release, request, stopped = fals
 }
 export async function runServiceOperator({ settings, command, argument, evidence, release, controller, request, healthRecovery, deployStopped, serviceIdentity }) {
   validateServicePaths(settings); sameService(settings, release);
+  // Refuse every unreviewed/tampered receipt before service queries, operation
+  // evidence or maintenance publication, just as the single-picker operator does.
+  const candidate = command === 'deploy' ? await readRelease(argument, settings.dataDir) : null;
+  let savedIdentityAdditions;
+  if (candidate) {
+    sameService(settings, candidate);
+    if (release.config.datasetId !== candidate.config.datasetId || ['data', 'rulesText', 'art'].some(key => release.config.packs?.[key]?.sha256 !== candidate.config.packs?.[key]?.sha256) || ['profile', 'addons', 'selection'].some(key => release.config[key]?.sha256 !== candidate.config[key]?.sha256)) throw new Error('Service pack changes require sequential recovery; in-place deploy refused.');
+    savedIdentityAdditions = await reviewedDeploymentAdditions(evidence, argument, release, candidate);
+  }
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
   return serviceOperation(settings, command, async () => {
@@ -145,15 +155,6 @@ export async function runServiceOperator({ settings, command, argument, evidence
     } else if (command === 'quarantine-release') {
       result = await releaseServiceQuarantine({ settings, id: argument, release, assertStopped: stopped });
     } else {
-      const candidate = await readRelease(argument, settings.dataDir); sameService(settings, candidate);
-      if (release.config.datasetId !== candidate.config.datasetId || ['data', 'rulesText', 'art'].some(key => release.config.packs?.[key]?.sha256 !== candidate.config.packs?.[key]?.sha256) || ['profile', 'addons', 'selection'].some(key => release.config[key]?.sha256 !== candidate.config[key]?.sha256)) throw new Error('Service pack changes require sequential recovery; in-place deploy refused.');
-      let savedIdentityAdditions;
-      if (evidence && evidence !== '--stopped') {
-        const receipt = await json(evidence);
-        const { sha } = await import('./files.mjs');
-        if (receipt.previousPointerSha256 !== sha(release.pointerBytes) || receipt.candidateIdentity !== candidate.identity || path.resolve(receipt.pointer) !== path.resolve(argument)) throw new Error('Staged deployment receipt changed.');
-        savedIdentityAdditions = receipt.savedIdentityAdditions;
-      }
       // Every store is probed sequentially while stopped. No per-picker heap is
       // left alive across iterations. The existing pointer CAS/rollback remains.
       const check = async options => {

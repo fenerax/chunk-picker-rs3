@@ -251,7 +251,11 @@ export async function probe(core, dataDir, output, { retention } = {}) {
   } finally { await app.close(); }
 }
 // Self-contained: this module is also copied flat into PC kits.
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+function isCliEntry() {
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; } // Eval/import callers may pass a non-path argument.
+}
+if (isCliEntry()) {
   try {
     if (process.argv[2] === 'probe') await probe(...process.argv.slice(3));
     else if (process.argv[2] === 'check') await checkPackTransition({ fromConfig: process.argv[3], toConfig: process.argv[4], transition: process.argv[5], output: process.argv[6] });

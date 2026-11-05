@@ -1,26 +1,24 @@
 // Disposable Linux scratch only. No B2/Discord/Healthchecks account access.
 import path from 'node:path';
 import http from 'node:http';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { isMain } from '../release/vps/entrypoint.mjs';
-import { verifyRestic, retentionArgs, resticArgs } from './restic.mjs';
+import { verifyRestic, retentionArgs, guardedRestic } from './restic.mjs';
 import { offhostBackup, selectSnapshot } from './offhost-backup.mjs';
 import { monitor } from './monitor.mjs';
 import { notify } from './notify.mjs';
 import { verifyBackup } from './recovery.mjs';
 import { encode, json, inventory } from './files.mjs';
 import { operatorSettings } from './runtime.mjs';
-const execute = promisify(execFile);
 export async function scratchAlerts(settings, staging) {
   if (process.platform !== 'linux' || process.getuid() !== 0 || !/^\/var\/tmp\/chunk-tools-scratch-[a-f0-9-]{36}$/.test(staging)) throw Error('Disposable scratch required.');
   await verifyRestic();
   const local = path.join(staging, 'local-restic'); await mkdir(local, { mode: 0o700 });
   const password = path.join(local, 'password'); await writeFile(password, randomBytes(48).toString('base64url'), { mode: 0o600, flag: 'wx' });
   const env = { PATH: '/usr/bin:/bin', TZ: 'UTC', HOME: '/root', RESTIC_REPOSITORY: path.join(local, 'repository'), RESTIC_PASSWORD_FILE: password, RESTIC_CACHE_DIR: path.join(local, 'cache') };
-  const run = async (args, options = {}) => (await execute('/usr/local/bin/restic', resticArgs(args), { env, ...options, maxBuffer: 4 * 1024 ** 2, timeout: 120000 })).stdout;
+  const run = async (args, { signal = AbortSignal.timeout(120000) } = {}) => guardedRestic({
+    root: path.join(local, 'temp'), reserve: settings.minFreeBytes, binary: '/usr/local/bin/restic', args, env, signal });
   await run(['init']);
   await offhostBackup({ settings, config: {}, run, ping: async () => false });
   const restored = path.join(local, 'restore');

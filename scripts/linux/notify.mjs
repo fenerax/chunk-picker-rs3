@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
-import { enqueue, drain, acknowledge, compact, loadState } from './notify-queue.mjs';
+import { enqueue, drain, acknowledge, compact, loadState, resetIntent } from './notify-queue.mjs';
 import { credential, privateEndpoint } from './ops-status.mjs';
 
 export const messages = Object.freeze({
@@ -39,7 +39,8 @@ export async function notify({ controlDir, faults, window, now = Date.now(), rep
   const result = await exclusive(path.join(controlDir, 'notify.lock'), async () => {
     const file = path.join(controlDir, 'notify-state.json');
     const state = await loadState(file, codes, severity, now), active = { ...state.active };
-    const entries = await drain(spool, codes);
+    const drained = await drain(spool, codes);
+    const entries = [...await resetIntent(controlDir), ...drained];
     repeatMs = Math.max(3600000, Math.min(24 * 3600000, Number(repeatMs) || 6 * 3600000));
     const events = state.pending ?? [];
     if (!state.pending) for (const [code, level] of Object.entries(state.active)) {
@@ -51,7 +52,7 @@ export async function notify({ controlDir, faults, window, now = Date.now(), rep
       const previous = state.announced[code], latest = events.findLast(event => event.code === code);
       const prior = latest ? latest.level : previous?.level;
       if (level) {
-        if (!row.suppressed && (prior !== level || !latest && level !== 'warning' && at - (previous?.at ?? 0) >= repeatMs)) events.push({ code, level, at });
+        if (!row.suppressed && (row.reset || prior !== level || !latest && level !== 'warning' && at - (previous?.at ?? 0) >= repeatMs)) events.push({ code, level, at });
       } else if (prior) events.push({ code, at });
     }
     const bounded = compact(events, state.dropped ?? 0);

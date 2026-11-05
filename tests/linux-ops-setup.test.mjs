@@ -137,8 +137,9 @@ test('Healthchecks creates/updates exactly three checks and never prints or shel
   for (let i = 0; i < 2; i++) await setupHealthchecks({ keyFile, alias: 'picker-vps' }, { fetchImpl, execute });
   assert.equal(stored.length, 3); assert.deepEqual(writes[0], writes[1]); assert.equal(Object.keys(writes[0]).length, 3);
 });
-test('trusted prune refuses an unfenced uploader and keeps delete authority out of argv and the VPS', async () => {
+test('trusted prune refuses an unfenced uploader and keeps delete authority out of argv and the VPS', async t => {
   let masked = false; const calls = [];
+  const tempRoot = path.dirname(await fixture(t, '{}'));
   const item = { fields: Object.entries({ repository: 'b2:chunk-picker-backups:chunk-picker', 'repository-password': 'synthetic-only',
     'cleanup-id': 'synthetic-cleanup', 'cleanup-key': 'synthetic-value' }).map(([label, value]) => ({ label, value })) };
   const adapters = { verify: async () => {}, execute: (command, args) => {
@@ -146,8 +147,12 @@ test('trusted prune refuses an unfenced uploader and keeps delete authority out 
       if (machineReply(args)) return machineReply(args); if (args.at(-1).includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
       assert(!args.join(' ').includes('synthetic-value')); return JSON.stringify({ paused: masked, repository: 'b2:chunk-picker-backups:chunk-picker' }); }
     assert.equal(command, 'op'); return JSON.stringify(item);
-  }, repositoryRun: (_file, args, env) => {
+  }, tempRoot, reserve: 0, repositoryRun: async (_file, args, { env, signal }) => {
     assert(!args.join(' ').includes('synthetic-value')); assert.equal(env.B2_ACCOUNT_KEY, 'synthetic-value');
+    assert(env.TMPDIR.startsWith(tempRoot + path.sep)); assert.equal(env.TEMP, env.TMPDIR); assert.equal(env.TMP, env.TMPDIR);
+    assert.equal(env.RESTIC_CACHE_DIR, path.join(env.TMPDIR, 'cache')); assert.equal(signal.aborted, false);
+    // An asynchronous command must finish before the next command starts.
+    await writeFile(path.join(env.TMPDIR, 'pack'), 'synthetic');
     assert(args.includes('--no-cache')); calls.push(args);
   } };
   const options = { alias: 'picker-vps', vault: 'Synthetic', item: 'Synthetic', binary: path.resolve('synthetic-restic') };

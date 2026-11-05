@@ -42,14 +42,23 @@ space observations. Cancellation waits for process closure before temp cleanup.
 Source copies and remote restore points are never deleted by this path.
 Install bzip2 and util-linux before installing/running the pinned binary.
 
+Scratch rehearsals and trusted-PC cleanup use the same guard. All commands
+disable caching and override TMPDIR, TMP, TEMP and RESTIC_CACHE_DIR with private
+paths. PC cleanup reserves 1 GiB plus the pack envelope on the temp filesystem.
+Windows uses a sampled per-file/total temp budget and reserve watcher; its byte
+ceiling is not kernel-enforced. Linux retains the hard prlimit ceiling.
+
 Notification producers publish private, atomic mailboxes before trying the
 delivery lock. Each fixed category has separate assertion-severity and recovery
 mailboxes, plus at most one claimed copy of each during delivery. Identical
 transitions coalesce; a recovery cannot overwrite evidence of an incident.
 The fixed category vocabulary bounds the spool independently of outage length.
 Claimed entries are removed only after the outbox is durable. Corrupt JSON or
-invalid state is atomically renamed aside and a fixed `notifier state was reset`
-alert enters the new outbox.
+invalid state first publishes a fixed reset intent, fsyncing its file and parent
+directory before renaming the corrupt evidence aside. Every run replays that
+intent into the outbox; it is acknowledged only after the outbox is durable.
+The fixed `notifier state was reset` alert therefore survives a crash during
+quarantine. A crash after remote acceptance may replay an alert.
 
 The pending outbox keeps the first incident and newest state per category,
 including a recovery after a short outage. It has caps of 96 events and 16 KiB

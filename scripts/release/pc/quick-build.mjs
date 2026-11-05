@@ -357,7 +357,11 @@ export async function prepareSwap({ current, releaseDir }) {
 }
 
 // Self-contained: this module is also copied flat into PC kits.
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+function isCliEntry() {
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; } // Eval/import callers may pass a non-path argument.
+}
+if (isCliEntry()) {
   try {
     const { positionals: [command], values } = parseArgs({ allowPositionals: true, options: {
       repo: { type: 'string' }, commit: { type: 'string' }, current: { type: 'string' }, releases: { type: 'string' },

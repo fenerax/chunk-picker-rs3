@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, writeFile, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { offhostFixture, assertPayloadClosure } from './helpers/offhost.mjs';
 import { offhostBackup } from '../scripts/linux/offhost-backup.mjs';
@@ -43,17 +43,67 @@ test('reserve watcher cancels upload and waits for termination before removing p
   await assert.rejects(guardedRestic({ root, reserve: 1, args: ['backup'], env: {}, intervalMs: 5,
     check: async () => { if (++checks > 1) throw Error('reserve'); },
     execute: async (_binary, _args, { env, signal }) => {
+      const aborted = signal.aborted ? Promise.resolve() : new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
       await writeFile(path.join(env.TMPDIR, 'pack'), 'synthetic');
-      await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
+      await aborted;
       assert((await readdir(env.TMPDIR)).includes('pack')); stopped = true; throw Error('killed');
     } }));
   assert(stopped); assert.deepEqual(await readdir(root), []);
 });
+
+test('private temp and cache override inherited paths and oversized PC packs cancel before cleanup', async t => {
+  const root = await temporary(t); let stopped = false;
+  await assert.rejects(guardedRestic({ root, reserve: 0, args: ['forget'], intervalMs: 5,
+    env: { TMPDIR: 'untrusted', TEMP: 'untrusted', TMP: 'untrusted', RESTIC_CACHE_DIR: 'untrusted' },
+    execute: async (_binary, args, { env, signal }) => {
+      const aborted = signal.aborted ? Promise.resolve() : new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
+      assert.equal(env.TEMP, env.TMPDIR); assert.equal(env.TMP, env.TMPDIR);
+      assert.equal(env.RESTIC_CACHE_DIR, path.join(env.TMPDIR, 'cache')); assert(args.includes('--no-cache'));
+      const pack = await open(path.join(env.TMPDIR, 'pack'), 'w');
+      try { await pack.truncate(resticPackLimit + 1); } finally { await pack.close(); }
+      await aborted;
+      assert((await readdir(env.TMPDIR)).includes('pack')); stopped = true;
+    } }));
+  assert(stopped); assert.deepEqual(await readdir(root), []);
+});
+
+function resticBypass(source) {
+  return /\bresticArgs\b/.test(source)
+    || /\bexecuteRestic\s*\(/.test(source)
+    || /\b(?:spawn|spawnSync|execFile|execFileSync|execute|run|repositoryRun)\s*\(\s*['"][^'"]*\brestic(?:\.exe)?['"]/.test(source)
+    || /from ['"][^'"]*\/restic\.mjs['"]/.test(source)
+      && /\b(?:spawn|spawnSync|execFile|execFileSync|execute|run|repositoryRun)\s*\(\s*(?:binary|file)\b/.test(source);
+}
+test('all script restic spawns and argument policies stay inside the guard', async () => {
+  const scripts = fileURLToPath(new URL('../scripts/', import.meta.url)), bypasses = [];
+  for (const name of await readdir(scripts, { recursive: true })) {
+    if (!name.endsWith('.mjs') || name.replaceAll('\\', '/') === 'linux/restic.mjs') continue;
+    if (resticBypass(await readFile(path.join(scripts, name), 'utf8'))) bypasses.push(name);
+  }
+  assert.deepEqual(bypasses, []);
+  // Exercise the detector against both reviewed bypass shapes and a direct spawn.
+  assert(resticBypass("execute('/usr/local/bin/restic', resticArgs(args), { env })"));
+  assert(resticBypass("import { verifyRestic } from '../linux/restic.mjs'; repositoryRun(binary, args, env)"));
+  assert(resticBypass("spawn('restic', ['check'])"));
+  assert(resticBypass('executeRestic(binary, args, options)'));
+});
 test('kernel ceiling rejects oversized packs and abort waits for the owned process to close', { skip: process.platform !== 'linux' }, async t => {
   const root = await temporary(t), signal = new AbortController();
-  await assert.rejects(executeRestic('/usr/bin/python3', ['-c', `open('${path.join(root, 'pack')}', 'wb').write(b'x' * ${resticPackLimit + 1})`], { env: { PATH: '/usr/bin:/bin' }, signal: signal.signal }));
+  const pack = path.join(root, 'pack');
+  // The first write may return a short count; the next write at the ceiling
+  // must fail. Verify both the failure and the exact kernel-enforced size.
+  await assert.rejects(executeRestic('/usr/bin/python3', ['-c', `f=open(${JSON.stringify(pack)}, 'wb', buffering=0); f.write(b'x' * ${resticPackLimit + 1}); f.write(b'x')`], { env: { PATH: '/usr/bin:/bin' }, signal: signal.signal }));
+  assert.equal((await stat(pack)).size, resticPackLimit);
   const pending = executeRestic('/usr/bin/python3', ['-c', 'import time;time.sleep(60)'], { env: {}, signal: signal.signal });
   signal.abort(); await assert.rejects(pending);
+});
+
+test('restic executor launches and cancels the owned child on the current platform', async () => {
+  const env = { PATH: process.env.PATH, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) };
+  assert.equal(await executeRestic(process.execPath, ['-e', "process.stdout.write('synthetic-receipt')"], { env }), 'synthetic-receipt');
+  const controller = new AbortController();
+  const pending = executeRestic(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { env, signal: controller.signal });
+  controller.abort(); await assert.rejects(pending);
 });
 test('real pinned restic encrypts, checks, restores the full snapshot and rebuild bundle, then prunes locally', { skip: process.platform !== 'linux' }, async t => {
   await verifyRestic(); // CI installs the reviewed binary; absence is a failure.
