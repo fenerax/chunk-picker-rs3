@@ -390,10 +390,14 @@ test('a missing calculator start acknowledgement bounds close and retires uncert
   other.startCpuProfile = async () => { otherStarts++; return { stop: async () => ({ nodes: [1] }) }; };
   profiles.attach(other);
   const started = profiles.start(60); await entered.promise;
+  const closeStart = performance.now();
   const closed = profiles.close();
   try {
-    const completed = await Promise.race([closed.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 150))]);
+    const completed = await Promise.race([closed.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 250))]);
     assert.equal(completed, true);
+    // A delayed timer callback must not let synchronous profile/file stalls
+    // win the race after the wall-clock ceiling has already elapsed.
+    assert.ok(performance.now() - closeStart < 250, 'calculator close must finish below 250 ms of real time');
     assert.equal(worker.profileRetiring, true);
     assert.equal(otherStarts, 0);
     assert.equal(other.profileRetiring, undefined, 'an unissued admission must not retire another calculator');

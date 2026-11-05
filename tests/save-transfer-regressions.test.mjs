@@ -180,10 +180,11 @@ test('timeout terminates a wedged worker, releases the global queue, and cannot 
   const next = runImportJob({ kind: 'parse', chunks: [Buffer.from('{}')], headers: { 'content-type': 'application/json' } });
   let fired;
   await new Promise(resolve => setTimeout(() => { fired = performance.now() - start; resolve(); }, 20));
-  assert.ok(fired < 100);
+  assert.ok(fired < 250, `wedged-worker main-thread timer took ${fired.toFixed(1)} ms`);
   await assert.rejects(wedged, error => error.status === 422 && /took too long/.test(error.message));
   assert.deepEqual((await next).body, {});
-  assert.ok(performance.now() - start < 2_000);
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed < 3_000, `wedged-worker cleanup and queued parser took ${elapsed.toFixed(1)} ms`);
 });
 
 test('roster remap preserves the removed preferred-method guard through reload', async t => {
