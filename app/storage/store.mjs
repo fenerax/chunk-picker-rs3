@@ -1,11 +1,11 @@
 import { withStoreWrite } from './snapshot.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
-import { link, mkdir, open, readFile, readdir, realpath, rename, stat, unlink, utimes } from 'node:fs/promises';
+import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
+import { publishFile } from './publication.mjs';
 import path from 'node:path';
 import { hostname } from 'node:os';
 import { createServer as createNetServer } from 'node:net';
 import { execFile } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
@@ -215,15 +215,7 @@ async function atomicWrite(file, contents, beforeRename) {
     await handle.close();
     handle = undefined;
     if (beforeRename) await beforeRename();
-    // Windows scanners can briefly hold the destination without delete-sharing.
-    // Retry the same synchronized replacement; never remove the old state.
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; }
-      catch (error) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 6) throw error;
-        await delay(20 * 2 ** attempt);
-      }
-    }
+    await publishFile(temporary, file);
   } catch (error) {
     if (handle) await handle.close().catch(() => {});
     await unlink(temporary).catch(() => {});
@@ -934,6 +926,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       if (observed !== current) {
         if (coordination.has(current)) coordination.set(observed, coordinationOf(current));
         const diskDocument = await serializedDiskState(observed);
+        // Observations keep the same revision, but still replace the durable save.
+        await retainBackup(current, 'progress-snapshot');
         await atomicWrite(stateFile, diskDocument);
         current = observed; currentDiskSerialized = diskDocument;
       }

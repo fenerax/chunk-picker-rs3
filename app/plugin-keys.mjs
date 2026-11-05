@@ -1,8 +1,8 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
-import { open, readFile, rename, rm } from 'node:fs/promises';
+import { open, readFile, rm } from 'node:fs/promises';
+import { publishFile } from './storage/publication.mjs';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const hash = token => createHash('sha256').update(token).digest('hex');
@@ -28,12 +28,7 @@ async function write(file, value) {
   try {
     handle = await open(temporary, 'wx', 0o600); await handle.writeFile(`${JSON.stringify(validate(value))}\n`);
     await handle.sync(); await handle.close(); handle = null;
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; } catch (error) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 6) throw error;
-        await delay(20 * 2 ** attempt);
-      }
-    }
+    await publishFile(temporary, file);
   } finally { await handle?.close(); await rm(temporary, { force: true }); }
 }
 

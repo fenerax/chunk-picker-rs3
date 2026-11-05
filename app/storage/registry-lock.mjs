@@ -1,17 +1,11 @@
-import { link, mkdir, open, readFile, realpath, rename, unlink } from 'node:fs/promises';
+import { link, mkdir, open, readFile, realpath, unlink } from 'node:fs/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 import { createServer } from 'node:net';
-import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
+import { publishFile, syncDirectory } from './publication.mjs';
 
-export async function syncDirectory(directory) {
-  let handle;
-  try { handle = await open(directory, 'r'); await handle.sync(); }
-  catch (failure) {
-    if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EISDIR', 'EINVAL', 'ENOTSUP'].includes(failure.code)) throw failure;
-  } finally { await handle?.close(); }
-}
+export { syncDirectory };
 
 export async function durableDirectory(directory) {
   directory = path.resolve(directory);
@@ -32,14 +26,7 @@ export async function writeRegistryJson(file, document) {
     handle = await open(temporary, 'wx', 0o600);
     await handle.writeFile(`${JSON.stringify(document)}\n`);
     await handle.sync(); await handle.close(); handle = undefined;
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; }
-      catch (failure) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(failure.code) || attempt >= 6) throw failure;
-        await delay(20 * 2 ** attempt);
-      }
-    }
-    await syncDirectory(path.dirname(file));
+    await publishFile(temporary, file);
   } finally { await handle?.close().catch(() => {}); await unlink(temporary).catch(() => {}); }
 }
 
