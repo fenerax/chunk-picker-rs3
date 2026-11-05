@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { serialize } from 'node:v8';
 import { createHash } from 'node:crypto';
+import { responsiveSample } from './helpers/responsiveness.mjs';
 process.env.RS3_DATASET = 'open-starter';
 const { createGroupState } = await import('../app/core/state.mjs');
 const { openStore } = await import('../app/storage/store.mjs');
@@ -27,19 +28,16 @@ async function scratch(t, settings = {}) {
     await store.close(); store = await openStore({ dataDir, retention: false, now: () => now, ...settings });
   } };
 }
-async function measuredResponse(work) {
-  let last = performance.now(), gap = 0;
-  const timer = setInterval(() => { const current = performance.now(); gap = Math.max(gap, current - last); last = current; }, 5);
-  const start = performance.now();
-  try {
-    const result = await work();
+async function measuredResponse(store, input) {
+  const sample = await responsiveSample(async freshInput => {
+    const result = await store.prepareTransfer(freshInput, options);
     // These are the HTTP reply's serialization and preview-receipt hash work.
     const bytes = Buffer.from(JSON.stringify(result.response));
     createHash('sha256').update(bytes).digest('hex');
     transferDigest(result.response);
-    await new Promise(resolve => setTimeout(resolve, 5));
-    return { result, bytes: bytes.length, gap: Math.max(gap, performance.now() - last), ms: performance.now() - start };
-  } finally { clearInterval(timer); }
+    return { result, bytes: bytes.length };
+  }, { maxGapMs: 200, label: 'roster response', beforeEach: () => Buffer.from(input) });
+  return { ...sample, ...sample.result };
 }
 
 test('128 MiB roster labels stay bounded during mapping and prepared HTTP response work', async t => {
@@ -48,18 +46,18 @@ test('128 MiB roster labels stay bounded during mapping and prepared HTTP respon
   const input = serialize({ backup: backup(state) });
   const mappedState = createGroupState([{ id: 'one', name: state.members[0].name.slice(0, 64 * 1024 ** 2) }]);
   const mappedInput = serialize({ backup: backup(mappedState), rosterMapping: { one: 'one' } }); state = undefined;
-  const mapping = await measuredResponse(() => store.prepareTransfer(input, options));
+  const mapping = await measuredResponse(store, input);
   assert.equal(mapping.result.response.mappingRequired, true);
   assert.equal(mapping.result.response.sourceRoster[0].id, 'source');
   assert.equal(mapping.result.response.sourceRoster[0].name.length, 512);
   assert.ok(mapping.bytes < 4096);
-  const prepared = await measuredResponse(() => store.prepareTransfer(mappedInput, options));
+  const prepared = await measuredResponse(store, mappedInput);
   assert.equal(prepared.result.response.state.members[0].name.length, 512);
   await store.applyTransfer(prepared.result.ticket, 0);
   assert.equal((await store.backup()).state.members[0].name.length, 64 * 1024 ** 2);
-  for (const result of [mapping, prepared]) assert.ok(result.gap < 200, `roster response gap ${result.gap.toFixed(1)} ms`);
   t.diagnostic(JSON.stringify({ mappingBytes: mapping.bytes, mappingGapMs: mapping.gap, mappingMs: mapping.ms,
-    preparedBytes: prepared.bytes, preparedGapMs: prepared.gap, preparedMs: prepared.ms }));
+    preparedBytes: prepared.bytes, preparedGapMs: prepared.gap, preparedMs: prepared.ms,
+    mappingGapsMs: mapping.gaps, preparedGapsMs: prepared.gaps }));
 });
 
 test('mapping identifiers remain exact and reject unusable identifiers before returning a roster', async t => {

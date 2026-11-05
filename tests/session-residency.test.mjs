@@ -512,14 +512,17 @@ test('pool shutdown escalates retirement already waiting for a warm calculator e
   assert.equal(pool.diagnostics().resident, 0);
 });
 
-test('pooled shutdown keeps the requested deadline when termination never resolves', { timeout: 1000 }, async t => {
+test('pooled shutdown keeps the requested deadline when termination never resolves', { timeout: 30000 }, async t => {
   const { scheduler, workers } = await fixture(t);
   workers[0].terminate = () => new Promise(() => {});
-  const started = performance.now();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let completed = false;
   const first = scheduler.close(20);
+  void first.then(() => { completed = true; });
   assert.equal(scheduler.close(20), first);
-  await first;
-  assert.ok(performance.now() - started < 500);
+  t.mock.timers.tick(19); await tick();
+  assert.equal(completed, false);
+  t.mock.timers.tick(1); await first;
   assert.equal(scheduler.getHealth().status, 'closed');
 });
 
