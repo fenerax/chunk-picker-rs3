@@ -93,7 +93,7 @@ export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_B
     let metadata;
     try { metadata = JSON.parse(rawMetadata); } catch { throw fail(400, 'Invalid backup import options.'); }
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)
-      || Object.keys(metadata).some(key => !['members', 'memberId', 'expectedRevision'].includes(key))) throw fail(400, 'Invalid backup import options.');
+      || Object.keys(metadata).some(key => !['members', 'memberId', 'expectedRevision', 'rosterMapping', 'sourceMemberId', 'previewToken'].includes(key))) throw fail(400, 'Invalid backup import options.');
     const document = value.file;
     if (Object.keys(value).length !== 1 || !document || typeof document !== 'object' || Array.isArray(document)) throw fail(400, 'The backup must be a JSON object.');
     return { uploaded: true, body: { ...metadata, ...(document.format === 'rs3-chunk-picker'

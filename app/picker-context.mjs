@@ -1,3 +1,7 @@
+import { transferManifest, requireTransferDataset, mapTransferRoster, quarantineTransferChunks, transferReport, createTransferReviews } from './save-transfer.mjs';
+import { isDeepStrictEqual } from 'node:util';
+import { originalChunkURL } from './original-chunk-url.mjs';
+import { taskRuleDefinitions } from './data/settings.mjs';
 import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
@@ -287,6 +291,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     return ids;
   }
   const viewFor = request => new URL(request.url, 'http://localhost').searchParams.get('view') === PLAY_VIEW ? PLAY_VIEW : undefined;
+  const transferReviews = createTransferReviews();
   async function restoreBackup(body) {
     if (!Object.hasOwn(body, 'backupId')) {
       // Keep the public envelope checks while storage owns deep validation.
@@ -299,10 +304,13 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (backup.format !== BACKUP_FORMAT) throw httpError(400, 'Unsupported backup format.');
       backup = decodeCompletionDocument(backup);
       if (backup.schemaVersion !== SCHEMA_VERSION) throw httpError(400, 'Unsupported backup schema version.');
+      requireTransferDataset(dataset, backup);
       return requireGameBackup(dataset, backup);
     }
     if (Object.hasOwn(body, 'backup') || Object.hasOwn(body, 'document')) throw httpError(400, 'Choose either a retained save or an uploaded backup.');
-    return requireGameBackup(dataset, await store.readBackup(body.backupId));
+    const backup = await store.readBackup(body.backupId);
+    requireTransferDataset(dataset, backup);
+    return requireGameBackup(dataset, backup);
   }
   function cachedValue(key, value) {
     key = `${dataset.digest}:${key}`;
@@ -1435,9 +1443,18 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           }
           if (route === '/api/backup') {
             const backup = await store.backup();
+            backup.state.provenance = { ...backup.state.provenance, dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
+            backup.transfer = transferManifest(dataset, backup.state.members);
             if (new URL(request.url, 'http://localhost').searchParams.get('download') === 'gzip') await sendGzipBackup(response, backup, { head: request.method === 'HEAD' });
             else await json(request, response, 200, backup, { 'Content-Disposition': 'attachment; filename="rs3-duo-backup.json"' });
             return;
+          }
+          if (route === '/api/export/original-chunks') {
+            const memberId = new URL(request.url, 'http://localhost').searchParams.get('memberId');
+            if (!identity.admin && identity.role !== 'owner' && identity.memberId !== memberId) throw httpError(403, 'Export only your own member map.');
+            const member = store.getState().members.find(row => row.id === memberId);
+            if (!member) throw httpError(400, 'Choose a known player.');
+            await json(request, response, 200, { url: originalChunkURL(member.unlocked, dataset, indexedWorld), message: 'Only unlocked chunks carry over. Tasks, rules, notes and History do not carry over. Importing the link replaces chunks in the original picker.' }); return;
           }
           if (route === '/api/backups') { await json(request, response, 200, { backups: await store.listBackups() }); return; }
           if (route === '/api/members-start') { await json(request, response, 200, { data: membersStartBanks }); return; }
@@ -1793,32 +1810,66 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const legacy = backup === undefined;
               const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry: ruleRegistry }) : null;
               const incoming = legacy ? imported.state : importBackup(backup, registry);
-              const member = incoming.members.find(item => item.id === owner.id);
+              if (!body.sourceMemberId && !incoming.members.some(m => m.id === owner.id && m.name === owner.name)) {
+                if (!route.endsWith('/preview')) throw httpError(422, 'Choose the source member in the preview first.');
+                await json(request, response, 200, { mappingRequired: true, sourceRoster: incoming.members.map(({ id, name }) => ({ id, name })), destinationRoster: [{ id: owner.id, name: owner.name }] }); return;
+              }
+              const sourceMemberId = body.sourceMemberId ?? owner.id;
+              const source = incoming.members.find(item => item.id === sourceMemberId);
+              const member = source && mapTransferRoster({ ...incoming, members: [source], history: [], tasks: incoming.tasks.map(({ memberIds, ...task }) => task), taskClaims: undefined, groupGoals: undefined, finishLine: undefined, progressSnapshots: undefined }, [owner], { [sourceMemberId]: owner.id }).members[0];
               if (!member) throw httpError(400, `This backup has no map for ${owner.name}.`);
+              if (['unlocked', 'selected', 'pendingRoll', 'blacklisted'].some(field => member[field].some(id => !indexedWorld.chunks.has(id.split('-')[0])))) throw httpError(422, 'This member backup contains unknown chunks. Ask the owner to preview the full backup to preserve them in quarantine; no member records were imported.');
               if (legacy) member.obtainedEquipment = [...(owner.obtainedEquipment ?? [])];
               const command = { type: 'replace-member', memberId: owner.id, member, source: legacy ? 'Original picker import' : 'Backup' };
               const warnings = imported?.warnings ?? [];
+              const report = transferReport(incoming, { world: indexedWorld, taskIds: new Set(current.tasks.map(t => t.id)), knownRule: id => taskRuleDefinitions.some(rule => rule.id === id), warnings, memberId: sourceMemberId });
+              const referenced = new Set([...member.completedTasks, ...['taskStatus', 'questProgress', 'achievementProgress', 'itemProgress', 'xpChoices'].flatMap(field => Object.keys(member[field] ?? {})), ...Object.values(member.taskAlternatives ?? {}).flatMap(groups => Object.values(groups))]);
+              const scopedTasks = incoming.tasks.filter(task => !task.memberIds || task.memberIds.includes(sourceMemberId) || referenced.has(task.id));
+              const tasks = scopedTasks.filter(task => !current.tasks.some(row => row.id === task.id)).map(task => ({ ...task, memberIds: [owner.id] }));
+              for (const task of scopedTasks) {
+                const existing = current.tasks.find(row => row.id === task.id);
+                if (existing) {
+                  const { memberIds: sourceAssignment, ...sourceDefinition } = task;
+                  const { memberIds: destinationAssignment, ...destinationDefinition } = existing;
+                  if (!isDeepStrictEqual(sourceDefinition, destinationDefinition)) throw httpError(422, 'A saved task ID has a different destination definition. Ask the owner to review a whole-picker restore; no member records were imported.');
+                }
+              }
+              report.excludedSections = ['Other members', 'Shared rules and group plans', 'Source History and migration archives'].map(field => ({ field, reason: 'Member restore keeps the destination section. The source backup remains the portable copy.' }));
+              if (tasks.length) command.tasks = tasks;
               if (route.endsWith('/preview')) {
-                const next = { ...current, members: current.members.map(item => item.id === owner.id ? member : item) };
+                const next = { ...current, tasks: [...current.tasks, ...tasks], members: current.members.map(item => item.id === owner.id ? member : item) };
                 // This comparison is a hypothetical map, before the actual
                 // replace-member command adds its inverse. Existing undo
                 // after-values belong to current, so do not replay them on it.
                 const preview = previewRestore({ ...current, history: [] }, { ...next, history: [] }, registry);
-                await json(request, response, 200, { preview, warnings,
+                await json(request, response, 200, { preview, warnings, transferReport: report, sourceRoster: incoming.members.map(({ id, name }) => ({ id, name })), previewToken: transferReviews.preview(body, identity, current.revision),
                   ...(importedFile?.uploaded ? { state: backupPreviewState(next) } : retained ? { state: projectPlayState(next) } : {}) }); return;
               }
-              await json(request, response, 200, { ...await viewEnvelope(await store.command(command, body.expectedRevision, { actor: identity.actor }), viewFor(request)), warnings }); return;
+              if (pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, current.revision);
+              await json(request, response, 200, { ...await viewEnvelope(await store.command(command, body.expectedRevision, { actor: identity.actor }), viewFor(request)), warnings, transferReport: report }); return;
             }
             // Replacing the whole save is an administrator action; invites keep normal gameplay.
             if (/^\/api\/(?:restore|import)(?:\/preview)?$/.test(route) && !(ownerRestore && identity.role === 'owner')) requireAdmin();
-            if (route === '/api/restore/preview') {
-              // Storage validates the complete public backup at its replacement boundary.
-              const replacement = await store.previewReplacement(await restoreBackup(body));
-              const preview = previewRestore(replacement.current, replacement.state, registry);
-              await json(request, response, 200, importedFile?.uploaded ? { preview, state: backupPreviewState(replacement.state) }
-                : Object.hasOwn(body, 'backupId') ? { preview, state: projectPlayState(replacement.state) } : preview); return;
+            if (route === '/api/restore/preview' || route === '/api/restore') {
+              const backup = await restoreBackup(body), current = store.getState();
+              const incoming = importBackup(backup, registry);
+              const mapped = mapTransferRoster(incoming, current.members, body.rosterMapping, pickerRouting?.requiredMemberIds?.());
+              const sourceRoster = incoming.members.map(({ id, name }) => ({ id, name }));
+              if (!mapped) {
+                if (!route.endsWith('/preview')) throw httpError(422, 'Review and assign the source roster before importing.');
+                await json(request, response, 200, { mappingRequired: true, sourceRoster, destinationRoster: current.members.map(({ id, name }) => ({ id, name })) }); return;
+              }
+              const report = transferReport(mapped, { world: indexedWorld, taskIds: new Set(current.tasks.map(t => t.id)), knownRule: id => taskRuleDefinitions.some(rule => rule.id === id), warnings: migrationSummary(mapped).warnings });
+              quarantineTransferChunks(mapped, indexedWorld);
+              if (route.endsWith('/preview')) {
+                const replacement = await store.previewReplacement({ ...backup, state: mapped });
+                const preview = previewRestore(replacement.current, replacement.state, registry);
+                await json(request, response, 200, { preview, state: backupPreviewState(replacement.state), sourceRoster,
+                  transferReport: report, previewToken: transferReviews.preview(body, identity, current.revision) }); return;
+              }
+              if (pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, current.revision);
+              await json(request, response, 200, { ...await viewEnvelope(await store.replace({ ...backup, state: mapped }, body.expectedRevision, { actor: identity.actor }), viewFor(request)), transferReport: report }); return;
             }
-            if (route === '/api/restore') { await json(request, response, 200, await viewEnvelope(await store.replace(await restoreBackup(body), body.expectedRevision, { actor: identity.actor }), viewFor(request))); return; }
             if (route === '/api/import/preview' || route === '/api/import') {
               const imported = convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry: ruleRegistry });
               const current = store.getState();
@@ -1829,7 +1880,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                   ...(importedFile?.uploaded ? { format: PLAY_VIEW, schemaVersion: 1, state: backupPreviewState(replacement.state) } : await viewEnvelope(replacement.state, viewFor(request))) });
               } else {
                 const state = await store.replace(imported.state, body.expectedRevision, { actor: identity.actor });
-                await json(request, response, 200, { ...await viewEnvelope(state, viewFor(request)), warnings: [...imported.warnings, ...migrationSummary(state).warnings] });
+                await json(request, response, 200, { ...await viewEnvelope(state, viewFor(request)), warnings: [...imported.warnings, ...migrationSummary(state).warnings], transferReport: transferReport(state, { world: indexedWorld, warnings: [...imported.warnings, ...migrationSummary(state).warnings] }) });
               }
               return;
             }

@@ -50,7 +50,7 @@ export function createUsageCounter({ storage, actor, width, now = () => new Date
 }
 
 const fixedDialogIds = new Map([
-  ['Settings', 'settings'], ['Chunk Rules', 'rules'], ['History', 'history'], ['Backup & Import', 'backup'],
+  ['Settings', 'settings'], ['Chunk Rules', 'rules'], ['History', 'history'], ['Export / Import', 'backup'], ['Backup & Import', 'backup'],
   ['Search', 'search'], ['OBS overlays', 'overlays'], ['Feedback', 'feedback'], ['About / Map sources', 'about'],
   ['What’s new', 'news'], ['Roadmap', 'roadmap'], ['Invite links', 'invites'], ['Sync from original picker', 'original-sync'],
   ['Apply rule profile', 'rules:profile-review'], ['Migration report', 'backup:migration-report'],

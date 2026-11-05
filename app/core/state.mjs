@@ -92,7 +92,7 @@ const COMMAND_KEYS = new Map([
   ['set-primary-override', new Set(['type', 'memberId', 'skill', 'enabled'])],
   ['set-skill-levels', new Set(['type', 'memberId', 'skill', 'passiveLevel', 'maxLevel'])],
   ['set-runescape-name', new Set(['type', 'memberId', 'name'])],
-  ['replace-member', new Set(['type', 'memberId', 'member', 'source'])],
+  ['replace-member', new Set(['type', 'memberId', 'member', 'source', 'tasks'])],
   ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests', 'source'])],
   ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests', 'achievements', 'items'])],
   ['sync-original', new Set(['type', 'capturedAt', 'sourceHash', 'members'])],
@@ -1857,6 +1857,15 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       record(payload.member, 'replacement member');
       if (payload.member.id !== payload.memberId) fail('The replacement map belongs to a different player');
       if (payload.source !== undefined && (typeof payload.source !== 'string' || payload.source.length > 120)) fail('Replacement source must be a short label');
+      if (payload.tasks !== undefined) {
+        uniqueRecords(payload.tasks, 'replacement tasks');
+        for (const task of payload.tasks) {
+          validateTask(task, new Set(next.members.map(m => m.id)));
+          if (next.tasks.some(row => row.id === task.id)) fail('Replacement task already exists');
+        }
+        next.tasks = [...next.tasks, ...jsonClone(payload.tasks)];
+        delete payload.tasks;
+      }
       next.members[index] = jsonClone(payload.member);
       // Undo keeps the previous map; History only needs a summary, not a second copy.
       payload.summary = { unlocked: payload.member.unlocked?.length ?? 0, completedTasks: payload.member.completedTasks?.length ?? 0 };

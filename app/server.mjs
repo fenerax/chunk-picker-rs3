@@ -445,19 +445,25 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           let opened;
           try {
             opened = await createPickerContext({ pickerId, dataDir: directory, runtime, prepareStateResponse: false,
-              initialState: initial, now, random, beforeCommit, retention, runeMetrics, progressSources, originalSync,
-              prepareState: state => {
-                if (JSON.stringify(state.members.map(member => member.id)) !== JSON.stringify(picker.memberIds)) throw httpError(403, 'Picker membership does not match its registry.');
+              initialState: initial, now, random, beforeCommit: async change => {
+                await beforeCommit?.(change);
+                if (change.operation === 'replace') await pickerRegistry.reserveTransferMembers(pickerId, change.state.members.map(m => m.id));
+              }, retention, runeMetrics, progressSources, originalSync,
+              prepareState: (state, { operation }) => {
+                const registered = pickerRegistry.getPicker(pickerId);
+                const ids = state.members.map(member => member.id);
+                const required = pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId));
+                if (required.some(id => !ids.includes(id)) || (operation !== 'replace' && ids.some(id => !registered.memberIds.includes(id)))) throw httpError(403, 'Picker membership does not match its registry.');
                 const identity = state.provenance?.dataset;
                 if (!identity || identity.id !== dataset.datasetId || identity.contractVersion !== dataset.datasetContractVersion || identity.digest !== dataset.digest) throw httpError(422, 'Choose a backup from this picker’s dataset.');
                 return state;
               },
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
-              pickerRouting: { sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
+              pickerRouting: { requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);
-            if (JSON.stringify(actual) !== JSON.stringify(picker.memberIds)) throw httpError(503, 'Picker membership does not match its registry.');
+            if (actual.some(id => !pickerRegistry.getPicker(pickerId).memberIds.includes(id))) throw httpError(503, 'Picker membership does not match its registry.');
             await opened.prepare(); opened.startBackground(); return opened;
           } catch (error) { await opened?.close(); throw error; }
         } });

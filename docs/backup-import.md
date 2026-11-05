@@ -1,5 +1,9 @@
 # Large portable backups
 
+The current player entry is **More → Export / Import**. See
+[Save transfer](save-transfer.md) for owned picker transfers, roster mapping,
+coverage, transfer reports and original-compatible chunk links.
+
 Backup & Import downloads `.json.gz` and accepts both `.json` and `.json.gz`,
 including the JSON extracted from the scheduled backup ZIP. The helper still
 uses the ordinary `/api/backup` JSON response; its ZIP format is unchanged.

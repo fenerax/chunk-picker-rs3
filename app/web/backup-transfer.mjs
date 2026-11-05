@@ -55,7 +55,7 @@ export function createBackupUpload(file, metadata = {}, { onStage = () => {} } =
     signal?.throwIfAborted();
     // Metadata stays small and separate, so Apply reuses the compressed file.
     return { method: 'POST', headers: { 'Content-Type': BACKUP_UPLOAD_TYPE, ...(gzip ? { 'Content-Encoding': 'gzip' } : {}),
-      'X-RS3-Import': JSON.stringify({ ...metadata, ...(this.expectedRevision !== undefined ? { expectedRevision: this.expectedRevision } : {}) }) }, body: blob };
+      'X-RS3-Import': JSON.stringify({ ...metadata, ...(this.expectedRevision !== undefined ? { expectedRevision: this.expectedRevision } : {}), ...(this.rosterMapping ? { rosterMapping: this.rosterMapping } : {}), ...(this.sourceMemberId ? { sourceMemberId: this.sourceMemberId } : {}), ...(this.previewToken ? { previewToken: this.previewToken } : {}) }) }, body: blob };
   }, async sendBackupRequest(path, signal, fetchRequest = globalThis.fetch, send = (path, options, transport) => transport(path, options)) {
     const request = await this.toBackupRequest({ signal });
     onStage('Uploading…');
