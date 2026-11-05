@@ -18,6 +18,15 @@ missing dependencies, links and unmodeled computed imports. Read the generated
 manifest for the exact inventory, including app helpers imported directly by tools. Unit
 files are installed separately; none of their paths changes.
 
+New manifests declare `contractVersion: 2`. The reviewed table in
+`scripts/linux/tools-contracts.mjs` fixes the entrypoints, closure roots and CLI
+probes for each supported version. Version 1 supports the earlier #128 package;
+only its exact entry inventory may identify an unversioned manifest. Unknown
+versions or changed inventories refuse even with recomputed hashes. Install,
+rollback and recovery verify each package against its own contract, so an older
+package does not need the newer alert or off-site CLIs. Add a new contract when
+changing these requirements, retaining the historical contracts for rollback.
+
 The selected release still supplies the application server and state decoder,
 compatibility identity/dataset seams, calculator/worker modules and their
 transitive dependencies. The prewarm launcher executes the selected release's

@@ -13,6 +13,7 @@ import { releaseVps } from '../scripts/release/vps/release.mjs';
 import { encode, exists, json, sha } from '../scripts/linux/files.mjs';
 import { runtimeCliChecks, toolsCliChecks } from '../scripts/linux/entrypoint-checks.mjs';
 import { buildLegacyTools, verifyLegacyTools } from '../scripts/linux/legacy-tools.mjs';
+import { toolsContracts, toolsContract, currentToolsContract } from '../scripts/linux/tools-contracts.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 async function fixture(t) {
@@ -29,6 +30,36 @@ async function sourceCopy(root) {
   }
   return { source, closure };
 }
+test('only reviewed package versions and exact entry inventories select closure roots and probes', async t => {
+  const scratch = await fixture(t), output = path.join(scratch, 'package'), { source } = await sourceCopy(scratch);
+  const manifest = await buildTools(source, output), file = path.join(output, 'tools-manifest.json');
+  assert.equal(manifest.contractVersion, currentToolsContract.version);
+  for (const contract of toolsContracts) {
+    assert.equal(toolsContract({ contractVersion: contract.version, entries: contract.entries }), contract);
+    assert.deepEqual(contract.closureRoots, contract.entries);
+  }
+  assert.equal(toolsContract({ entries: toolsContracts[0].entries }).version, 1);
+  const { toolsIdentity, ...body } = manifest;
+  const mutations = [
+    value => { value.contractVersion = 999; }, value => { value.contractVersion = '2'; },
+    value => { value.contractVersion = null; }, value => { value.contractVersion = 1; },
+    value => { delete value.contractVersion; }, value => { value.entries.pop(); },
+    value => { value.entries.push(value.entries[0]); }, value => { value.entries.reverse(); },
+    value => { value.entries.push('../outside.mjs'); }, value => { value.unreviewed = true; },
+    value => { value.boundaries = []; },
+  ];
+  for (const mutate of mutations) {
+    const changed = structuredClone(body); mutate(changed);
+    await writeFile(file, encode({ ...changed, toolsIdentity: sha(encode(changed)) }));
+    await assert.rejects(verifyTools(output), { code: 'TOOLS_HASH' });
+  }
+  await writeFile(file, JSON.stringify(manifest));
+  await assert.rejects(verifyTools(output), { code: 'TOOLS_HASH' });
+  await writeFile(file, encode(manifest));
+  await verifyTools(output);
+  for (const entries of [toolsContracts[0].entries.slice(1), [...toolsContracts[0].entries, toolsContracts[0].entries[0]],
+    [...toolsContracts[0].entries].reverse()]) assert.throws(() => toolsContract({ entries }), /Unknown/);
+});
 test('package is the exact runtime closure, including unit and child entrypoints; it loads without checkout fallbacks', async t => {
   const scratch = await fixture(t), { source, closure } = await sourceCopy(scratch), output = path.join(scratch, 'package');
   const manifest = await buildTools(source, output);

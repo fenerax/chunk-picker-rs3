@@ -6,12 +6,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { literalModuleReferences, moduleTokens } from '../private-companion/tooling-module-graph.mjs';
 import { encode, inventory, noLinks, outside, sha } from './files.mjs';
+import { currentToolsContract, toolsContract } from './tools-contracts.mjs';
 
-export const toolsEntrypoints = Object.freeze([
-  ...['operator', 'recovery', 'online', 'files', 'runtime', 'start-check', 'serve', 'probe',
-    'prewarm', 'rehearse', 'notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts', 'bootstrap-alerts', 'tools-package', 'tools-install'].map(name => `scripts/linux/${name}.mjs`),
-  'app/tasks/warm-store.mjs', 'scripts/release/vps/release.mjs', 'scripts/release/vps/review.mjs',
-]);
+export const toolsEntrypoints = currentToolsContract.entries;
 // Keys are exact expressions recognized by the existing tooling lexer. No
 // arbitrary computed import may be excused just because its owner is listed.
 const releaseLoaders = {
@@ -90,7 +87,7 @@ export async function toolsClosure(root, entries = toolsEntrypoints) {
 export async function buildTools(root, output) {
   root = path.resolve(root); output = path.resolve(output);
   outside(root, output); outside(output, root);
-  const closure = await toolsClosure(root);
+  const closure = await toolsClosure(root, currentToolsContract.closureRoots);
   await mkdir(output, { mode: 0o755 });
   for (const row of closure.files) {
     const target = path.join(output, row.path); await mkdir(path.dirname(target), { recursive: true, mode: 0o755 });
@@ -98,7 +95,7 @@ export async function buildTools(root, output) {
     if (sha(bytes) !== row.sha256) throw Error('Tools source changed during packaging.');
     await writeFile(target, bytes, { flag: 'wx', mode: 0o644 });
   }
-  const body = { format: 'picker-tools-v1', ...closure };
+  const body = { format: 'picker-tools-v1', contractVersion: currentToolsContract.version, ...closure };
   const manifest = { ...body, toolsIdentity: sha(encode(body)) };
   await writeFile(path.join(output, 'tools-manifest.json'), encode(manifest), { flag: 'wx', mode: 0o644 });
   await verifyTools(output);
@@ -107,12 +104,17 @@ export async function buildTools(root, output) {
 export async function verifyTools(root) {
   try {
   await noLinks(root);
-  const manifest = JSON.parse(await readFile(path.join(root, 'tools-manifest.json'), 'utf8'));
+  const bytes = await readFile(path.join(root, 'tools-manifest.json'), 'utf8');
+  const manifest = JSON.parse(bytes);
   const { toolsIdentity, ...body } = manifest;
   if (body.format !== 'picker-tools-v1' || toolsIdentity !== sha(encode(body))) throw Error('Tools manifest identity differs.');
+  const contract = toolsContract(manifest);
+  const canonical = { format: body.format, ...(Object.hasOwn(body, 'contractVersion') ? { contractVersion: contract.version } : {}),
+    entries: contract.entries, files: body.files, boundaries: body.boundaries, toolsIdentity };
+  if (bytes !== encode(canonical)) throw Error('Tools manifest is not canonical.');
   const actual = sort((await inventory(root)).filter(row => !row.directory && row.path !== 'tools-manifest.json'));
   if (encode(actual) !== encode(body.files)) throw Error('Tools manifest hashes differ.');
-  const closure = await toolsClosure(root);
+  const closure = await toolsClosure(root, contract.closureRoots);
   if (encode(closure) !== encode({ entries: body.entries, files: body.files, boundaries: body.boundaries })) throw Error('Tools import closure differs.');
   return manifest;
   } catch (error) {
