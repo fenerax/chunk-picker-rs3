@@ -118,7 +118,10 @@ the named condition or wait for its existing run to finish, then retry.
    with a symlink in one step; Python 3 with libc `renameat2` and a supporting
    filesystem are required. The old directory is retained as `legacy-<id>`.
    Later switches use atomic symlink rename. Installed hashes and import closure
-   are verified again after switching. No unit edits or daemon reload is needed.
+   are verified again after switching. A tools-only switch needs no unit edits
+   or daemon reload. Once the alerts/off-site units have been installed, use
+   [combined rollback](#combined-unit-timer-and-tools-rollback) instead: the new
+   backup OnSuccess, monitor and failure hooks require the new tools.
    Identity checks always resolve the installed writer unit's `User`/`Group`
    through systemd and NSS. Optional numeric settings must match both exactly;
    they cannot supply an alternate account. This also applies to rollback,
@@ -127,7 +130,9 @@ the named condition or wait for its existing run to finish, then retry.
    writer continues its already loaded code and release; **no writer restart
    is required for install or rollback**. The next ordinary service start loads
    the selected tools. The installer never starts a second writer.
-6. If rollback is needed, run the installer from the retained staged package:
+6. For a tools-only rollback with compatible units, run the installer from the
+   retained staged package. For an alerts/off-site downgrade, this command is
+   step 3 of the combined procedure below, not the whole rollback:
 
    ```sh
    sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /opt/node/bin/node /var/tmp/tools-package/scripts/linux/tools-install.mjs rollback /opt/chunk-picker/tools /var/lib/chunk-picker/control/tools-receipt-<id>.json
@@ -185,6 +190,247 @@ the named condition or wait for its existing run to finish, then retry.
    Optional `release.mjs --phase-dir <local-directory>` adds local transport
    timings; those are distinct from writer downtime. Review refusals print only
    `lock`, `maintenance`, `receipt`, `newest backup` or `digest`.
+
+## Install-day unit capture
+
+Run in a root Bash shell before the first new unit is installed. Keep this shell
+and its variables for the change. Use a new retained directory on every capture;
+never overwrite the prior capture. No OS servicing, unit generator, configuration
+manager or other operator may change picker units during capture or rollback.
+Inspect systemctl cat first: linked unit/drop-in content outside systemd's unit
+search paths must be captured separately with its metadata before proceeding.
+Do not proceed with transient/generated picker units; reconcile their persistent
+source first. The archive preserves masks, symlinks, drop-ins, modes, ownership,
+ACLs and xattrs, including enablement links under targets.
+
+```bash
+set -euo pipefail
+umask 077
+capture=$(mktemp -d /var/lib/chunk-picker/unit-capture-XXXXXXXX)
+systemd-analyze unit-paths > "$capture/unit-paths.txt"
+while IFS= read -r dir; do
+  [ ! -d "$dir" ] || readlink -e -- "$dir"
+done < "$capture/unit-paths.txt" | sort -u > "$capture/roots.txt"
+while IFS= read -r dir; do
+  find "$dir" -name 'chunk-picker*' -prune -print0
+done < "$capture/roots.txt" | sort -zu > "$capture/paths.nul"
+: > "$capture/definitions.nul"
+: > "$capture/enablement.nul"
+while IFS= read -r -d '' entry; do
+  case "$entry" in *.wants/*|*.requires/*|*.upholds/*) list=enablement;; *) list=definitions;; esac
+  printf '%s\0' "$entry" >> "$capture/$list.nul"
+done < "$capture/paths.nul"
+tar --create --file="$capture/units.tar" --absolute-names \
+  --acls --xattrs --numeric-owner --null --files-from="$capture/definitions.nul"
+tar --create --file="$capture/enablement.tar" --absolute-names \
+  --acls --xattrs --numeric-owner --null --files-from="$capture/enablement.nul"
+systemctl list-unit-files 'chunk-picker*' --no-legend --no-pager > "$capture/unit-files.txt"
+systemctl list-units 'chunk-picker*' --all --plain --no-legend --no-pager > "$capture/units.txt"
+awk '{print $1}' "$capture/unit-files.txt" "$capture/units.txt" | sort -u > "$capture/names.txt"
+while IFS= read -r unit; do
+  case "$unit" in *@.*)
+    printf 'Id=%s\nActiveState=not-applicable-template\n' "$unit"
+    ;; *) systemctl show "$unit" -p Id -p LoadState -p UnitFileState -p ActiveState -p SubState;;
+  esac
+done < "$capture/names.txt" > "$capture/state.txt"
+while read -r unit enabled preset; do
+  case "$unit" in *@.*) ;; *.timer)
+    active=$(systemctl show "$unit" -p ActiveState --value)
+    case "$active" in active|inactive) ;; *) echo "Reconcile timer $unit: $active" >&2; exit 1;; esac
+    printf '%s\t%s\t%s\n' "$unit" "$enabled" "$active"
+  esac
+done < "$capture/unit-files.txt" > "$capture/timers.tsv"
+(cd "$capture"; sha256sum units.tar enablement.tar definitions.nul enablement.nul unit-paths.txt roots.txt paths.nul \
+  unit-files.txt units.txt names.txt state.txt timers.tsv > SHA256SUMS)
+chmod 0600 "$capture"/*
+printf 'Retain capture: %s\n' "$capture"
+```
+
+Inspect both archive listings (`tar --list --absolute-names -f "$capture/units.tar"`
+and the same command for enablement.tar) and SHA256SUMS before installing units.
+Keep enablement.tar separate so schedules are restored only after tools. Record this capture path, the staged
+installer path, approved package identity and exact tools install receipt in the
+private change record. The directory is root-only (0700); keep it through the
+rollback hold. Captured service active states are evidence, not instructions to
+restart services. Preserve the running writer throughout.
+
+## Combined unit, timer and tools rollback
+
+Use this after the alerts/off-site units were installed. Credentials, configs,
+restic binary/repository and all recovery evidence remain untouched. Never
+delete locks or maintenance/transaction evidence, kill an owner, or restart the
+writer to force a switch. On a refusal, retain the stopped schedules and
+reconcile the named condition with the retained staged installer/recovery path.
+
+1. Before changing anything, run the capture block again to retain the complete
+   **new** unit set and intended timer states for re-install. Save its path as
+   `forward`. Set `prior` to the install-day capture, and validate both checksum
+   lists. Use literal retained paths from the change record:
+
+   ```bash
+   forward="$capture"
+   prior=/var/lib/chunk-picker/unit-capture-PRIOR
+   (cd "$prior"; sha256sum --check SHA256SUMS)
+   (cd "$forward"; sha256sum --check SHA256SUMS)
+   systemctl disable --now chunk-picker-monitor.timer chunk-picker-offhost.timer
+   systemctl stop chunk-picker-backup.timer chunk-picker-health.timer
+   # Drain jobs without stopping their services, including notification instances.
+   while systemctl list-units 'chunk-picker*' --type=service \
+     --state=active,activating,deactivating,reloading --plain --no-legend --no-pager \
+     | awk '$1 != "chunk-picker.service" {found=1} END {exit !found}'; do
+     sleep 1
+   done
+   systemctl list-jobs --no-pager
+   ```
+
+   Inspect queued jobs and wait for any picker job to finish before continuing.
+   Confirm operation.lock and offhost.lock have no running owner, including
+   direct CLI owners outside systemd. If an owner appears, wait for completion
+   and repeat the checks. Do not delete a stale-looking record; guarded tools
+   acquisition/recovery decides whether it can be reclaimed. Keep all four
+   schedules stopped until tools and units match.
+
+2. Restore exactly the captured unit files/drop-ins, removing matching entries
+   that did not exist before. This removes new monitor/off-site/failure-hook
+   units and drop-ins too. Only picker paths under systemd's search roots are
+   removed; unrelated units are untouched. The writer remains running:
+
+   ```bash
+   restore="$prior"
+   (cd "$restore"; sha256sum --check SHA256SUMS)
+   # Include current roots so a newly introduced picker unit cannot survive.
+   { cat "$restore/roots.txt"; systemd-analyze unit-paths; } > "$forward/restore-roots.raw"
+   while IFS= read -r dir; do
+     [ ! -d "$dir" ] || readlink -e -- "$dir"
+   done < "$forward/restore-roots.raw" | sort -u > "$forward/restore-roots.txt"
+   while IFS= read -r dir; do
+     [ ! -d "$dir" ] || find "$dir" -name 'chunk-picker*' -prune -print0
+   done < "$forward/restore-roots.txt" | sort -zu > "$forward/remove-paths.nul"
+   while IFS= read -r -d '' entry; do rm -rf -- "$entry"; done < "$forward/remove-paths.nul"
+   tar --extract --file="$restore/units.tar" --absolute-names \
+     --acls --xattrs --numeric-owner --same-owner --same-permissions
+   systemctl daemon-reload
+   tar --compare --file="$restore/units.tar" --absolute-names
+   ```
+
+   Inspect `systemctl cat chunk-picker.service chunk-picker-backup.service
+   chunk-picker-health.service`: legacy units must have no new OnSuccess or
+   OnFailure CLI dependency. Compare the installed picker path list with the
+   captured list, including drop-ins. Do not clear failed units as a substitute
+   for investigating a failure.
+
+3. Restore tools with the retained **new staged** installer, existing operator
+   config and exact install receipt, using the rollback command above. Retain
+   its new rollback receipt and verify the selected tree. If several later
+   installs exist, follow their matching receipts newest first; never guess a
+   legacy destination or alter a receipt. If interrupted, keep schedules stopped
+   and use the staged recover command. Recovery alone does not complete the
+   combined procedure; recheck both units and selection before proceeding.
+
+4. Restore the captured enablement links now that tools and units match. Unit
+   masks were preserved with their definitions in step 2. Verify enablement
+   against the capture, then restore each captured timer's active state.
+   This preserves enabled-but-stopped and disabled-but-active timers as well:
+
+   ```bash
+   tar --extract --file="$restore/enablement.tar" --absolute-names \
+     --acls --xattrs --numeric-owner --same-owner --same-permissions
+   systemctl daemon-reload
+   tar --compare --file="$restore/enablement.tar" --absolute-names
+   while IFS= read -r dir; do
+     find "$dir" -name 'chunk-picker*' -prune -print0
+   done < "$restore/roots.txt" | sort -zu > "$restore/restored-paths.nul"
+   cmp "$restore/paths.nul" "$restore/restored-paths.nul"
+   while read -r unit enabled active; do
+     actual=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+     [ "$actual" = "$enabled" ] || { echo "Enablement mismatch: $unit" >&2; exit 1; }
+     case "$active" in active) systemctl start "$unit";; inactive) systemctl stop "$unit";; esac
+     [ "$(systemctl show "$unit" -p ActiveState --value)" = "$active" ]
+   done < "$restore/timers.tsv"
+   systemctl list-timers 'chunk-picker*' --all --no-pager
+   ```
+
+   Timers absent from the prior capture must remain absent and disabled. Check
+   `systemctl list-unit-files 'chunk-picker*'` against unit-files.txt. Persistent
+   timers may immediately start catch-up work; wait for its owner before tests.
+
+5. Run a real `systemctl start chunk-picker-backup.service`; require a newly
+   created recovery directory and verify it with the retained staged
+   recovery.mjs `verifyBackup` export. A skipped command or old status file is
+   insufficient. Wait until the writer has been up for at least five minutes
+   (ActiveEnterTimestampMonotonic compared to /proc/uptime), then start
+   chunk-picker-health.service. Require a fresh `Operator command completed.`
+   journal entry and successful service result; legacy tools may not write the
+   new health-status.json or dead-man ping. With new tools, also require fresh
+   result=success and a health receipt. Confirm authenticated private health
+   reports ready and savesReady, the writer PID/NRestarts match the baseline,
+   no pending gates remain, and timer enablement/active state matches the
+   capture. Inspect backup dependencies: no absent off-site CLI may be launched.
+
+   For example, with `staged` set to the retained new package, this verifies
+   **new** recovery directories and private readiness using existing exports.
+   Run after timer catch-up work has drained, with RS3_OPERATOR_CONFIG exported:
+
+   ```bash
+   export RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json
+   staged=/var/tmp/tools-package
+   /opt/node/bin/node --input-type=module --eval "$(cat <<'NODE'
+   import { readdir } from 'node:fs/promises';
+   import { execFileSync } from 'node:child_process';
+   import { pathToFileURL } from 'node:url';
+   const root = process.argv[1];
+   const load = name => import(pathToFileURL(`${root}/scripts/linux/${name}.mjs`));
+   const { operatorSettings, readRelease } = await load('runtime');
+   const { verifyBackup } = await load('recovery');
+   const { privateRequest } = await load('operator');
+   const settings = await operatorSettings(), before = await readdir(settings.backupDir);
+   execFileSync('systemctl', ['start', 'chunk-picker-backup.service']);
+   const fresh = (await readdir(settings.backupDir)).filter(n => n.startsWith('recovery-') && !before.includes(n));
+   if (!fresh.length) throw Error('No new recovery backup');
+   for (const name of fresh) await verifyBackup(`${settings.backupDir}/${name}`);
+   const release = await readRelease(settings.current, settings.dataDir);
+   let health = await privateRequest(release, '/api/health');
+   if (!health.ready && health.worker?.status === 'sleeping') {
+     const view = await privateRequest(release, '/api/state');
+     await privateRequest(release, '/api/tasks?memberId=' + encodeURIComponent(view.state.members[0].id));
+     health = await privateRequest(release, '/api/health');
+   }
+   if (!health.ready || !health.savesReady) throw Error('Writer not ready');
+   console.log('Fresh backup verified; writer ready and savesReady');
+   NODE
+   )" "$staged"
+   ```
+
+   After the grace, record the time, run health and inspect only that run:
+
+   ```bash
+   since=$(date --iso-8601=seconds)
+   systemctl start chunk-picker-health.service
+   systemctl show chunk-picker-health.service -p Result -p ExecMainStatus
+   journalctl -u chunk-picker-health.service --since "$since" --no-pager -o cat
+   systemctl show chunk-picker.service -p MainPID -p NRestarts -p ActiveState
+   ```
+
+## Re-install after combined rollback
+
+Keep OS servicing idle and use the same exclusion and owner-drain checks.
+Stop the restored backup/health timers (and any other captured active picker
+timers) without stopping services. Retain the rollback evidence.
+
+1. Verify the approved retained package and use its staged tools-install.mjs
+   `install /opt/chunk-picker/tools /var/tmp/tools-package` command with the
+   existing configuration. Retain the new receipt; never copy tools in place.
+2. Set `restore="$forward"` and repeat step 2's unit restoration block, omitting
+   its first `restore="$prior"` assignment. This restores all ten new templates
+   and their captured drop-ins exactly. Verify their root ownership/modes and
+   loaded OnSuccess/OnFailure targets. Do not reinitialize restic or republish
+   credentials/configs.
+3. Repeat step 4 with `restore="$forward"` to restore intended enablement and
+   activity for all four timers. Repeat step 5: real backup, automatic off-site
+   completion, acted-on health after grace, private readiness, package/unit
+   verification and intended timers. Require fresh backup/offhost/health success
+   statuses and all three dead-man receipts; check live acceptance separately.
+   Restore the recorded OS servicing state after verification.
 
 # Independent server alerts and encrypted B2 recovery
 
@@ -281,7 +527,16 @@ installation. Never put credential values in a command, transcript or shell
 history; use file contents/stdin. Do not remove maintenance evidence to make a
 check pass.
 
-1. Pass the disposable rehearsal from this branch. It now installs the pinned
+1. Finish OS servicing and any required reboot before the change. Record the
+   enablement/active state of apt-daily.timer, apt-daily-upgrade.timer and
+   unattended-upgrades.service. Allow running apt/dpkg work to finish; do not
+   interrupt it. During measurements, stop and runtime-mask the apt timers and
+   stop unattended-upgrades only after servicing is idle. Restore their recorded
+   state after verification, removing only masks added for this change. Record
+   the writer PID and NRestarts; an unrelated restart invalidates continuity
+   and downtime measurements.
+
+   Pass the disposable rehearsal from this branch. It now installs the pinned
    restic binary, exercises monitor/notifier against a loopback HTTP receiver on
    an OS-assigned port, and backs up/restores/checks/prunes an encrypted **local** restic
    repository. No service account calls are made by that rehearsal. Its report
@@ -358,7 +613,17 @@ check pass.
    30-minute grace; backup and off-site each use a 24-hour period plus 12-hour
    grace. Configure Discord/email recipients for all three in Healthchecks and
    verify their association. Revoke the temporary B2 setup key after verification.
-5. Install all ten matching unit/timer files with root ownership and mode 0644,
+5. Before replacing any unit, run [install-day capture](#install-day-unit-capture).
+   Retain its directory and the tools install receipt together in the private
+   change record. Inspect every effective ReadWritePaths with systemctl cat,
+   including drop-ins. Confirm the operator's data/control, backupDir and
+   scratchRoot directories exist with their reviewed ownership and permissions;
+   the templates need /var/lib/chunk-picker and /var/backups/chunk-picker.
+   Create missing directories from the approved configuration before starting
+   units. Do not use a leading '-' to hide a missing required writable path.
+   Fresh-machine namespace failures are setup failures, not successful probes.
+
+   Install all ten matching unit/timer files with root ownership and mode 0644,
    including the writer's OnFailure change:
 
    ```sh
@@ -416,12 +681,23 @@ check pass.
    upload; make a fresh backup after activation. Failed upload/check retains
    local and existing remote restore points. Healthchecks ping failure never
    changes a successful job to failed.
+   Before release derive or accept, wait for the automatic uploader to finish
+   source selection and release operation.lock. Check the owner and retry a
+   guarded refusal; never stop the owner or delete its lock. Waiting for the
+   complete off-site service to become inactive is a conservative alternative.
+   Record that wait separately from derive/accept and writer downtime.
 9. Enable/start the backup, health, monitor and off-site timers:
 
    ```sh
    sudo systemctl enable --now chunk-picker-backup.timer chunk-picker-health.timer chunk-picker-monitor.timer chunk-picker-offhost.timer
    sudo systemctl start chunk-picker-health.service chunk-picker-monitor.service
    ```
+
+   Wait at least five minutes from the writer's latest startup before requiring
+   an acted-on health run. Within the grace, exit 0 can mean skipped. After the
+   grace, start health again and require a fresh health-status.json with
+   result=success (not skipped), a completion journal entry and a new health
+   dead-man receipt. A PID change restarts the grace.
 
    The monitor observes every five minutes, even if health skips an inactive
    writer. It warns at 36-hour source/delivery age and escalates at 48 hours;
@@ -432,6 +708,16 @@ check pass.
    The retry timer runs hourly at minute 30 with up to five minutes jitter and
    Persistent=yes, independent of local backup success. It skips a busy operator
    and retries later. Observe one scheduled run and all three dead-man timestamps.
+
+   Live acceptance also requires human receipt of the webhook and Healthchecks
+   integration test, fresh external health/backup/off-site dead-man timestamps,
+   verified B2 restricted-key capabilities and 31-day hidden-version lifecycle,
+   and a recovery item retrievable independently of this server and PC. Record
+   readiness/saves-ready, the selected tools identity, exact unit metadata and
+   intended timer states, fresh verified local backup and remote restore/check
+   evidence, and absence of pending operation/maintenance/transaction gates.
+   Synthetic loopback receipts and local restic encryption do not satisfy the
+   external or human acceptance checks.
 
 Notification state is durable under controlDir, with deduplication, recovery
 messages, at most four delivery attempts per ten minutes and at least 30 seconds
