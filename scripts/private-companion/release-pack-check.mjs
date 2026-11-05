@@ -251,7 +251,9 @@ export async function probe(core, dataDir, output, { retention } = {}) {
   } finally { await app.close(); }
 }
 // Self-contained: this module is also copied flat into PC kits.
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+// Eval imports are never CLI entrypoints, even when eval has positional args.
+const evaluated = process.execArgv.some(arg => /^(?:-e|-p|--eval|--print)(?:=|$)/.test(arg));
+if (!evaluated && process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     if (process.argv[2] === 'probe') await probe(...process.argv.slice(3));
     else if (process.argv[2] === 'check') await checkPackTransition({ fromConfig: process.argv[3], toConfig: process.argv[4], transition: process.argv[5], output: process.argv[6] });

@@ -357,7 +357,9 @@ export async function prepareSwap({ current, releaseDir }) {
 }
 
 // Self-contained: this module is also copied flat into PC kits.
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+// Eval imports are never CLI entrypoints, even when eval has positional args.
+const evaluated = process.execArgv.some(arg => /^(?:-e|-p|--eval|--print)(?:=|$)/.test(arg));
+if (!evaluated && process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     const { positionals: [command], values } = parseArgs({ allowPositionals: true, options: {
       repo: { type: 'string' }, commit: { type: 'string' }, current: { type: 'string' }, releases: { type: 'string' },
