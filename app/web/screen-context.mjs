@@ -63,6 +63,7 @@ export function createScreenContext() {
     normalPlayResults: undefined,
     noticeTimer: undefined,
     originalSync: undefined,
+    originalPasteEnabled: false,
     owners: undefined,
     panelContext: undefined,
     pendingChunkChanges: undefined,

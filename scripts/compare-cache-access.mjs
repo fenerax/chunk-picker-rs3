@@ -36,7 +36,7 @@ export function observeTaskViews(state, memberId, result, controls = {}) {
   node('show-all').checked = controls.showAll ?? false;
   node('show-blocked').checked = controls.showBlocked ?? false;
   node('task-filter').value = controls.filter ?? '';
-  const context = createContext({ state, startupSnapshot: undefined, taskDisplayState: () => state, memberId, result, taskHover: undefined, taskFocus: undefined, duoHovers: new Map(), duoTaskView: undefined, duoInspectionCache: undefined, copyLists: undefined, tickActiveTasks: undefined, duoEnabled: () => false, member: () => member, preferences: () => prefs,
+  const context = createContext({ state, originalPasteEnabled: false, startupSnapshot: undefined, taskDisplayState: () => state, memberId, result, taskHover: undefined, taskFocus: undefined, duoHovers: new Map(), duoTaskView: undefined, duoInspectionCache: undefined, copyLists: undefined, tickActiveTasks: undefined, duoEnabled: () => false, member: () => member, preferences: () => prefs,
     sandbox: { active: false, signature: () => '' }, isCustomTask, personalCustomTaskRows,
     createTaskPinChecker, activeTaskFilters: () => ({ select(rows, options, { search = '' } = {}) {
       const selected = selectTaskFilters(rows, { ...options, filters: controls.taskFilters }).rows;

@@ -6,10 +6,10 @@ function browserProvenance(provenance) {
   if (projections.has(provenance)) return projections.get(provenance);
   const incoming = provenance.restore?.incomingProvenance;
   const projectedIncoming = browserProvenance(incoming);
-  const changed = Object.hasOwn(provenance, 'taskIdentityMigration') || incoming !== projectedIncoming;
+  const changed = Object.hasOwn(provenance, 'originalPasteImports') || Object.hasOwn(provenance, 'taskIdentityMigration') || incoming !== projectedIncoming;
   let display = provenance;
   if (changed) {
-    const { taskIdentityMigration, ...retained } = provenance;
+    const { taskIdentityMigration, originalPasteImports, ...retained } = provenance;
     display = retained;
     if (incoming !== projectedIncoming) display.restore = { ...provenance.restore, incomingProvenance: projectedIncoming };
   }

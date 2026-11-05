@@ -17,6 +17,8 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 export const quickTests = new Set([
   "ci-file-ledger.test.mjs",
   "ci-test-telemetry-failures.test.mjs",
+  "original-paste.test.mjs",
+  "original-paste-server.test.mjs",
   "save-transfer.test.mjs",
   "save-transfer-server.test.mjs",
   "session-residency.test.mjs",
@@ -369,6 +371,7 @@ const fullOnlyTests = new Set([
   "save-transfer-wide-hook.test.mjs",
   "save-transfer-regressions.test.mjs",
   "save-transfer-responsiveness.test.mjs",
+  "original-paste-responsiveness.test.mjs",
   "save-transfer-platform-durability.test.mjs",
   "platform-rollback.test.mjs",
   "prewarm-process-tree.test.mjs",
@@ -604,6 +607,7 @@ export const soloTests = new Set([
   "retained-unsupported-corrections.test.mjs",
   "runemetrics-server.test.mjs",
   "save-transfer-responsiveness.test.mjs",
+  "original-paste-responsiveness.test.mjs",
   "scheduling-server.private.test.mjs",
   "server-reliability.private.test.mjs",
   "server.test.mjs",
@@ -619,6 +623,9 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "original-paste.test.mjs",
+  "original-paste-server.test.mjs",
+  "original-paste-responsiveness.test.mjs",
   "warm-restart-server.test.mjs",
   "multi-picker-capacity.test.mjs",
   "calculator-bundle.test.mjs",
