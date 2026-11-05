@@ -1,4 +1,3 @@
-// Comment-only calculator change makes Q2 relevant for the temporary CI independence proof.
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warnings.mjs';

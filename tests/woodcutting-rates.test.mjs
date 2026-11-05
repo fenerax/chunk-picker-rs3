@@ -11,7 +11,6 @@ const close = (actual, expected, tolerance = 1e-10) => assert.ok(Math.abs(actual
 const fixture = async name => JSON.parse(await readFile(new URL(`./fixtures/woodcutting/${name}.json`, import.meta.url), 'utf8'));
 
 test('versioned catalogue regenerates byte-for-byte and stays below30KB gzip', async () => {
-  assert.fail('Deliberate ordinary-suite failure for differential independence proof; revert after CI.');
   assert.deepEqual(generateWoodcuttingCatalogue(), data);
   const json = await readFile(new URL('../app/data/training/woodcutting-rates.v1.json', import.meta.url), 'utf8');
   assert.equal(json, `${JSON.stringify(generateWoodcuttingCatalogue())}\n`);
