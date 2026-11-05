@@ -105,8 +105,15 @@ async function runHealth(t, f, phase, fail) {
   assert.equal(signal, null); assert.equal(stderr, '');
   return { code, ...JSON.parse(stdout) };
 }
+// Boot runs the real transaction-evidence gate in a fresh process. The unit
+// account and service-access half of start-check needs root and an installed
+// unit; warm-candidate.test.mjs covers it with injected identities.
+const bootCode = `import { checkStart } from ${JSON.stringify(bootFile.href)};
+  import { operatorSettings } from ${JSON.stringify(new URL('../scripts/linux/runtime.mjs', import.meta.url).href)};
+  try { await checkStart(await operatorSettings()); }
+  catch { process.stderr.write('Service start blocked; reconcile maintenance evidence privately.\\n'); process.exitCode = 1; }`;
 async function boot(f) {
-  return execute(process.execPath, [bootFile.pathname], { env: { ...process.env, RS3_OPERATOR_CONFIG: f.config } });
+  return execute(process.execPath, ['--input-type=module', '-e', bootCode], { env: { ...process.env, RS3_OPERATOR_CONFIG: f.config } });
 }
 
 for (const phase of ['partial', 'written', 'durable', 'published']) {
