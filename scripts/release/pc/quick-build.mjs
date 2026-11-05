@@ -357,9 +357,11 @@ export async function prepareSwap({ current, releaseDir }) {
 }
 
 // Self-contained: this module is also copied flat into PC kits.
+// Eval imports are never CLI entrypoints, even when eval has positional args.
 function isCliEntry() {
+  if (process.execArgv.some(arg => /^(?:-e|-p|--eval|--print)(?:=|$)/.test(arg))) return false;
   try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
-  catch { return false; } // Eval/import callers may pass a non-path argument.
+  catch { return false; } // Import callers may pass a non-path argument.
 }
 if (isCliEntry()) {
   try {
