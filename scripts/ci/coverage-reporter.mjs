@@ -43,7 +43,8 @@ export function createCoverageReporter({ lane = 'test', cwd = process.cwd(), fil
     const counts = result.summary?.counts;
     if (!counts || ['tests', 'suites', 'passed', 'failed', 'cancelled', 'skipped', 'todo', 'topLevel'].some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0)) throw new Error('Missing native coverage counts');
     if (counts.tests !== counts.passed + counts.failed + counts.cancelled + counts.skipped + counts.todo) throw new Error('Inconsistent native coverage counts');
-    completed.set(file, { file, passed: result.passed, counts: { ...counts } });
+    const timings = Object.fromEntries(['processWallMs', 'fileWallMs', 'bodyMs'].filter(key => Number.isFinite(result[key])).map(key => [key, result[key]]));
+    completed.set(file, { file, passed: result.passed, counts: { ...counts }, ...timings });
   };
   const report = ({ passed = [...completed.values()].every(item => item.passed) } = {}) => {
     if (typeof passed !== 'boolean') throw new Error('Coverage passed must be boolean');

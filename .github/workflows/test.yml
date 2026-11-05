@@ -93,6 +93,16 @@ jobs:
         env:
           RS3_COVERAGE_REPORT: ${{ runner.temp }}/test.json
           RS3_COVERAGE_LANE: test
+          RS3_TEST_FILE_LEDGER: ${{ runner.temp }}/test-ledger.jsonl
+      - name: Keep file telemetry
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-ledger-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/test-ledger.jsonl
+          retention-days: 35
+          if-no-files-found: warn
       - name: Keep per-test results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -132,6 +142,15 @@ jobs:
       - name: Windows-bound tests
         shell: pwsh
         run: ./.github/windows-slice/run.ps1 -Checkout . -Work "${{ runner.temp }}/ws"
+      - name: Keep file telemetry
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-ledger-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ws/windows-ledger.jsonl
+          retention-days: 35
+          if-no-files-found: warn
       - name: Keep the summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

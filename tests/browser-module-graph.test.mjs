@@ -47,8 +47,9 @@ test('real browser entry and optional full-state tools serve every module depend
       } else if (/\.mjs(?:\?|$)/.test(route)) {
         assert.match(response.headers.get('content-type'), /javascript/, route);
         for (const match of source.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)["']([^"']+)["']/g)) {
-          // These dynamic imports execute only in dataset-runtime's Node branch.
-          if (route === '/dataset-runtime.mjs' && ['./datasets.mjs', './dataset-inputs.mjs', 'node:worker_threads'].includes(match[1])) continue;
+          // These dynamic imports execute only in dataset-runtime's Node branches,
+          // including the opt-in CI dataset receipt writer.
+          if (route === '/dataset-runtime.mjs' && ['./datasets.mjs', './dataset-inputs.mjs', 'node:worker_threads', 'node:fs'].includes(match[1])) continue;
           assert.ok(match[1].startsWith('.'), `Browser-safe import in ${route}: ${match[1]}`);
           enqueue(match[1], route);
         }
