@@ -322,7 +322,7 @@ test('bank parts assemble in order, tick owned goals and are acknowledged once c
   assert.equal(f.controller.list(identity).keys[0].bankSeenAt, later);
 });
 
-test('coins on hand add pouch, backpack and bank on live worlds, only when the total changes', async t => {
+test('coins on hand count pouch and backpack on live worlds, only when the total changes', async t => {
   const f = await fixture(t);
   const coins = () => f.state.members[0].transportFacts?.currencies?.coins;
   const writes = () => f.commands.filter(command => command.type === 'set-transport-facts').length;
@@ -337,9 +337,24 @@ test('coins on hand add pouch, backpack and bank on live worlds, only when the t
   assert.equal(coins(), 2000082194, 'At most one write a minute');
   f.advance(60000);
   await f.send(value('2223456789abcdef', 100, null));
-  assert.equal(coins(), 2000087194, 'An unreadable pouch keeps its last count; the bank adds in');
-  assert.equal(writes(), 2);
+  assert.equal(coins(), 2000082194, 'An unreadable pouch keeps its last count; cached bank funds are excluded');
+  assert.equal(writes(), 1);
   assert.doesNotThrow(() => validateState(f.state));
+});
+
+for (const age of [0, 3600]) test(`withdrawing the last bank coins never counts the cached stack twice (age ${age})`, async t => {
+  const f = await fixture(t, { durable: true });
+  const coins = () => f.state.members[0].transportFacts?.currencies?.coins;
+  await f.sendBank(bank(1, 1, [[995, 5000]], { age }));
+  // The sender cannot distinguish an empty bank from an unreadable one. It
+  // retains the previous nonempty snapshot after the final stack is withdrawn.
+  await f.send({ ...items({ backpack: [[0, 995, 2000, 'Coins']] }), pouch: [[0, 995, 3000, 'Coins']] });
+  assert.equal(coins(), 5000, 'The stale bank cannot add to current carried coins');
+  await f.restart();
+  await f.send({ ...items({ backpack: [[0, 995, 2000, 'Coins']] }), pouch: [[0, 995, 3000, 'Coins']] });
+  assert.equal(coins(), 5000, 'A persisted bank snapshot cannot become spendable on restart');
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
+  assert.equal(saved.players.a.bank.coins, 5000, 'Historical bank evidence is retained');
 });
 
 // Real durable store: a four-field event must never borrow the delivery world's provenance.

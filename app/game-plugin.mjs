@@ -251,12 +251,13 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     itemReview(player, report, result);
   }
   const coinCount = (rows, billions = false) => (rows ?? []).reduce((sum, [, id, count]) => sum + (id === COINS ? count : billions && id === COIN_BILLIONS ? count * 1e9 : 0), 0);
-  // Coins on hand: pouch, backpack and the last bank the plugin saw. Live worlds only, written
-  // only when the total changes and at most once a minute, so History isn't one entry per drop.
+  // Only carried coins are authoritative. A cached bank snapshot cannot distinguish
+  // a closed/unreadable bank from a bank emptied by a withdrawal, even at age zero.
+  // Live worlds only, written on change and at most once a minute.
   async function updateCoins(player, world) {
     const coins = itemCoins.get(player);
     if (world !== 'live' || !coins || coins.pouch === null || coins.backpack === null) return;
-    const total = Math.min(1e12, coins.pouch + coins.backpack + (coins.bank ?? 0)), owner = member(player);
+    const total = Math.min(1e12, coins.pouch + coins.backpack), owner = member(player);
     if (owner.transportFacts?.currencies?.coins === total || clock() - (coins.writtenAt ?? -Infinity) < COIN_WRITE_INTERVAL) return;
     const facts = structuredClone(owner.transportFacts ?? {});
     facts.currencies = { ...facts.currencies, coins: total };

@@ -235,6 +235,12 @@ The Game plugin dialog shows each player's current part count, last complete
 achievement count, matched task count and last automatic batch's count and time.
 These summaries are in memory only and visible with that player's keys.
 
+Cached bank coins are historical observations, not authoritative current funds.
+Transport currency counts only the live pouch and backpack. The current protocol
+cannot reliably distinguish an empty bank from an unavailable read; including
+the retained bank count can count a withdrawn stack twice, even with age zero.
+Bank item evidence and its observation time are still retained separately.
+
 ### Worn and backpack items
 
 Send `items` only when status `accepts` lists `"items"`, in a report without
