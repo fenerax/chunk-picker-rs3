@@ -2,7 +2,7 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { setupB2, lifecycle, uploadCapabilities } from '../scripts/ops/setup-b2.mjs';
 import { setupHealthchecks, checks } from '../scripts/ops/setup-healthchecks.mjs';
@@ -11,7 +11,7 @@ import { deploymentIdentity, installSecrets, installedB2Id, sshAlias, verifyDepl
 import { setupDiscord } from '../scripts/ops/setup-discord.mjs';
 import { fingerprint, captureIdentity, verifyHost, pinnedSsh } from '../scripts/ops/deployment-identity.mjs';
 import { installRestic } from '../scripts/ops/install-restic.mjs';
-import { sha } from '../scripts/linux/files.mjs';
+import { inventory, sha } from '../scripts/linux/files.mjs';
 import { publishConfig } from '../scripts/linux/bootstrap-alerts.mjs';
 const base = fileURLToPath(new URL('../.local/ops-setup-tests/', import.meta.url));
 let pinDir, pinFile;
@@ -86,6 +86,7 @@ test('B2 setup is idempotent, scopes keys, stores recovery before server install
 });
 test('Linux secret transaction preserves existing values, refuses links and publishes rotation with explicit modes', { skip: process.platform !== 'linux' }, async t => {
   const input = await fixture(t, '{}'), dir = path.dirname(input), base = path.join(dir, 'secrets');
+  let killAtPublication = false;
   await writeFile(path.join(dir, 'deployment.json'), JSON.stringify(deploymentIdentity('picker-vps')));
   const execute = (_command, args, payload) => {
     if (machineReply(args)) return machineReply(args);
@@ -93,10 +94,12 @@ test('Linux secret transaction preserves existing values, refuses links and publ
     const encoded = args.at(-1).match(/b64decode\('([^']+)'\)/)[1];
     // Keep the production transaction intact; substitute only the synthetic
     // filesystem root and its unprivileged test owner (CI runs as a non-root user).
-    const program = Buffer.from(encoded, 'base64').toString().replaceAll('/etc/chunk-picker', dir)
+    let program = Buffer.from(encoded, 'base64').toString().replaceAll('/etc/chunk-picker', dir)
       .replace("['/etc',", '[').replaceAll('os.geteuid()!=0', `os.geteuid()!=${process.getuid()}`)
       .replaceAll('s.st_uid!=0', `s.st_uid!=${process.getuid()}`).replaceAll('os.chown(tmp,0,0)', `os.chown(tmp,${process.getuid()},${process.getgid()})`)
+      .replaceAll('candidate.st_uid==0', `candidate.st_uid==${process.getuid()}`)
       .replaceAll('os.chown(target,0,0)', `os.chown(target,${process.getuid()},${process.getgid()})`);
+    if (killAtPublication) program = program.replace('else: os.link(tmp,target)', 'else: os.link(tmp,target);os.kill(os.getpid(),9)');
     return execFileSync('python3', ['-c', program], { input: payload, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8' });
   };
   const webhook = suffix => 'https://' + 'discord.com/api/webhooks/synthetic/' + suffix;
@@ -108,6 +111,18 @@ test('Linux secret transaction preserves existing values, refuses links and publ
   assert.equal((await readFile(target, 'utf8')).trim(), webhook('first'));
   installSecrets('picker-vps', { 'discord-webhook': webhook('second') }, execute, { rotate: ['discord-webhook'] });
   assert.equal((await readFile(target, 'utf8')).trim(), webhook('second')); assert.equal((await stat(target)).mode & 0o777, 0o600);
+  killAtPublication = true;
+  assert.throws(() => installSecrets('picker-vps', { 'b2-account': 'synthetic' }, execute), error => error.signal === 'SIGKILL');
+  const account = path.join(base, 'b2-account'); assert.equal((await stat(account)).nlink, 2);
+  killAtPublication = false;
+  installSecrets('picker-vps', { 'b2-account': 'synthetic' }, execute);
+  assert.equal((await stat(account)).nlink, 1); assert.equal((await readFile(account, 'utf8')).trim(), 'synthetic');
+  assert.deepEqual((await inventory(base)).map(row => row.path), ['b2-account', 'discord-webhook']);
+  const foreign = path.join(base, 'unrelated'), misleading = path.join(base, '.setup-12345678');
+  await link(account, foreign); await symlink(account, misleading);
+  assert.throws(() => installSecrets('picker-vps', { 'b2-account': 'synthetic' }, execute));
+  assert.equal((await stat(account)).nlink, 2); assert((await lstat(misleading)).isSymbolicLink());
+  assert.equal(await readFile(foreign, 'utf8'), 'synthetic\n');
   await rm(target); await symlink(input, target);
   assert.throws(() => installSecrets('picker-vps', { 'discord-webhook': webhook('third') }, execute, { rotate: ['discord-webhook'] }));
   assert.equal(await readFile(input, 'utf8'), '{}');
@@ -209,6 +224,27 @@ test('bootstrap publication is create-only or exact-match; empty and partial inp
   await publishConfig(file, '{"working":true}\n');
   const next = file + '-new'; await publishConfig(next, '{"working":true}\n');
   await assert.rejects(publishConfig(next, '{"working":false}\n'), /differs/);
+});
+
+test('killed config publication recovers only its matching private temp hard link before retry', { skip: process.platform !== 'linux' }, async t => {
+  const dir = path.dirname(await fixture(t, '{}')), file = path.join(dir, 'monitor.json'), bytes = '{"synthetic":true}\n';
+  const program = `import { link } from 'node:fs/promises';
+    const { publishConfig } = await import(process.argv[1]);
+    await publishConfig(process.argv[2], process.argv[3], { linkFile: async (from, to) => {
+      await link(from, to); process.kill(process.pid, 'SIGKILL');
+    } });`;
+  assert.throws(() => execFileSync(process.execPath, ['--input-type=module', '-e', program,
+    new URL('../scripts/linux/bootstrap-alerts.mjs', import.meta.url).href, file, bytes], { stdio: 'pipe' }), error => error.signal === 'SIGKILL');
+  assert.equal((await stat(file)).nlink, 2);
+  await publishConfig(file, bytes);
+  assert.equal((await stat(file)).nlink, 1); assert.equal(await readFile(file, 'utf8'), bytes);
+  assert(!(await readdir(dir)).some(name => name.endsWith('.tmp')));
+  await inventory(dir); // Rebuild inventory accepts the recovered tree.
+  const foreign = path.join(dir, 'unrelated'), misleading = file + '.00000000-0000-4000-8000-000000000000.tmp';
+  await link(file, foreign); await symlink(file, misleading);
+  await assert.rejects(publishConfig(file, bytes));
+  assert.equal((await stat(file)).nlink, 2); assert((await lstat(misleading)).isSymbolicLink());
+  assert.equal(await readFile(foreign, 'utf8'), bytes);
 });
 
 test('missing pins, a scratch pin, wrong host key and wrong machine refuse all setup before cloud mutation or credential transfer', async t => {

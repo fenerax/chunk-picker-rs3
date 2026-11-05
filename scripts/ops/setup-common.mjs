@@ -38,7 +38,7 @@ export function installSecrets(alias, secrets, execute = run, { rotate = [], ide
     else if (name.endsWith('-ping')) privateEndpoint(value, 'healthchecks');
   }
   verifyDeployment(alias, execute, identityFile);
-  const program = String.raw`import json,os,stat,sys,tempfile
+  const program = String.raw`import json,os,re,stat,sys,tempfile
 base='/etc/chunk-picker/secrets'
 if os.geteuid()!=0: raise RuntimeError('root required')
 s=os.lstat('/etc/chunk-picker/deployment.json')
@@ -54,6 +54,22 @@ if not stat.S_ISDIR(s.st_mode) or s.st_uid!=0 or s.st_mode&0o077: raise RuntimeE
 payload=json.load(sys.stdin);values=payload['values'];rotate=payload['rotate']
 allowed={'b2-account','b2-key','restic-password','health-ping','backup-ping','offhost-ping','discord-webhook'}
 if not set(values)<=allowed: raise RuntimeError('unknown credential')
+# A killed create-only publication can leave exactly two names for its inode.
+# Only our private, root-owned staging name may be removed; never follow links.
+for name in allowed:
+ target=base+'/'+name
+ if not os.path.lexists(target): continue
+ s=os.lstat(target)
+ if not stat.S_ISREG(s.st_mode) or s.st_nlink!=2 or s.st_uid!=0 or stat.S_IMODE(s.st_mode)!=0o600: continue
+ for entry in os.listdir(base):
+  if not re.fullmatch(r'\.setup-[a-z0-9_]{8}',entry): continue
+  tmp=base+'/'+entry
+  try: candidate=os.lstat(tmp)
+  except FileNotFoundError: continue
+  if stat.S_ISREG(candidate.st_mode) and candidate.st_uid==0 and stat.S_IMODE(candidate.st_mode)==0o600 and candidate.st_nlink==2 and (candidate.st_dev,candidate.st_ino)==(s.st_dev,s.st_ino):
+   os.unlink(tmp)
+   fd=os.open(base,os.O_RDONLY);os.fsync(fd);os.close(fd)
+   break
 for name,value in values.items():
  if not isinstance(value,str) or not value or '\n' in value: raise RuntimeError('invalid credential')
  target=base+'/'+name

@@ -67,6 +67,41 @@ test('private temp and cache override inherited paths and oversized PC packs can
   assert(stopped); assert.deepEqual(await readdir(root), []);
 });
 
+test('restore pins its snapshot and admits destination bytes plus temp envelope and reserve before writing', async t => {
+  for (const failure of ['space', 'size', 'none']) {
+    const root = await temporary(t), destination = path.join(root, 'destination'), id = 'a'.repeat(64), calls = [];
+    const size = 40 * 1024 ** 2;
+    const pending = guardedRestic({ root, reserve: 1234, args: ['restore', 'latest', '--target', destination], env: {},
+      check: async (dir, bytes, reserve) => {
+        assert.equal(reserve, 1234);
+        if (dir === destination) {
+          assert.equal(bytes, size + resticTempBound);
+          if (failure === 'space') throw Error('destination space');
+        }
+      },
+      execute: async (_binary, args, options) => {
+        const command = args.find(arg => ['restore', 'snapshots', 'stats'].includes(arg)); calls.push(command);
+        assert(!options.packProducing);
+        if (command === 'snapshots') return JSON.stringify([{ id }]);
+        assert(args.includes(id)); assert(!args.includes('latest'));
+        if (command === 'stats') return JSON.stringify({ total_size: failure === 'size' ? -1 : size });
+        return 'restored';
+      } });
+    if (failure === 'none') assert.equal(await pending, 'restored'); else await assert.rejects(pending);
+    assert.deepEqual(calls, failure === 'none' ? ['snapshots', 'stats', 'restore'] : ['snapshots', 'stats']);
+  }
+});
+
+test('only pack-producing commands request the kernel file limit', async t => {
+  const root = await temporary(t);
+  for (const [args, limited] of [[['backup'], true], [['prune'], true], [['init'], true], [['check'], true],
+    [['forget', '--prune'], true], [['forget'], false], [['snapshots'], false], [['stats'], false]]) {
+    await guardedRestic({ root, reserve: 0, args, env: {}, execute: async (_binary, _args, options) => {
+      assert.equal(options.packProducing, limited);
+    } });
+  }
+});
+
 function resticBypass(source) {
   return /\bresticArgs\b/.test(source)
     || /\bexecuteRestic\s*\(/.test(source)
@@ -92,7 +127,7 @@ test('kernel ceiling rejects oversized packs and abort waits for the owned proce
   const pack = path.join(root, 'pack');
   // The first write may return a short count; the next write at the ceiling
   // must fail. Verify both the failure and the exact kernel-enforced size.
-  await assert.rejects(executeRestic('/usr/bin/python3', ['-c', `f=open(${JSON.stringify(pack)}, 'wb', buffering=0); f.write(b'x' * ${resticPackLimit + 1}); f.write(b'x')`], { env: { PATH: '/usr/bin:/bin' }, signal: signal.signal }));
+  await assert.rejects(executeRestic('/usr/bin/python3', ['-c', `f=open(${JSON.stringify(pack)}, 'wb', buffering=0); f.write(b'x' * ${resticPackLimit + 1}); f.write(b'x')`], { env: { PATH: '/usr/bin:/bin' }, signal: signal.signal, packProducing: true }));
   assert.equal((await stat(pack)).size, resticPackLimit);
   const pending = executeRestic('/usr/bin/python3', ['-c', 'import time;time.sleep(60)'], { env: {}, signal: signal.signal });
   signal.abort(); await assert.rejects(pending);
@@ -128,4 +163,26 @@ test('real pinned restic encrypts, checks, restores the full snapshot and rebuil
   assert.equal(JSON.parse(await run(['snapshots', '--json'])).length, 1);
   const { exists } = await import('../scripts/linux/files.mjs');
   assert.equal(await exists(env.RESTIC_CACHE_DIR), false);
+});
+
+test('Linux restic restores a file larger than the pack ceiling through both guarded and manual recovery paths', { skip: process.platform !== 'linux' }, async t => {
+  await verifyRestic();
+  const root = await temporary(t), source = path.join(root, 'large-save.json.gz'), size = resticPackLimit + 1024 ** 2;
+  const file = await open(source, 'wx');
+  try { await file.truncate(size); await file.write(Buffer.from('synthetic-save-end'), 0, 18, size - 18); } finally { await file.close(); }
+  const password = path.join(root, 'password'); await writeFile(password, 'synthetic-restore-only', { mode: 0o600 });
+  const env = { PATH: '/usr/bin:/bin', HOME: root, RESTIC_REPOSITORY: path.join(root, 'repository'), RESTIC_PASSWORD_FILE: password };
+  const run = args => guardedRestic({ root: path.join(root, 'temp'), reserve: 0, binary: '/usr/local/bin/restic', args, env });
+  await run(['init']); await run(['backup', source]);
+  for (const manual of [false, true]) {
+    const destination = path.join(root, manual ? 'manual' : 'guarded');
+    if (manual) {
+      const result = await execute(process.execPath, [fileURLToPath(new URL('../scripts/linux/restore-offhost.mjs', import.meta.url)),
+        'latest', destination, path.join(root, 'manual-temp'), '0'], { env });
+      assert.match(result.stdout, /Snapshot restored/);
+    } else await run(['restore', 'latest', '--target', destination]);
+    const restored = path.join(destination, source.slice(1));
+    assert.equal((await stat(restored)).size, size);
+    assert.deepEqual(await readFile(restored), await readFile(source));
+  }
 });

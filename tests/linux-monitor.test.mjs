@@ -4,7 +4,7 @@ import path from 'node:path';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { evaluate, monitor } from '../scripts/linux/monitor.mjs';
-import { notify, releaseWindow } from '../scripts/linux/notify.mjs';
+import { notify, notifyFailure, releaseWindow } from '../scripts/linux/notify.mjs';
 import { deadman } from '../scripts/linux/ops-status.mjs';
 import { exclusive } from '../scripts/linux/files.mjs';
 import { compact, outboxLimits } from '../scripts/linux/notify-queue.mjs';
@@ -69,6 +69,36 @@ test('rate limiting leaves recoveries pending and release windows do not hide re
   await notify({ controlDir, now: now + 31000, faults: {}, send }); assert.match(sent[1], /RECOVERED/);
   for (let i = 2; i < 6; i++) await notify({ controlDir, now: now + i * 31000, faults: i % 2 ? {} : { 'disk-low': 'urgent' }, send });
   assert.equal(sent.length, 4);
+});
+
+test('OnFailure reads the declaration and suppresses only the writer during a valid window', async t => {
+  const controlDir = await fixture(t), sent = [], send = async text => sent.push(text);
+  await writeFile(path.join(controlDir, 'release-window.json'), JSON.stringify({
+    startedAt: new Date(now - 60000).toISOString(), endsAt: new Date(now + 60000).toISOString() }));
+  await notifyFailure({ controlDir }, 'chunk-picker.service', { now, send });
+  assert.equal(sent.length, 0);
+  await notifyFailure({ controlDir }, 'chunk-picker-backup.service', { now, send });
+  assert.match(sent.join('\n'), /CRITICAL: Backup service failed/);
+  await notify({ controlDir, faults: { 'disk-low': 'urgent', 'ram-low': 'urgent' }, merge: true, now: now + 31000, send });
+  assert.match(sent.at(-1), /URGENT: Disk reserve is low/);
+  assert.match(sent.at(-1), /URGENT: Available memory is low/);
+  assert(!sent.join('\n').includes('Writer'));
+  // A suppressed failure is asserted again once the window expires.
+  await notifyFailure({ controlDir }, 'chunk-picker.service', { now: now + 62000, send });
+  assert.match(sent.at(-1), /CRITICAL: Writer service failed/);
+});
+
+test('OnFailure alerts for missing, expired, invalid, future, overlong and unreadable declarations', async t => {
+  for (const value of [undefined, '{', 'null', '{}',
+    JSON.stringify({ startedAt: new Date(now - 60000), endsAt: new Date(now) }),
+    JSON.stringify({ startedAt: new Date(now + 1), endsAt: new Date(now + 60000) }),
+    JSON.stringify({ startedAt: new Date(now), endsAt: new Date(now + 31 * 60000) }), 'directory']) {
+    const controlDir = await fixture(t), file = path.join(controlDir, 'release-window.json'), sent = [];
+    if (value === 'directory') await mkdir(file);
+    else if (value !== undefined) await writeFile(file, value);
+    await notifyFailure({ controlDir }, 'chunk-picker.service', { now, send: async text => sent.push(text) });
+    assert.match(sent.join('\n'), /CRITICAL: Writer service failed/);
+  }
 });
 test('dead-man errors never escape the completed job and redirects are disabled', async () => {
   assert.equal(await deadman('health', { read: async () => { throw Error(); } }), false);

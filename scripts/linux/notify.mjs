@@ -89,12 +89,18 @@ export async function notify({ controlDir, faults, window, now = Date.now(), rep
 }
 export const failureUnits = Object.freeze({ 'chunk-picker.service': 'unit-writer', 'chunk-picker-backup.service': 'unit-backup',
   'chunk-picker-health.service': 'unit-health', 'chunk-picker-offhost.service': 'unit-offhost', 'chunk-picker-monitor.service': 'unit-monitor' });
+export async function notifyFailure(config, command, options = {}) {
+  const code = command === 'test' ? 'test' : failureUnits[command];
+  if (!code) throw Error('Unknown failure unit.');
+  let window;
+  // Missing, malformed or unreadable evidence must never silence OnFailure.
+  try { window = await json(path.join(config.controlDir, 'release-window.json')); } catch {}
+  return notify({ ...config, ...options, window, faults: { [code]: 'critical' }, merge: true });
+}
 if (isMain(import.meta.url)) {
   try {
     const config = await json('/etc/chunk-picker/monitor.json'), command = process.argv[2];
-    const code = command === 'test' ? 'test' : failureUnits[command];
-    if (!code) throw Error();
-    const result = await notify({ ...config, faults: { [code]: 'critical' }, merge: true });
+    const result = await notifyFailure(config, command);
     if (!result.delivered && command === 'test') throw Error();
   } catch { process.stderr.write('Notification pending; inspect private configuration.\n'); process.exitCode = 1; }
 }

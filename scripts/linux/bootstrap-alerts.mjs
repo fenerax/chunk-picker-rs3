@@ -1,14 +1,34 @@
 import { isMain } from '../release/vps/entrypoint.mjs';
 import path from 'node:path';
-import { chmod, link, lstat, open, readFile, rm } from 'node:fs/promises';
+import { chmod, link, lstat, open, readFile, readdir, rm, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { directory, encode, exists, noLinks } from './files.mjs';
 
 // Publication cannot truncate an existing value, even with empty/partial input.
-export async function publishConfig(file, bytes) {
+export async function publishConfig(file, bytes, { linkFile = link } = {}) {
   JSON.parse(bytes); // Validate all input before touching its destination.
   await noLinks(path.dirname(file));
   if (await exists(file)) {
+    const target = await lstat(file), parent = await lstat(path.dirname(file));
+    // Bootstrap is Linux-only. Recover only our staging name in an owned,
+    // non-writable-by-others parent, with the exact published inode and mode.
+    if (process.platform === 'linux' && target.isFile() && target.nlink === 2 && (target.mode & 0o7777) === 0o644
+      && target.uid === process.getuid() && parent.uid === process.getuid() && !(parent.mode & 0o022)) {
+      const prefix = path.basename(file) + '.';
+      for (const name of await readdir(path.dirname(file))) {
+        if (!name.startsWith(prefix) || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.tmp$/.test(name.slice(prefix.length))) continue;
+        const temporary = path.join(path.dirname(file), name);
+        const info = await lstat(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; });
+        if (info?.isFile() && info.nlink === 2 && info.uid === target.uid && (info.mode & 0o7777) === 0o644
+          && info.dev === target.dev && info.ino === target.ino) {
+          await unlink(temporary);
+          if (process.platform !== 'win32') {
+            const handle = await open(path.dirname(file), 'r'); try { await handle.sync(); } finally { await handle.close(); }
+          }
+          break;
+        }
+      }
+    }
     await noLinks(file);
     const info = await lstat(file);
     if (!info.isFile() || info.nlink !== 1 || process.platform === 'linux' && info.uid !== process.getuid()
@@ -19,7 +39,7 @@ export async function publishConfig(file, bytes) {
   try {
     const handle = await open(temporary, 'wx', 0o644);
     try { await handle.writeFile(bytes); await handle.chmod(0o644); await handle.sync(); } finally { await handle.close(); }
-    await link(temporary, file); // Create-only even if another installer races.
+    await linkFile(temporary, file); // Create-only even if another installer races.
   } finally { await rm(temporary, { force: true }); }
   if (process.platform !== 'win32') {
     const handle = await open(path.dirname(file), 'r'); try { await handle.sync(); } finally { await handle.close(); }

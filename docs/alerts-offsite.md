@@ -33,7 +33,8 @@ TMPDIR to a fresh private directory under the configured scratchRoot/restic-tmp
 on the budgeted filesystem. Pack size is 16 MiB, B2 connections and read
 concurrency are one, and GOMAXPROCS is one. The reviewed implementation has two
 data packers, two tree packers, one blocked queue item and one uploading pack.
-Pack targets may overshoot, so util-linux prlimit enforces a 32 MiB file ceiling.
+Pack targets may overshoot, so util-linux prlimit enforces a 32 MiB file ceiling
+only for backup, prune (including forget --prune), init and check temp packs.
 The disk envelope is six times 32 MiB plus 1 MiB for allocation and directory
 overhead: **193 MiB above minFreeBytes**. A larger individual tree fails safely.
 Admission checks that filesystem; a 250 ms watcher preserves an additional full
@@ -46,7 +47,13 @@ Scratch rehearsals and trusted-PC cleanup use the same guard. All commands
 disable caching and override TMPDIR, TMP, TEMP and RESTIC_CACHE_DIR with private
 paths. PC cleanup reserves 1 GiB plus the pack envelope on the temp filesystem.
 Windows uses a sampled per-file/total temp budget and reserve watcher; its byte
-ceiling is not kernel-enforced. Linux retains the hard prlimit ceiling.
+ceiling is not kernel-enforced. Linux retains the hard prlimit pack ceiling.
+Restore payloads are exempt from that ceiling. Before writing, the guard resolves
+the snapshot selector to one immutable ID, obtains its full restore-size stats,
+and admits the destination only with that size plus the temp envelope and reserve
+free. TMPDIR retains its per-file/total budget and watcher; the destination is
+also watched for lost reserve. The manual recovery command in the operator guide
+uses this same guard, including for files larger than 32 MiB.
 
 Notification producers publish private, atomic mailboxes before trying the
 delivery lock. Each fixed category has separate assertion-severity and recovery

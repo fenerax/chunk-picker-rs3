@@ -499,6 +499,20 @@ ordinary case needs the B2 repository, key and independently saved repository
 password; a damaged version view additionally needs this B2 version recovery.
 
 Quarterly, restore to disposable Linux with outbound integrations disabled.
+On that recovery machine, load RESTIC_REPOSITORY, RESTIC_PASSWORD_FILE,
+B2_ACCOUNT_ID and B2_ACCOUNT_KEY from independent recovery credentials without
+putting their values in shell history. After installing the pinned restic binary
+at /usr/local/bin/restic, use the manual recovery entrypoint:
+
+```sh
+node scripts/linux/restore-offhost.mjs <snapshot-id> /absolute/recovery-target /absolute/recovery-temp 1073741824
+```
+
+Use a fresh disposable target. The last argument is the free-space reserve in
+bytes (1 GiB here). The command checks full snapshot size plus reserve and the
+193 MiB temp envelope before restoring, keeps temporary files bounded, and
+allows restored files larger than 32 MiB. Do not wrap restore in the uploader's
+prlimit --fsize ceiling. It never starts the writer or enables integrations.
 Verify the snapshot's manifest/binding and rebuild-manifest inventory. Reinstall
 Node and checksum-pinned restic; restore the selected release, pins and tools;
 map their original paths from the encrypted manifest; restore /etc/chunk-picker
