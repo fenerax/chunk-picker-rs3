@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
-import { mkdtemp, mkdir, readFile, writeFile, cp, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, cp, rm, readdir, symlink } from 'node:fs/promises';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -41,6 +41,21 @@ test('every module copied flat into a PC kit resolves its literal imports inside
   for (const relative of ['pc/ci-inputs.mjs', 'pc/quick-build.mjs', 'verify-ci-evidence.mjs']) {
     const source = await readFile(new URL('../scripts/release/' + relative, import.meta.url), 'utf8');
     assert(!literalModuleReferences(source).references.some(ref => /(?:^|\/)vps\//.test(ref)), relative);
+  }
+});
+
+test('PC quick-build and pack-check execute their CLI through a symlink', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'pc-main-symlink-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const repo = fileURLToPath(new URL('../', import.meta.url)), alias = path.join(root, 'checkout');
+  await symlink(repo, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  for (const [entry, diagnostic] of [
+    ['scripts/release/pc/quick-build.mjs', 'Quick build refused: Use build, verify or prepare-swap.'],
+    ['scripts/private-companion/release-pack-check.mjs', 'Pack compatibility refused; storage unchanged. Cause: Pack check command refused.'],
+  ]) {
+    const result = await invoke(path.join(alias, entry), [], { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' });
+    assert.equal(result.code, 1, entry + ' silently exited without its action');
+    assert.equal(result.output.trim(), diagnostic, entry);
   }
 });
 

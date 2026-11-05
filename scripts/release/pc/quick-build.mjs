@@ -17,6 +17,7 @@
 // live save is only read; probes open disposable copies.
 import path from 'node:path';
 import os from 'node:os';
+import { realpathSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { copyFile, cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -355,7 +356,8 @@ export async function prepareSwap({ current, releaseDir }) {
     fromBase64: binding.toString('base64'), toBase64: bytes(pair.to).toString('base64') }, probes };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Self-contained: this module is also copied flat into PC kits.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     const { positionals: [command], values } = parseArgs({ allowPositionals: true, options: {
       repo: { type: 'string' }, commit: { type: 'string' }, current: { type: 'string' }, releases: { type: 'string' },
