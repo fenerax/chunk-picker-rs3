@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
 import { mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { offhostFixture, assertPayloadClosure } from './helpers/offhost.mjs';
 import { offhostBackup } from '../scripts/linux/offhost-backup.mjs';
 import { verifyBackup } from '../scripts/linux/recovery.mjs';
-import { retentionArgs, verifyRestic, resticArgs, guardedRestic, resticTempBound, resticPackLimit, executeRestic } from '../scripts/linux/restic.mjs';
+import { retentionArgs, verifyRestic, resticArgs, guardedRestic, resticTempBound, resticPackLimit, executeRestic,
+  resticTempBudget, windowsRepackBudget } from '../scripts/linux/restic.mjs';
 const execute = promisify(execFile);
 
 async function temporary(t) {
@@ -20,6 +22,11 @@ test('restic pack concurrency and kernel-enforced temp bound are pinned', () => 
   assert(args.includes('b2.connections=1')); assert(args.includes('--read-concurrency'));
   assert.equal(args[args.indexOf('--pack-size') + 1], '16');
   assert.equal(resticTempBound, 6 * resticPackLimit + 1024 ** 2);
+  for (const command of [['prune'], ['forget', '--prune'], ['check']]) {
+    const args = resticArgs(command);
+    assert(args.includes('b2.connections=2')); assert(args.includes('local.connections=2'));
+    assert.equal(resticTempBudget(command), 7 * resticPackLimit + 1024 ** 2);
+  }
 });
 test('temp admission refuses reserve shortfall before launch and cleans on success, failure and cancellation', async t => {
   const root = await temporary(t);
@@ -99,6 +106,33 @@ test('only pack-producing commands request the kernel file limit', async t => {
     await guardedRestic({ root, reserve: 0, args, env: {}, execute: async (_binary, _args, options) => {
       assert.equal(options.packProducing, limited);
     } });
+  }
+});
+
+test('Windows prune admits the full worst-case repack before mutation, failing closed on size or space', async t => {
+  const stats = { total_size: 40 * 1024 ** 2, total_uncompressed_size: 80 * 1024 ** 2, total_blob_count: 20 };
+  const worst = windowsRepackBudget(stats, ['forget', '--prune']);
+  assert(worst.pack > stats.total_uncompressed_size);
+  assert.equal(worst.budget, 7 * worst.pack + 1024 ** 2);
+  for (const failure of ['space', 'stats', 'none']) {
+    const root = await temporary(t), calls = []; let admitted = false;
+    const pending = guardedRestic({ root, reserve: 1024 ** 3, args: ['forget', '--prune'], env: {}, platform: 'win32',
+      check: async (_dir, bytes, reserve) => {
+        assert.equal(reserve, 1024 ** 3);
+        if (bytes === worst.budget) { if (failure === 'space') throw Error('space'); admitted = true; }
+        else assert.equal(bytes, resticTempBudget(['forget', '--prune']));
+      },
+      execute: async (_binary, args, { env }) => {
+        if (args.includes('stats')) { calls.push('stats'); assert(args.includes('raw-data'));
+          return JSON.stringify(failure === 'stats' ? { total_size: -1 } : stats); }
+        calls.push('forget'); assert(admitted); assert(args.includes('b2.connections=2'));
+        // Oversized input blobs are covered by admission, not a sampled 32 MiB assumption.
+        const pack = await open(path.join(env.TMPDIR, 'pack'), 'wx');
+        try { await pack.truncate(resticPackLimit + 1); } finally { await pack.close(); }
+      } });
+    if (failure === 'none') await pending; else await assert.rejects(pending);
+    assert.deepEqual(calls, failure === 'none' ? ['stats', 'forget'] : ['stats']);
+    assert.deepEqual(await readdir(root), []);
   }
 });
 
@@ -185,4 +219,25 @@ test('Linux restic restores a file larger than the pack ceiling through both gua
     assert.equal((await stat(restored)).size, size);
     assert.deepEqual(await readFile(restored), await readFile(source));
   }
+});
+
+test('real guarded prune repacks shared packs after forget removes a snapshot and reclaims bytes', { skip: process.platform !== 'linux' }, async t => {
+  await verifyRestic();
+  const root = await temporary(t), source = path.join(root, 'source'); await mkdir(source);
+  const password = path.join(root, 'password'); await writeFile(password, 'synthetic-prune-only', { mode: 0o600 });
+  const env = { PATH: '/usr/bin:/bin', HOME: root, RESTIC_REPOSITORY: path.join(root, 'repository'), RESTIC_PASSWORD_FILE: password };
+  const run = args => guardedRestic({ root: path.join(root, 'temp'), reserve: 0, binary: '/usr/local/bin/restic', args, env });
+  const kept = path.join(source, 'kept'), removed = path.join(source, 'removed');
+  await writeFile(kept, randomBytes(2 * 1024 ** 2)); await writeFile(removed, randomBytes(2 * 1024 ** 2));
+  await run(['init']); await run(['backup', source, '--tag', 'old']);
+  const old = JSON.parse(await run(['snapshots', '--json']))[0].id;
+  await rm(removed); await run(['backup', source, '--tag', 'keep']);
+  const { inventory } = await import('../scripts/linux/files.mjs');
+  const packed = async () => (await inventory(path.join(env.RESTIC_REPOSITORY, 'data'))).reduce((sum, row) => sum + (row.bytes ?? 0), 0);
+  const before = await packed();
+  await run(['forget', old]);
+  assert.equal(JSON.parse(await run(['snapshots', '--json'])).length, 1);
+  const result = await run(['prune', '--max-unused', '0', '--repack-small']);
+  assert.match(result, /repacking packs/); assert(await packed() < before - 1024 ** 2);
+  await run(['check', '--read-data']);
 });

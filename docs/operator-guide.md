@@ -453,6 +453,17 @@ credentials. Do not copy the clean-up key to the VPS. The script uses the key
 and repository password only in child-process memory and disables the local
 restic cache. It captures all repository output.
 
+Prune and check use two backend connections (backup uses one). Their Linux temp
+envelope is 225 MiB above the reserve. Windows cleanup uses space admission
+instead of a fixed-size VHD: before deleting snapshots or repacking, it requires
+free space on the temp volume for seven worst-case packs plus 1 MiB and the
+1 GiB reserve. Each worst-case pack allows twice the larger of the full live
+compressed/uncompressed blob volume, plus 128 bytes per blob and 1 MiB, with a
+32 MiB minimum. Missing size evidence or insufficient space refuses cleanup.
+This covers oversized tree blobs without relying on the 250 ms watcher to stop
+writes at a quota. Keep the uploader paused/drained and avoid other disk-heavy
+work on that volume during cleanup. See [budget details](alerts-offsite.md).
+
 1. Allow any off-site run to finish, then run:
 
    ```sh

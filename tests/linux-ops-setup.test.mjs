@@ -166,6 +166,7 @@ test('trusted prune refuses an unfenced uploader and keeps delete authority out 
     assert(!args.join(' ').includes('synthetic-value')); assert.equal(env.B2_ACCOUNT_KEY, 'synthetic-value');
     assert(env.TMPDIR.startsWith(tempRoot + path.sep)); assert.equal(env.TEMP, env.TMPDIR); assert.equal(env.TMP, env.TMPDIR);
     assert.equal(env.RESTIC_CACHE_DIR, path.join(env.TMPDIR, 'cache')); assert.equal(signal.aborted, false);
+    if (args.includes('stats')) return JSON.stringify({ total_size: 1234, total_uncompressed_size: 2345, total_blob_count: 1 });
     // An asynchronous command must finish before the next command starts.
     await writeFile(path.join(env.TMPDIR, 'pack'), 'synthetic');
     assert(args.includes('--no-cache')); calls.push(args);

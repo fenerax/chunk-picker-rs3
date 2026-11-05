@@ -21,17 +21,34 @@ export async function verifyRestic(binary = '/usr/local/bin/restic') {
 }
 // backup and forget require repository locks in 0.18.1; read-only commands
 // can avoid them. Locks on B2 do not grant the VPS permanent-delete authority.
-export const resticArgs = args => ['--no-cache', '--pack-size', '16', '-o', 'b2.connections=1',
+const prunes = args => args[0] === 'prune' || args[0] === 'forget' && args.includes('--prune');
+export const resticConnections = args => prunes(args) || args[0] === 'check' ? 2 : 1;
+export const resticArgs = args => ['--no-cache', '--pack-size', '16', '-o', `b2.connections=${resticConnections(args)}`,
+  '-o', `local.connections=${resticConnections(args)}`,
   ...(['check', 'snapshots', 'stats', 'restore'].includes(args[0]) ? ['--no-lock'] : []),
   ...args, ...(args[0] === 'backup' ? ['--read-concurrency', '1'] : [])];
 // 0.18.1: two data + two tree packers, one blocked QueuePacker and one
-// uploader (unbuffered queue). GOMAXPROCS=1 pins the blob saver to one.
+// uploader per backend connection (unbuffered queue). GOMAXPROCS=1 pins the
+// blob saver to one. Backup uses one connection; prune/check need two.
 // Pack targets are NOT file limits: blobs/trees can overshoot. RLIMIT_FSIZE
 // enforces a 2*pack-size ceiling even for an oversized tree. Such an upload
 // fails safely instead of consuming the writer's reserve. Include allocation
-// rounding and directory metadata, in addition to all six full pack slots.
+// rounding and directory metadata, in addition to every active pack slot.
 export const resticPackLimit = 32 * 1024 ** 2;
 export const resticTempBound = 6 * resticPackLimit + 1024 ** 2;
+export const resticTempBudget = args => (5 + resticConnections(args)) * resticPackLimit + 1024 ** 2;
+// On Windows no RLIMIT_FSIZE bounds oversized blobs. Treat the entire live
+// blob corpus as a possible single pack, with header/encryption margin, in
+// every packer/queue/upload slot. Admit this worst case before any mutation.
+export function windowsRepackBudget(stats, args) {
+  const values = [stats.total_size, stats.total_uncompressed_size ?? stats.total_size, stats.total_blob_count ?? 0];
+  if (!values.every(value => Number.isSafeInteger(value) && value >= 0)
+    || values[0] > 0 && !values[2]) throw Error('Repack size unavailable.');
+  const pack = Math.max(resticPackLimit, Math.max(...values.slice(0, 2)) * 2 + values[2] * 128 + 1024 ** 2);
+  const budget = (5 + resticConnections(args)) * pack + 1024 ** 2;
+  if (!Number.isSafeInteger(budget)) throw Error('Repack size unavailable.');
+  return { pack, budget };
+}
 export function executeRestic(binary, args, { env, signal, packProducing = false }) {
   return new Promise((resolve, reject) => {
     signal?.throwIfAborted();
@@ -49,7 +66,7 @@ export function executeRestic(binary, args, { env, signal, packProducing = false
     if (signal?.aborted) abort();
   });
 }
-async function tempBudget(root) {
+async function tempBudget(root, packLimit, totalLimit) {
   let bytes = 0;
   async function walk(dir) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -58,33 +75,40 @@ async function tempBudget(root) {
       else {
         const info = await lstat(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
         if (!info) continue; // A pack can disappear while it is uploaded.
-        if (!info.isFile() || info.size > resticPackLimit || (bytes += info.size) > resticTempBound) throw Error('Restic temporary budget exceeded.');
+        if (!info.isFile() || info.size > packLimit || (bytes += info.size) > totalLimit) throw Error('Restic temporary budget exceeded.');
       }
     }
   }
   await walk(root);
 }
 export async function guardedRestic({ root, reserve, binary, args, env, signal,
-  check = headroom, execute = executeRestic, intervalMs = 250 }) {
+  check = headroom, execute = executeRestic, intervalMs = 250, platform = process.platform }) {
   await directory(root);
   const temporary = await mkdtemp(path.join(root, 'restic-'));
   const controller = new AbortController();
   const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true });
   process.once('SIGTERM', abort); process.once('SIGINT', abort);
   let timer, checking, fault, destination;
+  let packLimit = resticPackLimit, tempBound = resticTempBudget(args);
   try {
     signal?.throwIfAborted();
-    await check(temporary, resticTempBound, reserve);
+    await check(temporary, tempBound, reserve);
     timer = setInterval(() => {
       if (checking) return;
       // Retain another full write envelope between samples. No other writer's
       // future allocations are assumed; loss of headroom fails closed.
-      checking = Promise.all([check(temporary, resticTempBound, reserve), tempBudget(temporary),
+      checking = Promise.all([check(temporary, tempBound, reserve), tempBudget(temporary, packLimit, tempBound),
         ...(destination ? [check(destination, 0, reserve)] : [])])
         .catch(error => { fault = error; controller.abort(); }).finally(() => { checking = null; });
     }, intervalMs);
     const options = { env: { ...env, TMPDIR: temporary, TMP: temporary, TEMP: temporary,
       RESTIC_CACHE_DIR: path.join(temporary, 'cache'), GOMAXPROCS: '1' }, signal: controller.signal };
+    if (platform === 'win32' && prunes(args)) {
+      const stats = JSON.parse(await execute(binary, resticArgs(['stats', '--mode', 'raw-data', '--json']), options));
+      const worst = windowsRepackBudget(stats, args);
+      packLimit = worst.pack; tempBound = worst.budget;
+      await check(temporary, tempBound, reserve);
+    }
     if (args[0] === 'restore') {
       // Resolve mutable selectors such as "latest" once, then budget and restore
       // that exact snapshot. Budget the full tree even for a filtered restore.
@@ -96,20 +120,20 @@ export async function guardedRestic({ root, reserve, binary, args, env, signal,
       const id = snapshots[0].id;
       const stats = JSON.parse(await execute(binary, resticArgs(['stats', id, '--mode', 'restore-size', '--json']), options));
       if (!Number.isSafeInteger(stats.total_size) || stats.total_size < 0
-        || !Number.isSafeInteger(stats.total_size + resticTempBound)) throw Error('Restore size unavailable.');
+        || !Number.isSafeInteger(stats.total_size + tempBound)) throw Error('Restore size unavailable.');
       await directory(restoreTarget);
       // Include the temp envelope when both paths share a filesystem; reserving
       // it on a separate destination filesystem is conservative too.
-      await check(restoreTarget, stats.total_size + resticTempBound, reserve);
+      await check(restoreTarget, stats.total_size + tempBound, reserve);
       destination = restoreTarget;
       args = ['restore', id, ...args.slice(2)];
     }
     const packProducing = ['backup', 'prune', 'init', 'check'].includes(args[0])
-      || args[0] === 'forget' && args.includes('--prune');
+      || prunes(args);
     const result = await execute(binary, resticArgs(args), { ...options, packProducing });
     await checking;
     if (fault) throw fault;
-    await tempBudget(temporary);
+    await tempBudget(temporary, packLimit, tempBound);
     controller.signal.throwIfAborted();
     signal?.throwIfAborted();
     return result;

@@ -30,13 +30,16 @@ never pass production verification. Do not copy a scratch pin to production.
 
 Restic 0.18.1 uses temporary packs even with --no-cache. The uploader sets
 TMPDIR to a fresh private directory under the configured scratchRoot/restic-tmp
-on the budgeted filesystem. Pack size is 16 MiB, B2 connections and read
-concurrency are one, and GOMAXPROCS is one. The reviewed implementation has two
-data packers, two tree packers, one blocked queue item and one uploading pack.
+on the budgeted filesystem. Pack size is 16 MiB, backup B2 connections and read
+concurrency are one, and GOMAXPROCS is one. Prune and check use two backend
+connections; repacking requires at least two. The reviewed implementation has two
+data packers, two tree packers, one blocked queue item and one uploading pack per
+connection. The same connection policy applies to local recovery/test repositories.
 Pack targets may overshoot, so util-linux prlimit enforces a 32 MiB file ceiling
 only for backup, prune (including forget --prune), init and check temp packs.
 The disk envelope is six times 32 MiB plus 1 MiB for allocation and directory
-overhead: **193 MiB above minFreeBytes**. A larger individual tree fails safely.
+overhead: **193 MiB above minFreeBytes** for one connection; prune/check reserve
+seven slots, **225 MiB above minFreeBytes**. A larger individual tree fails safely.
 Admission checks that filesystem; a 250 ms watcher preserves an additional full
 envelope between checks and kills the owned process on lost headroom or failed
 space observations. Cancellation waits for process closure before temp cleanup.
@@ -46,8 +49,17 @@ Install bzip2 and util-linux before installing/running the pinned binary.
 Scratch rehearsals and trusted-PC cleanup use the same guard. All commands
 disable caching and override TMPDIR, TMP, TEMP and RESTIC_CACHE_DIR with private
 paths. PC cleanup reserves 1 GiB plus the pack envelope on the temp filesystem.
-Windows uses a sampled per-file/total temp budget and reserve watcher; its byte
-ceiling is not kernel-enforced. Linux retains the hard prlimit pack ceiling.
+Windows has no kernel file ceiling. Before prune or forget --prune can mutate
+anything, it reads raw-data stats for every snapshot and refuses unless the temp
+volume can hold seven worst-case packs plus 1 MiB and the reserve. A worst-case
+pack is the larger of 32 MiB and twice the entire compressed/uncompressed live
+blob volume (whichever is larger), plus 128 bytes per blob and 1 MiB. This
+deliberately conservative allowance covers oversized input trees, compression,
+encryption and headers without assuming every pack stops at its target size.
+Missing/invalid stats or insufficient space refuse before snapshot deletion.
+Sampling remains an additional early-abort check, not the capacity bound. The
+uploader must remain paused/drained so the repository cannot grow during cleanup.
+Linux retains the hard prlimit pack ceiling and its smaller bounded envelope.
 Restore payloads are exempt from that ceiling. Before writing, the guard resolves
 the snapshot selector to one immutable ID, obtains its full restore-size stats,
 and admits the destination only with that size plus the temp envelope and reserve
