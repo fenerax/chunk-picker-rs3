@@ -1,4 +1,5 @@
-// Dependency-free transport helper: safe to upload alone beside the archive.
+import { isMain } from './entrypoint.mjs';
+// Transport helper: upload with its sibling entrypoint.mjs beside the archive.
 import path from 'node:path';
 import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -131,7 +132,7 @@ export async function rebaseBundle(upload, target, operatorFile, toolsRoot) {
     // PC additions describe the PC save. The VPS must derive and accept its own.
     additionsReviewRequired: true }), { flag: 'wx', mode: 0o600 });
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const [command, ...args] = process.argv.slice(2);
     if (command !== 'rebase' || args.length !== 4) throw new Error();

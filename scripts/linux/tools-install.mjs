@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Linux root only. This command NEVER starts/stops a service or opens a save.
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -9,7 +10,8 @@ import { atomic, copyTree, encode, exclusive, exists, inventory, json, noLinks, 
 import { operatorSettings } from './runtime.mjs';
 import { verifyTools } from './tools-package.mjs';
 import { serviceOperation } from './service-lock.mjs';
-import { assertServiceAccess, serviceIdentity } from './service-access.mjs';
+import { assertServiceAccess, assertToolsEntrypoints, serviceIdentity } from './service-access.mjs';
+import { toolsCliChecks } from './entrypoint-checks.mjs';
 
 const execute = promisify(execFile);
 const refuse = category => { throw Object.assign(Error('Tools switch refused: ' + category + '.'), { code: 'TOOLS_' + category.toUpperCase() }); };
@@ -128,6 +130,11 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
       const manifest = await exists(path.join(root, 'tools-manifest.json')) ? await verifyTools(root) : null;
       const entries = manifest?.entries ?? (await inventory(root)).filter(row => /\.mjs$/.test(row.path)).map(row => row.path);
       await assertServiceAccess(root, account, entries);
+      if (root === target) {
+        const checks = [];
+        for (const check of toolsCliChecks) if (manifest || await exists(path.join(root, check[0]))) checks.push(check);
+        if (checks.length) await assertToolsEntrypoints(root, account, checks);
+      }
     }
     await verifySelection(previous.root, previous); await idle();
     const transaction = path.join(settings.controlDir, 'tools-transaction.json');
@@ -176,6 +183,7 @@ const refusalCategories = Object.freeze({
   TOOLS_RECEIPT: 'receipt invalid', TOOLS_OWNERSHIP: 'ownership/access', TOOLS_ACCESS: 'ownership/access',
   EACCES: 'ownership/access', EPERM: 'ownership/access', TOOLS_HASH: 'hash mismatch', 'TOOLS_PREVIOUS-HASHES': 'hash mismatch',
   TOOLS_SELECTION: 'selection invalid', 'TOOLS_LINUX-ROOT': 'Linux root required', TOOLS_ARGUMENTS: 'arguments invalid',
+  TOOLS_ENTRYPOINT: 'entrypoint behavior',
 });
 export const toolsRefusal = error => 'Tools switch refused: '
   + (Object.hasOwn(refusalCategories, error?.code) ? refusalCategories[error.code] : 'unclassified')
@@ -190,6 +198,6 @@ export async function toolsInstallCli(args, { settings = operatorSettings, switc
     stdout(encode(result)); return 0;
   } catch (error) { stderr(toolsRefusal(error)); return 1; }
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   process.exitCode = await toolsInstallCli(process.argv.slice(2));
 }

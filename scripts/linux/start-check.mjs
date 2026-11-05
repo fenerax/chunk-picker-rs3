@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Root ExecStartPre gate. An interrupted transaction must not be bypassed by
 // boot startup or an unrelated systemctl start.
 import path from 'node:path';
@@ -33,7 +34,7 @@ export async function checkStart(settings, { identity = processIdentity, now = D
     || sha(lock) !== permit.lockSha256 || sha(await readFile(settings.current)) !== permit.pointerSha256
     || await identity(owner.pid) !== permit.processIdentity) throw new Error('Service start is blocked by transaction evidence.');
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try { await checkStart(await operatorSettings()); }
   catch { process.stderr.write('Service start blocked; reconcile maintenance evidence privately.\n'); process.exitCode = 1; }
 }

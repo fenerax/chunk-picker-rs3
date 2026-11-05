@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Build an absent, frozen private kit. Never writes into the installed companion.
 import path from 'node:path';
 import os from 'node:os';
@@ -116,7 +117,7 @@ export async function stageReleaseKit({ source, privateRepo, privateCommit, core
     }
   }
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     if(process.argv[2]==='--help'){console.log('Usage: stage-release-v2.mjs --private-repo PATH --private-commit SHA --core-repo PATH --core-ref SHA --base SHA --accepted PATH --output PATH --heavy-lock PATH --light-lock PATH [--packs PATH] [--request REQUEST --current POINTER]; legacy: --private-source-dir PATH (alias --source)');process.exit(0);}
     const options = {};

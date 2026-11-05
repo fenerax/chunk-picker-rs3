@@ -1,3 +1,4 @@
+import { isMain } from './entrypoint.mjs';
 // Run on the VPS with the installed operator tools, never against the live store.
 import path from 'node:path';
 import { copyFile, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
@@ -79,7 +80,7 @@ export function reviewRefusal(error) {
   const category = ['lock', 'maintenance', 'receipt', 'newest backup', 'digest'].includes(error?.reviewCategory) ? error.reviewCategory : 'receipt';
   return 'VPS additions review refused: ' + category + '; inspect privately.\n';
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const [pointer, receiptFile, operatorFile, acceptDigest, ...extra] = process.argv.slice(2);
     if (!pointer || !receiptFile || !operatorFile || extra.length) throw new Error();

@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Bounded prose lane. Callers freeze/copy source first; this module never installs it.
 import path from 'node:path';
 import os from 'node:os';
@@ -337,7 +338,7 @@ export async function runTextEndpointChild({ core, companion, receipt }) {
   return { ...result, cleanupVerified: true };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === '--text-endpoint-child') {
+if (isMain(import.meta.url) && process.argv[2] === '--text-endpoint-child') {
   try {
     const result = await runTextEndpointChild(JSON.parse(Buffer.from(process.argv[3], 'base64url')));
     process.stdout.write(JSON.stringify(result));

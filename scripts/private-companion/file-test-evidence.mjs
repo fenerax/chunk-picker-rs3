@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // File evidence is deliberately conservative. A pass is reused only when its run's
 // trace shows it observed nothing outside its contract.
 import path from 'node:path';
@@ -263,7 +264,7 @@ export async function retainFilePass(item, directory) {
   if (filename !== item.filename) await atomicJSON(filename, item.record);
   return { filename, record: item.record, reused: item.reused, sourceKit: item.record.origin.kit, sourceReceipt: item.record.origin.receipt };
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   if (process.argv.includes('--help')) console.log('File evidence library: trace-verified static closures, reviewed computed-import models, fail-closed file receipts.');
   else { console.error('Import this library from release-v2.'); process.exitCode = 1; }
 }
