@@ -1,4 +1,6 @@
 [Unit]
+OnFailure=chunk-picker-notify@%n.service
+OnSuccess=chunk-picker-offhost.service
 Description=Chunk Picker complete online recovery backup
 After=chunk-picker.service
 
@@ -9,6 +11,7 @@ EnvironmentFile=/etc/chunk-picker/runtime.env
 ExecStart=/usr/bin/node /opt/chunk-picker/tools/scripts/linux/operator.mjs backup
 # Large stores/probes may take time. Do not kill an operator transaction halfway.
 TimeoutStartSec=infinity
+LoadCredential=backup-ping:/etc/chunk-picker/secrets/backup-ping
 UMask=0077
 NoNewPrivileges=yes
 PrivateTmp=yes

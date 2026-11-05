@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { isPrivateClient } from '../../app/security/request.mjs';
 import { sanitizeExecutionEnvironment } from '../private-companion/release-identity.mjs';
 import { encode, inventory, json, noLinks, sha } from './files.mjs';
+export { assertServiceAccess, serviceIdentity } from './service-access.mjs';
 
 export async function readRelease(pointerFile, dataDir) {
   await noLinks(pointerFile);
@@ -46,6 +47,8 @@ export function runtimeEnvironment(config, { probe = false } = {}) {
   return sanitizeExecutionEnvironment(process.env, { overrides });
 }
 export async function openApplication(config, dataDir, { probe = false } = {}) {
+  // Process-owned runtime: serve/probe run as dedicated children; rehearse's
+  // public API launches a child too. Do not call this in an operator process.
   if (!probe && (!isPrivateClient(config.host) || !Number.isInteger(config.port) || !Number.isInteger(config.loopbackPort)
     || config.port === config.loopbackPort)) throw new Error('Distinct explicit private and public listener configuration is required.');
   if (config.multiPicker) {

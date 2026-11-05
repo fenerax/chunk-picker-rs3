@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { rootFilesystem, serviceQuery } from './helpers/prewarm.mjs';
 import path from 'node:path';
 import { prewarmCandidate, prewarmCalculation, serviceIdentity } from '../scripts/linux/prewarm.mjs';
+import { checkStartAccess } from '../scripts/linux/start-check.mjs';
 const linuxOnly = { skip: process.platform !== 'linux' && 'Linux uid/gid and /proc descriptor semantics.' };
 test('online preparation invokes the candidate calculator with copied input and persistent output; failures are optional', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'warm-candidate-'));
@@ -92,7 +93,6 @@ for (const configured of [false, true]) test(`root prewarm uses only the service
   const f = await rootCandidateFixture(t); emulateRoot(t);
   if (configured) {
     Object.assign(f.settings, { serviceUid: f.service.uid, serviceGid: f.service.gid });
-    f.queryIdentity = serviceQuery({ uid: f.service.uid + 1, gid: f.service.gid + 1 });
   }
   let calls = 0;
   assert.equal(await prewarmCandidate({ ...f, execute(node, args, options) {
@@ -117,19 +117,33 @@ for (const configured of [false, true]) test(`root prewarm uses only the service
   assert(f.descriptors.every(handle => handle.fd === -1));
 });
 
+test('mandatory start access uses the unit identity and refuses a mismatched assertion before checking files', async () => {
+  let checked;
+  const settings = { service: 'chunk-picker.service', current: '/synthetic/current.json', dataDir: '/synthetic/game' };
+  const dependencies = { identity: value => serviceIdentity(value, serviceQuery()),
+    read: async () => ({ config: { coreRoot: '/synthetic/core' } }),
+    access: async (...args) => { checked = args; } };
+  await checkStartAccess(settings, dependencies);
+  assert.deepEqual(checked, ['/synthetic/core', { uid: 1201, gid: 1202 }, ['app/server.mjs']]);
+  checked = null;
+  await assert.rejects(checkStartAccess({ ...settings, serviceUid: 65534, serviceGid: 65534 }, dependencies), /differs/);
+  assert.equal(checked, null);
+});
+
 test('trusted systemd identity resolves the primary group when Group is unset', async () => {
   assert.deepEqual(await serviceIdentity({ service: 'chunk-picker.service' }, serviceQuery(undefined, { group: '' })), { uid: 1201, gid: 1202 });
 });
-test('explicit service settings win over systemd account names without NSS lookups', async () => {
-  const settings = { service: 'chunk-picker.service', serviceUid: 1301, serviceGid: 1302 };
+test('matching identity assertions still resolve the installed unit through NSS', async () => {
+  const settings = { service: 'chunk-picker.service', serviceUid: 1201, serviceGid: 1202 };
   const query = serviceQuery();
+  const calls = [];
   assert.deepEqual(await serviceIdentity(settings, (command, args, options) => {
-    assert.equal(command, '/usr/bin/systemctl'); assert.equal(options.timeout, 5000);
-    assert.deepEqual(args, ['show', '--property=User,Group,DynamicUser', '--', settings.service]);
+    calls.push([command, args]); assert.equal(options.timeout, 5000);
     return query(command, args);
-  }), { uid: 1301, gid: 1302 });
+  }), { uid: 1201, gid: 1202 });
+  assert.deepEqual(calls.map(row => row[0]), ['/usr/bin/systemctl', '/usr/bin/getent', '/usr/bin/getent']);
 });
-for (const invalid of ['missing', 'ambiguous unit', 'ambiguous account', 'root uid', 'root gid', 'DynamicUser', 'partial settings', 'invalid number', 'lookup failure']) {
+for (const invalid of ['missing', 'ambiguous unit', 'ambiguous account', 'root uid', 'root gid', 'DynamicUser', 'partial settings', 'invalid number', 'lookup failure', 'uid override', 'gid override', 'nonexistent override account']) {
   test(`trusted service identity refuses ${invalid}`, async () => {
     const settings = { service: 'chunk-picker.service' }, service = { uid: 1201, gid: 1202 };
     let query = serviceQuery(service);
@@ -148,6 +162,13 @@ for (const invalid of ['missing', 'ambiguous unit', 'ambiguous account', 'root u
     if (invalid === 'partial settings') settings.serviceUid = service.uid;
     if (invalid === 'invalid number') Object.assign(settings, { serviceUid: '1301', serviceGid: service.gid });
     if (invalid === 'lookup failure') query = async () => { throw Error('Synthetic lookup failure.'); };
+    if (invalid === 'uid override') Object.assign(settings, { serviceUid: 65534, serviceGid: service.gid });
+    if (invalid === 'gid override') Object.assign(settings, { serviceUid: service.uid, serviceGid: 65534 });
+    if (invalid === 'nonexistent override account') {
+      Object.assign(settings, { serviceUid: 65534, serviceGid: 65534 });
+      const source = serviceQuery(service, { user: 'missing-fixture' });
+      query = (command, args) => { if (command.endsWith('/getent')) throw Error('No such account.'); return source(command, args); };
+    }
     await assert.rejects(serviceIdentity(settings, query));
   });
 }
@@ -173,7 +194,7 @@ for (const swap of ['symlink', 'owner']) test(`data-directory ${swap} swap canno
   } }), true);
   assert.equal(inspectedOwner, false, 'Identity must never inspect live ownership.');
 });
-for (const invalid of ['root uid', 'root gid', 'missing identity', 'ambiguous identity', 'DynamicUser', 'partial settings', 'unprotected snapshot']) test(`root prewarm skips an ambiguous identity or unsafe copy: ${invalid}`, linuxOnly, async t => {
+for (const invalid of ['root uid', 'root gid', 'missing identity', 'ambiguous identity', 'DynamicUser', 'partial settings', 'identity mismatch', 'unprotected snapshot']) test(`root prewarm skips an ambiguous identity or unsafe copy: ${invalid}`, linuxOnly, async t => {
   const f = await rootCandidateFixture(t); emulateRoot(t);
   if (invalid === 'root uid') f.service.uid = 0;
   if (invalid === 'root gid') f.service.gid = 0;
@@ -181,6 +202,9 @@ for (const invalid of ['root uid', 'root gid', 'missing identity', 'ambiguous id
   if (invalid === 'ambiguous identity') f.queryIdentity = async () => ({ stdout: 'User=prewarm-fixture\nUser=other-fixture\nGroup=prewarm-fixture\nDynamicUser=no\n' });
   if (invalid === 'DynamicUser') f.queryIdentity = serviceQuery(f.service, { dynamic: 'yes' });
   if (invalid === 'partial settings') f.settings.serviceUid = f.service.uid;
+  if (invalid === 'identity mismatch') {
+    Object.assign(f.settings, { serviceUid: 65534, serviceGid: 65534 });
+  }
   if (invalid === 'unprotected snapshot') {
     const stat = f.filesystem.lstat;
     f.filesystem.lstat = async file => Object.assign(await stat(file), file === path.dirname(f.dataDir) ? { mode: 0o40777 } : {});

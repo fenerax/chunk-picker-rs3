@@ -84,6 +84,17 @@ test('failed online backup clears maintenance, reports failure and permits anoth
   await checkStart(f.settings);
 });
 
+test('unwritable timing receipt location aborts deployment without stopping or leaving maintenance', async t => {
+  const f = await fixture(t);
+  await writeFile(path.join(f.settings.controlDir, 'phase-receipts'), 'synthetic obstruction');
+  const result = await run(f, 'deploy');
+  assert.equal(result.failure.error, 'PHASE_RECEIPT_UNWRITABLE');
+  assert.equal(result.marker, null);
+  assert.deepEqual(result.calls, ['show', 'show']);
+  assert.deepEqual(result.health, { result: { skipped: true } });
+  await assert.rejects(readFile(path.join(f.settings.controlDir, 'operation.lock')), { code: 'ENOENT' });
+});
+
 for (const command of ['deploy', 'backup']) {
   test(`failed ${command === 'backup' ? 'stopped backup' : 'deploy'} keeps maintenance evidence and blocks later health`, async t => {
     const f = await fixture(t), result = await run(f, command, true);

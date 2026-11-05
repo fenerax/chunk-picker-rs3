@@ -6,7 +6,7 @@ Confirmed with Player 1 on October 7, 2026.
 
 Recreate the RS3 Chunk Picker from scratch, one for one as closely as practical. Preserve its recognizable map workflow and useful feature breadth, then add Group Ironman and special-rule support. A small duo-only substitute is not the final scope.
 
-The first users are Player 1 and Player 2. The deployment is a standalone application with its own private storage, hosted on Player 1's desktop. It works independently of the original author's Firebase backend. Player 1 retains her private Tailscale administrator link. Separate revocable invitations can use public HTTPS through Tailscale Funnel, allowing Player 2 to join without installing Tailscale. One durable server synchronizes both browsers and rejects concurrent stale writes. [Sharing](docs/sharing.md) documents setup, administrator permissions and the possession-based meaning of invitation labels.
+The first users are Player 1 and Player 2. Public multi-user use remains the destination; the initial duo deployment does not limit the product to two people. Keep each player's maps and progress separate while supporting shared groups. [Sharing](docs/sharing.md) documents invitations; deployment-specific setup belongs to the operator's private runbook.
 
 ## Required outcomes
 
@@ -55,11 +55,12 @@ Player 1 confirmed on October 8 that coupled loadout BiS scoring stays, includin
 
 Checkpoints sequence work; they do not narrow the final feature scope.
 
-## Sharing and accounts (direction, 2026-10-08)
+## Sharing and accounts (direction, updated 2026-11-05)
 
-- Now: per-person invite links (revocable, attributed in History) and Tailscale Funnel so Player 2 can open the picker without installing Tailscale. The master link stays private to the tailnet.
-- Later: proper accounts inside one picker. People sign in with an existing identity (Google and similar, for example through WorkOS), and one picker account can hold several RuneScape accounts, each with its own map, tasks and RuneMetrics/plugin sync. Groups (like the duo) share a combined view. New work should avoid hard-coding exactly two members where it is cheap to avoid.
-- Game sync: a companion plugin for the official RS3 Plugin Hub once its API is public (late October 2026), posting current chunk, quest and skill changes to a per-account endpoint.
+- Retain accounts, sign-in and multi-picker support. One picker account should support several RuneScape accounts, each with its own map, tasks and sync, plus group views and friends' maps. Avoid hard-coding exactly two members.
+- Keep the existing Discord and Google sign-in. WorkOS is not selected; reconsider it only for a concrete unmet login/recovery need.
+- Keep the Node/file-store architecture unless measurements justify a different engine or storage design. Isolate per-picker state and share bounded calculation resources.
+- The official-game plugin supplies observations. In live play, automatic ticks are the intended default with easy Undo; beta observations remain unable to tick live progress. Requiring confirmation for every live tick is not the product direction.
 
 ## Sources of decisions
 
@@ -76,3 +77,15 @@ Player 1 and Player 2 plan to replace the original chunk picker with this app on
 - **Each task is listed once.** A task that trains several skills appears under its main skill instead of being copied under every skill heading; completing it still counts once.
 - **Members-only content is excluded for the F2P duo** by item, source and method evidence (see `docs/research/f2p-membership-audit.2026-10-08.v1.md`); a "held but unobtainable item" supply rule is not needed for Ironmen finishing F2P first.
 - **Chunk Rules mirrors the original's structure** (sections, descriptions, parent/child rules, presets), with honest markers on rules that are saved but not yet active.
+
+## Public product decisions — 2026-11-05
+
+The picker is intended to compete with the original RS3 picker: fast updates and task loading, correct F2P access and boundaries, clear reasons, easy error correction, multiple individual maps and groups, and a companion game plugin. A report that something looks wrong should eventually feed an automatic evidence check.
+
+Save portability must work between instances of this picker and in both directions with the original. For original-picker import, a map code read in the player's browser is the main route; pasted chunks and rules are the fallback. Handle source reads in the browser, with explicit preview and confirmation before changing local progress. Check the current transfer implementation rather than rebuilding completed phases.
+
+Map first is the permanent layout direction, including the phone home view; display names should occupy about 20 characters. Code restructuring is allowed when it improves speed, responsiveness and usability. Evaluate design iterations against frozen comparison references with overflow, map-share, contrast and viewport checks before reviewer scoring; reviewers must not be told a target score.
+
+Every available task should have a real, explainable route. Preserve full prerequisite alternatives in Why not? and plain-language How? evidence; verify routes against source evidence and turn demonstrated errors into regression cases.
+
+Development priority remains speed/performance, then usability, then accuracy. The update target is 15–20 minutes end to end, with new gates charged against that budget. Usability ideas from 2026-11-02 remain proposals: remove internal IDs, repeated steps and jargon from How?; decide inline versus popup presentation; consider a backlog reason dialog, modifier-click quick backlog, and forwarding “task is wrong” reasons to feedback. These ideas are not an implementation grant.

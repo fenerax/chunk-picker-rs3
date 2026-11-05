@@ -19,7 +19,7 @@ export async function serviceOperation(settings, command, work) {
     if (await exists(file)) {
       await noLinks(file);
       const previous = JSON.parse(await readFile(file, 'utf8'));
-      if (!['restore', 'quarantine-release'].includes(command) || previous.host !== hostname() || !Number.isSafeInteger(previous.pid) || previous.pid < 1) throw new Error('Unverifiable operator evidence; inspect privately.');
+      if (!['restore', 'quarantine-release', 'tools-switch-recover'].includes(command) || previous.host !== hostname() || !Number.isSafeInteger(previous.pid) || previous.pid < 1) throw new Error('Unverifiable operator evidence; inspect privately.');
       try { process.kill(previous.pid, 0); throw new Error('Operator evidence still has a live owner.'); }
       catch (error) { if (error.code !== 'ESRCH') throw error; }
       await rm(file);
