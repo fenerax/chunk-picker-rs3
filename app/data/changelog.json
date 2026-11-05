@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-05",
+      "title": "Back up and restore your picker",
+      "items": [
+        "In More > Saves > Export / Import, choose Full picker backup to download your save.",
+        "Restore the file later or move it to another copy of this picker using the same dataset.",
+        "Before choosing Apply reviewed replacement, preview what will change and use Match the players when needed.",
+        "After a full picker restore, find your old save under Browse previous saves. Undo can reverse a single player's map restore.",
+        "The picker stays responsive while you export, restore or undo large saves."
+      ]
+    },
+    {
       "date": "2026-11-04",
       "title": "Level and quest sync, safer saves",
       "items": [
