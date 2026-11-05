@@ -10,7 +10,7 @@ permissions:
 # A newer push or pull request update cancels the older run for the same ref.
 # Main keeps one run per commit.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-serial-control-${{ github.sha }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -105,9 +105,8 @@ jobs:
   differential:
     # The reusable workflow also checks PR head vs merge base with Q2.
     # A Q2 "not relevant" result succeeds; any comparison failure fails coverage.
-    # Run independently so ordinary test failures cannot hide differential evidence.
-    needs: gate
-    if: needs.gate.outputs.run == 'true'
+    # Temporary serial control for the paired hosted timing experiment.
+    needs: test
     uses: ./.github/workflows/differential.yml
 
   # The test files that skip Windows and PowerShell cases on Linux, run on
