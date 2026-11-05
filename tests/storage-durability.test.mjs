@@ -25,6 +25,34 @@ async function directory(t) {
   return dataDir;
 }
 
+test('fresh initialization includes daily observations without retaining an intermediate save', async t => {
+  const dataDir = await directory(t);
+  const store = await openStore({ dataDir, initialState: initialState(), progressQuestPoints: questPoints, now: firstDay });
+  t.after(() => store.close());
+  assert.equal(store.getState().progressSnapshots.days.length, 1);
+  assert.deepEqual(importBackup(await readFile(path.join(dataDir, 'state.json'), 'utf8')), store.getState());
+  assert.deepEqual(await store.listBackups(), []);
+});
+
+test('catalogue refresh includes daily observations in one write backed by the exact original save', async t => {
+  const dataDir = await directory(t);
+  const initial = await openStore({ dataDir, initialState: initialState(), progressQuestPoints: questPoints, now: firstDay });
+  const original = initial.getState();
+  await initial.close();
+  const previous = await readFile(path.join(dataDir, 'state.json'));
+  const loaded = await openStore({ dataDir, progressQuestPoints: questPoints, now: nextDay,
+    prepareState: state => ({ ...state, rules: { ...state.rules, 'access.shared': !state.rules['access.shared'] } }) });
+  t.after(() => loaded.close());
+  assert.equal(loaded.getState().revision, original.revision + 1);
+  assert.equal(loaded.getState().progressSnapshots.days.length, 2);
+  assert.equal(loaded.getState().history.at(-1).type, 'catalogue-refresh');
+  assert.deepEqual(importBackup(await readFile(path.join(dataDir, 'state.json'), 'utf8')), loaded.getState());
+  const backups = await loaded.listBackups();
+  assert.equal(backups.length, 1);
+  // Catalogue-refresh backups add retention metadata but preserve the full old state.
+  assert.deepEqual((await loaded.readBackup(backups[0].id)).state, importBackup(previous.toString('utf8')));
+});
+
 test('startup retains the exact previous save before adding daily observations without a revision or format change', async t => {
   const dataDir = await directory(t);
   const initial = await openStore({ dataDir, initialState: initialState(), progressQuestPoints: questPoints, now: firstDay });

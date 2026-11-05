@@ -638,6 +638,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!Number.isFinite(date.getTime())) throw new TypeError('Invalid store timestamp.');
     return date.toISOString();
   };
+  function observeStartupProgress(state) {
+    if (readOnly || liveSwapStrict || progressQuestPoints === undefined) return state;
+    const observed = captureProgressSnapshot(state, { questPoints: progressQuestPoints, at: timestamp() });
+    if (observed !== state && coordination.has(state)) coordination.set(observed, coordinationOf(state));
+    return observed;
+  }
   async function prepared(state, operation) {
     if (operation === 'load' && prepareState?.isCurrent?.(state) === true
       && (!migrateState || migrateState.isCurrent?.(state) === true)) return state;
@@ -891,7 +897,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const seed = initialState === undefined
         ? createGroupState((await loadGameDefaults()).members.map(({ id, name }) => ({ id, name })), registry)
         : validateState(initialState, registry);
-      current = await prepared(seed, 'initialize');
+      current = observeStartupProgress(await prepared(seed, 'initialize'));
       currentDiskSerialized = await serializedDiskState(current);
       reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
@@ -900,7 +906,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // Project retained events together with active events. Leaving the old
       // segment references attached could revive pre-boundary undo on export.
       const baseline = migrateState && current.provenance?.historyArchive?.length ? (await hydrateHistory(current)).state : current;
-      const ready = await prepared(baseline, 'load');
+      let ready = await prepared(baseline, 'load');
       if (baseline !== current && JSON.stringify(ready.history) === JSON.stringify(baseline.history)) {
         // Unchanged events can keep their existing retention segments. A
         // reusable migration must not turn mere hydration into a refresh.
@@ -919,6 +925,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         // here are a checked revision increment and this authored history event.
         await retainBackup(current, 'catalogue-refresh');
         if (coordination.has(current)) coordination.set(ready, { ...coordinationOf(current), lastNonClaimRevision: ready.revision });
+        // Include today's observation in this already-backed-up startup write.
+        ready = observeStartupProgress(ready);
         const diskDocument = await serializedDiskState(ready);
         const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
           beforeRename: beforeCommit ? () => beforeCommit({ operation: 'catalogue-refresh', state: structuredClone(ready) }) : undefined });
@@ -932,9 +940,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Daily observation metadata is independent of commands/catalogue changes.
     // Startup records today's counts without incrementing revision or History.
     if (!readOnly && !liveSwapStrict && progressQuestPoints !== undefined) {
-      const observed = captureProgressSnapshot(current, { questPoints: progressQuestPoints, at: timestamp() });
+      const observed = observeStartupProgress(current);
       if (observed !== current) {
-        if (coordination.has(current)) coordination.set(observed, coordinationOf(current));
         const diskDocument = await serializedDiskState(observed);
         // Observations keep the same revision, but still replace the durable save.
         await retainBackup(current, 'progress-snapshot');
