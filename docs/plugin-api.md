@@ -235,12 +235,6 @@ The Game plugin dialog shows each player's current part count, last complete
 achievement count, matched task count and last automatic batch's count and time.
 These summaries are in memory only and visible with that player's keys.
 
-Cached bank coins are historical observations, not authoritative current funds.
-Transport currency counts only the live pouch and backpack. The current protocol
-cannot reliably distinguish an empty bank from an unavailable read; including
-the retained bank count can count a withdrawn stack twice, even with age zero.
-Bank item evidence and its observation time are still retained separately.
-
 ### Worn and backpack items
 
 Send `items` only when status `accepts` lists `"items"`, in a report without
@@ -329,6 +323,12 @@ archive. Per player it keeps `baselineAt`, reviewed `items` facts
 2,000) and the last acknowledged `journal` `{id, event}`. Beta and
 unknown-world evidence stays in memory only and never mixes with live evidence.
 The sidecar is outside the save, Undo and backups.
+
+Cached bank coins are historical observations, not authoritative current funds.
+Transport currency counts only the live pouch and backpack. The current protocol
+cannot reliably distinguish an empty bank from an unavailable read; including
+the retained bank count can count a withdrawn stack twice, even with age zero.
+Bank item evidence and its observation time are still retained separately.
 
 Status `items` is null until the first items report, then exactly
 `{snapshot, journal}`: the last snapshot processed and the newest journal event
