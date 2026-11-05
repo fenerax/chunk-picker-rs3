@@ -9,6 +9,7 @@ import { validatePluginReport } from '../app/integrations/game-plugin.mjs';
 import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
 import { applyCommand, createGroupState, validateState } from '../app/core/state.mjs';
 import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
+import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand } from './fixtures/rollback-main/state.mjs';
 
 const identity = { admin: true };
 const journalId = 'aaaaaaaaaaaaaaaa';
@@ -61,7 +62,7 @@ async function fixture(t, { betaAsLive = false, durable = false } = {}) {
     await store.command(review.command, preview.stateRevision); await controller.finish('a');
     return review.command;
   }
-  return { get controller() { return controller; }, get state() { return durable ? store.getState() : state; }, get at() { return at; }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
+  return { get store() { return store; }, get controller() { return controller; }, get state() { return durable ? store.getState() : state; }, get at() { return at; }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
     sendBank: (value, beta = false) => send(value, beta, 'bank'),
     review: () => controller.review(identity, 'a'), restart: async () => { await controller.close(); if (durable) await store.close(); await start(); } };
 }
@@ -169,6 +170,55 @@ test('an undone item tick is not ticked again, and a failed tick waits in review
   await f.restart();
   await f.send(items({ snapshot: '2223456789abcdef', backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
   assert.equal(f.commands.length, 1, 'Handled across restart');
+});
+
+test('an automatic item tick keeps suppression through sidecar failure, Undo and restart', async t => {
+  const f = await fixture(t, { durable: true });
+  const file = path.join(f.dataDir, 'plugin-items.json'), backup = path.join(f.dataDir, 'synthetic-held-items.json');
+  const command = f.store.command;
+  f.store.command = async (...args) => {
+    const result = await command(...args);
+    if (args[0].type === 'apply-game-progress') { await rename(file, backup); await mkdir(file); }
+    return result;
+  };
+  const value = items({ backpack: [[0, YEW_SHORTBOW, 1, 'Synthetic bow']] });
+  await f.send(value);
+  assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')));
+  assert.ok(f.warnings.some(message => /handled plugin item/.test(message)));
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+  const rolledBack = applyLiveCommand(loadLiveBackup(saved), { type: 'undo' });
+  assert.deepEqual(rolledBack.members[0].completedTasks, []);
+  assert.deepEqual(rolledBack.provenance.pluginAutoHandled, saved.state.provenance.pluginAutoHandled, 'The legacy loader and Undo retain the additive replay policy');
+  assert.doesNotThrow(() => validateState(rolledBack));
+  await f.store.command({ type: 'undo' }, f.state.revision);
+  await rm(file, { recursive: true }); await rename(backup, file);
+  await f.restart();
+  const revision = f.state.revision;
+  await f.send(value);
+  assert.deepEqual(f.state.members[0].completedTasks, [], 'The failed sidecar cannot undo a committed suppression decision');
+  assert.equal(f.state.revision, revision, 'Replay adds no tick or History entry');
+  assert.equal(f.store.isPluginHandled('b', 'items', goal('000dc1')), false, 'Suppression belongs to the observed player');
+  await f.store.replace(f.state, f.state.revision);
+  await f.restart();
+  await f.send(value);
+  assert.deepEqual(f.state.members[0].completedTasks, [], 'A restored checkpoint retains its replay policy');
+});
+
+test('a failed gameplay publication commits neither the item tick nor its suppression', async t => {
+  const f = await fixture(t, { durable: true });
+  const file = path.join(f.dataDir, 'state.json'), backup = path.join(f.dataDir, 'synthetic-held-state.json');
+  await rename(file, backup); await mkdir(file);
+  const value = items({ backpack: [[0, YEW_SHORTBOW, 1, 'Synthetic bow']] });
+  const revision = f.state.revision;
+  await f.send(value);
+  assert.equal(f.state.revision, revision);
+  assert.equal(f.store.isPluginHandled('a', 'items', goal('000dc1')), false);
+  assert.ok(f.review().items.some(row => row.taskId === goal('000dc1')), 'The failed tick stays available for retry');
+  await rm(file, { recursive: true }); await rename(backup, file);
+  await f.restart();
+  await f.send(value);
+  assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')));
+  assert.equal(f.store.isPluginHandled('a', 'items', goal('000dc1')), true);
 });
 
 test('Apply ticks only chosen review rows; shown live rows stay handled across restart', async t => {

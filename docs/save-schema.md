@@ -252,3 +252,12 @@ does; payloads cannot supply task metadata. New item ticks join
 `completedTasks` in the same History/Undo batch. Manual unticks, Undo, task
 deletion and restore previews treat `itemProgress` like `achievementProgress`.
 The field stays absent until an item tick is applied.
+
+Automatic plugin ticks also store `provenance.pluginAutoHandled`, keyed by member
+ID, with sorted `achievements` (up to 20,000 numeric IDs) and `items` (up to 2,000
+task IDs). The store publishes this replay policy with the tick, outside gameplay
+Undo deltas. Unticking or Undo therefore cannot make an automatic observation
+eligible again after a sidecar failure and restart. The extension stays absent
+on older saves until an automatic tick; existing sidecars continue to supply
+earlier suppression. Backups and whole-picker restores retain the extension,
+and portable roster mapping remaps its member keys.

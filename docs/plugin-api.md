@@ -235,6 +235,15 @@ The Game plugin dialog shows each player's current part count, last complete
 achievement count, matched task count and last automatic batch's count and time.
 These summaries are in memory only and visible with that player's keys.
 
+Automatic achievement and item ticks commit their replay suppression in the same
+gameplay-store publication, in `provenance.pluginAutoHandled`, keyed by player.
+Each record contains sorted `achievements` (numeric observation IDs, including
+aliases sharing a task) and `items` (task IDs). These bounded records survive
+Undo and unticking; a failed gameplay publication saves neither the tick nor
+its suppression. Existing handled sidecars remain additional evidence and keep
+their retry behavior, but a sidecar failure cannot lose a new automatic tick's
+replay policy. This additive save metadata does not change the plugin wire format.
+
 ### Worn and backpack items
 
 Send `items` only when status `accepts` lists `"items"`, in a report without

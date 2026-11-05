@@ -3,6 +3,7 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
+import { hasPluginHandled, withPluginHandled } from './plugin-handled.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
@@ -1060,8 +1061,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       : serializedResult ? { ...await preparedCommandSnapshot(baseline, omitUnchanged, view), ...(receiptResult ? { receipt: receiptResult } : {}) } : cloneCurrent();
   }
   const commandReceipt = (command, actor, requestId, requestAck) => inspectActionReceipt(receipts, command, actor, requestId, requestAck);
-  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck) {
+  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck, pluginHandled) {
     const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
+    const suppression = pluginHandled === undefined ? undefined : structuredClone(pluginHandled);
     return enqueue(async () => {
       const receipt = commandReceipt(command, attribution, requestId, requestAck);
       if (receipt) {
@@ -1092,7 +1094,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // Undo validates a saved inverse, runs preparation and observes progress.
       // Separate those stages so they cannot share one long HTTP-thread turn.
       if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
-      const ready = await prepared(next, 'command');
+      const ready = withPluginHandled(await prepared(next, 'command'), command, suppression);
       if (ready.revision !== next.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
       if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
       // Caller hooks can change more than the command requested. Only exact
@@ -1130,7 +1132,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       else precedingEvidence.push(event);
     }
     const previousHistory = [...precedingEvidence, ...[...preceding.values()].sort((a, b) => a.revision - b.revision)];
-    ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
+    ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}),
+      ...(ready.provenance?.pluginAutoHandled ? { pluginAutoHandled: ready.provenance.pluginAutoHandled } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
       ...(completeIncoming.provenance !== undefined ? { incomingProvenance: completeIncoming.provenance } : {}) } };
     ready.revision = revision;
     // A replacement establishes a new undo boundary. Earlier snapshots may
@@ -1371,8 +1374,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     },
     getAccessToken: () => token,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    command(command, expectedRevision, { actor, requestId, requestAck } = {}) {
-      return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck);
+    isPluginHandled: (player, kind, id) => hasPluginHandled(current, player, kind, id),
+    command(command, expectedRevision, { actor, requestId, requestAck, pluginHandled } = {}) {
+      return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck, pluginHandled);
     },
     commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck); },
     async replayCommandSerialized(command, requestId, { actor, view, requestAck } = {}) {

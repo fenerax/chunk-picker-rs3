@@ -52,6 +52,7 @@ test('roster mapping remaps active references and preserves historical text and 
   state.members[0].skillProgress = { Mining: { source: 'game-plugin', memberId: 'first', fetchedAt: '2026-01-01T00:00:00.000Z', level: 1, xp: 0 } };
   state.groupGoals = [{ id: 'group-goal:test', text: 'first', completion: 'players', completedBy: ['first'], done: false }];
   state.finishLine = { items: {}, customItems: [{ id: 'finish:test', text: 'first', completedBy: ['second'] }] };
+  state.provenance = { ...state.provenance, pluginAutoHandled: { first: { achievements: [1], items: ['custom:sample'] } } };
   assert.equal(mapTransferRoster(state, [{ id: 'owner' }]), null);
   const next = mapTransferRoster(state, [{ id: 'owner' }], { first: 'owner', second: 'partner' });
   assert.equal(next.members[0].notes['100'], 'first');
@@ -60,6 +61,7 @@ test('roster mapping remaps active references and preserves historical text and 
   assert.deepEqual(next.progressSnapshots.memberIds, ['owner', 'partner']);
   assert.equal(next.taskClaims['custom:sample'].memberId, 'owner');
   assert.equal(next.members[0].skillProgress.Mining.memberId, 'owner');
+  assert.deepEqual(next.provenance.pluginAutoHandled, { owner: { achievements: [1], items: ['custom:sample'] } });
   assert.deepEqual(next.finishLine.customItems[0].completedBy, ['partner']);
   assert.deepEqual(next.provenance.transferRoster.history, state.history);
   assert.deepEqual(next.history, []);
