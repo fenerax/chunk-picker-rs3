@@ -74,6 +74,54 @@ npm run test:quick -- --list
 npm test -- --list
 ```
 
+## File telemetry
+
+CI retains `test-ledger-<SHA>-<run ID>-<attempt>` and
+`windows-ledger-<SHA>-<run ID>-<attempt>` artifacts for 35 days. The upload steps
+use `always()`. `RS3_TEST_FILE_LEDGER` opts the ordinary runner into this small
+append-only JSONL journal; Windows writes `windows-ledger.jsonl` in its work root.
+Each newline-terminated record is written synchronously through one open file
+descriptor, so killing the test process does not discard earlier receipts.
+Uploading still requires a live Actions runner; loss of the VM cannot run an
+artifact upload step.
+
+The `rs3-file-ledger-v1` header binds the exact selected file inventory to
+`sha` (the tested checkout SHA), `runId`, `runAttempt`, `lane` and `selectedAt`.
+Admission/completion records have a repository-relative `file`, `attempt` (1 or
+2), and a `value` patch. Materialize one receipt per selected file with:
+
+```sh
+node scripts/ci/file-ledger.mjs downloaded/test-ledger.jsonl
+```
+
+Each receipt has `file`, `firstAttempt` and nullable `retry`. Both attempts carry
+`outcome`, `admittedAt`, `completedAt`, `queueWaitMs`, `processWallMs`, `fileWallMs`,
+`bodyMs`, `datasetId`, `datasetDigest`, `datasets`, `solo`, `concurrency` and
+`errors`. Queue wait starts when that scheduler invocation starts (retries get
+their own wait); concurrency is the active file count at admission. Timing
+units are milliseconds. `processWallMs - bodyMs` combines controller startup,
+imports, hooks and teardown; it does not measure dataset loading separately.
+The first runtime provider resolved by the entrypoint or a descendant supplies
+the observed dataset identity and digest. Without a runtime provider, the
+configured dataset ID is retained with a null digest and empty `datasets`;
+model-only tests need not load a dataset just for telemetry.
+
+The reader initializes every selected file as `not-admitted` and marks an
+admitted file `interrupted` until it gets a completion. A missing final summary
+or torn last line is supported. Windows retries populate `retry` without
+replacing `firstAttempt`; the existing pass/FLAKY/fail policy is unchanged.
+`errors` retains only bounded message/name/code/failureType/cause records,
+with credentials, known user/machine identities, paths, emails and endpoints
+redacted. No environment dump, stdout, stack or assertion payload is retained.
+
+The final summary reports selected files, completed attempts and `overheadMs`:
+measured ledger initialization, serialization, redaction and synchronous I/O,
+plus native error transport and dataset receipt collection costs. This measures
+instrumentation work, not a causal comparison of total job runtimes. Artifact
+transfer time is separate. The targeted ledger test also benchmarks 750 files
+against a two-second wall budget and kills a synthetic writer to verify partial
+recovery. No full suite is needed to run that test.
+
 ## Adding tests
 
 `scripts/test-selection.mjs` is the classification source. Add a cheap test's

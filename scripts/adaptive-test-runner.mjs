@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
+import { childErrorRecord, restoreChildError, transportChildError } from './test-child-errors.mjs';
 
 export const GiB = 1024 ** 3;
 const self = fileURLToPath(import.meta.url);
@@ -124,10 +125,20 @@ export function crossFileTrace(results, { names = new Set(), scratchFiles = new 
 // A controller per file gives Node's native FileTest events and an independent
 // environment. Only the actual test child runs cases. No worker is suspended.
 // Past its deadline the controller tree is killed and the file counts as failed.
-async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot }) {
+async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot }) {
   const started = performance.now();
   const environment = { ...env };
   delete environment.NODE_TEST_CONTEXT; delete environment.RS3_TEST_TRACE_DIR; delete environment.RS3_TEST_TRACER;
+  delete environment.RS3_TEST_DATASET_RECEIPT;
+  let telemetryMs = 0;
+  let datasetReceipt;
+  if (datasetRoot) {
+    const start = performance.now();
+    await mkdir(datasetRoot, { recursive: true });
+    datasetReceipt = path.join(datasetRoot, randomUUID() + '.jsonl');
+    environment.RS3_TEST_DATASET_RECEIPT = datasetReceipt;
+    telemetryMs += performance.now() - start;
+  }
   let traceDirectory;
   if (traceRoot) {
     traceDirectory = path.join(traceRoot, path.basename(file).replace(/[^\w.-]/g, '_') + '-' + randomUUID());
@@ -139,6 +150,7 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'], detached: process.platform !== 'win32',
   });
   let summary, fileWallMs, bodyMs = 0, callbackError, childError, timedOut = false;
+  const errors = [];
   const deadline = deadlineMs > 0 ? setTimeout(() => {
     timedOut = true;
     emit({ type: 'test:diagnostic', data: { file, nesting: 0, message: `file deadline of ${deadlineMs} ms exceeded; killing its process tree` } });
@@ -152,6 +164,13 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
   child.stderr.on('data', message => emit({ type: 'test:stderr', data: { file, message: String(message) } }));
   child.on('message', event => {
     const { type, data } = event;
+    if (type === 'rs3:telemetry-cost') { telemetryMs += data.overheadMs; return; }
+    if (data?.details?.error) {
+      const start = performance.now();
+      if (type === 'test:complete' && !data.details.passed) errors.push(childErrorRecord(data.details.error));
+      data.details.error = restoreChildError(data.details.error);
+      telemetryMs += performance.now() - start;
+    }
     if (type === 'test:summary' && !data.file) {
       // Native IPC retains file:undefined. Receipts use canonical JSON values.
       summary = { success: data.success, counts: { ...data.counts }, duration_ms: data.duration_ms };
@@ -174,20 +193,44 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
   });
   clearTimeout(deadline);
   signal?.removeEventListener('abort', abort);
+  const completedAt = new Date().toISOString();
+  const datasets = [];
+  if (datasetReceipt) {
+    const start = performance.now();
+    try {
+      const identities = new Map();
+      for (const line of (await readFile(datasetReceipt, 'utf8')).split('\n').filter(Boolean)) {
+        let value; try { value = JSON.parse(line); } catch { continue; }
+        if (Number.isFinite(value.overheadMs)) telemetryMs += value.overheadMs;
+        else if (['duo-legacy', 'open-f2p', 'open-starter'].includes(value.id) && /^[a-f0-9]{64}$/.test(value.digest ?? '')) identities.set(value.id + ':' + value.digest, value);
+      }
+      datasets.push(...identities.values());
+    } catch { /* A diagnostic read cannot change the test outcome. */ }
+    await rm(datasetReceipt, { force: true }).catch(() => {});
+    telemetryMs += performance.now() - start;
+  }
+  const telemetry = { completedAt, errors, datasets, telemetryMs, cancelled: signal?.aborted === true };
   await events;
   if (callbackError) throw callbackError;
-  if (childError && !timedOut) throw childError;
+  if (childError && !timedOut) {
+    childError.fileReceipt = { file, passed: false, processWallMs: exited - started, fileWallMs, bodyMs, ...telemetry, errors: [...errors, childErrorRecord(childError)] };
+    throw childError;
+  }
   const trace = traceDirectory ? await summarizeTrace(traceDirectory, { cwd, env: environment }) : undefined;
   if (traceDirectory) await rm(traceDirectory, { recursive: true, force: true });
   if (timedOut) {
     const counts = Object.fromEntries(countKeys.map(key => [key, summary?.counts?.[key] ?? 0]));
     counts.failed = Math.max(1, counts.failed);
-    return { file, passed: false, timedOut: true, deadlineMs, processWallMs: exited - started, fileWallMs: fileWallMs ?? exited - started, bodyMs,
+    return { file, passed: false, timedOut: true, deadlineMs, processWallMs: exited - started, fileWallMs: fileWallMs ?? exited - started, bodyMs, ...telemetry,
       summary: { success: false, counts, duration_ms: exited - started }, ...(trace ? { trace } : {}) };
   }
-  if (!summary || !Number.isFinite(fileWallMs)) throw new Error(`Missing native summary/FileTest completion for ${file} (exit ${code}, signal ${exitSignal})`);
+  if (!summary || !Number.isFinite(fileWallMs)) {
+    const error = new Error(`Missing native summary/FileTest completion for ${file} (exit ${code}, signal ${exitSignal})`);
+    error.fileReceipt = { file, passed: false, processWallMs: exited - started, fileWallMs, bodyMs, ...telemetry, errors: [...errors, childErrorRecord(error)] };
+    throw error;
+  }
   return { file, passed: code === 0 && summary.success === true, processWallMs: exited - started,
-    fileWallMs, bodyMs, summary, ...(trace ? { trace } : {}) };
+    fileWallMs, bodyMs, summary, ...telemetry, ...(trace ? { trace } : {}) };
 }
 
 // The assembly's reviewed per-file policy: { solo, env }. env values replace the
@@ -222,8 +265,8 @@ function policyEnvironment(env, overrides = {}) {
 export async function runAdaptive({ files, cwd = process.cwd(), env = process.env,
   memory = freemem, floorBytes = 4 * GiB, reserveBytes = GiB,
   minConcurrency = 2, maxConcurrency = 6, pollMs = 250, rampMs = 1000,
-  onEvent = async () => {}, onFile = async () => {}, onSchedule = async () => {},
-  signal, runFile = nativeFile, policy, fileDeadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot } = {}) {
+  onEvent = async () => {}, onFile = async () => {}, onSchedule = async () => {}, onAdmit = async () => {}, onFileError = async () => {},
+  signal, runFile = nativeFile, policy, fileDeadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot } = {}) {
   if (!Array.isArray(files) || files.some(file => typeof file !== 'string' || !file)) throw new TypeError('files must be an array of nonempty paths');
   if (new Set(files.map(file => path.resolve(cwd, file))).size !== files.length) throw new Error('Duplicate test files');
   policy ??= await loadTestPolicy(cwd);
@@ -290,8 +333,22 @@ export async function runAdaptive({ files, cwd = process.cwd(), env = process.en
         const file = files[next++];
         reserved++;
         soloActive = solo;
-        const task = Promise.resolve().then(() => runFile({ file, cwd, env: policyEnvironment(env, overrides), signal: controller.signal, onEvent: emit, deadlineMs, traceRoot }))
-          .then(async result => { completed.push(result); await onFile(result); })
+        const admittedAt = new Date().toISOString(), admitted = performance.now();
+        const environment = policyEnvironment(env, overrides);
+        const admission = { file, admittedAt, queueWaitMs: admitted - started, solo, concurrency: active.size + 1,
+          datasetId: environment.RS3_DATASET || 'duo-legacy' };
+        const task = Promise.resolve().then(async () => {
+          await onAdmit(admission);
+          let result;
+          try { result = await runFile({ file, cwd, env: environment, signal: controller.signal, onEvent: emit, deadlineMs, traceRoot, datasetRoot }); }
+          catch (error) {
+            await onFileError({ ...admission, completedAt: new Date().toISOString(), processWallMs: performance.now() - admitted,
+              passed: false, errors: [childErrorRecord(error)], ...error.fileReceipt });
+            throw error;
+          }
+          Object.assign(result, admission, { completedAt: result.completedAt ?? new Date().toISOString() });
+          completed.push(result); await onFile(result);
+        })
           .catch(error => { failure ??= error; })
           .finally(() => { active.delete(task); if (solo) soloActive = false; });
         active.add(task);
@@ -335,10 +392,17 @@ async function worker(file) {
   process.on('message', message => { if (message?.abort) controller.abort(); });
   process.on('disconnect', () => controller.abort());
   let success = false;
+  let telemetryMs = 0;
   for await (const event of run({ files: [path.resolve(file)], isolation: 'process', concurrency: 1, signal: controller.signal })) {
     if (event.type === 'test:summary' && !event.data.file) success = event.data.success;
+    if (event.data?.details?.error) {
+      const start = performance.now();
+      event.data.details.error = transportChildError(event.data.details.error);
+      telemetryMs += performance.now() - start;
+    }
     await new Promise((resolve, reject) => process.send(event, error => error ? reject(error) : resolve()));
   }
+  await new Promise((resolve, reject) => process.send({ type: 'rs3:telemetry-cost', data: { overheadMs: telemetryMs } }, error => error ? reject(error) : resolve()));
   process.exitCode = success ? 0 : 1;
   process.disconnect();
 }

@@ -6,10 +6,11 @@
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { freemem, totalmem } from 'node:os';
 import path from 'node:path';
-import { inspect } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createCoverageReporter } from '../../scripts/ci/coverage-reporter.mjs';
+import { createFileLedger } from '../../scripts/ci/file-ledger.mjs';
+import { childErrorRecord } from '../../scripts/test-child-errors.mjs';
 
 // Audited against all 116 skips in run 39603812368. Keep equal to
 // scripts/private-companion/neutral-lane.mjs windowsBoundTests.
@@ -68,6 +69,9 @@ const env = await laneEnvironment(release, process.execPath, {
 });
 
 if (check) { console.log(`Check passed: ${windowsFiles.length} files in the inventory; isolated lane environment ready`); process.exit(0); }
+const ledger = createFileLedger({ destination: path.join(work, 'windows-ledger.jsonl'), cwd: assembly,
+  files: windowsFiles.map(name => 'tests/' + name), lane: 'windows' });
+try {
 console.log(`Node ${process.version}; memory ${(freemem() / GiB).toFixed(1)} of ${(totalmem() / GiB).toFixed(1)} GiB free; ${windowsFiles.length} files`);
 const output = new Map(), failures = new Map(), coverage = new Map();
 const keyOf = file => path.basename(file);
@@ -78,11 +82,9 @@ const onEvent = async ({ type, data }) => {
   coverage.get(key)?.onEvent({ type, data });
   if (type === 'test:stdout' || type === 'test:stderr') output.set(key, (output.get(key) ?? '') + data.message);
   if (type === 'test:fail' && data.details?.type !== 'suite') {
-    // Errors cross the worker IPC as structured clones; inspect keeps what survives.
-    const cause = data.details?.error?.cause ?? data.details?.error;
-    const text = typeof cause?.message === 'string' && cause.message ? (cause.stack ?? cause.message) : inspect(cause, { depth: 4, breakLength: 160 });
+    const cause = childErrorRecord(data.details?.error?.cause ?? data.details?.error);
     const list = failures.get(key) ?? [];
-    list.push(`${data.name}: ${String(cause?.message ?? cause).split('\n').slice(0, 6).join('\n    ')}`);
+    list.push(`${data.name}: ${JSON.stringify(cause)}`);
     failures.set(key, list);
   }
 };
@@ -99,13 +101,15 @@ const onFile = async result => {
 
 // runAdaptive never admits below its 4 GiB floor. Fail clearly instead of
 // waiting out the job timeout if the runner is too small.
-const run = (files, maxConcurrency) => {
+const run = (files, maxConcurrency, attempt = 1) => {
   for (const name of files) {
     output.delete(keyOf(name)); failures.delete(keyOf(name));
-    // A retry replaces that file's failed attempt, as in the slice verdict.
+    // Coverage retains the existing verdict; the ledger retains both attempts.
     coverage.set(keyOf(name), createCoverageReporter({ lane: 'windows', cwd: assembly, files: ['tests/' + keyOf(name)] }));
   }
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, abort);
   let idleSince = Date.now(), starved = false;
   const onSchedule = async ({ freeBytes, active, pending }) => {
     if (active || !pending) { idleSince = Date.now(); return; }
@@ -117,17 +121,20 @@ const run = (files, maxConcurrency) => {
   };
   return runAdaptive({ files: files.map(name => 'tests/' + keyOf(name)), cwd: assembly,
     env: { ...env, RS3_TEST_CONCURRENCY: String(maxConcurrency) }, signal: controller.signal,
-    minConcurrency: 1, maxConcurrency, onEvent, onFile, onSchedule })
-    .then(result => ({ ...result, starved }));
+    minConcurrency: 1, maxConcurrency, onEvent, onSchedule,
+    datasetRoot: path.join(work, '.test-datasets'), onAdmit: info => ledger.onAdmit(info, attempt),
+    onFileError: result => ledger.onFile(result, attempt),
+    onFile: result => { ledger.onFile(result, attempt); return onFile(result); } })
+    .then(result => ({ ...result, starved }))
+    .finally(() => { for (const signal of ['SIGINT', 'SIGTERM']) process.removeListener(signal, abort); });
 };
 const started = Date.now();
 let result = await run(windowsFiles, 2);
 // The shared flaky policy: a failed file reruns once alone and passes as FLAKY.
-result = await retryFailedFilesOnce({ result, enabled: !result.starved, runIsolated: files => run(files, 1),
+result = await retryFailedFilesOnce({ result, enabled: !result.starved, runIsolated: files => run(files, 1, 2),
   onFlaky: async file => console.log(`FLAKY ${keyOf(file.file)}: failed, then passed alone`) });
 
-// Diagnostics only, never a verdict: a failure's cause can be lost crossing the
-// runner's IPC, so rerun each still-failing file with the spec reporter in-process.
+// Keep the independent spec rerun diagnostic only, outside the verdict/ledger.
 for (const file of result.starved ? [] : result.files.filter(item => !item.passed)) {
   const name = 'tests/' + keyOf(file.file);
   const rerun = spawnSync(process.execPath, ['--test', '--test-reporter=spec', name], { cwd: assembly, env, encoding: 'utf8', timeout: 300000, windowsHide: true });
@@ -158,3 +165,6 @@ if (summary.notRun.length) lines.push('', 'Not run: ' + summary.notRun.join(', '
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
 console.log('\n' + lines.join('\n'));
 process.exitCode = summary.passed ? 0 : 1;
+} finally {
+  console.log('File telemetry: ' + JSON.stringify(ledger.finish()));
+}
