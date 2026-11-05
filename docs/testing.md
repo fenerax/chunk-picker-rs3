@@ -110,10 +110,14 @@ The reader initializes every selected file as `not-admitted` and marks an
 admitted file `interrupted` until it gets a completion. A missing final summary
 or torn last line is supported. Windows retries populate `retry` without
 replacing `firstAttempt`; the existing pass/FLAKY/fail policy is unchanged.
-`errors` retains only bounded message/name/code/failureType/cause records,
-with credentials, known user/machine identities, paths, emails and endpoints
-redacted. Assertion messages retain their first diagnostic line and omit rendered
-diffs. No environment dump, stdout, stack or assertion payload is retained.
+`errors` retains only bounded message/name/code/failureType/cause records.
+Messages and primitive causes are always redacted. Names and failure types use
+fixed public lists; codes use the current platform's Node `os.constants.errno`
+names plus `ERR_ASSERTION`, `ERR_BUFFER_TOO_LARGE`, `ERR_INVALID_ARG_TYPE`,
+`ERR_MODULE_NOT_FOUND`, `ERR_TEST_CANCELLED`, `ERR_TEST_FAILURE`,
+`ERR_WORKER_INIT_FAILED`, `ERR_WORKER_OUT_OF_MEMORY` and `ERR_ZSTD_GENERIC`.
+Every other error-field value becomes `[redacted]`, including numeric and boolean
+payloads. No environment dump, stdout, stack or assertion payload is retained.
 
 The final summary reports selected files, completed attempts and `overheadMs`:
 measured ledger initialization, serialization, redaction and synchronous I/O,

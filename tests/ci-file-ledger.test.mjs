@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import { cp, mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { performance } from 'node:perf_hooks';
 import { createFileLedger, readFileLedger, errorRedactor } from '../scripts/ci/file-ledger.mjs';
@@ -54,7 +54,7 @@ test('every selected file has exactly one receipt, including unadmitted files on
 
 for (const retryPasses of [true, false]) test(`isolated retry preserves the first failure when retry ${retryPasses ? 'passes as FLAKY' : 'fails'}`, async t => {
   const files = ['tests/a.test.mjs'], f = await fixture(t, files);
-  const original = Object.assign(new Error('original child failure', { cause: Object.assign(new Error('root failure'), { code: 'E_ROOT' }) }), { code: 'E_CHILD' });
+  const original = Object.assign(new Error('original child failure', { cause: Object.assign(new Error('root failure'), { code: 'ENOENT' }) }), { code: 'EIO' });
   const run = (attempt, passed) => schedule(f, files, {
     onAdmit: info => f.ledger.onAdmit(info, attempt), onFile: result => f.ledger.onFile(result, attempt),
     runFile: async ({ file }) => ({ file, passed, processWallMs: 6, fileWallMs: 5, bodyMs: 1, summary: summary(passed), errors: passed ? [] : [original] }),
@@ -66,15 +66,15 @@ for (const retryPasses of [true, false]) test(`isolated retry preserves the firs
   assert.equal(receipt.firstAttempt.outcome, 'fail'); assert.equal(receipt.retry.outcome, retryPasses ? 'pass' : 'fail');
   assert.equal(receipt.retry.concurrency, 1);
   assert.equal(receipt.firstAttempt.errors[0].message, '[redacted]');
-  assert.equal(receipt.firstAttempt.errors[0].code, 'E_CHILD');
-  assert.equal(receipt.firstAttempt.errors[0].cause.code, 'E_ROOT');
+  assert.equal(receipt.firstAttempt.errors[0].code, 'EIO');
+  assert.equal(receipt.firstAttempt.errors[0].cause.code, 'ENOENT');
 });
 
 test('controller exceptions still record a failed receipt and keep the original rejection', async t => {
   const f = await fixture(t);
-  const error = Object.assign(new Error('controller failed'), { code: 'E_SPAWN' });
+  const error = Object.assign(new Error('controller failed'), { code: 'EACCES' });
   await assert.rejects(schedule(f, ['tests/a.test.mjs'], { runFile: () => { throw error; } }), value => value === error);
-  assert.equal((await f.read()).receipts[0].firstAttempt.errors[0].code, 'E_SPAWN');
+  assert.equal((await f.read()).receipts[0].firstAttempt.errors[0].code, 'EACCES');
 });
 
 test('SIGKILL leaves completed, interrupted and unadmitted receipts without finalization', async t => {
@@ -125,7 +125,7 @@ test('synthetic failure', () => { throw Object.assign(new Error('original child 
   assert.doesNotThrow(() => structuredClone(transportChildError(assertion)));
 });
 
-test('the CLI writes its own complete ledger and coverage report in a one-file synthetic checkout', { timeout: 30000 }, async t => {
+test('the CLI writes its own complete ledger and supported native coverage in a one-file synthetic checkout', { timeout: 30000 }, async t => {
   const f = await fixture(t);
   await mkdir(path.join(f.cwd, 'scripts/ci'), { recursive: true });
   await mkdir(path.join(f.cwd, 'tests'));
@@ -135,8 +135,27 @@ test('the CLI writes its own complete ledger and coverage report in a one-file s
   await writeFile(path.join(f.cwd, 'scripts/test-selection.mjs'), `export const discoverTests = async () => ['a.test.mjs']; export const adaptiveOptionsFor = () => ({ minConcurrency: 1, maxConcurrency: 1, memory: () => 8 * 1024 ** 3 });`);
   await writeFile(path.join(f.cwd, 'tests/a.test.mjs'), `import test from 'node:test'; test('synthetic pass', () => {});`);
   const destination = path.join(f.cwd, 'cli-ledger.jsonl');
-  const env = { ...process.env, RS3_TEST_FILE_LEDGER: destination, RS3_COVERAGE_REPORT: path.join(f.cwd, 'coverage.json') };
+  const env = { ...process.env, RS3_TEST_FILE_LEDGER: destination };
   delete env.NODE_TEST_CONTEXT;
+  delete env.RS3_COVERAGE_REPORT;
+  // Probe Node itself, as in ci-coverage-reporter.test.mjs. Older Node 24
+  // releases can run the CLI/ledger but cannot identify native coverage cases.
+  await writeFile(path.join(f.cwd, 'probe.mjs'), `import { run } from 'node:test';
+import { writeFile } from 'node:fs/promises';
+let nativeCase, nativeSuccess = false;
+for await (const event of run({files: ['tests/a.test.mjs'], isolation: 'process', concurrency: 1})) {
+  if (event.type === 'test:complete' && event.data.name === 'synthetic pass') nativeCase = event.data;
+  if (event.type === 'test:summary' && !event.data.file) nativeSuccess = event.data.success;
+}
+if (!nativeSuccess || !nativeCase) throw new Error('Native coverage identity probe failed');
+await writeFile('capability.json', JSON.stringify({entryFile: typeof nativeCase.entryFile === 'string', node: process.version}));
+`);
+  const probe = spawnSync(process.execPath, ['probe.mjs'], { cwd: f.cwd, env, encoding: 'utf8', timeout: 10000, windowsHide: true });
+  assert.equal(probe.status, 0, probe.stderr);
+  const capability = JSON.parse(await readFile(path.join(f.cwd, 'capability.json'), 'utf8'));
+  assert.equal(capability.node, process.version);
+  assert.equal(typeof capability.entryFile, 'boolean');
+  if (capability.entryFile) env.RS3_COVERAGE_REPORT = path.join(f.cwd, 'coverage.json');
   const child = spawn(process.execPath, ['scripts/test.mjs', 'full'], { cwd: f.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
   let output = ''; child.stdout.on('data', value => { output += value; }); child.stderr.on('data', value => { output += value; });
@@ -144,14 +163,15 @@ test('the CLI writes its own complete ledger and coverage report in a one-file s
   const value = readFileLedger(await readFile(destination, 'utf8'));
   assert.equal(value.receipts.length, 1); assert.equal(value.receipts[0].firstAttempt.outcome, 'pass');
   assert.equal(value.summary.completedAttempts, 1);
-  assert.equal(JSON.parse(await readFile(path.join(f.cwd, 'coverage.json'), 'utf8')).passed, true);
+  if (capability.entryFile) assert.equal(JSON.parse(await readFile(path.join(f.cwd, 'coverage.json'), 'utf8')).passed, true);
+  else t.diagnostic(`Node ${capability.node} node:test lacks native entryFile identities; ledger verified, coverage assertions skipped`);
 });
 
 test('error receipts exclude payloads, credentials, paths and endpoints', () => {
   const redact = errorRedactor({ USERNAME: 'synthetic-user', API_KEY: 'synthetic-credential', PRIVATE_KEY: 'synthetic-key-value' });
   const value = redact(Object.assign(new Error('SYNTHETIC-USER synthetic-credential synthetic-key-value at C:\\private\\file on https://service.example/path 192.0.2.1 localhost [2001:db8::1] ::1 machine.invalid user@example.invalid token=private-value'),
     { code: 'E_CHILD', actual: { private: 'payload' }, stack: 'private stack', cause: { message: 'cause survives', code: 'E_ROOT' } }));
-  assert.equal(value.code, 'E_CHILD'); assert.equal(value.cause.message, '[redacted]');
+  assert.equal(value.code, '[redacted]'); assert.equal(value.cause.code, '[redacted]'); assert.equal(value.cause.message, '[redacted]');
   for (const forbidden of ['SYNTHETIC-USER', 'synthetic-credential', 'synthetic-key-value', 'private-value', 'C:\\', 'service.example', '192.0.2.1', 'localhost', '2001:db8', '::1', 'machine.invalid', 'user@', 'payload', 'stack']) assert.ok(!JSON.stringify(value).includes(forbidden), forbidden);
   const assertion = redact({ name: 'AssertionError', code: 'ERR_ASSERTION', message: 'expected child shutdown\n\nprivate assertion payload' });
   assert.equal(assertion.message, '[redacted]');

@@ -10,6 +10,8 @@ import { GiB, runAdaptive } from '../scripts/adaptive-test-runner.mjs';
 import { retryFailedFilesOnce } from '../scripts/private-companion/retry-failed-files.mjs';
 
 const warning = 'Test telemetry unavailable; test execution continues.';
+const secretShapedValues = ['ERR_SYNTHETIC_SECRET_42', 'EDGEHOST17', 'E_SYNTHETIC_TOKEN_84',
+  'ERR_ASSERTION_PRIVATE', 'ENOENT_PRIVATE', 'TypeErrorPRIVATE42', 'ErrorPRIVATE42', 'testCodeFailurePRIVATE42'];
 async function scratch(t) {
   const cwd = await mkdtemp(path.join(os.tmpdir(), 'telemetry-contract-'));
   t.after(() => rm(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
@@ -20,7 +22,8 @@ test('receipt bytes contain only public error vocabulary at every cause depth an
   const cwd = await scratch(t), file = 'tests/synthetic.test.mjs', destination = path.join(cwd, 'ledger.jsonl');
   const privateValues = ['synthetic-environment-value', 'synthetic-generated-credential',
     '{"privateSave":{"syntheticAccount":"synthetic-save-value"}}', 'synthetichost',
-    String.raw`\\syntheticserver\syntheticshare\syntheticfile`, String.raw`Q:\synthetic\absolute`, '/synthetic/absolute'];
+    String.raw`\\syntheticserver\syntheticshare\syntheticfile`, String.raw`Q:\synthetic\absolute`, '/synthetic/absolute',
+    ...secretShapedValues];
   const errors = privateValues.map(value => {
     let error;
     try { throw Object.assign(new Error(value), { name: value, code: value, failureType: value,
@@ -50,7 +53,86 @@ test('receipt bytes contain only public error vocabulary at every cause depth an
   assert.deepEqual(redact({ name: 'TypeError', code: 'ERR_TEST_FAILURE', failureType: 'testCodeFailure',
     message: 'synthetic-private-text', cause: { name: 'Error', code: 'EIO', message: 5, failureType: false } }),
   { name: 'TypeError', code: 'ERR_TEST_FAILURE', failureType: 'testCodeFailure', message: '[redacted]',
-    cause: { name: 'Error', code: 'EIO', message: 5, failureType: false } });
+    cause: { name: 'Error', code: 'EIO', message: '[redacted]', failureType: '[redacted]' } });
+  assert.equal(redact({ code: 'ENOENT' }).code, 'ENOENT');
+  assert.equal(redact({ name: 'AssertionError', code: 'ERR_ASSERTION' }).code, 'ERR_ASSERTION');
+  for (const value of [123456789, true, false, null, { toString: () => 'ENOENT' }]) {
+    assert.deepEqual(redact({ message: value, name: value, code: value, failureType: value, cause: value }),
+      { message: '[redacted]', name: '[redacted]', code: '[redacted]', failureType: '[redacted]',
+        cause: value === null ? null : { message: '[redacted]' } });
+  }
+});
+
+test('Windows failure logging and ledger bytes reject secret-shaped error fields', { skip: process.platform !== 'win32', timeout: 30000 }, async t => {
+  const cwd = await scratch(t), work = path.join(cwd, 'work');
+  await mkdir(path.join(cwd, '.github/windows-slice'), { recursive: true });
+  await mkdir(path.join(cwd, 'scripts/ci'), { recursive: true });
+  await mkdir(path.join(cwd, 'scripts/private-companion'), { recursive: true });
+  await cp(new URL('../.github/windows-slice/run.mjs', import.meta.url), path.join(cwd, '.github/windows-slice/run.mjs'));
+  for (const name of ['ci/file-ledger.mjs', 'ci/coverage-reporter.mjs', 'test-telemetry.mjs', 'private-companion/retry-failed-files.mjs']) {
+    await cp(new URL('../scripts/' + name, import.meta.url), path.join(cwd, 'scripts', name));
+  }
+  // Only the scheduler/environment are synthetic: execute the real Windows
+  // callbacks, sanitizer, coverage collector and retry policy without its suite.
+  await writeFile(path.join(cwd, 'scripts/test-selection.mjs'), `import { readdir } from 'node:fs/promises';
+export const discoverTests = () => readdir(new URL('../tests/', import.meta.url));`);
+  const source = await readFile(new URL('../.github/windows-slice/run.mjs', import.meta.url), 'utf8');
+  const names = source.match(/export const windowsFiles = \[([\s\S]*?)\];/)[1].match(/'[^']+\.mjs'/g).map(name => name.slice(1, -1));
+  await mkdir(path.join(cwd, 'tests'));
+  for (const name of names) await writeFile(path.join(cwd, 'tests', name), '// Synthetic inventory only.\n');
+  await writeFile(path.join(cwd, 'scripts/private-companion/release-evidence.mjs'), 'export const laneEnvironment = async () => ({});');
+  await writeFile(path.join(cwd, 'scripts/adaptive-test-runner.mjs'), `let attempt = 0;
+export async function runAdaptive({files, onAdmit, onEvent, onFile}) {
+  const initial = ++attempt === 1, results = [];
+  for (const [index, file] of files.entries()) {
+    const passed = !(initial && index === 0);
+    const errors = passed ? [] : ${JSON.stringify(secretShapedValues)}.map(value => ({
+      message: value, name: value, code: value, failureType: value,
+      cause: {message: value, name: value, code: value, failureType: value,
+        cause: {name: value, code: value, failureType: value, message: value}}
+    }));
+    if (!passed) errors.push({name:'AssertionError', code:'ERR_ASSERTION',
+      cause:{name:'Error', code:'ENOENT', cause:{name:'TypeError', code:'EIO'}}});
+    await onAdmit({file, admittedAt:new Date().toISOString(), concurrency:1, solo:true});
+    for (const error of errors) {
+      await onEvent({type:'test:fail', data:{file, details:{type:'test', error:{cause:error}}}});
+      await onEvent({type:'test:fail', data:{file, details:{type:'test', error:{...error, cause:undefined}}}});
+    }
+    await onEvent({type:'test:complete', data:{entryFile:file, file, testId:1, name:'synthetic case',
+      nesting:0, details:{type:'test', passed}}});
+    const result = {file, passed, errors, completedAt:new Date().toISOString(), processWallMs:1,
+      summary:{counts:{tests:1,suites:0,passed:Number(passed),failed:Number(!passed),cancelled:0,skipped:0,todo:0,topLevel:1}}};
+    await onFile(result); results.push(result);
+  }
+  const passed = results.every(result => result.passed);
+  return {files:results, passed, exitCode:passed ? 0 : 1};
+}`);
+  const env = { ...process.env };
+  for (const name of ['NODE_TEST_CONTEXT', 'GITHUB_STEP_SUMMARY']) delete env[name];
+  const child = spawn(process.execPath, ['.github/windows-slice/run.mjs', cwd, work],
+    { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+  let output = ''; child.stdout.on('data', value => { output += value; }); child.stderr.on('data', value => { output += value; });
+  assert.equal((await once(child, 'close'))[0], 0, output);
+  const bytes = await readFile(path.join(work, 'windows-ledger.jsonl'), 'utf8');
+  const lines = output.split('\n').filter(line => line.trim().startsWith('{'));
+  assert.equal(lines.length, (secretShapedValues.length + 1) * 2, output);
+  for (const value of secretShapedValues) {
+    assert.ok(!bytes.includes(value), value);
+    assert.ok(!output.includes(value), value);
+  }
+  for (const code of ['ENOENT', 'EIO', 'ERR_ASSERTION']) {
+    assert.ok(bytes.includes(code), code);
+    assert.ok(lines.some(line => line.includes(code)), code);
+  }
+  const receipt = readFileLedger(bytes).receipts.find(row => row.firstAttempt.outcome === 'fail');
+  assert.equal(receipt.retry.outcome, 'pass');
+  for (const line of lines.slice(0, secretShapedValues.length * 2)) {
+    for (let error = JSON.parse(line.trim()); error; error = error.cause) {
+      assert.equal(error.message, '[redacted]'); assert.equal(error.name, '[redacted]');
+      assert.equal(error.code, '[redacted]'); assert.equal(error.failureType, '[redacted]');
+    }
+  }
 });
 
 test('redaction bounds null, primitive, cyclic, deep and hostile causes without reading payloads', () => {

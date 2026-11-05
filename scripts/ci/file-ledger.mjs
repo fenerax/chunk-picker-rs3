@@ -2,18 +2,23 @@ import path from 'node:path';
 import { closeSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
+import { constants as osConstants } from 'node:os';
 import { datasetIdentity, telemetryAttempt, warnTelemetry } from '../test-telemetry.mjs';
 export { datasetIdentity } from '../test-telemetry.mjs';
 
 const duration = value => Number.isFinite(value) && value >= 0 ? Math.round(value * 1000) / 1000 : null;
 const errorNames = new Set(['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError',
   'TypeError', 'URIError', 'AggregateError', 'AssertionError', 'AbortError', 'DOMException', 'SystemError']);
+// These are finite public vocabularies, not spelling rules: custom error fields
+// can contain credentials or hostnames even when they look like Node errors.
+const errorCodes = new Set([...Object.keys(osConstants.errno), 'ERR_ASSERTION', 'ERR_BUFFER_TOO_LARGE',
+  'ERR_INVALID_ARG_TYPE', 'ERR_MODULE_NOT_FOUND', 'ERR_TEST_CANCELLED', 'ERR_TEST_FAILURE',
+  'ERR_WORKER_INIT_FAILED', 'ERR_WORKER_OUT_OF_MEMORY', 'ERR_ZSTD_GENERIC']);
 const failureTypes = new Set(['testCodeFailure', 'subtestsFailed', 'cancelledByParent', 'testTimeoutFailure',
   'hookFailed', 'parentAlreadyFinished', 'testAborted', 'uncaughtException', 'unhandledRejection',
   'callbackAndPromisePresent', 'multipleCallbackInvocations', 'asyncActivity']);
 const redacted = '[redacted]';
-const scalar = (value, allowed) => typeof value === 'boolean' || Number.isFinite(value) ? value
-  : typeof value === 'string' && allowed(value) ? value : redacted;
+const publicErrorValue = (value, allowed) => typeof value === 'string' && allowed.has(value) ? value : redacted;
 const timestamp = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)
   && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
 
@@ -23,16 +28,16 @@ export function errorRedactor() {
   const visit = (error, depth, seen) => {
     if (error == null) return null;
     if (depth >= 8 || seen.has(error)) return { message: '[cause truncated]' };
-    if (typeof error !== 'object') return { message: scalar(error, () => false) };
+    if (typeof error !== 'object') return { message: redacted };
     seen.add(error);
-    const record = { message: scalar(error.message, () => false) };
+    const record = { message: redacted };
     for (const [key, allowed] of [
-      ['name', value => errorNames.has(value)],
-      ['code', value => /^(?:E[A-Z0-9_]+|ERR_[A-Z0-9_]+)$/.test(value)],
-      ['failureType', value => failureTypes.has(value)],
+      ['name', errorNames],
+      ['code', errorCodes],
+      ['failureType', failureTypes],
     ]) {
       const value = error[key];
-      if (value !== undefined) record[key] = scalar(value, allowed);
+      if (value !== undefined) record[key] = publicErrorValue(value, allowed);
     }
     const cause = error.cause;
     if (cause !== undefined) record.cause = visit(cause, depth + 1, seen);
