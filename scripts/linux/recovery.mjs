@@ -8,6 +8,7 @@ import { assertReleased, atomic, copyTree, directory, encode, exists, headroom, 
 import { assertSameRelease } from './runtime.mjs';
 import { assertCompatibleStep } from '../private-companion/release-compatibility.mjs';
 import { STORE_IDENTITY_EXCLUSIONS } from '../../app/storage/store-identity-policy.mjs';
+import { recordStatus } from './ops-status.mjs';
 import { inPhase } from './phases.mjs';
 
 export async function runProbe(release, dataDir, output) {
@@ -39,7 +40,7 @@ async function snapshot(dataDir, target, binding) {
   await copyTree(dataDir, target, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
   await writeFile(bindingPath(target), binding ?? await readFile(bindingPath(dataDir)), { flag: 'wx', mode: 0o600 });
 }
-export async function backupStopped({ dataDir, backupDir, scratchRoot, release, keep = 30, minFreeBytes, probe = runProbe }) {
+export async function backupStopped({ dataDir, backupDir, scratchRoot, release, controlDir, keep = 30, minFreeBytes, probe = runProbe, snapshotAt = new Date().toISOString() }) {
   if (!Number.isSafeInteger(keep) || keep < 1) throw new Error('Backup count must be positive.');
   outside(dataDir, backupDir); outside(backupDir, dataDir); outside(dataDir, scratchRoot); outside(backupDir, scratchRoot);
   await directory(backupDir); await directory(scratchRoot);
@@ -56,7 +57,8 @@ export async function backupStopped({ dataDir, backupDir, scratchRoot, release, 
     await assertSameRelease(release);
     if (encode(before) !== encode(await storeIdentity(dataDir))) throw new Error('Stopped store changed during backup.');
     const files = await inventory(stage);
-    await writeFile(path.join(stage, 'manifest.json'), encode({ format: 'picker-recovery-v1', createdAt: new Date().toISOString(), files }), { flag: 'wx', mode: 0o600 });
+    await writeFile(path.join(stage, 'manifest.json'), encode({ format: 'picker-recovery-v1', snapshotAt,
+      releasePointerSha256: sha(release.pointerBytes), createdAt: new Date().toISOString(), files }), { flag: 'wx', mode: 0o600 });
     await verifyBackup(stage);
     await headroom(backupDir, 0, minFreeBytes);
     const name = 'recovery-' + new Date().toISOString().replace(/[-:.]/g, '') + '-' + randomUUID();
@@ -67,7 +69,8 @@ export async function backupStopped({ dataDir, backupDir, scratchRoot, release, 
     for (const name of candidates.slice(keep)) {
       const old = path.join(backupDir, name); await verifyBackup(old); await rm(old, { recursive: true });
     }
-    return { target, byteSize: files.reduce((sum, row) => sum + (row.bytes ?? 0), 0) };
+    if (controlDir) await recordStatus(controlDir, 'backup', { result: 'success', snapshotAt });
+    return { target, snapshotAt, byteSize: files.reduce((sum, row) => sum + (row.bytes ?? 0), 0) };
   } finally { await rm(stage, { recursive: true, force: true }); await rm(scratch, { recursive: true, force: true }); }
 }
 export async function verifyBackup(backup) {

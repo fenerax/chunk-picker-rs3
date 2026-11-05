@@ -11,7 +11,8 @@ import { operatorSettings } from './runtime.mjs';
 import { verifyTools } from './tools-package.mjs';
 import { serviceOperation } from './service-lock.mjs';
 import { assertServiceAccess, assertToolsEntrypoints, serviceIdentity } from './service-access.mjs';
-import { runtimeCliChecks, toolsCliChecks } from './entrypoint-checks.mjs';
+import { runtimeCliChecks } from './entrypoint-checks.mjs';
+import { toolsContract } from './tools-contracts.mjs';
 
 const execute = promisify(execFile);
 const refuse = category => { throw Object.assign(Error('Tools switch refused: ' + category + '.'), { code: 'TOOLS_' + category.toUpperCase() }); };
@@ -63,6 +64,10 @@ async function verifySelection(root, expected) {
   if (sha(encode(await inventory(root))) !== expected.treeIdentity) refuse('previous-hashes');
   if (expected.toolsIdentity && (await verifyTools(root)).toolsIdentity !== expected.toolsIdentity) refuse('previous-hashes');
 }
+async function selectionChecks(root) {
+  return await exists(path.join(root, 'tools-manifest.json'))
+    ? toolsContract(await verifyTools(root)).probes : runtimeCliChecks;
+}
 async function ownedTree(root, parent) {
   for (let at = root; ; at = path.dirname(at)) {
     const info = await lstat(at);
@@ -84,7 +89,7 @@ async function checkedSelection(toolsRoot, versions, identity) {
   await ownedTree(current.root, path.dirname(toolsRoot));
   let account;
   try { account = await identity(); } catch { refuse('access'); }
-  const checks = current.toolsIdentity ? toolsCliChecks : runtimeCliChecks;
+  const checks = await selectionChecks(current.root);
   await assertServiceAccess(current.root, account, checks.map(row => row[0]));
   await assertToolsEntrypoints(current.root, account, checks, { linked: current.linked });
   return current;
@@ -166,8 +171,9 @@ export async function recoverToolsSwitch({ settings, toolsRoot, idle = operatorU
     await verifySelection(previousRoot, record.previous); await ownedTree(previousRoot, parent);
     let account;
     try { account = await identity(); } catch { refuse('access'); }
-    await assertServiceAccess(previousRoot, account, runtimeCliChecks.map(row => row[0]));
-    await assertToolsEntrypoints(previousRoot, account, runtimeCliChecks, { linked: record.previous.linked });
+    const checks = await selectionChecks(previousRoot);
+    await assertServiceAccess(previousRoot, account, checks.map(row => row[0]));
+    await assertToolsEntrypoints(previousRoot, account, checks, { linked: record.previous.linked });
     await idle();
     if (!alreadyPrevious) {
       if (!record.previous.linked) await exchange(toolsRoot, previousRoot);
@@ -266,7 +272,7 @@ export async function switchTools({ settings, toolsRoot, packageRoot, rollbackRe
       const entries = manifest?.entries ?? (await inventory(root)).filter(row => /\.mjs$/.test(row.path)).map(row => row.path);
       await assertServiceAccess(root, account, entries);
       if (root === target) {
-        await assertToolsEntrypoints(root, account, manifest ? toolsCliChecks : runtimeCliChecks,
+        await assertToolsEntrypoints(root, account, manifest ? toolsContract(manifest).probes : runtimeCliChecks,
           { linked: !!manifest });
       }
     }

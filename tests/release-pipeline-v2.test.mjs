@@ -59,6 +59,35 @@ test('PC quick-build and pack-check execute their CLI through a symlink', async 
   }
 });
 
+test('PC flat-kit helpers import safely when eval argv contains a missing path', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'pc-main-import-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  for (const relative of ['../scripts/release/pc/quick-build.mjs', '../scripts/private-companion/release-pack-check.mjs']) {
+    const source = 'await import(' + JSON.stringify(new URL(relative, import.meta.url).href) + ');';
+    assert.equal(execFileSync(process.execPath, ['--input-type=module', '-e', source, path.join(root, 'missing-argument')],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } }), '');
+  }
+});
+
+test('PC helpers exclude eval and print clusters even with their own entrypoint path in argv', () => {
+  for (const relative of ['../scripts/release/pc/quick-build.mjs', '../scripts/private-companion/release-pack-check.mjs',
+    '../scripts/release/vps/entrypoint.mjs']) {
+    const url = new URL(relative, import.meta.url);
+    const source = 'void import(' + JSON.stringify(url.href) + ')' + (relative.endsWith('/entrypoint.mjs')
+      ? '.then(({isMain}) => { if (isMain(' + JSON.stringify(url.href) + ')) throw Error("Eval was treated as CLI"); })' : '');
+    for (const flag of ['-e', '-p', '-pe', '-ep', '-xep', '--eval', '--print', '--eval=', '--print=']) {
+      // Cluster/equals parsing varies by Node version. Inject those guard
+      // inputs inside a child; -pe and the ordinary flags remain real CLI calls.
+      const simulated = ['-ep', '-xep'].includes(flag) || flag.endsWith('=');
+      const args = simulated ? ['-e', 'process.execArgv.splice(0, process.execArgv.length, ' + JSON.stringify(flag + (flag.endsWith('=') ? 'synthetic' : '')) + ');' + source]
+        : [flag, source];
+      const output = execFileSync(process.execPath, [...args, fileURLToPath(url)], { encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
+      assert.equal(output, !simulated && /p/.test(flag) ? 'undefined\n' : '', relative + ': ' + flag);
+    }
+  }
+});
+
 test('early checks run in order, collect every failure, and stop starting checks once the budget is spent', async () => {
   assert.equal(earlyBudgetMs, 30 * 60000);
   let clock = 0; const ran = [], step = (name, seconds, error) => async remaining => { ran.push([name, remaining]); clock += seconds * 1000; if (error) throw Error(error); };

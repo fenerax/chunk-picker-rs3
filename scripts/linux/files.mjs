@@ -61,13 +61,13 @@ export async function inventory(root, { ignoreRoot = [] } = {}) {
   }
   await walk(); return rows;
 }
-export async function copyTree(source, target, { ignoreRoot = [] } = {}) {
+export async function copyTree(source, target, { ignoreRoot = [], copy = copyFile } = {}) {
   const before = await inventory(source, { ignoreRoot });
   await mkdir(target, { mode: 0o700 });
   for (const row of before) {
     if (row.directory) await mkdir(path.join(target, row.path), { mode: 0o700 });
     else {
-      await copyFile(path.join(source, row.path), path.join(target, row.path), 1);
+      await copy(path.join(source, row.path), path.join(target, row.path), 1);
       // copyFile preserves file mode; the containing directory is private.
     }
   }

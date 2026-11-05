@@ -14,6 +14,7 @@ import { deployStopped, deployPrechecked, backupOnline, healthRecovery } from '.
 import { readBackupStatus } from '../app/storage/backup-status.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
 import { snapshotStore, snapshotPath } from '../app/storage/snapshot.mjs';
+import { recordStatus, withStatus } from '../scripts/linux/ops-status.mjs';
 import { phaseReceipt } from '../scripts/linux/phases.mjs';
 import { compatibilityReports, syntheticAdditions, syntheticCore } from './helpers/release-compatibility.mjs';
 import { rehearse } from '../scripts/linux/rehearse.mjs';
@@ -622,3 +623,17 @@ test('in-process rehearsal callers retain operator configuration for subsequent 
     assert.equal(process.env.RS3_OPERATOR_CONFIG, configFile);
     assert.equal((await operatorSettings()).current, f.settings.current);
   });
+
+test('operator fault status survives failure and clears on success without error text', async t => {
+  const { settings } = await fixture(t);
+  await assert.rejects(withStatus(settings.controlDir, 'operator', async () => { throw Error('synthetic-private-input'); }));
+  const file = path.join(settings.controlDir, 'operator-status.json');
+  const failed = await json(file); assert.equal(failed.result, 'failed'); assert.deepEqual(failed.faults, ['operation-failed']);
+  assert(!(await readFile(file, 'utf8')).includes('synthetic-private-input'));
+  await withStatus(settings.controlDir, 'operator', async () => ({ completed: true }));
+  const success = await json(file); assert.equal(success.result, 'success'); assert(success.lastSuccessAt); assert.deepEqual(success.faults, []);
+  await recordStatus(settings.controlDir, 'backup', { result: 'success', snapshotAt: '2026-11-01T00:00:00Z' });
+  await recordStatus(settings.controlDir, 'backup', { result: 'failed', faults: ['operation-failed'] });
+  const backup = await json(path.join(settings.controlDir, 'backup-status.json'));
+  assert.equal(backup.snapshotAt, '2026-11-01T00:00:00Z'); assert(backup.lastSuccessAt);
+});

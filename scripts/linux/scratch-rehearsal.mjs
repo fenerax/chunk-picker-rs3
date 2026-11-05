@@ -14,7 +14,7 @@ const execute = (file, args, input) => execFileSync(file, args, { input, encodin
   stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 8 * 1024 ** 2, timeout: 1800000 });
 const normalize = address => address.replace(/^::ffff:/, '').toLowerCase();
 export async function scratchHostGuard(alias, { run = execute, resolve = lookup } = {}) {
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(alias ?? '') || ['picker-vps', 'chunkpicker.ca'].includes(alias.toLowerCase())) throw Error('Scratch target refused.');
+  if (alias !== 'picker-scratch') throw Error('Scratch target refused.');
   const production = new Set((await resolve('chunkpicker.ca', { all: true })).map(row => normalize(row.address)));
   if (!production.size) throw Error('Scratch target cannot be verified.');
   const config = run('ssh', ['-G', alias]);
@@ -75,7 +75,7 @@ test ! -e /opt/chunk-picker
 echo "$2  $1/node.tar.xz" | sha256sum -c - >/dev/null
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq >"$1/provision.log" 2>&1
-apt-get install -y -qq python3 xz-utils util-linux ca-certificates >>"$1/provision.log" 2>&1
+apt-get install -y -qq python3 xz-utils bzip2 util-linux ca-certificates >>"$1/provision.log" 2>&1
 umask 022
 mkdir /opt/node /opt/chunk-picker /etc/chunk-picker
 chmod 0755 /opt/node /opt/chunk-picker /etc/chunk-picker
@@ -88,6 +88,7 @@ chmod 0755 /opt/chunk-picker/source
 tar -xf "$1/source.tar" -C /opt/chunk-picker/source
 chown -R root:root /opt/chunk-picker/source
 chmod -R go-w /opt/chunk-picker/source
+/opt/node/bin/node /opt/chunk-picker/source/scripts/ops/install-restic.mjs >>"$1/provision.log" 2>&1
 if test -f "$1/legacy-fixture.json"; then
   mkdir "$1/legacy"
   tar -xf "$1/legacy.tar" --no-same-owner -C "$1/legacy"

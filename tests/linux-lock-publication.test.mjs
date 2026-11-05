@@ -41,7 +41,7 @@ function operatorChild(t, f, phase = '', fail = false) {
     import { promisify } from 'node:util';
     const phase = process.argv[1], fail = process.argv[2] === 'true';
     const control = ${JSON.stringify(f.settings.controlDir)}, lock = ${JSON.stringify(f.lock)};
-    let temp, synced = false, systemCalls = 0;
+    let temp, synced = false, ownerPublished = false, systemCalls = 0;
     async function boundary(label) {
       if (label !== phase) return;
       if (fail) throw Object.assign(new Error('Synthetic publication failure'), { code: label === 'temp-sync' || label === 'directory-sync' ? 'EIO' : 'ENOSPC' });
@@ -61,7 +61,8 @@ function operatorChild(t, f, phase = '', fail = false) {
           await write(bytes); await boundary('written');
         };
         handle.sync = async () => { await boundary('temp-sync'); await sync(); synced = true; };
-      } else if (String(file) === control && args[0] === 'r') {
+      } else if (String(file) === control && args[0] === 'r' && ownerPublished) {
+        ownerPublished = false;
         const sync = handle.sync.bind(handle);
         handle.sync = async () => { await boundary('directory-sync'); return sync(); };
       }
@@ -71,6 +72,7 @@ function operatorChild(t, f, phase = '', fail = false) {
       if (String(to) !== lock) return rename(from, to);
       await boundary('durable');
       const result = await rename(from, to);
+      ownerPublished = true;
       await boundary('published');
       return result;
     };
@@ -154,7 +156,10 @@ for (const phase of ['open', 'partial', 'temp-sync', 'durable', 'directory-sync'
     assert.equal(result.code, 1);
     assert.equal(result.error, ['temp-sync', 'directory-sync'].includes(phase) ? 'EIO' : 'ENOSPC');
     assert.equal(result.systemCalls, 0);
-    assert.deepEqual(await readdir(f.settings.controlDir), ['operation.lock.recovery']);
+    assert.deepEqual(await readdir(f.settings.controlDir), ['health-status.json', 'operation.lock.recovery']);
+    const status = await json(path.join(f.settings.controlDir, 'health-status.json'));
+    assert.deepEqual(status, { format: 'picker-ops-status-v1', result: 'failed', at: status.at, startedAt: status.startedAt,
+      lastSuccessAt: null, snapshotAt: null, faults: ['operation-failed'] });
     assert.deepEqual(await boot(f), { stdout: '', stderr: '' });
     assert.deepEqual(await runHealth(t, f), { code: 0, result: { skipped: true }, systemCalls: 1 });
   });

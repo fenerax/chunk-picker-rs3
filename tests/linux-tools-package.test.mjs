@@ -13,6 +13,7 @@ import { releaseVps } from '../scripts/release/vps/release.mjs';
 import { encode, exists, json, sha } from '../scripts/linux/files.mjs';
 import { runtimeCliChecks, toolsCliChecks } from '../scripts/linux/entrypoint-checks.mjs';
 import { buildLegacyTools, verifyLegacyTools } from '../scripts/linux/legacy-tools.mjs';
+import { toolsContracts, toolsContract, currentToolsContract } from '../scripts/linux/tools-contracts.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 async function fixture(t) {
@@ -29,13 +30,44 @@ async function sourceCopy(root) {
   }
   return { source, closure };
 }
+test('only reviewed package versions and exact entry inventories select closure roots and probes', async t => {
+  const scratch = await fixture(t), output = path.join(scratch, 'package'), { source } = await sourceCopy(scratch);
+  const manifest = await buildTools(source, output), file = path.join(output, 'tools-manifest.json');
+  assert.equal(manifest.contractVersion, currentToolsContract.version);
+  for (const contract of toolsContracts) {
+    assert.equal(toolsContract({ contractVersion: contract.version, entries: contract.entries }), contract);
+    assert.deepEqual(contract.closureRoots, contract.entries);
+  }
+  assert.equal(toolsContract({ entries: toolsContracts[0].entries }).version, 1);
+  const { toolsIdentity, ...body } = manifest;
+  const mutations = [
+    value => { value.contractVersion = 999; }, value => { value.contractVersion = '2'; },
+    value => { value.contractVersion = null; }, value => { value.contractVersion = 1; },
+    value => { delete value.contractVersion; }, value => { value.entries.pop(); },
+    value => { value.entries.push(value.entries[0]); }, value => { value.entries.reverse(); },
+    value => { value.entries.push('../outside.mjs'); }, value => { value.unreviewed = true; },
+    value => { value.boundaries = []; },
+  ];
+  for (const mutate of mutations) {
+    const changed = structuredClone(body); mutate(changed);
+    await writeFile(file, encode({ ...changed, toolsIdentity: sha(encode(changed)) }));
+    await assert.rejects(verifyTools(output), { code: 'TOOLS_HASH' });
+  }
+  await writeFile(file, JSON.stringify(manifest));
+  await assert.rejects(verifyTools(output), { code: 'TOOLS_HASH' });
+  await writeFile(file, encode(manifest));
+  await verifyTools(output);
+  for (const entries of [toolsContracts[0].entries.slice(1), [...toolsContracts[0].entries, toolsContracts[0].entries[0]],
+    [...toolsContracts[0].entries].reverse()]) assert.throws(() => toolsContract({ entries }), /Unknown/);
+});
 test('package is the exact runtime closure, including unit and child entrypoints; it loads without checkout fallbacks', async t => {
   const scratch = await fixture(t), { source, closure } = await sourceCopy(scratch), output = path.join(scratch, 'package');
   const manifest = await buildTools(source, output);
   assert.deepEqual(manifest.files, closure.files);
+  for (const module of ['notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts', 'staging', 'bootstrap-alerts']) assert(manifest.files.some(row => row.path === 'scripts/linux/' + module + '.mjs'));
   assert(!manifest.files.some(row => row.path === 'app/server.mjs'));
   assert(manifest.files.some(row => row.path === 'app/tasks/warm-store.mjs'));
-  for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service']) {
+  for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service', 'chunk-picker-monitor.service', 'chunk-picker-offhost.service', 'chunk-picker-notify@.service']) {
     const text = await readFile(path.join(repo, 'scripts/linux/systemd', unit), 'utf8');
     for (const match of text.matchAll(/\/opt\/chunk-picker\/tools\/([^\s]+)/g)) assert(toolsEntrypoints.includes(match[1]));
   }
@@ -223,11 +255,11 @@ test('scratch guard blocks production aliases, DNS aliases and SSH forwarding be
   const resolve = async host => [{ address: host === 'chunkpicker.ca' ? '127.0.0.1' : '0.0.0.0' }];
   let calls = 0;
   const run = (_file, args) => { calls++; return args[0] === '-G' ? 'hostname scratch\n' : '0.0.0.0 1 0.0.0.0 2\n'; };
-  for (const alias of ['picker-vps', 'PICKER-VPS', 'chunkpicker.ca', '-unsafe']) await assert.rejects(scratchHostGuard(alias, { resolve, run }));
+  for (const alias of ['picker-vps', 'PICKER-VPS', 'chunkpicker.ca', '-unsafe', 'unapproved']) await assert.rejects(scratchHostGuard(alias, { resolve, run }));
   assert.equal(calls, 0);
-  await assert.rejects(scratchHostGuard('scratch', { resolve: async () => [{ address: '127.0.0.1' }], run }));
-  await assert.rejects(scratchHostGuard('scratch', { resolve, run: (_file, args) => args[0] === '-G' ? 'hostname scratch\n' : '0.0.0.0 1 127.0.0.1 2\n' }));
-  await assert.rejects(scratchHostGuard('scratch', { resolve: async () => { throw Error('offline'); }, run }));
-  await scratchHostGuard('scratch', { resolve, run });
+  await assert.rejects(scratchHostGuard('picker-scratch', { resolve: async () => [{ address: '127.0.0.1' }], run }));
+  await assert.rejects(scratchHostGuard('picker-scratch', { resolve, run: (_file, args) => args[0] === '-G' ? 'hostname picker-scratch\n' : '0.0.0.0 1 127.0.0.1 2\n' }));
+  await assert.rejects(scratchHostGuard('picker-scratch', { resolve: async () => { throw Error('offline'); }, run }));
+  await scratchHostGuard('picker-scratch', { resolve, run });
   assert(freshHostGuard.includes('/proc/net/tcp')); assert(freshHostGuard.includes('test ! -e /opt/chunk-picker'));
 });

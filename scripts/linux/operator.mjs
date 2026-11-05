@@ -13,7 +13,8 @@ import { assertReleased, atomic, directory, encode, exclusive, exists, headroom,
 import { assertSameRelease, operatorSettings, readRelease, assertOperatorService, serviceIdentity } from './runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
-import { digestValue } from '../private-companion/release-identity.mjs';
+import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
+import { deadman, recordStatus, withStatus } from './ops-status.mjs';
 import { phaseReceipt, inPhase } from './phases.mjs';
 
 const execute = promisify(execFile);
@@ -187,12 +188,26 @@ export async function backupOnline({ settings, release, request = privateRequest
     const { serviceBackup } = await import('./service-operator.mjs');
     return serviceBackup({ settings, release, request });
   }
+  const snapshotAt = new Date().toISOString();
   const snapshot = await capture({ settings, release, request });
-  try { return await backupStopped({ ...settings, dataDir: snapshot.dataDir, release, ...(probe ? { probe } : {}) }); }
+  try { return await backupStopped({ ...settings, dataDir: snapshot.dataDir, release, snapshotAt, ...(probe ? { probe } : {}) }); }
   finally { await snapshot.cleanup(); }
 }
 export async function runOperator(command, argument, evidence, mode) {
   const settings = await operatorSettings();
+  await directory(settings.controlDir);
+  const kind = ['health', 'backup'].includes(command) ? command : 'operator';
+  return withStatus(settings.controlDir, kind, async () => {
+    const result = await runOperatorImpl(settings, command, argument, evidence, mode);
+    if (['health', 'backup'].includes(command) && !result?.skipped) await deadman(command);
+    if (command === 'backup' && !result?.skipped) {
+      try { await execute('systemctl', ['--no-block', 'start', 'chunk-picker-offhost.service'], { timeout: 10000, windowsHide: true }); }
+      catch { await recordStatus(settings.controlDir, 'offhost', { result: 'failed', faults: ['operation-failed'] }); }
+    }
+    return result;
+  });
+}
+async function runOperatorImpl(settings, command, argument, evidence, mode) {
   if (settings.multiPicker) {
     const { runServiceOperator } = await import('./service-operator.mjs');
     return runServiceOperator({ settings, command, argument, evidence,
@@ -208,26 +223,18 @@ export async function runOperator(command, argument, evidence, mode) {
     const release = await readRelease(settings.current, settings.dataDir), controller = systemd(settings);
     assertOperatorService(settings, release);
     if (command === 'health') {
-      try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { process.stderr.write('Recovery disk free-space reserve is unavailable.\n'); }
+      const faults = [];
+      try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { faults.push('disk-reserve'); }
       let status;
       try { status = await json(path.join(path.dirname(settings.dataDir), 'backup-status.json')); } catch {}
-      if (!status?.lastSuccessAt || !Number.isFinite(Date.parse(status.lastSuccessAt)) || Date.now() - Date.parse(status.lastSuccessAt) > 172800000) process.stderr.write('Recovery backup is missing or older than two days.\n');
-      return healthRecovery({ settings, release, controller });
+      if (!status?.lastSuccessAt || !Number.isFinite(Date.parse(status.lastSuccessAt)) || Date.now() - Date.parse(status.lastSuccessAt) > 172800000) faults.push('backup-stale');
+      const result = await healthRecovery({ settings, release, controller });
+      await recordStatus(settings.controlDir, 'health', { result: result.skipped ? 'skipped' : 'success', faults });
+      return result;
     }
     if (!['backup', 'restore', 'deploy'].includes(command)) throw new Error('Use health, backup, restore or deploy.');
     const candidate = command === 'deploy' ? await readRelease(argument, settings.dataDir) : null;
-    let savedIdentityAdditions;
-    if (command === 'deploy' && evidence && evidence !== '--stopped') {
-      const receipt = await json(evidence);
-      if (receipt.previousPointerSha256 !== sha(release.pointerBytes) || receipt.candidateIdentity !== candidate.identity
-        || path.resolve(receipt.pointer) !== path.resolve(argument)) throw new Error('Staged deployment receipt changed.');
-      if (receipt.savedIdentityAdditionsReviewed !== true
-        || !Array.isArray(receipt.savedIdentityAdditions)
-        || digestValue(receipt.savedIdentityAdditions) !== receipt.savedIdentityAdditionsDigest) {
-        throw Object.assign(new Error('VPS additions require explicit review.'), { code: 'OPERATOR_ADDITIONS_REVIEW' });
-      }
-      savedIdentityAdditions = receipt.savedIdentityAdditions;
-    }
+    const savedIdentityAdditions = command === 'deploy' ? await reviewedDeploymentAdditions(evidence, argument, release, candidate) : undefined;
     let candidateBinding;
     if (candidate?.config.packs?.data) {
       const old = await configDescriptor(release.pointer.config.path), next = await configDescriptor(candidate.pointer.config.path);

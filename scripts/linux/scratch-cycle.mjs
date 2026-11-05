@@ -13,6 +13,7 @@ import { verifyLegacyTools } from './legacy-tools.mjs';
 import { prepareBundle } from '../release/vps/bundle.mjs';
 import { readRelease, assertServiceAccess } from './runtime.mjs';
 import { lockRelease } from '../release/vps/bundle.mjs';
+import { scratchAlerts } from './scratch-alerts.mjs';
 import { privateRequest } from './operator.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -28,6 +29,10 @@ export async function scratchCycle(staging) {
   await mkdir(path.join(base, 'releases'), { mode: 0o755 });
   await chown(path.join(base, 'releases'), 0, gid); await chmod(path.join(base, 'releases'), 0o750);
   const dataDir = '/var/lib/chunk-picker/game', controlDir = '/var/lib/chunk-picker/control';
+  await mkdir('/etc/chunk-picker/secrets', { mode: 0o700 });
+  await writeFile('/etc/chunk-picker/deployment.json', encode({ format: 'picker-deployment-v1', role: 'rehearsal', alias: 'picker-scratch' }), { mode: 0o644, flag: 'wx' });
+  for (const name of ['health-ping', 'backup-ping', 'offhost-ping', 'discord-webhook', 'b2-account', 'b2-key', 'restic-password']) await writeFile('/etc/chunk-picker/secrets/' + name, randomBytes(32).toString('base64url'), { mode: 0o600 });
+  await writeFile('/etc/chunk-picker/monitor.json', encode({ controlDir, diskPath: '/var/backups/chunk-picker' }), { mode: 0o644 });
   await mkdir('/var/lib/chunk-picker', { mode: 0o755 });
   await mkdir(dataDir, { mode: 0o700 }); await mkdir(controlDir, { mode: 0o700 });
   for (const [dir, mode] of [['/var/lib/chunk-picker', 0o755], [dataDir, 0o700], [controlDir, 0o700]]) await chmod(dir, mode);
@@ -81,6 +86,8 @@ export async function scratchCycle(staging) {
     await cp(path.join(source, 'scripts/linux/systemd', name), path.join('/etc/systemd/system', name));
     await chmod(path.join('/etc/systemd/system', name), 0o644);
   }
+  await mkdir('/etc/systemd/system/chunk-picker-offhost.service.d');
+  await writeFile('/etc/systemd/system/chunk-picker-offhost.service.d/local.conf', '[Service]\nLoadCredential=\nExecStart=\nExecStart=/usr/bin/true\n');
   run('systemctl', ['daemon-reload']);
   const waitReady = async () => {
     const release = await readRelease(settings.current, dataDir);
@@ -148,6 +155,8 @@ export async function scratchCycle(staging) {
   installedRun('health'); installedRun('deploy', pointer, receiptFile);
   const selected = await readRelease(settings.current, dataDir), health = await privateRequest(selected, '/api/health');
   if (!health.ready || !health.savesReady || sha(await readFile(settings.current)) !== sha(await readFile(pointer))) throw Error('Synthetic activation verification failed.');
+  installedRun('backup');
+  const alerts = await scratchAlerts(settings, staging);
   const receipts = [];
   for (const name of await readdir(path.join(controlDir, 'phase-receipts'))) {
     const receipt = await json(path.join(controlDir, 'phase-receipts', name));
@@ -158,7 +167,7 @@ export async function scratchCycle(staging) {
   run('systemctl', ['enable', '--now', 'chunk-picker-backup.timer', 'chunk-picker-health.timer']);
   return { format: 'picker-synthetic-rehearsal-v1', node: process.versions.node, toolsFiles: manifest.files.length,
     toolsIdentity: manifest.toolsIdentity, writerRestartedForInstall: installed.writerRestarted,
-    stoppedToReadyMs: activation.stoppedToReadyMs, ...(legacyReport ? { legacy: legacyReport } : {}), rehearsal, phases: receipts };
+    stoppedToReadyMs: activation.stoppedToReadyMs, ...(legacyReport ? { legacy: legacyReport } : {}), rehearsal, alerts, phases: receipts };
 }
 if (isMain(import.meta.url)) {
   try { process.stdout.write(encode(await scratchCycle(process.argv[2]))); }

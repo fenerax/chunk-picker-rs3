@@ -31,8 +31,13 @@ try {
     await cp(pkg, destination, { recursive: true }); await rm(path.join(destination, 'tools-manifest.json'));
     for (const row of manifest.files.filter(row => row.path.endsWith('.mjs'))) {
       const file = path.join(destination, row.path), text = await readFile(file, 'utf8');
-      if (text.includes('import { isMain }')) await writeFile(file, text.replace(/^import \{ isMain \}[^\n]+\n/m, '')
-        .replaceAll('isMain(import.meta.url)', 'process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)'));
+      if (text.includes('import { isMain }')) {
+        let legacy = text.replace(/^import \{ isMain \}[^\n]+\n/m, '')
+          .replaceAll('isMain(import.meta.url)', 'process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)');
+        if (!/^import .*\bfileURLToPath\b.*from ['"]node:url['"]/m.test(legacy)) legacy = "import { fileURLToPath } from 'node:url';\n" + legacy;
+        if (!/^import path from ['"]node:path['"]/m.test(legacy)) legacy = "import path from 'node:path';\n" + legacy;
+        await writeFile(file, legacy);
+      }
     }
   };
   const parent = path.join(scratch, 'installed'); await mkdir(parent, { mode: 0o755 });
