@@ -4,7 +4,7 @@ import path from 'node:path';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { evaluate, monitor } from '../scripts/linux/monitor.mjs';
-import { notify, notifyFailure, releaseWindow } from '../scripts/linux/notify.mjs';
+import { notify, notifyFailure, releaseWindow, failureUnits } from '../scripts/linux/notify.mjs';
 import { deadman } from '../scripts/linux/ops-status.mjs';
 import { exclusive } from '../scripts/linux/files.mjs';
 import { compact, outboxLimits } from '../scripts/linux/notify-queue.mjs';
@@ -47,6 +47,46 @@ test('maintenance remains evidence, dead ownership and long operations alert; re
   assert(releaseWindow({ startedAt: new Date(now - 60000), endsAt: new Date(now + 60000) }, now));
   assert(!releaseWindow({ startedAt: new Date(now), endsAt: new Date(now + 31 * 60000) }, now));
   assert(!releaseWindow({ startedAt: new Date(now - 60000), endsAt: new Date(now) }, now));
+});
+
+test('release windows exclude only the writer from the monitor failed-unit aggregate', async t => {
+  const valid = { startedAt: new Date(now - 60000).toISOString(), endsAt: new Date(now + 60000).toISOString() };
+  for (const [failed, window, aggregate] of [
+    [['chunk-picker.service'], valid, false],
+    [['chunk-picker.service', 'chunk-picker-backup.service'], valid, true],
+    [['chunk-picker.service', 'unrelated.service'], valid, true],
+    [['unrelated.service'], valid, true],
+    [['chunk-picker.service'], { ...valid, endsAt: new Date(now).toISOString() }, true],
+    [['chunk-picker.service'], {}, true],
+    [['chunk-picker.service'], undefined, true],
+  ]) {
+    const controlDir = await fixture(t), sent = [];
+    const result = await monitor({ controlDir }, { sample: { ...sample(), writerActive: false, failed, window,
+      health: { result: 'skipped', faults: ['health-skipped'] } }, now, send: async text => sent.push(text) });
+    assert.equal(!!result.faults['failed-units'], aggregate);
+    assert.equal(sent.join('\n').includes('CRITICAL: System services have failed'), aggregate);
+    assert.equal(sent.join('\n').includes('Writer'), !releaseWindow(window, now));
+    if (!aggregate) assert.equal(sent.length, 0);
+  }
+});
+
+test('release-window alert audit preserves resource/job faults and every non-writer failure hook', async t => {
+  const window = { startedAt: new Date(now - 60000).toISOString(), endsAt: new Date(now + 60000).toISOString() };
+  const controlDir = await fixture(t), sent = [];
+  const value = { ...sample(), writerActive: false, failed: ['chunk-picker.service'], window,
+    diskBytes: GiB, ramBytes: GiB / 2,
+    ...Object.fromEntries(['health', 'backup', 'offhost', 'operator'].map(kind => [kind, { ...sample()[kind], result: 'failed' }])) };
+  const result = await monitor({ controlDir }, { sample: value, now, send: async text => sent.push(text) });
+  for (const code of ['disk-low', 'ram-low', 'health-fault', 'backup-fault', 'offhost-fault', 'operator-fault']) assert(result.faults[code]);
+  for (const text of ['Disk reserve', 'Available memory', 'Health recovery', 'Recovery backup', 'Off-site backup', 'operator operation'])
+    assert(sent.join('\n').includes(text));
+  assert(!sent.join('\n').includes('Writer')); assert(!result.faults['failed-units']);
+  for (const unit of Object.keys(failureUnits).filter(unit => unit !== 'chunk-picker.service')) {
+    const controlDir = await fixture(t), sent = [];
+    await writeFile(path.join(controlDir, 'release-window.json'), JSON.stringify(window));
+    await notifyFailure({ controlDir }, unit, { now, send: async text => sent.push(text) });
+    assert.equal(sent.length, 1); assert.match(sent[0], /CRITICAL: .* service failed/);
+  }
 });
 test('notifier deduplicates, escalates, repeats bounded critical incidents, recovers and retries delivery', async t => {
   const controlDir = await fixture(t), sent = [], send = async text => sent.push(text);

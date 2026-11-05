@@ -24,7 +24,10 @@ export function evaluate(sample, previous = {}, now = Date.now()) {
   const lowRamSince = sample.ramBytes < 2 * GiB ? previous.lowRamSince ?? now : null;
   if (sample.ramBytes < GiB) put('ram-low', 'urgent');
   else if (lowRamSince !== null && now - lowRamSince >= 10 * 60000) put('ram-low');
-  if (sample.failed?.length) put('failed-units', 'critical');
+  // A planned writer outage must not reappear under the aggregate category.
+  // Unknown units and every other job remain faults, even during a release.
+  const failed = (sample.failed ?? []).filter(unit => unit !== 'chunk-picker.service' || !releaseWindow(sample.window, now));
+  if (failed.length) put('failed-units', 'critical');
   for (const unit of sample.failed ?? []) if (failureUnits[unit]) put(failureUnits[unit], 'critical');
   for (const kind of ['operator', 'health', 'backup', 'offhost']) {
     const status = sample[kind];

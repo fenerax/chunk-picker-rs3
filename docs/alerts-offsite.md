@@ -79,6 +79,16 @@ intent into the outbox; it is acknowledged only after the outbox is durable.
 The fixed `notifier state was reset` alert therefore survives a crash during
 quarantine. A crash after remote acceptance may replay an alert.
 
+Release-window handling covers the monitor's writer categories, its aggregate
+failed-unit predicate and the writer OnFailure hook. Only the writer is excluded
+from the aggregate during a valid window; other/unknown failed units still alert.
+Health recovery skips inactive writers and busy release locks; a skipped health
+tick is not a health failure. Actual health, backup, off-site, operator and
+resource faults remain visible through both status monitoring and failure hooks.
+Missing, invalid or expired windows never authorize writer suppression. Existing
+outbox incidents and independent dead-man checks retain their evidence; declaring
+a release does not erase earlier failures or manufacture a successful health ping.
+
 The pending outbox keeps the first incident and newest state per category,
 including a recovery after a short outage. It has caps of 96 events and 16 KiB
 of encoded pending data; the complete fixed-shape state stays below 32 KiB.
