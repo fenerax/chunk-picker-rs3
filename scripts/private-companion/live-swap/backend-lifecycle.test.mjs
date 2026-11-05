@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { fork } from 'node:child_process';
-import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { createBackendLifecycle } from './backend-lifecycle.mjs';
 import { runtimeCall, createTargetGuard, signMessage, constantEqual } from './managed-runtime.mjs';
@@ -11,21 +10,61 @@ const checkpoint = { revision: 70, schemaVersion: 1, sha256: 'f'.repeat(64) };
 const pipe = () => `\\\\.\\pipe\\picker-bridge-test-${randomUUID()}`;
 async function child(t) {
   const address = pipe(), process = fork(new URL('./backend-control.fixture.mjs', import.meta.url), [address], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
-  const messages = [], exited = once(process, 'exit'); process.on('message', value => messages.push(value));
+  const messages = []; let closed = false, failed = false, stderr = '', childError;
+  process.on('message', value => messages.push(value));
+  process.stderr.setEncoding('utf8'); process.stderr.on('data', value => { stderr += value; });
+  process.on('error', error => { childError = error; });
+  // close follows exit AND drains stderr, so failures retain the child's output.
+  const exited = new Promise(resolve => process.once('close', () => { closed = true; resolve(); }));
+  const failure = (event, reason, cause) => new Error(`child never sent ${event}: ${reason}; pid=${process.pid}, exit code=${process.exitCode}, signal=${process.signalCode}${childError ? `; ${childError.message}` : ''}${stderr ? `; stderr: ${stderr.trim()}` : ''}`, { cause });
+  const exitWithin = ms => closed ? Promise.resolve(true) : new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), ms);
+    exited.then(() => { clearTimeout(timer); resolve(true); });
+  });
+  const terminate = async () => {
+    if (closed) return;
+    // ChildProcess.kill supports both signals on Windows as well as POSIX.
+    process.kill('SIGTERM'); if (await exitWithin(500)) return;
+    process.kill('SIGKILL');
+    if (!await exitWithin(500)) throw failure('exit', 'child survived SIGKILL');
+  };
   const wait = async event => {
-    const signal = AbortSignal.timeout(10000);
-    for (;;) {
-      const found = messages.find(value => value.event === event); if (found) return found;
-      if (process.exitCode !== null || process.signalCode !== null) throw new Error(`Fixture exited before ${event}.`);
-      await once(process, 'message', { signal });
+    try {
+      return await new Promise((resolve, reject) => {
+        const finish = (error, value) => {
+          clearTimeout(timer); process.off('message', check); process.off('close', check); process.off('error', onError);
+          error ? reject(error) : resolve(value);
+        };
+        const check = () => {
+          const found = messages.find(value => value.event === event);
+          if (found) finish(null, found);
+          else if (closed || childError) finish(childError ?? new Error('child exited before acknowledgement'));
+        };
+        const onError = error => finish(error);
+        const timer = setTimeout(() => finish(new Error('deadline expired after 10000 ms')), 10000);
+        process.on('message', check); process.on('close', check); process.on('error', onError); check();
+      });
+    } catch (cause) {
+      failed = true;
+      let reason = cause.message;
+      try { await terminate(); } catch (error) { reason += `; ${error.message}`; }
+      throw failure(event, reason, cause);
     }
   };
   t.after(async () => {
-    if (process.exitCode === null && process.connected && !messages.some(message => message.event === 'shutdown')) {
-      process.send({ method: 'release-factory' });
-      if (!messages.some(message => message.event === 'shutdown-started')) process.send({ method: 'shutdown' });
+    try {
+      if (!closed && process.connected && !messages.some(message => message.event === 'shutdown')) {
+        process.send({ method: 'release-factory' });
+        if (!messages.some(message => message.event === 'shutdown-started')) process.send({ method: 'shutdown' });
+      }
+      if (!await exitWithin(750)) {
+        await terminate();
+        throw failure('exit', 'teardown deadline expired after 750 ms');
+      }
+      if (!failed && (process.exitCode !== 0 || childError)) throw failure('clean exit', 'fixture failed during teardown');
+    } finally {
+      if (!closed) await terminate();
     }
-    await exited;
   });
   await wait('ready');
   const barrier = event => { process.send({ method: 'barrier', event }); return wait(event); };
