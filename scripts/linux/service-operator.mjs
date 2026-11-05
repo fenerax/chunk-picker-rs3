@@ -88,6 +88,7 @@ export async function runServiceOperator({ settings, command, argument, evidence
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
   return serviceOperation(settings, command, async () => {
+    if (await exists(path.join(settings.controlDir, 'tools-transaction.json'))) throw new Error('Tools transaction requires reconciliation.');
     if (command === 'inspect' && !argument) throw new Error('Inspect requires a picker ID.');
     if (['list', 'inspect'].includes(command)) return listServicePickers(settings, command === 'inspect' ? argument : undefined);
     const stopped = () => assertServiceStopped(settings, controller);
@@ -161,7 +162,12 @@ export async function runServiceOperator({ settings, command, argument, evidence
           if (await exists(path.join(dataDir, 'state.json'))) await checkStoppedCompatibility({ ...options, dataDir, assertStopped: stopped });
         }
       };
-      result = await deployStopped({ settings, current: release, candidate, controller, request, check, savedIdentityAdditions });
+      try { result = await deployStopped({ settings, current: release, candidate, controller, request, check, savedIdentityAdditions }); }
+      catch (error) {
+        // Receipt preflight happens before drain; this invocation owns the pause.
+        if (error.code === 'PHASE_RECEIPT_UNWRITABLE') await rm(pause);
+        throw error;
+      }
     }
     if (['restore', 'quarantine-release'].includes(command)) await repairServiceOwnership({ settings, ...await serviceIdentity() });
     await rm(pause); return result;

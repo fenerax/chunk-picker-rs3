@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
-import { mkdtemp, mkdir, readFile, writeFile, cp, rm, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, cp, rm, readdir, symlink } from 'node:fs/promises';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -14,6 +14,7 @@ import { prune } from '../scripts/private-companion/release-v2.mjs';
 const scripts = fileURLToPath(new URL('../scripts/private-companion/', import.meta.url));
 import { stageReleaseKit } from '../scripts/private-companion/stage-release-v2.mjs';
 import { pipelineTests, orderedEarly, earlyBudgetMs } from '../scripts/private-companion/release-early.mjs';
+import { literalModuleReferences } from '../scripts/private-companion/tooling-module-graph.mjs';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
 const put = async (file, value) => { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)); };
@@ -22,6 +23,42 @@ const invoke = (file, args, env = process.env) => new Promise((resolve, reject) 
   child.stdout.on('data', bytes => output += bytes); child.stderr.on('data', bytes => output += bytes);
   child.on('error', reject); child.on('close', code => resolve({ code, output }));
 });
+test('every module copied flat into a PC kit resolves its literal imports inside the kit layout', async () => {
+  // stageReleaseKit copies every top-level companion module into kit/tools.
+  // Check the complete inventory, rather than this lifecycle fixture's subset.
+  const copied = new Set((await readdir(scripts)).filter(name => name.endsWith('.mjs')
+    || ['approved-workflows.json', 'approved-neutral-workflow.json'].includes(name)));
+  const check = (owner, source) => {
+    for (const ref of literalModuleReferences(source).references) {
+      if (ref.startsWith('node:')) continue;
+      const target = path.posix.normalize(path.posix.join('tools', ref));
+      assert(ref.startsWith('./') && target.startsWith('tools/') && copied.has(target.slice(6)), `${owner}: ${ref} escapes flat PC kit layout`);
+    }
+  };
+  for (const name of copied) if (name.endsWith('.mjs')) check(name, await readFile(path.join(scripts, name), 'utf8'));
+  for (const syntax of ["import {isMain} from '../release/vps/entrypoint.mjs';", "export * from '../outside.mjs';", "await import('../outside.mjs');"])
+    assert.throws(() => check('synthetic.mjs', syntax), /escapes flat PC kit layout/);
+  for (const relative of ['pc/ci-inputs.mjs', 'pc/quick-build.mjs', 'verify-ci-evidence.mjs']) {
+    const source = await readFile(new URL('../scripts/release/' + relative, import.meta.url), 'utf8');
+    assert(!literalModuleReferences(source).references.some(ref => /(?:^|\/)vps\//.test(ref)), relative);
+  }
+});
+
+test('PC quick-build and pack-check execute their CLI through a symlink', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'pc-main-symlink-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const repo = fileURLToPath(new URL('../', import.meta.url)), alias = path.join(root, 'checkout');
+  await symlink(repo, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  for (const [entry, diagnostic] of [
+    ['scripts/release/pc/quick-build.mjs', 'Quick build refused: Use build, verify or prepare-swap.'],
+    ['scripts/private-companion/release-pack-check.mjs', 'Pack compatibility refused; storage unchanged. Cause: Pack check command refused.'],
+  ]) {
+    const result = await invoke(path.join(alias, entry), [], { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' });
+    assert.equal(result.code, 1, entry + ' silently exited without its action');
+    assert.equal(result.output.trim(), diagnostic, entry);
+  }
+});
+
 test('early checks run in order, collect every failure, and stop starting checks once the budget is spent', async () => {
   assert.equal(earlyBudgetMs, 30 * 60000);
   let clock = 0; const ran = [], step = (name, seconds, error) => async remaining => { ran.push([name, remaining]); clock += seconds * 1000; if (error) throw Error(error); };

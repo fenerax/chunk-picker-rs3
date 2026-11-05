@@ -129,7 +129,7 @@ const probeChanged = async (store, before) => encode(await probeInput(store)) !=
 const legacyRefusal = () => Object.assign(new Error('Legacy picker is incompatible; service restore refused. Live data was not changed.'), { code: 'LEGACY_RESTORE_INCOMPATIBLE' });
 const progressFile = settings => path.join(settings.controlDir, 'service-restore', 'progress.json');
 const quarantineRoot = settings => path.join(settings.controlDir, 'quarantine');
-const storeInventory = dir => inventory(dir, { ignoreRoot: ['warm-store'] });
+const storeInventory = dir => inventory(dir, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
 const identity = async dir => sha(encode(await storeInventory(dir)));
 async function checkedTarget(dir) { await noLinks(path.dirname(dir)); await assertReleased(dir); }
 async function empty(dir) {
@@ -534,3 +534,4 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
   await installPicker(settings, record, stage, row, save, step);
   return finish(row);
 }
+import { STORE_IDENTITY_EXCLUSIONS } from '../../app/storage/store-identity-policy.mjs';
