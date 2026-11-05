@@ -20,8 +20,6 @@ function fixture() {
     const base = index ? '200' : '100';
     const runescapeName = index ? 'twosamplegim' : 'exampleGIMab';
     const provenance = { source: 'runemetrics', fetchedAt: now(), runescapeName };
-    state.provenance ??= { questPointProgress: {} };
-    state.provenance.questPointProgress[member.id] = { current: 17, max: 450, ...provenance, source: 'platform-api' };
     Object.assign(member, { unlocked: [base], selected: [index ? '201' : '101'], pendingRoll: [index ? '202' : '102'],
       sourceMapId: index ? 'qxb' : 'qxa',
       blacklisted: ['300'], completedTasks: ['quest:retained', 'diary:retained'], obtainedEquipment: ['Bronze sword'], notes: { [base]: 'Keep this note' },
@@ -53,7 +51,6 @@ test('going members resets both maps while retaining personal records and record
   const changed = applyCommand(original, command(), attributedOptions);
   assert.deepEqual(original, before);
   assert.equal(changed.rules['content.f2p'], false);
-  assert.deepEqual(changed.provenance, before.provenance);
   assert.deepEqual(changed.tasks, before.tasks);
   const event = changed.history.at(-1);
   assert.deepEqual(event.actor, actor);

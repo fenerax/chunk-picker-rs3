@@ -208,11 +208,13 @@ Each has an accessible captioned table. Weeks start Monday in UTC. History is
 reconstructed backwards from validated undo evidence, including selective Undo;
 unsupported evidence, restore and catalogue changes create an explicit boundary.
 The first count is a baseline, not progress earned that week. Saved/synced dates
-are not claimed as play dates. Current-account observations can add earlier skill totals when their complete same-time evidence supports an account total. Quest points use Jagex’s authoritative synced total; missing totals remain unknown. Legacy daily quest-award estimates appear as unknown so migration corrections do not appear as gameplay gains. Fresh daily records mark QP as authoritative, and retain that evidence after History archiving. Missing totals break the graph line.
+are not claimed as play dates. Current-account RuneMetrics observations can add
+earlier skill or quest-point totals only when their complete same-time evidence
+supports an account total. Missing totals break the graph line.
 
 The store records `progressSnapshots` at startup and normal durable saves, outside
 commands and without changing revision or History. One latest numeric tuple per
-UTC day stores five counts per player plus the duo counts. New tuples include an authoritative-QP marker; old tuples remain readable. It contains no task
+UTC day stores five counts per player plus the duo counts. It contains no task
 lists, XP or daily identity trees; member IDs appear once. Up to 3,660 observed
 days (about ten years) fit below 400 KB for the duo and survive portable backups,
 restore and restart. A visible notice marks retention when that cap is reached.

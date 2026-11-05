@@ -3,14 +3,15 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createGroupState, applyCommand } from '../app/core/state.mjs';
-import { importBackup as loadLiveBackup } from './fixtures/rollback-main/state.mjs';
+import { createGroupState, importBackup, exportBackup } from '../app/core/state.mjs';
+import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { createPlatformApiClient } from '../app/integrations/platform-api.mjs';
 import { previewRuneMetrics, createQuestMapping } from '../app/integrations/runemetrics.mjs';
 import { platformResponse } from './helpers/platform-api-fixtures.mjs';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import { openStore } from '../app/storage/store.mjs';
-import { createTaskReuseFingerprint } from '../app/tasks/unlock-reuse.mjs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 test('a Platform-synced durable save loads with the frozen live-release loader', async t => {
   blockUnmockedFetch(t);
@@ -37,25 +38,39 @@ test('a Platform-synced durable save loads with the frozen live-release loader',
   assert.equal(loaded.members[0].runeMetricsSync.source, 'official-api');
   assert.ok(Object.values(loaded.members[0].skillProgress).every(row => row.source === 'official-api'));
   assert.ok(Object.values(loaded.members[0].questProgress).every(row => row.source === 'official-api'));
-  assert.equal(loaded.provenance.questPointProgress[state.members[0].id].current, 17);
-  assert.equal(loaded.provenance.questPointProgress[state.members[0].id].source, 'platform-api');
+  assert.equal(loaded.provenance?.questPointProgress, undefined);
+  assert.equal(loaded.provenance?.progressQuestPoints, undefined);
+  assert.equal(loaded.provenance?.progressCompletionBaseline, undefined);
   assert.equal(loaded.history.at(-1).command.source, 'platform-api');
-  assert.equal(loaded.provenance.progressQuestPoints.days[0][2][0], 17);
-  assert.equal(store.getCalculationState().provenance.questPointProgress[state.members[0].id].current, 17);
-  const fingerprint = createTaskReuseFingerprint(), calculation = store.getCalculationState();
-  const otherPoints = structuredClone(calculation);
-  otherPoints.provenance.questPointProgress[state.members[0].id].current = 18;
-  assert.notEqual(fingerprint(calculation), fingerprint(otherPoints), 'Readiness cache keys include authoritative QP');
+  assert.equal(Object.hasOwn(loaded.history.at(-1).command, 'questPoints'), false);
+  assert.equal(loaded.history.at(-1).questPointChange, undefined);
+  assert.equal(loaded.progressSnapshots.days[0].length, 4);
+  assert.equal(loaded.progressSnapshots.days[0][2][0][2], 1, 'Timeline keeps main completion estimates');
 
-  // Prove that this fixture really exercises the two rollback rejection paths.
-  const unknownMember = structuredClone(durable);
-  unknownMember.state.members[0].questPointProgress = loaded.provenance.questPointProgress[state.members[0].id];
-  assert.throws(() => loadLiveBackup(unknownMember), /Unknown member field: questPointProgress/);
+  // Prove that the real main validator rejects an incompatible saved source.
   const unknownSource = structuredClone(durable);
   unknownSource.state.members[0].runeMetricsSync.source = 'platform-api';
   assert.throws(() => loadLiveBackup(unknownSource), /source must be runemetrics, official-api or hiscores/);
 
-  const undone = applyCommand(loaded, { type: 'undo' }, { now: () => '2026-11-04T12:01:00Z' });
-  assert.equal(undone.provenance.questPointProgress[state.members[0].id], undefined);
-  assert.deepEqual(loadLiveBackup({ ...durable, state: undone }), undone);
+  const undone = applyLiveCommand(loaded, { type: 'undo' }, { now: () => '2026-11-04T12:01:00Z' });
+  assert.deepEqual(undone.members, state.members, 'Main undo removes Platform skill and quest observations');
+  const rolledForward = importBackup(exportLiveBackup(undone));
+  assert.deepEqual(rolledForward, undone, 'Main undo remains loadable on this branch');
+  assert.deepEqual(loadLiveBackup(exportBackup(rolledForward)), undone);
+});
+
+// Keep the release exports mechanically tied to git show, never hand copies.
+test('rollback fixtures are exports of origin/main loader and validation at 06e1593', async () => {
+  const cwd = fileURLToPath(new URL('../', import.meta.url));
+  const sha = execFileSync('git', ['rev-parse', 'origin/main'], { cwd, encoding: 'utf8' }).trim();
+  assert.equal(sha, '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e');
+  for (const name of ['state', 'game-progress', 'progress-snapshots']) {
+    const source = execFileSync('git', ['show', `origin/main:app/core/${name}.mjs`], { cwd, encoding: 'utf8' });
+    const relocated = source.replace(/(from ['"])(\.[^'"]+)(['"])/g, (match, before, target, after) => {
+      if (['./game-progress.mjs', './progress-snapshots.mjs'].includes(target)) return match;
+      return before + (target.startsWith('./') ? '../../../app/core/' + target.slice(2) : '../../../app/' + target.slice(3)) + after;
+    });
+    const fixture = await readFile(new URL(`./fixtures/rollback-main/${name}.mjs`, import.meta.url), 'utf8');
+    assert.equal(fixture.replace(/\r\n/g, '\n'), `// Frozen from live release ${sha}.\n// Only import paths are relocated; validation behavior must remain unchanged.\n${relocated}`);
+  }
 });

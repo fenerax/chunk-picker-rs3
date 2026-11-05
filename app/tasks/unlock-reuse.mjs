@@ -12,7 +12,7 @@ const staticFields = new Set(['tasks', 'identityRegistry', 'legacy']);
 export function createTaskReuseFingerprint() {
   const staticDigests = new WeakMap();
   return state => {
-    const fields = [['questPointProgress', digest(state.provenance?.questPointProgress ?? null)]];
+    const fields = [];
     for (const key of Object.keys(state).sort()) {
       if (['revision', 'history', 'provenance', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews'].includes(key)) continue;
       let value = state[key];

@@ -2312,17 +2312,17 @@ export function importLegacyMaps(document, { members, capturedAt, registry } = {
     if (!Object.hasOwn(maps, owner.mapId)) {
       const gameplay = Object.create(null);
       for (const key of GAMEPLAY_KEYS) if (Object.hasOwn(map, key)) gameplay[key] = sanitizeGameplay(map[key], warnings, `maps.${owner.mapId}.${key}`);
-      for (const key of Object.keys(map)) if (!GAMEPLAY_KEYS.has(key)) warnings.push(`${owner.name ?? owner.id}’s original map entry ${key} was not kept.`);
+      for (const key of Object.keys(map)) if (!GAMEPLAY_KEYS.has(key)) warnings.push(`${owner.name ?? owner.id}â€™s original map entry ${key} was not kept.`);
       maps[owner.mapId] = gameplay;
     }
     const journal = typeof map.chunkNotes === 'string' ? decodeLegacyText(map.chunkNotes) : undefined;
-    if (journal?.length > MAX_JOURNAL_LENGTH) warnings.push(`${owner.name ?? owner.id}’s original map journal exceeds ${MAX_JOURNAL_LENGTH} characters; it stays in the saved original-picker copy.`);
+    if (journal?.length > MAX_JOURNAL_LENGTH) warnings.push(`${owner.name ?? owner.id}â€™s original map journal exceeds ${MAX_JOURNAL_LENGTH} characters; it stays in the saved original-picker copy.`);
     return { id: owner.id, name: owner.name, sourceMapId: owner.mapId,
       ...(journal !== undefined && journal.length <= MAX_JOURNAL_LENGTH ? { journal } : {}),
-      unlocked: legacyChunkIds(map.chunks.unlocked, `${owner.name ?? owner.id}’s unlocked chunks`, warnings),
-      selected: legacyChunkIds(map.chunks.selected, `${owner.name ?? owner.id}’s selected chunks`, warnings),
-      pendingRoll: legacyChunkIds(map.chunks.potential, `${owner.name ?? owner.id}’s pending roll choices`, warnings),
-      blacklisted: legacyChunkIds(map.chunks.blacklisted, `${owner.name ?? owner.id}’s blacklisted chunks`, warnings),
+      unlocked: legacyChunkIds(map.chunks.unlocked, `${owner.name ?? owner.id}â€™s unlocked chunks`, warnings),
+      selected: legacyChunkIds(map.chunks.selected, `${owner.name ?? owner.id}â€™s selected chunks`, warnings),
+      pendingRoll: legacyChunkIds(map.chunks.potential, `${owner.name ?? owner.id}â€™s pending roll choices`, warnings),
+      blacklisted: legacyChunkIds(map.chunks.blacklisted, `${owner.name ?? owner.id}â€™s blacklisted chunks`, warnings),
       completedTasks: [], teleports: [] };
   });
   const state = createGroupState(memberStates, registry);
@@ -2333,7 +2333,7 @@ export function importLegacyMaps(document, { members, capturedAt, registry } = {
     const resolved = neighborOptions.map(options => ({ 'roll.neighborMode': options.autoWalkableRollable ? 'accessible' : 'manual', 'roll.adjacent': options.neighbors, 'roll.walkable': options.walkableRollable, 'roll.clearSelected': options.remove === true }));
     if (resolved.every(options => JSON.stringify(options) === JSON.stringify(resolved[0]))) {
       state.rules = resolved[0];
-      warnings.push('Both players’ matching choices for adding nearby roll candidates are now used by the shared rules.');
+      warnings.push('Both playersâ€™ matching choices for adding nearby roll candidates are now used by the shared rules.');
     } else warnings.push('Saved choices for adding nearby roll candidates differ between players; defaults remain active. Review how nearby candidates are added and whether selected candidates are cleared before rolling.');
   }
   for (const member of state.members) {

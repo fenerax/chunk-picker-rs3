@@ -1,6 +1,6 @@
 import { replaceView } from './browser-state.mjs';
 import { dataTable, progressChart } from './helper-charts.mjs';
-import { progressMetrics, progressDate, progressSeries, progressRecap, progressQuestPointLabel } from './helper-progress-model.mjs';
+import { progressMetrics, progressDate, progressSeries, progressRecap } from './helper-progress-model.mjs';
 
 export function renderProgress(host, { viewCache, document, api, member, stateRevision, isCurrent, draft }) {
   const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
@@ -13,13 +13,10 @@ export function renderProgress(host, { viewCache, document, api, member, stateRe
     if (scope !== 'duo' && !members.some(row => row.memberId === scope)) scope = member.id;
     content.replaceChildren();
     const totals = dataTable(document, 'Saved totals for both players and the duo', ['Saved total', ...members.map(row => row.name), 'Duo'],
-      progressMetrics.map(([key, label]) => {
-        const value = metrics => key === 'questPoints' ? progressQuestPointLabel(metrics) : number(metrics[key]);
-        return [label, ...members.map(row => value(row.metrics)), value(model.current.duo.metrics)];
-      }));
+      progressMetrics.map(([key, label]) => [label, ...members.map(row => number(row.metrics[key])), number(model.current.duo.metrics[key])]));
     totals.className = 'helper-table-wrap helper-progress-totals';
     content.append(totals,
-    el('p', 'Duo chunks and tasks count each shared one once. Quest points and levels add both accounts. Authoritative quest points come from account syncs; estimates come from saved quest completions. A task tick does not grant account quest points or levels. “Not recorded” means neither count is saved.', 'helper-note'));
+    el('p', 'Duo chunks and tasks count each shared one once. Quest points and levels add both accounts. A task tick does not grant quest points or levels. “Not recorded” means the picker has no complete saved account count.', 'helper-note'));
     const controls = el('div', undefined, 'helper-progress-controls'), label = el('label', 'Show graphs for'), selector = el('select'); selector.id = 'helper-progress-scope'; label.htmlFor = selector.id;
     for (const row of [...members.map(row => ({ id: row.memberId, name: row.name })), { id: 'duo', name: 'Duo' }]) { const option = el('option', row.name); option.value = row.id; selector.append(option); }
     selector.value = scope; label.append(selector); controls.append(label); content.append(controls);
@@ -42,8 +39,7 @@ export function renderProgress(host, { viewCache, document, api, member, stateRe
       section.append(el('h4', title), progressChart(document, rows, { title, bars }));
       if (note) section.append(el('p', note, 'helper-note'));
       const summary = el('summary', `Read ${title.toLowerCase()} as a table`);
-      const table = () => dataTable(document, title, [bars ? 'Week starting (UTC)' : 'Saved date (UTC)', title], rows.map(row => [progressDate(row.at),
-        row.source && Number.isFinite(row.value) ? `${number(row.value)} (${row.source})` : number(row.value)]));
+      const table = () => dataTable(document, title, [bars ? 'Week starting (UTC)' : 'Saved date (UTC)', title], rows.map(row => [progressDate(row.at), number(row.value)]));
       details.append(summary);
       if (rows.length <= 200) details.append(table());
       else details.addEventListener('toggle', () => { details.replaceChildren(summary); if (details.open) details.append(table()); });
@@ -51,7 +47,7 @@ export function renderProgress(host, { viewCache, document, api, member, stateRe
     };
     chart('Chunks unlocked per week', series.weekly.map(row => ({ at: row.week, value: row.unlockedChunks })), true, 'Net changes in your saved map; the first week may be incomplete.');
     chart('Tasks completed per week', series.weekly.map(row => ({ at: row.week, value: row.completedTasks })), true, 'Net changes in saved task checks, counting each task once.');
-    chart('Quest points over time', series.questPoints, false, 'Account observations and saved completion estimates are labelled separately. A change of source is not a gameplay gain. Missing counts leave a gap.');
+    chart('Quest points over time', series.questPoints, false, 'Personal quest records only. Missing counts leave a gap.');
     chart('Total level over time', series.totalLevel, false, 'Complete saved skill observations only. Missing levels leave a gap.');
     content.append(charts);
   }

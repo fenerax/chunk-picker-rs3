@@ -72,7 +72,6 @@ test('RuneMetrics preview/apply is authenticated, server-bound, personal, durabl
   assert.equal(owner.skillProgress.Necromancy.level,11); assert.equal(owner.skillProgress.Necromancy.xp,1400);
   assert.equal(owner.skillProgress.Necromancy.source,'official-api'); assert.equal(owner.skillProgress.Necromancy.fetchedAt,preview.fetchedAt);
   assert.equal(owner.questProgress[brokenId].fetchedAt,preview.fetchedAt);
-  assert.deepEqual(applied.provenance.questPointProgress[owner.id],{current:17,max:450,source:'platform-api',fetchedAt:preview.fetchedAt,runescapeName:'exampleGIMab'});
   assert.deepEqual(preview.questPoints,{before:null,after:{current:17,max:450}});
   assert.ok(owner.completedTasks.includes(brokenId)); assert.ok(!owner.completedTasks.includes(stepId));
   assert.deepEqual(owner.taskStatus,before.members[0].taskStatus); assert.deepEqual(owner.passiveLevels,before.members[0].passiveLevels); assert.deepEqual(owner.maxLevels,before.members[0].maxLevels);

@@ -10,13 +10,13 @@ Hiscores uses **one-based skill IDs**, with ID zero reserved for Overall. The ad
 
 Player Quests supplies numeric quest IDs and title/status records. The existing conservative whole-quest title map remains authoritative: steps, rewards, ambiguous titles and replacement quests never gain completion through a fuzzy match. Unmatched titles stay visible for review. Missing or incomplete quests never remove saved completion.
 
-The response's top-level `qp` and `qp_max` become authoritative account quest points. Catalogue awards cannot reliably reproduce historical/replay adjustments. The maximum is global, not a target within a player's challenge. Current-account totals feed Profile, copied summaries, Progress and quest readiness. Without a reported total, readiness retains its existing catalogue fallback; Progress shows unknown. Older daily award sums stay portable but are not compared with authoritative observations as gameplay gains.
+The response's top-level `qp` and `qp_max` appear in the sync preview only. They are not saved. Profile, Progress and quest readiness keep the existing completion-derived quest-point estimates.
 
 ## Review, persistence and compatibility
 
 The authenticated `POST /api/runemetrics/preview` and `/api/runemetrics/apply` routes and `apply-runemetrics` command retain their compatibility names. Preview writes nothing. Apply uses a server-held ten-minute token and the reviewed revision; shared-state or account changes require a fresh review. Cancel leaves progress alone. One apply is one undoable command. Backups, restart and sparse undo preserve observations and optional-field absence.
 
-New web observations carry `source: "platform-api"`, `fetchedAt` and `runescapeName`. Skills and quests remain in `skillProgress` and `questProgress`; `runeMetricsSync` remains the last web-sync field. `questPointProgress` adds `{current, max}` with the same provenance. Older RuneMetrics, official API, Hiscores and plugin observations remain readable. Plugin facts retain member-bound provenance even when overlaid on web snapshots. Planning caps and manual controls keep their existing meaning; challenge checkmarks and partner facts are unchanged.
+New Platform skill and quest observations save the existing `source: "official-api"`, `fetchedAt` and `runescapeName` provenance so the main release can load them on rollback. The command records `source: "platform-api"` for the sync history label. Skills and quests remain in `skillProgress` and `questProgress`; `runeMetricsSync` remains the last web-sync field. No quest-point field or provenance extension is added. Older RuneMetrics, official API, Hiscores and plugin observations remain readable. Plugin facts retain member-bound provenance even when overlaid on web snapshots. Planning caps and manual controls keep their existing meaning; challenge checkmarks and partner facts are unchanged.
 
 See [Progress sources](progress-sources.md) for source selection, the retained explicit legacy retirement policy and plugin precedence.
 

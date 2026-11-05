@@ -13,25 +13,6 @@ function observe(member, skill, level, name = 'Alice') {
   member.skillProgress[skill] = { source: 'runemetrics', level, xp: 100, runescapeName: name, fetchedAt: '2026-10-12T12:00:00Z' };
 }
 
-test('current-account authoritative QP controls readiness even when catalogue completions disagree', () => {
-  const finish = task('finish', 'Quest', { QuestPoints: 1, QuestPointsNeeded: 33 });
-  const prior = task('prior', 'Prior quest', { QuestPoints: 40 }, { label: 'Prior quest Complete the quest', personalCompleted: true });
-  const f = fixture([finish, prior]);
-  f.member.completedTasks = ['prior'];
-  assert.equal(buildQuestReadiness(f.result, f.state, 'a').get('finish').canDoNow, true, 'Legacy personal completion evidence remains available');
-  const observePoints = (current, name = 'Alice') => { f.state.provenance = { questPointProgress: { [f.member.id]: {
-    current, max: 450, source: 'platform-api', runescapeName: name, fetchedAt: '2026-11-04T12:00:00Z',
-  } } }; };
-  observePoints(25);
-  assert.equal(buildQuestReadiness(f.result, f.state, 'a').get('finish').canDoNow, false);
-  f.member.completedTasks = [];
-  prior.personalCompleted = false;
-  observePoints(33);
-  assert.equal(buildQuestReadiness(f.result, f.state, 'a').get('finish').canDoNow, true);
-  observePoints(33, 'Different');
-  assert.equal(buildQuestReadiness(f.result, f.state, 'a').get('finish').canDoNow, false);
-});
-
 test('readiness needs saved personal levels, preserves access blockers and does not mutate inputs', () => {
   const finish = task('finish', 'Quest', { QuestPoints: 0, Skills: { Mining: 20 } });
   const f = fixture([finish]);

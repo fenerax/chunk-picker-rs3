@@ -57,59 +57,12 @@ test('invalid RuneMetrics batches fail atomically before history time and stale 
     { quests: [{ taskId: 'unknown', title: 'Unknown' }] }, { quests: [{ taskId: 'skill:cook', title: 'Cook food' }] },
     { quests: [{ taskId: quest.id, title: '' }] }, { skills: [{ ...batch().skills[0], source: 'manual' }] },
     { quests: [{ ...batch().quests[0], completed: true }] }, { source: 'manual' }, { source: null },
-    ...[null, {}, [], { current: 1 }, { current: -1, max: 10 }, { current: 2, max: 1 },
-      { current: 1.5, max: 10 }, { current: 1, max: Number.MAX_SAFE_INTEGER + 1 },
-      { current: 1, max: 10, extra: true }].map(questPoints => ({ questPoints })),
   ];
   const options = { expectedRevision: 0, now: () => { throw new Error('Rejected command must not request a timestamp'); } };
   for (const extra of invalid) assert.throws(() => applyCommand(state, batch(extra), options), error => error instanceof TypeError);
   assert.throws(() => applyCommand(state, batch(), { expectedRevision: 1, now }), /Revision conflict/);
   assert.equal(JSON.stringify(state), before);
 });
-
-test('Platform API observations coexist with legacy facts and round trip through restore and sparse undo', () => {
-  const state = apply(group(), batch());
-  const next = apply(state, batch({ source: 'platform-api', questPoints: { current: 42, max: 450 },
-    skills: [{ skill: 'Crafting', level: 10, xp: 1200 }] }));
-  const provenance = { source: 'platform-api', fetchedAt, runescapeName: 'DemoExplorer' };
-  assert.deepEqual(next.provenance.questPointProgress.actor1, { current: 42, max: 450, ...provenance });
-  assert.deepEqual(next.members[0].runeMetricsSync, { ...provenance, source: 'official-api' });
-  assert.equal(next.members[0].skillProgress.Crafting.source, 'official-api');
-  assert.equal(next.members[0].skillProgress.Cooking.source, 'runemetrics');
-  assert.equal(next.members[0].questProgress[quest.id].source, 'official-api');
-  assert.deepEqual(importBackup(exportBackup(next)), next);
-  const preview = previewRestore(next, state);
-  assert.equal(preview.members[0].questPointProgress.changed, true);
-  assert.equal(preview.members[0].questPointProgress.after, null);
-  assert.ok(preview.warnings.some(warning => /personal quest points/.test(warning)));
-  const noPoints = apply(next, batch({ source: 'platform-api', fetchedAt: '2026-10-07T17:30:00Z', skills: [], quests: [] }));
-  assert.deepEqual(noPoints.provenance.questPointProgress.actor1, next.provenance.questPointProgress.actor1, 'Missing endpoint data cannot erase saved observations');
-  assert.deepEqual(apply(apply(noPoints, { type: 'undo' }), { type: 'undo' }).members, state.members);
-  for (const mutate of [
-    value => { value.provenance.questPointProgress.actor1.current = 451; },
-    value => { value.provenance.questPointProgress.actor1.source = 'manual'; },
-    value => { value.history.at(-1).questPointChange.after.max = -1; },
-  ]) {
-    const invalid = structuredClone(next); mutate(invalid);
-    assert.throws(() => validateState(invalid), TypeError);
-  }
-});
-
-test('QP-only sync undo restores the prior observation, and selective sync undo preserves another player', () => {
-  const synced = apply(group(), batch({ source: 'platform-api', skills: [], quests: [], questPoints: { current: 17, max: 450 } }));
-  const qpOnly = apply(synced, batch({ source: 'platform-api', skills: [], quests: [], questPoints: { current: 22, max: 450 } }));
-  assert.deepEqual(qpOnly.members, synced.members, 'QP can change with an identical sync timestamp and no other facts');
-  assert.equal(apply(qpOnly, { type: 'undo' }).provenance.questPointProgress.actor1.current, 17);
-  assert.deepEqual(importBackup(exportBackup(qpOnly)), qpOnly);
-  const unrelated = apply(synced, { type: 'set-journal', memberId: 'reed', note: 'Synthetic unrelated edit' });
-  const selected = apply(unrelated, { type: 'undo', undoRevision: 1 });
-  assert.equal(selected.provenance.questPointProgress.actor1, undefined);
-  assert.equal(selected.members[1].journal, 'Synthetic unrelated edit');
-  const later = apply(synced, batch({ source: 'platform-api', skills: [], quests: [], fetchedAt: '2026-10-07T17:30:00Z', questPoints: { current: 22, max: 450 } }));
-  assert.throws(() => apply(later, { type: 'undo', undoRevision: 1 }), /later command changed the same/i);
-});
-
-
 
 function observedState(engine, skills) {
   const state = group();

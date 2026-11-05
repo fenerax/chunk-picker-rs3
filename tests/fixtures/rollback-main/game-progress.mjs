@@ -97,7 +97,7 @@ export function validateItemProgress(taskId, value, tasks, memberId) {
   if (typeof value.title !== 'string' || !value.title.trim() || value.title.length > 80 || /[\x00-\x1f\x7f-\x9f]/.test(value.title)) throw new TypeError('Item progress title must contain 1 through 80 characters without controls');
   if (!Number.isSafeInteger(value.gameItemId) || value.gameItemId < 0) throw new TypeError('Item progress gameItemId must be a nonnegative safe integer');
   if (value.evidence !== 'owned' && value.evidence !== 'worn') throw new TypeError('Item progress evidence must be owned or worn');
-  // The review label: "owned when first seen; source unknown", "new since …" or "worn …".
+  // The review label: "owned when first seen; source unknown", "new since â€¦" or "worn â€¦".
   if (typeof value.seen !== 'string' || !value.seen.trim() || value.seen.length > 80 || /[\x00-\x1f\x7f-\x9f]/.test(value.seen)) throw new TypeError('Item progress seen must contain 1 through 80 characters without controls');
   if (!tasks.has(taskId)) throw new TypeError(`Item progress references absent task: ${taskId}`);
 }

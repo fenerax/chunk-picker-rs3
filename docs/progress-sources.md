@@ -14,7 +14,7 @@ erase the source observations. Observations live in memory and clear on restart;
 without an active plugin key, they cannot supply a sync preview.
 Plugin progress does not need a saved RuneScape account name.
 
-The default web source is the published RuneScape Platform API: main Hiscores JSON plus Player Quests. It uses whole XP and saves authoritative quest points. See [Account progress sync](runemetrics.md) for endpoint contracts, limits and persistence. Plugin observations continue to win per field; a failed paired web snapshot leaves saved progress alone and preserves the existing levels-only fallback policy.
+The default web source is the published RuneScape Platform API: main Hiscores JSON plus Player Quests. It uses whole XP and shows official quest points in the preview only. See [Account progress sync](runemetrics.md) for endpoint contracts, limits and persistence. Plugin observations continue to win per field; a failed paired web snapshot leaves saved progress alone and preserves the existing levels-only fallback policy.
 
 An explicitly configured `webSource: 'runemetrics'` retains policy B: it keeps using RuneMetrics until HTTP 404 or 410 retires it for the process. The announced 10 November closure date remains reference metadata, not a timer. Private-profile, rate-limit and account errors keep their meanings. The optional `official-api` adapter slot remains available for custom adapters.
 
@@ -72,4 +72,4 @@ The existing `/api/runemetrics/preview` and `/api/runemetrics/apply` names and
 They do not force a particular source. Authentication, viewer restrictions,
 server-held review tokens and ten-minute expiry are unchanged.
 
-Web observations use the existing `apply-runemetrics` command. New default observations have `source: 'platform-api'`; older commands default to `runemetrics`. Plugin observations retain `apply-game-progress` and `game-plugin` provenance. `questPointProgress` is the new optional account-bound total; current validation, backups, reload and Undo preserve it. Existing source values remain supported.
+Web observations use the existing `apply-runemetrics` command. Platform commands use `source: 'platform-api'`, while saved skills, quests and sync metadata use the main-compatible `official-api` value. Older commands default to `runemetrics`. Plugin observations retain `apply-game-progress` and `game-plugin` provenance. Official quest points stay in the preview; no new saved field or extension is added. Existing source values remain supported.

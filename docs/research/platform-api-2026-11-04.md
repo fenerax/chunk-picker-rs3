@@ -4,9 +4,9 @@ Evidence checked November 4, 2026 against Jagex’s public documentation and rea
 
 ## Added in this migration
 
-The picker now fetches levels and whole XP from main RS3 Hiscores and quest completion from Player Quests. It preserves review, apply, conflict handling, undo and older saved observations. It also saves and displays the new authoritative account quest-point total and maximum. Future Progress records use that total instead of adding catalogue awards. Quest readiness uses the reported current-account total when available, so historical awards or unmatched completions do not distort point requirements.
+The picker fetches levels and whole XP from main RS3 Hiscores and quest completion from Player Quests. It preserves review, apply, conflict handling, undo and older saved observations. Official quest-point totals appear only in the sync preview. Persisting those totals is deferred to the separate `feat/official-qp` follow-up branch.
 
-Daily Progress keeps the original four-slot `progressSnapshots.days` tuples as completion-derived estimates for rollback. Authoritative daily QP is stored separately in `provenance.progressQuestPoints`, with member and duo totals, and travels with portable backups. Unknown values cannot overwrite known daily counts. A same-day startup leaves the saved tuple unchanged and can only add an authoritative observation. Progress prefers authoritative QP, falls back to the last saved estimate with an explicit label, and starts a new graph segment when the source changes.
+Daily Progress, quest readiness, restore and undo retain main's completion-derived quest-point behavior. Platform skills and quests use main-compatible `official-api` provenance; no new saved QP fields, extensions or timeline tuples are written.
 
 The new top-level quest-point fields are the most useful data addition. Jagex calculates them with the game’s rules, including retained historical Sheep Shearer points, the corresponding Myths of the White Lands adjustment, and Dimension of Disaster replays. Quest status alone cannot reliably reproduce that total. The global maximum does not mean a player’s F2P target or number of points obtainable within unlocked chunks.
 
@@ -19,7 +19,7 @@ The adapter recognizes the historical Hiscores names: Hitpoints means Constituti
 - Quest detail could show Jagex’s STARTED/NOT_STARTED state and reported eligibility alongside the picker’s access requirements. Status, eligibility, difficulty, members flags and per-quest awards already existed in RuneMetrics but the picker used only title/completion. `eligible` does not prove the player can reach every required chunk, has the needed items, or satisfies house rules.
 - Numeric quest IDs can support provenance and future catalogue matching. The adapter retains them in its fetched snapshot. Persisted completions continue to use the picker’s existing task identities and conservative title mapping; numeric IDs alone do not establish a link to local task records.
 
-These are candidate additions. The migration implements authoritative QP now; the activity feed and extra profile/quest-detail data remain future work.
+These are candidate additions. Persisted official QP, the activity feed and extra profile/quest-detail data remain future work.
 
 ## Limits and losses
 
@@ -29,7 +29,7 @@ Hiscores loses RuneMetrics’ tenths-of-XP precision. Monthly XP has no direct r
 
 ## Verification
 
-Synthetic tests cover skill identities, unmatched quests and authoritative quest-point sync without retaining account observations or capture metadata.
+Synthetic tests cover skill identities, unmatched quests and transient quest-point previews without retaining account observations or capture metadata.
 
 A separate private live server check exercised preview, apply, backup, restart and undo for two accounts using a temporary store. All steps passed; no personal save was changed. These private checks are background evidence from the source implementation. Public tests use invented display names and values and never call the live API.
 

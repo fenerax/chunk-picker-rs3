@@ -187,7 +187,7 @@ test('plugin progress works without a web account name and older reports cannot 
 });
 
 
-test('default Platform web source overlays plugin facts and keeps authoritative QP', async t => {
+test('default Platform web source overlays plugin facts and keeps transient QP', async t => {
   const calls = [];
   const sources = createSources({ runeMetrics: { fetchImpl: async url => { calls.push(url.origin); return platformResponse(url); } },
     pluginSnapshot: () => ({ source: 'game-plugin', sourceLabel: 'Game plugin', fetchedAt: '2026-11-04T12:00:00Z',
@@ -206,7 +206,7 @@ test('default Platform web source overlays plugin facts and keeps authoritative 
   assert.equal(review.command.skills.find(row => row.skill === 'Attack').xp, 850.5, 'Plugin XP precision survives the Platform overlay');
 });
 
-test('default Platform failure retains the nondecreasing Hiscores fallback and saved QP', async t => {
+test('default Platform failure retains the nondecreasing Hiscores fallback', async t => {
   const calls = [];
   const sources = createSources({ runeMetrics: { fetchImpl: async url => {
     calls.push(url.origin);
@@ -218,8 +218,7 @@ test('default Platform failure retains the nondecreasing Hiscores fallback and s
       skills: [{ skill: 'Attack', level: 4, xp: 300 }, { skill: 'Defence', level: 9, xp: 1000 }], quests: [] }; } } });
   t.after(() => sources.close());
   const member = { id: 'actor1', runescapeName: 'ExampleHero',
-    skillProgress: { Attack: { source: 'platform-api', runescapeName: 'ExampleHero', level: 7, xp: 700 } },
-    questPointProgress: { source: 'platform-api', runescapeName: 'ExampleHero', current: 17, max: 450 } };
+    skillProgress: { Attack: { source: 'official-api', runescapeName: 'ExampleHero', level: 7, xp: 700 } } };
   const before = structuredClone(member), snapshot = await sources.snapshot(member);
   assert.equal(snapshot.source, 'hiscores');
   assert.deepEqual(calls, ['https://secure.runescape.com', 'https://secure.runescape.com', 'https://apps.runescape.com', 'https://apps.runescape.com']);

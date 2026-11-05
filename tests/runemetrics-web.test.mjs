@@ -6,7 +6,7 @@ import { createRuneMetricsControls, skillChangeText } from '../app/web/runemetri
 import { createInfoPanels } from '../app/web/info-panels.mjs';
 
 const snapshot = revision => ({
-  source: 'platform-api', questPoints: { before: { current: 9, max: 450 }, after: { current: 17, max: 455 } },
+  source: 'platform-api', questPoints: { before: null, after: { current: 17, max: 455 } },
   previewId: 'review-a', stateRevision: revision, memberId: 'a', runescapeName: 'AccountA', fetchedAt: '2026-10-07T12:00:00Z', cached: true,
   skills: [
     { skill: 'Mining', before: { level: 5, xp: 400 }, after: { level: 6, xp: 550.5 } },
@@ -76,7 +76,7 @@ test('preview shows increases, decreases, unknown prior XP, personal quests and 
   assert.equal(h.attempts.fetch[0][0], '/api/runemetrics/preview');
   assert.deepEqual(h.attempts.fetch[0][1], { memberId: 'a' });
   assert.match(h.text(), /recent saved result/);
-  assert.match(h.text(), /Quest points: 9 \/ 450 → 17 \/ 455 \(Platform API\)/);
+  assert.match(h.text(), /Quest points: 17 \/ 455 \(Platform API, preview only\)/);
   assert.match(h.text(), /13 completed quests returned · 12 matched · 1 unmatched/);
   assert.ok(h.find('li', 'Mining: level 5 → 6 (+1) · XP 400 → 550.5 (+150.5)'));
   assert.equal(h.find('li', 'Attack: level 4 → 3 (−1) · XP 300 → 200 (−100)').className, 'warning');

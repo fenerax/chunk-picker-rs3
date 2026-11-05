@@ -192,9 +192,9 @@ test('Platform API uses one-based skills, whole XP and authoritative quest total
   assert.equal(command.skills.length, 6); assert.ok(!command.skills.some(row => row.skill === 'Overall'));
   assert.deepEqual(command.skills.find(row => row.skill === 'Constitution'), { skill: 'Constitution', level: 50, xp: 101333 });
   assert.deepEqual(command.skills.find(row => row.skill === 'Runecrafting'), { skill: 'Runecrafting', level: 1, xp: 0 });
-  assert.equal(command.source, 'platform-api'); assert.deepEqual(command.questPoints, { current: 17, max: 450 });
+  assert.equal(command.source, 'platform-api'); assert.equal(Object.hasOwn(command, 'questPoints'), false);
   assert.deepEqual(preview.questPoints, { before: null, after: { current: 17, max: 450 } });
-  const state = group(); state.provenance = { questPointProgress: { player1: { current: 9, max: 475, source: 'platform-api', runescapeName: 'Someone' } } };
+  const state = group();
   state.members[0].skillProgress = { Attack: { level: 99, xp: 13034431, source: 'runemetrics', runescapeName: 'Someone' } };
   const renamed = previewRuneMetrics(state, 'player1', data, questMapping).preview;
   assert.equal(renamed.questPoints.before, null);

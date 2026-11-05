@@ -179,4 +179,4 @@ See [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Account progress sync
 
-Activity Info offers on-demand **Sync progress** through the RuneScape Platform API for levels, whole XP, completed quests and authoritative quest points, with preview, apply and undo. Plugin observations retain priority. See [Account progress sync](docs/runemetrics.md) for mapping and limits.
+Activity Info offers on-demand **Sync progress** through the RuneScape Platform API for levels, whole XP, completed quests, with preview, apply and undo. Official quest points appear in the preview only. Plugin observations retain priority. See [Account progress sync](docs/runemetrics.md) for mapping and limits.
