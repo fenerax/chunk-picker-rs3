@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { evaluate, monitor } from '../scripts/linux/monitor.mjs';
 import { notify, releaseWindow } from '../scripts/linux/notify.mjs';
 import { deadman } from '../scripts/linux/ops-status.mjs';
+import { exclusive } from '../scripts/linux/files.mjs';
+import { compact, outboxLimits } from '../scripts/linux/notify-queue.mjs';
 const base = fileURLToPath(new URL('../.local/monitor-tests/', import.meta.url));
 const now = Date.parse('2026-11-05T12:00:00Z'), GiB = 1024 ** 3;
 const sample = () => ({ writerActive: true, backup: { snapshotAt: new Date(now).toISOString() },
@@ -112,4 +114,66 @@ test('a large incident outbox drains in Discord-sized batches without dropping r
   for (const message of Object.values(messages)) {
     assert(sent.join('\n').includes('CRITICAL: ' + message)); assert(sent.join('\n').includes('RECOVERED: ' + message));
   }
+});
+
+test('corrupt and invalid outboxes reset and deliver through both monitor and OnFailure callers', async t => {
+  for (const broken of ['{', 'null', '{}', '{"active":{},"announced":{},"sent":[],"pending":[{"code":"untrusted"}]}']) {
+    for (const caller of ['monitor', 'failure']) {
+      const controlDir = await fixture(t), sent = [], send = async text => sent.push(text);
+      await writeFile(path.join(controlDir, 'notify-state.json'), broken);
+      if (caller === 'monitor') await monitor({ controlDir }, { sample: { ...sample(), writerActive: false }, now, send });
+      else await notify({ controlDir, faults: { 'unit-writer': 'critical' }, merge: true, now, send });
+      assert.match(sent.join('\n'), /notifier state was reset/); assert.match(sent.join('\n'), /Writer/);
+      assert.equal((await readdir(controlDir)).filter(name => name.includes('.reset-')).length, 1);
+      assert(!sent.join('\n').includes('untrusted'));
+    }
+  }
+});
+
+test('concurrent producers persist behind a busy lock, including an incident that resolves before draining', async t => {
+  const controlDir = await fixture(t), sent = [], send = async text => sent.push(text);
+  await exclusive(path.join(controlDir, 'notify.lock'), async () => {
+    const results = await Promise.all(['unit-writer', 'unit-backup', 'unit-health', 'unit-offhost'].map(code =>
+      notify({ controlDir, faults: { [code]: 'critical' }, merge: true, now, send })));
+    assert(results.every(result => result.pending && !result.delivered));
+    await notify({ controlDir, faults: {}, now: now + 1, send });
+    assert.equal(sent.length, 0);
+    assert((await readdir(path.join(controlDir, 'notify-spool'))).length > 4);
+  });
+  await notify({ controlDir, faults: {}, now: now + 31000, send });
+  for (const message of ['Writer service', 'Backup service', 'Health service', 'Off-site service']) {
+    assert(sent.join('\n').includes('CRITICAL: ' + message)); assert(sent.join('\n').includes('RECOVERED: ' + message));
+  }
+});
+
+test('corrupt claimed mailboxes reset without silencing delivery and new events survive an in-flight send', async t => {
+  const controlDir = await fixture(t), spool = path.join(controlDir, 'notify-spool'), sent = [];
+  await mkdir(spool);
+  await writeFile(path.join(spool, 'unit-backup.critical.json.claimed'), '{');
+  await notify({ controlDir, faults: { 'unit-writer': 'critical' }, merge: true, now, send: async text => {
+    sent.push(text);
+    const result = await notify({ controlDir, faults: { 'unit-offhost': 'critical' }, merge: true, now: now + 1, send: async () => assert.fail('busy sender') });
+    assert(result.pending);
+  } });
+  assert.match(sent[0], /notifier state was reset/);
+  await notify({ controlDir, faults: {}, now: now + 31000, send: async text => sent.push(text) });
+  assert(sent.join('\n').includes('CRITICAL: Off-site service failed'));
+});
+
+test('compaction retains incident evidence and newest state, caps events and bytes and reports drops', async t => {
+  const events = Array.from({ length: 1000 }, (_, at) => ({ code: 'disk-low', ...(at % 2 ? {} : { level: 'urgent' }), at }));
+  const result = compact(events);
+  assert.equal(result.pending.length, 2); assert.equal(result.dropped, 998);
+  assert(result.pending[0].level); assert(!result.pending.at(-1).level);
+  const constrained = compact([...events, { code: 'unit-writer', level: 'critical', at: 1001 },
+    { code: 'ram-low', level: 'warning', at: 1002 }], 0, { events: 2, bytes: 256 });
+  assert.deepEqual(constrained.pending.map(row => row.code), ['unit-writer', 'ram-low']);
+  assert(Buffer.byteLength(JSON.stringify(constrained)) <= 256);
+  const controlDir = await fixture(t), sent = [];
+  await writeFile(path.join(controlDir, 'notify-state.json'), JSON.stringify({ active: {}, announced: {}, sent: [], pending: events }));
+  await notify({ controlDir, faults: {}, now, send: async text => sent.push(text) });
+  assert.match(sent[0], /998 alerts were dropped/);
+  const state = JSON.parse(await readFile(path.join(controlDir, 'notify-state.json')));
+  assert(state.pending.length <= outboxLimits.events); assert(Buffer.byteLength(JSON.stringify(state.pending)) < outboxLimits.bytes);
+  assert(Buffer.byteLength(JSON.stringify(state)) < outboxLimits.stateBytes);
 });

@@ -2,7 +2,7 @@ import { open, stat } from 'node:fs/promises';
 import { headroom } from './files.mjs';
 
 // Check the destination filesystem before allocation and each bounded write.
-// Restic uses --no-cache, so staging is the only filesystem allocation sink.
+// Restic temporary packs have a separate budget in restic.mjs.
 export function stagingBudget(root, reserve, { check = headroom, signal } = {}) {
   const budget = async bytes => { signal?.throwIfAborted(); await check(root, bytes + 1024 ** 2, reserve); };
   const copy = async (source, target) => {

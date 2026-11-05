@@ -3,9 +3,9 @@ import { isMain } from '../release/vps/entrypoint.mjs';
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { installSecrets, run } from './setup-common.mjs';
-export async function setupDiscord({ keyFile, alias, rotate = false }, { execute = run } = {}) {
+export async function setupDiscord({ keyFile, alias, rotate = false }, { execute = run, identityFile } = {}) {
   const value = (await readFile(keyFile, 'utf8')).trim();
-  installSecrets(alias, { 'discord-webhook': value }, execute, { rotate: rotate ? ['discord-webhook'] : [] });
+  installSecrets(alias, { 'discord-webhook': value }, execute, { rotate: rotate ? ['discord-webhook'] : [], identityFile });
 }
 if (isMain(import.meta.url)) {
   try {

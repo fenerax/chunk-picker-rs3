@@ -136,8 +136,8 @@ test('overall deadline aborts network work and releases both locks', async t => 
 test('retention is 30 daily, 8 weekly, 12 monthly; no-delete client cannot destroy young B2 versions (simulation)', () => {
   assert.deepEqual(retentionArgs.slice(-7), ['--keep-daily', '30', '--keep-weekly', '8', '--keep-monthly', '12', '--prune']);
   assert(!uploadCapabilities.includes('deleteFiles')); assert(cleanupCapabilities.includes('deleteFiles'));
-  for (const command of ['backup', 'init', 'forget']) assert.deepEqual(resticArgs([command]), ['--no-cache', command]);
-  for (const command of ['check', 'snapshots', 'restore']) assert.deepEqual(resticArgs([command]), ['--no-cache', '--no-lock', command]);
+  for (const command of ['backup', 'init', 'forget']) assert(!resticArgs([command]).includes('--no-lock'));
+  for (const command of ['check', 'snapshots', 'restore']) assert(resticArgs([command]).includes('--no-lock'));
   protectedBucket({ bucketType: 'allPrivate', lifecycleRules: lifecycle });
   assert.throws(() => protectedBucket({ bucketType: 'allPrivate', lifecycleRules: [{ ...lifecycle[0], daysFromHidingToDeleting: 1 }] }));
   // Native B2 Remove: Delete returns 401 without deleteFiles; restic falls

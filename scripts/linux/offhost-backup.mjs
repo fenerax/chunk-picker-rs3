@@ -70,7 +70,7 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
         }, { skipBusy: true, maxBusyMs: 1800000 });
         if (staged.skipped) return staged;
         // No live paths or operator lock survive into the network phase.
-        run ??= await resticRunner(config, { signal });
+        run ??= await resticRunner(config, { signal, settings });
         const repository = async args => { signal.throwIfAborted(); const result = await run(args, { signal }); signal.throwIfAborted(); return result; };
         const stdout = await repository(['backup', '--json', '--host', 'picker-vps', '--tag', 'chunk-picker',
           '--time', new Date(staged.time).toISOString().slice(0, 19).replace('T', ' '), staged.backup, staged.recovery]);
@@ -100,7 +100,7 @@ if (isMain(import.meta.url)) {
     else if (process.argv[2] === 'paused') process.stdout.write(encode(await pausedOffhost(settings, config.repository)));
     else if (process.argv[2] === 'init') {
       await exclusive(path.join(settings.controlDir, 'offhost.lock'), async () => {
-        const run = await resticRunner(config, { signal: AbortSignal.timeout(30 * 60000) }); await run(['init', '--repository-version', '2']);
+        const run = await resticRunner(config, { settings, signal: AbortSignal.timeout(30 * 60000) }); await run(['init', '--repository-version', '2']);
       });
     } else {
       if (process.argv[2]) throw Error();

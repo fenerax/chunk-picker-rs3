@@ -9,8 +9,8 @@ export const checks = Object.freeze([
   { name: 'chunk-picker-backup', period: 86400, grace: 43200 },
   { name: 'chunk-picker-offhost', period: 86400, grace: 43200 },
 ]);
-export async function setupHealthchecks({ keyFile, alias }, { fetchImpl = fetch, execute = run } = {}) {
-  verifyDeployment(alias, execute);
+export async function setupHealthchecks({ keyFile, alias }, { fetchImpl = fetch, execute = run, identityFile } = {}) {
+  verifyDeployment(alias, execute, identityFile);
   const key = (await readFile(keyFile, 'utf8')).trim(); if (!key) throw Error('API key file required.');
   const base = 'https://healthchecks.io/api/v3/checks/';
   const headers = { 'X-Api-Key': key, 'Content-Type': 'application/json' };
@@ -28,7 +28,7 @@ export async function setupHealthchecks({ keyFile, alias }, { fetchImpl = fetch,
     privateEndpoint(result.ping_url, 'healthchecks');
     secrets[check.name.replace('chunk-picker-', '') + '-ping'] = result.ping_url;
   }
-  installSecrets(alias, secrets, execute);
+  installSecrets(alias, secrets, execute, { identityFile });
   return { checks: checks.length }; // No ping, webhook or management URLs.
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

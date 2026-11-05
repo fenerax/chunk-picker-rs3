@@ -1,9 +1,11 @@
 import path from 'node:path';
 import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
+import { enqueue, drain, acknowledge, compact, loadState } from './notify-queue.mjs';
 import { credential, privateEndpoint } from './ops-status.mjs';
 
 export const messages = Object.freeze({
+  'notifier-reset': 'notifier state was reset',
   'writer-inactive': 'Writer is inactive', 'backup-source': 'Source snapshot is stale or missing',
   'offhost-source': 'Delivered snapshot is stale or missing', 'offhost-delivery': 'Off-site delivery is stale or missing',
   maintenance: 'Maintenance evidence is present', 'maintenance-abandoned': 'Maintenance needs operator reconciliation',
@@ -29,55 +31,60 @@ export async function notify({ controlDir, faults, window, now = Date.now(), rep
     if (!response.ok) throw Error('Notification delivery failed.');
   }, merge = false }) {
   await directory(controlDir);
-  return exclusive(path.join(controlDir, 'notify.lock'), async () => {
+  const codes = Object.keys(messages);
+  for (const [code, level] of Object.entries(faults))
+    if (!Object.hasOwn(messages, code) || !severity(level)) throw Error('Unknown notification category.');
+  const suppressed = new Set(releaseWindow(window, now) ? ['writer-inactive', 'maintenance', 'maintenance-abandoned', 'unit-writer'] : []);
+  const spool = await enqueue(controlDir, faults, codes, { merge, now, suppressed });
+  const result = await exclusive(path.join(controlDir, 'notify.lock'), async () => {
     const file = path.join(controlDir, 'notify-state.json');
-    let state = { active: {}, announced: {}, sent: [] }; try { state = await json(file); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    const active = merge ? { ...state.active } : {};
-    for (const [code, level] of Object.entries(faults)) {
-      if (!Object.hasOwn(messages, code) || !severity(level)) throw Error('Unknown notification category.');
-      active[code] = level;
-    }
-    const suppressed = new Set(releaseWindow(window, now) ? ['writer-inactive', 'maintenance', 'maintenance-abandoned', 'unit-writer'] : []);
+    const state = await loadState(file, codes, severity, now), active = { ...state.active };
+    const entries = await drain(spool, codes);
     repeatMs = Math.max(3600000, Math.min(24 * 3600000, Number(repeatMs) || 6 * 3600000));
-    // Events outlive active conditions. Persist the outbox and attempt BEFORE
-    // sending; a crash can duplicate delivery but cannot acknowledge a loss.
     const events = state.pending ?? [];
     if (!state.pending) for (const [code, level] of Object.entries(state.active)) {
-      if (!state.announced[code]) events.push({ code, level });
+      if (!state.announced[code]) events.push({ code, level, at: now });
     }
-    for (const [code, level] of Object.entries(active)) {
-      const previous = state.announced[code];
-      const latest = events.findLast(row => row.code === code);
-      if (!suppressed.has(code) && (latest ? latest.level !== level : !previous || previous.level !== level || level !== 'warning' && now - previous.at >= repeatMs))
-        events.push({ code, level });
+    for (const { row } of entries) {
+      const { code, level, at } = row;
+      if (level) active[code] = level; else delete active[code];
+      const previous = state.announced[code], latest = events.findLast(event => event.code === code);
+      const prior = latest ? latest.level : previous?.level;
+      if (level) {
+        if (!row.suppressed && (prior !== level || !latest && level !== 'warning' && at - (previous?.at ?? 0) >= repeatMs)) events.push({ code, level, at });
+      } else if (prior) events.push({ code, at });
     }
-    for (const code of new Set([...Object.keys(state.announced), ...events.map(row => row.code)])) {
-      if (!active[code] && (events.findLast(row => row.code === code)?.level ?? (!events.some(row => row.code === code) && state.announced[code]?.level))) events.push({ code });
-    }
+    const bounded = compact(events, state.dropped ?? 0);
+    events.splice(0, events.length, ...bounded.pending);
+    let dropped = bounded.dropped;
     const sent = state.sent.filter(at => at > now - 10 * 60000);
     const attempts = (state.attempts ?? state.sent).filter(at => at > now - 10 * 60000);
     const permitted = attempts.length < 4 && (!attempts.length || now - attempts.at(-1) >= 30000);
     let delivered = false;
     const text = row => (row.level ? row.level.toUpperCase() + ': ' : 'RECOVERED: ') + messages[row.code];
-    const batch = []; let length = 13;
+    const summary = () => dropped ? dropped + ' alerts were dropped' : '';
+    const batch = []; let length = 13 + summary().length + 1;
     for (const row of events) { if (length + text(row).length + 1 > 1900) break; batch.push(row); length += text(row).length + 1; }
-    if (events.length && permitted) {
+    if ((events.length || dropped) && permitted) {
       // Codes and fixed phrases only. Never interpolate journal/error/config input.
       attempts.push(now);
-      await atomic(file, encode({ active, announced: state.announced, sent, attempts, pending: events }));
+      await atomic(file, encode({ active, announced: state.announced, sent, attempts, pending: events, dropped }));
+      await acknowledge(entries);
       try {
-        await send('Chunk picker\n' + batch.map(text).join('\n'));
+        await send('Chunk picker\n' + [...batch.map(text), ...(dropped ? [summary()] : [])].join('\n'));
         for (const row of batch) {
           if (row.level) state.announced[row.code] = { level: row.level, at: now };
           else delete state.announced[row.code];
         }
-        sent.push(now); delivered = true;
+        sent.push(now); delivered = true; dropped = 0;
       } catch {} // Keep pending events durable for the next monitor attempt.
     }
     const pending = delivered ? events.slice(batch.length) : events;
-    await atomic(file, encode({ active, announced: state.announced, sent, attempts, pending }));
-    return { delivered, pending: pending.length > 0 };
-  });
+    await atomic(file, encode({ active, announced: state.announced, sent, attempts, pending, dropped }));
+    await acknowledge(entries);
+    return { delivered, pending: pending.length > 0 || dropped > 0 };
+  }, { skipBusy: true });
+  return result.skipped ? { delivered: false, pending: true } : result;
 }
 export const failureUnits = Object.freeze({ 'chunk-picker.service': 'unit-writer', 'chunk-picker-backup.service': 'unit-backup',
   'chunk-picker-health.service': 'unit-health', 'chunk-picker-offhost.service': 'unit-offhost', 'chunk-picker-monitor.service': 'unit-monitor' });

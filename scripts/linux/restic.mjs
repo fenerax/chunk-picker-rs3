@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { credential } from './ops-status.mjs';
-const execute = promisify(execFile);
+import { directory, headroom } from './files.mjs';
 // Compressed sums checked against upstream v0.18.1 SHA256SUMS; binary sums
 // independently calculated from those verified archives on 2026-11-05.
 export const resticPin = Object.freeze({ version: '0.18.1',
@@ -21,8 +21,61 @@ export async function verifyRestic(binary = '/usr/local/bin/restic') {
 }
 // backup and forget require repository locks in 0.18.1; read-only commands
 // can avoid them. Locks on B2 do not grant the VPS permanent-delete authority.
-export const resticArgs = args => ['--no-cache', ...(['check', 'snapshots', 'restore'].includes(args[0]) ? ['--no-lock'] : []), ...args];
-export async function resticRunner(config, { signal } = {}) {
+export const resticArgs = args => ['--no-cache', '--pack-size', '16', '-o', 'b2.connections=1',
+  ...(['check', 'snapshots', 'restore'].includes(args[0]) ? ['--no-lock'] : []),
+  ...args, ...(args[0] === 'backup' ? ['--read-concurrency', '1'] : [])];
+// 0.18.1: two data + two tree packers, one blocked QueuePacker and one
+// uploader (unbuffered queue). GOMAXPROCS=1 pins the blob saver to one.
+// Pack targets are NOT file limits: blobs/trees can overshoot. RLIMIT_FSIZE
+// enforces a 2*pack-size ceiling even for an oversized tree. Such an upload
+// fails safely instead of consuming the writer's reserve. Include allocation
+// rounding and directory metadata, in addition to all six full pack slots.
+export const resticPackLimit = 32 * 1024 ** 2;
+export const resticTempBound = 6 * resticPackLimit + 1024 ** 2;
+export function executeRestic(binary, args, { env, signal }) {
+  return new Promise((resolve, reject) => {
+    signal?.throwIfAborted();
+    // Do not give execFile an AbortSignal: its abort callback may precede exit.
+    // Wait for the normal close callback before allowing temp cleanup.
+    const child = execFile('prlimit', [`--fsize=${resticPackLimit}:${resticPackLimit}`, '--', binary, ...args],
+      { env, killSignal: 'SIGKILL', windowsHide: true, maxBuffer: 4 * 1024 ** 2, timeout: 25 * 60000 },
+      (error, stdout) => { signal?.removeEventListener('abort', abort); error || signal?.aborted ? reject(Error('Encrypted repository operation failed.')) : resolve(stdout); });
+    const abort = () => child.kill('SIGKILL');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+  });
+}
+export async function guardedRestic({ root, reserve, binary, args, env, signal,
+  check = headroom, execute = executeRestic, intervalMs = 250 }) {
+  await directory(root);
+  const temporary = await mkdtemp(path.join(root, 'restic-'));
+  const controller = new AbortController();
+  const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true });
+  process.once('SIGTERM', abort); process.once('SIGINT', abort);
+  let timer, checking, fault;
+  try {
+    signal?.throwIfAborted();
+    await check(temporary, resticTempBound, reserve);
+    timer = setInterval(() => {
+      if (checking) return;
+      // Retain another full write envelope between samples. No other writer's
+      // future allocations are assumed; loss of headroom fails closed.
+      checking = check(temporary, resticTempBound, reserve).catch(error => { fault = error; controller.abort(); }).finally(() => { checking = null; });
+    }, intervalMs);
+    const result = await execute(binary, resticArgs(args), { env: { ...env, TMPDIR: temporary, GOMAXPROCS: '1' }, signal: controller.signal });
+    await checking;
+    if (fault) throw fault;
+    controller.signal.throwIfAborted();
+    signal?.throwIfAborted();
+    return result;
+  } finally {
+    clearInterval(timer); await checking;
+    signal?.removeEventListener('abort', abort);
+    process.removeListener('SIGTERM', abort); process.removeListener('SIGINT', abort);
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+export async function resticRunner(config, { signal, settings } = {}) {
   const binary = '/usr/local/bin/restic'; await verifyRestic(binary);
   if (!/^b2:[a-z0-9][a-z0-9-]{5,49}:chunk-picker$/.test(config.repository ?? '')) throw Error('Private B2 repository required.');
   const credentials = process.env.CREDENTIALS_DIRECTORY;
@@ -32,8 +85,8 @@ export async function resticRunner(config, { signal } = {}) {
   await credential('restic-password');
   return async args => {
     // No inherited RESTIC/B2 endpoints, hooks, proxy credentials or debug logs.
-    try { return (await execute(binary, resticArgs(args), { env, signal, killSignal: 'SIGKILL', windowsHide: true,
-      maxBuffer: 4 * 1024 ** 2, timeout: 25 * 60000 })).stdout; }
+    try { return await guardedRestic({ root: path.join(settings.scratchRoot, 'restic-tmp'), reserve: settings.minFreeBytes,
+      binary, args, env, signal }); }
     catch { throw Error('Encrypted repository operation failed.'); }
   };
 }

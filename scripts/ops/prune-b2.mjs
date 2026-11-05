@@ -3,13 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { execFileSync } from 'node:child_process';
+import { pinnedSsh } from './deployment-identity.mjs';
 import { run, verifyDeployment } from './setup-common.mjs';
 import { resticArgs, retentionArgs, verifyRestic } from '../linux/restic.mjs';
-export async function pruneB2({ alias, vault, item, binary }, { execute = run, verify = verifyRestic,
+export async function pruneB2({ alias, vault, item, binary }, { execute = run, verify = verifyRestic, identityFile,
   repositoryRun = (file, args, env) => execFileSync(file, args, { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
     encoding: 'utf8', maxBuffer: 4 * 1024 ** 2, timeout: 60 * 60000 }) } = {}) {
-  verifyDeployment(alias, execute); await verify(binary);
-  const metadata = execute('ssh', [alias, 'sudo -n env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /usr/bin/node /opt/chunk-picker/tools/scripts/linux/offhost-backup.mjs paused']);
+  verifyDeployment(alias, execute, identityFile); await verify(binary);
+  const metadata = pinnedSsh(alias, 'sudo -n env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /usr/bin/node /opt/chunk-picker/tools/scripts/linux/offhost-backup.mjs paused', undefined, execute, identityFile);
   if (JSON.parse(metadata).paused !== true) throw Error('Pause and drain the uploader first.');
   const recovery = JSON.parse(execute('op', ['item', 'get', item, '--vault', vault, '--format=json', '--reveal']));
   const value = name => recovery.fields?.find(field => field.label === name)?.value;

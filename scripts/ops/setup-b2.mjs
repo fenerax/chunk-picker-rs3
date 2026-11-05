@@ -15,8 +15,8 @@ export function protectedBucket(bucket) {
     || bucket.lifecycleRules[0].daysFromHidingToDeleting !== 31) throw Error('Bucket protection differs; refuse to weaken it.');
 }
 function field(item, name) { return item.fields?.find(row => row.label === name)?.value; }
-export async function setupB2({ keyFile, alias, bucketName, vault }, { fetchImpl = fetch, execute = run } = {}) {
-  verifyDeployment(alias, execute);
+export async function setupB2({ keyFile, alias, bucketName, vault }, { fetchImpl = fetch, execute = run, identityFile } = {}) {
+  verifyDeployment(alias, execute, identityFile);
   if (!/^[a-z0-9][a-z0-9-]{5,49}$/.test(bucketName ?? '') || !vault || vault.startsWith('-')) throw Error('Bucket and 1Password vault required.');
   const temporary = JSON.parse(await readFile(keyFile, 'utf8'));
   if (!temporary.applicationKeyId || !temporary.applicationKey) throw Error('Temporary setup key required.');
@@ -38,7 +38,7 @@ export async function setupB2({ keyFile, alias, bucketName, vault }, { fetchImpl
   const repository = 'b2:' + bucketName + ':chunk-picker', title = 'Chunk picker B2 recovery ' + bucketName;
   const items = JSON.parse(execute('op', ['item', 'list', '--vault', vault, '--format=json'])).filter(row => row.title === title);
   if (items.length > 1) throw Error('Duplicate recovery items require reconciliation.');
-  const installed = installedB2Id(alias, execute);
+  const installed = installedB2Id(alias, execute, identityFile);
   const matches = (key, caps) => key.bucketId === bucket.bucketId && key.namePrefix === 'chunk-picker/' && same(key.capabilities, caps);
   const create = async (suffix, capabilities) => {
     const keyName = 'chunk-picker-' + bucketName + '-' + suffix;
@@ -72,7 +72,7 @@ export async function setupB2({ keyFile, alias, bucketName, vault }, { fetchImpl
   if (installed && installed !== field(recovery, 'upload-id')) throw Error('Installed key identity differs.');
   // The independently stored upload material makes any interrupted publication
   // safe to resume, including a partial remote filesystem write.
-  installSecrets(alias, { 'restic-password': field(recovery, 'repository-password'), 'b2-key': field(recovery, 'upload-key'), 'b2-account': field(recovery, 'upload-id') }, execute);
+  installSecrets(alias, { 'restic-password': field(recovery, 'repository-password'), 'b2-key': field(recovery, 'upload-key'), 'b2-account': field(recovery, 'upload-id') }, execute, { identityFile });
   return { protected: true }; // No bucket identifiers, key values or passwords.
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

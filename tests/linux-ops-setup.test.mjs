@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,8 +9,22 @@ import { setupHealthchecks, checks } from '../scripts/ops/setup-healthchecks.mjs
 import { pruneB2 } from '../scripts/ops/prune-b2.mjs';
 import { deploymentIdentity, installSecrets, installedB2Id, sshAlias, verifyDeployment } from '../scripts/ops/setup-common.mjs';
 import { setupDiscord } from '../scripts/ops/setup-discord.mjs';
+import { fingerprint, captureIdentity, verifyHost, pinnedSsh } from '../scripts/ops/deployment-identity.mjs';
+import { installRestic } from '../scripts/ops/install-restic.mjs';
+import { sha } from '../scripts/linux/files.mjs';
 import { publishConfig } from '../scripts/linux/bootstrap-alerts.mjs';
 const base = fileURLToPath(new URL('../.local/ops-setup-tests/', import.meta.url));
+let pinDir, pinFile;
+const syntheticKey = 'ssh-ed25519 ' + Buffer.from('synthetic-host-key').toString('base64');
+const pin = { format: 'picker-host-identity-v1', alias: 'picker-vps', role: 'production', hostKey: syntheticKey,
+  fingerprint: fingerprint(syntheticKey), machineIdHash: 'a'.repeat(64) };
+before(async () => {
+  await mkdir(base, { recursive: true }); pinDir = await mkdtemp(path.join(base, 'identity-'));
+  pinFile = path.join(pinDir, 'pin.json'); await writeFile(pinFile, JSON.stringify(pin));
+  process.env.PICKER_DEPLOYMENT_IDENTITY_FILE = pinFile;
+});
+after(async () => { delete process.env.PICKER_DEPLOYMENT_IDENTITY_FILE; await rm(pinDir, { recursive: true, force: true }); });
+const machineReply = args => args.at(-1).includes('/etc/machine-id') ? pin.machineIdHash : null;
 async function fixture(t, value) {
   await mkdir(base, { recursive: true }); const dir = await mkdtemp(path.join(base, 'run-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
@@ -41,7 +55,8 @@ function b2Mock({ failInstall = false } = {}) {
       if (args[1] === 'create') { assert.equal(args[2], '-'); state.item = JSON.parse(input); return '{}'; }
     }
     if (command === 'ssh') {
-      if (args[1].includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
+      if (machineReply(args)) return machineReply(args);
+      if (args.at(-1).includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
       if (!input) return state.secrets['b2-account'] ?? '';
       const { values } = JSON.parse(input);
       if (state.failInstall) { state.secrets['restic-password'] = values['restic-password']; state.failInstall = false; throw Error('Interrupted install'); }
@@ -66,15 +81,16 @@ test('B2 setup is idempotent, scopes keys, stores recovery before server install
   await setupB2(options, mock); assert.deepEqual(mock.state.secrets, saved); assert.equal(mock.state.keys.length, 2);
   assert.equal(mock.state.calls.filter(method => method === 'b2_create_bucket').length, 1);
   const create = mock.state.commands.findIndex(row => row.command === 'op' && row.args[1] === 'create');
-  const install = mock.state.commands.findIndex(row => row.command === 'ssh' && row.args[1].includes('b64decode'));
+  const install = mock.state.commands.findIndex(row => row.command === 'ssh' && row.args.at(-1).includes('b64decode'));
   assert(create < install);
 });
 test('Linux secret transaction preserves existing values, refuses links and publishes rotation with explicit modes', { skip: process.platform !== 'linux' }, async t => {
   const input = await fixture(t, '{}'), dir = path.dirname(input), base = path.join(dir, 'secrets');
   await writeFile(path.join(dir, 'deployment.json'), JSON.stringify(deploymentIdentity('picker-vps')));
   const execute = (_command, args, payload) => {
+    if (machineReply(args)) return machineReply(args);
     if (!payload) return JSON.stringify(deploymentIdentity('picker-vps'));
-    const encoded = args[1].match(/b64decode\('([^']+)'\)/)[1];
+    const encoded = args.at(-1).match(/b64decode\('([^']+)'\)/)[1];
     // Keep the production transaction intact; substitute only the synthetic
     // filesystem root and its unprivileged test owner (CI runs as a non-root user).
     const program = Buffer.from(encoded, 'base64').toString().replaceAll('/etc/chunk-picker', dir)
@@ -116,7 +132,7 @@ test('Healthchecks creates/updates exactly three checks and never prints or shel
     if (!stored.some(row => row.name === value.name)) stored.push({ ...value, update_url: String(url) + index });
     assert(value.period >= 600 && value.grace >= 1800); return { ok: true, json: async () => ({ ping_url }) };
   };
-  const execute = (_command, args, input) => { if (args[1].includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
+  const execute = (_command, args, input) => { if (machineReply(args)) return machineReply(args); if (args.at(-1).includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
     assert(!args.join(' ').includes('hc-ping')); writes.push(JSON.parse(input).values); return ''; };
   for (let i = 0; i < 2; i++) await setupHealthchecks({ keyFile, alias: 'picker-vps' }, { fetchImpl, execute });
   assert.equal(stored.length, 3); assert.deepEqual(writes[0], writes[1]); assert.equal(Object.keys(writes[0]).length, 3);
@@ -126,7 +142,8 @@ test('trusted prune refuses an unfenced uploader and keeps delete authority out 
   const item = { fields: Object.entries({ repository: 'b2:chunk-picker-backups:chunk-picker', 'repository-password': 'synthetic-only',
     'cleanup-id': 'synthetic-cleanup', 'cleanup-key': 'synthetic-value' }).map(([label, value]) => ({ label, value })) };
   const adapters = { verify: async () => {}, execute: (command, args) => {
-    if (command === 'ssh') { if (args[1].includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
+    if (command === 'ssh') {
+      if (machineReply(args)) return machineReply(args); if (args.at(-1).includes('deployment.json')) return JSON.stringify(deploymentIdentity('picker-vps'));
       assert(!args.join(' ').includes('synthetic-value')); return JSON.stringify({ paused: masked, repository: 'b2:chunk-picker-backups:chunk-picker' }); }
     assert.equal(command, 'op'); return JSON.stringify(item);
   }, repositoryRun: (_file, args, env) => {
@@ -153,7 +170,7 @@ test('unapproved roles and absent/wrong deployment identities refuse before API 
     await assert.rejects(pruneB2({ alias }, adapters), /Approved/);
   }
   for (const identity of [{}, deploymentIdentity('picker-scratch'), { ...deploymentIdentity('picker-vps'), role: 'wrong' }]) {
-    const adapters = { execute: (_command, args, input) => { assert(!input); assert(args[1].includes('deployment.json')); return JSON.stringify(identity); },
+    const adapters = { execute: (_command, args, input) => { if (machineReply(args)) return machineReply(args); assert(!input); assert(args.at(-1).includes('deployment.json')); return JSON.stringify(identity); },
       fetchImpl: () => { throw Error('unexpected API'); } };
     await assert.rejects(setupB2({ alias: 'picker-vps', keyFile }, adapters), /identity differs/);
     await assert.rejects(setupHealthchecks({ alias: 'picker-vps', keyFile }, adapters), /identity differs/);
@@ -168,6 +185,7 @@ test('webhook validates before SSH, is stdin-only, and replacement needs explici
   }
   const webhook = 'https://' + 'discord.com/api/webhooks/synthetic/synthetic-value', keyFile = await fixture(t, webhook), payloads = [];
   const execute = (_command, args, input) => {
+    if (machineReply(args)) return machineReply(args);
     assert(!args.join(' ').includes(webhook));
     if (!input) return JSON.stringify(deploymentIdentity('picker-vps'));
     payloads.push(JSON.parse(input)); return '';
@@ -186,4 +204,62 @@ test('bootstrap publication is create-only or exact-match; empty and partial inp
   await publishConfig(file, '{"working":true}\n');
   const next = file + '-new'; await publishConfig(next, '{"working":true}\n');
   await assert.rejects(publishConfig(next, '{"working":false}\n'), /differs/);
+});
+
+test('missing pins, a scratch pin, wrong host key and wrong machine refuse all setup before cloud mutation or credential transfer', async t => {
+  const keyFile = await fixture(t, '{}');
+  for (const failure of ['missing', 'scratch', 'key', 'machine']) {
+    const file = path.join(pinDir, failure + '.json');
+    if (failure !== 'missing') await writeFile(file, JSON.stringify(failure === 'scratch'
+      ? { ...pin, alias: 'picker-scratch', role: 'rehearsal' } : pin));
+    let transfers = 0, api = 0;
+    const execute = (command, args, input) => {
+      assert.equal(command, 'ssh'); assert(args.includes('StrictHostKeyChecking=yes'));
+      assert(args.includes('GlobalKnownHostsFile=none')); assert(args.includes('VerifyHostKeyDNS=no'));
+      if (input) transfers++;
+      if (failure === 'key') throw Error('Host key verification failed.');
+      if (machineReply(args)) return failure === 'machine' ? 'b'.repeat(64) : machineReply(args);
+      throw Error('Unexpected remote command.');
+    };
+    const adapters = { execute, identityFile: file, fetchImpl: () => { api++; throw Error('unexpected API'); } };
+    await assert.rejects(setupB2({ alias: 'picker-vps', keyFile }, adapters));
+    await assert.rejects(setupHealthchecks({ alias: 'picker-vps', keyFile }, adapters));
+    assert.throws(() => installSecrets('picker-vps', { 'restic-password': 'synthetic-only' }, execute, { identityFile: file }));
+    assert.throws(() => installedB2Id('picker-vps', execute, file));
+    await assert.rejects(pruneB2({ alias: 'picker-vps' }, adapters));
+    assert.equal(transfers, 0); assert.equal(api, 0);
+  }
+});
+
+test('explicit capture is read-only remotely, checks negotiated fingerprint, records separate roles and refuses replacement', async t => {
+  for (const alias of ['picker-vps', 'picker-scratch']) {
+    const file = path.join(pinDir, alias + '.json'); let calls = 0;
+    const execute = (command, args) => {
+      calls++; assert.equal(command, 'ssh'); assert(args.includes('StrictHostKeyChecking=yes'));
+      assert(!args.join(' ').includes('sudo')); assert(args.at(-1).includes('/etc/machine-id'));
+      return { status: 0, stdout: pin.machineIdHash + '\n' + syntheticKey + ' comment\n',
+        stderr: 'debug1: Server host key: ssh-ed25519 ' + pin.fingerprint };
+    };
+    captureIdentity(alias, file, execute);
+    const saved = JSON.parse(await readFile(file)); assert.equal(saved.alias, alias);
+    assert.equal(saved.role, alias === 'picker-vps' ? 'production' : 'rehearsal');
+    assert.throws(() => captureIdentity(alias, file, execute));
+    assert.equal(calls, 2);
+  }
+  assert.throws(() => captureIdentity('picker-vps', path.join(pinDir, 'bad-capture.json'), () => ({ status: 0,
+    stdout: pin.machineIdHash + '\n' + syntheticKey, stderr: 'different fingerprint' })), /capture refused/);
+});
+
+test('installer emits only the allowlisted failing stage and publishes only verified bytes', async () => {
+  const archive = Buffer.from('synthetic archive'), binary = Buffer.from('synthetic binary');
+  const base = { platform: 'linux', uid: 0, arch: 'x64', fetchImpl: async () => ({ ok: true, arrayBuffer: async () => archive }),
+    decompress: () => binary, publish: async () => {}, pins: { x64: { archive: sha(archive), binary: sha(binary) } } };
+  const secretError = () => { throw Error('private failure details'); };
+  for (const [category, change] of [
+    ['platform', { platform: 'win32' }], ['download', { fetchImpl: secretError }],
+    ['archive checksum', { pins: { x64: { archive: 'wrong' } } }], ['decompress', { decompress: secretError }],
+    ['binary checksum', { decompress: () => Buffer.from('wrong') }], ['install', { publish: secretError }],
+  ]) await assert.rejects(installRestic({ ...base, ...change }), error => error.message === 'Restic installation refused: ' + category + '.');
+  let installed = false; await installRestic({ ...base, publish: async value => { assert.deepEqual(value, binary); installed = true; } });
+  assert(installed);
 });

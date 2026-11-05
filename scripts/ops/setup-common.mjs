@@ -2,6 +2,7 @@
 // memory and stdin, never argv, diagnostics, temporary files or receipts.
 import { execFileSync } from 'node:child_process';
 import { privateEndpoint } from '../linux/ops-status.mjs';
+import { pinnedSsh, verifyHost } from './deployment-identity.mjs';
 export const run = (file, args, input) => {
   try { return execFileSync(file, args, { input, encoding: 'utf8', windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 4 * 1024 ** 2, timeout: 120000 }); }
@@ -11,10 +12,11 @@ export function sshAlias(alias, { rehearsal = false } = {}) {
   if (alias !== 'picker-vps' && !(rehearsal && alias === 'picker-scratch')) throw Error('Approved deployment role required.'); return alias;
 }
 export const deploymentIdentity = alias => ({ format: 'picker-deployment-v1', role: alias === 'picker-vps' ? 'production' : 'rehearsal', alias });
-export function verifyDeployment(alias, execute = run) {
+export function verifyDeployment(alias, execute = run, identityFile) {
   sshAlias(alias); // Cloud setup/cleanup never accepts a rehearsal destination.
+  verifyHost(alias, execute, identityFile);
   const program = "import os,stat; p='/etc/chunk-picker/deployment.json'; s=os.lstat(p); assert stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_uid==0 and not s.st_mode&0o022; print(open(p).read())";
-  const value = JSON.parse(execute('ssh', [alias, `sudo -n python3 -c "${program}"`]));
+  const value = JSON.parse(pinnedSsh(alias, `sudo -n python3 -c "${program}"`, undefined, execute, identityFile));
   const expected = deploymentIdentity(alias);
   if (Object.keys(value).length !== 3 || Object.entries(expected).some(([key, entry]) => value[key] !== entry)) throw Error('Deployment identity differs.');
   return value;
@@ -27,7 +29,7 @@ export async function request(url, options = {}, fetchImpl = fetch) {
 }
 // One remote Python transaction, without any secret in the remote command.
 // Files are 0600, directories 0700, owner root. Existing values must agree.
-export function installSecrets(alias, secrets, execute = run, { rotate = [] } = {}) {
+export function installSecrets(alias, secrets, execute = run, { rotate = [], identityFile } = {}) {
   const allowed = ['b2-account', 'b2-key', 'restic-password', 'health-ping', 'backup-ping', 'offhost-ping', 'discord-webhook'];
   if (!Object.keys(secrets).length || Object.entries(secrets).some(([name, value]) => !allowed.includes(name)
     || typeof value !== 'string' || !value || /[\r\n\0]/.test(value)) || rotate.some(name => !Object.hasOwn(secrets, name))) throw Error('Invalid credential input.');
@@ -35,7 +37,7 @@ export function installSecrets(alias, secrets, execute = run, { rotate = [] } = 
     if (name === 'discord-webhook') privateEndpoint(value, 'discord');
     else if (name.endsWith('-ping')) privateEndpoint(value, 'healthchecks');
   }
-  verifyDeployment(alias, execute);
+  verifyDeployment(alias, execute, identityFile);
   const program = String.raw`import json,os,stat,sys,tempfile
 base='/etc/chunk-picker/secrets'
 if os.geteuid()!=0: raise RuntimeError('root required')
@@ -75,10 +77,13 @@ for name,value in values.items():
 fd=os.open(base,os.O_RDONLY);os.fsync(fd);os.close(fd)
 `;
   const encoded = Buffer.from(program).toString('base64');
-  execute('ssh', [alias, `sudo -n python3 -c "import base64;exec(base64.b64decode('${encoded}'))"`], JSON.stringify({ values: secrets, rotate }));
+  // Repeat machine verification immediately before credential transfer; the
+  // transfer connection itself is also restricted to the pinned host key.
+  verifyHost(alias, execute, identityFile);
+  pinnedSsh(alias, `sudo -n python3 -c "import base64;exec(base64.b64decode('${encoded}'))"`, JSON.stringify({ values: secrets, rotate }), execute, identityFile);
 }
-export function installedB2Id(alias, execute = run) {
-  verifyDeployment(alias, execute);
-  const value = execute('ssh', [sshAlias(alias), "sudo -n sh -c 'if test -f /etc/chunk-picker/secrets/b2-account; then cat /etc/chunk-picker/secrets/b2-account; fi'"]).trim();
+export function installedB2Id(alias, execute = run, identityFile) {
+  verifyDeployment(alias, execute, identityFile);
+  const value = pinnedSsh(alias, "sudo -n sh -c 'if test -f /etc/chunk-picker/secrets/b2-account; then cat /etc/chunk-picker/secrets/b2-account; fi'", undefined, execute, identityFile).trim();
   if (value && !/^[A-Za-z0-9]+$/.test(value)) throw Error('Installed key metadata invalid.'); return value;
 }
