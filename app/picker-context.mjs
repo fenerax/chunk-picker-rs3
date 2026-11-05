@@ -104,6 +104,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   } = runtime;
   // Uploaded gameplay (whole-save restore, member restore and import) is never
   // authority to use the operator's source integration. Only legacy owns it.
+  const originalPasteEnabled = process.env.RS3_ORIGINAL_IMPORT_PASTE === '1';
   const originalSyncIntegration = pickerId === 'legacy' ? configuredOriginalSync : null;
   const browserDataset = pickerId === 'legacy' || !sharedBrowserDataset ? sharedBrowserDataset : {
     ...sharedBrowserDataset,
@@ -994,7 +995,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
-          if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security, request) }); return; }
+          if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), originalPasteEnabled: originalPasteEnabled && dataset.datasetId === 'duo-legacy' && dataset.coordinateSystem === 'surface-grid-v1', admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security, request) }); return; }
           if (route === '/api/accounts') { requireAdmin(); await json(request, response, 200, { accounts: accounts.list() }); return; }
           if (route === '/api/pool-ranking') {
             noteTiming({ source: 'cache' });
@@ -1782,13 +1783,14 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               await commandJSON(request, response, await store.commandSerialized(command, body.expectedRevision, { omitUnchanged: true, actor: identity.actor, view: viewFor(request), requestId: body.requestId, requestAck: body.requestAck })); return;
             }
             if (isImportRoute(route)) {
+              if (body.originalPaste && !originalPasteEnabled) throw httpError(404, 'Original picker paste import is unavailable.');
               const currentRevision = store.getInfo().revision;
               const memberRestore = route.startsWith('/api/member-restore');
               if (memberRestore) {
                 if (!identity.admin && (!identity.memberId || identity.memberId !== body.memberId)) throw httpError(403, 'This link can only restore its own player’s map.');
               } else if (!(ownerRestore && identity.role === 'owner')) requireAdmin();
               const result = await store.prepareTransfer(importedFile.input, {
-                route, pickerId, uploaded: importedFile.uploaded, importBudget: importedFile.budget, dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
+                route, pickerId, originalPasteEnabled, uploaded: importedFile.uploaded, importBudget: importedFile.budget, dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
                   digest: dataset.digest, coordinateSystem: dataset.coordinateSystem, identityNamespace: dataset.identityNamespace,
                   capabilities: dataset.capabilities },
                 world: indexedWorld,
@@ -1811,7 +1813,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                   ...(!result.response.mappingRequired ? { previewToken: transferReviews.preview(body, identity, currentRevision) } : {}) });
                 return;
               }
-              if (pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, currentRevision);
+              if (body.originalPaste || pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, currentRevision);
               const applied = await store.applyTransfer(result.ticket, body.expectedRevision);
               if (applied.reply.bytes) {
                 await jsonBytes(request, response, 200, applied.reply.bytes, {}, { identityETag: applied.reply.etag });

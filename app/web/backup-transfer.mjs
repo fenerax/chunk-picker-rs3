@@ -97,3 +97,36 @@ export async function downloadFullBackup(name, fetch = globalThis.fetch) {
   link.href = url; link.download = name; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// Split and yield before encoding paste text. No whole-paste JSON stringify or
+// JSON parsing runs on the UI thread; the normal backup uploader owns transport.
+export async function createOriginalPasteUpload(texts, metadata, options = {}) {
+  const cap = 8 * 1024 * 1024, parts = [];
+  let bytes = 0, wireBytes = 0, turn = performance.now();
+  const append = text => { const part = encoder.encode(text); parts.push(part); wireBytes += part.byteLength; };
+  append('{"format":"rs3-original-paste"');
+  for (const field of ['chunksText', 'rulesText', 'gameplayText']) {
+    const value = texts[field] ?? '';
+    if (typeof value !== 'string' || value.length > cap) throw new Error('The total paste limit is 8 MiB of UTF-8 text.');
+    append(`,"${field}":[`);
+    for (let offset = 0; offset < value.length;) {
+      options.signal?.throwIfAborted();
+      let end = Math.min(value.length, offset + 16_384);
+      if (end < value.length && /[\uD800-\uDBFF]/.test(value[end - 1])) end--;
+      const piece = value.slice(offset, end);
+      bytes += encoder.encode(piece).byteLength;
+      if (bytes > cap) throw new Error('The total paste limit is 8 MiB of UTF-8 text.');
+      append((offset ? ',' : '') + JSON.stringify(piece)); offset = end;
+      if (performance.now() - turn >= 4) { await new Promise(resolve => setTimeout(resolve, 0)); turn = performance.now(); }
+    }
+    append(']');
+  }
+  append(`,"includeRules":${texts.includeRules === true},"includeTasks":${texts.includeTasks === true}}`);
+  // A File(strings) constructor would synchronously encode the whole paste.
+  // Feed already bounded byte parts to the existing uploader instead.
+  const file = { name: 'original-paste.json', size: wireBytes, stream() {
+    let index = 0;
+    return new ReadableStream({ pull(controller) { controller.enqueue(parts[index++]); if (index === parts.length) controller.close(); } });
+  } };
+  return createBackupUpload(file, metadata, options);
+}
