@@ -105,8 +105,9 @@ jobs:
   differential:
     # The reusable workflow also checks PR head vs merge base with Q2.
     # A Q2 "not relevant" result succeeds; any comparison failure fails coverage.
-    # Avoid spending a separate runner on detectors/smoke when the main suite fails.
-    needs: test
+    # Run independently so ordinary test failures cannot hide differential evidence.
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     uses: ./.github/workflows/differential.yml
 
   # The test files that skip Windows and PowerShell cases on Linux, run on
@@ -155,6 +156,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Require successful upstream jobs
+        env:
+          GATE_RESULT: ${{ needs.gate.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+          DIFFERENTIAL_RESULT: ${{ needs.differential.result }}
+        run: |
+          echo "gate=$GATE_RESULT test=$TEST_RESULT windows=$WINDOWS_RESULT differential=$DIFFERENTIAL_RESULT"
+          test "$GATE_RESULT" = success
+          test "$TEST_RESULT" = success
+          test "$WINDOWS_RESULT" = success
+          test "$DIFFERENTIAL_RESULT" = success
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
