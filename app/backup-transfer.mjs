@@ -1,4 +1,5 @@
-import { assertImportWork, IMPORT_WORK_LIMITS } from './import-work.mjs';
+import { isMainThread } from 'node:worker_threads';
+import { runImportJob } from './import-jobs.mjs';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip, createGzip } from 'node:zlib';
@@ -74,7 +75,13 @@ export async function receiveBackupRequest(request, { idleTimeoutMs, totalTimeou
   return Object.assign(Readable.from(chunks), { headers: request.headers, complete: true });
 }
 
-export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_BYTES, maxUploadBytes = MAX_UPLOAD_BYTES } = {}) {
+export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_BYTES, maxUploadBytes = MAX_UPLOAD_BYTES, defer = false } = {}) {
+  if (isMainThread) {
+    backupHeaders(request, maxUploadBytes);
+    const deadline = Date.now() + 15_000;
+    const imported = await runImportJob({ kind: 'parse', headers: request.headers, options: { maxBackupBytes, maxUploadBytes }, defer }, { request, maxUploadBytes, deadline });
+    return defer ? { ...imported, deadline } : imported;
+  }
   const { type, encoding } = backupHeaders(request, maxUploadBytes);
   // Do not destroy the HTTP socket on parser/size errors: it must carry the error response.
   const input = new Transform({ transform(chunk, encoding, callback) { callback(null, chunk); } });
@@ -84,10 +91,9 @@ export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_B
   const decoded = new Transform({ transform(chunk, encoding, callback) { callback(null, chunk); } });
   const transfer = pipeline(input, limitBytes(maxUploadBytes), ...(encoding === 'gzip' ? [createGunzip()] : []), decoded).catch(error => error);
   try {
-    const value = await parseJSONStream(decoded, { maxBytes: maxBackupBytes + (type === BACKUP_UPLOAD_TYPE ? 9 : 0), maxTokenBytes: IMPORT_WORK_LIMITS.text, maxValues: IMPORT_WORK_LIMITS.units });
+    const value = await parseJSONStream(decoded, { maxBytes: maxBackupBytes + (type === BACKUP_UPLOAD_TYPE ? 9 : 0) });
     const error = await transfer;
     if (error) throw error;
-    assertImportWork(value);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail(400, 'The backup must be a JSON object.');
     if (type !== BACKUP_UPLOAD_TYPE) return { body: value, uploaded: false };
     const rawMetadata = request.headers['x-rs3-import'] ?? '{}';

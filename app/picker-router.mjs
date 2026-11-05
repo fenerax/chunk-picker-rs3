@@ -300,7 +300,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           imports++;
           const releaseOwn = releaseImport; let counted = true;
           releaseImport = () => { if (counted) { counted = false; imports--; } releaseOwn(); };
-          const imported = await readBackupRequest(upload);
+          const imported = await readBackupRequest(upload, { defer: true });
           selected.checkBody(imported.body);
           rememberRoutedBody(request, imported.body, 0); routedBody(request).imported = imported;
         }

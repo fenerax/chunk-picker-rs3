@@ -1,4 +1,4 @@
-import { assertImportWork } from '../import-work.mjs';
+import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
@@ -34,13 +34,6 @@ export { preferenceDefinitions, validatePreference } from './preferences.mjs';
 export const SCHEMA_VERSION = 1;
 export const BACKUP_FORMAT = 'rs3-chunk-picker';
 export const MAX_JOURNAL_LENGTH = 10_000;
-// Generous schema ceilings, including archived state validated on restore.
-export const SAVE_COUNT_LIMITS = Object.freeze({ members: 32, tasks: 250_000, memberRecords: 100_000, collectionRecords: 250_000 });
-function countLimit(value, maximum, path) {
-  const count = Array.isArray(value) ? value.length : value && typeof value === 'object' ? Object.keys(value).length : 0;
-  if (count > maximum) fail(`${path} exceeds the save limit of ${maximum} records`);
-}
-
 const BASE_CHUNK = /^[1-9]\d*$/;
 const GAMEPLAY_KEYS = new Set(['rules', 'chunkOrder', 'settings', 'chunkinfo', 'chunks',
   'activeSubTabs', 'topbarSelection', 'manualPrimary', 'recentFancyRollTime',
@@ -626,11 +619,9 @@ function assertJson(value) {
     if (historyEvent && Object.hasOwn(item, 'source')) validateHistorySource(item);
     seen.add(item);
     if (Array.isArray(item)) {
-      if (item.length > SAVE_COUNT_LIMITS.collectionRecords) fail(`${where()} exceeds the save limit of ${SAVE_COUNT_LIMITS.collectionRecords} records`);
       for (let index = 0; index < item.length; index++) { branch.push(index); visit(item[index], false, historyList); branch.pop(); }
     } else {
       const keys = Object.keys(item);
-      if (keys.length > SAVE_COUNT_LIMITS.collectionRecords) fail(`${where()} exceeds the save limit of ${SAVE_COUNT_LIMITS.collectionRecords} records`);
       for (const key of keys) { branch.push(key); visit(item[key], key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
     }
     seen.delete(item);
@@ -668,11 +659,6 @@ export function validateOwnedState(state, registry) {
 
 function validateStateCopy(copy, registry) {
   knownKeys(copy, STATE_KEYS, 'state');
-  countLimit(copy.members, SAVE_COUNT_LIMITS.members, 'members');
-  countLimit(copy.tasks, SAVE_COUNT_LIMITS.tasks, 'tasks');
-  for (const member of Array.isArray(copy.members) ? copy.members : []) {
-    for (const field of [...MEMBER_ARRAY_FIELDS, ...MEMBER_DICTIONARY_FIELDS]) countLimit(member?.[field], SAVE_COUNT_LIMITS.memberRecords, `member.${field}`);
-  }
   if (copy.identityRegistry !== undefined) validateIdentityRegistry(copy.identityRegistry);
   canonicalizeTaskClaimAliases(copy);
   if (copy.progressSnapshots !== undefined) validateProgressSnapshots(copy.progressSnapshots);
@@ -952,14 +938,11 @@ export function exportBackup(state, registry) {
 export function importBackup(document, registry) {
   let backup = document;
   if (typeof backup === 'string') {
-    assertImportWork(backup);
     try { backup = JSON.parse(backup); } catch { fail('Backup is not valid JSON'); }
   }
-  assertImportWork(backup);
   record(backup, 'backup');
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
-  backup = decodeCompletionDocument(backup, { maxExpandedBytes: 1024 * 1024 });
-  assertImportWork(backup);
+  backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
   return validateState(backup.state, registry);
 }
@@ -1057,17 +1040,17 @@ export function previewRestore(current, incoming, registry) {
     removedPaths: removedPaths(before.legacy, after.legacy),
   };
   const warnings = (after.provenance?.taskRuleDiagnostics ?? []).map(item => `Restore ${before.members.find(member => member.id === item.memberId || member.sourceMapId === item.sourceMapId)?.name ?? after.members.find(member => member.id === item.memberId || member.sourceMapId === item.sourceMapId)?.name ?? item.memberId ?? item.sourceMapId}: ${item.detail}`);
-  for (const item of after.provenance?.taskIdentityMigration?.unresolved ?? []) warnings.push(`Restore keeps the saved task ${beforeTasks.get(item.originalId)?.label ?? afterTasks.get(item.originalId)?.label ?? item.originalId} from ${item.path} for review because it could not be matched.`);
+  for (const item of after.provenance?.taskIdentityMigration?.unresolved ?? []) warnings.push(`Restore keeps the saved task ${displayText(beforeTasks.get(item.originalId)?.label ?? afterTasks.get(item.originalId)?.label ?? item.originalId)} from ${displayText(item.path)} for review because it could not be matched.`);
   const identityRegistry = { changed: JSON.stringify(before.identityRegistry) !== JSON.stringify(after.identityRegistry),
     removedAliases: Object.keys(before.identityRegistry?.aliases ?? {}).filter(alias => !Object.hasOwn(after.identityRegistry?.aliases ?? {}, alias)) };
   if (identityRegistry.removedAliases.length) warnings.push(`Restore changes ${identityRegistry.removedAliases.length} older task references; your previous save remains in the backup.`);
-  if (legacy.removedMaps.length) warnings.push(`Restore removes saved copies of original maps: ${legacy.removedMaps.map(id => before.members.find(member => member.sourceMapId === id)?.name ?? id).join(', ')}.`);
-  if (legacy.changedMaps.length) warnings.push(`Restore changes saved original-picker progress for: ${legacy.changedMaps.map(id => before.members.find(member => member.sourceMapId === id)?.name ?? id).join(', ')}. Review notes, checks and backlogs before replacing the current save.`);
-  if (legacy.removedPaths.length) warnings.push(`Restore removes these saved original-picker records: ${legacy.removedPaths.join(', ')}.`);
+  if (legacy.removedMaps.length) warnings.push(`Restore removes saved copies of original maps: ${displayList(legacy.removedMaps, id => before.members.find(member => member.sourceMapId === id)?.name ?? id)}.`);
+  if (legacy.changedMaps.length) warnings.push(`Restore changes saved original-picker progress for: ${displayList(legacy.changedMaps, id => before.members.find(member => member.sourceMapId === id)?.name ?? id)}. Review notes, checks and backlogs before replacing the current save.`);
+  if (legacy.removedPaths.length) warnings.push(`Restore removes these saved original-picker records: ${displayList(legacy.removedPaths)}.`);
   for (const member of members) {
     if (member.journal.changed) warnings.push(`Restore ${member.journal.after === null ? 'removes' : 'changes'} the journal for ${member.identity.name.before ?? member.name}.`);
     if (member.identity.changed) warnings.push(`Restore changes the name, RuneScape account or original map owner for ${member.identity.name.before ?? member.name}.`);
-    if (member.completedTasks.removed.length) warnings.push(`Restore removes personal task completions for ${member.identity.name.before ?? member.name}: ${member.completedTasks.removed.map(id => beforeTasks.get(id)?.label ?? afterTasks.get(id)?.label ?? id).join(', ')}.`);
+    if (member.completedTasks.removed.length) warnings.push(`Restore removes personal task completions for ${member.identity.name.before ?? member.name}: ${displayList(member.completedTasks.removed, id => beforeTasks.get(id)?.label ?? afterTasks.get(id)?.label ?? id)}.`);
     if (member.teleports.removed.length || member.teleports.changed.length) warnings.push(`Restore removes or changes saved teleports for ${member.identity.name.before ?? member.name}.`);
     if (member.transportFacts.changed) warnings.push(`Restore changes confirmed travel requirements for ${member.identity.name.before ?? member.name}.`);
     if (member.teleportOverrides.changed) warnings.push(`Restore changes personal teleport availability choices for ${member.identity.name.before ?? member.name}.`);
@@ -1516,7 +1499,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       else {
         const taskId = itemId.slice(itemId.indexOf(':') + 1);
         const task = indexedTaskRows(next.tasks).get(taskId) ?? next.identityRegistry?.entries?.[taskId] ?? lookupPermanentId(taskId);
-        if (task?.label) payload.itemLabel = decodeLegacyText(task.label).replace(/~\|([^|]+)\|~/g, (_, label) => label.split('#')[0]).replace(/\*+$/g, '').trim();
+        if (task?.label) payload.itemLabel = trimTaskStars(decodeLegacyText(task.label).replace(/~\|([^|]+)\|~/g, (_, label) => label.split('#')[0])).trim();
       }
       next.finishLine = { ...line, items: { ...line.items, [itemId]: { ...line.items[itemId], ...fields } } };
       break;

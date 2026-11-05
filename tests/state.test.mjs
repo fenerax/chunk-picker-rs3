@@ -824,9 +824,7 @@ test('one thousand challenge checks keep complete history and catalogue with sma
   const bytes = value => Buffer.byteLength(JSON.stringify(value, null, 2));
   const beforeBytes = bytes(exportBackup(original));
   const portable = exportBackup(projected);
-  // Offline state remains lossless; shared-server imports have a separate CPU budget.
-  assert.throws(() => importBackup(portable), /safe import work limit/);
-  const restored = validateState(portable.state);
+  const restored = importBackup(portable);
   assert.equal(restored.history.length, 1000);
   assert.equal(restored.tasks.length, original.tasks.length);
   assert.deepEqual(restored.members, original.members);

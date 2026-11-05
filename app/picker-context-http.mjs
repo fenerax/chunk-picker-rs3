@@ -1,3 +1,4 @@
+import { boundedOutput, displayText, readableMigrationWarning, REPORT_RECORDS, warningOutput } from './import-output.mjs';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { createGzip } from 'node:zlib';
@@ -211,11 +212,7 @@ export function migrationSummary(state) {
   const migration = state.legacy?.gameplayMigration;
   const unresolved = migration?.unresolved ?? [];
   const identities = state.provenance?.taskIdentityMigration;
-  const warnings = [...(migration?.warnings ?? unresolved.map(item => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${members.get(item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`))].map(warning => String(warning)
-    .replace(/Could not migrate ([^ ]+) (.+?) for member ([^:]+): (.+?)\./g, (_, source, task, memberId, reason) => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[source] ?? source} ${task} for ${members.get(memberId)?.name ?? memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[reason] ?? reason}.`)
-    .replace(/Unresolved saved task ID ([^ ]+) at (.+); the original record is preserved for review\./g, (_, id, path) => `Saved task ${tasks.get(id)?.label ?? id} at ${path} could not be matched; the original record is kept for review.`)
-    .replace(/Map ([^ ]+) has /g, (_, id) => `${maps.get(id)?.name ?? id}’s original map has `)
-    .replace(/Member ([^ ]+) references missing legacy map ([^.]+)\./g, (_, id, mapId) => `${members.get(id)?.name ?? id}’s original map ${mapId} is missing from this save.`)
+  const warnings = [...(migration?.warnings?.slice(0, REPORT_RECORDS) ?? unresolved.slice(0, REPORT_RECORDS).map(item => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${members.get(item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`))].map(warning => readableMigrationWarning(warning, { tasks: tasks, members: members, maps: maps })
     .replaceAll('it remains in legacy data.', 'it stays in the saved original-picker copy.')
     .replaceAll('unsupported chunk key', 'unsupported chunk number')
     .replaceAll('map-wide chunkNotes document with no base chunk key', 'map-wide note with no whole chunk number')
@@ -226,11 +223,11 @@ export function migrationSummary(state) {
     .replaceAll('Task identity collisions establish a new undo boundary; the complete preceding history is retained in migration archives.', 'Different saved task records match the same task. Undo now starts after this import; all earlier History is kept in the saved import archive.')
     .replaceAll('task identity conflict(s) were preserved in migration provenance; explicit canonical fields take precedence.', 'conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.')
     .replaceAll('task identity conflict(s) remain in migration provenance for review.', 'conflicting saved task records remain in the import details for review.'));
-  for (const item of identities?.unresolved ?? []) warnings.push(`Saved task ${tasks.get(item.originalId)?.label ?? item.originalId} at ${item.path} could not be matched; the original record is kept for review.`);
+  for (const item of (identities?.unresolved ?? []).slice(0, REPORT_RECORDS)) warnings.push(`Saved task ${displayText(tasks.get(item.originalId)?.label ?? item.originalId)} at ${displayText(item.path)} could not be matched; the original record is kept for review.`);
   if (identities?.conflicts?.length) warnings.push(`${identities.conflicts.length} conflicting saved task records remain in the import details for review.`);
-  return { stateRevision: state.revision, warnings: [...new Set(warnings)],
-    report: { ...(migration?.report ?? { catalogueTasks: state.tasks.length, unresolved, taskStatusProvenance: migration?.taskStatusProvenance ?? [] }),
-      ...(identities ? { identities: Object.fromEntries(Object.entries(identities).filter(([key]) => key !== 'archives')) } : {}) } };
+  return { stateRevision: state.revision, warnings: warningOutput(warnings, (migration?.warnings?.length ?? unresolved.length) + (identities?.unresolved?.length ?? 0) + (identities?.conflicts?.length ? 1 : 0)),
+    report: boundedOutput({ ...(migration?.report ?? { catalogueTasks: state.tasks.length, unresolved, taskStatusProvenance: migration?.taskStatusProvenance ?? [] }),
+      ...(identities ? { identities: Object.fromEntries(Object.entries(identities).filter(([key]) => key !== 'archives')) } : {}) }) };
 }
 
 export function convertLegacyCapture(document, { members, capturedAt, registry } = {}) {

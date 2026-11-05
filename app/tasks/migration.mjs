@@ -1,3 +1,4 @@
+import { displayText, readableMigrationWarning, replaceDelimited, trimTaskStars } from '../import-output.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './gameplay-compat.mjs';
 import { projectMemberTaskFacts as projectFacts } from './fact-projection.mjs';
 import { buildIdentityIndex, legacyTaskId, permanentTaskId, isPermanentId, resolveIdentity, resolveTaskAlias, lookupPermanentId, isVerifiedProgressAlias } from './identity.mjs';
@@ -65,12 +66,9 @@ export function stripTaskMarkup(rawTaskLabel) {
   const label = normalized(decodeLegacyText(String(rawTaskLabel)));
   // Worker display labels are already plain. In particular, replacing every
   // ordinary space needlessly copies all potential labels during startup.
-  if (!/[<~|]|\*+$|\s\s|[^\S ]/.test(label)) return label.trim();
-  return label
-    .replace(/<[^>]*>/g, '')
-    .replace(/~\|([\s\S]*?)\|~/g, (_, text) => text.split('#')[0])
-    .replace(/[~|]/g, '')
-    .replace(/\*+$/g, '')
+  if (!label.endsWith('*') && !/[<~|]|\s\s|[^\S ]/.test(label)) return label.trim();
+  const plain = replaceDelimited(replaceDelimited(label, '<', '>'), '~|', '|~', text => text.split('#')[0]);
+  return trimTaskStars(plain.replace(/[~|]/g, ''))
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -143,7 +141,7 @@ function dynamicCatalogueIndex(catalogue) {
     if (!isPermanentId(task.id) && (!rawLabel.trim() || stableTaskId(category, rawLabel) !== task.id)) throw new TypeError('dynamicCatalogue tasks need canonical stable category/raw-label IDs or permanent IDs');
     // A nonempty plain label cannot become empty through display decoding.
     // Still reject invalid markup/encoded labels anywhere in the catalogue.
-    if (/%|<|-_-|_-(?=[0-9a-f]{2})|[~|]|\*+\s*$/i.test(task.label) && !stripTaskMarkup(task.label)) throw new TypeError('dynamicCatalogue tasks need nonempty display labels');
+    if ((task.label.trimEnd().endsWith('*') || /%|<|-_-|_-(?=[0-9a-f]{2})|[~|]/i.test(task.label)) && !stripTaskMarkup(task.label)) throw new TypeError('dynamicCatalogue tasks need nonempty display labels');
     // Keep unselected rows by reference. Only non-NFC categories or legacy IDs
     // without explicit raw labels need a cheap lookup view here.
     const value = category === task.category && (!rawLabel || rawLabel === task.rawLabel)
@@ -550,11 +548,7 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
   for (const member of next.members) if (!mapNames.has(member.sourceMapId)) mapNames.set(member.sourceMapId, member.name);
   const taskLabels = new Map(next.tasks.map(task => [task.id, task.label]));
   const previous = next.legacy?.gameplayMigration;
-  const warnings = cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []).map(warning => String(warning)
-    .replace(/Could not migrate ([^ ]+) (.+?) for member ([^:]+): (.+?)\./g, (_, source, task, memberId, reason) => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[source] ?? source} ${task} for ${memberNames.get(memberId) ?? memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[reason] ?? reason}.`)
-    .replace(/Unresolved saved task ID ([^ ]+) at (.+); the original record is preserved for review\./g, (_, id, path) => `Saved task ${taskLabels.get(id) ?? id} at ${path} could not be matched; the original record is kept for review.`)
-    .replace(/Map ([^ ]+) has /g, (_, id) => `${mapNames.get(id) ?? id}’s original map has `)
-    .replace(/Member ([^ ]+) references missing legacy map ([^.]+)\./g, (_, id, mapId) => `${memberNames.get(id) ?? id}’s original map ${mapId} is missing from this save.`)
+  const warnings = cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []).map(warning => readableMigrationWarning(warning, { tasks: taskLabels, members: memberNames, maps: mapNames })
     .replaceAll('it remains in legacy data.', 'it stays in the saved original-picker copy.')
     .replaceAll('unsupported chunk key', 'unsupported chunk number')
     .replaceAll('map-wide chunkNotes document with no base chunk key', 'map-wide note with no whole chunk number')
@@ -996,7 +990,7 @@ function migrateOwnedTaskIdentities(next, { catalogue = [], taskMap, history, pr
     next.provenance = { ...next.provenance, taskIdentityMigration: report };
   }
   const migratedTaskLabels = new Map(next.tasks.map(task => [task.id, task.label]));
-  for (const item of unresolved) warnings.push(`Saved task ${migratedTaskLabels.get(item.originalId) ?? item.originalId} at ${item.path} could not be matched; the original record is kept for review.`);
+  for (const item of unresolved) warnings.push(`Saved task ${displayText(migratedTaskLabels.get(item.originalId) ?? item.originalId)} at ${displayText(item.path)} could not be matched; the original record is kept for review.`);
   if (conflicts.length) warnings.push(`${conflicts.length} conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.`);
   return { state: next, warnings, report: { ...conservation, conversions, unresolved, conflicts } };
 }

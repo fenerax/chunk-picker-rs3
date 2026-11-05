@@ -1,16 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createGroupState, importBackup, exportBackup, previewRestore, validateState, SAVE_COUNT_LIMITS } from '../app/core/state.mjs';
+import { createGroupState, importBackup, exportBackup, previewRestore, applyCommand } from '../app/core/state.mjs';
 import { mapTransferRoster, transferReport } from '../app/save-transfer.mjs';
-import { migrateTaskIdentities, migrateOwnedGameplay } from '../app/tasks/migration.mjs';
+import { migrateTaskIdentities, migrateOwnedGameplay, stripTaskMarkup } from '../app/tasks/migration.mjs';
 import { openStore } from '../app/storage/store.mjs';
-import { assertImportWork, IMPORT_WORK_LIMITS } from '../app/import-work.mjs';
-import { migrationSummary } from '../app/picker-context-http.mjs';
-import { parseJSONStream } from '../app/storage/json-stream.mjs';
+import { runImportJob, IMPORT_TIMEOUT_MS } from '../app/import-jobs.mjs';
+import { REPORT_RECORDS, REPORT_BYTES } from '../app/import-output.mjs';
+import { readBackupRequest } from '../app/backup-transfer.mjs';
+import { Readable } from 'node:stream';
+import { serialize } from 'node:v8';
 
 const roster = [{ id: 'source', name: 'Synthetic player' }];
 function largeSave() {
@@ -33,7 +35,9 @@ test('large hostile synthetic transfer report and restore preview use linear loo
   const report = transferReport(state);
   const preview = previewRestore(before, state);
   const elapsed = performance.now() - start;
-  assert.equal(report.records.length, 5_000);
+  assert.equal(report.records.length, REPORT_RECORDS);
+  assert.equal(report.counts.preservedForReview, 5_000);
+  assert.equal(report.counts.omitted, 5_000 - REPORT_RECORDS);
   assert.equal(report.records[0].rawValue.completed, true);
   assert.equal(report.records.at(-1).rawValue.completed, true);
   assert.equal(preview.members[0].completedTasks.added.length, 1_250);
@@ -58,97 +62,127 @@ function editedSave(tasks, edits) {
   return { format: 'rs3-chunk-picker', schemaVersion: 1, state };
 }
 
-test('maximum admitted edit replay and unresolved reports scale with input, including parse, migration and preview', async t => {
-  async function sample(scale) {
-    const document = editedSave(IMPORT_WORK_LIMITS.tasks * scale, IMPORT_WORK_LIMITS.history * scale);
-    assertImportWork(document);
-    const text = Buffer.from(JSON.stringify(document));
-    const root = await mkdtemp(path.join(tmpdir(), 'synthetic-import-scale-'));
-    const store = await openStore({ dataDir: root, initialState: createGroupState(roster) });
-    const start = performance.now();
-    const parsed = await parseJSONStream([text]);
-    const replayStart = performance.now();
-    const state = importBackup(parsed);
-    const replayMs = performance.now() - replayStart;
-    const summary = migrationSummary(state);
-    const preview = previewRestore(createGroupState(roster), state);
-    const report = transferReport(state, { warnings: summary.warnings });
-    assert.equal(state.tasks.length, document.state.tasks.length);
-    assert.equal(preview.tasks.added.length, state.tasks.length);
-    assert.equal(report.counts.dropped, 0);
-    const replacement = await store.previewReplacement(parsed);
-    assert.equal(replacement.state.history.length, 1);
-    const applied = await store.replace(parsed, 0);
-    assert.equal(applied.revision, 1);
-    assert.deepEqual(applied.provenance.restore.incomingHistory, state.history);
-    assert.equal((await store.backup()).state.tasks.length, state.tasks.length);
-    await store.close();
-    await rm(root, { recursive: true, force: true });
-    const elapsed = performance.now() - start;
-    // Independently exercise the reviewer's catalogue × unresolved shape.
-    const unresolved = document.state;
-    unresolved.history = [];
-    unresolved.provenance = { taskIdentityMigration: { unresolved: unresolved.tasks.map(task => ({ originalId: task.id, path: 'synthetic' })) } };
-    assertImportWork(unresolved);
-    const reportStart = performance.now();
-    const summaryStart = performance.now();
-    for (let repeat = 0; repeat < 8; repeat++) assert.equal(migrationSummary(unresolved).warnings.length, unresolved.tasks.length);
-    const summaryMs = performance.now() - summaryStart;
-    const migrated = migrateTaskIdentities(unresolved);
-    assert.equal(migrated.state.tasks.length, unresolved.tasks.length);
-    return { total: elapsed + performance.now() - reportStart, replay: replayMs, summary: summaryMs };
-  }
-  await sample(0.5); // Warm module/JIT caches before comparing growth.
-  const small = [], large = [];
-  for (let i = 0; i < 3; i++) { small.push(await sample(0.5)); large.push(await sample(1)); }
-  const median = values => values.sort((a, b) => a - b)[1];
-  const one = median(small.map(row => row.total)), two = median(large.map(row => row.total));
-  for (const field of ['replay', 'summary']) {
-    const before = median(small.map(row => row[field])), after = median(large.map(row => row[field]));
-    assert.ok(after < before * 3.2 + 5, `superlinear ${field} growth: ${before.toFixed(1)} → ${after.toFixed(1)} ms`);
-    t.diagnostic(`${field}: 1x ${before.toFixed(1)} ms, 2x ${after.toFixed(1)} ms`);
-  }
-  t.diagnostic(`Synthetic maximum ${IMPORT_WORK_LIMITS.tasks} tasks / ${IMPORT_WORK_LIMITS.history} edits: 1x ${one.toFixed(0)} ms, 2x ${two.toFixed(0)} ms`);
-  assert.ok(Math.max(...large.map(row => row.total)) < 1_500, `maximum import path exceeded CI budget: ${JSON.stringify(large)}`);
-  assert.ok(two < one * 3.2, `superlinear import growth: ${one.toFixed(0)} → ${two.toFixed(0)} ms`);
-});
-
-test('aggregate admission refuses count products and text/codec amplification before import', () => {
-  const document = editedSave(IMPORT_WORK_LIMITS.tasks, IMPORT_WORK_LIMITS.history);
-  assert.doesNotThrow(() => assertImportWork(document));
-  document.state.members[0].completedTasks = document.state.tasks.map(task => task.id);
-  assert.throws(() => importBackup(document), /safe import work limit/);
-  assert.throws(() => importBackup(editedSave(20_000, 2_000)), /safe import work limit/);
-  assert.throws(() => assertImportWork({ evidence: 'x'.repeat(IMPORT_WORK_LIMITS.text + 1) }), /safe import work limit/);
-  assert.throws(() => assertImportWork({ version: 1, entries: [{ length: IMPORT_WORK_LIMITS.units + 1 }] }), /safe import work limit/);
-  const aliases = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`synthetic-${i}`, Array(500).fill('candidate')]));
-  assert.throws(() => assertImportWork({ aliases }), /safe import work limit/);
-  const ambiguous = { aliases: { synthetic: Array(400).fill('candidate') }, uses: Array(400).fill('synthetic') };
-  assert.throws(() => assertImportWork(ambiguous), /safe import work limit/);
-  const budget = {};
-  assertImportWork({ evidence: 'x'.repeat(IMPORT_WORK_LIMITS.text / 2) }, { budget });
-  assert.throws(() => assertImportWork({ evidence: 'x'.repeat(IMPORT_WORK_LIMITS.text / 2) }, { budget }), /safe import work limit/);
-  const deleted = editedSave(1, IMPORT_WORK_LIMITS.history);
-  deleted.state.tasks = [];
-  for (const [i, event] of deleted.state.history.entries()) {
-    const task = { id: `custom:deleted-${i}`, category: 'Custom', label: `Deleted ${i}` };
-    event.undo.taskChanges = [{ id: task.id, before: { exists: true, index: 0, value: task }, after: { exists: false } }];
-  }
-  assert.throws(() => assertImportWork(deleted), /safe import work limit/);
-});
-
-test('retained backup imports enforce the budget before static-field validation', async t => {
-  const root = await mkdtemp(path.join(tmpdir(), 'synthetic-retained-import-bound-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const initialState = editedSave(20_000, 0).state;
+const dataset = { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} };
+const transferOptions = { dataset, route: '/api/restore/preview', world: { chunks: new Map() } };
+async function scratchStore(t, initialState = createGroupState(roster)) {
+  const root = await mkdtemp(path.join(tmpdir(), 'synthetic-isolated-import-'));
   const store = await openStore({ dataDir: root, initialState });
-  try {
-    await store.command({ type: 'set-rule', ruleId: 'content.f2p', value: false }, 0);
-    const backup = (await store.listBackups()).find(row => row.revision === 0);
-    const before = store.getState();
-    await assert.rejects(store.readBackup(backup.id, { forImport: true }), error => error.status === 413 && /safe import work limit/.test(error.message));
-    assert.deepEqual(store.getState(), before);
-  } finally { await store.close(); }
+  t.after(async () => { await store.close(); await rm(root, { recursive: true, force: true }); });
+  return { root, store };
+}
+
+test('full synthetic legacy catalogue and 2,000 History entries round trip through worker and atomic apply', async t => {
+  const { store } = await scratchStore(t);
+  const document = editedSave(20_503, 2_000);
+  document.state.members[0].completedTasks = document.state.tasks.map(task => task.id);
+  const parsed = await readBackupRequest(Object.assign(Readable.from([Buffer.from(JSON.stringify({ backup: document }))]), { headers: { 'content-type': 'application/json' }, complete: true }), { defer: true });
+  const result = await store.prepareTransfer(parsed.input, transferOptions);
+  assert.equal(result.response.preview.tasks.added.length, REPORT_RECORDS);
+  assert.equal(result.response.preview.taskCounts.added, 20_503);
+  const applied = await store.applyTransfer(result.ticket, 0);
+  const exported = await store.backup();
+  const roundTrip = importBackup(exported);
+  assert.deepEqual(roundTrip.tasks, document.state.tasks);
+  assert.deepEqual(roundTrip.members, document.state.members);
+  assert.deepEqual(roundTrip.provenance.restore.incomingHistory, document.state.history);
+  t.diagnostic(`20,503 tasks / 2,000 History: worker ${result.workerMs.toFixed(1)} ms; main-thread atomic apply ${applied.applyMs.toFixed(1)} ms`);
+  assert.ok(result.workerMs < IMPORT_TIMEOUT_MS);
+});
+
+test('destination History above 500 entries never rejects an incoming restore, including retained saves', async t => {
+  const initial = createGroupState(roster);
+  initial.members[0].notes = { '100': 'Synthetic even note' };
+  const options = { world: { chunks: new Map([['100', {}]]) } };
+  const odd = applyCommand(initial, { type: 'set-note', memberId: 'source', chunkId: '100', note: 'Synthetic odd note' }, options);
+  const even = applyCommand(odd, { type: 'set-note', memberId: 'source', chunkId: '100', note: 'Synthetic even note' }, options);
+  const initialState = structuredClone(odd);
+  initialState.revision = 501;
+  initialState.history = Array.from({ length: 501 }, (_, i) => ({ ...structuredClone(even.history[i % 2]), id: `revision-${i + 1}`, revision: i + 1 }));
+  const { store } = await scratchStore(t, initialState);
+  const incoming = editedSave(20_503, 0);
+  const prepared = await store.prepareTransfer(serialize({ backup: incoming }), transferOptions);
+  await store.applyTransfer(prepared.ticket, 501);
+  assert.equal(store.getState().provenance.restore.previousHistory.length, 501);
+  const retained = (await store.listBackups()).find(row => row.revision === 501);
+  const restored = await store.prepareTransfer(serialize({ backupId: retained.id }), transferOptions);
+  await store.applyTransfer(restored.ticket, 502);
+  assert.equal(store.getInfo().revision, 503);
+  assert.equal(store.getState().provenance.restore.incomingHistory.length, 501);
+});
+
+test('hostile warning and repeated long-label report stay bounded while the HTTP event loop responds', async t => {
+  const { store } = await scratchStore(t);
+  const document = editedSave(1, 0);
+  document.state.tasks[0].label = 'Synthetic '.repeat(40_000);
+  document.state.provenance = { taskIdentityMigration: { unresolved: Array.from({ length: 400 }, (_, i) => ({ originalId: document.state.tasks[0].id, path: `synthetic-${i}` })) } };
+  document.state.legacy = { gameplayMigration: { warnings: ['Could not migrate source ' + ' for member '.repeat(33_000)] } };
+  const bytes = Buffer.from(JSON.stringify({ backup: document }));
+  let fired;
+  const start = performance.now();
+  let last = start, maximumGap = 0;
+  const heartbeat = setInterval(() => { const now = performance.now(); maximumGap = Math.max(maximumGap, now - last); last = now; }, 10);
+  t.after(() => clearInterval(heartbeat));
+  const timer = new Promise(resolve => setTimeout(() => { fired = performance.now() - start; resolve(); }, 20));
+  const checking = (async () => {
+    const parsed = await readBackupRequest(Object.assign(Readable.from([bytes]), { headers: { 'content-type': 'application/json' }, complete: true }), { defer: true });
+    return store.prepareTransfer(parsed.input, { ...transferOptions, importDeadline: parsed.deadline,
+      migration: { definitions: { challenges: {} }, taskMap: {}, catalogue: [] } });
+  })();
+  await timer;
+  assert.ok(fired < 100, `main-thread timer took ${fired.toFixed(1)} ms`);
+  const result = await checking;
+  await new Promise(resolve => setImmediate(resolve));
+  clearInterval(heartbeat);
+  assert.ok(maximumGap < 100, `maximum main-thread timer gap was ${maximumGap.toFixed(1)} ms`);
+  assert.ok(performance.now() - start < IMPORT_TIMEOUT_MS);
+  assert.ok(Buffer.byteLength(JSON.stringify(result.response.transferReport)) < REPORT_BYTES);
+  assert.ok(result.response.warnings.every(warning => warning.length <= 513));
+  const total = result.response.transferReport.counts.preservedForReview;
+  assert.ok(total >= 400, 'Every unresolved record is counted, even when display warnings repeat.');
+  assert.equal(result.response.transferReport.counts.omitted, total - REPORT_RECORDS);
+  assert.ok(result.response.transferReport.more.startsWith(`and ${total - REPORT_RECORDS} more`));
+  t.diagnostic(`Hostile import: timer ${fired.toFixed(1)} ms, maximum timer gap ${maximumGap.toFixed(1)} ms, worker ${result.workerMs.toFixed(1)} ms`);
+});
+
+test('malformed markup and diagnostic text use delimiter scans without backtracking', () => {
+  const start = performance.now();
+  for (const label of ['<'.repeat(400_000), '~|'.repeat(200_000), '*'.repeat(400_000) + 'x']) assert.ok(stripTaskMarkup(label).length >= 0);
+  assert.ok(performance.now() - start < 500);
+});
+
+test('unsafe prototype keys remain rejected after worker parsing and replay', async t => {
+  const { store } = await scratchStore(t);
+  const document = editedSave(1, 0), before = store.getState();
+  document.state.members[0].taskRules = JSON.parse('{"__proto__":true}');
+  const parsed = await readBackupRequest(Object.assign(Readable.from([Buffer.from(JSON.stringify({ backup: document }))]), { headers: { 'content-type': 'application/json' }, complete: true }), { defer: true });
+  await assert.rejects(store.prepareTransfer(parsed.input, transferOptions), error => error.status === 400 && /unsafe/.test(error.message));
+  assert.deepEqual(store.getState(), before);
+  assert.equal(Object.prototype.challengeCompleted, undefined);
+});
+
+test('worker imports and exports keep destination credential sidecars outside portable saves', async t => {
+  const { root, store } = await scratchStore(t);
+  const secret = 'synthetic-sidecar-never-export';
+  for (const name of ['sessions.json', 'invitations.json', 'plugin-keys.json']) await writeFile(path.join(root, name), JSON.stringify({ secret }));
+  const result = await store.prepareTransfer(serialize({ backup: editedSave(1, 0) }), transferOptions);
+  await store.applyTransfer(result.ticket, 0);
+  assert.equal(JSON.stringify(await store.backup()).includes(secret), false);
+  assert.equal(JSON.stringify(result.response).includes(secret), false);
+});
+
+test('timeout terminates a wedged worker, releases the global queue, and cannot apply a partial result', async () => {
+  // An isolated CPU wedge exercises the same deadline/termination path as a
+  // pathological replay without depending on a machine-specific input runtime.
+  const workerURL = new URL('data:text/javascript,while(true){}');
+  const start = performance.now();
+  const wedged = runImportJob({}, { workerURL, timeoutMs: 100 });
+  const next = runImportJob({ kind: 'parse', chunks: [Buffer.from('{}')], headers: { 'content-type': 'application/json' } });
+  let fired;
+  await new Promise(resolve => setTimeout(() => { fired = performance.now() - start; resolve(); }, 20));
+  assert.ok(fired < 100);
+  await assert.rejects(wedged, error => error.status === 422 && /took too long/.test(error.message));
+  assert.deepEqual((await next).body, {});
+  assert.ok(performance.now() - start < 2_000);
 });
 
 test('roster remap preserves the removed preferred-method guard through reload', async t => {
@@ -168,20 +202,6 @@ test('roster remap preserves the removed preferred-method guard through reload',
     try { assert.deepEqual(store.getState().members[0].taskAlternatives ?? {}, {});
       assert.deepEqual(store.getState().provenance.taskIdentityMigration.legacyAlternativeMembers, [{ memberId: 'destination', sourceMapId: 'synthetic-map' }]); } finally { await store.close(); }
   }
-});
-
-test('schema bounds imported rosters, catalogue and per-member progress before projection', () => {
-  for (const [field, limit] of Object.entries(SAVE_COUNT_LIMITS)) {
-    const state = createGroupState(roster);
-    if (field === 'members') state.members = Array.from({ length: limit + 1 }, (_, i) => ({ ...state.members[0], id: `synthetic-${i}` }));
-    if (field === 'tasks') state.tasks = Array.from({ length: limit + 1 }, (_, i) => ({ id: `custom:${i}`, label: 'Synthetic task', category: 'Custom' }));
-    if (field === 'collectionRecords') state.provenance = { syntheticRecords: Array(limit + 1).fill(null) };
-    if (field === 'memberRecords') state.members[0].completedTasks = Array.from({ length: limit + 1 }, (_, i) => `custom:${i}`);
-    assert.throws(() => validateState(state), /save limit/);
-  }
-  const state = createGroupState(roster);
-  state.members[0].taskStatus = Object.fromEntries(Array.from({ length: SAVE_COUNT_LIMITS.memberRecords + 1 }, (_, i) => [`custom:${i}`, { favorite: true }]));
-  assert.throws(() => validateState(state), /member.taskStatus exceeds the save limit/);
 });
 
 test('remap then store load preserves cleared legacy fields and original migration attribution', async t => {

@@ -4,9 +4,9 @@ Open **More → Export / Import**. The existing dialog offers a **Full
 picker backup**, **Import a backup**, and **Copy link for the original picker**.
 No reference data, artwork, account credentials or service permissions transfer.
 
-Imports also have a [shared-server work budget](backup-import.md). Preview and
-Apply refuse oversized catalogues, History, archives or combined work with a
-clear message, even when the compressed file fits the upload byte limit.
+Imports use an [isolated worker queue](backup-import.md) with a 15-second
+checking deadline and a 256 MiB expanded JSON limit. Large catalogues and
+retained History are supported without count or combined-work caps.
 
 ## Backups between copies
 
@@ -81,15 +81,15 @@ rules, progress, notes, group semantics or History. Keep the full backup for
 returning to this picker. There is no original database import or rule export
 in this feature, and no original implementation code is incorporated.
 
-## Import size and count limits
+## Import isolation and reports
 
-Saved state accepts at most 32 members, 250,000 task definitions, 100,000
-records in each member array or dictionary, and 250,000 entries in any other
-JSON collection (including archives). Oversized collections fail validation;
-records are never truncated. These ceilings allow ample room above the frozen
-save fixtures (two-member rosters; the original-sync capture's largest dictionary
-has 153 entries) and the reference dataset's 92,638 task-map entries plus its
-index counter. No live saves were read to choose these limits.
+The byte ceiling matches the existing backup/restore limit on main. Each
+import worker exits after checking; timeout or validation failure leaves the
+save unchanged. Reports sample the first 100 unresolved records, truncate long
+labels, and say how many more remain. Detailed evidence stays in the portable
+save. Preview counts cover the complete import even when displayed changes are
+sampled. Synthetic coverage includes 20,503 tasks with 2,000 History entries,
+restoring onto 501 destination History entries, and an upload above 32 MiB.
 
 Transfer reports index definitions and completions once. Restore previews also
 index catalogue differences, completion differences and task labels, so a large

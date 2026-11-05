@@ -1,3 +1,4 @@
+import { replaceDelimited } from '../import-output.mjs';
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** Decode the encoding used by the upstream picker's encodeObject helper. */
@@ -15,10 +16,9 @@ export function decodeLegacyText(value) {
     .replaceAll(/%2J/gi, '+').replaceAll(/%2Q/gi, '!')
     .replace(/%(?![0-9a-f]{2})/gi, '%25');
   try { encoded = decodeURIComponent(encoded); } catch { return value; }
-  return encoded.replaceAll(/%2E/gi, '.').replaceAll(/%2F/gi, '#')
+  return replaceDelimited(encoded.replaceAll(/%2E/gi, '.').replaceAll(/%2F/gi, '#')
     .replaceAll(/%2G/gi, '/').replaceAll(/%2H/gi, "'").replaceAll(/-2H/gi, "'")
-    .replaceAll(/%2I/gi, ',').replaceAll(/%2J/gi, '+').replaceAll(/%2Q/gi, '!')
-    .replace(/<[^>]*>/g, '');
+    .replaceAll(/%2I/gi, ',').replaceAll(/%2J/gi, '+').replaceAll(/%2Q/gi, '!'), '<', '>');
 }
 
 /** A completed conversion makes absent authored overrides mean automatic. */

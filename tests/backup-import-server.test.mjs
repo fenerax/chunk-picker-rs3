@@ -18,20 +18,6 @@ const definitions = { chunks: { '100': {}, '101': {}, '102': {} }, walkableChunk
 const state = () => createGroupState([{ id: 'player1', name: 'Player 1', unlocked: ['100'] }, { id: 'player2', name: 'Player 2', unlocked: ['101'] }]);
 const backupFile = backup => new File([JSON.stringify(backup)], 'synthetic-backup.json', { type: 'application/json' });
 
-test('archive-heavy uploads below the wire ceiling are refused without changing durable state', async t => {
-  const f = await fixture(t), before = await f.application.store.backup();
-  const incoming = exportBackup(state());
-  incoming.state.provenance = { syntheticRows: Array.from({ length: 17_000 }, (_, index) => ({ index, evidence: 'x'.repeat(2048) })) };
-  const file = backupFile(incoming);
-  assert.ok(file.size > 32 * 1024 * 1024 && file.size < MAX_UPLOAD_BYTES);
-  for (const route of ['/api/restore/preview', '/api/restore']) {
-    const response = await f.upload(route, file, { expectedRevision: 0 });
-    assert.equal(response.status, 413);
-    assert.match((await response.json()).message, /safe import work limit/);
-    assert.deepEqual(await f.application.store.backup(), before);
-  }
-});
-
 test('versioned completion saves upload through preview and restore, and download as legacy backups', async t => {
   const f = await fixture(t);
   let incoming = state();
@@ -82,17 +68,17 @@ async function fixture(t, initialState = state()) {
   return { application, origin, cookie, request, json, upload, invite };
 }
 
-test('bounded browser upload previews and applies evidence, with streamed gzip download', async t => {
+test('browser file upload previews and applies a full backup above 32 MiB, with streamed gzip download', async t => {
   const f = await fixture(t);
   const incoming = state(); incoming.members[0].unlocked = ['102'];
   const base = JSON.stringify(exportBackup(incoming));
   // Many bounded leaves exercise the document-size path without one giant token.
-  const rowCount = 100, evidence = 'synthetic provenance '.padEnd(2048, 'x');
+  const rowCount = 17000, evidence = 'synthetic provenance '.padEnd(2048, 'x');
   const parts = [base.slice(0, -2), ',"provenance":{"syntheticRows":['];
   for (let index = 0; index < rowCount; index++) parts.push(`${index ? ',' : ''}${JSON.stringify({ index, evidence })}`);
   parts.push(']}}}');
   const file = new File(parts, 'synthetic-large-backup.json');
-  assert.ok(file.size > 200 * 1024);
+  assert.ok(file.size > 32 * 1024 * 1024);
   parts.length = 0;
   const upload = createBackupUpload(file);
   const prepared = await upload.toBackupRequest();
@@ -112,7 +98,7 @@ test('bounded browser upload previews and applies evidence, with streamed gzip d
     parsed = await readBackupRequest(input);
     assert.equal(parsed.body.backup.state.provenance.syntheticRows.length, rowCount);
   } finally { JSON.parse = originalParse; parsed = undefined; }
-  assert.ok(largestToken >= evidence.length);
+  assert.equal(largestToken, 0, 'Parsing runs entirely in the import worker.');
 
   const previewResponse = await f.request('/api/restore/preview?view=play-v1', prepared);
   assert.equal(previewResponse.status, 200, await previewResponse.clone().text());
@@ -284,14 +270,14 @@ test('undo stops at a full restore while commands saved afterwards remain revers
 
 test('a legacy map file uses the browser restore flow and returns a compact import preview', async t => {
   const f = await fixture(t);
-  const randomLoot = Array.from({ length: 400 }, (_, index) => ({ index, source: 'synthetic original-picker evidence'.padEnd(512, 'x') }));
+  const randomLoot = Array.from({ length: 2000 }, (_, index) => ({ index, source: 'synthetic original-picker evidence'.padEnd(512, 'x') }));
   const document = { maps: {
     qxa: { chunks: { unlocked: { '102': '102' }, selected: {} }, randomLoot },
     qxb: { chunks: { unlocked: { '101': '101' }, selected: {} } },
   } };
   const members = [{ id: 'player1', name: 'Player 1', mapId: 'qxa' }, { id: 'player2', name: 'Player 2', mapId: 'qxb' }];
   const file = new File([JSON.stringify(document)], 'synthetic-legacy-map.json');
-  assert.ok(file.size > 200 * 1024);
+  assert.ok(file.size > 1024 * 1024);
   const upload = createBackupUpload(file, { members });
   const response = await f.request('/api/restore/preview?view=play-v1', await upload.toBackupRequest());
   assert.equal(response.status, 200, await response.clone().text());

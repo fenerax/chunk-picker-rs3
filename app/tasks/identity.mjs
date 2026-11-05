@@ -1,9 +1,10 @@
 import { datasetValue, selectedDataset } from "../dataset-runtime.mjs";
+import { trimTaskStars } from '../import-output.mjs';
 import { identityRegistryVersion, authoredTasks, authoredEntities, authoredGoals, authoredSources } from '../data/identity-registry.mjs';
 
 const normalized = value => String(value).normalize('NFC');
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-const plain = value => normalized(value).replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]).replace(/\*+$/g, '');
+const plain = value => trimTaskStars(normalized(value).replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]));
 const candidatesOf = value => typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
 const entryMap = new Map(), aliasMap = new Map(), entityMap = new Map();
 const sourceMap = new Map();

@@ -1,5 +1,7 @@
+import { isMainThread } from 'node:worker_threads';
+import { runImportJob, registryMetadata } from '../import-jobs.mjs';
+import { MAX_BACKUP_BYTES } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
-import { assertImportWork, IMPORT_WORK_LIMITS, refuseImportWork } from '../import-work.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, rename, stat, unlink, utimes } from 'node:fs/promises';
@@ -234,8 +236,9 @@ async function atomicWrite(file, contents, beforeRename) {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
+  if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
   const encodeCompletions = completionCodec ? createCompletionEncoder() : document => document;
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
@@ -258,6 +261,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const staticDir = path.join(directory, 'static');
   const acknowledgementsFile = path.join(directory, 'action-acknowledgements.json');
   let current;
+  const importTickets = new WeakMap();
   // Receipts are private storage metadata, committed in the SAME replacement
   // as gameplay. Never evict IDs: an arbitrarily delayed retry must fail closed.
   let receipts;
@@ -379,14 +383,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // keeps durable writes bounded without changing portable backup semantics.
   const serialized = (state, ledger = receipts) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}}\n`;
   async function importDocument(bytes) {
-    const document = await parseJSONStream([bytes], { maxBytes: 8 * IMPORT_WORK_LIMITS.text,
-      maxTokenBytes: IMPORT_WORK_LIMITS.text, maxValues: IMPORT_WORK_LIMITS.units });
-    assertImportWork(document);
+    const document = await parseJSONStream([bytes], { maxBytes: MAX_BACKUP_BYTES });
     return document;
   }
   async function decodeStoredBytes(bytes, forImport) {
-    try { return await gunzipAsync(bytes, forImport ? { maxOutputLength: 8 * IMPORT_WORK_LIMITS.text } : {}); }
-    catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') refuseImportWork(); throw error; }
+    try { return await gunzipAsync(bytes, forImport ? { maxOutputLength: MAX_BACKUP_BYTES } : {}); }
+    catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') (() => { throw Object.assign(new Error('This backup is too large. The limit is 256 MiB after decompression.'), { status: 413 }); })(); throw error; }
   }
   async function readStaticField(key, reference, forImport = false) {
     const match = STATIC_ID.exec(reference?.id ?? '');
@@ -431,11 +433,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return { ...document, state };
   }
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
-    if (forImport) assertImportWork(document);
-    document = decodeCompletionDocument(parseSavedDocument(document), forImport ? { maxExpandedBytes: IMPORT_WORK_LIMITS.text } : undefined);
-    if (forImport) assertImportWork(document);
+    document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
-    if (forImport) assertImportWork(document);
     const state = importSavedState(document, registry);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
@@ -669,14 +668,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // receive that authoritative baseline, rather than permission to erase it.
     if (migrateState) {
       input = await migrateState(input, context) ?? input;
-      if (operation === 'replace') assertImportWork(input);
       input = validateOwnedState(input, registry);
       if (input.revision !== state.revision) throw new TypeError('Migration must preserve the authoritative revision.');
     }
     if (!prepareState) return input;
     const history = operation === 'load' ? JSON.stringify(input.history) : undefined;
     const output = await prepareState(input, context);
-    if (operation === 'replace') assertImportWork(output ?? input);
     const ready = validateState(output ?? input, registry);
     if (operation === 'load' && (ready.revision !== state.revision || JSON.stringify(ready.history) !== history)) {
       throw new TypeError('Load preparation must preserve the authoritative revision and history.');
@@ -684,7 +681,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return ready;
   }
   async function hydrateHistory(state, cache, forImport = false) {
-    const archived = new Map(), importBudget = {};
+    const archived = new Map();
     const references = state.provenance?.historyArchive ?? [];
     if (!Array.isArray(references)) throw new TypeError('Invalid history archive references.');
     for (const reference of references) {
@@ -703,7 +700,6 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           cache.bytes += bytes.length;
         }
       }
-      if (forImport) assertImportWork(document, { budget: importBudget });
       if (document.format !== 'rs3-chunk-picker-history' || !Array.isArray(document.events)) throw new TypeError('Invalid history archive.');
       // Later committed segments contain overrides, including an old undo
       // target's undoneRevision. Unreferenced interrupted writes are ignored.
@@ -720,7 +716,6 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       complete.provenance = { ...complete.provenance };
       delete complete.provenance.historyArchive;
     }
-    if (forImport) assertImportWork(complete, { additionalWork: Object.keys(coordinationOf(state).invalidatedUndo).length * complete.history.length });
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     if (forImport) await new Promise(resolve => setImmediate(resolve));
     const validated = validateState(complete, registry);
@@ -878,7 +873,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function enqueueMaintenance(work, { allowClosing = false, backupRead = false } = {}) {
     // Backup browsing remains a pure disk/cache read after an ordinary close.
     // A frozen handover still refuses new reads before writer ownership moves.
-    if (!allowClosing && (frozen || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
+    if (!allowClosing && (frozen && !(importReader && backupRead) || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
     maintenancePending++;
     const result = maintenanceQueue.then(() => withStoreWrite(directory, work)).finally(() => { maintenancePending--; });
     maintenanceQueue = result.catch(() => {});
@@ -1061,12 +1056,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     });
   }
   async function replacementState(document, base, actor) {
-    assertImportWork({ document, base });
+    if (isMainThread && !prepareState && !migrateState) return runImportJob({ kind: 'replacement', dataDir: directory, document, actor, baseRevision: base.revision, rules: registryMetadata(registry) });
     const incoming = document?.format ? importBackup(document, registry) : typeof document === 'string' ? importBackup(document, registry) : validateState(document, registry);
     // Keep separate bounded validation/migration phases off the same event-loop turn.
     await new Promise(resolve => setImmediate(resolve));
     const ready = await prepared(incoming, 'replace');
-    assertImportWork({ ready, base });
     await new Promise(resolve => setImmediate(resolve));
     const revision = base.revision + 1;
     if (!Number.isSafeInteger(revision)) throw new RangeError('State revision limit reached.');
@@ -1084,7 +1078,6 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A replacement establishes a new undo boundary. Earlier snapshots may
     // describe another roster and must never rewrite the restored gameplay.
     ready.history = [{ id: `revision-${revision}`, revision, type: 'restore', at: timestamp(), ...(actor ? { actor } : {}) }];
-    assertImportWork(ready);
     return validateState(ready, registry);
   }
   function historyRecord(event) {
@@ -1413,6 +1406,28 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         for (const id of taskIds) invalidatedUndo[id] = current.revision;
         coordination.set(next, { ...previous, invalidatedUndo });
         return persist(next, 'claim-cleanup', undefined, false, undefined, false, undefined, { claimOnly: true, cleanup: true });
+      });
+    },
+    async prepareTransfer(input, options) {
+      const revision = current.revision;
+      const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options,
+        rules: registryMetadata(registry), baseRevision: revision }, { deadline: options.importDeadline,
+        prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
+      const ticket = {};
+      importTickets.set(ticket, { state: result.state, operation: result.operation, revision });
+      delete result.state;
+      return { ...result, ticket };
+    },
+    applyTransfer(ticket, expectedRevision) {
+      return enqueue(async () => {
+        const prepared = importTickets.get(ticket);
+        importTickets.delete(ticket);
+        if (!prepared?.state) throw new TypeError('A validated import result is required.');
+        checkRevision(expectedRevision);
+        checkRevision(prepared.revision);
+        const start = performance.now();
+        const result = await persist(prepared.state, prepared.operation);
+        return { state: result, applyMs: performance.now() - start };
       });
     },
     replace(document, expectedRevision, { actor } = {}) {

@@ -1,3 +1,4 @@
+import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { backupJSONChunks } from './backup-transfer.mjs';
 
@@ -81,8 +82,12 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
 
 export function transferReport(state, { world, taskIds = new Set(), knownRule = () => true, warnings = [], memberId } = {}) {
   const records = [];
+  let total = 0;
   const definitions = new Map(state.tasks.map(task => [task.id, task]));
-  const add = (owner, field, key, rawValue, reason, outcome = 'preserved-for-review') => records.push({ owner, field, key, rawValue, candidateMatches: [], reason, outcome });
+  const add = (owner, field, key, rawValue, reason, outcome = 'preserved-for-review') => {
+    total++;
+    if (records.length < REPORT_RECORDS) records.push(boundedOutput({ owner, field, key, rawValue, candidateMatches: [], reason, outcome }, { bytes: 1536 }));
+  };
   for (const member of state.members.filter(m => !memberId || m.id === memberId)) {
     for (const field of ['unlocked', 'selected', 'pendingRoll', 'blacklisted']) for (const id of member[field]) {
       if (world && !world.chunks.has(id.split('-')[0])) add(member.id, field, id, id, 'Unknown chunk; quarantined in the portable archive and excluded from active territory.');
@@ -96,7 +101,7 @@ export function transferReport(state, { world, taskIds = new Set(), knownRule = 
     if (memberId && row.memberId !== memberId) continue;
     const raw = state.legacy?.maps?.[row.sourceMapId]?.chunkinfo?.[row.source]?.[row.category]?.[row.legacyKey];
     add(row.memberId, `chunkinfo.${row.source}.${row.category}`, row.legacyKey, raw ?? row, row.reason);
-    records.at(-1).candidateMatches = row.candidates ?? [];
+    if (total <= REPORT_RECORDS) records.at(-1).candidateMatches = boundedOutput(row.candidates ?? [], { bytes: 512 });
   }
   const archives = [state.provenance];
   while (archives.length) {
@@ -108,7 +113,8 @@ export function transferReport(state, { world, taskIds = new Set(), knownRule = 
   }
   for (const warning of warnings) add(null, 'migration', null, warning, warning);
   return { format: 'rs3-chunk-transfer-report', version: 1, coverage: backupCoverage, records,
-    counts: { preservedForReview: records.length, dropped: 0 },
+    counts: { preservedForReview: total, dropped: 0, omitted: total - records.length },
+    ...(total > records.length ? { more: `and ${total - records.length} more; complete records are retained in the backup` } : {}),
     history: 'Whole-save restore starts a new Undo boundary; previous saves and incoming History remain retained.' };
 }
 
@@ -130,7 +136,7 @@ export function quarantineTransferChunks(state, world) {
 // Small bounded receipts bind reviewed bytes/options to the caller and revision.
 export function createTransferReviews({ now = Date.now } = {}) {
   const reviews = new Map();
-  const digest = body => transferDigest({ backup: body.backup, backupId: body.backupId,
+  const digest = body => body.transferHash ?? transferDigest({ backup: body.backup, backupId: body.backupId,
     document: body.document, members: body.members, memberId: body.memberId, sourceMemberId: body.sourceMemberId, rosterMapping: body.rosterMapping });
   return {
     preview(body, identity, revision) {

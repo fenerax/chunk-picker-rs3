@@ -11,16 +11,17 @@ uses the ordinary `/api/backup` JSON response; its ZIP format is unchanged.
 The file ceiling is 256 MiB of UTF-8 JSON after decompression, about seven times
 the 2026-10-13 full save. Wire requests allow 257 MiB for gzip overhead. These
 limits apply only to import/restore routes; other request limits are unchanged.
-The shared server also refuses work above 5,000 catalogue tasks, 500 live
-History events, 1 MiB of string/key characters, or 100,000 aggregate work units.
-Each JSON value and property consumes a unit. Archives, codec expansion,
-ambiguous alias candidates, and History × catalogue/member-reference work
-consume the same budget. The incoming save and retained destination evidence
-must fit together; migration output is checked again before validation.
-These conservative CPU limits protect other players from long synchronous
-imports. A file below the byte ceiling can therefore still receive HTTP 413
-with a safe-import-work-limit message. Reduce History or archived evidence
-and export a smaller file; refusal leaves the current save unchanged.
+Imports run in a shared worker queue, one CPU job at a time. Parsing, validation,
+History replay, migration, preview and report preparation run outside the HTTP
+thread. Parsing and preparation share a 15-second deadline; a timed-out worker
+is terminated and the file is refused with HTTP 422 before any commit. Each job's
+worker is terminated after success or failure, releasing its save and caches.
+There are no task, History, collection-count or aggregate-work admission caps.
+Destination History is preserved independently of the incoming file. The writer
+accepts only its private validated result, rechecks the revision and caller, then
+retains the preceding save and uses its usual fsync/atomic-rename commit.
+Reports list up to 100 records with bounded text and an accurate omitted count;
+complete evidence remains in the save and export.
 Compressed downloads check the JSON size before starting, so the dialog never
 offers a completed download above the import ceiling. This remains a finite
 memory safeguard, rather than a promise to restore arbitrarily large JSON.
@@ -43,8 +44,8 @@ one backup; additional import requests receive a retry message.
 
 The complete parsed state and existing validation/storage copies still require
 memory. Large individual string tokens also need their complete string text.
-This change removes transport-sized text copies and a redundant full restore
-validation; it does not replace the state model or its validation boundary.
+This change removes transport-sized text copies and keeps hostile validation off the HTTP thread; it does not replace the
+state model or its validation boundary.
 Origin, authentication, administrator access for whole-save replacement,
 player-only restoration, session rechecks, revision checks, previous-state
 retention and the restore Undo boundary remain in the existing server paths.
