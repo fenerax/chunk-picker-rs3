@@ -44,7 +44,7 @@ export const galleryEntries = [
   entry('profile', 'Profile', 'profile-view.mjs', 'profile', ['profile']),
   ...['Skills', 'Quests', 'Achievements', 'Activities', 'Slayer', 'Clues'].map(tab => entry(`activity-${tab.toLowerCase()}`, `Activity Info · ${tab}`, 'info-panels.mjs', 'activity', tab === 'Skills' ? ['activity'] : [], { tab })),
   ...['Obtainable', 'Recorded obtained', 'Compare with partner'].map((tab, i) => entry(`bis-${i}`, `Current BiS · ${tab}`, 'info-panels.mjs', 'bis', i === 0 ? ['bis'] : [], { tab })),
-  entry('runemetrics', 'Sync levels from RuneMetrics', 'runemetrics.mjs', 'runemetrics', ['runemetrics:standalone']),
+  entry('runemetrics', 'Sync levels from Platform API', 'runemetrics.mjs', 'runemetrics', ['runemetrics:standalone']),
   entry('journal', 'Map journal', 'screen-journal.mjs', 'journal', ['journal']),
   entry('members', 'Ready for members', 'members-start.mjs', 'members', ['members']),
   entry('members-confirm', 'Confirm members start', 'members-start.mjs', 'members-confirm', ['members:confirm']),

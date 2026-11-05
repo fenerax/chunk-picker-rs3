@@ -51,8 +51,12 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
     content.append(el('h4', `Review ${value.sourceLabel ?? 'RuneMetrics'} for ${owner.name} · ${value.runescapeName}`),
       el('p', `Source: ${value.sourceLabel ?? 'RuneMetrics'}`, 'info-meta'),
       el('p', `Fetched ${time(value.fetchedAt)}${value.cached ? ' · recent saved result' : ''}${advanced() ? ` · Saved revision ${value.stateRevision}` : ''}`, 'info-meta'),
-      el('p', `${value.counts.completedQuests} completed quests returned · ${value.counts.matchedQuests} matched · ${value.counts.unmatchedQuests} unmatched`, 'info-meta'),
-      el('h5', `Observed skill changes (${value.skills.length})`));
+      el('p', `${value.counts.completedQuests} completed quests returned · ${value.counts.matchedQuests} matched · ${value.counts.unmatchedQuests} unmatched`, 'info-meta'));
+    if (value.questPoints) {
+      const { after } = value.questPoints;
+      content.append(el('p', `Quest points: ${number(after.current)} / ${number(after.max)} (Platform API, preview only)`, 'status-detail'));
+    }
+    content.append(el('h5', `Observed skill changes (${value.skills.length})`));
     if (value.skills.length) {
       const rows = el('ul');
       for (const skill of value.skills) {

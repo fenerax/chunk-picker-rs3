@@ -257,6 +257,9 @@ export async function runOperator(command, argument, evidence, mode) {
       // explicitly; a failed rollback retains pause and prevents health actions.
       if (command === 'backup') {
         try { await writeBackupStatus(settings.dataDir, { result: 'failed' }); } catch {}
+        // Online backup never stops or replaces the writer; a failed capture
+        // must not leave it fenced off from later operator runs or starts.
+        if (argument !== '--stopped') await rm(pause, { force: true });
       }
       throw error;
     }

@@ -66,7 +66,7 @@ async function run(job) {
   };
   prepareState.isCurrent = () => true;
   if (migrateState) migrateState.isCurrent = () => true;
-  const store = await openStore({ dataDir: job.dataDir, registry, readOnly: true, importReader: true, migrateState, prepareState });
+  const store = await openStore({ dataDir: job.dataDir, registry, readOnly: true, importReader: true, migrateState, prepareState, now: options.now });
   try {
     const current = store.getState();
     if (current.revision !== job.baseRevision) fail(409, 'The destination changed. Preview the backup again.');

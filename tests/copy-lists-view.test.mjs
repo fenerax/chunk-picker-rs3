@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCopyLists } from '../app/web/copy-lists.mjs';
+import { completedReviewList, createCopyLists } from '../app/web/copy-lists.mjs';
 
 class Element {
   constructor(tagName, document) {
@@ -169,4 +169,14 @@ test('map owner switches refresh unlocked and eligible pool lists with chunk nam
   assert.deepEqual(f.mapPanel.children, [f.counts, unlockedFallback, poolFallback]);
   assert.equal(f.byId('copy-unlocked-chunks').parentElement.parentElement, f.counts.children[0]);
   assert.equal(f.byId('copy-pool-chunks').parentElement.parentElement, f.counts.children[2]);
+});
+
+
+test('completed review copy names the observed provider for new and legacy account sync', () => {
+  const rows = ['platform-api', 'runemetrics'].map(source => ({ category: 'Quest', task: { label: source },
+    completions: [{ kind: 'game', name: 'Player', source, at: null }] }));
+  const list = completedReviewList({ rows, players: ['Player'], range: 'all time' });
+  assert.match(list.groups[0].items[0], /in-game, Platform API/);
+  assert.match(list.groups[0].items[1], /in-game, RuneMetrics/);
+  assert.ok(list.groups[0].items.every(line => line.endsWith('Date unknown')));
 });

@@ -1,4 +1,6 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
+import { platformResponse } from './helpers/platform-api-fixtures.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile, writeFile, cp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -18,6 +20,7 @@ import { EventEmitter } from 'node:events';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+beforeEach(t => blockUnmockedFetch(t));
 const clock = () => Date.parse('2026-10-21T12:00:00.000Z');
 const taskId = 'rs3:task:context-fixture';
 const clientId = '40000000-0000-4000-8000-000000000001';
@@ -105,7 +108,8 @@ async function fixture(t, { runtimeOptions = {}, ...options } = {}) {
     initialState.tasks = [{ id: taskId, category: 'Custom', label: id }];
     initialState.legacy = { contextFixture: id };
     const context = await createPickerContext({ pickerId: id, dataDir: path.join(root, id), runtime,
-      initialState, predictionPrewarm: false, progressSources: { clock }, ...options, ...extra });
+      initialState, predictionPrewarm: false,
+      progressSources: { clock, hiscores: { snapshot() { assert.fail('Unexpected Hiscores fallback'); } } }, ...options, ...extra });
     contexts.push(context); return context;
   }
   const a = await open('a'), b = await open('b');
@@ -496,11 +500,24 @@ test('revoking an invitation closes only that context stream and refuses its fur
 test('the extracted HTTP dispatcher retains explicit permission decisions for all API routes', async () => {
   const source = await readFile(new URL('../app/picker-context.mjs', import.meta.url), 'utf8');
   const { apiPermission } = await import('../app/picker-context-http.mjs');
+  const { isImportRoute } = await import('../app/backup-transfer.mjs');
   for (const method of ['GET', 'HEAD']) assert.equal(apiPermission(method, '/api/diagnostics'), 'admin');
   const reads = source.slice(source.indexOf("if (request.method === 'GET' || request.method === 'HEAD')"), source.indexOf("} else if (request.method === 'POST')"));
   const writes = source.slice(source.indexOf("} else if (request.method === 'POST')"), source.indexOf("throw httpError(404, 'API route not found.');"));
   for (const [method, section] of [['GET', reads], ['POST', writes]]) {
     const routes = [...section.matchAll(/route === '(\/api\/[^']+)'/g)].map(match => match[1]);
+    if (method === 'POST') {
+      // Transfers share one dispatcher after parsing moved into the worker.
+      assert.match(section, /if \(isImportRoute\(route\)\)/);
+      for (const prefix of ['/api/restore', '/api/import', '/api/member-restore']) {
+        for (const suffix of ['', '/preview']) {
+          const route = prefix + suffix;
+          assert.equal(isImportRoute(route), true);
+          assert.equal(apiPermission(method, route), prefix === '/api/member-restore' ? 'write' : 'admin');
+          routes.push(route);
+        }
+      }
+    }
     assert.ok(routes.length > 25, `${method} dispatcher was found`);
     for (const route of routes) assert.ok(apiPermission(method, route), `${method} ${route} has a permission`);
   }
@@ -564,8 +581,7 @@ test('G15 provider caches and previews isolate identical member/name bindings an
   let calls = 0;
   const { a, b } = await fixture(t, { runeMetrics: { fetchImpl: async url => {
     calls++;
-    return Response.json(String(url).includes('/quests') ? { quests: [] }
-      : { name: 'Player x', skillvalues: [{ id: 0, level: 20, xp: 44700 }] });
+    return platformResponse(url);
   } } });
   for (const context of [a, b]) await command(context, { type: 'set-runescape-name', memberId: 'one', name: 'Player x' });
   const left = await send(a, '/api/runemetrics/preview', { body: { memberId: 'one' } });
@@ -582,7 +598,8 @@ test('G15 provider caches and previews isolate identical member/name bindings an
   assert.equal(calls, 4, 'closing one context preserves the other provider cache');
   const applied = await send(b, '/api/runemetrics/apply', { body: { previewId: right.body.previewId, expectedRevision: b.store.getInfo().revision } });
   assert.equal(applied.status, 200);
-  assert.equal(applied.body.state.members[0].skillProgress.Attack.source, 'runemetrics');
+  // Saved as official-api so the live release can still load it after a rollback.
+  assert.equal(applied.body.state.members[0].skillProgress.Attack.source, 'official-api');
 });
 
 test('owned readiness can defer the play body while retaining variant preparation and current authenticated state', async t => {

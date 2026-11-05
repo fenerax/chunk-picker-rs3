@@ -9,6 +9,7 @@ const now = () => '2026-10-07T18:00:00.000Z';
 const quest = { id: 'quest:cooks-assistant', label: "Cook's Assistant", category: 'Quest' };
 function group() {
   const state = createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }, { id: 'other', name: 'Other' }]);
+  state.members[0].runescapeName = 'DemoExplorer'; state.members[1].runescapeName = 'SecondActor1';
   state.tasks = [quest, { id: 'skill:cook', label: 'Cook food', category: 'Cooking' }];
   return state;
 }
@@ -55,15 +56,13 @@ test('invalid RuneMetrics batches fail atomically before history time and stale 
     { skills: [...batch().skills, ...batch().skills] }, { quests: [...batch().quests, ...batch().quests] },
     { quests: [{ taskId: 'unknown', title: 'Unknown' }] }, { quests: [{ taskId: 'skill:cook', title: 'Cook food' }] },
     { quests: [{ taskId: quest.id, title: '' }] }, { skills: [{ ...batch().skills[0], source: 'manual' }] },
-    { quests: [{ ...batch().quests[0], completed: true }] }, { source: 'manual' },
+    { quests: [{ ...batch().quests[0], completed: true }] }, { source: 'manual' }, { source: null },
   ];
   const options = { expectedRevision: 0, now: () => { throw new Error('Rejected command must not request a timestamp'); } };
   for (const extra of invalid) assert.throws(() => applyCommand(state, batch(extra), options), error => error instanceof TypeError);
   assert.throws(() => applyCommand(state, batch(), { expectedRevision: 1, now }), /Revision conflict/);
   assert.equal(JSON.stringify(state), before);
 });
-
-
 
 function observedState(engine, skills) {
   const state = group();

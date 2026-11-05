@@ -8,6 +8,19 @@ import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
 const state = { members: [{ id: 'a', completedTasks: [], unlocked: ['10001'] }], rules: { 'content.f2p': true } };
 const row = (category, rawLabel, record = {}) => ({ id: taskId(category, rawLabel, record), category, rawLabel, label: rawLabel, record, status: 'available', personalCompleted: false, level: 1 });
 const observation = level => ({ level: 120, observedLevel: level, observedSource: 'game-plugin' });
+
+test('Platform API observations supply current Slayer and combat levels', () => {
+  const training = Object.fromEntries(['Slayer', 'Attack', 'Strength', 'Defence', 'Constitution', 'Ranged', 'Prayer', 'Magic', 'Necromancy']
+    .map(skill => [skill, { level: 120, observedLevel: 20, observedSource: 'platform-api' }]));
+  const levels = currentSlayerLevels({ training, playerControls: { slayerLock: { level: 1 } } });
+  assert.equal(levels.Slayer, 20);
+  assert.equal(levels.Attack, 20);
+  assert.ok(levels.Combat > 1 && levels.Combat < 120);
+  training.Combat = { observedLevel: 35, observedSource: 'platform-api' };
+  assert.equal(currentSlayerLevels({ training }).Combat, 35);
+  training.Slayer.observedSource = 'planning';
+  assert.equal(currentSlayerLevels({ training }).Slayer, undefined);
+});
 function fixture() {
   const quest = row('Quest', '~|The Blood Pact|~ Complete the quest', { QuestPoints: 1, BaseQuest: 'The Blood Pact' });
   const master = row('Slayer', 'Receive an assignment from ~|Jacquelyn|~', { NPCs: ['Jacquelyn'] });

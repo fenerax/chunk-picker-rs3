@@ -9,7 +9,7 @@ import { validateProgressSnapshots } from './progress-snapshots.mjs';
 import { preferenceDefinitions, validatePreference } from './preferences.mjs';
 import { validateControlSkill, validateControlLevel, validateSlayerLock } from './player-controls.mjs';
 import { defaultRuneScapeNames, validateRuneScapeName, sameRuneScapeName, validateRuneMetricsTimestamp,
-  validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance, validateGamePluginProvenance } from './game-progress.mjs';
+  isGameProgressSource, validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance, validateGamePluginProvenance } from './game-progress.mjs';
 import { applyChunkColourCommand, validateChunkColour, validateChunkColourName } from './chunk-colours.mjs';
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
 import { validateTransportFacts } from './transport-access.mjs';
@@ -1904,11 +1904,11 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
     case 'apply-game-progress':
     case 'apply-runemetrics': {
       const member = findMember(next, payload.memberId);
-      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : payload.source === 'hiscores' ? 'RS3 hiscores' : payload.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics';
-      if (!plugin && payload.source !== undefined && !['runemetrics', 'official-api', 'hiscores'].includes(payload.source)) fail('Unknown web progress source.');
+      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : payload.source === 'hiscores' ? 'RS3 hiscores' : payload.source === 'platform-api' ? 'Platform API' : payload.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics';
+      if (!plugin && payload.source !== undefined && !isGameProgressSource(payload.source)) fail('Unknown web progress source.');
       if (!plugin) {
         const name = validateRuneScapeName(payload.runescapeName);
-        if (!sameRuneScapeName(name, member.runescapeName)) fail('RuneMetrics name does not match the current member account binding');
+        if (!sameRuneScapeName(name, member.runescapeName)) fail('Account sync name does not match the current member account binding');
       }
       validateRuneMetricsTimestamp(payload.fetchedAt, sourceLabel);
       if (!Array.isArray(payload.skills) || !Array.isArray(payload.quests)) fail(`${sourceLabel} skills and quests must be arrays`);
@@ -1926,7 +1926,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       }
       const taskRows = new Map(next.tasks.map(task => [task.id, task]));
       const provenance = plugin ? { source: 'game-plugin', fetchedAt: payload.fetchedAt, memberId: member.id }
-        : { source: payload.source ?? 'runemetrics', fetchedAt: payload.fetchedAt, runescapeName: member.runescapeName };
+        : { source: payload.source === 'platform-api' ? 'official-api' : payload.source ?? 'runemetrics', fetchedAt: payload.fetchedAt, runescapeName: member.runescapeName };
       for (const quest of payload.quests) {
         record(quest, `${sourceLabel} quest`); knownKeys(quest, new Set(['taskId', 'title', 'provenance']), `${sourceLabel} quest`);
         propertyKey(quest.taskId, `${sourceLabel} quest taskId`);

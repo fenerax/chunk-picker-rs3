@@ -1,4 +1,5 @@
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
+import { isObservedProgressSource } from '../core/game-progress.mjs';
 import { plainLabel } from './engine.mjs';
 import { questGroupName } from './activity-readiness.mjs';
 
@@ -7,13 +8,12 @@ const yes = () => ({ status: 'doable', quests: [] });
 const unknown = () => ({ status: 'unknown', quests: [] });
 const all = values => ({ status: values.some(v => v.status === 'stuck') ? 'stuck' : values.some(v => v.status === 'unknown') ? 'unknown' : 'doable', quests: [...new Set(values.flatMap(v => v.quests))] });
 const any = values => values.find(v => v.status === 'doable') ?? (values.some(v => v.status === 'unknown') ? unknown() : values.length ? all(values) : unknown());
-const observedSources = new Set(['game-plugin', 'runemetrics', 'official-api', 'hiscores']);
 
 /** Current facts only: planning ceilings and manual training assumptions are not observations. */
 export function currentSlayerLevels(result, { f2p = true } = {}) {
   const levels = {};
   for (const [skill, training] of Object.entries(result.training ?? {})) {
-    if (observedSources.has(training.observedSource) && Number.isSafeInteger(training.observedLevel) && training.observedLevel >= 1) levels[skill] = training.observedLevel;
+    if (isObservedProgressSource(training.observedSource) && Number.isSafeInteger(training.observedLevel) && training.observedLevel >= 1) levels[skill] = training.observedLevel;
   }
   const lockLevel = result.playerControls?.slayerLock?.level;
   if (levels.Slayer == null && Number.isSafeInteger(lockLevel) && lockLevel >= 1) levels.Slayer = lockLevel;

@@ -1658,9 +1658,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               void transport.requestClose().catch(() => { process.exitCode = 1; }); return;
             }
             if (route === '/api/runemetrics/preview') {
-              if (Object.keys(body).some(key => key !== 'memberId')) throw httpError(400, 'RuneMetrics preview accepts only memberId.');
+              if (Object.keys(body).some(key => key !== 'memberId')) throw httpError(400, 'Progress preview accepts only memberId.');
               const owner = store.getState().members.find(member => member.id === body.memberId);
-              if (!owner) throw httpError(400, 'Choose a known player for RuneMetrics sync.');
+              if (!owner) throw httpError(400, 'Choose a known player for progress sync.');
               let snapshot = await progressClient.snapshot(owner);
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
               if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
@@ -1695,7 +1695,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const review = runeMetricsPreviews.get(body.previewId);
               if (!review || Date.now() - review.createdAt >= previewLifetimeMs) {
                 runeMetricsPreviews.delete(body.previewId);
-                throw httpError(410, 'This RuneMetrics preview expired or was already applied. Fetch and review again.');
+                throw httpError(410, 'This Progress preview expired or was already applied. Fetch and review again.');
               }
               if (review.preview.stateRevision !== body.expectedRevision) throw Object.assign(httpError(409, 'The reviewed revision does not match. Fetch and review RuneMetrics again.'), { code: 'REVISION_CONFLICT', state: store.getState() });
               const state = await store.command(review.command, body.expectedRevision, { actor: identity.actor });
@@ -1711,7 +1711,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               if (!Object.hasOwn(commandPermissions, body.command?.type)) throw httpError(400, 'Unknown gameplay command.');
               if (body.command?.type === 'replace-member') throw httpError(400, 'To replace a player’s map, review the backup in Backup & Import first.');
               if (body.command?.type === 'apply-game-progress') throw httpError(400, 'Review game plugin progress before applying it.');
-              if (body.command?.type === 'apply-runemetrics') throw httpError(400, 'Review the RuneMetrics sync preview before saving progress.');
+              if (body.command?.type === 'apply-runemetrics') throw httpError(400, 'Review the progress sync preview before saving progress.');
               let command = body.command;
               if (command.type !== 'sync-original') {
                 // Resolve committed Undo before checking its now-changed target.

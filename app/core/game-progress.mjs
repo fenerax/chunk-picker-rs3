@@ -10,6 +10,14 @@ export const observedSkills = Object.freeze([
 ]);
 const skills = new Set(observedSkills);
 
+export function isGameProgressSource(source) {
+  return ['runemetrics', 'platform-api', 'official-api', 'hiscores'].includes(source);
+}
+
+export function isObservedProgressSource(source) {
+  return source === 'game-plugin' || isGameProgressSource(source);
+}
+
 export function validateRuneScapeName(name) {
   if (typeof name !== 'string') throw new TypeError('RuneScape name must be a string');
   const trimmed = name.trim();
@@ -28,7 +36,7 @@ export function sameRuneScapeName(first, second) {
 // member's current account binding, including after a name edit.
 export function progressBelongsToMember(value, member) {
   return value?.source === 'game-plugin' ? !!member?.id && value.memberId === member.id
-    : ['runemetrics', 'official-api', 'hiscores'].includes(value?.source) && sameRuneScapeName(value.runescapeName, member?.runescapeName);
+    : isGameProgressSource(value?.source) && sameRuneScapeName(value.runescapeName, member?.runescapeName);
 }
 
 export function validateRuneMetricsTimestamp(value, source = 'RuneMetrics') {
@@ -50,11 +58,21 @@ export function validateObservedSkill(skill, value) {
   if (typeof value.xp !== 'number' || !Number.isFinite(value.xp) || value.xp < 0) throw new TypeError('Observed skill XP must be finite and nonnegative');
 }
 
-export function validateRuneMetricsProvenance(value, keys = ['source', 'fetchedAt', 'runescapeName'], path = 'RuneMetrics provenance') {
+export function validateRuneMetricsProvenance(value, keys = ['source', 'fetchedAt', 'runescapeName'], path = 'account progress provenance') {
   fields(value, keys, path);
+  // Persisted provenance keeps the live release's source set so a rollback can
+  // load it; Platform API syncs are saved as official-api (state.mjs).
   if (!['runemetrics', 'official-api', 'hiscores'].includes(value.source)) throw new TypeError(`${path} source must be runemetrics, official-api or hiscores`);
   validateRuneMetricsTimestamp(value.fetchedAt);
   if (validateRuneScapeName(value.runescapeName) !== value.runescapeName) throw new TypeError(`${path} RuneScape name must be trimmed`);
+}
+
+export function validateObservedQuestPoints(value) {
+  fields(value, ['current', 'max'], 'quest points');
+  if (!Number.isSafeInteger(value.current) || value.current < 0
+    || !Number.isSafeInteger(value.max) || value.max < 0 || value.current > value.max) {
+    throw new TypeError('Quest points current and max must be nonnegative safe integers with current no greater than max');
+  }
 }
 
 export function validateGamePluginProvenance(value, memberId, keys = ['source', 'fetchedAt', 'memberId'], path = 'Game plugin provenance') {

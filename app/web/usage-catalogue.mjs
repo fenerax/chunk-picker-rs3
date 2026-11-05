@@ -79,7 +79,7 @@ export const usageEvents = Object.freeze([
   Object.freeze({"id":"profile","label":"Profile","kind":"open"}),
   Object.freeze({"id":"activity","label":"Activity Info","kind":"open"}),
   Object.freeze({"id":"bis","label":"Current BiS","kind":"open"}),
-  Object.freeze({"id":"runemetrics:standalone","label":"RuneMetrics sync","kind":"open"}),
+  Object.freeze({"id":"runemetrics:standalone","label":"Platform API sync","kind":"open"}),
   Object.freeze({"id":"journal","label":"Map journal","kind":"open"}),
   Object.freeze({"id":"members","label":"Ready for members","kind":"open"}),
   Object.freeze({"id":"members:confirm","label":"Confirm members start","kind":"open"}),
