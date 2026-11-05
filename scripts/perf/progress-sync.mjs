@@ -16,7 +16,9 @@ export async function syncFixture(root, fixture) {
     state.tasks = [...mapping.values()].flat().map(row => ({ id: row.taskId, label: row.label, category: 'Quest' }));
     if (saved) state = applyCommand(state, { type: 'apply-runemetrics', memberId: 'player-x', runescapeName: 'Player x',
       fetchedAt: fixture.fetchedAt, skills: [{ skill: 'Attack', level: 6, xp: 600 }], quests: [] }, { now: () => fixture.fetchedAt });
-    const client = createProgressSources({ clock: () => Date.parse(fixture.fetchedAt), runeMetrics: {
+    const client = createProgressSources({ webSource: 'runemetrics',
+      hiscores: { snapshot() { throw new Error('Synthetic sync fixture must not fall back'); } },
+      clock: () => Date.parse(fixture.fetchedAt), runeMetrics: {
       fetchImpl: async url => new Response(JSON.stringify(url.pathname.endsWith('/quests') ? fixture.quests : fixture.profile)) } });
     try {
       const proposal = previewProgress(state, 'player-x', await client.snapshot(state.members[0]), mapping);

@@ -14,6 +14,10 @@ export function isGameProgressSource(source) {
   return ['runemetrics', 'platform-api', 'official-api', 'hiscores'].includes(source);
 }
 
+export function isObservedProgressSource(source) {
+  return source === 'game-plugin' || isGameProgressSource(source);
+}
+
 export function validateRuneScapeName(name) {
   if (typeof name !== 'string') throw new TypeError('RuneScape name must be a string');
   const trimmed = name.trim();

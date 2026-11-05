@@ -1,5 +1,6 @@
 import { validateRuneScapeName, sameRuneScapeName, observedSkills } from '../core/game-progress.mjs';
 import { canonicalTitle } from './quest-mapping.mjs';
+import { readProgressResponse } from './bounded-response.mjs';
 
 const RUNE_METRICS_SKILLS = observedSkills;
 const RUNE_METRICS_CACHE_MS = 3 * 60 * 1000;
@@ -69,9 +70,7 @@ export function createPlatformApiClient({ fetchImpl = globalThis.fetch, clock = 
     if ([401, 403].includes(response.status)) throw runeMetricsError('PROFILE_PRIVATE', `Platform API denied access to ${name}'s progress. Check account visibility, then try again.`, 422);
     let value;
     try {
-      const text = await response.text();
-      if (text.length > 1024 * 1024) throw new Error('Response too large');
-      value = JSON.parse(text);
+      value = JSON.parse(await readProgressResponse(response));
     } catch {
       if (response.status === 404) throw runeMetricsError('UNKNOWN_NAME', `Platform API could not find ${name}, or the account is hidden. Check the RuneScape name and visibility.`, 404);
       if (!response.ok) throw runeMetricsError('UPSTREAM_ERROR', `Platform API is unavailable (HTTP ${response.status}). Try again later.`, 502);

@@ -1,15 +1,19 @@
 import { platformResponse } from './helpers/platform-api-fixtures.mjs';
-import { fixtureDataset } from './helpers/server-dataset.mjs';
-import test from 'node:test';
+import { fixtureDataset as selectedDataset } from './helpers/server-dataset.mjs';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
-import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { taskId } from '../app/tasks/engine.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
+let allowedOrigins;
+beforeEach(t => { allowedOrigins = new Set(); blockUnmockedFetch(t, allowedOrigins); });
+const fixtureDataset = { ...selectedDataset, capabilities: { ...selectedDataset.capabilities,
+  features: { ...selectedDataset.capabilities.features, runeMetrics: true, externalNames: true } } };
 const privateError = JSON.parse(await readFile(new URL('./fixtures/runemetrics/errors.json', import.meta.url), 'utf8')).private;
 const brokenId = taskId('Quest', '~|Broken Home|~ Complete the quest');
 const stepId = taskId('Quest', '~|Broken Home|~ 1');
@@ -18,9 +22,9 @@ const definitions = { chunks: { '12341': {} }, walkableChunks: ['12341'], walkab
 } } };
 const response = platformResponse;
 async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, initialState, progressSources = {}} = {}) {
-  await mkdir(path.join(root,'.local'),{recursive:true});
-  const directory = await mkdtemp(path.join(root,'.local','runemetrics-test-'));
-  assert.ok(!path.relative(root,directory).startsWith('..'));
+  initialState ??= createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
+  for (const [index, member] of initialState.members.entries()) member.runescapeName ??= ['exampleGIMab', 'twosamplegim'][index];
+  const directory = await mkdtemp(path.join(tmpdir(),'runemetrics-test-'));
   const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, predictionPrewarm:false, shutdownDeadlineMs:500, progressSources: { hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...progressSources }, runeMetrics:{clock:()=>Date.parse('2026-10-27T12:00:00Z'),fetchImpl,...(timeoutMs?{timeoutMs}:{})} };
   const applications=[];
   let app;
@@ -30,12 +34,13 @@ async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, in
     } finally {
       applications.length=0;
       app=undefined;
-      try { assert.ok(!path.relative(root,directory).startsWith('..')); }
+      try { assert.equal(path.dirname(directory), tmpdir()); }
       finally { await rm(directory,{recursive:true,force:true}); }
     }
   });
   app=await createServer({ dataset: fixtureDataset,...options,initialState}); applications.push(app); await app.listen();
   const origin=`http://localhost:${app.address().port}`;
+  allowedOrigins.add(origin);
   const headers={Authorization:`Bearer ${app.store.getAccessToken()}`};
   const api=(route,body,extra={})=>fetch(`${origin}${route}`,{headers:{...headers,...(body===undefined?{}:{'Content-Type':'application/json',Origin:origin}),...extra},...(body===undefined?{}:{method:'POST',body:JSON.stringify(body)})});
   return {app,api,origin,async reopen(){await app.close();app=undefined;app=await createServer({ dataset: fixtureDataset, ...options });applications.push(app);return app;}};

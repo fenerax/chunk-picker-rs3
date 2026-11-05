@@ -1,8 +1,8 @@
-import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember, validateObservedQuestPoints } from '../core/game-progress.mjs';
+import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember, validateObservedQuestPoints, isObservedProgressSource } from '../core/game-progress.mjs';
 import { canonicalTitle, UNMAPPED_QUEST_REASONS } from './quest-mapping.mjs';
 
 export function previewProgressSnapshot(state, memberId, snapshot, questMapping) {
-  if (!['runemetrics', 'platform-api', 'game-plugin', 'official-api', 'hiscores'].includes(snapshot.source)) throw new TypeError('Unknown progress source.');
+  if (!isObservedProgressSource(snapshot.source)) throw new TypeError('Unknown progress source.');
   validateRuneMetricsTimestamp(snapshot.fetchedAt, 'Progress');
   const member = state.members.find(owner => owner.id === memberId);
   if (!member) throw new RangeError(`Unknown member: ${memberId}`);
@@ -55,7 +55,7 @@ export function previewProgressSnapshot(state, memberId, snapshot, questMapping)
         after: snapshot.questPoints } } : {}),
       counts: { completedQuests, matchedQuests, unmatchedQuests: unmatched.quests.length } },
     command: { type: snapshot.source === 'game-plugin' ? 'apply-game-progress' : 'apply-runemetrics', memberId,
-      ...(snapshot.source === 'game-plugin' ? { achievements: [] } : { runescapeName: member.runescapeName, ...(['platform-api', 'official-api', 'hiscores'].includes(snapshot.source) ? { source: snapshot.source } : {}) }),
+      ...(snapshot.source === 'game-plugin' ? { achievements: [] } : { runescapeName: member.runescapeName, ...(snapshot.source !== 'runemetrics' ? { source: snapshot.source } : {}) }),
       fetchedAt: snapshot.fetchedAt, skills: observedSkills, quests: observedQuests,
       ...(snapshot.questPoints !== undefined ? { questPoints: snapshot.questPoints } : {}) },
   };

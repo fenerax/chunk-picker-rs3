@@ -1,4 +1,5 @@
 import { progressBelongsToMember } from '../core/game-progress.mjs';
+export { isObservedProgressSource } from '../core/game-progress.mjs';
 import { createPlatformApiClient } from './platform-api.mjs';
 import { createRuneMetricsSource } from './runemetrics.mjs';
 import { createOfficialApiSource } from './official-api.mjs';

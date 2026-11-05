@@ -8,7 +8,7 @@ The picker now fetches levels and whole XP from main RS3 Hiscores and quest comp
 
 The new top-level quest-point fields are the most useful data addition. Jagex calculates them with the game’s rules, including retained historical Sheep Shearer points, the corresponding Myths of the White Lands adjustment, and Dimension of Disaster replays. Quest status alone cannot reliably reproduce that total. The global maximum does not mean a player’s F2P target or number of points obtainable within unlocked chunks.
 
-Private live adapter checks returned 29 skills and 366 quest records for each of two accounts. No account values are retained here. The checks also exposed historical Hiscores names: Hitpoints means Constitution; Runecraft means Runecrafting.
+The adapter recognizes the historical Hiscores names: Hitpoints means Constitution; Runecraft means Runecrafting. Public fixtures use invented skill vectors and quest completion sets.
 
 ## Further functionality the API could support
 
@@ -27,7 +27,7 @@ Hiscores loses RuneMetrics’ tenths-of-XP precision. Monthly XP has no direct r
 
 ## Verification
 
-Private read-only checks returned all 29 skills for two accounts, with no unmatched skills. Completed quests mapped 18 of 20 and 43 of 46; unmapped records remained available for review and did not prevent authoritative quest-point sync.
+Synthetic tests cover skill identities, unmatched quests and authoritative quest-point sync without retaining account observations or capture metadata.
 
 A separate private live server check exercised preview, apply, backup, restart and undo for two accounts using a temporary store. All steps passed; no personal save was changed. These private checks are background evidence from the source implementation. Public tests use invented display names and values and never call the live API.
 

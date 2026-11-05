@@ -1,4 +1,5 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createGroupState } from '../app/core/state.mjs';
@@ -8,18 +9,20 @@ import { taskId } from '../app/tasks/engine.mjs';
 import { RUNE_METRICS_SKILLS, createQuestMapping, normalizeQuestTitle, previewRuneMetrics, createRuneMetricsClient as createClient } from '../app/integrations/runemetrics.mjs';
 
 const createRuneMetricsClient = options => createClient({ clock: () => Date.parse('2026-10-27T12:00:00Z'), ...options });
+beforeEach(t => blockUnmockedFetch(t));
 const fixture = name => readFile(new URL(`./fixtures/runemetrics/${name}.json`, import.meta.url), 'utf8').then(JSON.parse);
-// Invented compatibility snapshots; no account captures are read by these tests.
-const legacyProfile = name => ({ name, skillvalues: RUNE_METRICS_SKILLS.map((skill, id) => ({ id, level: 3 + id % 6, xp: 1000 + id * 101 })) });
-const player1Profile = legacyProfile('exampleGIMab'), player2Profile = legacyProfile('twosamplegim');
-const questRow = title => ({ title, status: 'COMPLETED' });
-const player1Quests = { quests: ['Broken Home', 'Necromancy!', 'Unstable Foundations'].map(questRow) };
-const player2Quests = { quests: ["Cook's Assistant", 'Broken Home', 'Necromancy!', 'Unstable Foundations'].map(questRow) };
+// Invented compatibility fixtures; no real account data.
+const [player1Profile, player2Profile, player1Quests, player2Quests] = await Promise.all([
+  fixture('examplegimab-profile'), fixture('twosamplegim-profile'),
+  fixture('examplegimab-quests'), fixture('twosamplegim-quests'),
+]);
 const [errors, definitions] = await Promise.all([fixture('errors'),
   readFile(new URL('../rs3-chunkpicker-chunkinfo-export.json', import.meta.url), 'utf8').then(JSON.parse)]);
-const questMapping = createQuestMapping(definitions), fetchedAt = '2026-10-07T20:30:43.744Z';
+const questMapping = createQuestMapping(definitions), fetchedAt = '2001-02-03T00:00:03.000Z';
 function group(mapping = questMapping) {
   const state = createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
+  state.members[0].runescapeName = player1Profile.name;
+  state.members[1].runescapeName = player2Profile.name;
   state.tasks = [...mapping.values()].flat().map(({taskId: id,label}) => ({id,label,category:'Quest'}));
   return state;
 }

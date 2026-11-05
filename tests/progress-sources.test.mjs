@@ -1,4 +1,5 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
 import { createProgressSources as createSources, createPluginProgressSource, createOfficialApiSource, previewProgress } from '../app/integrations/progress-sources.mjs';
 import { platformResponse } from './helpers/platform-api-fixtures.mjs';
@@ -11,6 +12,8 @@ import { trainingProgress, buildTrainingAvailability } from '../app/tasks/traini
 import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { personalSkillProgress } from '../app/web/helper-model.mjs';
 import { customTaskDoable } from '../app/web/custom-tasks-model.mjs';
+
+beforeEach(t => blockUnmockedFetch(t));
 
 const createProgressSources = options => createSources({ webSource: 'runemetrics', hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...options });
 const beforeSunset = RUNE_METRICS_SUNSET_AT - 1000;
@@ -137,7 +140,7 @@ test('one configured replacement adapter supplies normalized progress with truth
 
 test('all progress sources feed account levels, training and quest availability with their binding intact', () => {
   const engine = createTaskEngine({ chunks: { '100': {} }, challenges: { Extra: { 'Cook requirement': { SkillsNeeded: { Cooking: 30 } } } } });
-  for (const source of ['runemetrics', 'official-api', 'game-plugin']) {
+  for (const source of ['runemetrics', 'platform-api', 'official-api', 'hiscores', 'game-plugin']) {
     const state = createGroupState([{ id: owner.id, name: 'Player', unlocked: ['100'] }]);
     const member = state.members[0]; member.runescapeName = owner.runescapeName;
     const provenance = { source, fetchedAt: new Date(beforeSunset).toISOString(),

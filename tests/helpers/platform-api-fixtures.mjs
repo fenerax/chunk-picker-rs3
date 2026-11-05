@@ -1,4 +1,4 @@
-// Synthetic official API responses, independent of the private account captures.
+// Synthetic official API responses with invented account progress.
 // Totals deliberately differ from summed quest awards (historical/replay cases).
 export const platformProfile = (name = 'exampleGIMab') => ({ name, skills: [
   { id: 0, name: 'Overall', rank: 10000, level: 33, xp: 12000 },
