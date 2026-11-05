@@ -37,7 +37,10 @@ definitions are added within that scope in the same undoable command.
 
 Whole-save restore retains the preceding save and starts a new Undo boundary.
 Use **Browse previous saves** to preview and restore that checkpoint. Ordinary
-Undo reverses member restore, including task definitions added by the import.
+Undo reverses member restore, including task definitions added by the import
+and assignment changes. Matching definitions keep their existing assignments
+and add the importing member when needed, so their progress counts. Conflicting
+definitions refuse preview and apply without importing records.
 Registry roster reservations only grow: a failed replacement may leave unused
 slots, which grant no access and do not prevent loading the preceding save.
 
@@ -73,3 +76,20 @@ chunk sets. **Only unlocked chunks carry over**: no selected candidates, tasks,
 rules, progress, notes, group semantics or History. Keep the full backup for
 returning to this picker. There is no original database import or rule export
 in this feature, and no original implementation code is incorporated.
+
+## Import size and count limits
+
+Saved state accepts at most 32 members, 250,000 task definitions, 100,000
+records in each member array or dictionary, and 250,000 entries in any other
+JSON collection (including archives). Oversized collections fail validation;
+records are never truncated. These ceilings allow ample room above the frozen
+save fixtures (two-member rosters; the original-sync capture's largest dictionary
+has 153 entries) and the reference dataset's 92,638 task-map entries plus its
+index counter. No live saves were read to choose these limits.
+
+Transfer reports index definitions and completions once. Restore previews also
+index catalogue differences, completion differences and task labels, so a large
+save does not rescan the catalogue for every completion. Roster mapping remaps
+live gameplay and journal migration guards and retains their original attribution
+in `provenance.transferRoster.gameplayMigration`. Cleared migrated fields remain
+cleared when the destination prepares or reloads the save.

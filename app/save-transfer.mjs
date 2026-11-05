@@ -35,25 +35,27 @@ export function requireTransferDataset(dataset, backup) {
 // and historical archives are evidence, never identifiers to search-and-replace.
 export function mapTransferRoster(state, destinations, mapping, requiredIds = destinations.map(m => m.id)) {
   const source = state.members.map(m => m.id), existing = destinations.map(m => m.id);
+  const destinationById = new Map(destinations.map(member => [member.id, member]));
   const sameNames = state.members.every(member => {
-    const destination = destinations.find(row => row.id === member.id);
+    const destination = destinationById.get(member.id);
     return destination?.name === undefined || destination.name === member.name;
   });
   if (!mapping && (JSON.stringify(source) !== JSON.stringify(existing) || !sameNames)) return null;
   const entries = mapping ?? Object.fromEntries(source.map(id => [id, id]));
   if (!entries || Array.isArray(entries) || Object.keys(entries).length !== source.length
     || source.some(id => !Object.hasOwn(entries, id))) fail(400, 'Assign every source member exactly once.');
-  const targets = source.map(id => entries[id]);
+  const targets = source.map(id => entries[id]), targetIds = new Set(targets);
   if (targets.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id) || ['__proto__', 'constructor', 'prototype'].includes(id))
-    || new Set(targets).size !== targets.length || requiredIds.some(id => !targets.includes(id))) {
+    || targetIds.size !== targets.length || requiredIds.some(id => !targetIds.has(id))) {
     fail(422, 'Map each source member to a different destination member, keeping every assigned destination participant. Use a fresh picker when an assigned roster cannot fit.');
   }
-  const next = structuredClone(state), mapped = id => entries[id] ?? id;
+  const next = structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
   const changed = source.some(id => entries[id] !== id);
   // Foreign inverses must never become live at another roster. Keep the exact
   // original history in provenance, as the normal restore boundary does.
   if (changed) {
-    next.provenance = { ...next.provenance, transferRoster: { ...(next.provenance?.transferRoster ? { previous: next.provenance.transferRoster } : {}), mapping: entries, sourceRoster: state.members.map(({ id, name }) => ({ id, name })), history: next.history } };
+    next.provenance = { ...next.provenance, transferRoster: { ...(next.provenance?.transferRoster ? { previous: next.provenance.transferRoster } : {}), mapping: entries, sourceRoster: state.members.map(({ id, name }) => ({ id, name })), history: next.history,
+      ...(next.legacy?.gameplayMigration ? { gameplayMigration: structuredClone(next.legacy.gameplayMigration) } : {}) } };
     next.history = [];
   }
   for (const member of next.members) {
@@ -61,6 +63,12 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
     for (const field of ['skillProgress', 'questProgress', 'achievementProgress', 'itemProgress']) {
       for (const row of Object.values(member[field] ?? {})) if (row.memberId !== undefined) row.memberId = mapped(row.memberId);
     }
+  }
+  // These records drive readiness and live compatibility projection. The exact
+  // source attribution remains in transferRoster above, alongside source History.
+  const migration = next.legacy?.gameplayMigration;
+  for (const field of ['migratedMembers', 'journalMigratedMembers', 'unresolved', 'taskStatusProvenance']) {
+    for (const row of migration?.[field] ?? []) if (row.memberId !== undefined) row.memberId = mapped(row.memberId);
   }
   for (const task of next.tasks) if (task.memberIds) task.memberIds = task.memberIds.map(mapped);
   for (const claim of Object.values(next.taskClaims ?? {})) claim.memberId = mapped(claim.memberId);
@@ -72,13 +80,15 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
 
 export function transferReport(state, { world, taskIds = new Set(), knownRule = () => true, warnings = [], memberId } = {}) {
   const records = [];
+  const definitions = new Map(state.tasks.map(task => [task.id, task]));
   const add = (owner, field, key, rawValue, reason, outcome = 'preserved-for-review') => records.push({ owner, field, key, rawValue, candidateMatches: [], reason, outcome });
   for (const member of state.members.filter(m => !memberId || m.id === memberId)) {
     for (const field of ['unlocked', 'selected', 'pendingRoll', 'blacklisted']) for (const id of member[field]) {
       if (world && !world.chunks.has(id.split('-')[0])) add(member.id, field, id, id, 'Unknown chunk; quarantined in the portable archive and excluded from active territory.');
     }
-    for (const id of new Set([...member.completedTasks, ...Object.keys(member.taskStatus ?? {})])) if (!taskIds.has(id)) add(member.id, 'taskProgress', id,
-      { definition: state.tasks.find(t => t.id === id), completed: member.completedTasks.includes(id), status: member.taskStatus?.[id] }, 'Not in the destination saved catalogue; the source task definition and progress are retained.');
+    const completed = new Set(member.completedTasks);
+    for (const id of new Set([...completed, ...Object.keys(member.taskStatus ?? {})])) if (!taskIds.has(id)) add(member.id, 'taskProgress', id,
+      { definition: definitions.get(id), completed: completed.has(id), status: member.taskStatus?.[id] }, 'Not in the destination saved catalogue; the source task definition and progress are retained.');
     for (const [id, raw] of Object.entries(member.taskRules ?? {})) if (!knownRule(id)) add(member.id, 'taskRules', id, raw, 'Unknown task rule retained for review.');
   }
   for (const row of state.legacy?.gameplayMigration?.unresolved ?? []) {

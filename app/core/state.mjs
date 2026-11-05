@@ -33,6 +33,12 @@ export { preferenceDefinitions, validatePreference } from './preferences.mjs';
 export const SCHEMA_VERSION = 1;
 export const BACKUP_FORMAT = 'rs3-chunk-picker';
 export const MAX_JOURNAL_LENGTH = 10_000;
+// Generous schema ceilings, including archived state validated on restore.
+export const SAVE_COUNT_LIMITS = Object.freeze({ members: 32, tasks: 250_000, memberRecords: 100_000, collectionRecords: 250_000 });
+function countLimit(value, maximum, path) {
+  const count = Array.isArray(value) ? value.length : value && typeof value === 'object' ? Object.keys(value).length : 0;
+  if (count > maximum) fail(`${path} exceeds the save limit of ${maximum} records`);
+}
 
 const BASE_CHUNK = /^[1-9]\d*$/;
 const GAMEPLAY_KEYS = new Set(['rules', 'chunkOrder', 'settings', 'chunkinfo', 'chunks',
@@ -92,7 +98,7 @@ const COMMAND_KEYS = new Map([
   ['set-primary-override', new Set(['type', 'memberId', 'skill', 'enabled'])],
   ['set-skill-levels', new Set(['type', 'memberId', 'skill', 'passiveLevel', 'maxLevel'])],
   ['set-runescape-name', new Set(['type', 'memberId', 'name'])],
-  ['replace-member', new Set(['type', 'memberId', 'member', 'source', 'tasks'])],
+  ['replace-member', new Set(['type', 'memberId', 'member', 'source', 'tasks', 'taskAssignments'])],
   ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests', 'source'])],
   ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests', 'achievements', 'items'])],
   ['sync-original', new Set(['type', 'capturedAt', 'sourceHash', 'members'])],
@@ -614,9 +620,12 @@ function assertJson(value) {
     if (historyEvent && Object.hasOwn(item, 'source')) validateHistorySource(item);
     seen.add(item);
     if (Array.isArray(item)) {
+      if (item.length > SAVE_COUNT_LIMITS.collectionRecords) fail(`${where()} exceeds the save limit of ${SAVE_COUNT_LIMITS.collectionRecords} records`);
       for (let index = 0; index < item.length; index++) { branch.push(index); visit(item[index], false, historyList); branch.pop(); }
     } else {
-      for (const key of Object.keys(item)) { branch.push(key); visit(item[key], key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
+      const keys = Object.keys(item);
+      if (keys.length > SAVE_COUNT_LIMITS.collectionRecords) fail(`${where()} exceeds the save limit of ${SAVE_COUNT_LIMITS.collectionRecords} records`);
+      for (const key of keys) { branch.push(key); visit(item[key], key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
     }
     seen.delete(item);
   }
@@ -653,6 +662,11 @@ export function validateOwnedState(state, registry) {
 
 function validateStateCopy(copy, registry) {
   knownKeys(copy, STATE_KEYS, 'state');
+  countLimit(copy.members, SAVE_COUNT_LIMITS.members, 'members');
+  countLimit(copy.tasks, SAVE_COUNT_LIMITS.tasks, 'tasks');
+  for (const member of Array.isArray(copy.members) ? copy.members : []) {
+    for (const field of [...MEMBER_ARRAY_FIELDS, ...MEMBER_DICTIONARY_FIELDS]) countLimit(member?.[field], SAVE_COUNT_LIMITS.memberRecords, `member.${field}`);
+  }
   if (copy.identityRegistry !== undefined) validateIdentityRegistry(copy.identityRegistry);
   canonicalizeTaskClaimAliases(copy);
   if (copy.progressSnapshots !== undefined) validateProgressSnapshots(copy.progressSnapshots);
@@ -673,7 +687,8 @@ function validateStateCopy(copy, registry) {
   registryOrDefault(registry).resolve(copy.rules);
   if (copy.ruleReviews !== undefined) validateRuleReviews(copy.ruleReviews, registryOrDefault(registry));
   uniqueRecords(copy.tasks, 'tasks');
-  for (const task of copy.tasks) validateTask(task, new Set((copy.members ?? []).map(member => member.id)));
+  const rosterIds = new Set((copy.members ?? []).map(member => member.id));
+  for (const task of copy.tasks) validateTask(task, rosterIds);
   const tasks = new Set(copy.tasks.map(task => task.id));
   const taskRows = new Map(copy.tasks.map(task => [task.id, task]));
   uniqueRecords(copy.members, 'members');
@@ -938,16 +953,18 @@ export function importBackup(document, registry) {
 }
 
 function difference(before, after) {
-  return { added: after.filter(id => !before.includes(id)), removed: before.filter(id => !after.includes(id)) };
+  const oldIds = new Set(before), newIds = new Set(after);
+  return { added: after.filter(id => !oldIds.has(id)), removed: before.filter(id => !newIds.has(id)) };
 }
 function recordChanges(before, after) {
+  const oldRows = new Map(before.map(item => [item.id, item])), newRows = new Map(after.map(item => [item.id, item]));
   return {
-    added: after.filter(item => !before.some(old => old.id === item.id)),
-    removed: before.filter(item => !after.some(next => next.id === item.id)),
+    added: after.filter(item => !oldRows.has(item.id)),
+    removed: before.filter(item => !newRows.has(item.id)),
     changed: after.filter(item => {
-      const old = before.find(candidate => candidate.id === item.id);
+      const old = oldRows.get(item.id);
       return old && JSON.stringify(old) !== JSON.stringify(item);
-    }).map(item => ({ id: item.id, before: before.find(old => old.id === item.id), after: item })),
+    }).map(item => ({ id: item.id, before: oldRows.get(item.id), after: item })),
   };
 }
 
@@ -966,6 +983,7 @@ function removedPaths(before, after, path = 'legacy') {
 export function previewRestore(current, incoming, registry) {
   const before = validateState(current, registry);
   const after = incoming?.format === BACKUP_FORMAT ? importBackup(incoming, registry) : validateState(incoming, registry);
+  const beforeTasks = new Map(before.tasks.map(task => [task.id, task])), afterTasks = new Map(after.tasks.map(task => [task.id, task]));
   const members = [...new Set([...before.members, ...after.members].map(member => member.id))].map(id => {
     const oldMember = before.members.find(member => member.id === id);
     const newMember = after.members.find(member => member.id === id);
@@ -1027,7 +1045,7 @@ export function previewRestore(current, incoming, registry) {
     removedPaths: removedPaths(before.legacy, after.legacy),
   };
   const warnings = (after.provenance?.taskRuleDiagnostics ?? []).map(item => `Restore ${before.members.find(member => member.id === item.memberId || member.sourceMapId === item.sourceMapId)?.name ?? after.members.find(member => member.id === item.memberId || member.sourceMapId === item.sourceMapId)?.name ?? item.memberId ?? item.sourceMapId}: ${item.detail}`);
-  for (const item of after.provenance?.taskIdentityMigration?.unresolved ?? []) warnings.push(`Restore keeps the saved task ${before.tasks.find(task => task.id === item.originalId)?.label ?? after.tasks.find(task => task.id === item.originalId)?.label ?? item.originalId} from ${item.path} for review because it could not be matched.`);
+  for (const item of after.provenance?.taskIdentityMigration?.unresolved ?? []) warnings.push(`Restore keeps the saved task ${beforeTasks.get(item.originalId)?.label ?? afterTasks.get(item.originalId)?.label ?? item.originalId} from ${item.path} for review because it could not be matched.`);
   const identityRegistry = { changed: JSON.stringify(before.identityRegistry) !== JSON.stringify(after.identityRegistry),
     removedAliases: Object.keys(before.identityRegistry?.aliases ?? {}).filter(alias => !Object.hasOwn(after.identityRegistry?.aliases ?? {}, alias)) };
   if (identityRegistry.removedAliases.length) warnings.push(`Restore changes ${identityRegistry.removedAliases.length} older task references; your previous save remains in the backup.`);
@@ -1037,7 +1055,7 @@ export function previewRestore(current, incoming, registry) {
   for (const member of members) {
     if (member.journal.changed) warnings.push(`Restore ${member.journal.after === null ? 'removes' : 'changes'} the journal for ${member.identity.name.before ?? member.name}.`);
     if (member.identity.changed) warnings.push(`Restore changes the name, RuneScape account or original map owner for ${member.identity.name.before ?? member.name}.`);
-    if (member.completedTasks.removed.length) warnings.push(`Restore removes personal task completions for ${member.identity.name.before ?? member.name}: ${member.completedTasks.removed.map(id => before.tasks.find(task => task.id === id)?.label ?? after.tasks.find(task => task.id === id)?.label ?? id).join(', ')}.`);
+    if (member.completedTasks.removed.length) warnings.push(`Restore removes personal task completions for ${member.identity.name.before ?? member.name}: ${member.completedTasks.removed.map(id => beforeTasks.get(id)?.label ?? afterTasks.get(id)?.label ?? id).join(', ')}.`);
     if (member.teleports.removed.length || member.teleports.changed.length) warnings.push(`Restore removes or changes saved teleports for ${member.identity.name.before ?? member.name}.`);
     if (member.transportFacts.changed) warnings.push(`Restore changes confirmed travel requirements for ${member.identity.name.before ?? member.name}.`);
     if (member.teleportOverrides.changed) warnings.push(`Restore changes personal teleport availability choices for ${member.identity.name.before ?? member.name}.`);
@@ -1859,12 +1877,22 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (payload.source !== undefined && (typeof payload.source !== 'string' || payload.source.length > 120)) fail('Replacement source must be a short label');
       if (payload.tasks !== undefined) {
         uniqueRecords(payload.tasks, 'replacement tasks');
+        const existingIds = new Set(next.tasks.map(task => task.id)), memberIds = new Set(next.members.map(m => m.id));
         for (const task of payload.tasks) {
-          validateTask(task, new Set(next.members.map(m => m.id)));
-          if (next.tasks.some(row => row.id === task.id)) fail('Replacement task already exists');
+          validateTask(task, memberIds);
+          if (existingIds.has(task.id)) fail('Replacement task already exists');
         }
         next.tasks = [...next.tasks, ...jsonClone(payload.tasks)];
         delete payload.tasks;
+      }
+      if (payload.taskAssignments !== undefined) {
+        uniqueStrings(payload.taskAssignments, 'replacement task assignments');
+        const assignments = new Set(payload.taskAssignments);
+        const rows = new Map(next.tasks.map(task => [task.id, task]));
+        for (const id of assignments) if (!rows.has(id)) fail('Replacement assignment references absent task');
+        next.tasks = next.tasks.map(task => assignments.has(task.id) && task.memberIds && !task.memberIds.includes(payload.memberId)
+          ? { ...task, memberIds: [...task.memberIds, payload.memberId] } : task);
+        delete payload.taskAssignments;
       }
       next.members[index] = jsonClone(payload.member);
       // Undo keeps the previous map; History only needs a summary, not a second copy.

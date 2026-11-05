@@ -1825,19 +1825,26 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const report = transferReport(incoming, { world: indexedWorld, taskIds: new Set(current.tasks.map(t => t.id)), knownRule: id => taskRuleDefinitions.some(rule => rule.id === id), warnings, memberId: sourceMemberId });
               const referenced = new Set([...member.completedTasks, ...['taskStatus', 'questProgress', 'achievementProgress', 'itemProgress', 'xpChoices'].flatMap(field => Object.keys(member[field] ?? {})), ...Object.values(member.taskAlternatives ?? {}).flatMap(groups => Object.values(groups))]);
               const scopedTasks = incoming.tasks.filter(task => !task.memberIds || task.memberIds.includes(sourceMemberId) || referenced.has(task.id));
-              const tasks = scopedTasks.filter(task => !current.tasks.some(row => row.id === task.id)).map(task => ({ ...task, memberIds: [owner.id] }));
+              const currentTasks = new Map(current.tasks.map(task => [task.id, task]));
+              const taskAssignments = [], assignmentUpdates = new Map();
+              const tasks = scopedTasks.filter(task => !currentTasks.has(task.id)).map(task => ({ ...task, memberIds: [owner.id] }));
               for (const task of scopedTasks) {
-                const existing = current.tasks.find(row => row.id === task.id);
+                const existing = currentTasks.get(task.id);
                 if (existing) {
                   const { memberIds: sourceAssignment, ...sourceDefinition } = task;
                   const { memberIds: destinationAssignment, ...destinationDefinition } = existing;
+                  if (destinationAssignment && !destinationAssignment.includes(owner.id)) {
+                    taskAssignments.push(task.id);
+                    assignmentUpdates.set(task.id, { ...existing, memberIds: [...destinationAssignment, owner.id] });
+                  }
                   if (!isDeepStrictEqual(sourceDefinition, destinationDefinition)) throw httpError(422, 'A saved task ID has a different destination definition. Ask the owner to review a whole-picker restore; no member records were imported.');
                 }
               }
               report.excludedSections = ['Other members', 'Shared rules and group plans', 'Source History and migration archives'].map(field => ({ field, reason: 'Member restore keeps the destination section. The source backup remains the portable copy.' }));
               if (tasks.length) command.tasks = tasks;
+              if (taskAssignments.length) command.taskAssignments = taskAssignments;
               if (route.endsWith('/preview')) {
-                const next = { ...current, tasks: [...current.tasks, ...tasks], members: current.members.map(item => item.id === owner.id ? member : item) };
+                const next = { ...current, tasks: [...current.tasks.map(task => assignmentUpdates.get(task.id) ?? task), ...tasks], members: current.members.map(item => item.id === owner.id ? member : item) };
                 // This comparison is a hypothetical map, before the actual
                 // replace-member command adds its inverse. Existing undo
                 // after-values belong to current, so do not replay them on it.

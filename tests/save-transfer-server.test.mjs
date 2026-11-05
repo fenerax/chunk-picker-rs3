@@ -11,6 +11,8 @@ process.env.RS3_DATASET = 'open-starter';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE']) delete process.env[key];
 const { createServer } = await import('../app/server.mjs');
 const { exportBackup, createGroupState } = await import('../app/core/state.mjs');
+const { createTaskFactsIndex } = await import('../app/core/progress-index.mjs');
+const { createRuleRegistry } = await import('../app/core/rules.mjs');
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
 const origin = 'https://picker.example';
 const proxy = { Host: 'picker.example', 'X-Forwarded-For': '203.0.113.7', 'X-Forwarded-Proto': 'https' };
@@ -244,4 +246,71 @@ test('unknown chunks are quarantined, unknown task rules retained, and the repor
   assert.equal(archivedPreview.status, 200, archivedPreview.text);
   assert.ok(archivedPreview.json().transferReport.records.some(row => row.key === '999999' && /Previously quarantined/.test(row.reason)));
   assert.equal(applied.json().transferReport.counts.dropped, 0);
+});
+
+async function importSyntheticMember(f, backup, memberId, revision) {
+  const body = { backup, memberId };
+  const preview = await f.private('/api/member-restore/preview', { body });
+  assert.equal(preview.status, 200, preview.text);
+  const applied = await f.private('/api/member-restore', { body: { ...body, expectedRevision: revision, previewToken: preview.json().previewToken } });
+  assert.equal(applied.status, 200, applied.text);
+  return preview.json().preview;
+}
+const assertCounted = (state, memberId, taskId) => {
+  const facts = createTaskFactsIndex(state, memberId, createRuleRegistry()).get(taskId);
+  assert.equal(facts.actual, true);
+  assert.ok(facts.completedBy.includes(memberId));
+};
+
+test('two member imports from a shared custom task count both completions and undo the assignment', async t => {
+  const f = await fixture(t), backup = (await f.private('/api/backup')).json();
+  const task = { id: 'custom:synthetic-shared', label: 'Synthetic shared task', category: 'Custom', memberIds: ['one', 'two'] };
+  backup.state.tasks.push(task);
+  for (const member of backup.state.members) member.completedTasks = [task.id];
+  await importSyntheticMember(f, backup, 'one', 0);
+  const preview = await importSyntheticMember(f, backup, 'two', 1);
+  assert.deepEqual(preview.tasks.changed[0].after.memberIds, ['one', 'two']);
+  let state = (await f.private('/api/backup')).json().state;
+  assert.deepEqual(state.tasks.find(row => row.id === task.id).memberIds, ['one', 'two']);
+  for (const memberId of ['one', 'two']) assertCounted(state, memberId, task.id);
+  const undo = await f.private('/api/command', { body: { command: { type: 'undo' }, expectedRevision: 2 } });
+  assert.equal(undo.status, 200, undo.text);
+  state = (await f.private('/api/backup')).json().state;
+  assert.deepEqual(state.tasks.find(row => row.id === task.id).memberIds, ['one']);
+  assert.deepEqual(state.members[1].completedTasks, []);
+  assertCounted(state, 'one', task.id);
+});
+
+test('member import extends an otherwise matching task assigned only to another destination member', async t => {
+  const f = await fixture(t), backup = (await f.private('/api/backup')).json();
+  const task = { id: 'custom:synthetic-assigned', label: 'Synthetic assigned task', category: 'Custom' };
+  const added = await f.private('/api/command', { body: { command: { type: 'add-task', task: { ...task, memberIds: ['two'] } }, expectedRevision: 0 } });
+  assert.equal(added.status, 200, added.text);
+  backup.state.tasks.push({ ...task, memberIds: ['one'] });
+  backup.state.members[0].completedTasks = [task.id];
+  const preview = await importSyntheticMember(f, backup, 'one', 1);
+  assert.deepEqual(preview.tasks.changed[0].after.memberIds, ['two', 'one']);
+  let state = (await f.private('/api/backup')).json().state;
+  assert.deepEqual(state.tasks.find(row => row.id === task.id).memberIds, ['two', 'one']);
+  assertCounted(state, 'one', task.id);
+  const undo = await f.private('/api/command', { body: { command: { type: 'undo' }, expectedRevision: 2 } });
+  assert.equal(undo.status, 200, undo.text);
+  state = (await f.private('/api/backup')).json().state;
+  assert.deepEqual(state.tasks.find(row => row.id === task.id).memberIds, ['two']);
+  assert.deepEqual(state.members[0].completedTasks, []);
+});
+
+test('member import rejects a conflicting task definition in preview and apply without stranding progress', async t => {
+  const f = await fixture(t), backup = (await f.private('/api/backup')).json();
+  const task = { id: 'custom:synthetic-conflict', label: 'Synthetic destination task', category: 'Custom', memberIds: ['two'] };
+  assert.equal((await f.private('/api/command', { body: { command: { type: 'add-task', task }, expectedRevision: 0 } })).status, 200);
+  backup.state.tasks.push({ ...task, label: 'Synthetic different task', memberIds: ['one'] });
+  backup.state.members[0].completedTasks = [task.id];
+  const before = (await f.private('/api/backup')).json().state;
+  for (const route of ['/api/member-restore/preview', '/api/member-restore']) {
+    const response = await f.private(route, { body: { backup, memberId: 'one', expectedRevision: 1 } });
+    assert.equal(response.status, 422, response.text);
+    assert.match(response.json().message, /different destination definition/);
+  }
+  assert.deepEqual((await f.private('/api/backup')).json().state, before);
 });
