@@ -694,13 +694,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (observed !== state && coordination.has(state)) coordination.set(observed, coordinationOf(state));
     return observed;
   }
+  function loadPreparationIsCurrent(state) {
+    return (!prepareState || prepareState.isCurrent?.(state) === true)
+      && (!migrateState || migrateState.isCurrent?.(state) === true);
+  }
   async function prepared(state, operation) {
     // The built-in identity-only hook explicitly proves that a gameplay command
     // kept its dataset stamp. Caller hooks keep their full copy/validation path.
     if (operation === 'command' && prepareState?.commandIsCurrent?.(state)
       && (!migrateState || migrateState.isCurrent?.(state))) return state;
-    if (operation === 'load' && prepareState?.isCurrent?.(state) === true
-      && (!migrateState || migrateState.isCurrent?.(state) === true)) return state;
+    if (operation === 'load' && loadPreparationIsCurrent(state)) return state;
     // Gameplay commands start from an already migrated private state. Caller
     // preparation hooks still receive migration context and may require repair
     // of catalogue changes made by an earlier hook.
@@ -960,7 +963,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
     currentDiskSerialized ??= await serializedDiskState(current);
-    if (existing && (prepareState || migrateState)) {
+    // Proven no-op hooks do not need a full retained-history migration baseline.
+    // The dependency validation below still runs before the store becomes ready.
+    if (existing && (prepareState || migrateState) && !loadPreparationIsCurrent(current)) {
       // Project retained events together with active events. Leaving the old
       // segment references attached could revive pre-boundary undo on export.
       const baseline = migrateState && current.provenance?.historyArchive?.length ? (await hydrateHistory(current)).state : current;
