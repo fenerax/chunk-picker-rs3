@@ -10,8 +10,11 @@ export async function syncDirectory(directory, { filesystem = fs, platform = pro
   } finally { await handle?.close(); }
 }
 
-/** Rename is the publication boundary. A later sync failure cannot roll it back. */
-export async function publishFile(temporary, file, { filesystem = fs, platform = process.platform, wait = delay } = {}) {
+/** Warn only when the caller can adopt a self-consistent published file. Ordered
+ * publications must stop on sync failure even though rename cannot be undone. */
+export async function publishFile(temporary, file, { filesystem = fs, platform = process.platform, wait = delay,
+  onPostPublishSyncError = 'throw' } = {}) {
+  if (!['warn', 'throw'].includes(onPostPublishSyncError)) throw new TypeError('Invalid post-publication sync error policy.');
   // Windows scanners can briefly hold the destination without delete-sharing.
   // Retry the same synchronized replacement; never remove the old file.
   for (let attempt = 0; ; attempt++) {
@@ -25,6 +28,7 @@ export async function publishFile(temporary, file, { filesystem = fs, platform =
     await syncDirectory(path.dirname(file), { filesystem, platform });
     return { durable: true };
   } catch (error) {
+    if (onPostPublishSyncError === 'throw') throw error;
     return { durable: false, error };
   }
 }

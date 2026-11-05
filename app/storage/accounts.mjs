@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { atomicWrite } from './invites.mjs';
-import { warnDurability } from './publication.mjs';
 
 const UUID = /^[a-f0-9-]{36}$/;
 const MEMBER = /^[A-Za-z0-9_-]{1,64}$/;
@@ -54,8 +53,8 @@ export async function openAccountStore({ dataDir, now = Date.now } = {}) {
     const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       const next = structuredClone(current), result = operation(next);
       validate(next);
-      const publication = await atomicWrite(file, next); current = next;
-      warnDurability(publication, 'accounts');
+      // Membership must be durable before a separate invitation can be claimed.
+      await atomicWrite(file, next, { onPostPublishSyncError: 'throw' }); current = next;
       return clone(result);
     }));
     queue = pending.catch(() => {});

@@ -51,14 +51,14 @@ export function validateInviteStore(document) {
   }
   return document;
 }
-export async function atomicWrite(file, document) {
+export async function atomicWrite(file, document, { onPostPublishSyncError = 'throw' } = {}) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
     handle = await open(temporary, 'wx', 0o600);
     await handle.writeFile(`${JSON.stringify(document)}\n`);
     await handle.sync(); await handle.close(); handle = undefined;
-    return await publishFile(temporary, file);
+    return await publishFile(temporary, file, { onPostPublishSyncError });
   } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
 }
 
@@ -78,7 +78,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const next = structuredClone(current);
       next.sessions = next.sessions.filter(session => Date.parse(session.expiresAt) > now());
       const result = operation(next);
-      const publication = await atomicWrite(file, next); current = next;
+      const publication = await atomicWrite(file, next, { onPostPublishSyncError: 'warn' }); current = next;
       warnDurability(publication, 'invites');
       return result;
     }));

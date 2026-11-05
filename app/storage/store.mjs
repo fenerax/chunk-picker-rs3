@@ -128,7 +128,7 @@ async function removeUnchanged(file, contents) {
 async function createOwnerFile(file, contents) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   try {
-    warnDurability(await atomicWrite(temporary, contents), 'store lock');
+    await atomicWrite(temporary, contents);
     await link(temporary, file);
   } finally { await unlink(temporary).catch(() => {}); }
 }
@@ -205,7 +205,9 @@ async function acquireLock(directory, beforeLockRecovery) {
   throw new Error('Could not acquire the data-directory lock.');
 }
 
-async function atomicWrite(file, contents, beforeRename) {
+// Dependencies (backups, sidecars, archives and lock records) must be durable
+// before later writes can reference them or remove their previous source.
+async function atomicWrite(file, contents, { beforeRename, onPostPublishSyncError = 'throw' } = {}) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
@@ -215,7 +217,7 @@ async function atomicWrite(file, contents, beforeRename) {
     await handle.close();
     handle = undefined;
     if (beforeRename) await beforeRename();
-    return await publishFile(temporary, file);
+    return await publishFile(temporary, file, { onPostPublishSyncError });
   } catch (error) {
     if (handle) await handle.close().catch(() => {});
     await unlink(temporary).catch(() => {});
@@ -872,7 +874,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
       if (error.code !== 'ENOENT' || readOnly) throw error;
       token = randomBytes(32).toString('base64url');
-      reportDurability(await atomicWrite(tokenFile, `${token}\n`));
+      reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
     }
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
     let existing = false;
@@ -891,7 +893,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         : validateState(initialState, registry);
       current = await prepared(seed, 'initialize');
       currentDiskSerialized = await serializedDiskState(current);
-      reportDurability(await atomicWrite(stateFile, currentDiskSerialized));
+      reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
     currentDiskSerialized ??= await serializedDiskState(current);
     if (existing && (prepareState || migrateState)) {
@@ -918,8 +920,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         await retainBackup(current, 'catalogue-refresh');
         if (coordination.has(current)) coordination.set(ready, { ...coordinationOf(current), lastNonClaimRevision: ready.revision });
         const diskDocument = await serializedDiskState(ready);
-        const publication = await atomicWrite(stateFile, diskDocument,
-          beforeCommit ? () => beforeCommit({ operation: 'catalogue-refresh', state: structuredClone(ready) }) : undefined);
+        const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
+          beforeRename: beforeCommit ? () => beforeCommit({ operation: 'catalogue-refresh', state: structuredClone(ready) }) : undefined });
         current = ready;
         currentDiskSerialized = diskDocument;
         reportDurability(publication);
@@ -936,7 +938,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const diskDocument = await serializedDiskState(observed);
         // Observations keep the same revision, but still replace the durable save.
         await retainBackup(current, 'progress-snapshot');
-        const publication = await atomicWrite(stateFile, diskDocument);
+        const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn' });
         current = observed; currentDiskSerialized = diskDocument;
         reportDurability(publication);
       }
@@ -972,8 +974,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!cleanup) await retainBackup(current, operation, backupLabel);
     const { ledger: nextReceipts, result: receiptResult } = commitActionReceipt(receipts, receipt, validated);
     const diskDocument = await serializedDiskState(validated, nextReceipts);
-    const publication = await atomicWrite(stateFile, diskDocument,
-      beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined);
+    const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
+      beforeRename: beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined });
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     const choicesChanged = JSON.stringify(current.members.map(member => [member.id, member.selected, member.pendingRoll]))
@@ -1283,7 +1285,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const result = openActionSession(receipts, clientId, actor);
         if (result.ledger !== receipts) {
           const bytes = await serializedDiskState(current, result.ledger);
-          const publication = await atomicWrite(stateFile, bytes);
+          const publication = await atomicWrite(stateFile, bytes, { onPostPublishSyncError: 'warn' });
           receipts = result.ledger; currentDiskSerialized = bytes;
           reportDurability(publication);
         }
@@ -1299,7 +1301,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           // Keep the action+outcome atomic in state.json. This small, bounded
           // file confirms only its exact durable receipt; the next gameplay
           // write naturally embeds the resulting watermark without extra I/O.
-          const publication = await atomicWrite(acknowledgementsFile, `${JSON.stringify({ schemaVersion: 1, entries: next })}\n`);
+          const publication = await atomicWrite(acknowledgementsFile, `${JSON.stringify({ schemaVersion: 1, entries: next })}\n`, { onPostPublishSyncError: 'warn' });
           acknowledgements = next; receipts = result.ledger;
           reportDurability(publication);
         }

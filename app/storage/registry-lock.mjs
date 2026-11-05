@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 import { createServer } from 'node:net';
 import path from 'node:path';
-import { publishFile, syncDirectory, warnDurability } from './publication.mjs';
+import { publishFile, syncDirectory } from './publication.mjs';
 
 export { syncDirectory };
 
@@ -26,7 +26,9 @@ export async function writeRegistryJson(file, document) {
     handle = await open(temporary, 'wx', 0o600);
     await handle.writeFile(`${JSON.stringify(document)}\n`);
     await handle.sync(); await handle.close(); handle = undefined;
-    warnDurability(await publishFile(temporary, file), 'registry');
+    // Registry, issued-ID ledger and lock records participate in ordered writes.
+    // Propagate even a post-rename failure so the registry fences this instance.
+    await publishFile(temporary, file, { onPostPublishSyncError: 'throw' });
   } finally { await handle?.close().catch(() => {}); await unlink(temporary).catch(() => {}); }
 }
 

@@ -79,6 +79,7 @@ export const quickTests = new Set([
   "picker-jobs.test.mjs",
   "json-duplicates.test.mjs",
   "registry.test.mjs",
+  "registry-lock.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
   "linux-operator-maintenance.test.mjs",

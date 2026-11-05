@@ -28,7 +28,7 @@ async function write(file, value) {
   try {
     handle = await open(temporary, 'wx', 0o600); await handle.writeFile(`${JSON.stringify(validate(value))}\n`);
     await handle.sync(); await handle.close(); handle = null;
-    return await publishFile(temporary, file);
+    return await publishFile(temporary, file, { onPostPublishSyncError: 'warn' });
   } finally { await handle?.close(); await rm(temporary, { force: true }); }
 }
 

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { openInviteStore } from '../app/storage/invites.mjs';
+import { openAccountStore } from '../app/storage/accounts.mjs';
 import { gunzipSync } from 'node:zlib';
 import { createGroupState, importBackup } from '../app/core/state.mjs';
 import { openStore } from '../app/storage/store.mjs';
@@ -129,6 +130,52 @@ function publicationFailure(t, file, phase = 'directory-sync', onWarning = () =>
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   return { failure, warnings, get syncFailures() { return syncFailures; } };
 }
+
+test('a backup post-rename sync failure stops the dependent state replacement', async t => {
+  const dataDir = await directory(t), store = await openStore({ dataDir, initialState: initialState(), now: firstDay });
+  t.after(() => store.close());
+  const file = path.join(dataDir, 'state.json'), previous = await readFile(file), state = store.getState();
+  const backupsDir = path.join(dataDir, 'backups'), { open, rename } = fs.promises;
+  const failure = Object.assign(new Error('Synthetic backup sync failure'), { code: 'EIO' });
+  let backupFile, syncFailures = 0;
+  t.mock.method(fs.promises, 'rename', async (from, to) => {
+    await rename(from, to);
+    if (path.dirname(to) === backupsDir) backupFile = to;
+  });
+  t.mock.method(fs.promises, 'open', async (target, flags, ...options) => {
+    if (backupFile && target === backupsDir && flags === 'r') {
+      return { async sync() { syncFailures++; throw failure; }, async close() {} };
+    }
+    return open(target, flags, ...options);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  await assert.rejects(store.command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 0), error => error === failure);
+  assert.equal(syncFailures, 1);
+  assert.deepEqual(gunzipSync(await readFile(backupFile)), previous);
+  assert.deepEqual(await readFile(file), previous);
+  assert.deepEqual(store.getState(), state);
+  assert.equal(store.getInfo().durabilityWarnings, 0);
+});
+
+test('account membership sync failure rejects before a dependent invitation claim', async t => {
+  const dataDir = await directory(t), accounts = await openAccountStore({ dataDir });
+  t.after(() => accounts.close());
+  const account = await accounts.ensureIdentity('discord', 'synthetic-account');
+  const invites = await openInviteStore({ dataDir, accounts, masterLabel: 'Synthetic admin' });
+  t.after(() => invites.close());
+  const { invite } = await invites.create({ label: 'Synthetic player', memberId: 'synthetic-player' });
+  const file = path.join(dataDir, 'accounts.json'), fault = publicationFailure(t, file);
+  await assert.rejects((async () => {
+    await accounts.attachMembership(account.id, { inviteId: invite.id, role: 'player', memberId: 'synthetic-player' });
+    await invites.claim(invite.id, account.id);
+  })(), error => error === fault.failure);
+  assert.equal(JSON.parse(await readFile(file)).accounts[0].memberships.length, 1);
+  assert.equal(accounts.get(account.id).memberships.length, 0);
+  assert.equal(invites.get(invite.id).claimedAccountId, undefined);
+  assert.equal(fault.syncFailures, 1);
+  assert.deepEqual(fault.warnings, []);
+});
 
 test('post-rename folder sync failure adopts state, bytes and receipt before the next command', async t => {
   const dataDir = await directory(t);

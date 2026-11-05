@@ -42,10 +42,17 @@ test('a failed rename never syncs the directory', async () => {
   assert.deepEqual(events, [['rename', temporary, file]]);
 });
 
-test('directory sync failure reports a published write and closes the directory handle', async () => {
+for (const policy of [undefined, 'throw']) test(`directory sync failure is fatal with ${policy ?? 'default'} policy and closes the handle`, async () => {
   const failure = Object.assign(new Error('Synthetic sync failure'), { code: 'EIO' });
   const { filesystem, events } = spy({ syncFailure: failure });
-  assert.deepEqual(await publishFile(temporary, file, { filesystem, platform: 'linux' }), { durable: false, error: failure });
+  await assert.rejects(publishFile(temporary, file, { filesystem, platform: 'linux', onPostPublishSyncError: policy }), error => error === failure);
+  assert.deepEqual(events, [['rename', temporary, file], ['open', path.dirname(file), 'r'], ['sync'], ['close']]);
+});
+
+test('warn policy reports a published write after directory sync failure and closes the handle', async () => {
+  const failure = Object.assign(new Error('Synthetic sync failure'), { code: 'EIO' });
+  const { filesystem, events } = spy({ syncFailure: failure });
+  assert.deepEqual(await publishFile(temporary, file, { filesystem, platform: 'linux', onPostPublishSyncError: 'warn' }), { durable: false, error: failure });
   assert.deepEqual(events.slice(-2), [['sync'], ['close']]);
 });
 
@@ -76,7 +83,8 @@ test('unsupported directory sync errors are tolerated only on Windows', async ()
   for (const platform of ['linux', 'win32']) {
     const { filesystem, events } = spy({ syncFailure: failure });
     const published = publishFile(temporary, file, { filesystem, platform });
-    assert.deepEqual(await published, platform === 'win32' ? { durable: true } : { durable: false, error: failure });
+    if (platform === 'win32') assert.deepEqual(await published, { durable: true });
+    else await assert.rejects(published, error => error === failure);
     assert.deepEqual(events.at(-1), ['close']);
   }
 });
@@ -84,13 +92,21 @@ test('unsupported directory sync errors are tolerated only on Windows', async ()
 test('Windows still reports directory I/O failures', async () => {
   const failure = Object.assign(new Error('Synthetic directory I/O failure'), { code: 'EIO' });
   const { filesystem } = spy({ openFailure: failure });
-  assert.deepEqual(await publishFile(temporary, file, { filesystem, platform: 'win32' }), { durable: false, error: failure });
+  await assert.rejects(publishFile(temporary, file, { filesystem, platform: 'win32' }), error => error === failure);
 });
 
 
-test('directory close failure after rename also reports a published write', async () => {
+for (const onPostPublishSyncError of ['warn', 'throw']) test(`directory close failure after rename follows ${onPostPublishSyncError} policy`, async () => {
   const failure = Object.assign(new Error('Synthetic close failure'), { code: 'EIO' });
   const { filesystem } = spy();
   filesystem.open = async () => ({ async sync() {}, async close() { throw failure; } });
-  assert.deepEqual(await publishFile(temporary, file, { filesystem, platform: 'linux' }), { durable: false, error: failure });
+  const published = publishFile(temporary, file, { filesystem, platform: 'linux', onPostPublishSyncError });
+  if (onPostPublishSyncError === 'warn') assert.deepEqual(await published, { durable: false, error: failure });
+  else await assert.rejects(published, error => error === failure);
+});
+
+test('invalid sync policy fails before publishing', async () => {
+  const { filesystem, events } = spy();
+  await assert.rejects(publishFile(temporary, file, { filesystem, onPostPublishSyncError: 'ignore' }), TypeError);
+  assert.deepEqual(events, []);
 });
