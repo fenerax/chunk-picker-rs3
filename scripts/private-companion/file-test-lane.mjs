@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 import path from 'node:path';
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -198,7 +197,7 @@ async function verifySplitLane({kit,release,lane,execution,item,retained,planFil
   if(!fresh||digestValue(neutralIdentity(fresh.receipt))!==digestValue(neutralIdentity(item.neutral.receipt))||digestValue([...fresh.files].sort())!==digestValue([...remote].sort()))throw Error('Neutral lane identity changed.');
   if(digestValue((await planFiles({kit,release,lane,execution,runtimeOS,retainedBrowser})).map(p=>p.contract))!==digestValue(plans.map(p=>p.contract)))throw Error('Test inputs changed during lane proof verification.');
 }
-if(isMain(import.meta.url)){
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   if(process.argv.includes('--help'))console.log('File lane library: release and post-merge use identical per-file contracts.');
   else {console.error('Import from release-v2.');process.exitCode=1;}
 }

@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // Detached private test follow-up. This module never prepares/promotes a release.
 import path from 'node:path';
 import { freemem } from 'node:os';
@@ -567,7 +566,7 @@ export function parsePrivateArguments(args) {
   if (!path.isAbsolute(result.config) || !!result.request !== !!result.current || ['--dispatch', '--worker'].includes(mode) && !/^[a-f0-9-]{36}$/.test(result.token ?? '')) throw Error('Private queue arguments refused.');
   return result;
 }
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const options = parsePrivateArguments(process.argv.slice(2));
   if (options.help) console.log(`Usage: node post-merge-private.mjs <40-hex merged SHA> [--config <absolute JSON>]\nDefault config: ${DEFAULT_CONFIG}\nChecks exact local-main ancestry and whole public/private lane receipts; queues the newest pair through the shared heavy wrapper. No idle wait or activation. --status SHA reports readiness. --lane private-full checks only that lane. --request JSON --current POINTER pins next release text. No scheduled task is installed.`);
   else {

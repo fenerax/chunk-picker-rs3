@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // Development artifacts never authorize a production release. Node built-ins only.
 import path from 'node:path';
 import { mkdir, mkdtemp, lstat, readFile, writeFile, rm, rename } from 'node:fs/promises';
@@ -212,7 +211,7 @@ export async function buildDevPack(options = {}, hooks = {}) {
 }
 
 const usage = 'Usage: node build-dev-pack.mjs --repo <absolute> --commit <full SHA> --packs-dir <absolute accepted packs> --output <absolute absent or matching dev root>\nDevelopment outputs have no release authority.\n';
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === '--help') process.stdout.write(usage);
   else try {

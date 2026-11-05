@@ -1,4 +1,3 @@
-import { isMain } from './vps/entrypoint.mjs';
 // Independent expectations and an authenticated digest are both required.
 // This approves portable checks only; the installed release still has PC gates.
 import { createHash } from 'node:crypto';
@@ -346,6 +345,6 @@ async function main(args) {
   console.log(JSON.stringify(result));
 }
 
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main(process.argv.slice(2)).catch(() => { console.error('CI evidence refused.'); process.exitCode = 1; });
 }

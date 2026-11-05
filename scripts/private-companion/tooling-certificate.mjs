@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // Capability evidence for executable release tooling. Candidate payload identity
 // belongs to lane receipts and the separate live-base compatibility receipt.
 import path from 'node:path';
@@ -312,7 +311,7 @@ export async function revokeToolingCertificate({ evidenceDir, toolingDigest, rea
   return { filename, revoked: true };
 }
 
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const [command, ...args] = process.argv.slice(2), options = {};
     for (let index = 0; index < args.length; index += 2) {

@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // A byte-preserving metadata cut is release input, never release authority.
 import path from 'node:path';
 import { lstat, readFile, writeFile, mkdir, mkdtemp, rm, rename } from 'node:fs/promises';
@@ -137,7 +136,7 @@ export async function cutReleasePacks({ devRoot, output, version, rulesTextVersi
   } finally { if (!published) { await noLinks(stage); await rm(stage, { recursive: true, force: true }); } }
 }
 
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === '--help') process.stdout.write('Usage: node cut-release-packs.mjs --dev-root <absolute verified dev output> --output <absolute absent release-inputs directory> --version <stable semver> [--rules-text-version <stable semver>]\nMetadata cut only; production preflight, full gates and activation remain required.\n');
   else try {

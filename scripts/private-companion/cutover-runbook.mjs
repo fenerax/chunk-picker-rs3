@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // Private, one-step initial handover. Importing this module performs no IO.
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -347,7 +346,7 @@ export async function runStep({ plan, step, rollback=false, dryRun=false, retry=
     return {direction:rollback?'rollback':'cutover',...receipt};
   } finally { await lock.close(); await unlink(lockFile); }
 }
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const options = {};
     for (let i=2;i<process.argv.length;i++) {
