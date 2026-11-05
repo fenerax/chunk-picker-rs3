@@ -72,7 +72,7 @@ test('flag-on HTTP preview/apply requires reviewed bytes and destination, retain
   assert.equal((await f.upload('/api/member-restore/preview', {}, cookie)).status, 403);
 });
 
-function dialogFixture(enabled) {
+function dialogFixture(enabled, overrides = {}) {
   const nodes = [];
   const el = (tag, text = '') => {
     const node = { tag, text, textContent: text, id: `synthetic-node-${nodes.length}`, children: [], value: '', checked: false, hidden: false, disabled: false, listeners: {},
@@ -84,7 +84,7 @@ function dialogFixture(enabled) {
     sessionAdmin: true, sessionMember: 'destination', dataset: { capabilities: {} }, advanced: () => false,
     input: type => Object.assign(el('input'), { type, files: [] }),
     select: (options, value) => Object.assign(el('select'), { options, value }), field: (label, node) => Object.assign(el('label', label), { control: node, firstChild: { id: 'synthetic-label' } }),
-    button: (text, click) => Object.assign(el('button', text), { click }), $: () => null, openDialog() {}, notice() {} };
+    button: (text, click) => Object.assign(el('button', text), { click }), $: () => null, openDialog() {}, notice() {}, ...overrides };
   createScreenDialogs(c); c.openDialog = () => {}; c.backupDialog();
   return { c, nodes };
 }
@@ -97,4 +97,19 @@ test('original entry is absent when off; flag-on UI labels fields and defaults b
   assert.ok(labels.some(node => node.text.startsWith('Rules JSON')));
   for (const node of labels.filter(node => node.text.startsWith('Import '))) assert.equal(node.control.checked, false);
   assert.equal(nodes.find(node => node.tag === 'input' && node.type === 'file').disabled, true);
+});
+
+test('paste destinations follow member-restore authorization even for a non-admin picker owner', () => {
+  const state = createGroupState([{ id: 'destination', name: 'Synthetic destination' }, { id: 'other', name: 'Synthetic other' }]);
+  for (const [sessionAdmin, sessionMember, owner, expected] of [
+    [true, 'destination', false, ['destination', 'other']],
+    [true, 'destination', true, ['destination', 'other']],
+    [false, 'other', false, ['other']],
+    [false, 'other', true, ['other']],
+    [false, undefined, true, []],
+  ]) {
+    const { nodes } = dialogFixture(true, { state, sessionAdmin, sessionMember, panelContext: { account: { isOwner: () => owner } } });
+    const selector = nodes.find(node => node.tag === 'label' && node.text === 'Destination player').control;
+    assert.deepEqual(selector.options.map(option => option.value), expected);
+  }
 });

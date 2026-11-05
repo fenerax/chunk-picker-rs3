@@ -63,6 +63,20 @@ test('category-aware checks, ranks, Firebase keys and empty backlog reasons surv
   assert.equal(result.report.counts.dropped, 0);
 });
 
+test('older string selections use descending decoded chunk IDs; numeric ranks keep their order', () => {
+  for (const [selected, expected] of [
+    [{ '12594': '12594', '13106': '13106' }, ['13106', '12594']],
+    [{ '*fb*_12594': '12594', '*fb*_13106': '13106' }, ['13106', '12594']],
+    [{ '12594': 1, '13106': 2 }, ['12594', '13106']],
+    [{ '12594': '12594', '13106': 1, '12338': 'invalid' }, ['13106', '12594']],
+  ]) {
+    const input = document({ gameplayText: JSON.stringify({ chunks: { selected } }) });
+    const result = normalizeOriginalPaste(input, { current: currentState(), world, dataset });
+    assert.deepEqual(result.state.members[0].selected, expected);
+    assert.equal(result.archive.gameplayText, input.gameplayText);
+  }
+});
+
 test('every rule gets an explicit decision; absent keys inherit and tasks/rules are opt-in', () => {
   const metadata = { defaults: { Quests: true, Partial: true }, definitions: [{ id: 'Quests', type: 'boolean' }, { id: 'Partial', type: 'boolean' }],
     behaviorFor: key => ({ status: key === 'Quests' ? 'category-gate' : 'partial', detail: 'Synthetic declared goal coverage.' }) };
@@ -103,6 +117,79 @@ test('decoded rule collisions, conflicting backlog aliases and long reasons are 
   assert.ok(sampled.report.records.some(row => /bounded sample/.test(row.reason)));
   const decoded = normalizeOriginalPaste(document({ gameplayText: JSON.stringify({ chunkinfo: { backlog: { Mining: { t_1: 'first-_-2Greason' } } } }), includeTasks: true }), { current: currentState(), world, dataset, migration });
   assert.equal(decoded.state.members[0].taskStatus['rs3:task:synthetic-ore'].backlogReason, 'first/reason');
+});
+
+test('backlog aliases compare complete decoded reasons before bounding the active sample', () => {
+  const reason = 'r'.repeat(599) + '/';
+  const normalize = second => {
+    const input = document({ includeTasks: true, gameplayText: JSON.stringify({ chunkinfo: { backlog: {
+      Mining: { t_1: reason, 'rs3:task:synthetic-ore': second },
+    } } }) });
+    return { input, result: normalizeOriginalPaste(input, { current: currentState(), world, dataset, migration }) };
+  };
+  for (const aliasReason of [reason, 'r'.repeat(599) + '-_-2G']) {
+    const { input, result } = normalize(aliasReason);
+    assert.deepEqual(result.state.members[0].taskStatus['rs3:task:synthetic-ore'], { backlogged: true, backlogReason: reason.slice(0, 512) });
+    assert.ok(!result.report.records.some(row => /Conflicting backlog/.test(row.reason)));
+    assert.equal(result.archive.gameplayText, input.gameplayText);
+  }
+  const { result } = normalize('r'.repeat(599) + 'x');
+  assert.equal(result.state.members[0].taskStatus['rs3:task:synthetic-ore'].backlogged, undefined);
+  assert.ok(result.report.records.some(row => /Conflicting backlog/.test(row.reason)));
+});
+
+test('upstream-encoded backlog values use trusted current and historical mappings; unresolved values stay raw', () => {
+  // Pinned upstream convertToIds + encodeObject produces this shape when both
+  // the task label and its reason are present in tasksMap (index.js at 6eb331e).
+  const captured = { chunkinfo: { backlog: { Mining: { t_1: 't_2' } } }, tasksMap: { forged: 't_2' } };
+  const input = document({ includeTasks: true, gameplayText: JSON.stringify(captured) });
+  const normalize = extra => normalizeOriginalPaste(input, { current: currentState(), world, dataset,
+    migration: { ...migration, ...extra } });
+  const reason = 'Synthetic/reason';
+  for (const extra of [
+    { taskMap: { ...migration.taskMap, [reason]: 't_2' } },
+    ...['current', 'historical', 'mappings', 'tombstones'].map(field => ({ taskMapHistory: { [field]: { [reason]: 't_2' } } })),
+    { taskMapHistory: { conflicts: [{ label: reason, ids: ['t_2'] }] } },
+  ]) {
+    const result = normalize(extra);
+    assert.equal(result.state.members[0].taskStatus['rs3:task:synthetic-ore'].backlogReason, reason);
+    assert.equal(result.archive.gameplayText, input.gameplayText);
+  }
+  for (const [extra, diagnostic] of [
+    [{}, /Unresolved backlog reason value/],
+    [{ taskMap: { ...migration.taskMap, [reason]: 't_2' }, taskMapHistory: { historical: { 'Different reason': 't_2' } } }, /Ambiguous backlog reason value/],
+    [{ taskMap: { ...migration.taskMap, [reason]: 't_2' }, taskMapHistory: { conflicts: [{ label: 'Different reason', ids: ['t_2'] }] } }, /Ambiguous backlog reason value/],
+  ]) {
+    const result = normalize(extra);
+    assert.deepEqual(result.state.members[0].taskStatus['rs3:task:synthetic-ore'], { backlogged: true, backlogReason: 't_2' });
+    assert.ok(result.report.records.some(row => diagnostic.test(row.reason) && row.rawValue === 't_2'));
+    assert.equal(result.archive.gameplayText, input.gameplayText);
+  }
+});
+
+test('credential-like decoded keys fail before samples or archives, at every nesting level', async t => {
+  const { store, options } = await storeFixture(t);
+  const sensitive = 'synthetic-sensitive-value';
+  for (const key of ['cookie', 'auth', 'pin', 'pin2', 'uid', 'password', 'access_token', 'account', 'session']) {
+    for (const raw of [key, '*fb*_' + key.toUpperCase(), '-_-' + key.charCodeAt(0).toString(16) + key.slice(1)]) {
+      for (const field of ['rulesText', 'gameplayText']) {
+        for (const value of [{ [raw]: sensitive }, { unknown: [{ nested: { [raw]: sensitive } }] }]) {
+          const input = document({ [field]: JSON.stringify(value) });
+          assert.throws(() => normalizeOriginalPaste(input, { current: currentState(), world, dataset, migration }), error => {
+            assert.equal(error.status, 422);
+            assert.equal(error.message, 'Remove credentials and account/session data; paste gameplay only.');
+            assert.ok(!JSON.stringify(error).includes(sensitive));
+            return true;
+          });
+        }
+      }
+    }
+  }
+  await assert.rejects(store.prepareTransfer(serialize({ document: document({ gameplayText: JSON.stringify({ unknown: { cookie: sensitive } }) }),
+    memberId: 'destination', sourceMemberId: 'original_paste' }), options), error => error.status === 422 && !error.message.includes(sensitive));
+  assert.equal(store.getInfo().revision, 0);
+  assert.equal(store.getState().provenance?.originalPasteImports, undefined);
+  assert.equal((await store.listBackups()).length, 0);
 });
 
 async function storeFixture(t) {

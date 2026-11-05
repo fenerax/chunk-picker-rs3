@@ -12,6 +12,7 @@ const fail = message => { throw Object.assign(new Error(message), { status: 422 
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const decodeKey = key => String(decodeLegacyText(key)).replace(/^\*fb\*_/, '');
 const fields = ['chunksText', 'rulesText', 'gameplayText'];
+const credentialKey = /^(?:password(?:hash)?|credentials?|secret|client[_-]?secret|(?:access|refresh|id|auth)[_-]?token|token|authorization|api[_-]?key|accounts?|sessions?|cookie|auth|pin\d*|uid)$/i;
 
 export function readOriginalPaste(document) {
   if (!record(document) || document.format !== ORIGINAL_PASTE_FORMAT
@@ -34,7 +35,7 @@ export function readOriginalPaste(document) {
   // fields instead of storing them in provenance or reflecting their values.
   const pending = [rules, gameplay];
   while (pending.length) for (const [key, value] of Object.entries(pending.pop())) {
-    if (/^(?:password(?:hash)?|credentials?|secret|client[_-]?secret|(?:access|refresh|id|auth)[_-]?token|token|authorization|api[_-]?key|accounts?|sessions?)$/i.test(decodeKey(key))) fail('Remove credentials and account/session data; paste gameplay only.');
+    if (credentialKey.test(decodeKey(key))) fail('Remove credentials and account/session data; paste gameplay only.');
     if (value && typeof value === 'object') pending.push(value);
   }
   return { texts, rules, gameplay, bytes, includeRules: document.includeRules === true, includeTasks: document.includeTasks === true };
@@ -101,15 +102,17 @@ export function normalizeOriginalPaste(document, { current, world, dataset, migr
     const values = chunks?.[original];
     if (values !== undefined && !record(values)) { add(`chunks.${original}`, null, values, 'Expected a keyed chunk object.'); continue; }
     if (!values) continue;
-    const entries = Object.entries(values);
-    if (original === 'selected') entries.sort((a, b) => Number(a[1]) - Number(b[1]));
-    member[target] = entries.flatMap(([raw, rank]) => {
+    const entries = Object.entries(values).flatMap(([raw, rank]) => {
       const id = decodeKey(raw);
-      if (!/^[1-9]\d{0,7}$/.test(id) || original === 'selected' && (!Number.isSafeInteger(rank) || rank < 1)) {
+      const validRank = Number.isSafeInteger(rank) && rank > 0 || typeof rank === 'string' && /^[1-9]\d*$/.test(rank) && Number.isSafeInteger(Number(rank));
+      if (!/^[1-9]\d{0,7}$/.test(id) || original === 'selected' && !validRank) {
         add(`chunks.${original}`, raw, rank, 'Invalid chunk ID or candidate rank.'); return [];
       }
-      return [id];
+      return [[id, rank]];
     });
+    if (original === 'selected') entries.sort((a, b) => typeof a[1] === 'string' && typeof b[1] === 'string'
+      ? Number(b[0]) - Number(a[0]) : Number(a[1]) - Number(b[1]));
+    member[target] = entries.map(([id]) => id);
   }
   for (const field of ['unlocked', 'selected', 'pendingRoll', 'blacklisted']) {
     member[field] = [...new Set(member[field])].filter(id => {
@@ -128,11 +131,29 @@ export function normalizeOriginalPaste(document, { current, world, dataset, migr
     add('rules', key, value, `${decision.reason}${applied ? ' Imported for this player.' : ' Retained only.'}`, applied ? 'importable' : 'preserved-for-review');
   }
   const rows = [...current.tasks, ...(migration.catalogue ?? []), ...(migration.dynamicCatalogue ?? [])];
-  const mappingIds = new Set();
-  for (const tasks of Object.values(paste.gameplay.chunkinfo ?? {})) if (record(tasks)) for (const entries of Object.values(tasks)) if (record(entries)) for (const id of Object.keys(entries)) mappingIds.add(decodeKey(id));
+  const mappingIds = new Set(), reasonCodes = new Set();
+  for (const [field, tasks] of Object.entries(paste.gameplay.chunkinfo ?? {})) if (record(tasks)) for (const entries of Object.values(tasks)) if (record(entries)) for (const [id, value] of Object.entries(entries)) {
+    mappingIds.add(decodeKey(id));
+    if (field === 'backlog' && typeof value === 'string' && value.includes('t_')) reasonCodes.add(value);
+  }
   const index = buildIdentityIndex(rows, { savedRegistry: current.identityRegistry, taskMap: migration.taskMap ?? {}, history: migration.taskMapHistory, mappingIds });
   const definitions = new Map([...(migration.catalogue ?? []), ...(migration.dynamicCatalogue ?? []), ...current.tasks].map(task => [task.id, task]));
-  const statuses = new Map(), referenced = new Set(), backlogConflicts = new Set();
+  // Upstream convertToIds translates string values as well as task keys.
+  // Reasons need exact labels, including labels without an active task; only
+  // trusted destination mappings participate, and collisions stay unresolved.
+  const reasonLabels = new Map(), history = migration.taskMapHistory;
+  const rememberReason = (label, id) => {
+    if (!reasonCodes.has(id)) return;
+    const labels = reasonLabels.get(id) ?? new Set();
+    labels.add(decodeLegacyText(label)); reasonLabels.set(id, labels);
+  };
+  if (reasonCodes.size) {
+    for (const mapping of [migration.taskMap, history?.current, history?.historical, history?.mappings, history?.tombstones]) {
+      for (const [label, id] of Object.entries(mapping ?? {})) rememberReason(label, id);
+    }
+    for (const conflict of history?.conflicts ?? []) for (const id of conflict.ids ?? []) rememberReason(conflict.label, id);
+  }
+  const statuses = new Map(), referenced = new Set(), backlogConflicts = new Set(), backlogReasons = new Map();
   for (const [field, status] of [['checkedAllTasks', 'challengeCompleted'], ['checkedChallenges', 'challengeCompleted'], ['completedChallenges', 'challengeCompleted'], ['backlog', 'backlogged'], ['favoriteTasks', 'favorite']]) {
     const categories = paste.gameplay.chunkinfo?.[field];
     if (categories !== undefined && !record(categories)) { add(`chunkinfo.${field}`, null, categories, 'Expected category-keyed tasks.'); continue; }
@@ -147,8 +168,12 @@ export function normalizeOriginalPaste(document, { current, world, dataset, migr
         }
         const patch = statuses.get(resolution.id) ?? {};
         if (field === 'backlog') {
-          const reason = decodeLegacyText(value);
-          if (backlogConflicts.has(resolution.id) || patch.backlogged && patch.backlogReason !== reason) { backlogConflicts.add(resolution.id); delete patch.backlogged; delete patch.backlogReason; add(`chunkinfo.${field}.${category}`, key, value, 'Conflicting backlog aliases; all raw reasons retained.'); continue; }
+          const labels = reasonLabels.get(value);
+          const reason = !reasonCodes.has(value) ? decodeLegacyText(value) : labels?.size === 1 ? [...labels][0] : value;
+          if (reasonCodes.has(value) && labels?.size !== 1) add(`chunkinfo.${field}.${category}`, key, value,
+            `${labels?.size ? 'Ambiguous' : 'Unresolved'} backlog reason value; raw text retained.`);
+          if (backlogConflicts.has(resolution.id) || backlogReasons.has(resolution.id) && backlogReasons.get(resolution.id) !== reason) { backlogConflicts.add(resolution.id); delete patch.backlogged; delete patch.backlogReason; add(`chunkinfo.${field}.${category}`, key, value, 'Conflicting backlog aliases; all raw reasons retained.'); continue; }
+          backlogReasons.set(resolution.id, reason);
           patch.backlogged = true; patch.backlogReason = boundedOutput(reason);
           if (patch.backlogReason !== reason) add(`chunkinfo.${field}.${category}`, key, value, 'The active backlog reason is a bounded sample; the exact reason stays in original paste provenance.');
         } else if (value === true) patch[status] = true;

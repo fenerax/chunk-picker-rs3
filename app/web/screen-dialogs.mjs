@@ -175,7 +175,7 @@ export function createScreenDialogs(c) {
     const pasteChunks = c.el('textarea'), pasteRules = c.el('textarea'), pasteGameplay = c.el('textarea');
     for (const input of [pasteChunks, pasteRules, pasteGameplay]) { input.rows = 4; input.spellcheck = false; }
     const pasteRulesOn = c.input('checkbox'), pasteTasksOn = c.input('checkbox');
-    const pastePlayer = c.select(c.state.members.filter(member => c.sessionAdmin || owner || member.id === c.sessionMember).map(member => ({ value: member.id, label: member.name })), c.sessionMember ?? c.state.members[0].id);
+    const pastePlayer = c.select(c.state.members.filter(member => c.sessionAdmin || member.id === c.sessionMember).map(member => ({ value: member.id, label: member.name })), c.sessionMember ?? c.state.members[0].id);
     const pasteControls = [pasteChunks, pasteRules, pasteGameplay, pasteRulesOn, pasteTasksOn, pastePlayer];
     if (c.originalPasteEnabled === true) {
       pasteFields.append(c.el('p', 'From the original RS3 chunk picker, use Miscellaneous Actions > Chunks and Rules. Paste optional gameplay JSON only if its own UI offers it. Limit: 8 MiB total. No map-code read is available here.', 'status-detail'),

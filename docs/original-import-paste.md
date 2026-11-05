@@ -46,10 +46,10 @@ identity index and tasksMap/history. Pasted lookup tables never become authority
 | --- | --- | --- |
 | Clipboard chunks | Known IDs become owned chunks | Clipboard is authoritative over captured ownership. Unknown IDs stay archived and are reported. |
 | Legacy chunk URL | Decodes grid indices without opening the URL | Selected candidates use the original importer's descending grid-index order. No arbitrary URLs or map codes. |
-| Captured `selected` | Candidate ranks determine list order | Exact ranks remain in pasted evidence. Invalid ranks/IDs stay archived. |
+| Captured `selected` | Numeric candidate ranks determine list order; older string-valued selections use descending chunk IDs | Exact values remain in pasted evidence. Invalid ranks/IDs stay archived. |
 | Captured `potential`, `blacklisted` | Pending choices and excluded chunks, separately | Unknown chunks never become active territory. |
 | Positive checks in all three task containers | Matched `challengeCompleted` flags | No personal quest, skill, achievement or item completion is invented. |
-| Backlog / favorites | Matched membership, reasons and favorites when opted in | Empty backlog reasons count. Conflicting aliases are reported without choosing a reason. Long reasons have a bounded active sample and an exact archived copy. |
+| Backlog / favorites | Matched membership, reasons and favorites when opted in | Empty backlog reasons count. Reason values use trusted tasksMap/history translations; missing or ambiguous translations stay raw and are reported. Alias comparisons use complete decoded reasons. Long reasons have a bounded active sample and an exact archived copy. |
 | Unknown or ambiguous task keys | None | Reported with category/key; exact input remains in provenance. |
 | Notes, annotations, custom tasks, section/area controls, roll timeline, display preferences and other branches | None | Reported and retained in the exact gameplay text. No foreign History/Undo is manufactured. |
 
@@ -72,7 +72,9 @@ All pasted text is untrusted. Total chunks/rules/gameplay text is capped at
 **8 MiB of UTF-8** in the browser encoder and authoritative worker. Transport
 keeps the existing upload/decompression, admission, timeout and worker limits.
 Rules/gameplay JSON must be objects; nesting beyond 128 is rejected before
-parsing. Credential and account/session fields are rejected with fixed messages.
+parsing. Credential and account/session fields, including decoded `cookie`,
+`auth`, `pin`/numbered PIN and `uid` keys at any depth, are rejected with fixed
+messages before reports or archives are created.
 
 All display output crosses #120's shared `import-output.mjs` bounds: 512-character
 strings, 100-entry samples, depth/node/byte budgets and a response below 256 KiB.
