@@ -1,46 +1,79 @@
 import { Worker } from 'node:worker_threads';
+import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
 
 export const IMPORT_TIMEOUT_MS = 15_000;
 // Shared by every picker and every import stage. A failed job cannot poison the
 // queue; terminate before admitting the next job so large heaps never accumulate.
 let queue = Promise.resolve();
-export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, deadline, request, maxUploadBytes, prepareHook, workerURL = new URL('./import-worker.mjs', import.meta.url) } = {}) {
+export const IMPORT_QUEUE_LIMIT = 4;
+const users = new Set(), requests = new Set();
+const busy = () => Object.assign(new Error('Backup import is busy. Try again in a moment.'), { status: 503, retryAfter: 5 });
+export function reserveImportUser(userId) {
+  if (requests.has(userId) || requests.size >= IMPORT_QUEUE_LIMIT) throw busy();
+  requests.add(userId);
+  let active = true;
+  return () => { if (active) { active = false; requests.delete(userId); } };
+}
+export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, deadline, request, maxUploadBytes, prepareHook, userId = Symbol(), workerURL = new URL('./import-worker.mjs', import.meta.url) } = {}) {
+  if (users.has(userId) || users.size >= IMPORT_QUEUE_LIMIT) return Promise.reject(busy());
+  users.add(userId);
   const result = queue.then(async () => {
     const timeout = () => Object.assign(new Error('This backup took too long to check (15 seconds). No records were imported. Try another backup.'), { status: 422 });
     if (deadline && deadline <= Date.now()) throw timeout();
-    const worker = new Worker(workerURL, { workerData: { ...job, prepareHook: Boolean(prepareHook) }, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
-    let timer, cleanup = () => {};
+    const bytes = await encodeImportBytes({ ...job, prepareHook: Boolean(prepareHook) });
+    const worker = new Worker(workerURL, { workerData: bytes, transferList: bytes.buffers, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
+    const controller = new AbortController();
+    let timer, decoding = false, cleanup = () => {};
     try {
       return await new Promise((resolve, reject) => {
         timer = setTimeout(() => reject(timeout()), deadline ? Math.min(timeoutMs, Math.max(1, deadline - Date.now())) : timeoutMs);
         worker.on('message', async message => {
-          if (message.hook) {
-            try { worker.postMessage({ hookResult: await prepareHook(message.state, message.context) ?? message.state }); }
-            catch (error) { reject(error); }
-          } else if (message.error) reject(Object.assign(new Error(message.error.message), { status: message.error.status ?? 400 }));
-          else resolve(message.result);
+          decoding = true;
+          try {
+            const decoded = await decodeImportBytes(message, { freezeStates: true, signal: controller.signal });
+            if (decoded.hook) {
+              await prepareHook(decoded.summary, decoded.context);
+              const reply = await encodeImportBytes({ hookResult: true });
+              worker.postMessage(reply, reply.buffers);
+            } else if (decoded.error) reject(Object.assign(new Error(decoded.error.message), { status: decoded.error.status ?? 400 }));
+            else resolve(decoded.result);
+          } catch (error) { reject(error); }
         });
         worker.once('error', error => reject(Object.assign(new Error(error.code === 'ERR_WORKER_OUT_OF_MEMORY'
           ? 'This backup could not be checked within the available memory. No records were imported.'
           : 'The backup checker failed. No records were imported. Try another backup.'), { status: 422 })));
-        worker.once('exit', code => reject(Object.assign(new Error(`The backup checker stopped (${code}). No records were imported.`), { status: 422 })));
+        worker.once('exit', code => { if (code !== 0 || !decoding) reject(Object.assign(new Error(`The backup checker stopped (${code}). No records were imported.`), { status: 422 })); });
         if (request) {
-          let bytes = 0;
+          let bytes = 0, sending = Promise.resolve();
           const data = chunk => {
+            request.pause();
             bytes += chunk.length;
-            if (bytes > maxUploadBytes) reject(Object.assign(new Error('This backup is too large. The limit is 256 MiB after decompression.'), { status: 413 }));
-            else worker.postMessage({ chunk });
+            if (bytes > maxUploadBytes) reject(Object.assign(new Error('This backup is too large. Choose a smaller backup.'), { status: 413 }));
+            else {
+              sending = sending.then(async () => {
+                let turn = performance.now();
+                // Backpressure bounds even a source supplying one giant chunk.
+                for (let offset = 0; offset < chunk.length; offset += 64 * 1024) {
+                  controller.signal.throwIfAborted();
+                  const part = Uint8Array.from(chunk.subarray(offset, offset + 64 * 1024));
+                  worker.postMessage({ chunk: part.buffer }, [part.buffer]);
+                  if (performance.now() - turn >= 4) { await new Promise(resolve => setImmediate(resolve)); turn = performance.now(); }
+                }
+                request.resume();
+              }).catch(reject);
+            }
           };
-          const end = () => worker.postMessage({ end: true });
+          const end = () => { void sending.then(() => { if (!controller.signal.aborted) worker.postMessage({ end: true }); }).catch(reject); };
           const error = () => reject(Object.assign(new Error('The backup upload was interrupted. Choose it again.'), { status: 400 }));
           cleanup = () => { request.pause(); request.off('data', data); request.off('end', end); request.off('error', error); request.off('aborted', error); };
           request.on('error', error); request.on('aborted', error); request.on('end', end); request.on('data', data);
         }
       });
-    } finally { cleanup(); clearTimeout(timer); await worker.terminate(); }
+    } finally { controller.abort(); cleanup(); clearTimeout(timer); await worker.terminate(); }
   });
-  queue = result.catch(() => {});
-  return result;
+  const tracked = result.finally(() => users.delete(userId));
+  queue = tracked.catch(() => {});
+  return tracked;
 }
 
 export const registryMetadata = registry => registry?.definitions.map(({ candidates, exclude, ...definition }) => definition);

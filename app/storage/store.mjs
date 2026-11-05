@@ -253,6 +253,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const historyDir = path.join(directory, 'history');
   const archivesDir = path.join(backupsDir, 'archives');
   const staticDir = path.join(directory, 'static');
+  let importDependencies;
+  async function writeDependency(file, bytes) {
+    if (importDependencies) { importDependencies.push({ file: path.relative(directory, file), bytes: Buffer.from(bytes) }); return; }
+    reportDurability(await atomicWrite(file, bytes));
+  }
   const acknowledgementsFile = path.join(directory, 'action-acknowledgements.json');
   let durabilityWarnings = 0, lastDurabilityWarningAt;
   function reportDurability(publication) {
@@ -325,7 +330,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try { existing = await readFile(file); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (existing && !existing.equals(bytes)) throw new Error('Action receipt quarantine evidence changed.');
-    if (!existing) reportDurability(await atomicWrite(file, bytes));
+    if (!existing) await writeDependency(file, bytes);
     receiptQuarantine = undefined;
   }
   let frozen = readOnly;
@@ -389,7 +394,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   async function decodeStoredBytes(bytes, forImport) {
     try { return await gunzipAsync(bytes, forImport ? { maxOutputLength: MAX_BACKUP_BYTES } : {}); }
-    catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') (() => { throw Object.assign(new Error('This backup is too large. The limit is 256 MiB after decompression.'), { status: 413 }); })(); throw error; }
+    catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') (() => { throw Object.assign(new Error('This backup is too large. The limit is 208 MiB after decompression.'), { status: 413 }); })(); throw error; }
   }
   async function readStaticField(key, reference, forImport = false) {
     const match = STATIC_ID.exec(reference?.id ?? '');
@@ -458,7 +463,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try { await readStaticField(key, reference); }
     catch (error) {
       if (error.cause?.code !== 'ENOENT') throw error;
-      reportDurability(await atomicWrite(path.join(staticDir, reference.id), await gzipAsync(bytes, { level: constants.Z_BEST_SPEED })));
+      await writeDependency(path.join(staticDir, reference.id), await gzipAsync(bytes, { level: constants.Z_BEST_SPEED }));
     }
     staticReferences.set(value, reference);
     return reference;
@@ -669,7 +674,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // All callers pass a previously validated private state. Hooks receive a
     // separate clone and their output crosses the validation boundary once.
     const context = { operation, world, registry };
-    let input = structuredClone(state);
+    let input = importReader ? state : structuredClone(state);
     // Only the explicit first-party migration stage may project saved history
     // onto new identities or establish an archived undo boundary. Caller hooks
     // receive that authoritative baseline, rather than permission to erase it.
@@ -681,7 +686,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!prepareState) return input;
     const history = operation === 'load' ? JSON.stringify(input.history) : undefined;
     const output = await prepareState(input, context);
-    const ready = validateState(output ?? input, registry);
+    const ready = importReader ? validateOwnedState(output ?? input, registry) : validateState(output ?? input, registry);
     if (operation === 'load' && (ready.revision !== state.revision || JSON.stringify(ready.history) !== history)) {
       throw new TypeError('Load preparation must preserve the authoritative revision and history.');
     }
@@ -725,7 +730,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     if (forImport) await new Promise(resolve => setImmediate(resolve));
-    const validated = validateState(complete, registry);
+    const validated = importReader ? validateOwnedState(complete, registry) : validateState(complete, registry);
     coordination.set(validated, coordinationOf(state));
     return { state: validated, archived };
   }
@@ -757,7 +762,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (updates.length) {
       const id = `history-${String(updates[0].revision).padStart(16, '0')}-${String(updates.at(-1).revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`;
       const bytes = await gzipAsync(JSON.stringify({ format: 'rs3-chunk-picker-history', events: updates }), { level: constants.Z_BEST_COMPRESSION });
-      reportDurability(await atomicWrite(path.join(historyDir, id), bytes));
+      await writeDependency(path.join(historyDir, id), bytes);
       references.push({ id });
     }
     const trimmed = { ...state, history: state.history.slice(cutoff), provenance: { ...state.provenance, historyArchive: references } };
@@ -1071,7 +1076,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function replacementState(document, base, actor) {
     if (isMainThread && !prepareState && !migrateState) return runImportJob({ kind: 'replacement', dataDir: directory, document, actor,
       baseRevision: base.revision, rules: registryMetadata(registry), options: { now: timestamp() } });
-    const incoming = document?.format ? importBackup(document, registry) : typeof document === 'string' ? importBackup(document, registry) : validateState(document, registry);
+    const incoming = document?.format || typeof document === 'string' ? importBackup(document, registry, { owned: importReader })
+      : importReader ? validateOwnedState(document, registry) : validateState(document, registry);
     // Keep separate bounded validation/migration phases off the same event-loop turn.
     await new Promise(resolve => setImmediate(resolve));
     const ready = await prepared(incoming, 'replace');
@@ -1092,7 +1098,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A replacement establishes a new undo boundary. Earlier snapshots may
     // describe another roster and must never rewrite the restored gameplay.
     ready.history = [{ id: `revision-${revision}`, revision, type: 'restore', at: timestamp(), ...(actor ? { actor } : {}) }];
-    return validateState(ready, registry);
+    return importReader ? validateOwnedState(ready, registry) : validateState(ready, registry);
   }
   function historyRecord(event) {
     if (!event) return undefined;
@@ -1210,6 +1216,21 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return { stateRevision: captured.revision, event: structuredClone({ ...event, hasUndo: Boolean(undo) }) };
   }
   const store = {
+    async prepareImportPublication(next, operation) {
+      if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
+      importDependencies = [];
+      const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
+      const state = await compactHistory(observed);
+      if (coordination.has(current)) coordination.set(state, { ...(operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} } : coordinationOf(current)), lastNonClaimRevision: state.revision });
+      const disk = Buffer.from(await serializedDiskState(state));
+      const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized, { level: constants.Z_BEST_SPEED });
+      const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
+      const summary = { revision: state.revision, members: state.members.map(({ id, name }) => ({ id, name })), provenance: { dataset: state.provenance?.dataset } };
+      return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
+        coordination: coordination.get(state), receipts,
+        ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
+        choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
+    },
     getState: cloneCurrent,
     getTaskClaimState() {
       const { schemaVersion, revision, rules, members, tasks, identityRegistry, taskClaims } = playProjection(current).state;
@@ -1427,24 +1448,53 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     },
     async prepareTransfer(input, options) {
       const revision = current.revision;
+      const checkpoint = currentDiskSerialized;
       const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options: { ...options, now: timestamp() },
-        rules: registryMetadata(registry), baseRevision: revision }, { deadline: options.importDeadline,
+        rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec }, { deadline: options.importDeadline, userId: options.importUserId,
         prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
       const ticket = {};
-      importTickets.set(ticket, { state: result.state, operation: result.operation, revision });
-      delete result.state;
+      importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint });
+      delete result.publication;
       return { ...result, ticket };
     },
     applyTransfer(ticket, expectedRevision) {
       return enqueue(async () => {
         const prepared = importTickets.get(ticket);
         importTickets.delete(ticket);
-        if (!prepared?.state) throw new TypeError('A validated import result is required.');
-        checkRevision(expectedRevision);
-        checkRevision(prepared.revision);
+        if (!prepared?.publication) throw new TypeError('A validated import result is required.');
+        if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new TypeError('expectedRevision must be a nonnegative safe integer.');
+        if (expectedRevision !== current.revision || prepared.revision !== current.revision || prepared.checkpoint !== currentDiskSerialized) {
+          throw Object.assign(new RevisionConflict({ revision: current.revision }), { importConflict: true });
+        }
         const start = performance.now();
-        const result = await persist(prepared.state, prepared.operation);
-        return { state: result, applyMs: performance.now() - start };
+        const publication = prepared.publication;
+        // Dependencies and the preceding checkpoint must be durable before the
+        // authoritative rename. A post-rename sync warning adopts the new state.
+        for (const dependency of publication.dependencies) {
+          const target = path.resolve(directory, dependency.file);
+          if (!target.startsWith(directory + path.sep)) throw new TypeError('Invalid import dependency.');
+          await mkdir(path.dirname(target), { recursive: true });
+          reportDurability(await atomicWrite(target, dependency.bytes));
+        }
+        const backupFile = path.join(backupsDir, `${String(current.revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`);
+        reportDurability(await atomicWrite(backupFile, publication.backup));
+        const at = new Date(timestamp()); await utimes(backupFile, at, at);
+        const published = await atomicWrite(stateFile, publication.disk, { onPostPublishSyncError: 'warn',
+          beforeRename: beforeCommit ? () => beforeCommit({ operation: prepared.operation, state: publication.summary, digest: publication.digest }) : undefined });
+        current = publication.state;
+        currentDiskSerialized = publication.disk;
+        receipts = publication.receipts;
+        receiptQuarantine = undefined;
+        if (publication.coordination) coordination.set(current, publication.coordination);
+        for (const { key, json, reference } of publication.fields) {
+          if (json !== undefined) serializedFields.set(current[key], json);
+          if (reference) staticReferences.set(current[key], reference);
+        }
+        reportDurability(published);
+        for (const listener of listeners) {
+          try { listener({ revision: current.revision, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
+        }
+        return { state: current, reply: publication.reply, applyMs: performance.now() - start };
       });
     },
     replace(document, expectedRevision, { actor } = {}) {

@@ -12,9 +12,25 @@ import { migrateOwnedGameplay } from './tasks/migration.mjs';
 import { preserveGameIdentity } from './game-profile.mjs';
 import { taskRuleDefinitions } from './data/settings.mjs';
 import { isDeepStrictEqual } from 'node:util';
+import { createHash } from 'node:crypto';
+import { createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
+import { projectPlayState, PLAY_VIEW } from './play-view.mjs';
+import { projectBrowserState } from './web/browser-state.mjs';
 import { boundedOutput, displayText, warningOutput } from './import-output.mjs';
+import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
+
+async function send(value) {
+  const bytes = await encodeImportBytes(value);
+  parentPort.postMessage(bytes, bytes.buffers);
+}
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
+function mergeGuards(previous = [], rows = []) {
+  const key = row => JSON.stringify([row.memberId, row.sourceMapId, row.taskId]);
+  const keys = new Set(previous.map(key)), merged = [...previous];
+  for (const row of rows) if (!keys.has(key(row))) { keys.add(key(row)); merged.push(row); }
+  return merged;
+}
 const start = performance.now();
 async function run(job) {
   if (job.kind === 'parse') {
@@ -57,16 +73,19 @@ async function run(job) {
   // Loading is an exact read of the writer's committed baseline. Only the
   // replacement passes through first-party migration and identity preparation.
   const identityPreparation = options.dataset ? preserveGameIdentity(options.dataset) : undefined;
+  const inputDigest = job.input ? createHash('sha256').update(job.input).digest('hex') : undefined;
   const prepareState = async (state, context) => {
-    if (job.prepareHook) state = await new Promise(resolve => {
-      parentPort.once('message', message => resolve(message.hookResult));
-      parentPort.postMessage({ hook: true, state, context: { operation: context.operation, migration: context.migration, catalogue: context.catalogue } });
+    if (job.prepareHook) await new Promise((resolve, reject) => {
+      parentPort.once('message', message => decodeImportBytes(message).then(resolve, reject));
+      send({ hook: true, summary: { revision: state.revision, members: state.members.map(({ id, name }) => ({ id, name })),
+        provenance: { dataset: state.provenance?.dataset }, digest: inputDigest }, context: { operation: context.operation } }).catch(reject);
     });
     return identityPreparation ? identityPreparation(state, context) : state;
   };
   prepareState.isCurrent = () => true;
   if (migrateState) migrateState.isCurrent = () => true;
-  const store = await openStore({ dataDir: job.dataDir, registry, readOnly: true, importReader: true, migrateState, prepareState, now: options.now });
+  const store = await openStore({ dataDir: job.dataDir, registry, readOnly: true, importReader: true, migrateState, prepareState, now: options.now,
+    retention: job.retention, progressQuestPoints: job.progressQuestPoints, completionCodec: job.completionCodec });
   try {
     const current = store.getState();
     if (current.revision !== job.baseRevision) fail(409, 'The destination changed. Preview the backup again.');
@@ -85,7 +104,7 @@ async function run(job) {
     const legacy = !backup;
     if (legacy && dataset.capabilities?.features?.originalSync === false) fail(422, 'Choose a backup from this starter game dataset.');
     const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry }) : null;
-    const incoming = legacy ? imported.state : importBackup(backup, registry);
+    const incoming = legacy ? imported.state : importBackup(backup, registry, { owned: true });
     const sourceRoster = incoming.members.map(({ id, name }) => ({ id, name }));
     const knownRules = new Set(taskRuleDefinitions.map(rule => rule.id));
     const reportOptions = { world, taskIds: new Set(current.tasks.map(task => task.id)), knownRule: id => knownRules.has(id) };
@@ -100,7 +119,8 @@ async function run(job) {
       const sourceMemberId = body.sourceMemberId ?? owner.id;
       const source = incoming.members.find(member => member.id === sourceMemberId);
       if (!source) fail(400, `This backup has no map for ${displayText(owner.name)}.`);
-      const member = mapTransferRoster({ ...incoming, members: [source], history: [], tasks: incoming.tasks.map(({ memberIds, ...task }) => task), taskClaims: undefined, groupGoals: undefined, finishLine: undefined, progressSnapshots: undefined }, [owner], { [sourceMemberId]: owner.id }).members[0];
+      const mappedMember = mapTransferRoster({ ...incoming, members: [source], history: [], tasks: incoming.tasks.map(({ memberIds, ...task }) => task), taskClaims: undefined, groupGoals: undefined, finishLine: undefined, progressSnapshots: undefined }, [owner], { [sourceMemberId]: owner.id });
+      const member = mappedMember.members[0];
       if (['unlocked', 'selected', 'pendingRoll', 'blacklisted'].some(field => member[field].some(id => !world.chunks.has(id.split('-')[0])))) fail(422, 'This member backup contains unknown chunks. Ask the owner to preview the full backup to preserve them in quarantine; no member records were imported.');
       if (legacy) member.obtainedEquipment = [...(owner.obtainedEquipment ?? [])];
       const command = { type: 'replace-member', memberId: owner.id, member, source: legacy ? 'Original picker import' : 'Backup' };
@@ -119,7 +139,24 @@ async function run(job) {
       }
       if (tasks.length) command.tasks = tasks;
       if (taskAssignments.length) command.taskAssignments = taskAssignments;
-      state = applyValidatedCommand(current, command, { expectedRevision: current.revision, world, registry, actor, now: options.now });
+      // Guards describe the imported member's already-migrated fields. Install
+      // them before preparing the command, so migration cannot resurrect cleared
+      // values and make the newly authored Undo stale. Other members keep theirs.
+      const guarded = { ...current };
+      for (const field of ['migratedMembers', 'journalMigratedMembers', 'taskStatusProvenance']) {
+        const rows = mappedMember.legacy?.gameplayMigration?.[field]?.filter(row => row.memberId === owner.id);
+        if (rows?.length) {
+          const previous = current.legacy?.gameplayMigration?.[field] ?? [];
+          guarded.legacy = { ...guarded.legacy, gameplayMigration: { ...guarded.legacy?.gameplayMigration, [field]: mergeGuards(previous, rows) } };
+        }
+      }
+      const alternatives = mappedMember.provenance?.taskIdentityMigration?.legacyAlternativeMembers?.filter(row => row.memberId === owner.id);
+      if (alternatives?.length) {
+        const previous = current.provenance?.taskIdentityMigration?.legacyAlternativeMembers ?? [];
+        guarded.provenance = { ...guarded.provenance, taskIdentityMigration: { ...guarded.provenance?.taskIdentityMigration,
+          legacyAlternativeMembers: mergeGuards(previous, alternatives) } };
+      }
+      state = applyValidatedCommand(guarded, command, { expectedRevision: current.revision, world, registry, actor, now: options.now });
       // Member commands preserve the complete guarded Undo chain.
       const revision = state.revision;
       const context = { operation: 'command', world, registry };
@@ -127,12 +164,12 @@ async function run(job) {
       state = validateState(await prepareState(state, context), registry);
       if (state.revision !== revision) throw new TypeError('prepareState must preserve the authoritative revision.');
       operation = 'command';
-      preview = previewRestore({ ...current, history: [] }, { ...state, history: [] }, registry);
+      preview = previewRestore({ ...current, history: [] }, { ...state, history: [] }, registry, { owned: true });
       report.excludedSections = ['Other members', 'Shared rules and group plans', 'Source History and migration archives'].map(field => ({ field, reason: 'Member restore keeps the destination section. The source backup remains the portable copy.' }));
     } else {
       if (legacy) for (const member of incoming.members) member.obtainedEquipment = [...(current.members.find(owner => owner.id === member.id)?.obtainedEquipment ?? [])];
       const mapped = legacy && options.pickerId === 'legacy' ? incoming
-        : mapTransferRoster(incoming, current.members, body.rosterMapping, options.requiredMemberIds);
+        : mapTransferRoster(incoming, current.members, body.rosterMapping, options.requiredMemberIds, { owned: true });
       if (!mapped) {
         if (!previewOnly) fail(422, 'Review and assign the source roster before importing.');
         return { response: { mappingRequired: true, sourceRoster, destinationRoster: current.members.map(({ id, name }) => ({ id, name })) } };
@@ -142,7 +179,7 @@ async function run(job) {
       quarantineTransferChunks(mapped, world);
       const replacement = await store.previewReplacement(mapped, { actor });
       state = replacement.state;
-      preview = previewRestore(replacement.current, state, registry);
+      preview = previewRestore(replacement.current, state, registry, { owned: true });
       warnings = [...warnings, ...migrationSummary(state).warnings];
     }
     const summary = boundedOutput(preview);
@@ -156,11 +193,28 @@ async function run(job) {
     summary.rules = boundedOutput(preview.rules);
     summary.warnings = warningOutput(preview.warnings);
     summary.taskCounts = Object.fromEntries(['added', 'removed', 'changed'].map(key => [key, preview.tasks[key].length]));
-    return { state, operation, workerMs: performance.now() - start,
-      response: { preview: summary, state: legacy && !options.uploaded ? state : backupPreviewState(state), sourceRoster,
+    const publication = await store.prepareImportPublication(state, operation);
+    if (options.responseView !== undefined) {
+      const saved = publication.state, builtInRegistry = createRuleRegistry();
+      const rollRegistry = createRuleRegistry((job.rules ?? []).filter(rule => !builtInRegistry.get(rule.id)));
+      const projected = options.responseView === PLAY_VIEW ? projectPlayState(saved) : projectBrowserState(saved);
+      const metadata = { ...(options.responseView === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}), warnings: warningOutput(warnings), transferReport: report };
+      if (options.inlineRollPools) publication.reply = { stateBytes: Buffer.from(JSON.stringify(projected)), metadata };
+      else {
+        const pools = Object.fromEntries(saved.members.map(member => {
+          const pool = evaluateRollPool(world, saved, member.id, rollRegistry);
+          return [member.id, options.responseView === PLAY_VIEW ? { ...pool, partnerConnections: partnerConnections(world, saved, member.id, rollRegistry) } : pool];
+        }));
+        const bytes = Buffer.from(JSON.stringify({ state: projected, pools, ...metadata }));
+        publication.reply = { bytes, etag: `"${createHash('sha256').update(bytes).digest('hex')}"` };
+      }
+    }
+    return { publication, operation, workerMs: performance.now() - start,
+      response: { preview: summary, state: route.startsWith('/api/member-restore') && body.backup !== undefined ? undefined
+        : boundedOutput(legacy && !options.uploaded ? state : backupPreviewState(state)), sourceRoster,
         ...(legacy && options.uploaded ? { format: 'play-v1', schemaVersion: 1 } : {}),
         warnings: warningOutput(warnings), transferReport: report } };
   } finally { await store.close(); }
 }
-try { parentPort.postMessage({ result: await run(workerData) }); }
-catch (error) { parentPort.postMessage({ error: { message: displayText(error.message), status: error.status } }); }
+try { await send({ result: await run(await decodeImportBytes(workerData)) }); }
+catch (error) { await send({ error: { message: displayText(error.message), status: error.status ?? (error.code === 'ENOENT' ? 404 : undefined) } }); }

@@ -898,7 +898,9 @@ function validateStateCopy(copy, registry) {
         }
       }
       for (const id of Object.keys(replay.taskClaims ?? {})) if (!replayTaskIds.has(id) && !claimTaskRow(copy, id)) fail(`Sparse undo task claim references absent task at its historical revision: ${id}`);
-      const checkMembers = event.undo.taskChanges ? replay.members
+      // Definition edits keep the same IDs. Rechecking every completion for
+      // every label edit makes a valid catalogue × History unnecessarily costly.
+      const checkMembers = event.undo.tasks || event.undo.taskChanges?.some(change => change.before.exists !== change.after.exists) ? replay.members
         : (event.undo.memberChanges ?? []).map(change => replay.members.find(member => member.id === change.id));
       for (const member of checkMembers) for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}), ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...Object.keys(member.itemProgress ?? {}), ...alternativeTaskIds(member)]) {
         if (!replayTaskIds.has(id)) fail(`Sparse undo references absent task at its historical revision: ${id}`);
@@ -935,7 +937,9 @@ export function exportBackup(state, registry) {
   return { format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state: validateState(state, registry) };
 }
 
-export function importBackup(document, registry) {
+// owned is for an isolated caller's private parsed tree; every schema and Undo
+// check still runs, without another whole-state JSON clone.
+export function importBackup(document, registry, { owned = false } = {}) {
   let backup = document;
   if (typeof backup === 'string') {
     try { backup = JSON.parse(backup); } catch { fail('Backup is not valid JSON'); }
@@ -944,7 +948,7 @@ export function importBackup(document, registry) {
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
   backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
-  return validateState(backup.state, registry);
+  return owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
 }
 
 function difference(before, after) {
@@ -975,9 +979,10 @@ function removedPaths(before, after, path = 'legacy') {
     ? removedPaths(before[key], after[key], `${path}.${key}`) : [`${path}.${key}`]);
 }
 
-export function previewRestore(current, incoming, registry) {
-  const before = validateState(current, registry);
-  const after = incoming?.format === BACKUP_FORMAT ? importBackup(incoming, registry) : validateState(incoming, registry);
+export function previewRestore(current, incoming, registry, { owned = false } = {}) {
+  const validate = owned ? validateOwnedState : validateState;
+  const before = validate(current, registry);
+  const after = incoming?.format === BACKUP_FORMAT ? importBackup(incoming, registry, { owned }) : validate(incoming, registry);
   const beforeTasks = new Map(before.tasks.map(task => [task.id, task])), afterTasks = new Map(after.tasks.map(task => [task.id, task]));
   const members = [...new Set([...before.members, ...after.members].map(member => member.id))].map(id => {
     const oldMember = before.members.find(member => member.id === id);

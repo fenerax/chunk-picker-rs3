@@ -1,7 +1,9 @@
 import { boundedOutput, displayText, readableMigrationWarning, REPORT_RECORDS, warningOutput } from './import-output.mjs';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { createGzip } from 'node:zlib';
+import { createGzip, createBrotliCompress, constants } from 'node:zlib';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
 import { importLegacyMaps } from './core/state.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
@@ -9,7 +11,7 @@ import { TICK_ACTIVE_TASKS } from './core/tick-active-tasks.mjs';
 import { PLAY_VIEW } from './play-view.mjs';
 import { createRepresentation, sendRepresentation, negotiateEncoding, PRIVATE_NO_STORE } from './http-response.mjs';
 
-// Backup routes use their separate streaming 256 MiB limit.
+// Backup routes use their separate streaming 208 MiB limit.
 export const MAX_BODY = 1024 * 1024;
 // About one task recalculation plus the usual quiet window on the real save.
 export const NOTE_PREWARM_QUIET_MS = 5000;
@@ -138,7 +140,7 @@ export function acceptsFastGzip(request) {
   try { return negotiateEncoding(`${request.headers['accept-encoding'] ?? ''}, br;q=0`) === 'gzip'; }
   catch (error) { if (error.status !== 406) throw error; return false; }
 }
-export async function jsonBytes(request, response, status, bytes, headers = {}) {
+export async function jsonBytes(request, response, status, bytes, headers = {}, { identityETag } = {}) {
   const unacceptable = () => { response.writeHead(406, { 'Cache-Control': PRIVATE_NO_STORE, Vary: 'Accept-Encoding', 'Content-Length': 0 }); response.end(); };
   if (status === 406) { unacceptable(); return; }
   try {
@@ -147,12 +149,33 @@ export async function jsonBytes(request, response, status, bytes, headers = {}) 
     const compactTasks = (request.url ?? '').split('?')[0] === '/api/tasks' && new URL(request.url, 'http://localhost').searchParams.get('view') === PLAY_VIEW;
     const transport = compactTasks && acceptsFastGzip(request) ? { method: request.method,
       headers: { ...request.headers, 'accept-encoding': 'gzip, identity;q=0' } } : request;
-    return await sendRepresentation(transport, response, createRepresentation(bytes, { cacheControl: PRIVATE_NO_STORE }),
+    return await sendRepresentation(transport, response, createRepresentation(bytes, { cacheControl: PRIVATE_NO_STORE, identityETag }),
       { status, headers, conditional: false });
   } catch (error) {
     if (error.status !== 406 || response.headersSent) throw error;
     unacceptable();
   }
+}
+
+// Custom JavaScript roll hooks stay in the caller. Their small pool response is
+// joined to worker-serialized state bytes through a bounded stream, without a
+// whole imported-state string, Buffer concatenation, or main-thread digest.
+export async function importedStateJSON(request, response, { stateBytes, metadata }, pools) {
+  const encoding = negotiateEncoding(request.headers['accept-encoding']);
+  const tail = Buffer.from(`,"pools":${JSON.stringify(pools)},${JSON.stringify(metadata).slice(1)}`);
+  response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE,
+    Vary: 'Accept-Encoding', ...(encoding !== 'identity' ? { 'Content-Encoding': encoding } : {}) });
+  async function* parts() {
+    yield Buffer.from('{"state":');
+    let turn = performance.now();
+    for (let offset = 0; offset < stateBytes.length; offset += 64 * 1024) {
+      yield stateBytes.subarray(offset, offset + 64 * 1024);
+      if (performance.now() - turn >= 4) { await new Promise(resolve => setImmediate(resolve)); turn = performance.now(); }
+    }
+    yield tail;
+  }
+  await pipeline(Readable.from(parts()), ...(encoding === 'gzip' ? [createGzip({ level: 1 })]
+    : encoding === 'br' ? [createBrotliCompress({ params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })] : []), response);
 }
 
 // Storage returns immutable JSON from the committed snapshot. Reusing it avoids

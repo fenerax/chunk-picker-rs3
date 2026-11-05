@@ -5,6 +5,7 @@ import { setTimeout as admissionDelay } from 'node:timers/promises';
 import { createPickerCheckpoint } from './picker-router-checkpoint.mjs';
 import { createHash } from 'node:crypto';
 import { isImportRoute, readBackupRequest, receiveBackupRequest } from './backup-transfer.mjs';
+import { reserveImportUser } from './import-jobs.mjs';
 import { routedBody, rememberRoutedBody, httpError, json } from './picker-context-http.mjs';
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
@@ -263,7 +264,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       await registry.revokeCapability('plugin-key', hash);
     },
     async handle(request, response, listener) {
-      let entry, releaseImport, releaseCheckpoint, bindBody, upload, receivingId;
+      let entry, releaseImport, releaseCheckpoint, bindBody, upload, receivingId, releaseImportUser;
       const controller = new AbortController();
       const disconnected = () => { if (!response.writableEnded) controller.abort(); };
       request.once('aborted', disconnected); response.once('close', disconnected);
@@ -282,6 +283,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           if (identity.pickerId !== pickerId || identity.role !== 'owner' || identity.readOnly) throw httpError(403, 'Picker owner access required.');
           checkRequestOrigin(request, security);
           if (receiving.has(pickerId)) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
+          releaseImportUser = reserveImportUser(identity.accountId ?? identity.id ?? identity.sessionId ?? security.rateKey);
           receiving.set(pickerId, request); receivingId = pickerId;
           bindBody?.importing();
           upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
@@ -316,7 +318,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
           await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.' });
         }
-      } finally { request.off('aborted', disconnected); response.off('close', disconnected); if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
+      } finally { request.off('aborted', disconnected); response.off('close', disconnected); if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); releaseImportUser?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },
     close() {
       if (closing) return closing;

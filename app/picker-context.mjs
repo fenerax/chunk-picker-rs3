@@ -1,4 +1,5 @@
 import { transferManifest, createTransferReviews } from './save-transfer.mjs';
+import { reserveImportUser } from './import-jobs.mjs';
 import { originalChunkURL } from './original-chunk-url.mjs';
 import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
@@ -78,7 +79,7 @@ import { artBinding } from './art-bindings.mjs';
 
 const createRepresentation = PROFILE_ENABLED ? (...args) => profile.wrapMethods(rawCreateRepresentation(...args), ['encoded'], 'response.compression-or-cache') : rawCreateRepresentation;
 
-import { MAX_BODY, NOTE_PREWARM_QUIET_MS, MIME, httpError, commandPermissions, apiPermission, redactInviteTokens, savedTaskSuffix, gzipSavedTaskResult, redactInviteFields, coordinationView, routeIsRuneMetrics, json, acceptsFastGzip, jsonBytes, commandJSON, bodyJSON, routedBody, sendCached, containedFile, migrationSummary, convertLegacyCapture } from './picker-context-http.mjs';
+import { MAX_BODY, NOTE_PREWARM_QUIET_MS, MIME, httpError, commandPermissions, apiPermission, redactInviteTokens, savedTaskSuffix, gzipSavedTaskResult, redactInviteFields, coordinationView, routeIsRuneMetrics, json, acceptsFastGzip, jsonBytes, importedStateJSON, commandJSON, bodyJSON, routedBody, sendCached, containedFile, migrationSummary, convertLegacyCapture } from './picker-context-http.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Private resources for one saved picker. The caller owns the shared runtime. */
@@ -879,7 +880,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (security.secure) response.setHeader('Strict-Transport-Security', 'max-age=31536000');
     response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
-    let savingSocket, ownsImport;
+    let savingSocket, ownsImport, releaseImportUser;
     function saveFinished() {
       if (!savingSocket) return;
       const socket = savingSocket; savingSocket = undefined;
@@ -1466,6 +1467,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           checkRequestOrigin(request, security);
           if (isImportRoute(route) && !admittedImports.has(request)) {
             if (importingBackup) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
+            releaseImportUser = reserveImportUser(identity.accountId ?? identity.id ?? identity.sessionId ?? security.rateKey);
             importingBackup = ownsImport = true;
           }
           const importedFile = isImportRoute(route) ? (routedBody(request)?.imported ?? await readBackupRequest(request, { defer: true })) : null;
@@ -1787,7 +1789,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 route, pickerId, uploaded: importedFile.uploaded, importDeadline: importedFile.deadline, dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
                   digest: dataset.digest, coordinateSystem: dataset.coordinateSystem, identityNamespace: dataset.identityNamespace,
                   capabilities: dataset.capabilities },
-                world: { chunks: indexedWorld.chunks, areas: indexedWorld.areas },
+                world: indexedWorld,
+                responseView: !route.endsWith('/preview') ? viewFor(request) ?? 'full' : undefined,
+                inlineRollPools: !workerRollRules(ruleRegistry),
                 migration: sharedTaskWorker ? { definitions: parsedDefinitions, taskMap: parsedTaskMap, taskMapHistory: identityHistory,
                   catalogue: sharedTaskWorker.catalogue, dynamicCatalogue: sharedTaskWorker.dynamicCatalogue } : undefined,
                 requiredMemberIds: pickerRouting?.requiredMemberIds?.(), actor: identity.actor,
@@ -1807,8 +1811,15 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               }
               if (pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, currentRevision);
               const applied = await store.applyTransfer(result.ticket, body.expectedRevision);
-              await json(request, response, 200, { ...await viewEnvelope(applied.state, viewFor(request)),
-                warnings: result.response.warnings, transferReport: result.response.transferReport });
+              if (applied.reply.bytes) {
+                await jsonBytes(request, response, 200, applied.reply.bytes, {}, { identityETag: applied.reply.etag });
+                return;
+              }
+              const pools = Object.fromEntries(applied.state.members.map(member => {
+                const pool = evaluateRollPool(indexedWorld, applied.state, member.id, ruleRegistry);
+                return [member.id, viewFor(request) === PLAY_VIEW ? { ...pool, partnerConnections: partnerConnections(indexedWorld, applied.state, member.id, ruleRegistry) } : pool];
+              }));
+              await importedStateJSON(request, response, applied.reply, pools);
               return;
             }
             throw httpError(404, 'API route not found.');
@@ -1999,10 +2010,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
         ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
-        ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.state, viewFor(request)) : {}),
+        ...(error.code === 'REVISION_CONFLICT' ? error.importConflict ? { revision: error.state.revision } : await viewEnvelope(error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),
         ...((routeIsRuneMetrics(request) || (request.url ?? '').startsWith('/api/original-sync/')) && error.code !== 'REVISION_CONFLICT' && error.code ? { code: error.code } : {}) });
-    } finally { if (ownsImport) importingBackup = false; }
+    } finally { if (ownsImport) importingBackup = false; releaseImportUser?.(); }
   };
   const requestHandler = async (request, response, listener) => {
     let route, lease;

@@ -5,7 +5,7 @@ picker backup**, **Import a backup**, and **Copy link for the original picker**.
 No reference data, artwork, account credentials or service permissions transfer.
 
 Imports use an [isolated worker queue](backup-import.md) with a 15-second
-checking deadline and a 256 MiB expanded JSON limit. Large catalogues and
+checking deadline and a 208 MiB expanded JSON limit. Large catalogues and
 retained History are supported without count or combined-work caps.
 
 ## Backups between copies
@@ -83,7 +83,13 @@ in this feature, and no original implementation code is incorporated.
 
 ## Import isolation and reports
 
-The byte ceiling matches the existing backup/restore limit on main. Each
+The byte ceiling is 208 MiB for upload, restore and export (209 MiB on the
+compressed wire). Main previously used 256 MiB. A generated 20,503-task save
+with 82,012 registry aliases, 2,000 History entries and a fully hydrated
+pre-migration archive is 51,724,708 bytes (49.33 MiB); its JSON request is
+51,724,719 bytes. The 218,103,808-byte ceiling leaves 4.22 times that portable
+size, and 5.72 times the previously documented 38,146,360-byte copied save.
+No private save was opened for these measurements. Each
 import worker exits after checking; timeout or validation failure leaves the
 save unchanged. Reports sample the first 100 unresolved records, truncate long
 labels, and say how many more remain. Detailed evidence stays in the portable
@@ -97,3 +103,33 @@ save does not rescan the catalogue for every completion. Roster mapping remaps
 live gameplay and journal migration guards and retains their original attribution
 in `provenance.transferRoster.gameplayMigration`. Cleared migrated fields remain
 cleared when the destination prepares or reloads the save.
+
+Every worker message carries transferable byte buffers. Bounded binary token
+batches rebuild the owned in-memory state in short event-loop turns; the HTTP
+thread never clones or parses/stringifies a complete imported state. Workers
+prepare static dependencies, their hashes, the preceding checkpoint, replacement
+file and apply-response bytes. Hooks receive member IDs, dataset identity,
+revision and a digest, without imported fields. The writer checks the revision
+and private checkpoint, publishes dependencies and the retained backup, then
+fsyncs/renames the replacement and adopts its immutable state. Preparation hooks
+are admission checks; gameplay transformations run inside the worker.
+
+The global queue admits four users including the running job, with at most one
+import request per user across pickers. A full queue or duplicate returns 503:
+“Backup import is busy. Try again in a moment.” Failed jobs release admission.
+Member restore merges the applicable remapped migration guards before migration;
+the destination's existing guards and guarded Undo chain remain available.
+
+Synthetic acceptance on Windows / Node 26.13.0 (5 ms heartbeat, hooks enabled,
+worker-prepared play response; preview includes upload parsing and hydration):
+
+| Input | Preview | Preview maximum gap | Apply | Apply maximum gap | Peak RSS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 49.33 MiB realistic save | 9,175 ms | 21.0 ms | 61.3 ms | 16.1 ms | 561.4 MiB |
+| 208 MiB exact ceiling | 10,856 ms | 53.0 ms | 61.9 ms | 16.0 ms | 1,667.7 MiB |
+
+The OS lifetime peaks were 561.4 and 1,667.7 MiB respectively. These isolated
+process figures include synthetic fixture setup and worker heaps, not a running
+production server. The regression targets 100 ms and allows 150 ms for CI
+scheduling variance. The real-sized test also exports and compares the complete
+saved state, including the hydrated registry and archive. Only targeted tests ran.

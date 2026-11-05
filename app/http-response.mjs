@@ -25,9 +25,9 @@ export function negotiateEncoding(header = '', compress = true) {
   return selected;
 }
 
-export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true } = {}) {
+export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true, identityETag } = {}) {
   const plain = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-  const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: etag(plain) })]]);
+  const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: identityETag ?? etag(plain) })]]);
   let retainedBytes = plain.byteLength;
   const representation = { bytes: plain, type, cacheControl, compress,
     get byteLength() { return plain.byteLength; },

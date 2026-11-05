@@ -9,6 +9,7 @@ import { Readable } from 'node:stream';
 import { createGunzip, gzipSync } from 'node:zlib';
 import { createServer } from '../app/server.mjs';
 import { createGroupState, exportBackup, applyCommand } from '../app/core/state.mjs';
+import { createRuleRegistry, evaluateRollPool } from '../app/core/rules.mjs';
 import { createCompletionEncoder } from '../app/storage/completion-codec.mjs';
 import { parseJSONStream } from '../app/storage/json-stream.mjs';
 import { MAX_UPLOAD_BYTES, readBackupRequest } from '../app/backup-transfer.mjs';
@@ -40,13 +41,13 @@ test('versioned completion saves upload through preview and restore, and downloa
   assert.deepEqual(f.application.store.getState().members, incoming.members);
 });
 
-async function fixture(t, initialState = state()) {
+async function fixture(t, initialState = state(), options = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'rs3-backup-import-'));
   const webRoot = path.join(directory, 'web');
   await mkdir(webRoot);
   await writeFile(path.join(webRoot, 'index.html'), '<!doctype html><p>Synthetic backup test</p>');
   const application = await createServer({ dataset: fixtureDataset, dataDir: path.join(directory, 'data'), webRoot, definitions, taskMap: {},
-    initialState, port: 0, predictionPrewarm: false, shutdownDeadlineMs: 500 });
+    initialState, port: 0, predictionPrewarm: false, shutdownDeadlineMs: 500, ...options });
   t.after(async () => { try { await application.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
   await application.listen();
   const origin = `http://127.0.0.1:${application.address().port}`;
@@ -67,6 +68,24 @@ async function fixture(t, initialState = state()) {
   };
   return { application, origin, cookie, request, json, upload, invite };
 }
+
+test('import apply streams worker state bytes with exact custom-hook pools', async t => {
+  const registry = createRuleRegistry([{ id: 'house.synthetic', label: 'Synthetic destination', type: 'boolean', default: true,
+    candidates: ({ value }) => value ? [{ id: '102', detail: 'Synthetic custom destination.' }] : [] }]);
+  const incoming = state(); incoming.rules['roll.adjacent'] = false;
+  const f = await fixture(t, incoming, { registry });
+  const file = backupFile(exportBackup(incoming, registry));
+  for (const encoding of ['identity', 'gzip', 'br']) {
+    const init = await createBackupUpload(file, { expectedRevision: f.application.store.getInfo().revision }).toBackupRequest();
+    const applied = await f.request('/api/restore?view=play-v1', { ...init, headers: { ...init.headers, 'Accept-Encoding': encoding } });
+    assert.equal(applied.status, 200, await applied.clone().text());
+    const result = await applied.json();
+    assert.equal(result.state.tasks.length, 0);
+    const { partnerConnections: ignored, ...pool } = result.pools.player1;
+    assert.deepEqual(pool, evaluateRollPool(f.application.world, f.application.store.getState(), 'player1', registry));
+    assert.ok([...pool.eligible, ...pool.excluded].some(row => row.id === '102' && row.reasons.some(reason => reason.ruleId === 'house.synthetic')));
+  }
+});
 
 test('browser file upload previews and applies a full backup above 32 MiB, with streamed gzip download', async t => {
   const f = await fixture(t);

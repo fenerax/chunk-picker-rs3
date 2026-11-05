@@ -362,6 +362,7 @@ const fullOnlyPatterns = [
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
   "save-transfer-regressions.test.mjs",
+  "save-transfer-responsiveness.test.mjs",
   "save-transfer-platform-durability.test.mjs",
   "platform-rollback.test.mjs",
   "prewarm-process-tree.test.mjs",
@@ -549,6 +550,8 @@ const fullOnlyTests = new Set([
 // Solo: files that fail on open-f2p (duo rules, storage identity or catalogue data) and
 // still peak at 550 MiB or more on duo-legacy. They run first, alone, so three files at
 // once stay bounded by the ordinary files (top 12 at three at once: 1.45 GiB).
+// Import responsiveness also runs alone: its 208 MiB fixture peaks at 1.63 GiB
+// and measures timer gaps that unrelated test processes would distort.
 export const soloTests = new Set([
   "activity.test.mjs",
   "area-check-server.private.test.mjs",
@@ -590,6 +593,7 @@ export const soloTests = new Set([
   "preview-resource-contents.test.mjs",
   "retained-unsupported-corrections.test.mjs",
   "runemetrics-server.test.mjs",
+  "save-transfer-responsiveness.test.mjs",
   "scheduling-server.private.test.mjs",
   "server-reliability.private.test.mjs",
   "server.test.mjs",

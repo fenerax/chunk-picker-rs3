@@ -8,8 +8,9 @@ Backup & Import downloads `.json.gz` and accepts both `.json` and `.json.gz`,
 including the JSON extracted from the scheduled backup ZIP. The helper still
 uses the ordinary `/api/backup` JSON response; its ZIP format is unchanged.
 
-The file ceiling is 256 MiB of UTF-8 JSON after decompression, about seven times
-the 2026-10-13 full save. Wire requests allow 257 MiB for gzip overhead. These
+The file ceiling is 208 MiB of UTF-8 JSON after decompression. A synthetic full
+catalogue, registry and hydrated archive with 2,000 History entries is 49.33 MiB,
+leaving 4.22 times that size. Wire requests allow 209 MiB for gzip overhead. These
 limits apply only to import/restore routes; other request limits are unchanged.
 Imports run in a shared worker queue, one CPU job at a time. Parsing, validation,
 History replay, migration, preview and report preparation run outside the HTTP
@@ -42,15 +43,18 @@ serialize bounded batches into gzip instead of building a complete JSON string
 and Buffer. A single import admission covers receiving, previewing or applying
 one backup; additional import requests receive a retry message.
 
-The complete parsed state and existing validation/storage copies still require
-memory. Large individual string tokens also need their complete string text.
-This change removes transport-sized text copies and keeps hostile validation off the HTTP thread; it does not replace the
-state model or its validation boundary.
+The complete parsed state still requires memory. Worker-owned validation avoids
+redundant full clones. Transferable binary batches rebuild an immutable writer
+snapshot cooperatively, including large string leaves. Workers also prepare file
+bytes, dependency hashes, the previous checkpoint and HTTP apply-response bytes;
+the writer publishes these with the existing fsync/atomic-rename durability rules.
+Hooks carry only small summaries and digests. Four users may be queued/running,
+with one import per user across pickers; excess work receives a retry message.
 Origin, authentication, administrator access for whole-save replacement,
 player-only restoration, session rechecks, revision checks, previous-state
 retention and the restore Undo boundary remain in the existing server paths.
 
-## Copied-save findings
+## Historical copied-save findings (2026-10-13)
 
 Measured only on a copy of `.local/duo`, excluding `store.lock` and `access-token`.
 The source save was never changed. Sizes below are compact UTF-8 JSON; no save

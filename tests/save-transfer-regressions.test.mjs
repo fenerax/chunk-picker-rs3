@@ -13,6 +13,7 @@ import { REPORT_RECORDS, REPORT_BYTES } from '../app/import-output.mjs';
 import { readBackupRequest } from '../app/backup-transfer.mjs';
 import { Readable } from 'node:stream';
 import { serialize } from 'node:v8';
+import { randomUUID } from 'node:crypto';
 
 const roster = [{ id: 'source', name: 'Synthetic player' }];
 function largeSave() {
@@ -241,4 +242,44 @@ test('remap then store load preserves cleared legacy fields and original migrati
     assert.deepEqual(store.getState().members[0].taskRules, {});
     assert.equal(store.getState().members[0].journal, undefined);
   } finally { await store.close(); }
+});
+
+test('member restore carries remapped guards before migration and preserves Undo across reload', async t => {
+  const options = { definitions: { challenges: {} }, taskMap: {}, catalogue: [] };
+  const source = createGroupState([{ id: 'two', name: 'Source', sourceMapId: 'map-two' }]);
+  source.legacy = { maps: { 'map-two': { chunks: { stickeredNotes: { '100': 'Archived synthetic note' } },
+    chunkNotes: 'Archived synthetic journal', rules: { SyntheticRule: false } } } };
+  const incoming = migrateOwnedGameplay(source, options).state;
+  incoming.members[0].notes = {}; incoming.members[0].taskRules = {}; delete incoming.members[0].journal;
+  incoming.provenance = { taskIdentityMigration: { legacyAlternativeMembers: [{ memberId: 'two', sourceMapId: 'map-two' }] } };
+  const destination = createGroupState([{ id: 'one', name: 'Destination', sourceMapId: 'map-one' }]);
+  destination.members[0].notes = { '100': 'Destination synthetic note' };
+  destination.legacy = { maps: { ...structuredClone(source.legacy.maps), 'map-one': {} } };
+  const root = await mkdtemp(path.join(tmpdir(), 'synthetic-member-guards-'));
+  let store = await openStore({ dataDir: root, initialState: destination, retention: false,
+    migrateState: state => migrateOwnedGameplay(state, options).state });
+  t.after(async () => { await store.close(); await rm(root, { recursive: true, force: true }); });
+  const prepared = await store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: incoming }, memberId: 'one', sourceMemberId: 'two' }),
+    { ...transferOptions, route: '/api/member-restore/preview', world: { chunks: new Map([['100', {}]]) }, migration: options });
+  const { state } = await store.applyTransfer(prepared.ticket, 0);
+  assert.deepEqual(state.members[0].notes, {}); assert.deepEqual(state.members[0].taskRules, {});
+  assert.equal(state.members[0].journal, undefined);
+  for (const field of ['migratedMembers', 'journalMigratedMembers']) assert.ok(state.legacy.gameplayMigration[field].some(row => row.memberId === 'one' && row.sourceMapId === 'map-two'));
+  assert.deepEqual(state.provenance.taskIdentityMigration.legacyAlternativeMembers, [{ memberId: 'one', sourceMapId: 'map-two' }]);
+  await store.close();
+  store = await openStore({ dataDir: root, retention: false, migrateState: state => migrateOwnedGameplay(state, options).state });
+  assert.deepEqual(store.getState().members[0].notes, {});
+  const undone = await store.command({ type: 'undo' }, 1);
+  assert.equal(undone.members[0].notes['100'], 'Destination synthetic note');
+});
+
+test('prepared import cannot overwrite a same-revision action-session checkpoint', async t => {
+  const { root, store } = await scratchStore(t);
+  const prepared = await store.prepareTransfer(serialize({ backup: editedSave(1, 0) }), transferOptions);
+  await store.openActionSession(randomUUID(), { actor: { kind: 'master', label: 'Synthetic operator' } });
+  const { readFile } = await import('node:fs/promises');
+  const file = path.join(root, 'state.json'), before = await readFile(file);
+  assert.equal(store.getInfo().revision, 0);
+  await assert.rejects(store.applyTransfer(prepared.ticket, 0), { code: 'REVISION_CONFLICT' });
+  assert.deepEqual(await readFile(file), before);
 });

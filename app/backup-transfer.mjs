@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import { createGunzip, createGzip } from 'node:zlib';
 import { parseJSONStream } from './storage/json-stream.mjs';
 
-export const MAX_BACKUP_BYTES = 256 * 1024 * 1024;
+export const MAX_BACKUP_BYTES = 208 * 1024 * 1024;
 export const MAX_UPLOAD_BYTES = MAX_BACKUP_BYTES + 1024 * 1024;
 export const BACKUP_UPLOAD_TYPE = 'application/vnd.rs3-backup-upload+json';
 export const isImportRoute = route => /^\/api\/(?:restore|import|member-restore)(?:\/preview)?$/.test(route);
@@ -14,15 +14,15 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 // A replacement review needs owner counts, not another copy of imported evidence.
 export function backupPreviewState(state) {
   return { schemaVersion: state.schemaVersion, revision: state.revision,
-    members: state.members.map(({ id, name, unlocked, selected, taskStatus, completedTasks }) =>
-      ({ id, name, unlocked, selected, taskStatus, completedTasks })) };
+    members: state.members.map(({ id, name, unlocked, selected, notes, taskStatus, completedTasks }) =>
+      ({ id, name, unlocked, selected, notes, taskStatus, completedTasks })) };
 }
 
 function limitBytes(maximum) {
   let bytes = 0;
   return new Transform({ transform(chunk, encoding, callback) {
     bytes += chunk.length;
-    callback(bytes > maximum ? fail(413, 'This backup is too large. The limit is 256 MiB after decompression.') : null, chunk);
+    callback(bytes > maximum ? fail(413, 'This backup is too large. The limit is 208 MiB after decompression.') : null, chunk);
   } });
 }
 
@@ -31,7 +31,7 @@ function backupHeaders(request, maxUploadBytes) {
   if (!['application/json', BACKUP_UPLOAD_TYPE].includes(type)) throw fail(415, 'Choose a .json or .json.gz backup.');
   const encoding = (request.headers['content-encoding'] ?? 'identity').toLowerCase();
   if (!['identity', 'gzip'].includes(encoding)) throw fail(415, 'Use JSON or gzip for this backup.');
-  if (Number(request.headers['content-length']) > maxUploadBytes) throw fail(413, 'This backup is too large. The limit is 256 MiB after decompression.');
+  if (Number(request.headers['content-length']) > maxUploadBytes) throw fail(413, 'This backup is too large. The limit is 208 MiB after decompression.');
   return { type, encoding };
 }
 
@@ -60,7 +60,7 @@ export async function receiveBackupRequest(request, { idleTimeoutMs, totalTimeou
     };
     const data = chunk => {
       bytes += Buffer.byteLength(chunk);
-      if (bytes > maxUploadBytes) { failed(fail(413, 'This backup is too large. The limit is 256 MiB after decompression.')); return; }
+      if (bytes > maxUploadBytes) { failed(fail(413, 'This backup is too large. The limit is 208 MiB after decompression.')); return; }
       chunks.push(chunk); reset();
     };
     const end = () => { cleanup(); resolve(); };
@@ -140,7 +140,7 @@ export async function sendGzipBackup(response, backup, { head = false } = {}) {
   let total = 0;
   for (const leaf of backupJSONChunks(backup)) {
     total += Buffer.byteLength(leaf);
-    if (total > MAX_BACKUP_BYTES) throw fail(413, 'This backup is too large. The limit is 256 MiB after decompression.');
+    if (total > MAX_BACKUP_BYTES) throw fail(413, 'This backup is too large. The limit is 208 MiB after decompression.');
   }
   // Coalesce small leaves for zlib without retaining a serialized copy of the save.
   async function* bytes() {

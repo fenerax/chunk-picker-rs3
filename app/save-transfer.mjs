@@ -34,7 +34,7 @@ export function requireTransferDataset(dataset, backup) {
 
 // Remap only schema-defined member references. Notes, task IDs, source map IDs
 // and historical archives are evidence, never identifiers to search-and-replace.
-export function mapTransferRoster(state, destinations, mapping, requiredIds = destinations.map(m => m.id)) {
+export function mapTransferRoster(state, destinations, mapping, requiredIds = destinations.map(m => m.id), { owned = false } = {}) {
   const source = state.members.map(m => m.id), existing = destinations.map(m => m.id);
   const destinationById = new Map(destinations.map(member => [member.id, member]));
   const sameNames = state.members.every(member => {
@@ -50,7 +50,7 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
     || targetIds.size !== targets.length || requiredIds.some(id => !targetIds.has(id))) {
     fail(422, 'Map each source member to a different destination member, keeping every assigned destination participant. Use a fresh picker when an assigned roster cannot fit.');
   }
-  const next = structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
+  const next = owned ? state : structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
   const changed = source.some(id => entries[id] !== id);
   // Foreign inverses must never become live at another roster. Keep the exact
   // original history in provenance, as the normal restore boundary does.
