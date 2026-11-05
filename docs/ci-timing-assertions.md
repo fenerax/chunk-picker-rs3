@@ -32,6 +32,21 @@ sample never ends the measurement early. Worker inputs are rebuilt before each
 sample because transferring a buffer consumes it. Fixture creation and copying
 remain outside the measured product operation. No runner delay is subtracted.
 
+The timing trade-off is deliberate: a repeatable stall is caught at the tight
+50 ms bound, and any single stall of 250 ms or more is caught by the hard
+ceiling. A one-off cold stall between the tight bound and 250 ms is accepted
+as indistinguishable from runner noise. A single-sample 50 ms ceiling would
+restore the flake this sampling is intended to avoid.
+
+Sampling never relaxes functional validation. The helper returns every result,
+and every response passes the original string, key, record and wire caps,
+completion/note/task counts, inflated-egress checks and exact saved-value
+assertions. Each sampled transfer uses a separate synthetic revision-zero
+destination so its own ticket can be applied and backed up. Setup and all
+functional validation remain outside the preview/serialization/hash timing
+window. The helper's synthetic transfer test also checks all three returned
+values. No other test changed by this PR repeats product operations for timing.
+
 The deadline cases retain real clocks and actual elapsed-time assertions.
 The calculator's 150 ms race becomes a 250 ms race plus an explicit real-time
 250 ms ceiling, so a synchronous stall cannot win merely by delaying the
@@ -179,3 +194,42 @@ met the hard ceiling and the best met the original target in both runs.
 `git diff --check`, test-file registration and the affected files' port-policy
 check passed. New cases live in an already registered test file; the new helper
 is not a standalone test file. No production code changes are included.
+
+### Final functional-sampling fix
+
+The follow-up review demonstrated that an oversized display field in only the
+first large response passed at head `1b734fb` while the original main test
+rejected it. Every sampled result is now retained and checked. All assertions
+from the original response test run for each sample, including applying that
+sample's ticket and comparing the backed-up saved values. The helper's
+synthetic transferable-input test also checks every returned value. Other
+sampling/readiness loops in the four changed test files were inspected; none
+repeats a product operation for a timing statistic.
+
+These temporary first-sample-only mutations were run sequentially on Windows /
+Node v26.13.0 and reverted byte for byte. Each failed on the intended functional
+assertion, rather than a timing ceiling.
+
+| Mutation | Result |
+| --- | --- |
+| Exact reviewer injection: a 4,096-character display field in only the first large response | FAIL: 512-character display cap |
+| Only the first large response reports zero added tasks | FAIL: expected added-task count 2 |
+| Only the first large response returns an invalid publication ticket | FAIL: validated import result required |
+| Only the first synthetic helper result returns 43 instead of 42 | FAIL: all-results equality |
+
+After reverting all injections, only the four changed test files were rerun,
+one file at a time. No full suite or contention run was started for this fix.
+
+| Test file | Passed | Duration |
+| --- | ---: | ---: |
+| `save-transfer-response-bounds.test.mjs` | 7 | 16.41 s |
+| `save-transfer-regressions.test.mjs` | 12 | 23.77 s |
+| `live-timings.test.mjs` | 25 | 11.12 s |
+| `backup-file-browser.test.mjs` | 3 | 37.08 s |
+| **Total** | **47** | |
+
+All three response sizes were 17,835 bytes; measured gaps were
+23.6/43.5/55.1 ms. Every gap stayed below 250 ms and the best stayed below
+50 ms. `git diff --check`, registration (740 files, without test execution)
+and the affected files' port-policy check passed. Production files have no
+diff against main; Linux / Node 24 checks remain the hosted CI's responsibility.
