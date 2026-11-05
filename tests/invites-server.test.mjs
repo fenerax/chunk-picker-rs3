@@ -111,7 +111,7 @@ test('HTTP invitation lifecycle preserves sessions and stores only hashed invite
     }
   }
   await f.restart();
-  assert.deepEqual(await (await f.request('/api/session', { cookie: joined.cookie, headers: funnel })).json(), { admin: false, adminAvailable: false, readOnly: false, capabilities: { canWrite: true }, label: 'Reed', kind: 'invite', memberId: null,
+  assert.deepEqual(await (await f.request('/api/session', { cookie: joined.cookie, headers: funnel })).json(), { originalPasteEnabled: false, admin: false, adminAvailable: false, readOnly: false, capabilities: { canWrite: true }, label: 'Reed', kind: 'invite', memberId: null,
     actor: { kind: 'invite', inviteId: created.invite.id, label: 'Reed' } });
   assert.equal((await f.admin(`/api/invites/${created.invite.id}/revoke`, {})).status, 200);
   await f.restart();
@@ -127,7 +127,7 @@ test('viewer identity stays stable across invite sessions and restart and follow
   const first = await f.join(created.link), second = await f.join(created.link);
   assert.notEqual(first.cookie, second.cookie);
   const viewer = cookie => f.request('/api/session', { cookie }).then(response => response.json());
-  const expected = { admin: false, readOnly: false, capabilities: { canWrite: true }, kind: 'invite', label: 'Reed', memberId: playerId,
+  const expected = { originalPasteEnabled: false, admin: false, readOnly: false, capabilities: { canWrite: true }, kind: 'invite', label: 'Reed', memberId: playerId,
     actor: { kind: 'invite', inviteId: created.invite.id, label: 'Reed', memberId: playerId } };
   assert.deepEqual(await viewer(first.cookie), expected);
   assert.deepEqual(await viewer(second.cookie), expected);
@@ -140,7 +140,7 @@ test('viewer identity stays stable across invite sessions and restart and follow
   const other = await f.join(duplicateLabel.link);
   assert.notEqual((await viewer(other.cookie)).actor.inviteId, expected.actor.inviteId, 'same label is not the same invite actor');
   const master = await viewer(f.masterCookie);
-  assert.deepEqual(master, { admin: true, readOnly: false, capabilities: { canWrite: true }, kind: 'master', label: 'Player', memberId: null, actor: { kind: 'master', label: 'Player' } });
+  assert.deepEqual(master, { originalPasteEnabled: false, admin: true, readOnly: false, capabilities: { canWrite: true }, kind: 'master', label: 'Player', memberId: null, actor: { kind: 'master', label: 'Player' } });
   assert.equal((await f.admin(`/api/invites/${created.invite.id}/player`, { memberId: null })).status, 200);
   const unlinked = await viewer(first.cookie);
   assert.equal(unlinked.memberId, null);

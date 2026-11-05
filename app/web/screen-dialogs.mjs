@@ -2,7 +2,7 @@ import { openSandboxRules } from './sandbox-rules.mjs';
 import { openTeleportsDialog } from './teleports.mjs';
 import { backupSaveLabel } from './backup-status.mjs';
 import { createSearchDialog } from './screen-search.mjs';
-import { createBackupUpload, downloadFullBackup } from './backup-transfer.mjs';
+import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup } from './backup-transfer.mjs';
 import { BACKUP_LIMIT_LABEL } from './backup-limits.mjs';
 
 // Native textarea focus can reveal only the caret, and progressive details can
@@ -136,14 +136,14 @@ export function createScreenDialogs(c) {
   }
   async function readJSON(file) { const selected = file.files[0]; if (!selected) throw new Error('Choose a JSON file.'); if (selected.size > 32 * 1024 * 1024) throw new Error('This file is larger than 32 MB.'); try { return JSON.parse(await selected.text()); } catch { throw new Error('The file is not valid JSON.'); } }
 
-  function replacementSummary(preview, incoming) {
+  function replacementSummary(preview, incoming, { memberReplacement = false } = {}) {
     const content = c.el('div', undefined, 'form-stack'); content.append(c.el('p', `This preview uses the current save. If the save changes, preview it again.`, 'status-detail'));
     const count = (change, key) => change?.[`${key}Count`] ?? change?.[key]?.length ?? 0;
     for (const changes of preview?.members ?? []) { const row = c.el('section', undefined, 'history-row'), imported = incoming?.members?.find(member => member.id === changes.id); row.append(c.el('h3', `${changes.name}${changes.status === 'removed' ? ' · will be removed' : ''}`)); if (imported) row.append(c.el('p', `${imported.counts?.unlocked ?? imported.unlocked?.length ?? 0} unlocked · ${imported.counts?.selected ?? imported.selected?.length ?? 0} added by hand · ${imported.counts?.challengeCompleted ?? Object.values(imported.taskStatus ?? {}).filter(status => status?.challengeCompleted).length} challenge checks · ${imported.counts?.completedTasks ?? imported.completedTasks?.length ?? 0} personal game completions`)); row.append(c.el('p', `Unlocked: +${count(changes.unlocked, 'added')} / −${count(changes.unlocked, 'removed')} · Hand-added roll pool: +${count(changes.selected, 'added')} / −${count(changes.selected, 'removed')}`, 'status-detail')); content.append(row); }
     for (const changes of preview?.members ?? []) if (count(changes.obtainedEquipment, 'added') || count(changes.obtainedEquipment, 'removed')) content.append(c.el('p', `${changes.name}’s gear recorded by hand: +${count(changes.obtainedEquipment, 'added')} / −${count(changes.obtainedEquipment, 'removed')}`, 'status-detail'));
     if (preview?.rules?.changed?.length) content.append(c.details('Shared rule changes', c.list(preview.rules.changed.map(rule => `${c.registry?.get?.(rule.ruleId)?.label ?? rule.ruleId}: ${rule.before === undefined ? 'Automatic' : rule.before === true ? 'On' : rule.before === false ? 'Off' : rule.before} → ${rule.after === undefined ? 'Automatic' : rule.after === true ? 'On' : rule.after === false ? 'Off' : rule.after}`))));
     if (preview?.warnings?.length) content.append(c.details(`${preview.warnings.length} replacement warnings`, c.list(preview.warnings.map(warning => String(warning).replaceAll('selected candidates', 'hand-added roll pool chunks').replaceAll('selected chunks', 'hand-added roll pool chunks').replaceAll('blacklisted chunks', 'chunks set to never roll')))));
-    content.append(c.el('p', 'After replacing both maps, Undo only goes back as far as this replacement. Earlier changes remain in History and the full backup.', 'status-detail')); if (c.advanced()) content.append(c.lazyJSON('Detailed replacement changes', preview)); return content;
+    content.append(c.el('p', memberReplacement ? 'Undo can reverse this player replacement. The previous save is retained under Browse previous saves.' : 'After replacing both maps, Undo only goes back as far as this replacement. Earlier changes remain in History and the full backup.', 'status-detail')); if (c.advanced()) content.append(c.lazyJSON('Detailed replacement changes', preview)); return content;
   }
 
   function backupDialog() {
@@ -169,6 +169,25 @@ export function createScreenDialogs(c) {
     });
     content.append(c.el('h3', 'Export unlocked chunks'), c.el('p', 'Only chunks carry over. Tasks, rules, notes and History stay in your full backup. Available only with the full legacy RS3 dataset.', 'status-detail'), c.field('Player', exportMember), chunkExport, c.el('h3', 'Import a backup'));
     if (statusLine) content.prepend(statusLine);
+    const owner = c.panelContext?.account?.isOwner?.() === true;
+    let originalMode = false;
+    const pasteFields = c.el('div', undefined, 'form-stack'); pasteFields.hidden = true;
+    const pasteChunks = c.el('textarea'), pasteRules = c.el('textarea'), pasteGameplay = c.el('textarea');
+    for (const input of [pasteChunks, pasteRules, pasteGameplay]) { input.rows = 4; input.spellcheck = false; }
+    const pasteRulesOn = c.input('checkbox'), pasteTasksOn = c.input('checkbox');
+    const pastePlayer = c.select(c.state.members.filter(member => c.sessionAdmin || member.id === c.sessionMember).map(member => ({ value: member.id, label: member.name })), c.sessionMember ?? c.state.members[0].id);
+    const pasteControls = [pasteChunks, pasteRules, pasteGameplay, pasteRulesOn, pasteTasksOn, pastePlayer];
+    if (c.originalPasteEnabled === true) {
+      pasteFields.append(c.el('p', 'From the original RS3 chunk picker, use Miscellaneous Actions > Chunks and Rules. Paste optional gameplay JSON only if its own UI offers it. Limit: 8 MiB total. No map-code read is available here.', 'status-detail'),
+        c.field('Destination player', pastePlayer), c.field('Exported chunks (comma-separated IDs or legacy chunk URL)', pasteChunks),
+        c.field('Rules JSON (required; {} for none)', pasteRules), c.field('Optional gameplay JSON', pasteGameplay),
+        c.field('Import equivalent player rules', pasteRulesOn), c.field('Import matched challenge checks, backlog and favorites', pasteTasksOn),
+        c.el('p', 'Rules and task checks start off. F2P and other shared rules need separate review in Rules. Unsupported records stay in your full backup. This replaces one player map; Undo and the previous save are available.', 'status-detail'));
+      content.append(c.button('Import from the original chunk picker', () => {
+        if (submitting) return;
+        originalMode = !originalMode; pasteFields.hidden = !originalMode; file.disabled = originalMode; if (scope) scope.disabled = originalMode; invalidatePreview();
+      }), pasteFields);
+    }
     const file = c.input('file'); file.accept = '.json,.json.gz,application/json,application/gzip'; const preview = c.el('div');
     const progress = c.el('p', '', 'status-detail'); progress.setAttribute('role', 'status'); progress.setAttribute('aria-live', 'polite');
     const previewError = c.el('p', '', 'status-detail'); previewError.setAttribute('role', 'alert'); previewError.hidden = true;
@@ -179,9 +198,9 @@ export function createScreenDialogs(c) {
     const scope = scopes.length ? c.select(scopes, '') : null;
     scope?.addEventListener('change', invalidatePreview);
     file.addEventListener('change', invalidatePreview);
+    for (const input of pasteControls) input.addEventListener('input', invalidatePreview);
     // A picker owner restores the whole save, like an admin choosing Both maps.
-    const owner = c.panelContext?.account?.isOwner?.() === true;
-    const scopedMember = () => owner ? null : c.sessionAdmin ? scope.value || null : c.sessionMember;
+    const scopedMember = () => originalMode ? pastePlayer.value : owner ? null : c.sessionAdmin ? scope.value || null : c.sessionMember;
     const read = async (document, generation = c.dialogGeneration, request = ++previewRequest, backupId, preparedPayload) => {
       if (reading || submitting) return;
       reading = true; previewButton.disabled = true; previewError.textContent = ''; previewError.hidden = true; preview.replaceChildren(); cancel.hidden = false;
@@ -192,6 +211,7 @@ export function createScreenDialogs(c) {
       if (!c.dialogCurrent(generation) || request !== previewRequest) return; const memberScope = scopedMember();
       const path = memberScope ? '/api/member-restore' : '/api/restore';
       const payload = preparedPayload ?? (backupId !== undefined ? { backupId, ...(memberScope ? { memberId: memberScope } : {}) }
+        : originalMode ? await createOriginalPasteUpload({ chunksText: pasteChunks.value, rulesText: pasteRules.value, gameplayText: pasteGameplay.value, includeRules: pasteRulesOn.checked, includeTasks: pasteTasksOn.checked }, { memberId: memberScope }, { onStage: stage, signal: controller.signal })
         : createBackupUpload(file.files[0], { members: c.owners, ...(memberScope ? { memberId: memberScope } : {}) }, { onStage: stage }));
       const value = await c.api(`${path}/preview`, payload, controller.signal); if (!c.dialogCurrent(generation) || request !== previewRequest) return; if (value.mappingRequired) {
         preview.replaceChildren(c.el('h3', 'Match the players'), c.el('p', memberScope ? 'Choose which source member belongs to your destination player. Only that member’s data will be restored.' : 'Assign every source member. New players are unclaimed gameplay slots; accounts and invitations never transfer. Every assigned destination participant must be mapped once. Unclaimed maps omitted here are replaced; the previous save is retained.', 'status-detail'));
@@ -212,11 +232,14 @@ export function createScreenDialogs(c) {
         })); stage('Choose the players, then preview again.'); return;
       }
       const expectedRevision = (value.preview ?? value).currentRevision;
-      preview.replaceChildren(c.el('h3', 'Review replacement'), c.el('p', memberScope ? `Applying this replaces ${c.state.members.find(member => member.id === memberScope)?.name ?? 'this player'}’s map only. Undo can reverse it.` : owner ? 'Applying this replaces the whole picker with the previewed state, including rules and History. Undo can’t reverse it; the current save stays under Browse previous saves. Download a full backup above to keep a portable copy.' : 'Applying this replaces the saved group with the previewed state. Download a full backup above to keep a portable copy.', 'warning'), c.replacementSummary(value.preview ?? value, value.state ?? document?.state));
+      preview.replaceChildren(c.el('h3', 'Review replacement'), c.el('p', memberScope ? `Applying this replaces ${c.state.members.find(member => member.id === memberScope)?.name ?? 'this player'}’s map only. Undo can reverse it.` : owner ? 'Applying this replaces the whole picker with the previewed state, including rules and History. Undo can’t reverse it; the current save stays under Browse previous saves. Download a full backup above to keep a portable copy.' : 'Applying this replaces the saved group with the previewed state. Download a full backup above to keep a portable copy.', 'warning'), c.replacementSummary(value.preview ?? value, value.state ?? document?.state, { memberReplacement: Boolean(memberScope) }));
       if (value.transferReport) preview.append(c.el('p', `${value.transferReport.counts.preservedForReview} records preserved for review; ${value.transferReport.counts.dropped} records dropped. Applying preserves all records, including those beyond the report sample.`, 'status-detail'), c.button('Download transfer report', () => c.download(value.transferReport, 'picker-transfer-report.json')));
+      if (value.transferReport?.records?.length) preview.append(c.details('Records retained for review (sample)', c.list(value.transferReport.records.map(row => `${row.field ?? 'Import'}${row.key ? ` / ${row.key}` : ''}: ${row.reason}`))));
+      if (value.transferReport?.rules?.length) preview.append(c.details('Original rule mapping (sample; full mapping stays in the backup)', c.list(value.transferReport.rules.map(row => `${row.key}: ${row.before === undefined ? 'Automatic' : row.before} → ${row.after === undefined ? 'Automatic' : row.after}; ${row.outcome}${row.applied ? ' · will import' : ' · retained only'}: ${row.reason}`))));
       if (value.warnings?.length) preview.append(c.details('Import warnings', c.list(value.warnings)));
       const apply = c.button('Apply reviewed replacement', async () => {
         if (apply.disabled || !c.dialogCurrent(generation) || request !== previewRequest) return;
+        for (const input of pasteControls) input.disabled = true;
         submitting = true; apply.disabled = true; previewButton.disabled = true; file.disabled = true; if (scope) scope.disabled = true;
         progress.textContent = 'Applying replacement…';
         try {
@@ -224,10 +247,10 @@ export function createScreenDialogs(c) {
           if (!c.dialogCurrent(generation)) return;
           preview.replaceChildren(c.el('h3', 'Import complete'), c.el('p', 'Your transfer report lists records preserved for review and backup coverage.'), c.button('Download transfer report', () => c.download(response.transferReport ?? value.transferReport ?? { warnings: response.warnings ?? [], records: [] }, 'picker-transfer-report.json')), c.button('Done', () => c.closeDialog(generation))); progress.textContent = 'Import saved.'; c.map.centerOnUnlocked(); c.notice(memberScope ? `${c.state.members.find(member => member.id === memberScope)?.name ?? 'The'}’s map was replaced. Undo can reverse it.` : owner ? 'Backup restored. The previous save is under Browse previous saves.' : legacyImport ? 'Import saved. Your imported records and previous save are kept in the backup.' : 'Backup restored. The previous save is under Browse previous saves. This restore starts a new Undo boundary.');
         } catch (error) { if (c.dialogCurrent(generation)) { progress.textContent = 'Replacement was not confirmed. Check History before trying again.'; c.showError(error); } }
-        finally { submitting = false; if (c.dialogCurrent(generation)) { previewButton.disabled = false; file.disabled = false; if (scope) scope.disabled = false; } }
+        finally { submitting = false; if (c.dialogCurrent(generation)) { previewButton.disabled = false; file.disabled = originalMode; for (const input of pasteControls) input.disabled = false; if (scope) scope.disabled = originalMode; } }
       });
       preview.append(apply); stage('Replacement ready to review.');
-      } catch (error) { if (error.name !== 'AbortError' && c.dialogCurrent(generation) && request === previewRequest) { progress.textContent = 'Preview failed. Try again.'; previewError.textContent = `${error.message || String(error)} Choose a full backup downloaded with Download full backup above.`; previewError.hidden = false; } }
+      } catch (error) { if (error.name !== 'AbortError' && c.dialogCurrent(generation) && request === previewRequest) { progress.textContent = 'Preview failed. Try again.'; previewError.textContent = `${error.message || String(error)} ${originalMode ? 'Check the pasted exports and preview again.' : 'Choose a full backup downloaded with Download full backup above.'}`; previewError.hidden = false; } }
       finally { if (previewController === controller) { previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; } }
     };
     const retained = c.el('div', undefined, 'form-stack'); retained.append(c.button('Browse previous saves', async () => {

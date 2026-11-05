@@ -3,6 +3,8 @@
 The current player entry is **More → Export / Import**. See
 [Save transfer](save-transfer.md) for owned picker transfers, roster mapping,
 coverage, transfer reports and original-compatible chunk links.
+The [original-picker paste route](original-import-paste.md) is a separate,
+default-off feature that reuses this same import pipeline.
 
 Backup & Import downloads `.json.gz` and accepts both `.json` and `.json.gz`,
 including the JSON extracted from the scheduled backup ZIP. The helper still

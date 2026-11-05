@@ -1,3 +1,4 @@
+import { normalizeOriginalPaste, ORIGINAL_PASTE_FORMAT } from './original-paste.mjs';
 import { parentPort, workerData } from 'node:worker_threads';
 import { deserialize } from 'node:v8';
 import { backupPreviewState, MAX_PORTABLE_BACKUP_BYTES } from './backup-transfer.mjs';
@@ -83,6 +84,10 @@ async function run(job) {
     if (job.kind === 'replacement') return (await store.previewReplacement(job.document, { actor: job.actor })).state;
     const body = deserialize(Buffer.from(job.input)), { dataset, world, route, actor } = options;
     const previewOnly = route.endsWith('/preview');
+    const originalPaste = body.document?.format === ORIGINAL_PASTE_FORMAT;
+    if (originalPaste && !options.originalPasteEnabled) fail(404, 'Original picker paste import is unavailable.');
+    if (originalPaste && !route.startsWith('/api/member-restore')) fail(422, 'Choose one destination player for original picker paste.');
+    const pasted = originalPaste ? normalizeOriginalPaste(body.document, { current, world, dataset, migration: options.migration }) : null;
     let backup;
     if (Object.hasOwn(body, 'backupId')) {
       if (Object.hasOwn(body, 'backup') || Object.hasOwn(body, 'document')) fail(400, 'Choose either a retained save or an uploaded backup.');
@@ -92,10 +97,10 @@ async function run(job) {
       backup = decodeCompletionDocument(backup);
     }
     if (backup) requireTransferDataset(dataset, backup);
-    const legacy = !backup;
+    const legacy = !backup && !pasted;
     if (legacy && dataset.capabilities?.features?.originalSync === false) fail(422, 'Choose a backup from this starter game dataset.');
     const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry }) : null;
-    const incoming = legacy ? imported.state : importBackup(backup, registry, { owned: true });
+    const incoming = pasted?.state ?? (legacy ? imported.state : importBackup(backup, registry, { owned: true }));
     const sourceRoster = rosterOutput(incoming.members);
     const destinationRoster = rosterOutput(current.members);
     const knownRules = new Set(taskRuleDefinitions.map(rule => rule.id));
@@ -113,10 +118,16 @@ async function run(job) {
       if (!source) fail(400, `This backup has no map for ${displayText(owner.name)}.`);
       const mappedMember = mapTransferRoster({ ...incoming, members: [source], history: [], tasks: incoming.tasks.map(({ memberIds, ...task }) => task), taskClaims: undefined, groupGoals: undefined, finishLine: undefined, progressSnapshots: undefined }, [owner], { [sourceMemberId]: owner.id });
       const member = mappedMember.members[0];
+      if (pasted) {
+        member.name = owner.name;
+        member.taskRules = { ...owner.taskRules, ...member.taskRules };
+        pasted.report.rules = boundedOutput(pasted.report.rules.map(row => ({ ...row,
+          before: owner.taskRules?.[row.key], after: member.taskRules?.[row.key] })));
+      }
       if (['unlocked', 'selected', 'pendingRoll', 'blacklisted'].some(field => member[field].some(id => !world.chunks.has(id.split('-')[0])))) fail(422, 'This member backup contains unknown chunks. Ask the owner to preview the full backup to preserve them in quarantine; no member records were imported.');
-      if (legacy) member.obtainedEquipment = [...(owner.obtainedEquipment ?? [])];
-      const command = { type: 'replace-member', memberId: owner.id, member, source: legacy ? 'Original picker import' : 'Backup' };
-      report = transferReport(incoming, { ...reportOptions, warnings, memberId: sourceMemberId });
+      if (legacy || pasted) member.obtainedEquipment = [...(owner.obtainedEquipment ?? [])];
+      const command = { type: 'replace-member', memberId: owner.id, member, source: legacy || pasted ? 'Original picker import' : 'Backup' };
+      report = pasted?.report ?? transferReport(incoming, { ...reportOptions, warnings, memberId: sourceMemberId });
       const referenced = new Set([...member.completedTasks, ...['taskStatus', 'questProgress', 'achievementProgress', 'itemProgress', 'xpChoices'].flatMap(field => Object.keys(member[field] ?? {})), ...Object.values(member.taskAlternatives ?? {}).flatMap(groups => Object.values(groups))]);
       const scoped = incoming.tasks.filter(task => !task.memberIds || task.memberIds.includes(sourceMemberId) || referenced.has(task.id));
       const existingTasks = new Map(current.tasks.map(task => [task.id, task]));
@@ -135,6 +146,8 @@ async function run(job) {
       // them before preparing the command, so migration cannot resurrect cleared
       // values and make the newly authored Undo stale. Other members keep theirs.
       const guarded = { ...current };
+      if (pasted) guarded.provenance = { ...current.provenance, originalPasteImports: [
+        ...(current.provenance?.originalPasteImports ?? []), { ...pasted.archive, memberId: owner.id } ] };
       for (const field of ['migratedMembers', 'journalMigratedMembers', 'taskStatusProvenance']) {
         const rows = mappedMember.legacy?.gameplayMigration?.[field]?.filter(row => row.memberId === owner.id);
         if (rows?.length) {
@@ -157,7 +170,7 @@ async function run(job) {
       if (state.revision !== revision) throw new TypeError('prepareState must preserve the authoritative revision.');
       operation = 'command';
       preview = previewRestore({ ...current, history: [] }, { ...state, history: [] }, registry, { owned: true });
-      report.excludedSections = ['Other members', 'Shared rules and group plans', 'Source History and migration archives'].map(field => ({ field, reason: 'Member restore keeps the destination section. The source backup remains the portable copy.' }));
+      if (!pasted) report.excludedSections = ['Other members', 'Shared rules and group plans', 'Source History and migration archives'].map(field => ({ field, reason: 'Member restore keeps the destination section. The source backup remains the portable copy.' }));
     } else {
       if (legacy) for (const member of incoming.members) member.obtainedEquipment = [...(current.members.find(owner => owner.id === member.id)?.obtainedEquipment ?? [])];
       const mapped = legacy && options.pickerId === 'legacy' ? incoming

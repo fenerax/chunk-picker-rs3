@@ -33,7 +33,7 @@ async function run(job) {
     members: body.members, memberId: body.memberId, sourceMemberId: body.sourceMemberId, rosterMapping: body.rosterMapping });
   return { uploaded: imported.uploaded, input: serialize(body),
     body: { expectedRevision: body.expectedRevision, memberId: body.memberId, previewToken: body.previewToken, transferHash,
-      selectors: [...selectors].map(pickerId => ({ pickerId })) } };
+      originalPaste: body.document?.format === 'rs3-original-paste', selectors: [...selectors].map(pickerId => ({ pickerId })) } };
 }
 async function send(value) {
   const bytes = await encodeImportBytes(boundedImportMessage(value));
