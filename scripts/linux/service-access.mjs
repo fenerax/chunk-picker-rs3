@@ -30,11 +30,11 @@ export async function assertServiceAccess(root, { uid, gid }, entries = []) {
   } catch { throw Object.assign(Error('Service access refused.'), { code: 'TOOLS_ACCESS' }); }
 }
 
-export async function assertToolsEntrypoints(root, { uid, gid }, checks = toolsCliChecks) {
+export async function assertToolsEntrypoints(root, { uid, gid }, checks = toolsCliChecks, { linked = true } = {}) {
   let scratch;
   try {
     if (process.platform !== 'linux' || process.getuid() !== 0
-      || ![uid, gid].every(id => Number.isSafeInteger(id) && id > 0)) throw Error();
+      || ![uid, gid].every(id => Number.isSafeInteger(id) && id > 0) || !checks.length) throw Error();
     // This is an exclusive operation-owned fixture, outside the hashed package.
     // Only its control directory is writable to the privilege-dropped probe.
     scratch = await mkdtemp(path.join(path.dirname(root), '.tools-check-'));
@@ -51,12 +51,12 @@ export async function assertToolsEntrypoints(root, { uid, gid }, checks = toolsC
     const alias = path.join(scratch, 'tools'); await symlink(root, alias, 'dir');
     await execute('/usr/bin/python3', ['-c',
       'import os,sys,json,subprocess\n'
-      + 'uid,gid,root,node,config,checks=json.loads(sys.argv[1])\n'
+      + 'uid,gid,root,alias,node,config,checks,linked=json.loads(sys.argv[1])\n'
       + 'os.setgroups([]);os.setgid(gid);os.setuid(uid)\n'
       + 'assert os.getuid()==uid and os.getgid()==gid and not os.getgroups()\n'
       + 'env={"PATH":"/usr/sbin:/usr/bin:/sbin:/bin","LANG":"C","RS3_OPERATOR_CONFIG":config}\n'
-      + 'for entry,args,diagnostic in checks:\n result=subprocess.run([node,os.path.join(root,entry)]+args,env=env,capture_output=True,text=True,timeout=15)\n assert result.returncode==1 and not result.stdout and result.stderr.startswith(diagnostic)\n',
-      JSON.stringify([uid, gid, alias, process.execPath, config, checks])],
+      + 'for entry,args,diagnostic in checks:\n base=alias if linked and (entry.startswith("scripts/linux/") or entry.startswith("scripts/release/vps/")) else root\n result=subprocess.run([node,os.path.join(base,entry)]+args,env=env,capture_output=True,text=True,timeout=15)\n assert result.returncode==1 and not result.stdout and result.stderr.startswith(diagnostic)\n',
+      JSON.stringify([uid, gid, root, alias, process.execPath, config, checks, linked])],
     { cwd: scratch, timeout: 60000, maxBuffer: 4096, env: { PATH: '/usr/sbin:/usr/bin:/sbin:/bin', LANG: 'C' } });
   } catch { throw Object.assign(Error('Installed entrypoint behavior refused.'), { code: 'TOOLS_ENTRYPOINT' }); }
   finally {

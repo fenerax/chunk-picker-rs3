@@ -2,12 +2,17 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { chmod, chown, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { hostname } from 'node:os';
+import { chmod, chown, cp, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { buildTools, toolsClosure } from '../../scripts/linux/tools-package.mjs';
-import { exchangePaths, switchTools } from '../../scripts/linux/tools-install.mjs';
+import { exchangePaths, switchTools, recoverToolsSwitch } from '../../scripts/linux/tools-install.mjs';
 import { encode, exists, inventory, json, sha } from '../../scripts/linux/files.mjs';
 import { checkStart } from '../../scripts/linux/start-check.mjs';
-import { assertServiceAccess } from '../../scripts/linux/service-access.mjs';
+import { assertServiceAccess, assertToolsEntrypoints } from '../../scripts/linux/service-access.mjs';
+import { runtimeCliChecks } from '../../scripts/linux/entrypoint-checks.mjs';
+import { serviceIdentity } from '../../scripts/linux/prewarm.mjs';
+import { serviceQuery } from './prewarm.mjs';
 import { lockRelease, prepareBundle, rebaseBundle } from '../../scripts/release/vps/bundle.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
@@ -22,8 +27,16 @@ try {
     await writeFile(file, await readFile(path.join(repo, row.path)));
   }
   const manifest = await buildTools(source, pkg);
+  const legacy = async destination => {
+    await cp(pkg, destination, { recursive: true }); await rm(path.join(destination, 'tools-manifest.json'));
+    for (const row of manifest.files.filter(row => row.path.endsWith('.mjs'))) {
+      const file = path.join(destination, row.path), text = await readFile(file, 'utf8');
+      if (text.includes('import { isMain }')) await writeFile(file, text.replace(/^import \{ isMain \}[^\n]+\n/m, '')
+        .replaceAll('isMain(import.meta.url)', 'process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)'));
+    }
+  };
   const parent = path.join(scratch, 'installed'); await mkdir(parent, { mode: 0o755 });
-  const toolsRoot = path.join(parent, 'tools'); await mkdir(toolsRoot, { mode: 0o755 });
+  const toolsRoot = path.join(parent, 'tools'); await legacy(toolsRoot);
   await writeFile(path.join(toolsRoot, 'legacy.mjs'), 'export const legacy = true;\n', { mode: 0o644 });
   const controlDir = path.join(scratch, 'control'); await mkdir(controlDir);
   const settings = { controlDir, current: path.join(scratch, 'current.json') };
@@ -69,11 +82,16 @@ try {
   await chmod(entry, 0o644);
   const restored = await install({ settings, toolsRoot, rollbackReceipt: installed.receiptFile, idle });
   assert.equal(restored.writerRestarted, false); assert.deepEqual(await inventory(await realpath(toolsRoot)), before);
+  assert.equal((await lstat(toolsRoot)).isSymbolicLink(), false);
+  await assertToolsEntrypoints(toolsRoot, account, runtimeCliChecks, { linked: false });
   await assert.rejects(switchTools({ settings, toolsRoot, rollbackReceipt: installed.receiptFile, idle }), /receipt/);
-  // Later symlink updates never need the directory exchange operation.
-  const next = await install({ settings, toolsRoot, packageRoot: pkg, idle, exchange: async () => { throw Error('unnecessary exchange'); } });
+  // After re-migrating the restored directory, later symlink updates need no exchange.
+  const next = await install({ settings, toolsRoot, packageRoot: pkg, idle });
+  const update = await install({ settings, toolsRoot, packageRoot: pkg, idle, exchange: async () => { throw Error('unnecessary exchange'); } });
   assert.equal(next.toolsIdentity, manifest.toolsIdentity);
   const nextReceipt = await json(next.receiptFile);
+  // Roll back the latest update to make next's exact installed selection current.
+  await install({ settings, toolsRoot, rollbackReceipt: update.receiptFile, idle });
   await writeFile(path.join(nextReceipt.previous.root, 'legacy.mjs'), 'changed');
   await assert.rejects(install({ settings, toolsRoot, rollbackReceipt: next.receiptFile, idle }), /previous-hashes/);
   // A hash-valid package with a no-op main guard must fail the service-account
@@ -88,18 +106,53 @@ try {
   // An injected failure after initial exchange restores selection and leaves
   // durable maintenance/transaction evidence; start-check cannot bypass it.
   const badParent = path.join(scratch, 'failed'); await mkdir(badParent, { mode: 0o755 });
-  const badTools = path.join(badParent, 'tools'); await mkdir(badTools, { mode: 0o755 });
-  await writeFile(path.join(badTools, 'old'), 'preserve', { mode: 0o644 });
+  const badTools = path.join(badParent, 'tools'); await legacy(badTools);
+  const badBefore = await inventory(badTools);
   let fail = true;
   const failingExchange = async (first, second) => {
     await exchangePaths(first, second);
-    if (fail) { fail = false; await writeFile(path.join(await realpath(first), 'scripts/linux/operator.mjs'), 'corrupt'); }
+    if (fail) { fail = false; throw Error('Interrupted after exchange'); }
   };
-  await assert.rejects(install({ settings, toolsRoot: badTools, packageRoot: pkg, idle, exchange: failingExchange }), /hashes differ/);
-  assert.equal(await readFile(path.join(badTools, 'old'), 'utf8'), 'preserve');
+  await assert.rejects(install({ settings, toolsRoot: badTools, packageRoot: pkg, idle, exchange: failingExchange }), /Interrupted/);
+  assert(await exists(badTools));
   assert(await exists(path.join(controlDir, 'tools-transaction.json'))); assert(await exists(path.join(controlDir, 'maintenance.json')));
   await assert.rejects(checkStart(settings), /Tools transaction/);
   await assert.rejects(switchTools({ settings, toolsRoot: badTools, packageRoot: pkg, idle }), /maintenance/);
+  const deadPid = Number(execFileSync(process.execPath, ['-p', 'process.pid'], { encoding: 'utf8' }).trim());
+  await writeFile(path.join(controlDir, 'operation.lock'), encode({ pid: deadPid, host: hostname(), startedAt: new Date().toISOString() }));
+  fail = true;
+  await assert.rejects(recoverToolsSwitch({ settings: { ...settings, multiPicker: {} }, toolsRoot: badTools, idle, identity, exchange: failingExchange }), /Interrupted/);
+  assert(await exists(badTools));
+  await recoverToolsSwitch({ settings, toolsRoot: badTools, idle, identity });
+  assert.equal((await lstat(badTools)).isSymbolicLink(), false);
+  assert.deepEqual(await inventory(badTools), badBefore);
+  // Rollback's exchange can be interrupted too; recovery restores the exact
+  // refreshed selection, then the same rollback receipt can be retried.
+  const migrated = await install({ settings, toolsRoot: badTools, packageRoot: pkg, idle });
+  fail = true;
+  await assert.rejects(install({ settings, toolsRoot: badTools, rollbackReceipt: migrated.receiptFile, idle, exchange: failingExchange }), /Interrupted/);
+  assert.equal((await lstat(badTools)).isSymbolicLink(), false);
+  await recoverToolsSwitch({ settings, toolsRoot: badTools, idle, identity });
+  assert.equal((await lstat(badTools)).isSymbolicLink(), true);
+  await install({ settings, toolsRoot: badTools, rollbackReceipt: migrated.receiptFile, idle });
+  // Empty and partial legacy layouts must never be selected for rollback.
+  for (const partial of [false, true]) {
+    const missingParent = path.join(scratch, partial ? 'partial' : 'empty'); await mkdir(missingParent);
+    const missing = path.join(missingParent, 'tools');
+    if (partial) { await legacy(missing); await rm(path.join(missing, 'scripts/linux/operator.mjs')); }
+    else await mkdir(missing);
+    const upgrade = await install({ settings, toolsRoot: missing, packageRoot: pkg, idle });
+    await assert.rejects(install({ settings, toolsRoot: missing, rollbackReceipt: upgrade.receiptFile, idle }), { code: 'TOOLS_ENTRYPOINT' });
+    assert.equal((await lstat(missing)).isSymbolicLink(), true);
+  }
+  // A forged uid/gid assertion must refuse before touching the selected path.
+  const settingsWithOverride = { ...settings, service: 'chunk-picker.service', serviceUid: account.uid, serviceGid: account.gid };
+  await assert.rejects(switchTools({ settings: settingsWithOverride, toolsRoot: badTools, packageRoot: pkg, idle,
+    identity: () => serviceIdentity(settingsWithOverride, serviceQuery({ uid: 1201, gid: 1202 })) }), { code: 'TOOLS_ACCESS' });
+  const validUpgrade = await install({ settings, toolsRoot: badTools, packageRoot: pkg, idle });
+  await assert.rejects(switchTools({ settings: settingsWithOverride, toolsRoot: badTools, rollbackReceipt: validUpgrade.receiptFile, idle,
+    identity: () => serviceIdentity(settingsWithOverride, serviceQuery({ uid: 1201, gid: 1202 })) }), { code: 'TOOLS_ACCESS' });
+  await assert.rejects(assertToolsEntrypoints(badTools, account, []), { code: 'TOOLS_ENTRYPOINT' });
   // The release lock must use the resolved service group, even beside root:root
   // releases; the access gate catches both group mistakes and ancestor drift.
   const releases = path.join(scratch, 'releases'), candidate = path.join(releases, 'candidate');
@@ -130,12 +183,20 @@ try {
   await mkdir(path.join(transportTools, 'scripts/linux'), { recursive: true });
   await writeFile(path.join(transportTools, 'scripts/linux/runtime.mjs'),
     `export { readRelease, assertServiceAccess } from ${JSON.stringify(pathToFileURL(path.join(repo, 'scripts/linux/runtime.mjs')).href)};\n`
-    + `export const serviceIdentity = async () => (${JSON.stringify(account)});\n`);
+    + `import { serviceIdentity as resolve } from ${JSON.stringify(pathToFileURL(path.join(repo, 'scripts/linux/prewarm.mjs')).href)};\n`
+    + `import { serviceQuery } from ${JSON.stringify(pathToFileURL(path.join(repo, 'tests/helpers/prewarm.mjs')).href)};\n`
+    + `export const serviceIdentity = settings => resolve(settings, serviceQuery(${JSON.stringify(account)}));\n`);
+  await writeFile(operatorFile, encode({ service: 'chunk-picker.service', current, dataDir }));
   const upload = path.join(scratch, 'upload'), rebased = path.join(releases, 'rebased');
   await prepareBundle(seed, upload); await rebaseBundle(upload, rebased, operatorFile, transportTools);
   assert.equal((await lstat(rebased)).gid, account.gid);
   await assertServiceAccess(rebased, account, ['core/app/server.mjs']);
   assert(await exists(path.join(upload, 'verified.json')));
+  const forgedUpload = path.join(scratch, 'forged-upload'); await prepareBundle(seed, forgedUpload);
+  await writeFile(operatorFile, encode({ service: 'chunk-picker.service', current, dataDir, serviceUid: 1201, serviceGid: 1202 }));
+  await assert.rejects(rebaseBundle(forgedUpload, path.join(releases, 'forged-identity'), operatorFile, transportTools), /override differs/);
+  assert.equal(await exists(path.join(forgedUpload, 'verified.json')), false);
+  await writeFile(operatorFile, encode({ service: 'chunk-picker.service', current, dataDir }));
   const badUpload = path.join(scratch, 'bad-upload'); await prepareBundle(seed, badUpload);
   await chmod(releases, 0o700);
   await assert.rejects(rebaseBundle(badUpload, path.join(releases, 'inaccessible'), operatorFile, transportTools), { code: 'TOOLS_ACCESS' });

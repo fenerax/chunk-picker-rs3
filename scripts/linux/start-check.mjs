@@ -5,7 +5,7 @@ import path from 'node:path';
 import { readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { exists, json, sha } from './files.mjs';
-import { operatorSettings } from './runtime.mjs';
+import { operatorSettings, readRelease, serviceIdentity, assertServiceAccess } from './runtime.mjs';
 
 export async function processIdentity(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Invalid operator owner.');
@@ -34,7 +34,12 @@ export async function checkStart(settings, { identity = processIdentity, now = D
     || sha(lock) !== permit.lockSha256 || sha(await readFile(settings.current)) !== permit.pointerSha256
     || await identity(owner.pid) !== permit.processIdentity) throw new Error('Service start is blocked by transaction evidence.');
 }
+export async function checkStartAccess(settings, { identity = serviceIdentity, read = readRelease, access = assertServiceAccess } = {}) {
+  const account = await identity(settings);
+  const release = await read(settings.current, settings.dataDir);
+  await access(release.config.coreRoot, account, ['app/server.mjs']);
+}
 if (isMain(import.meta.url)) {
-  try { await checkStart(await operatorSettings()); }
+  try { const settings = await operatorSettings(); await checkStart(settings); await checkStartAccess(settings); }
   catch { process.stderr.write('Service start blocked; reconcile maintenance evidence privately.\n'); process.exitCode = 1; }
 }

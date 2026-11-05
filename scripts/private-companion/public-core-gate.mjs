@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // Scan exact committed public trees using the existing private fingerprint corpus.
 import path from 'node:path';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -32,7 +31,7 @@ export async function scanPublicCandidate({ repo, revision, base, output, kitRoo
   if (!report.passed) throw new Error('Public scan failed.');
   return { passed: true, trees: rows.length, findings: 0 };
 }
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const options = {};
     for (let i = 2; i < process.argv.length; i += 2) { const key = { '--core': 'repo', '--ref': 'revision', '--base': 'base', '--output': 'output' }[process.argv[i]]; if (!key || !process.argv[i + 1]) throw new Error('Arguments'); options[key] = process.argv[i + 1]; }

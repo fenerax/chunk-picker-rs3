@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { isMain } from '../release/vps/entrypoint.mjs';
 // One-shot private worker. Installation/scheduling belongs to the operator.
 import path from 'node:path';
 import { lstat, readFile, mkdir, open, rename, unlink } from 'node:fs/promises';
@@ -122,4 +121,4 @@ export async function main(args) {
   console.log(JSON.stringify({ status: result.status, reason: result.reason, phase: result.phase }));
   if (result.status === 'failed' || result.status === 'refused') process.exitCode = 1;
 }
-if (isMain(import.meta.url)) main(process.argv.slice(2)).catch(() => { console.error('Release worker refused; inspect its private job state.'); process.exitCode = 1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main(process.argv.slice(2)).catch(() => { console.error('Release worker refused; inspect its private job state.'); process.exitCode = 1; });

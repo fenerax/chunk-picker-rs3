@@ -4,11 +4,12 @@ import { isMain } from '../release/vps/entrypoint.mjs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmod, chown, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { chmod, chown, cp, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { encode, json, sha } from './files.mjs';
+import { encode, exists, json, sha } from './files.mjs';
 import { buildTools } from './tools-package.mjs';
 import { switchTools } from './tools-install.mjs';
+import { verifyLegacyTools } from './legacy-tools.mjs';
 import { prepareBundle } from '../release/vps/bundle.mjs';
 import { readRelease, assertServiceAccess } from './runtime.mjs';
 import { lockRelease } from '../release/vps/bundle.mjs';
@@ -69,7 +70,14 @@ export async function scratchCycle(staging) {
   process.env.RS3_OPERATOR_CONFIG = '/etc/chunk-picker/operator.json';
   await writeFile('/etc/chunk-picker/runtime.env', 'RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json\nRS3_SIGNIN=off\n', { mode: 0o644 });
   for (const file of [origin, settings.current, '/etc/chunk-picker/operator.json', '/etc/chunk-picker/runtime.env']) await chmod(file, 0o644);
-  await mkdir(toolsRoot, { mode: 0o755 }); // empty legacy layout exercises exchange
+  const legacyReceiptFile = path.join(staging, 'legacy-fixture.json');
+  const legacyReceipt = await exists(legacyReceiptFile) ? await json(legacyReceiptFile) : null;
+  if (legacyReceipt) {
+    const legacyRoot = path.join(staging, 'legacy');
+    await verifyLegacyTools(legacyRoot, legacyReceipt);
+    await cp(legacyRoot, toolsRoot, { recursive: true, errorOnExist: true, force: false });
+    await verifyLegacyTools(toolsRoot, legacyReceipt);
+  } else await mkdir(toolsRoot, { mode: 0o755 });
   await chmod(toolsRoot, 0o755);
   const packageRoot = path.join(staging, 'package');
   const manifest = await buildTools(source, packageRoot);
@@ -81,13 +89,53 @@ export async function scratchCycle(staging) {
   await mkdir('/etc/systemd/system/chunk-picker-offhost.service.d');
   await writeFile('/etc/systemd/system/chunk-picker-offhost.service.d/local.conf', '[Service]\nLoadCredential=\nExecStart=\nExecStart=/usr/bin/true\n');
   run('systemctl', ['daemon-reload']);
+  const waitReady = async () => {
+    const release = await readRelease(settings.current, dataDir);
+    for (let n = 0; ; n++) {
+      const health = await privateRequest(release, '/api/health').catch(() => ({}));
+      if (health.ready && health.savesReady) return;
+      if (n === 60) throw Error('Synthetic readiness timed out.'); await delay(1000);
+    }
+  };
+  let legacyReport;
+  if (legacyReceipt) {
+    run('systemctl', ['start', settings.service]); await waitReady();
+    legacyReport = { baseline: legacyReceipt.baseline, recordedHashes: legacyReceipt.recorded.length,
+      writerPid: run('systemctl', ['show', '--value', '--property=MainPID', settings.service]).trim() };
+  }
   const installed = await switchTools({ settings, toolsRoot, packageRoot });
-  run('systemctl', ['start', settings.service]);
-  const current = await readRelease(settings.current, dataDir);
-  for (let n = 0; ; n++) {
-    const health = await privateRequest(current, '/api/health').catch(() => ({}));
-    if (health.ready && health.savesReady) break;
-    if (n === 60) throw Error('Synthetic readiness timed out.'); await delay(1000);
+  if (legacyReceipt) {
+    await switchTools({ settings, toolsRoot, rollbackReceipt: installed.receiptFile });
+    if ((await lstat(toolsRoot)).isSymbolicLink()) throw Error('Legacy rollback did not restore a directory.');
+    await verifyLegacyTools(toolsRoot, legacyReceipt);
+    // Execute the unit paths after rollback, including the old main guards.
+    await writeFile(path.join(controlDir, 'maintenance.json'), '{}');
+    let blocked = false;
+    try { run('/opt/node/bin/node', [path.join(toolsRoot, 'scripts/linux/start-check.mjs')]); }
+    catch (error) { blocked = error.status === 1 && error.stderr?.toString().startsWith('Service start blocked;'); }
+    if (!blocked) throw Error('Legacy maintenance gate did not execute.');
+    await rm(path.join(controlDir, 'maintenance.json'));
+    // The legacy health CLI intentionally prints nothing during its five-minute
+    // startup grace. Honor that grace before requiring an acted-on health tick.
+    const legacyOperator = await import(pathToFileURL(path.join(toolsRoot, 'scripts/linux/operator.mjs')));
+    for (;;) {
+      const state = await legacyOperator.systemd(settings).state();
+      if (!state.active) throw Error('Legacy rehearsal writer is not active.');
+      if (state.activeForMs >= 300000) break;
+      await delay(Math.min(1000, 300000 - state.activeForMs));
+    }
+    for (const command of ['health', 'backup']) {
+      const output = run('/opt/node/bin/node', [path.join(toolsRoot, 'scripts/linux/operator.mjs'), command]);
+      if (!output.startsWith('Operator command completed.')) throw Error('Legacy operator did not execute.');
+    }
+    const { newestVerifiedBackup } = await import('../release/vps/review.mjs');
+    await newestVerifiedBackup(settings.backupDir);
+    if (run('systemctl', ['show', '--value', '--property=MainPID', settings.service]).trim() !== legacyReport.writerPid) throw Error('Tools switch restarted the writer.');
+    legacyReport = { baseline: legacyReport.baseline, recordedHashes: legacyReport.recordedHashes,
+      realDirectoryRestored: true, maintenanceRefused: true, health: true, backupVerified: true, writerUnchanged: true };
+    await switchTools({ settings, toolsRoot, packageRoot });
+  } else {
+    run('systemctl', ['start', settings.service]); await waitReady();
   }
   const upload = path.join(staging, 'upload'), target = path.join(base, 'releases', 'synthetic-candidate');
   // The transport/stage implementation is the normal release flow. There is no
@@ -119,7 +167,7 @@ export async function scratchCycle(staging) {
   run('systemctl', ['enable', '--now', 'chunk-picker-backup.timer', 'chunk-picker-health.timer']);
   return { format: 'picker-synthetic-rehearsal-v1', node: process.versions.node, toolsFiles: manifest.files.length,
     toolsIdentity: manifest.toolsIdentity, writerRestartedForInstall: installed.writerRestarted,
-    stoppedToReadyMs: activation.stoppedToReadyMs, rehearsal, alerts, phases: receipts };
+    stoppedToReadyMs: activation.stoppedToReadyMs, ...(legacyReport ? { legacy: legacyReport } : {}), rehearsal, alerts, phases: receipts };
 }
 if (isMain(import.meta.url)) {
   try { process.stdout.write(encode(await scratchCycle(process.argv[2]))); }

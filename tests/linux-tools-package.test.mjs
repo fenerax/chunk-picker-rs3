@@ -10,8 +10,9 @@ import { phaseReceipt } from '../scripts/linux/phases.mjs';
 import { scratchHostGuard, freshHostGuard } from '../scripts/linux/scratch-rehearsal.mjs';
 import { reviewRefusal } from '../scripts/release/vps/review.mjs';
 import { releaseVps } from '../scripts/release/vps/release.mjs';
-import { encode, json } from '../scripts/linux/files.mjs';
-import { toolsCliChecks } from '../scripts/linux/entrypoint-checks.mjs';
+import { encode, exists, json, sha } from '../scripts/linux/files.mjs';
+import { runtimeCliChecks, toolsCliChecks } from '../scripts/linux/entrypoint-checks.mjs';
+import { buildLegacyTools, verifyLegacyTools } from '../scripts/linux/legacy-tools.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 async function fixture(t) {
@@ -77,11 +78,13 @@ test('all installed CLI and unit entrypoints act through a symlink, including ma
   for (const row of manifest.files.filter(row => row.path.endsWith('.mjs'))) {
     const source = await readFile(path.join(output, row.path), 'utf8');
     if (/if\s*\(isMain\(import\.meta\.url\)/.test(source)) assert(checked.has(row.path), 'Missing CLI behavior check: ' + row.path);
-    if (row.path !== 'scripts/release/vps/entrypoint.mjs') assert(!/process\.argv\[1\].*===.*(?:fileURLToPath|import\.meta\.url)/.test(source), row.path);
+    if (row.path.startsWith('scripts/linux/') || row.path.startsWith('scripts/release/vps/') && row.path !== 'scripts/release/vps/entrypoint.mjs')
+      assert(!/process\.argv\[1\].*===.*(?:fileURLToPath|import\.meta\.url)/.test(source), row.path);
   }
   for (const [entry, args, diagnostic] of toolsCliChecks) {
     let failed = false;
-    try { execFileSync(process.execPath, [path.join(alias, entry), ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 15000 }); }
+    const base = entry.startsWith('scripts/linux/') || entry.startsWith('scripts/release/vps/') ? alias : output;
+    try { execFileSync(process.execPath, [path.join(base, entry), ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 15000 }); }
     catch (error) {
       failed = true; assert.equal(error.status, 1, entry); assert.equal(error.stdout.toString(), '', entry);
       assert(error.stderr.toString().startsWith(diagnostic), entry + ': ' + error.stderr);
@@ -93,7 +96,10 @@ test('all installed CLI and unit entrypoints act through a symlink, including ma
   assert.equal(verified.toolsIdentity, manifest.toolsIdentity);
   for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service']) {
     const source = await readFile(path.join(repo, 'scripts/linux/systemd', unit), 'utf8');
-    for (const match of source.matchAll(/\/opt\/chunk-picker\/tools\/([^\s]+)/g)) assert(checked.has(match[1]), unit);
+    for (const match of source.matchAll(/\/opt\/chunk-picker\/tools\/([^\s]+)/g)) {
+      assert(checked.has(match[1]), unit);
+      assert(runtimeCliChecks.some(row => row[0] === match[1]), 'Legacy rollback must require ' + match[1]);
+    }
   }
 });
 
@@ -179,6 +185,41 @@ test('release transport receipts distinguish local command time from remote down
   assert.equal(receipt.operation, 'release-derive'); assert.equal(receipt.result, 'success');
   assert.equal(receipt.stoppedToReadyMs, undefined); assert.equal(receipt.phases[0].name, 'derive');
 });
+test('legacy rehearsal reconstruction uses installed hashes and refuses drift, missing bytes and path escapes', async t => {
+  const scratch = await fixture(t), repo = path.join(scratch, 'repo'), copies = path.join(scratch, 'copies');
+  await mkdir(repo); await mkdir(copies);
+  const git = args => execFileSync('git', ['-c', 'core.autocrlf=false', '-c', 'core.hooksPath=',
+    '-c', 'user.email=fenerax@users.noreply.github.com', '-c', 'user.name=fenerax', ...args],
+    { cwd: repo, windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  git(['init', '-b', 'main']);
+  await mkdir(path.join(repo, 'scripts/linux'), { recursive: true });
+  const old = 'export const version = 1;\n', next = 'export const version = 2;\n';
+  for (const name of ['operator', 'start-check', 'serve', 'probe', 'rehearse', 'runtime']) await writeFile(path.join(repo, `scripts/linux/${name}.mjs`), old);
+  git(['add', '.']); git(['commit', '-m', 'Synthetic legacy fixture', '-m', 'Written by Codex.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>']);
+  for (const name of ['operator', 'runtime']) await writeFile(path.join(repo, `scripts/linux/${name}.mjs`), next);
+  git(['add', '.']); git(['commit', '-m', 'Synthetic refreshed fixture', '-m', 'Written by Codex.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>']);
+  const baseline = git(['rev-parse', 'HEAD']).trim(), comparison = path.join(scratch, 'comparison.json');
+  await writeFile(path.join(copies, 'operator.mjs'), old);
+  const rows = ['operator', 'runtime'].map(name => ({ path: `scripts/linux/${name}.mjs`, installedSha256: sha(old) }));
+  rows.push({ path: 'scripts/linux/prewarm.mjs', installedSha256: null });
+  await writeFile(comparison, encode({ rows }));
+  const options = { repo, comparison, installedCopies: copies, baseline }, output = path.join(scratch, 'legacy');
+  const receipt = await buildLegacyTools({ ...options, output });
+  assert.equal(receipt.recorded.length, 2);
+  for (const name of ['operator', 'runtime']) assert.equal(await readFile(path.join(output, `scripts/linux/${name}.mjs`), 'utf8'), old);
+  assert.equal(await exists(path.join(output, 'scripts/linux/prewarm.mjs')), false);
+  await verifyLegacyTools(output, receipt);
+  await writeFile(path.join(output, 'extra.mjs'), next);
+  await assert.rejects(verifyLegacyTools(output, receipt), /differs/);
+  await assert.rejects(buildLegacyTools({ ...options, output }), /absent/);
+  await writeFile(comparison, encode({ rows: [{ path: 'scripts/linux/operator.mjs', installedSha256: '0'.repeat(64) }] }));
+  const badOutput = path.join(scratch, 'unreproducible');
+  await assert.rejects(buildLegacyTools({ ...options, output: badOutput }), /Cannot reproduce/);
+  assert.equal(await exists(badOutput), false);
+  await writeFile(comparison, encode({ rows: [{ path: '../outside.mjs', installedSha256: sha(old) }] }));
+  await assert.rejects(buildLegacyTools({ ...options, output: badOutput }), /inventory refused/);
+});
+
 test('scratch guard blocks production aliases, DNS aliases and SSH forwarding before writes', async () => {
   const resolve = async host => [{ address: host === 'chunkpicker.ca' ? '127.0.0.1' : '0.0.0.0' }];
   let calls = 0;

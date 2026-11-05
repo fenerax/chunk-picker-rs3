@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // A no-op release rehearsal has its own scratch deployment envelope. It never
 // adopts a live save, credential, origin, process owner or current-pointer path.
 import path from 'node:path';
@@ -191,7 +190,7 @@ export async function practiceRelease(options, dependencies = {}) {
   return report;
 }
 
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes('--help')) console.log('Practice library: release-v2.mjs release --practice --kit ABS --current ABS --repo ABS --output ABSENT_SCRATCH');
   else { console.error('Invoke practice through release-v2.mjs release --practice.'); process.exitCode = 1; }
 }

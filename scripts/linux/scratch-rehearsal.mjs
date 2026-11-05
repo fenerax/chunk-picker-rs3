@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { buildLegacyTools } from './legacy-tools.mjs';
 
 const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
 const execute = (file, args, input) => execFileSync(file, args, { input, encoding: 'utf8', windowsHide: true,
@@ -41,7 +42,8 @@ live=$(getent ahosts chunkpicker.ca)
 test -n "$live"
 if printf '%s\n' "$live" | awk '{print $1}' | grep -Fxq "$server"; then exit 1; fi
 `;
-export async function provisionScratch(alias, nodeArchive, expectedSha, { run = execute, resolve = lookup } = {}) {
+export async function provisionScratch(alias, nodeArchive, expectedSha, { run = execute, resolve = lookup,
+  legacyComparison, legacyCopies, legacyBaseline } = {}) {
   if (!/^[a-f0-9]{64}$/.test(expectedSha ?? '')) throw Error('A reviewed Node archive SHA-256 is required.');
   const bytes = await readFile(nodeArchive);
   if (createHash('sha256').update(bytes).digest('hex') !== expectedSha) throw Error('Node archive hash differs.');
@@ -51,11 +53,21 @@ export async function provisionScratch(alias, nodeArchive, expectedSha, { run = 
   const id = randomUUID(), output = path.join(repo, '.local', 'tools-scratch', id);
   await mkdir(output, { recursive: true });
   const archive = path.join(output, 'source.tar'), remote = '/var/tmp/chunk-tools-scratch-' + id;
+  const legacy = !!(legacyComparison || legacyCopies || legacyBaseline);
+  if (legacy) {
+    if (!legacyComparison || !legacyCopies || !legacyBaseline) throw Error('Complete legacy fixture inputs required.');
+    const root = path.join(output, 'legacy-tools');
+    const receipt = await buildLegacyTools({ repo, comparison: legacyComparison, installedCopies: legacyCopies, output: root, baseline: legacyBaseline });
+    await writeFile(path.join(output, 'legacy-fixture.json'), JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx' });
+    const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+    run(tar, ['-cf', path.join(output, 'legacy.tar'), '-C', root, '.']);
+  }
   run('git', ['-C', repo, 'archive', '--format=tar', '-o', archive, 'HEAD']);
   // The second guard runs immediately before the first remote write.
   run('ssh', [alias, 'sh -s -- ' + quote(remote)], freshHostGuard + '\numask 077\nmkdir "$1"\n');
   run('scp', [archive, alias + ':' + remote + '/source.tar']);
   run('scp', [path.resolve(nodeArchive), alias + ':' + remote + '/node.tar.xz']);
+  if (legacy) for (const name of ['legacy.tar', 'legacy-fixture.json']) run('scp', [path.join(output, name), alias + ':' + remote + '/' + name]);
   const bootstrap = String.raw`set -eu
 . /etc/os-release
 case "$ID" in ubuntu|debian) ;; *) exit 1;; esac
@@ -77,6 +89,13 @@ tar -xf "$1/source.tar" -C /opt/chunk-picker/source
 chown -R root:root /opt/chunk-picker/source
 chmod -R go-w /opt/chunk-picker/source
 /opt/node/bin/node /opt/chunk-picker/source/scripts/ops/install-restic.mjs >>"$1/provision.log" 2>&1
+if test -f "$1/legacy-fixture.json"; then
+  mkdir "$1/legacy"
+  tar -xf "$1/legacy.tar" --no-same-owner -C "$1/legacy"
+  chown -R root:root "$1/legacy"
+  find "$1/legacy" -type d -exec chmod 0755 {} +
+  find "$1/legacy" -type f -exec chmod 0644 {} +
+fi
 /opt/node/bin/node /opt/chunk-picker/source/scripts/linux/scratch-cycle.mjs "$1"
 `;
   const result = run('ssh', [alias, 'sudo -n -- sh -s -- ' + quote(remote) + ' ' + quote(expectedSha)], bootstrap);
@@ -87,8 +106,12 @@ chmod -R go-w /opt/chunk-picker/source
 }
 if (isMain(import.meta.url)) {
   try {
-    const [alias, archive, sha, ...extra] = process.argv.slice(2);
-    if (!archive || extra.length) throw Error();
-    process.stdout.write(JSON.stringify(await provisionScratch(alias, archive, sha), null, 2) + '\n');
+    const [alias, archive, sha, ...extra] = process.argv.slice(2), options = {};
+    if (!archive || extra.length % 2) throw Error();
+    for (let i = 0; i < extra.length; i += 2) {
+      const key = { '--legacy-comparison': 'legacyComparison', '--legacy-copies': 'legacyCopies', '--legacy-baseline': 'legacyBaseline' }[extra[i]];
+      if (!key || options[key]) throw Error(); options[key] = extra[i + 1];
+    }
+    process.stdout.write(JSON.stringify(await provisionScratch(alias, archive, sha, options), null, 2) + '\n');
   } catch { process.stderr.write('Synthetic scratch rehearsal refused; no live fallback.\n'); process.exitCode = 1; }
 }

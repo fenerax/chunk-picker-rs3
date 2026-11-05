@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // Bounded static compatibility checks. Candidate code is read, never imported or run.
 import path from 'node:path';
 import { readFile, readdir, lstat } from 'node:fs/promises';
@@ -479,7 +478,7 @@ export async function assertPrivateDriftForStaging({ source, privateRepo, privat
   return report;
 }
 
-if (isMain(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   let asJSON = false;
   try {
     const options = {}, seen = new Set();

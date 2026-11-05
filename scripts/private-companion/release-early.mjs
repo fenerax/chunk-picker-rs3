@@ -1,4 +1,3 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 // Ordered early checks; failure collection never starts a full lane.
 import path from 'node:path';
 import { cp, mkdir, rm, readFile, writeFile, lstat } from 'node:fs/promises';
@@ -47,7 +46,7 @@ export async function syntheticStartup({core,receipt,scratch}){
     try{if(app)await app.close();}finally{await rm(scratch,{recursive:true,force:true});}
   }
 }
-if(isMain(import.meta.url)){
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   if(process.argv.includes('--help'))console.log('Usage: release-early.mjs startup --core ABS --receipt ABS --scratch ABS');
   else{
     // Do not print candidate startup diagnostics (invite URLs may be present).

@@ -14,8 +14,8 @@ URL-relative child entrypoints from the systemd and release entrypoints. Its
 manifest lists each file's relative path, byte size and SHA-256. `toolsIdentity`
 is SHA-256 over the canonical manifest body (everything except that digest).
 Verification recomputes both hashes and the closure and rejects extra files,
-missing dependencies, links and unmodeled computed imports. There are currently
-54 files, including the small app helpers imported directly by tools. Unit
+missing dependencies, links and unmodeled computed imports. Read the generated
+manifest for the exact inventory, including app helpers imported directly by tools. Unit
 files are installed separately; none of their paths changes.
 
 The selected release still supplies the application server and state decoder,
@@ -57,6 +57,20 @@ VM purchase is automated.
    disposable machine after failures. Destroy the rented VM after retaining the
    report; never repurpose it as a production installation.
 
+For a first-install/legacy-rollback rehearsal, append
+`--legacy-comparison <absolute-tools-comparison.json> --legacy-copies <absolute-installed-code-copy-directory> --legacy-baseline <full-pre-refresh-commit>`.
+The provisioner reconstructs a code-only legacy tree from those archived copies
+and public Git history. Every non-missing installed hash in the comparison must
+match exactly; unavailable bytes refuse provisioning. Unlisted unit and probe
+entrypoints come from the explicit baseline. No local configuration, save,
+credential, or archived report is uploaded. The scratch machine verifies the
+fixture again, starts its synthetic writer from the legacy **real directory**,
+migrates forward, rolls back to that real directory, checks maintenance refusal,
+runs legacy health and a verified online backup, confirms the writer PID did not
+change, then refreshes tools again before the normal release cycle. The report's
+`legacy` section records these results. The health check honors the legacy
+five-minute startup grace. Timers remain disabled during switching.
+
 The target for an unchanged persistent store is about **20–30 seconds** from
 stopped to ready. That is an expectation, not a measured result of this change.
 Player or credential-sidecar writes can still select all four stopped probes.
@@ -96,6 +110,10 @@ the named condition or wait for its existing run to finish, then retry.
    filesystem are required. The old directory is retained as `legacy-<id>`.
    Later switches use atomic symlink rename. Installed hashes and import closure
    are verified again after switching. No unit edits or daemon reload is needed.
+   Identity checks always resolve the installed writer unit's `User`/`Group`
+   through systemd and NSS. Optional numeric settings must match both exactly;
+   they cannot supply an alternate account. This also applies to rollback,
+   release staging, recovery ownership and the privileged start gate.
 5. Recheck the private health/pointer metadata, units and receipt. The running
    writer continues its already loaded code and release; **no writer restart
    is required for install or rollback**. The next ordinary service start loads
@@ -114,6 +132,29 @@ the named condition or wait for its existing run to finish, then retry.
    reconcile privately before further operator or start actions. A crash record
    names both the temporary exchange path and retained legacy destination;
    neither an absent receipt nor an incomplete phase means success.
+   Legacy rollback uses the same `renameat2(RENAME_EXCHANGE)` syscall to put
+   the retained real directory back at `tools`, since old main-module guards
+   cannot execute through a symlink. There is no missing-path window. The
+   exchange requires Python 3, libc `renameat2` and filesystem support; there
+   is no two-rename fallback. Before selecting any rollback tree, every writer,
+   start, health and backup entrypoint must exist and pass behavioral probes
+   as the actual service account, at direct real paths for legacy tools.
+
+   After an interruption, keep timers excluded and use the **retained staged
+   installer**, with the same configuration, to restore the pre-switch selection:
+
+   ```sh
+   sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /opt/node/bin/node /var/tmp/tools-package/scripts/linux/tools-install.mjs recover /opt/chunk-picker/tools
+   ```
+
+   Recovery holds the operator lock, checks the journal, locates the old real
+   directory at the original, temporary or retained path, verifies hashes,
+   ownership, service access and all runtime probes, and atomically restores
+   it. It also handles an interrupted legacy rollback by restoring the prior
+   symlink. Re-running after an interrupted recovery recognizes the already
+   restored tree. It durably writes a recovery receipt before removing the
+   maintenance/transaction gates. The writer is never stopped or restarted. Unknown,
+   modified or incomplete state stays fenced for private inspection.
 7. During the next separately approved release, retain
    `control/phase-receipts/activate-<id>.json` and derive receipts. They include
    tools identity, drain, online/stopped copy and hash, each probe, pointer,
