@@ -93,6 +93,7 @@ export const quickTests = new Set([
   "release-vps-additions.test.mjs",
   "online-snapshot.test.mjs",
   "progress-sources.test.mjs",
+  "platform-api.test.mjs",
   "public-request.test.mjs",
   "accounts-storage.test.mjs",
   "account-panel.test.mjs",
@@ -358,6 +359,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "platform-rollback.test.mjs",
   "prewarm-process-tree.test.mjs",
   "warm-restart-worker.test.mjs",
   "worker-native-zlib.test.mjs",

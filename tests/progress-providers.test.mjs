@@ -1,4 +1,5 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,7 @@ import { syncFixture } from '../scripts/perf/progress-sync.mjs';
 const fixture = JSON.parse(await readFile(new URL('./fixtures/progress/player-x.json', import.meta.url)));
 const lite = await readFile(new URL('./fixtures/progress/player-x-hiscores.txt', import.meta.url), 'utf8');
 const clock = () => Date.parse(fixture.fetchedAt);
+beforeEach(t => blockUnmockedFetch(t));
 const pluginAt = '2026-10-30T00:00:00.000Z';
 const provenance = { source: 'game-plugin', fetchedAt: pluginAt, memberId: 'player-x' };
 const webFetch = async url => new Response(JSON.stringify(url.pathname.endsWith('/quests') ? fixture.quests : fixture.profile));
@@ -26,7 +28,7 @@ function group() {
 }
 function apply(state, command) { return applyCommand(state, command, { now: () => fixture.fetchedAt }); }
 function source(t, options = {}) {
-  const client = createProgressSources({ clock, hiscores: unavailableHiscores, ...options });
+  const client = createProgressSources({ webSource: 'runemetrics', clock, hiscores: unavailableHiscores, ...options });
   t.after(() => client.close()); return client;
 }
 function savedState() {

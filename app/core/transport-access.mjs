@@ -2,7 +2,7 @@ import { TRANSPORT_ROUTES } from '../data/transport-routes.mjs';
 import { TRANSPORT_ACCESS_RULE, TRANSPORT_MASK_SHA256, TRANSPORT_RUNTIME_SHA256 } from '../data/cache-entry-policy.mjs';
 import { componentLocations, componentBlocked, surfaceReachability } from './cache-surface.mjs';
 import { isWalkingSectionEdge, sectionIsFree } from './map-boundaries.mjs';
-import { progressBelongsToMember } from './game-progress.mjs';
+import { isGameProgressSource, sameRuneScapeName, progressBelongsToMember } from './game-progress.mjs';
 import { surfaceLodestones } from '../data/lodestones.mjs';
 import { requireTeleportReturns } from './teleport-returns.mjs';
 import { automaticTransportEnabled, deriveAutomaticTransport, automaticRouteFacts, automaticRouteGroup,
@@ -107,7 +107,10 @@ function personalFacts(state, member, injected) {
     && member.completedTasks?.includes(id)) quests[observation.title] = true;
   // Personal game completions can prove an exact quest title; challenge checks
   // and the task engine's potential-level fixed point cannot.
-  for (const task of state.tasks ?? []) if (task.category === 'Quest' && member.completedTasks?.includes(task.id)) quests[task.label] = true;
+  for (const task of state.tasks ?? []) if (task.category === 'Quest' && member.completedTasks?.includes(task.id)) {
+    const observation = member.questProgress?.[task.id];
+    if (!observation || !isGameProgressSource(observation.source) || sameRuneScapeName(observation.runescapeName, member.runescapeName)) quests[task.label] = true;
+  }
   return { ...explicit, levels: { ...levels, ...explicit.levels }, quests: { ...quests, ...explicit.quests } };
 }
 

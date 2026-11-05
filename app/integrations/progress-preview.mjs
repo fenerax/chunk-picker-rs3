@@ -1,22 +1,24 @@
-import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember } from '../core/game-progress.mjs';
+import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember, validateObservedQuestPoints, isObservedProgressSource } from '../core/game-progress.mjs';
 import { canonicalTitle, UNMAPPED_QUEST_REASONS } from './quest-mapping.mjs';
 
 export function previewProgressSnapshot(state, memberId, snapshot, questMapping) {
-  if (!['runemetrics', 'game-plugin', 'official-api', 'hiscores'].includes(snapshot.source)) throw new TypeError('Unknown progress source.');
+  if (!isObservedProgressSource(snapshot.source)) throw new TypeError('Unknown progress source.');
   validateRuneMetricsTimestamp(snapshot.fetchedAt, 'Progress');
   const member = state.members.find(owner => owner.id === memberId);
   if (!member) throw new RangeError(`Unknown member: ${memberId}`);
+  if (snapshot.questPoints !== undefined) validateObservedQuestPoints(snapshot.questPoints);
   const skills = [], observedSkills = [], quests = [], observedQuests = [];
   const unmatched = { skills: [...(snapshot.unmatchedSkills ?? [])], quests: [] }, seenSkills = new Set(), seenQuests = new Set();
   for (const row of snapshot.skills) {
     const skill = observedSkillNames.includes(row.skill) ? row.skill : undefined;
-    if (!skill) { unmatched.skills.push({ id: row.id ?? null, reason: 'Unknown skill.' }); continue; }
+    if (!skill) { unmatched.skills.push({ id: row.id ?? null, ...(row.name ? { name: row.name } : {}), reason: 'Unknown skill.' }); continue; }
     if (seenSkills.has(skill)) throw progressError('BAD_RESPONSE', `Progress source returned duplicate ${skill} rows.`, 502);
     seenSkills.add(skill);
-    if (!Number.isSafeInteger(row.level) || row.level < 1 || row.level > 120 || typeof row.xp !== 'number' || !Number.isFinite(row.xp) || row.xp < 0 || row.xp > 200_000_000) {
+    if (!Number.isSafeInteger(row.level) || row.level < 1 || row.level > 120 || typeof row.xp !== 'number' || !Number.isFinite(row.xp) || (snapshot.source === 'platform-api' && row.provenance?.source !== 'game-plugin' && !Number.isSafeInteger(row.xp)) || row.xp < 0 || row.xp > 200_000_000) {
       unmatched.skills.push({ id: row.id, skill, reason: 'Invalid level or XP; this row will not be applied.' }); continue;
     }
-    const after = { level: row.level, xp: row.xp }, saved = member.skillProgress?.[skill];
+    const after = { level: row.level, xp: row.xp }, prior = member.skillProgress?.[skill];
+    const saved = progressBelongsToMember(prior, member) ? prior : undefined;
     // The server may have newer saved facts than the member used for fetching.
     if (snapshot.source === 'hiscores' && row.provenance?.source !== 'game-plugin'
       && progressBelongsToMember(saved, member) && (after.level < saved.level || after.xp < saved.xp)) continue;
@@ -47,9 +49,12 @@ export function previewProgressSnapshot(state, memberId, snapshot, questMapping)
     preview: { stateRevision: state.revision, memberId, runescapeName: member.runescapeName ?? '',
       ...(snapshot.message ? { message: snapshot.message } : {}),
       source: snapshot.source, sourceLabel: snapshot.sourceLabel, fetchedAt: snapshot.fetchedAt, cached: snapshot.cached, skills, quests, unmatched,
+      ...(snapshot.questPoints !== undefined ? { questPoints: {
+        before: null,
+        after: snapshot.questPoints } } : {}),
       counts: { completedQuests, matchedQuests, unmatchedQuests: unmatched.quests.length } },
     command: { type: snapshot.source === 'game-plugin' ? 'apply-game-progress' : 'apply-runemetrics', memberId,
-      ...(snapshot.source === 'game-plugin' ? { achievements: [] } : { runescapeName: member.runescapeName, ...(['official-api', 'hiscores'].includes(snapshot.source) ? { source: snapshot.source } : {}) }),
+      ...(snapshot.source === 'game-plugin' ? { achievements: [] } : { runescapeName: member.runescapeName, ...(snapshot.source !== 'runemetrics' ? { source: snapshot.source } : {}) }),
       fetchedAt: snapshot.fetchedAt, skills: observedSkills, quests: observedQuests },
   };
 }

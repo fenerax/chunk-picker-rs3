@@ -1,6 +1,8 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
 import { createProgressSources as createSources, createPluginProgressSource, createOfficialApiSource, previewProgress } from '../app/integrations/progress-sources.mjs';
+import { platformResponse } from './helpers/platform-api-fixtures.mjs';
 import { createRuneMetricsClient } from '../app/integrations/runemetrics.mjs';
 import { createQuestMapping } from '../app/integrations/quest-mapping.mjs';
 import { RUNE_METRICS_SUNSET_AT, PLUGIN_PROGRESS_FRESH_MS } from '../app/integrations/progress-source-policy.mjs';
@@ -11,7 +13,9 @@ import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { personalSkillProgress } from '../app/web/helper-model.mjs';
 import { customTaskDoable } from '../app/web/custom-tasks-model.mjs';
 
-const createProgressSources = options => createSources({ hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...options });
+beforeEach(t => blockUnmockedFetch(t));
+
+const createProgressSources = options => createSources({ webSource: 'runemetrics', hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...options });
 const beforeSunset = RUNE_METRICS_SUNSET_AT - 1000;
 const owner = { id: 'actor1', runescapeName: 'Player x' };
 const live = (at, extra = {}) => ({ sentAt: new Date(at).toISOString(), world: { beta: false },
@@ -136,7 +140,7 @@ test('one configured replacement adapter supplies normalized progress with truth
 
 test('all progress sources feed account levels, training and quest availability with their binding intact', () => {
   const engine = createTaskEngine({ chunks: { '100': {} }, challenges: { Extra: { 'Cook requirement': { SkillsNeeded: { Cooking: 30 } } } } });
-  for (const source of ['runemetrics', 'official-api', 'game-plugin']) {
+  for (const source of ['runemetrics', 'platform-api', 'official-api', 'hiscores', 'game-plugin']) {
     const state = createGroupState([{ id: owner.id, name: 'Player', unlocked: ['100'] }]);
     const member = state.members[0]; member.runescapeName = owner.runescapeName;
     const provenance = { source, fetchedAt: new Date(beforeSunset).toISOString(),
@@ -181,3 +185,154 @@ test('plugin progress works without a web account name and older reports cannot 
   plugin.clear();
   assert.equal((await sources.snapshot(unnamed)).available, false);
 });
+
+
+test('default Platform web source overlays plugin facts and keeps transient QP', async t => {
+  const calls = [];
+  const sources = createSources({ runeMetrics: { fetchImpl: async url => { calls.push(url.origin); return platformResponse(url); } },
+    pluginSnapshot: () => ({ source: 'game-plugin', sourceLabel: 'Game plugin', fetchedAt: '2026-11-04T12:00:00Z',
+      skills: [{ skill: 'Attack', level: 8, xp: 850.5 }], quests: [] }),
+    hiscores: { async snapshot() { throw new Error('Fallback must not run on a successful pair'); } } });
+  t.after(() => sources.close());
+  const member = { id: 'actor1', runescapeName: 'ExampleHero' };
+  const snapshot = await sources.snapshot(member);
+  assert.deepEqual(calls, ['https://secure.runescape.com', 'https://secure.runescape.com'], 'Healthy Platform sync never contacts RuneMetrics');
+  assert.equal(snapshot.source, 'platform-api'); assert.equal(snapshot.sourceLabel, 'Platform API + game plugin');
+  assert.equal(snapshot.skills.find(row => row.skill === 'Attack').level, 8);
+  assert.equal(snapshot.skills.find(row => row.skill === 'Attack').provenance.source, 'game-plugin');
+  assert.equal(snapshot.skills.find(row => row.skill === 'Defence').level, 9);
+  assert.deepEqual(snapshot.questPoints, { current: 17, max: 450 });
+  const review = previewProgress({ revision: 0, members: [{ ...member, completedTasks: [] }], tasks: [] }, member.id, snapshot, new Map());
+  assert.equal(review.command.skills.find(row => row.skill === 'Attack').xp, 850.5, 'Plugin XP precision survives the Platform overlay');
+});
+
+test('default Platform failure retains the nondecreasing Hiscores fallback', async t => {
+  const calls = [];
+  const sources = createSources({ runeMetrics: { fetchImpl: async url => {
+    calls.push(url.origin);
+    if (url.origin === 'https://apps.runescape.com') return new Response('', { status: 410 });
+    assert.equal(url.origin, 'https://secure.runescape.com');
+    throw new Error('Synthetic Platform outage');
+  } },
+    hiscores: { async snapshot() { return { source: 'hiscores', sourceLabel: 'RS3 hiscores', fetchedAt: '2026-11-04T12:00:00Z', cached: false,
+      skills: [{ skill: 'Attack', level: 4, xp: 300 }, { skill: 'Defence', level: 9, xp: 1000 }], quests: [] }; } } });
+  t.after(() => sources.close());
+  const member = { id: 'actor1', runescapeName: 'ExampleHero',
+    skillProgress: { Attack: { source: 'official-api', runescapeName: 'ExampleHero', level: 7, xp: 700 } } };
+  const before = structuredClone(member), snapshot = await sources.snapshot(member);
+  assert.equal(snapshot.source, 'hiscores');
+  assert.deepEqual(calls, ['https://secure.runescape.com', 'https://secure.runescape.com', 'https://apps.runescape.com', 'https://apps.runescape.com']);
+  assert.equal(snapshot.message, undefined, 'Platform failure does not report RuneMetrics closure');
+  assert.deepEqual(snapshot.skills.map(row => row.skill), ['Defence']);
+  assert.equal(snapshot.questPoints, undefined); assert.deepEqual(member, before);
+});
+
+// Route every synthetic request explicitly; the global fetch guard stays active.
+function platformFallback(t, { platformFetch = async () => new Response('', { status: 503 }),
+  legacyResponse = async url => new Response(JSON.stringify(url.pathname.endsWith('/quests')
+    ? { quests: [{ title: 'Synthetic Quest', status: 'COMPLETED' }] }
+    : { name: owner.runescapeName, skillvalues: [{ id: 0, level: 4, xp: 3000 }, { id: 1, level: 9, xp: 10000 }] })),
+  hiscoresSnapshot = async () => ({ source: 'hiscores', sourceLabel: 'RS3 Hiscores', fetchedAt: new Date(beforeSunset).toISOString(),
+    skills: [{ skill: 'Attack', level: 4, xp: 300 }], quests: [] }), ...options } = {}) {
+  const calls = { platform: [], legacy: [], hiscores: 0 };
+  const sources = createSources({ clock: () => beforeSunset, runeMetricsEnabled: () => true, ...options,
+    runeMetrics: { timeoutMs: 20, fetchImpl: async (url, init) => {
+      if (url.origin === 'https://apps.runescape.com') {
+        calls.legacy.push(url.pathname);
+        return legacyResponse(url, init);
+      }
+      calls.platform.push(url.pathname);
+      assert.equal(url.origin, 'https://secure.runescape.com');
+      return platformFetch(url, init);
+    } },
+    hiscores: { async snapshot() { calls.hiscores++; return hiscoresSnapshot(); } } });
+  t.after(() => sources.close());
+  return { sources, calls };
+}
+
+for (const failure of ['Player Quests timeout', 'HTTP 503']) {
+  test(`Platform ${failure}: healthy RuneMetrics preserves quests without contacting Hiscores`, async t => {
+    const { sources, calls } = platformFallback(t, failure === 'Player Quests timeout' ? {
+      platformFetch: async url => url.pathname.includes('/playerQuests/') ? new Promise(() => {}) : platformResponse(url),
+    } : {});
+    const snapshot = await sources.snapshot(owner);
+    assert.equal(snapshot.source, 'runemetrics'); assert.equal(snapshot.sourceLabel, 'RuneMetrics');
+    assert.deepEqual(snapshot.skills.map(({ skill, level, xp }) => ({ skill, level, xp })),
+      [{ skill: 'Attack', level: 4, xp: 300 }, { skill: 'Defence', level: 9, xp: 1000 }]);
+    assert.deepEqual(snapshot.quests, [{ title: 'Synthetic Quest', status: 'COMPLETED' }]);
+    assert.equal(calls.platform.length, 2);
+    assert.deepEqual(calls.legacy, ['/runemetrics/profile/profile', '/runemetrics/quests']);
+    assert.equal(calls.hiscores, 0);
+  });
+}
+
+for (const status of [404, 410]) {
+  test(`Platform failure with RuneMetrics HTTP ${status}: Hiscores supplies levels and retirement persists`, async t => {
+    const { sources, calls } = platformFallback(t, { legacyResponse: async () => new Response('', { status }) });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const snapshot = await sources.snapshot(owner);
+      assert.equal(snapshot.source, 'hiscores');
+      assert.deepEqual(snapshot.skills, [{ skill: 'Attack', level: 4, xp: 300 }]);
+      assert.deepEqual(snapshot.quests, []); assert.equal(snapshot.message, undefined);
+      assert.equal(calls.legacy.length, 2, 'Retired RuneMetrics is never fetched again');
+    }
+    assert.equal(calls.platform.length, 4); assert.equal(calls.hiscores, 2);
+  });
+}
+
+test('Platform failure with a RuneMetrics network error uses Hiscores and retries RuneMetrics next time', async t => {
+  const { sources, calls } = platformFallback(t, { legacyResponse: async () => { throw new Error('Synthetic DNS failure'); } });
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const snapshot = await sources.snapshot(owner);
+    assert.equal(snapshot.source, 'hiscores'); assert.deepEqual(snapshot.quests, []);
+    assert.equal(snapshot.message, undefined);
+    assert.equal(calls.legacy.length, attempt * 2, 'A network error must not retire RuneMetrics');
+  }
+  assert.equal(calls.platform.length, 4); assert.equal(calls.hiscores, 2);
+});
+
+test('Platform failure with the RuneMetrics off switch uses Hiscores without contacting RuneMetrics', async t => {
+  const { sources, calls } = platformFallback(t, { runeMetricsEnabled: () => false });
+  const snapshot = await sources.snapshot(owner);
+  assert.equal(snapshot.source, 'hiscores'); assert.deepEqual(snapshot.quests, []);
+  assert.equal(snapshot.message, undefined);
+  assert.equal(calls.platform.length, 2); assert.deepEqual(calls.legacy, []); assert.equal(calls.hiscores, 1);
+});
+
+test('Platform failure rechecks the RuneMetrics off switch after a healthy legacy fetch', async t => {
+  let enabled = true;
+  const { sources, calls } = platformFallback(t, { runeMetricsEnabled: () => enabled,
+    legacyResponse: async url => {
+      if (url.pathname.endsWith('/quests')) { enabled = false; return Response.json({ quests: [{ title: 'Synthetic Quest', status: 'COMPLETED' }] }); }
+      return legacyFetch(url);
+    } });
+  const snapshot = await sources.snapshot(owner);
+  assert.equal(snapshot.source, 'hiscores'); assert.deepEqual(snapshot.quests, []);
+  assert.equal(snapshot.message, undefined); assert.equal(calls.legacy.length, 2); assert.equal(calls.hiscores, 1);
+});
+
+test('Platform failure keeps per-skill plugin precedence over healthy RuneMetrics and fills missing fields', async t => {
+  const at = new Date(beforeSunset).toISOString();
+  const member = { ...owner, skillProgress: { Attack: { level: 8, xp: 850.5, source: 'game-plugin', memberId: owner.id, fetchedAt: at } } };
+  const { sources, calls } = platformFallback(t, { pluginSnapshot: () => ({ source: 'game-plugin', sourceLabel: 'Game plugin', fetchedAt: at,
+    skills: [{ skill: 'Cooking', level: 6, xp: 600.5 }], quests: [] }) });
+  const snapshot = await sources.snapshot(member);
+  assert.equal(snapshot.source, 'runemetrics'); assert.equal(snapshot.sourceLabel, 'RuneMetrics + game plugin');
+  assert.deepEqual(snapshot.skills.find(row => row.skill === 'Attack'), { skill: 'Attack', level: 8, xp: 850.5,
+    provenance: { source: 'game-plugin', memberId: owner.id, fetchedAt: at } });
+  assert.equal(snapshot.skills.find(row => row.skill === 'Cooking').xp, 600.5);
+  assert.equal(snapshot.skills.find(row => row.skill === 'Cooking').provenance.source, 'game-plugin');
+  assert.equal(snapshot.skills.find(row => row.skill === 'Defence').level, 9);
+  assert.equal(snapshot.skills.find(row => row.skill === 'Defence').provenance, undefined, 'Web skill retains snapshot provenance');
+  assert.deepEqual(snapshot.quests, [{ title: 'Synthetic Quest', status: 'COMPLETED' }]);
+  assert.equal(calls.legacy.length, 2); assert.equal(calls.hiscores, 0);
+});
+
+for (const status of [410, 503]) {
+  test(`Platform failure stays the reported error when RuneMetrics HTTP ${status} and Hiscores also fail`, async t => {
+    const { sources, calls } = platformFallback(t, { legacyResponse: async () => new Response('', { status }),
+      hiscoresSnapshot: async () => { throw new Error('Synthetic Hiscores outage'); } });
+    await assert.rejects(sources.snapshot(owner), error => error.code === 'UPSTREAM_ERROR' && /Platform API.*503/.test(error.message));
+    assert.equal(calls.legacy.length, 2); assert.equal(calls.hiscores, 1);
+  });
+}

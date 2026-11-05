@@ -264,7 +264,7 @@ export function planTraining(skill, fromLevel, toLevel, availability = {}, prefe
       'Reachable items prove obtainability, not inventory stock. Gather/travel/buy time is excluded; input quantities are shown.',
       'GP is a dated Grand Exchange guide-price opportunity-cost estimate, not guaranteed sale profit or an ironman purchase route.'] };
   if (fromLevel === null || fromLevel === undefined) return { ...base, status: 'unknown-level', plans: {}, recommendation: null,
-    issues: [{ code: 'unknown-level', detail: 'Your current level is unknown. Enter a starting level or sync RuneMetrics.' }], lockedMethods: [] };
+    issues: [{ code: 'unknown-level', detail: 'Your current level is unknown. Enter a starting level or sync your account.' }], lockedMethods: [] };
   if (skill === 'Invention' || toLevel > cap || availability.members !== true && skillInfo?.status === 'unavailable') return { ...base, status: 'unavailable', plans: {}, recommendation: null,
     issues: [{ code: 'skill-cap', detail: skill === 'Invention' ? 'Invention requires membership and a dedicated XP curve.' : `${skill} ${toLevel} exceeds the ${availability.members === true ? 'skill' : 'F2P'} cap ${cap}.` }], lockedMethods: [] };
   const startingXp = availability.currentXp ?? xpForLevel(fromLevel);

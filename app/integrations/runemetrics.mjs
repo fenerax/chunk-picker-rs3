@@ -1,5 +1,6 @@
 import { validateRuneScapeName, observedSkills } from '../core/game-progress.mjs';
 import { canonicalTitle } from './quest-mapping.mjs';
+import { readProgressResponse } from './bounded-response.mjs';
 import { previewProgressSnapshot } from './progress-preview.mjs';
 
 export const RUNE_METRICS_SKILLS = observedSkills;
@@ -17,7 +18,7 @@ export function normalizeRuneMetricsSnapshot(snapshot) {
     unmatchedSkills: RUNE_METRICS_SKILLS.flatMap((skill, id) => seen.has(id) ? [] : [{ id, skill, reason: 'Skill was not returned; saved progress will be kept.' }]) };
 }
 export function previewRuneMetrics(state, memberId, snapshot, questMapping) {
-  return previewProgressSnapshot(state, memberId, normalizeRuneMetricsSnapshot(snapshot), questMapping);
+  return previewProgressSnapshot(state, memberId, snapshot.source === 'platform-api' ? snapshot : normalizeRuneMetricsSnapshot(snapshot), questMapping);
 }
 
 function runeMetricsError(code, message, status) { return Object.assign(new Error(message), { code, status }); }
@@ -50,9 +51,7 @@ export function createRuneMetricsClient({ fetchImpl = globalThis.fetch, clock = 
     if (!response.ok) throw runeMetricsError('UPSTREAM_ERROR', `RuneMetrics is unavailable (HTTP ${response.status}). Try again later.`, 502);
     let value;
     try {
-      const text = await response.text();
-      if (text.length > 1024 * 1024) throw new Error('Response too large');
-      value = JSON.parse(text);
+      value = JSON.parse(await readProgressResponse(response));
     } catch { throw runeMetricsError('BAD_RESPONSE', 'RuneMetrics returned an unreadable response. Try again later.', 502); }
     checkApiError(value, name);
     return value;
