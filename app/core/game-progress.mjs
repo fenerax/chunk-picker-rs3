@@ -60,7 +60,9 @@ export function validateObservedSkill(skill, value) {
 
 export function validateRuneMetricsProvenance(value, keys = ['source', 'fetchedAt', 'runescapeName'], path = 'account progress provenance') {
   fields(value, keys, path);
-  if (!isGameProgressSource(value.source)) throw new TypeError(`${path} source must be runemetrics, platform-api, official-api or hiscores`);
+  // Persisted provenance keeps the live release's source set so a rollback can
+  // load it; Platform API syncs are saved as official-api (state.mjs).
+  if (!['runemetrics', 'official-api', 'hiscores'].includes(value.source)) throw new TypeError(`${path} source must be runemetrics, official-api or hiscores`);
   validateRuneMetricsTimestamp(value.fetchedAt);
   if (validateRuneScapeName(value.runescapeName) !== value.runescapeName) throw new TypeError(`${path} RuneScape name must be trimmed`);
 }

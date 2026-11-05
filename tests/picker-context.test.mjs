@@ -585,7 +585,8 @@ test('G15 provider caches and previews isolate identical member/name bindings an
   assert.equal(calls, 4, 'closing one context preserves the other provider cache');
   const applied = await send(b, '/api/runemetrics/apply', { body: { previewId: right.body.previewId, expectedRevision: b.store.getInfo().revision } });
   assert.equal(applied.status, 200);
-  assert.equal(applied.body.state.members[0].skillProgress.Attack.source, 'platform-api');
+  // Saved as official-api so the live release can still load it after a rollback.
+  assert.equal(applied.body.state.members[0].skillProgress.Attack.source, 'official-api');
 });
 
 test('owned readiness can defer the play body while retaining variant preparation and current authenticated state', async t => {

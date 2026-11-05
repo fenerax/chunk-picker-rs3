@@ -103,6 +103,25 @@ test('invalid JSON, schemas and missing static/history sidecars fail before crea
   });
 });
 
+test('offline restore rejects platform-api skill and quest provenance before creating a target', async t => {
+  const f = await fixture(t);
+  const provenance = { source: 'platform-api', fetchedAt: '2026-11-04T12:00:00Z', runescapeName: 'FixtureActor' };
+  for (const field of ['skillProgress', 'questProgress']) {
+    const document = structuredClone(f.document);
+    const member = document.state.members[0];
+    member.runescapeName = provenance.runescapeName;
+    document.state.tasks.push({ id: 'synthetic-quest', label: 'Synthetic quest', category: 'Quest' });
+    member[field] = field === 'skillProgress' ? { Attack: { level: 7, xp: 700, ...provenance } }
+      : { 'synthetic-quest': { title: 'Synthetic quest', ...provenance } };
+    const input = path.join(f.root, `${field}.json`), target = path.join(f.root, `${field}-target`);
+    const bytes = Buffer.from(JSON.stringify(document));
+    await writeFile(input, bytes);
+    await assert.rejects(restorePicker({ backupPath: input, targetFolder: target }), /Not a valid standalone full backup/);
+    await absent(target);
+    assert.deepEqual(await readFile(input), bytes);
+  }
+});
+
 test('feedback restores separately and invalid feedback rolls back only the new target', async t => {
   const f = await fixture(t), feedbackPath = path.join(f.root, 'feedback.json');
   const feedback = { schemaVersion: 1, items: [{ id: 'fixture', kind: 'idea', text: 'Synthetic feedback', status: 'new' }] };
