@@ -10,6 +10,7 @@ import { createGunzip, gzipSync } from 'node:zlib';
 import { createServer } from '../app/server.mjs';
 import { createGroupState, exportBackup, applyCommand } from '../app/core/state.mjs';
 import { createRuleRegistry, evaluateRollPool } from '../app/core/rules.mjs';
+import { SURFACE_GRID } from '../app/data/surface-grid.mjs';
 import { createCompletionEncoder } from '../app/storage/completion-codec.mjs';
 import { parseJSONStream } from '../app/storage/json-stream.mjs';
 import { MAX_UPLOAD_BYTES, readBackupRequest } from '../app/backup-transfer.mjs';
@@ -123,6 +124,29 @@ test('import apply streams worker state bytes with exact custom-hook pools', asy
     assert.deepEqual(pool, evaluateRollPool(f.application.world, f.application.store.getState(), 'player1', registry));
     assert.ok([...pool.eligible, ...pool.excluded].some(row => row.id === '102' && row.reasons.some(reason => reason.ruleId === 'house.synthetic')));
   }
+});
+
+for (const custom of [false, true]) test(`import apply retains 200 authoritative pool entries (${custom ? 'custom caller' : 'worker'} rules)`, async t => {
+  const ids = Array.from({ length: 200 }, (_, i) => String(SURFACE_GRID.startId + Math.floor(i / 20) * SURFACE_GRID.stride - i % 20));
+  const incoming = state();
+  incoming.members[0].selected = ids;
+  incoming.rules['roll.adjacent'] = false;
+  incoming.rules['roll.teleports'] = false;
+  incoming.rules['roll.selected'] = true;
+  const registry = createRuleRegistry(custom ? [{ id: 'house.synthetic', label: 'Synthetic hook', type: 'boolean', default: true, candidates: () => [] }] : []);
+  const chunks = { ...definitions.chunks, ...Object.fromEntries(ids.map(id => [id, {}])) };
+  const f = await fixture(t, incoming, { registry, definitions: { ...definitions, chunks,
+    walkableChunks: Object.keys(chunks), walkableChunksF2P: Object.keys(chunks) } });
+  const applied = await f.upload('/api/restore?view=play-v1', backupFile(exportBackup(incoming, registry)), { expectedRevision: 0 });
+  assert.equal(applied.status, 200, await applied.clone().text());
+  const result = await applied.json();
+  const { partnerConnections: connections, ...pool } = result.pools.player1;
+  const expected = evaluateRollPool(f.application.world, f.application.store.getState(), 'player1', registry);
+  assert.equal(result.state.members[0].selected.length, 200);
+  assert.equal(pool.eligible.length, 200);
+  assert.deepEqual(pool, expected);
+  assert.deepEqual(pool.eligible.map(row => row.id).sort(), [...ids].sort());
+  assert.ok(connections);
 });
 
 test('portable JSON backup negotiates gzip, Brotli, identity, HEAD and unacceptable encodings', async t => {

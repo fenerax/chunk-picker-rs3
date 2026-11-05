@@ -123,6 +123,12 @@ fsyncs/renames the replacement and adopts its immutable state. Preparation hooks
 keep their gameplay transformation contract. Commit hooks receive bounded
 summaries and digests.
 
+Hook inputs retain the worker's dictionary-key batches and track property
+additions, deletions and enumerability changes. Re-encoding an unchanged wide
+dictionary therefore starts yielding without first enumerating all its keys.
+Immutable state descriptors are installed during hydration, avoiding a final
+whole-dictionary freeze pass.
+
 All import display messages cross one shared bounding helper at worker egress:
 512 characters per string, 128 per object key, 100 items per collection and
 256 KiB per display payload, with depth and node limits. This includes compact
@@ -131,13 +137,20 @@ transfer reports, publication summaries and apply metadata. Counts describe the
 complete save. Exact saved values and portable publication/export bytes remain
 unchanged and use the cooperative binary transport.
 
+Preview reserves required fields, every roster entry and exact member/change
+counts before optional samples. Samples shrink further when the complete review
+would exceed 256 KiB. Apply replies carry the complete authoritative roll pools
+(eligible, excluded, accessible and partner connections) alongside the state,
+including replies evaluated by custom caller hooks. Only diagnostic metadata
+uses the display limits.
+
 The global queue admits four users including the running job, with at most one
 import request per user across pickers. A full queue or duplicate returns 503:
 “Backup import is busy. Try again in a moment.” Failed jobs release admission.
 Member restore merges the applicable remapped migration guards before migration;
 the destination's existing guards and guarded Undo chain remain available.
 
-Synthetic acceptance on Windows / Node 26.13.0 (5 ms heartbeat, hooks enabled,
+Round-9 synthetic acceptance on Windows / Node 26.13.0 (5 ms heartbeat, hooks enabled,
 worker-prepared play response; preview includes upload parsing and hydration):
 
 | Input | Preview | Preview maximum gap | Apply | Apply maximum gap | Peak RSS |
@@ -172,3 +185,12 @@ a 12,705-byte preview with a 28.1 ms maximum main-thread gap (50 ms ceiling).
 The separate capacity regression exports an accepted 268,384,330-byte document
 with progress snapshots and hydrated destination History. Verification uses
 targeted suites and the release rehearsal; no full test suite was run this round.
+
+Round-10's one-million-entry provenance dictionary with a no-op preparation
+hook produced a 4,497-byte preview with an 80.3 ms maximum main-thread gap
+(strict 100 ms ceiling). The same input on `origin/main` d97334f produced an
+8,498.5 ms gap through its main-thread preview path. The 32-member fixture with
+100 notes of 600 characters per member retains every roster row and exact count
+in a 171,391-byte review. Worker and custom-hook HTTP replies both retain all
+200 eligible hand-selected chunks. At 208 MiB, the ordinary HTTP JSON export,
+gzip export and Undo gaps were 18.3, 19.3 and 113.0 ms respectively.

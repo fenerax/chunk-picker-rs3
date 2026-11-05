@@ -157,12 +157,12 @@ export async function jsonBytes(request, response, status, bytes, headers = {}, 
   }
 }
 
-// Custom JavaScript roll hooks stay in the caller. Their small pool response is
-// joined to worker-serialized state bytes through a bounded stream, without a
+// Custom JavaScript roll hooks stay in the caller. Their complete pool response
+// is joined to worker-serialized state bytes through a bounded stream, without a
 // whole imported-state string, Buffer concatenation, or main-thread digest.
 export async function importedStateJSON(request, response, { stateBytes, metadata }, pools) {
   const encoding = negotiateEncoding(request.headers['accept-encoding']);
-  const tail = Buffer.from(`,${JSON.stringify(boundedOutput({ pools, ...metadata })).slice(1)}`);
+  const tail = Buffer.from(`,${JSON.stringify({ pools, ...metadata }).slice(1)}`);
   response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE,
     Vary: 'Accept-Encoding', ...(encoding !== 'identity' ? { 'Content-Encoding': encoding } : {}) });
   async function* parts() {

@@ -16,7 +16,7 @@ import { gzipSync, brotliCompressSync, constants } from 'node:zlib';
 import { createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { projectPlayState, PLAY_VIEW } from './play-view.mjs';
 import { projectBrowserState } from './web/browser-state.mjs';
-import { boundedImportMessage, boundedOutput, displayText, warningOutput, rosterOutput } from './import-output.mjs';
+import { boundedImportMessage, boundedOutput, displayText, warningOutput, rosterOutput, importMetadataOutput } from './import-output.mjs';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
 
 async function send(value) {
@@ -106,7 +106,7 @@ async function run(job) {
       if (!owner) fail(400, 'Choose a known player.');
       if (!body.sourceMemberId && !incoming.members.some(member => member.id === owner.id && member.name === owner.name)) {
         if (!previewOnly) fail(422, 'Choose the source member in the preview first.');
-        return { response: boundedOutput({ mappingRequired: true, sourceRoster, destinationRoster: destinationRoster.filter(member => member.id === owner.id) }) };
+        return { response: { mappingRequired: true, sourceRoster, destinationRoster: destinationRoster.filter(member => member.id === owner.id) } };
       }
       const sourceMemberId = body.sourceMemberId ?? owner.id;
       const source = incoming.members.find(member => member.id === sourceMemberId);
@@ -164,7 +164,7 @@ async function run(job) {
         : mapTransferRoster(incoming, current.members, body.rosterMapping, options.requiredMemberIds, { owned: true });
       if (!mapped) {
         if (!previewOnly) fail(422, 'Review and assign the source roster before importing.');
-        return { response: boundedOutput({ mappingRequired: true, sourceRoster, destinationRoster }) };
+        return { response: { mappingRequired: true, sourceRoster, destinationRoster } };
       }
       warnings = [...warnings, ...migrationSummary(mapped).warnings];
       report = transferReport(mapped, { ...reportOptions, warnings });
@@ -174,17 +174,8 @@ async function run(job) {
       preview = previewRestore(replacement.current, state, registry, { owned: true });
       warnings = [...warnings, ...migrationSummary(state).warnings];
     }
-    const summary = boundedOutput(preview);
-    // Display samples stay small while counts describe the entire save.
-    summary.members = preview.members.map(member => {
-      const row = boundedOutput(member, { bytes: 8192 });
-      for (const field of ['unlocked', 'selected', 'obtainedEquipment']) row[field] = {
-        ...boundedOutput(member[field]), addedCount: member[field].added.length, removedCount: member[field].removed.length };
-      return row;
-    });
-    summary.rules = boundedOutput(preview.rules);
-    summary.warnings = warningOutput(preview.warnings);
-    summary.taskCounts = Object.fromEntries(['added', 'removed', 'changed'].map(key => [key, preview.tasks[key].length]));
+    const summary = { ...preview, warnings: warningOutput(preview.warnings),
+      taskCounts: Object.fromEntries(['added', 'removed', 'changed'].map(key => [key, preview.tasks[key].length])) };
     // Include the destination's retained evidence and the exact portable
     // manifest before accepting: metadata must never strand an accepted save.
     const publication = await store.prepareImportPublication(state, operation, {
@@ -194,22 +185,22 @@ async function run(job) {
       const saved = publication.state, builtInRegistry = createRuleRegistry();
       const rollRegistry = createRuleRegistry((job.rules ?? []).filter(rule => !builtInRegistry.get(rule.id)));
       const projected = options.responseView === PLAY_VIEW ? projectPlayState(saved) : projectBrowserState(saved);
-      const metadata = boundedOutput({ ...(options.responseView === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}), warnings: warningOutput(warnings), transferReport: report });
+      const metadata = importMetadataOutput({ ...(options.responseView === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}), warnings: warningOutput(warnings), transferReport: report });
       if (options.inlineRollPools) publication.reply = { stateBytes: Buffer.from(JSON.stringify(projected)), metadata };
       else {
         const pools = Object.fromEntries(saved.members.map(member => {
           const pool = evaluateRollPool(world, saved, member.id, rollRegistry);
           return [member.id, options.responseView === PLAY_VIEW ? { ...pool, partnerConnections: partnerConnections(world, saved, member.id, rollRegistry) } : pool];
         }));
-        const bytes = Buffer.from(JSON.stringify({ state: projected, ...boundedOutput({ pools, ...metadata }) }));
+        const bytes = Buffer.from(JSON.stringify({ state: projected, pools, ...metadata }));
         publication.reply = { bytes, etag: `"${createHash('sha256').update(bytes).digest('hex')}"` };
       }
     }
     return { publication, operation, workerMs: performance.now() - start,
-      response: boundedOutput({ preview: summary, state: route.startsWith('/api/member-restore') && body.backup !== undefined ? undefined
+      response: { preview: summary, state: route.startsWith('/api/member-restore') && body.backup !== undefined ? undefined
         : legacy && !options.uploaded ? { ...boundedOutput(state), ...backupPreviewState(state) } : backupPreviewState(state), sourceRoster,
         ...(legacy && options.uploaded ? { format: 'play-v1', schemaVersion: 1 } : {}),
-        warnings: warningOutput(warnings), transferReport: report }) };
+        warnings: warningOutput(warnings), transferReport: report } };
   } finally { await store.close(); }
 }
 try { await send({ result: await run(await decodeImportBytes(workerData)) }); }

@@ -45,7 +45,8 @@ export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queue
         worker.on('message', async message => {
           decoding = true;
           try {
-            const decoded = await decodeImportBytes(message, { freezeStates: job.kind !== 'backup' && !message.hook, signal: controller.signal });
+            const decoded = await decodeImportBytes(message, { freezeStates: job.kind !== 'backup' && !message.hook,
+              indexDictionaries: message.hook, signal: controller.signal });
             if (decoded.hook) {
               // The hook owns a mutable full-state input, exactly as on the
               // normal preparation path. Chunked transport yields around the

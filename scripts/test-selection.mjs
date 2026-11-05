@@ -364,6 +364,7 @@ const fullOnlyTests = new Set([
   "save-transfer-publication.test.mjs",
   "save-transfer-review.test.mjs",
   "save-transfer-response-bounds.test.mjs",
+  "save-transfer-wide-hook.test.mjs",
   "save-transfer-regressions.test.mjs",
   "save-transfer-responsiveness.test.mjs",
   "save-transfer-platform-durability.test.mjs",
@@ -558,6 +559,7 @@ const fullOnlyTests = new Set([
 // test processes would distort.
 export const soloTests = new Set([
   "save-transfer-response-bounds.test.mjs",
+  "save-transfer-wide-hook.test.mjs",
   "save-transfer-publication.test.mjs",
   "activity.test.mjs",
   "area-check-server.private.test.mjs",

@@ -76,6 +76,67 @@ export function boundedOutput(value, { bytes = REPORT_BYTES } = {}) {
   return visit(value);
 }
 
+const boundedMetadata = new WeakSet();
+function reportOutput(value, bytes) {
+  const output = { ...boundedOutput(value, { bytes }), counts: boundedOutput(value.counts) };
+  if (Number.isSafeInteger(output.counts?.preservedForReview) && Array.isArray(value.records)) {
+    output.records ??= [];
+    output.counts.omitted = output.counts.preservedForReview - output.records.length;
+    if (output.counts.omitted) output.more = `and ${output.counts.omitted} more; complete records are retained in the backup`;
+  }
+  return output;
+}
+export function importMetadataOutput(value) {
+  const { warnings, transferReport, ...rest } = value;
+  const output = { ...boundedOutput(rest, { bytes: REPORT_BYTES / 16 }),
+    warnings: boundedOutput(warnings ?? [], { bytes: REPORT_BYTES / 8 }) };
+  if (transferReport) output.transferReport = reportOutput(transferReport, REPORT_BYTES * 3 / 4);
+  boundedMetadata.add(output);
+  return output;
+}
+
+// Reserve the review's schema, complete rosters and exact counts independently
+// of samples. A final wire-size check shrinks only optional data, so early notes
+// cannot consume the budget of later members, rules or warnings.
+export function importResponseOutput(value) {
+  for (let sampleBytes = REPORT_BYTES; ; sampleBytes = Math.floor(sampleBytes / 2)) {
+    const sample = item => boundedOutput(item, { bytes: sampleBytes });
+    const identity = member => ({ id: String(member.id ?? '').slice(0, 80),
+      name: displayText(member.name).slice(0, sampleBytes ? DISPLAY_CHARACTERS : 32) });
+    const difference = change => {
+      const output = sample(change);
+      for (const key of ['added', 'removed', 'changed']) if (Array.isArray(change[key])) {
+        output[key] ??= [];
+        output[`${key}Count`] = change[`${key}Count`] ?? change[key].length;
+      }
+      return output;
+    };
+    const output = sample(value);
+    for (const field of ['format', 'schemaVersion', 'mappingRequired']) if (value[field] !== undefined) output[field] = boundedOutput(value[field]);
+    for (const field of ['sourceRoster', 'destinationRoster']) if (Array.isArray(value[field]))
+      output[field] = value[field].map(identity);
+    if (value.preview) {
+      const preview = value.preview;
+      output.preview = { ...sample(preview), currentRevision: preview.currentRevision, incomingRevision: preview.incomingRevision,
+        members: (preview.members ?? []).map(member => {
+          const row = { ...sample(member), ...identity(member), status: displayText(member.status) };
+          for (const [field, change] of Object.entries(member)) if (change && typeof change === 'object'
+            && ['added', 'removed', 'changed'].some(key => Array.isArray(change[key]))) row[field] = difference(change);
+          return row;
+        }),
+        rules: difference(preview.rules ?? { changed: [] }), warnings: sample(preview.warnings ?? []),
+        taskCounts: boundedOutput(preview.taskCounts ?? Object.fromEntries(['added', 'removed', 'changed'].map(key => [key, preview.tasks?.[key]?.length ?? 0]))),
+      };
+    }
+    if (value.state) output.state = { ...sample(value.state), schemaVersion: value.state.schemaVersion, revision: value.state.revision,
+      members: (value.state.members ?? []).map(member => ({ ...sample(member), ...identity(member), counts: boundedOutput(member.counts ?? {}) })) };
+    if (value.warnings) output.warnings = sample(value.warnings);
+    if (value.transferReport) output.transferReport = reportOutput(value.transferReport, sampleBytes);
+    if (Buffer.byteLength(JSON.stringify(output)) < REPORT_BYTES) return output;
+    if (!sampleBytes) throw new TypeError('The mandatory import review exceeds its display budget.');
+  }
+}
+
 // One mandatory worker egress for display data. Exact state/publication bytes
 // use the yielding transfer protocol instead: truncating those would lose saves.
 // Keeping this at send(), after every branch has built its result, also bounds
@@ -88,7 +149,9 @@ export function boundedImportMessage(message) {
     let owner = message;
     for (const key of path.slice(0, -1)) owner = owner?.[key];
     const key = path.at(-1);
-    if (owner?.[key]) owner[key] = boundedOutput(owner[key]);
+    if (owner?.[key]) owner[key] = key === 'response' ? importResponseOutput(owner[key])
+      : key === 'metadata' ? boundedMetadata.has(owner[key]) ? owner[key] : importMetadataOutput(owner[key])
+      : boundedOutput(owner[key]);
   }
   return message;
 }

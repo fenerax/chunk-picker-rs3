@@ -15,16 +15,17 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 // A replacement review needs owner counts, not another copy of imported evidence.
 export function backupPreviewState(state) {
   const roster = rosterOutput(state.members);
-  return boundedOutput({ schemaVersion: state.schemaVersion, revision: state.revision,
-    members: state.members.map((member, index) => boundedOutput({ ...roster[index],
-      counts: { unlocked: member.unlocked.length, selected: member.selected.length, notes: Object.keys(member.notes ?? {}).length,
-        completedTasks: member.completedTasks.length,
-        challengeCompleted: Object.values(member.taskStatus ?? {}).filter(status => status.challengeCompleted).length },
+  return { schemaVersion: state.schemaVersion, revision: state.revision,
+    members: state.members.map((member, index) => ({ ...boundedOutput({
       unlocked: member.unlocked.slice(0, 100), selected: member.selected.slice(0, 100),
       completedTasks: member.completedTasks.slice(0, 100), taskStatus: {},
       obtainedEquipment: member.obtainedEquipment.slice(0, 100),
       journal: member.journal,
-      notes: boundedOutput(member.notes ?? {}, { bytes: 8192 }) }, { bytes: 16 * 1024 })) });
+      notes: boundedOutput(member.notes ?? {}, { bytes: 8192 }) }, { bytes: 8192 }), ...roster[index],
+      counts: { unlocked: member.unlocked.length, selected: member.selected.length, notes: Object.keys(member.notes ?? {}).length,
+        completedTasks: member.completedTasks.length,
+        challengeCompleted: Object.values(member.taskStatus ?? {}).filter(status => status.challengeCompleted).length },
+    })) };
 }
 
 function limitBytes(maximum) {
