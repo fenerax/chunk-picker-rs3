@@ -15,6 +15,7 @@ import { createFileLedger, errorRedactor } from '../../scripts/ci/file-ledger.mj
 // scripts/private-companion/neutral-lane.mjs windowsBoundTests.
 export const windowsFiles = [
   'backup-status.private.test.mjs',
+  'ci-test-telemetry-failures.test.mjs',
   'cutover-live.test.mjs',
   'live-base-compatibility.test.mjs',
   'online-snapshot.test.mjs',
