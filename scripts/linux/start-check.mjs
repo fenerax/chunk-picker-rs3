@@ -1,10 +1,11 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Root ExecStartPre gate. An interrupted transaction must not be bypassed by
 // boot startup or an unrelated systemctl start.
 import path from 'node:path';
 import { readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { exists, json, sha } from './files.mjs';
-import { operatorSettings } from './runtime.mjs';
+import { operatorSettings, readRelease, serviceIdentity, assertServiceAccess } from './runtime.mjs';
 
 export async function processIdentity(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Invalid operator owner.');
@@ -20,6 +21,7 @@ export async function checkStart(settings, { identity = processIdentity, now = D
     if (await exists(progress) && (await json(progress)).phase !== 'complete') throw new Error('Service recovery is incomplete.');
   }
   const control = settings.controlDir, permitFile = path.join(control, 'start-permit.json');
+  if (await exists(path.join(control, 'tools-transaction.json'))) throw new Error('Tools transaction requires reconciliation.');
   const evidence = ['operation.lock', 'maintenance.json', 'activation.json'];
   if (!(await Promise.all(evidence.map(name => exists(path.join(control, name))))).some(Boolean)) {
     await rm(permitFile, { force: true }); return;
@@ -32,7 +34,12 @@ export async function checkStart(settings, { identity = processIdentity, now = D
     || sha(lock) !== permit.lockSha256 || sha(await readFile(settings.current)) !== permit.pointerSha256
     || await identity(owner.pid) !== permit.processIdentity) throw new Error('Service start is blocked by transaction evidence.');
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { await checkStart(await operatorSettings()); }
+export async function checkStartAccess(settings, { identity = serviceIdentity, read = readRelease, access = assertServiceAccess } = {}) {
+  const account = await identity(settings);
+  const release = await read(settings.current, settings.dataDir);
+  await access(release.config.coreRoot, account, ['app/server.mjs']);
+}
+if (isMain(import.meta.url)) {
+  try { const settings = await operatorSettings(); await checkStart(settings); await checkStartAccess(settings); }
   catch { process.stderr.write('Service start blocked; reconcile maintenance evidence privately.\n'); process.exitCode = 1; }
 }

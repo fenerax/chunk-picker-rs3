@@ -1,3 +1,4 @@
+import { isMain } from '../release/vps/entrypoint.mjs';
 // Runs on a disposable store copy in a child process. Portable recovery has no
 // listener; compatibility serves tasks on the pack check's loopback scratch port.
 import path from 'node:path';
@@ -26,7 +27,7 @@ export async function compatibilityProbe(config, dataDir, output) {
     historyEntries: config.runtimeOptions?.historyEntries }).filter(([, value]) => value != null));
   await packProbe(config.coreRoot, dataDir, output, { retention });
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   try {
     const [configFile, dataDir, output, mode = 'portable'] = process.argv.slice(2);
     await readFile(path.join(dataDir, 'state.json')); // Never initialize an empty store.

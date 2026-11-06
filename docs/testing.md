@@ -169,7 +169,7 @@ their old selector support.
 The migration comparison is reproducible against the exact pre-change commit:
 
 ```sh
-node scripts/ci/compare-test-classification.mjs 5136652
+node scripts/ci/compare-test-classification.mjs cde6e485
 ```
 
 It compares suite membership, solo/shared, environment values and removals,
@@ -184,3 +184,13 @@ range during discovery, including full-only files during a quick run. Use
 calls and simple constant bindings. The two explicitly reviewed front-door
 fixtures in `scripts/test-classification.mjs` are exceptions because their lane
 validation requires ports in 8900–8999.
+
+## Focused checks and renderer contracts
+
+For a named test file, inspect `testRunPolicy(name)` in `scripts/test-selection.mjs` and apply its complete environment, including cleared inherited pack variables. Many files use `RS3_DATASET=open-f2p`; a bare `node --test` can pass against a different rule catalogue. The suite CLI accepts suites and `--list`, not a file-selection flag. Use the adaptive runner API or a focused invocation with the matching policy when the task limits checks to named files.
+
+The current Linux workflow runs the full suite directly; the former quick-then-full failure-hiding behavior is obsolete. Published pack profiles control which data overlays CI sees. Source overlays do not update already published packs.
+
+When an extracted screen function adds `c.*` fields, update `app/web/screen-context.mjs` and every `screenFunctionSource` VM context that uses it, including `scripts/compare-cache-access.mjs`. Include `tests/cache-comparison.test.mjs` in the authorized focused checks; adjacent web tests alone can miss undeclared VM globals.
+
+Release/practice and post-merge lanes share `scripts/private-companion/retry-policy.mjs`: one fresh isolated retry is enabled by default. Preserve that policy in execution identities and receipts. An initial failure followed by a passing isolated retry is prominently FLAKY, not an unqualified clean first pass.

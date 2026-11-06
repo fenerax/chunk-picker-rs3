@@ -112,6 +112,14 @@
     {
       "host": "oauth2.googleapis.com",
       "reason": "Fixed public Google OpenID Connect token endpoint."
+    },
+    {
+      "host": "healthchecks.io",
+      "reason": "Fixed public Healthchecks check-management API for the approved dead-man service."
+    },
+    {
+      "host": "api.backblazeb2.com",
+      "reason": "Fixed public B2 authorization API origin for the approved backup service; bucket and account endpoints remain unreviewed."
     }
   ],
   "placeholders": [

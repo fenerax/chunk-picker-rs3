@@ -12,6 +12,8 @@ import { deriveVpsAdditions, newestVerifiedBackup } from '../scripts/release/vps
 import { releaseVps } from '../scripts/release/vps/release.mjs';
 import { digestValue } from '../scripts/private-companion/release-identity.mjs';
 import { probeChain } from '../scripts/release/pc/quick-build.mjs';
+import { runServiceOperator } from '../scripts/linux/service-operator.mjs';
+import { withStatus } from '../scripts/linux/ops-status.mjs';
 import { compatibilityReports, syntheticAdditions, syntheticCore } from './helpers/release-compatibility.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -52,7 +54,7 @@ test('VPS review derives on a verified backup copy, requires its exact digest, a
   assert.deepEqual(result.savedIdentityAdditions, syntheticAdditions);
   assert.equal(result.digest, digestValue(syntheticAdditions)); assert.equal(result.accepted, false);
   assert.equal((await json(f.receiptFile)).savedIdentityAdditions, undefined);
-  await assert.rejects(deriveVpsAdditions({ ...f, acceptDigest: '0'.repeat(64) }), /digest differs/);
+  await assert.rejects(deriveVpsAdditions({ ...f, acceptDigest: '0'.repeat(64) }), error => error.reviewCategory === 'digest' && /digest differs/.test(error.message));
   assert.equal((await json(f.receiptFile)).savedIdentityAdditionsReviewed, undefined);
   const accepted = await deriveVpsAdditions({ ...f, acceptDigest: result.digest });
   assert.equal(accepted.accepted, true);
@@ -67,11 +69,20 @@ test('VPS review derives on a verified backup copy, requires its exact digest, a
 
 test('VPS review refuses absent verified backups and changed staged inputs', async t => {
   const f = await fixture(t); await mkdir(f.settings.backupDir);
-  await assert.rejects(deriveVpsAdditions(f), /No verified/);
+  await assert.rejects(deriveVpsAdditions(f), error => error.reviewCategory === 'newest backup' && /No verified/.test(error.message));
   await f.backup();
   const receipt = await json(f.receiptFile);
   await writeFile(f.receiptFile, encode({ ...receipt, candidateIdentity: 'changed' }));
-  await assert.rejects(deriveVpsAdditions(f), /receipt changed/);
+  await assert.rejects(deriveVpsAdditions(f), error => error.reviewCategory === 'receipt' && /receipt changed/.test(error.message));
+});
+
+test('review names the lock and maintenance precondition without exposing evidence', async t => {
+  const f = await fixture(t);
+  for (const [name, category] of [['operation.lock', 'lock'], ['maintenance.json', 'maintenance']]) {
+    const file = path.join(f.settings.controlDir, name); await writeFile(file, '{}');
+    await assert.rejects(deriveVpsAdditions(f), error => error.reviewCategory === category);
+    await rm(file);
+  }
 });
 
 test('activation re-derives additions on a fresh snapshot and refuses a difference before stopping', async t => {
@@ -130,15 +141,60 @@ test('operator refuses unreviewed or tampered VPS receipts before service contro
   const previous = process.env.RS3_OPERATOR_CONFIG;
   process.env.RS3_OPERATOR_CONFIG = operatorFile;
   t.after(() => { if (previous === undefined) delete process.env.RS3_OPERATOR_CONFIG; else process.env.RS3_OPERATOR_CONFIG = previous; });
-  await assert.rejects(runOperator('deploy', f.pointer, f.receiptFile), { code: 'OPERATOR_ADDITIONS_REVIEW' });
   const receipt = await json(f.receiptFile);
-  await writeFile(f.receiptFile, encode({ ...receipt, additionsReviewRequired: undefined, savedIdentityAdditions: syntheticAdditions }));
-  await assert.rejects(runOperator('deploy', f.pointer, f.receiptFile), { code: 'OPERATOR_ADDITIONS_REVIEW' });
-  await writeFile(f.receiptFile, encode({ ...receipt, savedIdentityAdditionsReviewed: true,
-    savedIdentityAdditions: [], savedIdentityAdditionsDigest: digestValue(syntheticAdditions) }));
-  await assert.rejects(runOperator('deploy', f.pointer, f.receiptFile), { code: 'OPERATOR_ADDITIONS_REVIEW' });
-  // Only the lock guard, which stays in place by design, may remain.
-  assert.deepEqual((await readdir(f.settings.controlDir)).filter(name => name !== 'operation.lock.recovery'), []);
+  for (const [changed, error] of [
+    [receipt, { code: 'OPERATOR_ADDITIONS_REVIEW' }],
+    [{ ...receipt, additionsReviewRequired: undefined, savedIdentityAdditions: syntheticAdditions }, { code: 'OPERATOR_ADDITIONS_REVIEW' }],
+    [{ ...receipt, savedIdentityAdditionsReviewed: true, savedIdentityAdditions: [],
+      savedIdentityAdditionsDigest: digestValue(syntheticAdditions) }, { code: 'OPERATOR_ADDITIONS_REVIEW' }],
+    [{ ...receipt, candidateIdentity: 'private-tampered-identity' }, /receipt changed/],
+    [{ ...receipt, previousPointerSha256: 'private-tampered-pointer' }, /receipt changed/],
+    [{ ...receipt, pointer: path.join(f.scratch, 'private-tampered-path') }, /receipt changed/],
+    ['{private-invalid-json', SyntaxError],
+  ]) {
+    await writeFile(f.receiptFile, typeof changed === 'string' ? changed : encode(changed));
+    const allowed = new Set(['control/operator-status.json', 'control/operation.lock.recovery']);
+    const snapshot = async () => (await inventory(f.scratch)).filter(row => !allowed.has(row.path));
+    const before = await snapshot(), started = Date.now();
+    await assert.rejects(runOperator('deploy', f.pointer, f.receiptFile), error);
+    const status = await json(path.join(f.settings.controlDir, 'operator-status.json'));
+    assert(Date.parse(status.startedAt) >= started && Date.parse(status.at) >= Date.parse(status.startedAt) && Date.parse(status.at) <= Date.now());
+    // Refusals are visible to the monitor using a fixed category only. Paths,
+    // receipt bytes and exception text never cross the status boundary.
+    assert.deepEqual(status, { format: 'picker-ops-status-v1', result: 'failed', at: status.at, startedAt: status.startedAt,
+      lastSuccessAt: null, snapshotAt: null, faults: ['operation-failed'] });
+    assert.deepEqual(await snapshot(), before, 'refusal must preserve every other file, including the live store and pointer');
+    assert.deepEqual((await readdir(f.settings.controlDir)).filter(name => name !== 'operation.lock.recovery'), ['operator-status.json']);
+  }
+});
+
+test('multi-picker receipt refusals write only sanitized status and never query or control the service', async t => {
+  const f = await fixture(t), settings = { ...f.settings, multiPicker: Object.fromEntries(
+    ['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => [key, path.join(f.scratch, key)])) };
+  for (const selected of [f.current, f.candidate]) {
+    const bytes = encode({ ...selected.config, multiPicker: settings.multiPicker });
+    await writeFile(selected.pointer.config.path, bytes);
+    await writeFile(selected.pointerFile, encode({ config: { path: selected.pointer.config.path, sha256: sha(bytes) } }));
+  }
+  const release = await readRelease(settings.current, settings.dataDir), candidate = await readRelease(f.pointer, settings.dataDir);
+  const receipt = { pointer: f.pointer, candidateIdentity: candidate.identity, previousPointerSha256: sha(release.pointerBytes) };
+  let serviceCalls = 0;
+  const forbidden = async () => { serviceCalls++; assert.fail('Receipt refusal reached service control'); };
+  for (const changed of [receipt, { ...receipt, candidateIdentity: 'private-tampered-identity' },
+    { ...receipt, savedIdentityAdditionsReviewed: true, savedIdentityAdditions: [], savedIdentityAdditionsDigest: 'private-tampered-digest' },
+    { ...receipt, pointer: 'private-tampered-path' }, '{private-invalid-json']) {
+    await writeFile(f.receiptFile, typeof changed === 'string' ? changed : encode(changed));
+    const snapshot = async () => (await inventory(f.scratch)).filter(row => row.path !== 'control/operator-status.json');
+    const before = await snapshot();
+    await assert.rejects(withStatus(settings.controlDir, 'operator', () => runServiceOperator({ settings, release, command: 'deploy',
+      argument: f.pointer, evidence: f.receiptFile, controller: { state: forbidden, start: forbidden, stop: forbidden },
+      request: forbidden, deployStopped: forbidden, serviceIdentity: forbidden })));
+    assert.equal(serviceCalls, 0);
+    assert.deepEqual(await snapshot(), before);
+    const status = await json(path.join(settings.controlDir, 'operator-status.json'));
+    assert.deepEqual(status, { format: 'picker-ops-status-v1', result: 'failed', at: status.at, startedAt: status.startedAt,
+      lastSuccessAt: null, snapshotAt: null, faults: ['operation-failed'] });
+  }
 });
 
 test('VPS derivation uses the candidate pack binding only on disposable forward copies', async t => {

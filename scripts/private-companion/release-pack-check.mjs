@@ -2,6 +2,7 @@
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
+import { realpathSync } from 'node:fs';
 import { readFile, writeFile, mkdir, mkdtemp, cp, rm, lstat, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -249,7 +250,14 @@ export async function probe(core, dataDir, output, { retention } = {}) {
     await writeFile(output, encode({ authored, saved, datasetAuthored, datasetAuthoredKeys, ...preserved, progressFields: Object.fromEntries(Object.entries(progress).map(([key, value]) => [key, digestValue(value)])), registryDigest: digestValue(state.identityRegistry ?? {}), progressDigest: digestValue(progress), progressSnapshotRows: (state.progressSnapshots?.days ?? []).map(row => [row[0], digestValue(row)]), progressSnapshotMeta: state.progressSnapshots ? digestValue(Object.fromEntries(Object.entries(state.progressSnapshots).filter(([key]) => key !== 'days'))) : null, taskIds: state.tasks.map(t => t.id).sort(), tasksServed: true }), { flag: 'wx' });
   } finally { await app.close(); }
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Self-contained: this module is also copied flat into PC kits.
+// Eval imports are never CLI entrypoints, even when eval has positional args.
+function isCliEntry() {
+  if (process.execArgv.some(arg => /^(?:-[a-zA-Z]*[ep]|--(?:eval|print)(?:=|$))/.test(arg))) return false;
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; } // Import callers may pass a non-path argument.
+}
+if (isCliEntry()) {
   try {
     if (process.argv[2] === 'probe') await probe(...process.argv.slice(3));
     else if (process.argv[2] === 'check') await checkPackTransition({ fromConfig: process.argv[3], toConfig: process.argv[4], transition: process.argv[5], output: process.argv[6] });

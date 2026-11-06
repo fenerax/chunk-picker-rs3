@@ -88,6 +88,11 @@ jobs:
         with:
           path: .local/gh-coverage/wiki-open-f2p
           key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Install checksum-pinned restic for the local encrypted restore test
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bzip2 util-linux
+          sudo "$(command -v node)" scripts/ops/install-restic.mjs
       # The full suite already runs every quick file, so one run is enough.
       - run: npm test
         env:
