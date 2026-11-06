@@ -292,6 +292,11 @@ state **with its action outcome in the same replacement**; memory, notifications
 and acknowledgement follow. Revisions conflict inside the queue. Orphan outputs
 of an interrupted commit are ignored. Startup can write without a revision bump
 (daily observation); action-session writes also preserve revision.
+Each attempted gameplay publication durably retains its pre-command snapshot
+before the fallible commit hook. A refused attempt and a successful retry leave
+two independently named snapshots of that same pre-command state, even when
+their revision and timestamp match. Refusal never broadcasts proposed progress;
+close drains the write queues and releases store ownership.
 Live recovery can replace it by copying/moving the whole store (bypass list).
 Evidence: `tests/storage.test.mjs:42`, `:81`, `:103`, `:191`;
 `tests/live-swap-storage.test.mjs:22`, `:38`, `:236`, `:248`;

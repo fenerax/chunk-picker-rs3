@@ -594,6 +594,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       pools: structuredClone(pools), ...(view === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}) };
   }
   async function retainBackup(state, operation, label) {
+    // Every attempt keeps its own durable preimage, including a refused hook.
+    // A retry must preserve that snapshot even at the same revision and time.
     const name = `${String(state.revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`;
     // A members transition gets a portable, pinned full backup, including
     // archived History and fields normally stored in compact sidecars.
