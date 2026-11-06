@@ -16,7 +16,7 @@ import { createBacklogView } from './screen-backlog.mjs';
 import { selectDuoTaskLists } from './duo-task-lists.mjs';
 import { createDuoBacklogView } from './duo-backlog-view.mjs';
 import { createTickActiveTasks } from './tick-active-tasks.mjs';
-import { appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult } from './task-why.mjs';
+import { appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult, loadTaskWhyEvidence } from './task-why.mjs';
 import { createTaskFocus } from './task-focus.mjs';
 
 // Main-screen tasks; shared values and callbacks live in the explicit screen context.
@@ -267,7 +267,8 @@ export function createScreenTasks(c) {
     return c.plain((place(String(id)) ?? place(String(id).replace(/-\d+$/, '')))?.name ?? '');
   }
 
-  // The explanation reads the full result only when a player opens it.
+  // Read one row's evidence first; sandbox and unavailable evidence keep the
+  // existing full-detail path.
   function appendWhy(row, task, ownerId = c.memberId) {
     if (isCustomTask(task)) return;
     const cacheOptions = { cache: c.viewCache, cacheKey: JSON.stringify([ownerId, task.id]), revision: () => c.state.revision,
@@ -286,6 +287,14 @@ export function createScreenTasks(c) {
     const openRule = ruleId => Promise.resolve(c.rulesDialog({ ruleId, memberId: ownerId })).catch(c.showError);
     appendTaskWhy(row, task, { ...cacheOptions, document, button: c.button, icon: c.icon, openRule, readOnly: !c.canWrite(), load: async value => {
       const revision = c.state.revision, selected = c.memberId;
+      const sandboxScope = c.sandbox.signature();
+      const current = () => revision === c.state.revision && selected === c.memberId && sandboxScope === c.sandbox.signature();
+      const evidence = !c.sandbox.active && await loadTaskWhyEvidence(c.api, value.id, ownerId, revision, current);
+      if (evidence) {
+        const describeRule = catalogued(await createRuleDescriber(taskDisplayState(), ownerId));
+        if (!current()) throw new Error('The selected map or saved state changed. Open Why again.');
+        return { ...evidence, describeRule, locationName: placeName };
+      }
       let result;
       if (c.canWrite()) result = await c.ensureDuoDetails(ownerId, false, false);
       else {

@@ -31,6 +31,7 @@ const positive = (value, name, minimum = 1) => {
   if (!Number.isSafeInteger(value) || value < minimum) throw new TypeError(`${name} must be an integer of at least ${minimum}.`);
 };
 const superseded = () => Object.assign(new Error('Calculation superseded by a newer save. Request the current tasks.'), { status: 409 });
+const residentPlanningUnavailable = () => Object.assign(new Error('Resident planning yielded or missed.'), { code: 'RESIDENT_PLANNING_UNAVAILABLE' });
 // Isolate native allocations and relay heaps on every server platform. Explicit
 // thread mode is retained for diagnostics; production uses owned processes.
 const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
@@ -89,7 +90,7 @@ function workerEvaluation(message) {
     get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } };
 }
 function validStateInput(state, input, stateInput, type) {
-  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
+  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
     && stateInput.stateJSON.byteLength > 0 && typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
     && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members)
     && state.members.length > 0 && state.members.every(member => member && typeof member.id === 'string' && member.id.length > 0)
@@ -301,7 +302,10 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (typeof taskInputKey === 'function') taskInputKey = taskInputKey();
       if (typeof taskInputKey !== 'string' || !/^[a-f0-9]{64}$/.test(taskInputKey) || typeof memberId !== 'string') return;
       const reused = picker.unlockResults.get(taskInputKey, memberId, revision);
-      if (reused) prediction?.confirmSavedPrediction(taskInputKey, revision, pickerId);
+      if (reused) {
+        foreground.preemptResidentPlanning();
+        prediction?.confirmSavedPrediction(taskInputKey, revision, pickerId);
+      }
       return reused ? evaluationWith(unlockEvaluation(reused), { hit: true }) : undefined;
     },
     prepareRules(rules, revision, pickerId = 'legacy-shared') {
@@ -321,6 +325,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (!['foreground', 'duo', 'side'].includes(evaluationLane) || evaluationLane === 'duo' && (type !== 'evaluate' || resultView !== 'play-v1')
         || evaluationLane === 'side' && !(type === 'chunk-planning' || type === 'evaluate' && resultView === 'full')) return Promise.reject(new TypeError('Invalid task evaluation lane.'));
       if (typeof duoSidebarProjection !== 'boolean' || duoSidebarProjection && (type !== 'evaluate' || resultView !== 'play-v1' || evaluationLane !== 'foreground')) return Promise.reject(new TypeError('Invalid duo sidebar projection.'));
+      if (evaluationLane === 'foreground' && !['predict', 'chunk-planning', 'sandbox', 'area-check', 'death-estimates'].includes(type)) foreground.preemptResidentPlanning();
       if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId, pickerId);
       if (type === 'evaluate' && resultView === 'play-v1' && state.revision >= picker.latestRevision && picker.unlockResults.getDiagnostics().entries) {
         const taskInputKey = stateInput ? stateInput.taskInputKey : taskReuseInputKey(state);
@@ -387,13 +392,30 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       }
       if (evaluationLane === 'side' || type === 'chunk-planning') {
         if (state.revision < picker.latestRevision) return Promise.reject(superseded());
-        return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput, false, pickerId);
+        const fallback = () => {
+          if (closed || picker.closed) return Promise.reject(unavailable('The task server is closing.'));
+          if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
+          if (state.revision < picker.latestRevision) return Promise.reject(superseded());
+          return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput, false, pickerId);
+        };
+        const resident = type === 'chunk-planning' && foreground.tryResidentPlanning(state, memberId, chunkId, key, input, signal, chunkIds, resultView, stateInput, pickerId);
+        return resident ? resident.catch(error => { if (error.code === 'RESIDENT_PLANNING_UNAVAILABLE') return fallback(); throw error; }) : fallback();
       }
       if (type === 'sandbox' || type === 'area-check') {
         if (state.revision < picker.latestRevision) return Promise.reject(superseded());
         // Drafts use their normalized changes in the key, with the same bounded
         // advisory lane as Preview so foreground saved tasks remain independent.
         return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, [], resultView, stateInput, false, pickerId);
+      }
+      if (type === 'why-task') {
+        const read = lane => lane
+          ? lane.readSnapshot(state, memberId, chunkId, key, input, signal, stateInput, pickerId)
+          : Promise.resolve({ result: { unavailable: true } });
+        return read(foreground).then(value => {
+          // Group peers may have been evaluated on the existing duo lane.
+          // Read it only if already present; never allocate a lane for Why.
+          return value.result?.unavailable ? read(duo) : value;
+        });
       }
       if (type !== 'death-estimates') return raceSavedPrediction(foreground.evaluate(state, memberId, type, chunkId, key, input, requestSignal, chunkIds, resultView, stateInput, duoSidebarProjection, pickerId));
       if (state.revision < picker.latestRevision) return Promise.reject(Object.assign(new Error('Calculation superseded by a newer save. Request the current tasks.'), { status: 409 }));
@@ -601,6 +623,15 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       deadlineClock.clearTimeout(cancelledGrace.timer); cancelledGrace = undefined;
     }
   }
+  function armCancelledGrace(entry) {
+    if (closed || active !== entry || cancelledGrace) return;
+    const timer = deadlineClock.setTimeout(() => {
+      if (cancelledGrace?.entry !== entry) return;
+      cancelledGrace = undefined;
+      if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retire();
+    }, 25);
+    timer?.unref?.(); cancelledGrace = { entry, timer };
+  }
   function abortInitial() {
     initialAborted = true;
     initialReject(Object.assign(new Error('Task worker initialization cancelled.'), { name: 'AbortError', status: 503 }));
@@ -657,6 +688,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function storeEvaluation(key, revision, type, value, pickerId) {
     if (type === 'how-task') return false; // Proofs have a separate small worker cache.
+    if (type === 'why-task' && value.result?.unavailable) return false;
     const bytes = value.sandboxJSON ? value.sandboxJSON.length
       + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs, resultCache: value.resultCache }))
       : value.playJSON ? (value.resultJSON?.length ?? 0) + (value.duoJSON?.length ?? 0) + (value.duoSidebarJSON?.length ?? 0) + value.playJSON.length
@@ -708,18 +740,21 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       entry.reuseWaiters.delete(waiter);
     }
   }
-  function cancel(entry, error) {
+  function cancel(entry, error, retiring = false) {
     if (active === entry && worker && !entry.reuseRevision) {
       if (entry.cancellation) Atomics.store(new Int32Array(entry.cancellation), 0, 1);
       try { worker.postMessage({ id: entry.id, type: 'cancel', pickerId: entry.pickerId }); } catch { failure('worker-send'); }
     }
     settle(entry, error);
+    // Every resident cancellation is bounded, including disconnects, saves and
+    // another picker's request, with or without a physical calculator pool.
+    if (entry.residentOnly && !retiring) armCancelledGrace(entry);
   }
   function retire(error = superseded()) {
     clearCancelledGrace();
     if (active) {
       deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
-      cancel(active, error); active = undefined;
+      cancel(active, error, true); active = undefined;
     }
     clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
@@ -765,6 +800,10 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     announce();
     restartTimer = setTimeout(launch, delay);
   }
+  function canReadResident(type, pickerId) {
+    return !closed && !closedPickers.has(pickerId) && status === 'ready' && worker && !worker.profileRetiring
+      && !active && !queue.length && !warmQueue.length && supported.has(type);
+  }
   function pump() {
     if (closed || status !== 'ready') return;
     if (!active && worker.profileRetiring) { retire(); return; }
@@ -773,6 +812,19 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return;
     }
     if (calculatorPool) {
+      const candidates = queue.length ? queue : warmQueue;
+      const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
+      const next = candidates.find(entry => entry.pickerId === id) ?? candidates[0];
+      if (next?.type === 'why-task') {
+        if (!worker.tryReadSnapshot(next.pickerId, () => {
+          sentSnapshots = worker.snapshotHints;
+          dispatch(fairness ? fairTake() : queue.shift());
+        })) {
+          settle(next, undefined, { result: { unavailable: true } });
+          pump();
+        }
+        return;
+      }
       worker.schedule(() => {
         if (closed || status !== 'ready' || active) return;
         // Expired optional work must not hide another picker's warm queue.
@@ -803,7 +855,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     const entry = queue.shift();
     dispatch(entry);
   }
-  function deadline(entry, allowance = !active && firstCalculation && queue.length <= 1 && entry.type !== 'prepare-rules'
+  function deadline(entry, allowance = !active && firstCalculation && queue.length <= 1 && entry.type !== 'prepare-rules' && !entry.residentOnly
     ? Math.max(deadlineMs, firstCalculationDeadlineMs) : deadlineMs) {
     entry.deadlineStartedAt ??= idleClock.now();
     deadlineClock.clearTimeout(entry.timer);
@@ -828,7 +880,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         legacy: { maps: Object.fromEntries((members ?? []).filter(member => member.sourceMapId !== undefined)
           .map(member => [member.sourceMapId, { rules: legacy?.maps?.[member.sourceMapId]?.rules }])) } };
     }
-    if (firstCalculation && entry.type !== 'prepare-rules') {
+    if (firstCalculation && entry.type !== 'prepare-rules' && !entry.residentOnly) {
       firstCalculation = false;
       deadline(entry, Math.max(deadlineMs, firstCalculationDeadlineMs));
     } else if (!entry.timer) deadline(entry);
@@ -854,6 +906,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
     entry.snapshotKey = snapshotKey;
     try { const workerMessage = { id: entry.id, pickerId: entry.pickerId, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
+      ...(entry.residentOnly ? { residentOnly: true } : {}),
       ...(entry.type === 'predict' ? { predictionProgress: true, previewProgress: true } : {}),
       ...(entry.type === 'roll-pool' && entry.chunkId !== undefined ? { draft: entry.chunkId } : {}), ...serialized,
       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
@@ -947,7 +1000,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
-      if (message.error) {
+      if (entry.residentOnly && message.residentPlanningMiss) {
+        settle(entry, residentPlanningUnavailable());
+      } else if (message.error) {
         // An error may occur before or after the worker touches its snapshot
         // LRU. Resend bodies until both caches have a known common order.
         sentSnapshots.clear();
@@ -960,7 +1015,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         const value = workerEvaluation(message);
         if (!entry.discarded && (entry.waiters.size || entry.warm || entry.previewValue)) {
           onEvaluation?.(message, entry);
-          storeEvaluation(entry.key, entry.revision, entry.type, value, entry.pickerId);
+          if (!entry.residentOnly) storeEvaluation(entry.key, entry.revision, entry.type, value, entry.pickerId);
           settle(entry, null, value);
         }
         if (entry.reuseRevision) {
@@ -987,21 +1042,19 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return retire(unavailable('Task calculator exceeded its memory budget. Retry shortly.'));
     },
     yieldForInteractive() {
+      // Retain cooperative workers briefly; cancel() also arms retirement for
+      // native operations that cannot observe the atomic cancellation flag.
+      if (active?.residentOnly) {
+        if (!active.discarded) cancel(active, residentPlanningUnavailable());
+        return false;
+      }
       if (closed || status !== 'ready' || !active || !(active.warm || active.discarded)
         || active.waiters.size || served(active) || active.reuseWaiters?.size) return false;
       if (calculatorPool && active.discarded) {
         // An abandoned native calculation already received its atomic cancel.
         // Let a cooperative reply release the existing host before paying for
         // replacement compilation. A stuck producer still retires promptly.
-        if (!cancelledGrace) {
-          const entry = active;
-          const timer = deadlineClock.setTimeout(() => {
-            if (cancelledGrace?.entry !== entry) return;
-            cancelledGrace = undefined;
-            if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retire();
-          }, 25);
-          timer?.unref?.(); cancelledGrace = { entry, timer };
-        }
+        armCancelledGrace(active);
         return false;
       }
       if (active.warm) { active.warm = false; warmCounts.cancelled++; }
@@ -1089,7 +1142,20 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       if (stored) counts.promoted++;
       return stored;
     },
-    evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false, pickerId = 'legacy-shared') {
+    readSnapshot(state, memberId, taskId, key, input, signal, stateInput, pickerId) {
+      if (!canReadResident('why-task', pickerId))
+        return Promise.resolve({ result: { unavailable: true } });
+      return scheduler.evaluate(state, memberId, 'why-task', taskId, key, input, signal, [], 'full', stateInput, false, pickerId);
+    },
+    tryResidentPlanning(state, memberId, chunkId, key, input, signal, chunkIds, resultView, stateInput, pickerId) {
+      if (!canReadResident('resident-chunk-planning', pickerId)) return;
+      return scheduler.evaluate(state, memberId, 'chunk-planning', chunkId, key, input, signal, chunkIds, resultView, stateInput, false, pickerId, true);
+    },
+    preemptResidentPlanning() {
+      if (active?.residentOnly && !active.discarded) cancel(active, residentPlanningUnavailable());
+    },
+    evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false, pickerId = 'legacy-shared', residentOnly = false) {
+      if (!residentOnly) scheduler.preemptResidentPlanning();
       counts.requested++;
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
       const originalKey = key;
@@ -1103,7 +1169,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       touch();
       if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId, pickerId);
       if (strictRevision && state.revision < revisionFor(pickerId)) return Promise.reject(superseded());
-      if (cache.has(key)) {
+      if (!residentOnly && cache.has(key)) {
         counts.cacheHits++;
         const value = cache.get(key); cache.delete(key); cache.set(key, value);
         return Promise.resolve(evaluationWith(value.value, { hit: true }));
@@ -1135,9 +1201,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
           counts.rejected++;
           return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 }));
         }
-        const releaseFair = admitFair(pickerId, { interactive: true });
-        if (!releaseFair) { counts.rejected++; return Promise.reject(queueFull()); }
-        entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
+        const releaseFair = admitFair(pickerId, { interactive: !residentOnly });
+        if (!releaseFair) { if (residentOnly) return Promise.reject(residentPlanningUnavailable()); counts.rejected++; return Promise.reject(queueFull()); }
+        entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, residentOnly, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
         entry.calculatorStarted = !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status));
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry);
@@ -1155,7 +1221,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         };
         entry.waiters.add(waiter); signal?.addEventListener('abort', waiter.abort, { once: true });
       });
-      wake(); pump(); return promise;
+      if (residentOnly) {
+        queue.splice(queue.indexOf(entry), 1);
+        const run = () => { if (calculatorPool) sentSnapshots = worker.snapshotHints; dispatch(entry); };
+        if (calculatorPool) {
+          if (!worker.tryIdle(pickerId, run)) settle(entry, residentPlanningUnavailable());
+        } else run();
+      } else { wake(); pump(); }
+      return promise;
     },
     supersede(revision, input, memberId, pickerId = 'legacy-shared') {
       if (strictRevision && revision > revisionFor(pickerId)) {

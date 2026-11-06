@@ -1,5 +1,16 @@
 const projections = new WeakMap();
 
+// Cached explanations are provisional until the live read validates them.
+// Paint the visible Updating label and cached content together, including when
+// the cache belongs to an older revision of this same authenticated scope.
+export function paintExplanationPreview(panel, { cache, view, key, revision, status, checking, lastKnown, render }) {
+  const entry = cache?.peek(view, key, revision), cached = entry?.revision <= revision ? entry : undefined;
+  status.textContent = cached ? `Updating… · Last known ${lastKnown}` : checking;
+  status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  panel.replaceChildren(status);
+  if (cached) panel.append(render(cached.value));
+}
+
 /** Migration evidence belongs to durable saves and import details, not display state. */
 function browserProvenance(provenance) {
   if (!provenance || typeof provenance !== 'object') return provenance;
