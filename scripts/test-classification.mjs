@@ -3,6 +3,8 @@
 import { existingTestExceptions } from './test-selection-exceptions.mjs';
 
 export const testSuites = Object.freeze(['quick', 'full', 'differential', 'engine-differential']);
+// Shared filename rule for discovery and consumers such as hosted stability CI.
+export const isTestEntryFile = name => typeof name === 'string' && name.endsWith('.test.mjs');
 // validateLanes accepts scratch direct-peer lanes only on 8900-8999. The http
 // test scans for a free port; the lanes test passes ports as data, never listens.
 export const reviewedFixedPortTests = new Set(['private-frontdoor-http.test.mjs', 'private-frontdoor-lanes.test.mjs']);
@@ -42,11 +44,11 @@ export function testHeader(source, name = 'test') {
 }
 
 export function createTestSelection(sources = new Map()) {
-  const metadata = new Map([...sources].filter(([name]) => name.endsWith('.test.mjs'))
+  const metadata = new Map([...sources].filter(([name]) => isTestEntryFile(name))
     .map(([name, source]) => [name, { ...exceptions.get(name), ...testHeader(source, name) }]));
   const policyFor = name => metadata.get(name) ?? exceptions.get(name) ?? {};
   const classifyTest = name => {
-    if (!name.endsWith('.test.mjs')) return null;
+    if (!isTestEntryFile(name)) return null;
     const classification = policyFor(name).classification;
     if (classification) return classification;
     // Preserve the suite of split private scenarios, but never inherit a
@@ -60,7 +62,7 @@ export function createTestSelection(sources = new Map()) {
   };
   const selectTests = (names, suite = 'quick') => {
     if (!testSuites.includes(suite)) throw new Error('Suite must be quick, full, differential or engine-differential');
-    const selected = [...names].filter(name => name.endsWith('.test.mjs')).sort().filter(name => {
+    const selected = [...names].filter(isTestEntryFile).sort().filter(name => {
       const classification = classifyTest(name);
       return suite === 'full' ? ['quick', 'full-only'].includes(classification) : classification === classes[suite];
     });
