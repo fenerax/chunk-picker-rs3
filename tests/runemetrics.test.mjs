@@ -100,16 +100,17 @@ test('ambiguous whole titles and absent catalogue identities remain unmatched', 
   assert.match(preview.unmatched.quests[0].reason,/Several/); assert.match(preview.unmatched.quests[1].reason,/absent/);
 });
 
-test('preview shows level decreases and XP-only changes, skips already-completed additions and leaves planning inputs intact', () => {
+test('preview rejects level decreases, shows XP increases, skips already-completed additions and leaves planning inputs intact', () => {
   const state=group(), owner=state.members[0];
-  const necromancy = player1Profile.skillvalues.find(row=>row.id===28), attack=player1Profile.skillvalues.find(row=>row.id===0);
+  const attack=player1Profile.skillvalues.find(row=>row.id===0);
   const provenance={source:'runemetrics',fetchedAt,runescapeName:owner.runescapeName};
   owner.skillProgress={Necromancy:{level:21,xp:5000,...provenance},Attack:{level:attack.level,xp:0,...provenance}};
   owner.passiveLevels={Necromancy:5}; owner.maxLevels={Necromancy:10};
   const first=previewRuneMetrics(state,'player1',snapshot(),questMapping).preview.quests[0];
   owner.completedTasks.push(first.taskId);
   const {preview,command}=previewRuneMetrics(state,'player1',snapshot(),questMapping);
-  assert.deepEqual(preview.skills.find(row=>row.skill==='Necromancy'),{skill:'Necromancy',before:{level:21,xp:5000},after:{level:necromancy.level,xp:necromancy.xp/10}});
+  assert.equal(preview.skills.find(row=>row.skill==='Necromancy'),undefined);
+  assert.equal(command.skills.find(row=>row.skill==='Necromancy'),undefined);
   assert.equal(preview.skills.find(row=>row.skill==='Attack').after.level,attack.level);
   assert.equal(preview.quests.length,1); assert.equal(command.quests.length,2);
   assert.deepEqual(owner.passiveLevels,{Necromancy:5}); assert.deepEqual(owner.maxLevels,{Necromancy:10});

@@ -1,4 +1,3 @@
-import { progressBelongsToMember } from '../core/game-progress.mjs';
 export { isObservedProgressSource } from '../core/game-progress.mjs';
 import { createPlatformApiClient } from './platform-api.mjs';
 export { createOfficialApiSource } from './official-api.mjs';
@@ -74,11 +73,8 @@ export function createProgressSources({ runeMetrics = {}, platformApi = runeMetr
       try {
         const web = await fallback.snapshot(member);
         if (web.available === false) throw new Error('Hiscores unavailable');
-        // A stale fallback must never lower a saved level or XP observation.
-        web.skills = web.skills.filter(row => {
-          const saved = member.skillProgress?.[row.skill];
-          return !progressBelongsToMember(saved, member) || row.level >= saved.level && row.xp >= saved.xp;
-        });
+        // Preview and durable Apply guard every web provider against the latest
+        // saved state, which may differ from the member used for this fetch.
         return overlay(web);
       } catch {
         return overlay(unavailable);

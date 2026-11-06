@@ -39,6 +39,18 @@ export function progressBelongsToMember(value, member) {
     : isGameProgressSource(value?.source) && sameRuneScapeName(value.runescapeName, member?.runescapeName);
 }
 
+// Web snapshots may be stale or less precise than saved observations. Compare
+// against the current account at both preview and Apply, never the fetch copy.
+// Call only for web rows: accepted plugin observations remain authoritative.
+export function preserveWebSkillProgress(row, member) {
+  const saved = member.skillProgress?.[row.skill];
+  if (!progressBelongsToMember(saved, member)) return row;
+  if (saved.source === 'game-plugin' || row.level < saved.level) return null;
+  const xp = Number.isInteger(row.xp) && row.xp === Math.floor(saved.xp) ? saved.xp : row.xp;
+  if (xp < saved.xp) return null;
+  return { ...row, xp };
+}
+
 export function validateRuneMetricsTimestamp(value, source = 'RuneMetrics') {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) throw new TypeError(`${source} fetchedAt must be an ISO UTC timestamp`);
   const date = new Date(value);

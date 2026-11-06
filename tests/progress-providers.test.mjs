@@ -1,7 +1,9 @@
 import test, { beforeEach } from 'node:test';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createProgressSources, createPluginProgressSource, PROGRESS_UNAVAILABLE_MESSAGE, previewProgress } from '../app/integrations/progress-sources.mjs';
 import { createHiscoresSource, parseHiscoresLite } from '../app/integrations/hiscores.mjs';
@@ -10,6 +12,7 @@ import { applyCommand, createGroupState, validateState, exportBackup, importBack
 import { progressBelongsToMember } from '../app/core/game-progress.mjs';
 import { recordedPlatformResponse } from './helpers/platform-api-fixtures.mjs';
 import { syncFixture } from '../scripts/perf/progress-sync.mjs';
+import { openStore } from '../app/storage/store.mjs';
 
 const fixture = JSON.parse(await readFile(new URL('./fixtures/progress/player-x.json', import.meta.url)));
 const lite = await readFile(new URL('./fixtures/progress/player-x-hiscores.txt', import.meta.url), 'utf8');
@@ -41,6 +44,27 @@ test('healthy Platform sync preview, command, members and history match the synt
   const expected = await readFile(new URL('./fixtures/progress/sync-start.json', import.meta.url));
   const actual = Buffer.from(await syncFixture(fileURLToPath(new URL('..', import.meta.url)), fixture));
   assert.deepEqual(actual, expected);
+  assert.deepEqual(JSON.parse(actual)[1].members[0].skillProgress.Attack,
+    { level: 6, xp: 600, source: 'runemetrics', fetchedAt: fixture.fetchedAt, runescapeName: 'Player x' });
+});
+
+test('legacy web settings use Platform without lowering a restored RuneMetrics observation', async t => {
+  for (const webSource of ['runemetrics', 'official-api', 'platform-api']) {
+    for (const [level, xp] of [[9, 1000], [7, 700]]) {
+      const response = structuredClone(fixture);
+      response.profile.skillvalues = [{ id: 0, level, xp: xp * 10 }];
+      const state = importBackup(exportBackup(apply(group(), { type: 'apply-runemetrics', memberId: 'player-x',
+        runescapeName: 'Player x', fetchedAt: pluginAt, skills: [{ skill: 'Attack', level: 9, xp: 1000.5 }], quests: [] })));
+      const client = source(t, { webSource, runeMetrics: { fetchImpl: async url => recordedPlatformResponse(url, response) } });
+      const snapshot = await client.snapshot(state.members[0]);
+      assert.equal(snapshot.source, 'platform-api');
+      const proposal = previewProgress(state, 'player-x', snapshot, mapping);
+      assert.deepEqual(proposal.preview.skills, []);
+      const applied = apply(state, proposal.command);
+      assert.equal(applied.members[0].skillProgress.Attack.level, 9);
+      assert.equal(applied.members[0].skillProgress.Attack.xp, 1000.5);
+    }
+  }
 });
 
 test('plugin levels and quest statuses win individually; web fills absent fields and keeps truthful provenance', async t => {
@@ -92,7 +116,8 @@ for (const [kind, fetchImpl] of [
     const result = await client.snapshot(owner);
     assert.equal(result.source, 'hiscores'); assert.deepEqual(result.quests, []);
     assert.equal(result.message, undefined);
-    assert.ok(!result.skills.some(row => row.skill === 'Attack'));
+    // Providers return observations; the shared preview/Apply use latest state.
+    assert.ok(result.skills.some(row => row.skill === 'Attack'));
     const applied = apply(state, previewProgress(state, owner.id, result, mapping).command); validateState(applied);
     assert.deepEqual(applied.members[0].skillProgress.Attack, owner.skillProgress.Attack);
     assert.deepEqual(applied.members[0].questProgress, owner.questProgress);
@@ -270,3 +295,90 @@ test('older live plugin skills and quest statuses cannot overwrite newer saved o
   assert.deepEqual(member.skillProgress.Attack, state.members[0].skillProgress.Attack);
   assert.deepEqual(member.questProgress[questId], state.members[0].questProgress[questId]);
 });
+
+for (const provider of ['platform-api', 'hiscores', 'official-api', 'runemetrics']) {
+  const snapshot = (level, xp, extra = {}) => ({ source: provider, sourceLabel: provider,
+    fetchedAt: fixture.fetchedAt, cached: false,
+    skills: [{ skill: 'Attack', level, xp }], quests: [], ...extra });
+  const legacyState = () => importBackup(exportBackup(apply(group(), {
+    type: 'apply-runemetrics', memberId: 'player-x', runescapeName: 'Player x', fetchedAt: pluginAt,
+    skills: [{ skill: 'Attack', level: 9, xp: 1000.5 }], quests: [{ taskId: questId, title: 'Synthetic Quest' }],
+  })));
+
+  test(`${provider}: preview and durable Apply preserve restored XP precision and reject stale progress through backup/reload`, async t => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'web-progress-preservation-'));
+    let store;
+    t.after(async () => { await store?.close(); await rm(dataDir, { recursive: true, force: true }); });
+    const restored = legacyState();
+    store = await openStore({ dataDir, initialState: restored, retention: false, now: () => fixture.fetchedAt });
+    // A command prepared before the restore models an unguarded caller or a
+    // newer save landing between preview and Apply. Durable Apply must recheck.
+    for (const [level, xp] of [[9, 1000], [7, 700], [8, 1100], [10, 900], [9, 1000]]) {
+      const current = store.getState();
+      const proposal = previewProgress(current, 'player-x', snapshot(level, xp), mapping);
+      assert.deepEqual(proposal.preview.skills, []);
+      if (level === 9 && xp === 1000) assert.equal(proposal.command.skills[0].xp, 1000.5);
+      else assert.deepEqual(proposal.command.skills, []);
+      assert.equal(apply(current, proposal.command).members[0].skillProgress.Attack.xp, 1000.5);
+      for (const command of [proposal.command, previewProgress(group(), 'player-x', snapshot(level, xp), mapping).command]) {
+        const before = store.getState().members[0];
+        await store.command(command, store.getState().revision);
+        const saved = store.getState().members[0];
+        assert.equal(saved.skillProgress.Attack.level, 9);
+        assert.equal(saved.skillProgress.Attack.xp, 1000.5);
+        if (level !== 9) assert.deepEqual(saved.skillProgress.Attack, before.skillProgress.Attack, 'stale rows retain original provenance too');
+        assert.deepEqual(saved.questProgress, restored.members[0].questProgress);
+        assert.deepEqual(saved.completedTasks, restored.members[0].completedTasks);
+        assert.deepEqual(importBackup(await store.backup()).members, store.getState().members);
+      }
+    }
+    const expected = store.getState();
+    await store.close();
+    store = await openStore({ dataDir, retention: false });
+    assert.deepEqual(store.getState().members, expected.members);
+  });
+
+  test(`${provider}: account binding, genuine increases, fractional regressions and plugin authority use the same rule`, () => {
+    const state = legacyState();
+    for (const row of [[9, 1001], [10, 1100]]) {
+      const proposal = previewProgress(state, 'player-x', snapshot(...row), mapping);
+      assert.deepEqual(proposal.preview.skills[0].after, { level: row[0], xp: row[1] });
+      assert.equal(apply(state, proposal.command).members[0].skillProgress.Attack.xp, row[1]);
+    }
+    for (const status of ['STARTED', 'NOT_STARTED']) {
+      const proposal = previewProgress(state, 'player-x', snapshot(7, 700, {
+        quests: [{ title: 'Synthetic Quest', status }] }), mapping);
+      assert.deepEqual(proposal.command.quests, []);
+      const member = apply(state, proposal.command).members[0];
+      assert.deepEqual(member.completedTasks, state.members[0].completedTasks);
+      assert.deepEqual(member.questProgress, state.members[0].questProgress);
+    }
+    if (provider !== 'platform-api') {
+      const proposal = previewProgress(state, 'player-x', snapshot(9, 1000.4), mapping);
+      assert.deepEqual(proposal.command.skills, [], 'fractional decreases are not rounding');
+    }
+    const renamed = structuredClone(state); renamed.members[0].runescapeName = 'Player y';
+    const renamedProposal = previewProgress(renamed, 'player-x', snapshot(7, 700), mapping);
+    assert.equal(renamedProposal.preview.skills[0].after.level, 7);
+    assert.equal(apply(renamed, renamedProposal.command).members[0].skillProgress.Attack.level, 7);
+    const equivalent = structuredClone(state); equivalent.members[0].runescapeName = 'player_x';
+    assert.deepEqual(previewProgress(equivalent, 'player-x', snapshot(7, 700), mapping).command.skills, []);
+
+    // Mixed snapshots and standalone plugin commands may intentionally lower
+    // values. A web row must not displace plugin evidence saved after preview.
+    const pluginRow = snapshot(7, 700, { skills: [{ skill: 'Attack', level: 7, xp: 700.5, provenance }] });
+    const proposal = previewProgress(state, 'player-x', pluginRow, mapping);
+    assert.equal(proposal.preview.skills[0].after.xp, 700.5);
+    const pluginState = apply(state, proposal.command);
+    assert.equal(pluginState.members[0].skillProgress.Attack.source, 'game-plugin');
+    assert.equal(pluginState.members[0].skillProgress.Attack.xp, 700.5);
+    const pluginOnly = apply(state, { type: 'apply-game-progress', memberId: 'player-x', fetchedAt: fixture.fetchedAt,
+      skills: [{ skill: 'Attack', level: 7, xp: 700.5 }], quests: [{ taskId: questId, title: 'Synthetic Quest' }] });
+    const webCommand = previewProgress(group(), 'player-x', snapshot(10, 1100, {
+      quests: [{ title: 'Synthetic Quest', status: 'COMPLETED' }] }), mapping).command;
+    assert.deepEqual(previewProgress(pluginOnly, 'player-x', snapshot(10, 1100), mapping).command.skills, []);
+    const applied = apply(pluginOnly, webCommand);
+    assert.deepEqual(applied.members[0].skillProgress, pluginOnly.members[0].skillProgress);
+    assert.deepEqual(applied.members[0].questProgress, pluginOnly.members[0].questProgress);
+  });
+}
