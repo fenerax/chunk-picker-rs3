@@ -734,9 +734,7 @@ test('service startup never reads private operator recovery state; privileged ga
   assert.equal(execFileSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' }), 'Picker ready.\n');
   const root = await mkdtemp(path.join(tmpdir(), 'linux-start-gate-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const registryDir = path.join(root, 'registry'); await mkdir(registryDir);
-  await atomic(path.join(registryDir, 'registry.json'), encode({ schemaVersion: 1, accounts: [], pickers: [], capabilities: [] }));
-  const settings = { controlDir: root, dataDir: path.join(root, 'game'), multiPicker: { registryDir, pickerRoot: path.join(root, 'pickers') } };
+  const settings = { controlDir: root, multiPicker: {} };
   await mkdir(path.join(root, 'service-restore'));
   await atomic(path.join(root, 'service-restore', 'progress.json'), encode({ phase: 'prepared' }));
   await assert.rejects(checkStart(settings), /incomplete/);
