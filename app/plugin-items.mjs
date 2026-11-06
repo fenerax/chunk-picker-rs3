@@ -14,7 +14,7 @@ export { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-s
 // the first snapshot's time, item tasks the player already handled, and the
 // newest processed plugin journal event, and when the bank was last seen with its
 // coins. Non-live journals use separate files with the same bounded record shape.
-import { validateItemRecord, validateJournalCommits, mergeItemRecords, mergeJournalCommits, mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
+import { validateItemRecord, validateJournalCommits, mergeItemHandled, mergeItemRecords, mergeJournalCommits, mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 export { validateItemRecord } from './core/plugin-item-evidence.mjs';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -52,8 +52,8 @@ const commitFile = 'plugin-item-journal-commits.json';
 const REVIEW = '~plugin-review:';
 const ITEM_TASKS = new Set([...GAME_ITEMS.values()].map(item => item.goalId).concat([...GAME_WORN_TASKS.keys()]));
 const AUTO_TASKS = new Set([...GAME_ITEMS.values()].map(item => item.goalId));
-const reviewError = message => Object.assign(new Error(`${message} Nothing was applied or dismissed.`), { status: 422, code: 'PLUGIN_ITEM_REVIEW_CAPACITY' });
-export const hasPluginItemDecisions = evidence => Object.values(evidence?.players ?? {}).some(player => player.records.live?.handled.some(id => id.startsWith(REVIEW)));
+export const hasPluginItemDecisions = evidence => Object.values(evidence?.players ?? {}).some(player =>
+  Object.values(player.records).some(record => record.handled.some(id => id.startsWith(REVIEW))));
 export async function hasLegacyPluginItemDecisions(dataDir) {
   let document;
   try { document = JSON.parse(await readFile(path.join(dataDir, 'plugin-items.json'))); }
@@ -68,21 +68,37 @@ function decisionIds(record) {
     return task;
   });
 }
+export function samePluginItemDecisions(left, right) {
+  const projection = evidence => Object.keys(evidence?.players ?? {}).sort().flatMap(id => {
+    return Object.keys(evidence.players[id].records).sort().flatMap(world => {
+      const tasks = decisionIds(evidence.players[id].records[world]).sort();
+      return tasks.length ? [[id, world, tasks]] : [];
+    });
+  });
+  return JSON.stringify(projection(left)) === JSON.stringify(projection(right));
+}
 export function recoverPluginItemDecisions(evidence) {
   const next = mergePluginItemEvidence(evidence);
   for (const player of Object.values(next.players)) {
-    const tasks = decisionIds(player.records.live);
-    if (tasks.length) lowerDecisions(player.records.live, tasks);
+    for (const record of Object.values(player.records)) {
+      const tasks = decisionIds(record);
+      if (tasks.length) lowerDecisions(record, tasks);
+    }
   }
   return mergePluginItemEvidence(next);
 }
 
 function lowerDecisions(live, taskIds) {
-  const handled = new Set([...live.handled, ...taskIds, ...taskIds.map(id => REVIEW + id)]);
+  const handled = new Set(live.handled);
   // Frozen automatic ticks slice to 2,000. Reserve every remaining possible
-  // automatic task so rollback can never evict an accepted explicit decision.
-  const reserved = [...AUTO_TASKS].filter(id => !handled.has(id)).length;
-  if (handled.size + reserved > 2000) throw reviewError('This review exceeds the rollback sidecar capacity (2,000 handled IDs, including review markers and automatic-task reserve). Free reviewed obsolete entries, then retry.');
+  // automatic task when possible, without making it a current-save constraint.
+  for (const task of taskIds) {
+    const candidate = new Set([...handled, task, REVIEW + task]);
+    const reserved = [...AUTO_TASKS].filter(id => !candidate.has(id)).length;
+    // Compatibility metadata is optional. Never make a valid current decision
+    // depend on space for the frozen renderer's task/marker pair.
+    if (candidate.size + reserved <= 2000) for (const id of candidate) handled.add(id);
+  }
   live.handled = [...handled].sort();
 }
 
@@ -92,15 +108,6 @@ export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, 
   // A worker's supplied state may predate a concurrent import. Include the
   // inherited evidence published alongside the captured sidecar generations.
   const persisted = await capturedInheritedEvidence(dataDir, files);
-  // A state-first publication is not exportable until its legacy projection is
-  // verified. Writable startup alone may repair this interrupted publication.
-  if (!captureOptions?.recoverReview && hasPluginItemDecisions(persisted)) {
-    const live = files['plugin-items.json'] && validate(JSON.parse(files['plugin-items.json']));
-    for (const [id, player] of Object.entries(persisted.players)) {
-      if (decisionIds(player.records.live).some(task => !live?.players[id]?.handled.includes(task)
-        || !live.players[id].handled.includes(REVIEW + task))) throw Object.assign(new Error('Plugin review publication needs recovery; retry after the receiver reopens.'), { status: 503 });
-    }
-  }
   const players = new Map();
   for (const file of pluginItemFiles) {
     const contents = files[file];
@@ -134,7 +141,7 @@ export function importPluginItemEvidence(_dataDir, evidence, mapPlayerId = id =>
 // Explicit review decisions apply to tasks, independently of the world chosen
 // for the displayed row. Work on a validated copy; no scope may change until
 // every supporting scope has room for the complete decision.
-export function dismissPluginItemEvidence(evidence, memberId, taskIds, unmappedIds, at = new Date().toISOString()) {
+export function dismissPluginItemEvidence(evidence, memberId, taskIds, unmappedIds, at = new Date().toISOString(), taskWorlds = []) {
   const next = mergePluginItemEvidence(evidence);
   const player = next.players[memberId], tasks = new Set(taskIds), unmapped = new Set(unmappedIds), decisions = new Map();
   const support = (world, itemId, worn) => {
@@ -152,44 +159,55 @@ export function dismissPluginItemEvidence(evidence, memberId, taskIds, unmappedI
   for (const journal of player?.commits.journals ?? []) {
     for (const [, id, , world] of journal.pending) support(world, id, !GAME_ITEMS.get(id)?.noted);
   }
+  // Container-only reviews can have no retained fact. Retain their decision in
+  // the displayed scope without manufacturing an owned/worn observation.
+  const remember = (world, id) => decisions.set(world, new Set([...(decisions.get(world) ?? []), id]));
+  const supported = id => [...decisions.values()].some(ids => ids.has(id));
+  taskIds.forEach((id, index) => {
+    if (taskWorlds[index] || !supported(id)) remember(taskWorlds[index] ?? 'unknown', id);
+  });
+  for (const id of unmappedIds) if (!supported(`unmapped:${id}`)) remember('unknown', `unmapped:${id}`);
+  const owner = next.players[memberId] ??= { records: {}, commits: { journals: [] } };
   for (const [world, ids] of decisions) {
-    const record = player.records[world] ??= { baselineAt: at, items: {}, handled: [], journal: null };
-    const handled = new Set([...record.handled, ...ids]);
-    if (handled.size > 2000) throw Object.assign(new Error(`This review cannot be saved: the ${world === 'unknown' ? 'unknown-world' : world} item evidence would exceed 2,000 handled IDs. Nothing was applied or dismissed. Ask the operator to review the retained evidence and free space, then retry.`),
+    const record = owner.records[world] ??= { baselineAt: at, items: {}, handled: [], journal: null };
+    const handled = mergeItemHandled(record.handled, [...ids]);
+    if (handled.length > 2000) throw Object.assign(new Error(`This review cannot be saved: the ${world === 'unknown' ? 'unknown-world' : world} item evidence would exceed 2,000 handled IDs. Nothing was applied or dismissed. Ask the operator to review the retained evidence and free space, then retry.`),
       { status: 422, code: 'PLUGIN_ITEM_REVIEW_CAPACITY' });
-    record.handled = [...handled].sort();
-  }
-  if (unmappedIds.length) throw reviewError('This review contains unmapped items. The rollback release cannot retain dismissals for those identities. Keep this review until the items are mapped.');
-  if (taskIds.some(id => !ITEM_TASKS.has(id))) throw reviewError('The rollback release cannot represent one of these item tasks.');
-  if (taskIds.some(id => !decisions.get('live')?.has(id))) throw reviewError('This review contains tasks supported only by beta or unknown-world evidence. The rollback release cannot retain those decisions. Keep the review until live evidence supports every task.');
-  if (taskIds.length) {
-    const owner = next.players[memberId] ??= { records: {}, commits: { journals: [] } };
-    const live = owner.records.live ??= { baselineAt: at, items: {}, handled: [], journal: null };
-    lowerDecisions(live, taskIds);
+    record.handled = handled;
+    lowerDecisions(record, [...ids].filter(id => ITEM_TASKS.has(id)));
   }
   return mergePluginItemEvidence(next);
 }
 
-// Prepare and sync without changing either authoritative file. The store uses
-// state.json as its recovery record, verifies this projection before adoption,
-// and restores both previous byte streams if publication is refused.
-export async function stagePluginItemDecisions(dataDir, evidence, { checkOnly = false } = {}) {
+// Prepare an optional frozen-release projection without changing either file.
+// The store publishes authoritative state first; a lowering failure cannot undo it.
+export async function stagePluginItemDecisions(dataDir, evidence, { checkOnly = false, memberIds } = {}) {
   if (!hasPluginItemDecisions(evidence)) return;
   const file = path.join(dataDir, 'plugin-items.json');
   const before = await readFile(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
   const previous = before === undefined ? { v: 1, players: {} } : validate(JSON.parse(before));
-  const players = {};
+  // Provenance may predate a sibling's first report. Only an explicit roster
+  // boundary may prune a previous owner; lowering owns decisions, not that
+  // sibling's independently retained facts or acknowledgement watermarks.
+  const owners = memberIds === undefined ? null : new Set(memberIds);
+  const players = Object.fromEntries(Object.entries(previous.players).filter(([id]) => !owners || owners.has(id)));
   for (const [id, player] of Object.entries(evidence.players)) {
-    const record = mergeItemRecords(previous.players[id], player.records.live);
+    if (owners && !owners.has(id)) continue;
+    const tasks = [...new Set(Object.values(player.records).flatMap(decisionIds))].sort();
+    let record;
+    try { record = mergeItemRecords(previous.players[id], player.records.live); }
+    catch { continue; } // Optional lowering cannot reject a valid state publication.
+    if (!record && tasks.length) record = { baselineAt: Object.values(player.records)[0].baselineAt, items: {}, handled: [], journal: null };
     if (record) {
-      const tasks = decisionIds(record);
-      if (tasks.length) lowerDecisions(record, tasks);
+      lowerDecisions(record, [...new Set([...tasks, ...decisionIds(record)])].sort());
       players[id] = record;
     }
   }
+  if (checkOnly) return Object.entries(evidence.players).some(([id, player]) => (!owners || owners.has(id))
+    && Object.values(player.records).flatMap(decisionIds).some(task => !previous.players[id]?.handled.includes(task)
+      || !previous.players[id].handled.includes(REVIEW + task))) || undefined;
   const after = Buffer.from(`${JSON.stringify(validate({ v: 1, players }))}\n`);
   if (before?.equals(after)) return;
-  if (checkOnly) return true;
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
@@ -202,9 +220,8 @@ export async function stagePluginItemDecisions(dataDir, evidence, { checkOnly = 
     throw error;
   }
   const same = async bytes => (await readFile(file)).equals(bytes);
-  return { before, file,
+  return {
     async publish() { await publishFile(temporary, file); if (!await same(after)) throw new Error('Plugin item lowering verification failed.'); },
-    async verifyRollback() { if (before === undefined) { try { await readFile(file); throw new Error('Plugin item rollback verification failed.'); } catch (error) { if (error.code !== 'ENOENT') throw error; } } else if (!await same(before)) throw new Error('Plugin item rollback verification failed.'); },
     async cancel() { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); } };
 }
 

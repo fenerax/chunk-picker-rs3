@@ -708,7 +708,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // queue. Apply's gameplay and the decision share one state-file commit.
       let result;
       if (rows.length || unmapped.length) result = await store.commitPluginReview({ memberId, command,
-        taskIds: rows.map(row => row.taskId), unmappedIds: unmapped.map(row => row.gameItemId) }, expectedRevision, { actor });
+        taskIds: rows.map(row => row.taskId), taskWorlds: rows.map(row => row.world), unmappedIds: unmapped.map(row => row.gameItemId) }, expectedRevision, { actor });
       else if (command) result = await store.command(command, expectedRevision, { actor });
       importedRevision = -1; // Dismissal retains metadata without advancing gameplay.
       const dismissed = itemHandled.get(memberId) ?? new Set();

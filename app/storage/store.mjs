@@ -4,7 +4,7 @@ import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfe
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { pluginItemGeneration, withPluginItemEvidenceWrite } from './plugin-item-snapshot.mjs';
-import { dismissPluginItemEvidence, exportPluginItemEvidence, hasPluginItemDecisions, hasLegacyPluginItemDecisions, recoverPluginItemDecisions, stagePluginItemDecisions } from '../plugin-items.mjs';
+import { dismissPluginItemEvidence, exportPluginItemEvidence, hasPluginItemDecisions, hasLegacyPluginItemDecisions, recoverPluginItemDecisions, samePluginItemDecisions, stagePluginItemDecisions } from '../plugin-items.mjs';
 import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope, retainPluginItemEvidence, mergePluginItemEvidence } from '../core/plugin-item-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
@@ -1029,14 +1029,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         id => current.members.some(member => member.id === id) ? id : undefined,
         current.provenance?.pluginItemEvidence, { recoverReview: true });
       const recoveredState = hasPluginItemDecisions(recoveredItems) ? retainPluginItemEvidence(current, recoveredItems) : current;
-      const lowering = await stagePluginItemDecisions(directory, recoveredItems, { checkOnly: true });
-      const recoveryNeeded = lowering || !isDeepStrictEqual(recoveredState, current);
-      if (recoveryNeeded) {
-        if (readOnly || liveSwapStrict) throw Object.assign(new Error('Plugin review decisions require writable recovery before opening.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
+      const lowering = await stagePluginItemDecisions(directory, recoveredItems, { checkOnly: true, memberIds: current.members.map(member => member.id) });
+      const recoveryNeeded = lowering || !samePluginItemDecisions(recoveredItems, current.provenance?.pluginItemEvidence);
+      if (recoveryNeeded && !readOnly && !liveSwapStrict) {
         const bytes = await serializedDiskState(recoveredState);
         await publishItemState(recoveredState, bytes, 'plugin-item-recovery');
         current = recoveredState; currentDiskSerialized = bytes;
       }
+      // Frozen lowering is optional. Read-only workers can recover surviving
+      // decisions in memory without requiring a writable receiver restart.
+      if (readOnly || liveSwapStrict) current = recoveredState;
     }
     if (existing) {
       const sealJournals = journalRecovery.has(current);
@@ -1107,36 +1109,18 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     queue = result.catch(() => {});
     return result;
   }
-  // Prepare both projections before publication; state is the recovery record.
-  // Keep report writes excluded until legacy lowering has been read back. A
-  // normal refusal restores and verifies both prior byte streams before return.
+  // The state file alone atomically publishes decisions and gameplay. Legacy
+  // lowering is best effort under the same evidence gate, never a prerequisite.
   async function publishItemState(state, bytes, operation, details = {}) {
     return withPluginItemEvidenceWrite(directory, async () => {
-      const staged = await stagePluginItemDecisions(directory, state.provenance?.pluginItemEvidence);
-      let published = false;
+      const staged = await stagePluginItemDecisions(directory, state.provenance?.pluginItemEvidence,
+        { memberIds: state.members.map(member => member.id) }).catch(() => undefined);
       try {
         const result = await atomicWrite(stateFile, bytes, { onPostPublishSyncError: 'warn', beforeRename: beforeCommit
           ? () => beforeCommit({ operation, state: details.summary ?? structuredClone(state), ...(details.digest ? { digest: details.digest } : {}) }) : undefined });
-        published = true;
-        await staged?.publish();
+        await staged?.publish().catch(() => {});
         return result;
-      } catch (error) {
-        if (published) {
-          try {
-            if (staged) {
-              if (staged.before === undefined) await unlink(staged.file).catch(failure => { if (failure.code !== 'ENOENT') throw failure; });
-              else await atomicWrite(staged.file, staged.before);
-              await staged.verifyRollback();
-            }
-            await atomicWrite(stateFile, currentDiskSerialized);
-            if (!(await readFile(stateFile)).equals(Buffer.from(currentDiskSerialized))) throw new Error('State rollback verification failed.');
-          } catch (cause) {
-            frozen = true;
-            throw Object.assign(new Error('Plugin review publication needs recovery. Reopen the receiver before retrying.', { cause }), { status: 503 });
-          }
-        }
-        throw error;
-      } finally { await staged?.cancel(); }
+      } finally { await staged?.cancel().catch(() => {}); }
     });
   }
   async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency } = {}) {
@@ -1192,7 +1176,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const baseline = current;
       const reviewedItems = itemReview && dismissPluginItemEvidence(await exportPluginItemEvidence(directory,
         id => current.members.some(member => member.id === id) ? id : undefined, current.provenance?.pluginItemEvidence),
-      itemReview.memberId, itemReview.taskIds, itemReview.unmappedIds, timestamp());
+      itemReview.memberId, itemReview.taskIds, itemReview.unmappedIds, timestamp(), itemReview.taskWorlds);
       if (itemReview && !command) return persist(retainPluginItemEvidence(current, reviewedItems), 'plugin-item-review', undefined,
         false, baseline, false, undefined, { cleanup: true });
       const sparseUndo = hasRetainedSparseUndo(current, command) && !current.provenance?.historyArchive?.length;
@@ -1524,15 +1508,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     command(command, expectedRevision, { actor, requestId, requestAck } = {}) {
       return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck);
     },
-    commitPluginReview({ memberId, taskIds, unmappedIds, command }, expectedRevision, { actor } = {}) {
+    commitPluginReview({ memberId, taskIds, taskWorlds, unmappedIds, command }, expectedRevision, { actor } = {}) {
       if (!current.members.some(member => member.id === memberId)
         || command && (command.type !== 'apply-game-progress' || command.memberId !== memberId)
         || !Array.isArray(taskIds) || taskIds.length > 100 || taskIds.some(id => typeof id !== 'string' || id.length > 200)
+        || taskWorlds !== undefined && (!Array.isArray(taskWorlds) || taskWorlds.length !== taskIds.length || taskWorlds.some(world => !['live', 'beta', 'unknown'].includes(world)))
         || !Array.isArray(unmappedIds) || unmappedIds.length > 30 || unmappedIds.some(id => !Number.isSafeInteger(id) || id < 0 || id > 1000000)) {
         return Promise.reject(new TypeError('Invalid plugin item review.'));
       }
       return runCommand(command, expectedRevision, false, false, actor, undefined, undefined, undefined,
-        { memberId, taskIds: [...taskIds], unmappedIds: [...unmappedIds] });
+        { memberId, taskIds: [...taskIds], taskWorlds: taskWorlds && [...taskWorlds], unmappedIds: [...unmappedIds] });
     },
     observePluginCurrency(observation) {
       return enqueue(async () => {

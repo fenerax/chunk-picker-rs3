@@ -84,8 +84,8 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
       if (result.state.revision !== state.revision) commands.push(structuredClone(result.state.history.at(-1).command));
       state = result.state; currencyMetadata = result.metadata; return { currencyRetry: result.retry };
     },
-    commitPluginReview: async ({ memberId, taskIds, unmappedIds, command }, expectedRevision, options) => {
-      const evidence = dismissPluginItemEvidence(await exportPluginItemEvidence(dataDir, id => id, state.provenance?.pluginItemEvidence), memberId, taskIds, unmappedIds, new Date(at).toISOString());
+    commitPluginReview: async ({ memberId, taskIds, taskWorlds, unmappedIds, command }, expectedRevision, options) => {
+      const evidence = dismissPluginItemEvidence(await exportPluginItemEvidence(dataDir, id => id, state.provenance?.pluginItemEvidence), memberId, taskIds, unmappedIds, new Date(at).toISOString(), taskWorlds);
       if (command) await store.command(command, expectedRevision, options);
       else if (failing.command || failing.publication) throw new Error('Synthetic write failure');
       state = retainPluginItemEvidence(state, evidence);
@@ -143,7 +143,7 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
     review: () => controller.review(identity, 'a'), restart: async runtime => { await controller.close(); if (durable) await store.close(); await start(runtime); } };
 }
 
-test('explicit item decisions survive the real frozen report, Undo and older restore boundaries', async t => {
+test('explicit item decisions remain valid through the accepted real frozen rollback boundaries', async t => {
   const frozen = await frozenRuntime(t);
   const runtime = { ...frozen, ...await import(pathToFileURL(path.join(frozen.checkout, 'app/game-plugin.mjs')).href) };
   for (const action of ['dismiss', 'apply', 'skip']) for (const boundary of ['report', 'older-restore']) await t.test(`${action}: ${boundary}`, async t => {
@@ -161,28 +161,106 @@ test('explicit item decisions survive the real frozen report, Undo and older res
     if (boundary === 'older-restore') await f.restore(beforeDecision);
     else if (action !== 'dismiss') await f.command({ type: 'undo' });
     await f.send(observation);
-    assert.deepEqual(f.review(), { preview: null }, 'Frozen matching must honor the explicit decision');
     await f.restart();
     assert.ok(f.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
     await f.send(observation);
     assert.deepEqual(f.review(), { preview: null }, 'Roll-forward recovers decisions even after a frozen restore');
   });
-  for (const action of ['dismiss', 'apply', 'skip']) for (const beta of [true, null]) await t.test(`non-live-only ${action} refuses unchanged (${beta})`, async t => {
+  for (const action of ['dismiss', 'apply', 'skip']) for (const beta of [true, null]) await t.test(`non-live-only ${action} round trip (${beta})`, async t => {
     const f = await fixture(t, { durable: true });
     const observation = items({ worn: [[4, CHAINBODY, 1, 'Synthetic non-live rollback item']] });
     await f.send(observation, beta);
     assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
-    const before = await itemEvidenceBytes(f.dataDir);
-    const decision = action === 'dismiss' ? f.controller.finish('a') : f.apply(action === 'apply' ? [WEAR_TASK] : []);
-    await assert.rejects(decision, error => error.status === 422 && /supported only by beta or unknown-world/.test(error.message));
-    assert.deepEqual(await itemEvidenceBytes(f.dataDir), before);
+    if (action === 'dismiss') await f.controller.finish('a');
+    else await f.apply(action === 'apply' ? [WEAR_TASK] : []);
+    const world = beta ? 'beta' : 'unknown';
+    assert.ok(f.store.getPluginItemEvidence().players.a.records[world].handled.includes(WEAR_TASK));
     await f.restart(runtime);
+    if (action === 'apply') await f.command({ type: 'undo' });
     await f.send(observation, beta);
-    assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK), 'The real frozen renderer needs the non-live review to remain undecided');
+    validateState(f.state);
+    await f.restart();
+    assert.ok(f.store.getPluginItemEvidence().players.a.records[world].handled.includes(WEAR_TASK));
+    await f.send(observation, beta);
+    assert.deepEqual(f.review(), { preview: null });
+  });
+  // Review reproductions: frozen matching may re-offer a decided row. It must
+  // remain loadable, and surviving current provenance must still win on return.
+  for (const action of ['dismiss', 'apply', 'skip']) for (const kind of ['container', 'journal']) for (const beta of [true, null]) await t.test(`later frozen ${action}/${kind}/${beta}`, async t => {
+    const f = await fixture(t, { durable: true });
+    const observation = items({ worn: [[4, CHAINBODY, 1, 'Synthetic cross-world gear']] });
+    await f.send(observation);
+    assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+    if (action === 'dismiss') await f.controller.finish('a');
+    else await f.apply(action === 'apply' ? [WEAR_TASK] : []);
+    const decisions = structuredClone(f.store.getPluginItemEvidence().players.a.records.live.handled);
+    await f.restart(runtime);
+    if (action === 'apply') await f.command({ type: 'undo' });
+    if (kind === 'container') await f.send(observation, beta);
+    else await f.send(items({ events: [[2, CHAINBODY, 'Synthetic frozen non-live journal', beta ? 'beta' : 'unknown']] }));
+    validateState(f.state);
+    const completed = [...f.state.members[0].completedTasks];
+    await f.restart();
+    const recovered = f.store.getPluginItemEvidence().players.a.records.live.handled;
+    assert.ok(decisions.every(id => recovered.includes(id)), 'Roll-forward never discards a surviving current decision');
+    assert.deepEqual(f.state.members[0].completedTasks, completed, 'Roll-forward changes no task progress');
+    await f.send(observation, beta);
+    assert.deepEqual(f.review(), { preview: null });
+    await f.backup();
+  });
+  for (const boundary of ['portable restore', 'older restore and export']) await t.test(`frozen ${boundary} keeps surviving current decisions on return`, async t => {
+    const source = await fixture(t, { durable: true });
+    const observation = items({ worn: [[4, CHAINBODY, 1, 'Synthetic portable frozen gear']] });
+    await source.send(observation);
+    const older = await source.backup();
+    assert.ok(source.review().items.some(row => row.taskId === WEAR_TASK));
+    await source.controller.finish('a');
+    const portable = await source.backup();
+    const carrier = boundary === 'portable restore' ? await fixture(t, { durable: true }) : source;
+    await carrier.restart(runtime);
+    await carrier.restore(boundary === 'portable restore' ? portable : older);
+    await carrier.send(observation);
+    validateState(carrier.state);
+    const exported = await carrier.backup();
+    const completed = [...carrier.state.members[0].completedTasks];
+    const target = await fixture(t, { durable: true });
+    // A fresh portable restore has its incoming decision archived by frozen.
+    // An older frozen restore may discard that carrier: preserve any decision
+    // still held in the current destination when importing its frozen export.
+    if (boundary === 'older restore and export') await target.restore(portable);
+    await target.restore(exported);
+    await target.restart();
+    assert.ok(target.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
+    assert.deepEqual(target.state.members[0].completedTasks, completed);
+    await target.send(observation);
+    assert.deepEqual(target.review(), { preview: null });
+    if (carrier === source) {
+      await source.restart();
+      assert.ok(source.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
+    }
   });
 });
 
-test('opening repairs a missing legacy decision projection before accepting reports or backups', async t => {
+for (const action of ['dismiss', 'apply', 'skip']) for (const world of ['live', 'beta', 'unknown']) for (const kind of ['containers', 'catch-up journal']) test(`${action} accepts ${world} ${kind} with food, runes and unmapped identities`, async t => {
+  const f = await fixture(t, { durable: true });
+  const beta = world === 'live' ? false : world === 'beta' ? true : null;
+  const observation = kind === 'containers' ? items({ worn: [[4, CHAINBODY, 1, 'Synthetic wearable']],
+    backpack: [[0, 379, 1, 'Lobster'], [1, 556, 10, 'Air rune'], [2, UNKNOWN, 1, 'Synthetic unmapped']] })
+    : items({ events: [CHAINBODY, 379, 556, UNKNOWN].map((id, index) => [index + 1, id, 'Synthetic catch-up item', world]) });
+  await f.send(observation, beta);
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  assert.ok([379, 556, UNKNOWN].every(id => f.review().unmappedItems.some(row => row.gameItemId === id)));
+  if (action === 'dismiss') await f.controller.finish('a');
+  else await f.apply(action === 'apply' ? [WEAR_TASK] : []);
+  assert.equal(f.state.members[0].completedTasks.includes(WEAR_TASK), action === 'apply');
+  if (action === 'apply') await f.command({ type: 'undo' });
+  await f.restart();
+  await f.send(observation, beta);
+  assert.deepEqual(f.review(), { preview: null });
+  await f.backup();
+});
+
+test('missing optional legacy projection never blocks export and is repaired on writable open', async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic repair item']] }));
   const prior = await readFile(path.join(f.dataDir, 'plugin-items.json'));
@@ -190,35 +268,35 @@ test('opening repairs a missing legacy decision projection before accepting repo
   await f.controller.finish('a');
   await f.controller.close(); await f.store.close();
   await writeFile(path.join(f.dataDir, 'plugin-items.json'), prior);
-  await assert.rejects(exportPluginItemEvidence(f.dataDir), /needs recovery/);
+  assert.ok((await exportPluginItemEvidence(f.dataDir)).players.a.records.live.handled.includes(WEAR_TASK));
   await f.restart();
   assert.ok(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'))).players.a.handled.includes(WEAR_TASK));
   assert.deepEqual(f.review(), { preview: null });
   await f.backup();
 });
 
-for (const action of ['dismiss', 'apply']) test(`failed verified legacy lowering rolls back ${action} and all gameplay`, async t => {
+for (const action of ['dismiss', 'apply']) test(`failed optional legacy lowering cannot roll back ${action} or its gameplay`, async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic live lowering item']], events: [[1, CHAINBODY, 'Synthetic lowering failure']] }));
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
-  const before = await itemEvidenceBytes(f.dataDir), state = f.state;
+  const before = await readFile(path.join(f.dataDir, 'plugin-items.json'));
   f.failing.onCommit = async () => {
     const staged = (await readdir(f.dataDir)).filter(name => /^plugin-items\.json\..*\.tmp$/.test(name));
     assert.equal(staged.length, 1);
     await unlink(path.join(f.dataDir, staged[0]));
   };
-  await assert.rejects(action === 'apply' ? f.apply([WEAR_TASK]) : f.controller.finish('a'), /ENOENT/);
-  assert.deepEqual(f.state, state);
-  assert.deepEqual(await itemEvidenceBytes(f.dataDir), before);
+  if (action === 'apply') await f.apply([WEAR_TASK]);
+  else await f.controller.finish('a');
+  assert.deepEqual(await readFile(path.join(f.dataDir, 'plugin-items.json')), before);
+  assert.ok(f.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
+  assert.equal(f.state.members[0].completedTasks.includes(WEAR_TASK), action === 'apply');
+  await f.backup();
   f.failing.onCommit = undefined;
-  await f.restart();
-  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
-  await f.controller.finish('a');
   await f.restart();
   assert.deepEqual(f.review(), { preview: null });
 });
 
-test('legacy decision lowering reserves automatic-task capacity before changing any scope', async t => {
+test('optional legacy marker capacity never refuses a valid current decision', async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic capacity item']] }));
   await f.controller.close(); await f.store.close();
@@ -226,9 +304,32 @@ test('legacy decision lowering reserves automatic-task capacity before changing 
   document.players.a.handled = Array.from({ length: 1999 }, (_, i) => `synthetic-${String(i).padStart(4, '0')}`);
   await writeFile(file, JSON.stringify(document)); await f.restart();
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
-  const before = await itemEvidenceBytes(f.dataDir);
-  await assert.rejects(f.controller.finish('a'), error => error.status === 422 && /rollback sidecar capacity/.test(error.message));
-  assert.deepEqual(await itemEvidenceBytes(f.dataDir), before);
+  await f.controller.finish('a');
+  assert.ok(f.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
+  assert.equal(f.store.getPluginItemEvidence().players.a.records.live.handled.length, 2000);
+  await f.restart(); await f.backup();
+  assert.deepEqual(f.review(), { preview: null });
+});
+
+test('optional rollback markers never consume the last slot needed by a current decision or import union', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ events: [[1, CHAINBODY, 'Synthetic first decision']] }));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  await f.controller.close(); await f.store.close();
+  const file = path.join(f.dataDir, 'plugin-item-journal-unknown.json'), document = JSON.parse(await readFile(file));
+  document.players.a.handled = [WEAR_TASK, `~plugin-review:${WEAR_TASK}`, goal('000597'), `~plugin-review:${goal('000597')}`,
+    ...Array.from({ length: 1996 }, (_, i) => `synthetic-${String(i).padStart(4, '0')}`)].sort();
+  await writeFile(file, JSON.stringify(document)); await f.restart();
+  await f.send(items({ events: [[2, BRONZE_DAGGER, 'Synthetic newer decision']] }));
+  assert.ok(f.review().items.some(row => row.taskId === goal('0002ae')));
+  await f.controller.finish('a');
+  await f.restart();
+  const retained = (await f.backup()).state.provenance.pluginItemEvidence.players.a.records.unknown;
+  assert.equal(retained.handled.length, 2000);
+  assert.ok(retained.handled.includes(WEAR_TASK));
+  assert.ok(retained.handled.includes(goal('0002ae')));
+  assert.deepEqual(f.review(), { preview: null });
 });
 
 test('another player sidecar write retains a decision lowered after the reader opened', async t => {
@@ -244,7 +345,61 @@ test('another player sidecar write retains a decision lowered after the reader o
   } finally { await reader.close(); }
 });
 
-test('the final legacy union validates automatic-task reserve before preparing a publication', async t => {
+for (const publication of ['command', 'startup repair', 'replacement', 'prepared transfer']) test(`decision projection preserves a sibling's first acknowledged live journal through ${publication}`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic initial decision']] }));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  const beforeSibling = await f.backup();
+  const { key } = await f.controller.create(identity, { memberId: 'b', label: 'Synthetic sibling plugin' });
+  const response = await f.replay({ ...f.lastReport, seq: 1,
+    items: items({ events: [[1, UNKNOWN, 'Synthetic sibling live journal', 'live']] }) }, key);
+  assert.equal(response.items.journal.event, 1, 'The real sender may now discard this event');
+  assert.equal(f.store.getPluginItemEvidence().players.b, undefined, 'The sibling is absent from the retained provenance projection');
+  const file = path.join(f.dataDir, 'plugin-items.json'), before = JSON.parse(await readFile(file)).players.b;
+  assert.ok(before.items[UNKNOWN]);
+  if (publication === 'command') await f.command({ type: 'set-journal', memberId: 'a', note: 'Synthetic subsequent edit' });
+  else if (publication === 'startup repair') {
+    await f.controller.close(); await f.store.close();
+    const legacy = JSON.parse(await readFile(file));
+    legacy.players.a.handled = legacy.players.a.handled.filter(id => id !== WEAR_TASK && id !== `~plugin-review:${WEAR_TASK}`);
+    await writeFile(file, JSON.stringify(legacy));
+    await f.restart();
+  } else if (publication === 'replacement') await f.restore(beforeSibling);
+  else await f.transfer(beforeSibling);
+  assert.deepEqual(JSON.parse(await readFile(file)).players.b, before, 'Lowering cannot delete another current member or alter their retained record');
+  await f.restart();
+  const recovered = (await f.backup()).optionalSidecarEvidence.entries.pluginItems.players.b;
+  assert.ok(recovered.records.live.items[UNKNOWN]);
+  assert.equal(recovered.commits.journals[0].committed, 1);
+});
+
+for (const world of ['live', 'beta', 'unknown']) test(`new ${world} evidence after a decision keeps read-only backup, export and previews available`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic existing decision']] }));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  await f.backup();
+  const event = [1, BRONZE_DAGGER, 'Synthetic newer journal evidence'];
+  if (world !== 'unknown') event.push(world);
+  assert.equal((await f.send(items({ events: [event] }))).items.journal.event, 1);
+  assert.equal(f.store.getPluginItemEvidence().players.a.records[world]?.items[BRONZE_DAGGER], undefined,
+    'The newer fact intentionally lives outside the older provenance capture');
+  const before = await itemEvidenceBytes(f.dataDir);
+  const backup = await f.backup(), portable = await f.portable();
+  for (const document of [backup, portable]) {
+    const evidence = document.optionalSidecarEvidence.entries.pluginItems.players.a;
+    assert.ok(evidence.records[world].items[BRONZE_DAGGER]);
+    assert.equal(evidence.commits.journals[0].committed, 1);
+  }
+  const replacement = await f.store.previewReplacement(backup);
+  assert.ok(replacement.state.provenance.pluginItemEvidence.players.a.records[world].items[BRONZE_DAGGER]);
+  const prepared = await f.store.prepareTransfer(serialize({ backup }), transferOptions);
+  assert.ok(prepared.ticket);
+  assert.deepEqual(await itemEvidenceBytes(f.dataDir), before, 'Read-only consumers never need a writable restart or rewrite healthy files');
+});
+
+test('the optional legacy union can omit new compatibility markers without refusing current state', async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic union item']] }));
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
@@ -260,7 +415,8 @@ test('the final legacy union validates automatic-task reserve before preparing a
   incoming.players.a.records.live.handled = [...base, ...padding('incoming')].sort();
   await writeFile(file, JSON.stringify(legacy));
   const before = await itemEvidenceBytes(f.dataDir);
-  await assert.rejects(stagePluginItemDecisions(f.dataDir, incoming), error => error.status === 422 && /rollback sidecar capacity/.test(error.message));
+  const staged = await stagePluginItemDecisions(f.dataDir, incoming);
+  await staged?.cancel();
   assert.deepEqual(await itemEvidenceBytes(f.dataDir), before);
 });
 
@@ -404,9 +560,9 @@ test('beta snapshots never tick, stay in memory and are labelled; journal events
   assert.ok(rows.every(row => row.world === 'beta'));
   assert.ok(rows.some(row => row.taskId === WEAR_TASK), 'A worn journal event is worn evidence');
   await assert.rejects(readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'), { code: 'ENOENT' });
-  await assert.rejects(f.controller.finish('a'), /supported only by beta or unknown-world/);
+  await f.controller.finish('a');
   await f.send(items({ snapshot: '3323456789abcdef', backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']], events: [[1, CHAINBODY, 'Gud raider chainbody', 'beta']] }), true);
-  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK), 'The refused beta review remains available');
+  assert.deepEqual(f.review(), { preview: null }, 'The beta decision suppresses later duplicate evidence');
 });
 
 test('a scratch picker can let beta items tick as live ones would', async t => {
@@ -1539,17 +1695,18 @@ test('restoring B keeps A\'s container-only beta review', async t => {
   assert.deepEqual(after.items, before.items);
 });
 
-test('unmapped review dismissal refuses unchanged because frozen rollback cannot retain it', async t => {
+test('unmapped review dismissal retains the identity and evidence across restart and later reports', async t => {
   const target = await fixture(t, { durable: true });
   await target.send(items({ events: [[1, UNKNOWN, 'Synthetic unmapped journal']] }));
   assert.deepEqual(target.review().unmappedItems, [{ gameItemId: UNKNOWN, name: 'Synthetic unmapped journal' }]);
-  const before = await target.backup();
-  await assert.rejects(target.controller.finish('a'), error => error.status === 422 && /rollback release cannot retain/.test(error.message));
-  assert.deepEqual(await target.backup(), before);
+  await target.controller.finish('a');
+  assert.deepEqual(target.review(), { preview: null });
   const retained = await exportPluginItemEvidence(target.dataDir);
   assert.ok(retained.players.a.records.unknown.items[UNKNOWN]);
+  assert.ok(retained.players.a.records.unknown.handled.includes(`unmapped:${UNKNOWN}`));
   await target.restart();
-  assert.ok(target.review().unmappedItems.some(row => row.gameItemId === UNKNOWN));
+  await target.send(items());
+  assert.deepEqual(target.review(), { preview: null });
 });
 
 for (const world of ['unknown', 'beta']) for (const boundary of ['restart', 'restore', 'transfer', 'member']) test(`reviewed ${world} capacity recovery survives ${boundary} without refilling archives`, async t => {
@@ -1612,20 +1769,19 @@ for (const world of ['unknown', 'beta']) for (const boundary of ['restart', 'res
   assert.ok(retained.players.a.records[world].handled.includes(WEAR_TASK));
 });
 
-test('non-live container-only decisions refuse unchanged without copying facts into live evidence', async t => {
+test('non-live container-only decisions persist without copying facts into live evidence', async t => {
   const source = await fixture(t, { durable: true });
   await source.send(items({ events: [[1, BRONZE_DAGGER, 'Synthetic retained dagger']] }));
   const containers = items({ worn: [[4, CHAINBODY, 1, 'Synthetic container-only item']] });
   await source.send(containers, true);
   assert.ok(source.review().items.some(row => row.taskId === WEAR_TASK));
-  const before = await itemEvidenceBytes(source.dataDir);
-  await assert.rejects(source.controller.finish('a'), error => error.status === 422 && /supported only by beta or unknown-world/.test(error.message));
-  assert.deepEqual(await itemEvidenceBytes(source.dataDir), before);
+  await source.controller.finish('a');
   await source.restart();
   await source.send(containers, true);
-  assert.ok(source.review().items.some(row => row.taskId === WEAR_TASK));
+  assert.deepEqual(source.review(), { preview: null });
   const live = (await exportPluginItemEvidence(source.dataDir)).players.a.records.live;
   assert.equal(live?.items[CHAINBODY], undefined);
+  assert.ok((await exportPluginItemEvidence(source.dataDir)).players.a.records.beta.handled.includes(WEAR_TASK));
   assert.equal((await exportPluginItemEvidence(source.dataDir)).players.a.records.unknown.handled.includes(WEAR_TASK), false);
 });
 

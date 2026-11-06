@@ -38,29 +38,34 @@ become live facts or automatic completions. Non-live containers remain ephemeral
 Member imports preserve other players' item dismissals and container-only
 reviews while refreshing only the imported player's review. An explicit Apply or Dismiss retains each shown task in
 every live, beta and unknown scope that supports it, regardless of the displayed
-row's world, including skipped rows. Reviews containing unmapped identities are
-refused unchanged: the frozen renderer cannot honor their handled IDs. Reviews
-with any task supported only by non-live evidence also refuse unchanged: the
-frozen non-live renderer does not consult the legacy handled sidecar. Live
-support may be a retained fact or a durable pending live journal event.
+row's world, including skipped rows, unmapped identities, food, runes and tasks
+supported only by beta, unknown-world or catch-up evidence. Container-only
+decisions retain handled IDs in their displayed scope without inventing facts.
 Supporting durable pending journal events count too: their scope can retain a
 decision before its facts are written, without acknowledging or inventing facts.
 All affected handled-list unions are validated before publication. The complete
 decision is published in the active compatibility copy in `state.json`, together
-with Apply's gameplay changes. Before adoption, literal task IDs and reserved
-`~plugin-review:<taskId>` handled markers are lowered into `plugin-items.json`,
-synced and read back. No non-live item facts are copied to the live scope.
-All preparations precede publication under the journal write gate. A failed
-lowering restores and verifies the preceding state and legacy bytes before
-returning a refusal; unrecoverable storage errors stop mutations until reopen.
-Writable open reconciles either copy before reports; read-only opens refuse a
-required repair. Exports refuse an incomplete projection. The markers recover
-decisions after frozen Undo or a restore that replaced provenance. The legacy
-2,000-ID bound reserves space for every remaining automatic Obtain task so frozen
-automatic writes cannot evict explicit choices. A capacity refusal leaves the save, evidence and review unchanged
+with Apply's gameplay changes. Mapped decisions also retain reserved
+`~plugin-review:<taskId>` markers when space permits. An optional legacy
+projection lowers representable task IDs and markers into `plugin-items.json`,
+syncs them and reads them back. No non-live item facts are copied to the live scope.
+Lowering merges the existing sidecar records for every current roster member,
+including members absent from the older provenance capture. Only an explicit
+roster change may prune a former member. Recovery compares decision markers,
+not ordinary newer facts. Writable open repairs a missing projection when
+possible; read-only backup, export and preview workers recover surviving
+decisions in memory. Optional lowering failure or insufficient legacy capacity
+never refuses or rolls back a valid current-release decision. The authoritative
+state publication stays atomic under the journal write gate. Legacy marker
+lowering reserves room for remaining automatic Obtain tasks when it can fit.
+If a valid handled union needs the space, paired optional review markers may be
+omitted; their literal task decisions remain retained.
+An actual current-scope capacity refusal leaves the save, evidence and review unchanged
 and identifies the scope and 2,000-ID bound. Dismissal alone does not increment the
 gameplay revision. Retained decisions persist through restart and portable
-recovery; mapped live container-only decisions also retain these markers. Automatic live completion
+recovery; surviving portable decisions are never removed on roll-forward.
+Frozen operations can discard carriers or re-offer decided rows; see the
+accepted rollback limit alongside currency limits below. Automatic live completion
 keeps its existing retention behavior.
 For handled-list capacity recovery, stop the receiver after writable recovery,
 keep a backup, and remove only reviewed obsolete unrelated handled IDs from the
@@ -229,6 +234,11 @@ generated relative to those boundaries. These cases can leave an incorrect
 known balance across restart. Closing them requires a plugin-side freshness
 challenge, planned for plugin 1.1 after store moderation; this release does not
 change the plugin wire format or add a manual confirmation mode.
+
+After an emergency rollback to the frozen release, dismissed or applied plugin review rows may be offered again and can be dismissed again. No task progress is lost.
+This also applies after frozen Undo or frozen restore/export/import. Current
+decisions still present in provenance or legacy markers are recovered on return;
+a frozen restore/export that discards every carrier cannot recover that decision.
 
 Keys are never evicted to admit old traffic. Invalid metadata fails closed on
 load. Undo and restore retain active replay fences; imported private metadata
