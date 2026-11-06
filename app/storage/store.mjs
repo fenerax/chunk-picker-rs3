@@ -369,7 +369,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   const reusableFields = new Set(['tasks', 'identityRegistry', 'legacy', 'provenance']);
   const fingerprint = createGameplayFingerprint();
+  // Commands publish immutable events. Reuse only an identical event prefix;
+  // Undo, compaction and caller preparation fall back to full serialization.
+  let historyEncoding;
+  function historyJSON(events) {
+    if (historyEncoding?.events === events) return historyEncoding.json;
+    const previous = historyEncoding;
+    const appended = previous && previous.events.length < events.length
+      && previous.events.every((event, index) => event === events[index]);
+    const json = appended ? previous.json.slice(0, -1)
+      + (previous.events.length ? ',' : '')
+      + events.slice(previous.events.length).map(event => JSON.stringify(event)).join(',') + ']'
+      : JSON.stringify(events);
+    historyEncoding = { events, json };
+    return json;
+  }
   function fieldJSON(key, value) {
+    if (key === 'history') return historyJSON(value);
     if (!reusableFields.has(key) || value === null || typeof value !== 'object') return JSON.stringify(value);
     // Private state commands share these trees without mutating them. Hook
     // outputs cross validation into newly owned trees before reaching here.
@@ -388,7 +404,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   // Registries and exact migration archives can dwarf gameplay. Compact JSON
   // keeps durable writes bounded without changing portable backup semantics.
-  const serialized = (state, ledger = receipts) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}}\n`;
+  const serialized = (state, ledger = receipts, fields) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}${fields ? `,"storage":${JSON.stringify({ schemaVersion: 1, fields })}` : ''}}\n`;
   async function importDocument(bytes) {
     const document = await parseJSONStream([bytes], { maxBytes: MAX_PORTABLE_BACKUP_BYTES });
     return document;
@@ -488,6 +504,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       delete compact[key];
     }
     if (!Object.keys(fields).length && !completionCodec) return serialized(state, ledger);
+    if (!completionCodec) {
+      if (coordination.has(state)) coordination.set(compact, coordinationOf(state));
+      return serialized(compact, ledger, fields);
+    }
     return `${JSON.stringify(encodeCompletions({ ...envelope(compact), ...(coordination.has(state) ? { coordination: coordinationOf(state) } : {}),
       ...(ledger ? { actionReceipts: ledger } : {}),
       ...(Object.keys(fields).length ? { storage: { schemaVersion: 1, fields } } : {}) }))}\n`;
