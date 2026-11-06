@@ -1,5 +1,5 @@
 export { classifyTest, selectTests, testRunPolicy, quickTests, soloTests, openF2PTests,
-  differentialTests, engineDifferentialTests, createTestSelection, readTestSelection, discoverTests, reviewedFixedPortTests } from './test-discovery.mjs';
+  differentialTests, engineDifferentialTests, createTestSelection, readTestSelection, discoverTests, discoverTestEntries, isTestEntryFile, reviewedFixedPortTests } from './test-discovery.mjs';
 
 // Full runs start at two and may grow to this cap after memory admission.
 // Earlier concurrency trials: docs/test-speed.md. The override is a cap.

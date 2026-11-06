@@ -3,7 +3,7 @@
 # owned by BUILTIN\Administrators; on Player 1's PC the creating user owns them.
 # The operator's verify-security requires the user as owner, so this sets the
 # job's process-token default owner to the user. Node and its children inherit it.
-param([Parameter(Mandatory=$true)][string]$Checkout, [Parameter(Mandatory=$true)][string]$Work)
+param([Parameter(Mandatory=$true)][string]$Checkout, [Parameter(Mandatory=$true)][string]$Work, [switch]$Stability)
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -41,5 +41,9 @@ Remove-Item -LiteralPath $probe
 if ($owner -ne $user) { throw "New files are owned by $owner, not the runner user $user." }
 Write-Output "New files are owned by the runner user ($user), as on Windows 11."
 
-& node (Join-Path $PSScriptRoot 'run.mjs') $Checkout $Work
+if ($Stability) {
+  & node (Join-Path $Checkout 'scripts/ci/stability-run.mjs') $Work
+} else {
+  & node (Join-Path $PSScriptRoot 'run.mjs') $Checkout $Work
+}
 exit $LASTEXITCODE

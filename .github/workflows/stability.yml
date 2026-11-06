@@ -1,0 +1,181 @@
+name: Stability
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Test entry files, separated by commas or whitespace (tests/name.test.mjs)'
+        required: true
+        type: string
+      repetitions:
+        description: 'First attempts per file and OS (1–50; maximum 200 total)'
+        default: '50'
+        required: true
+        type: string
+      os:
+        description: 'Runner OS'
+        default: linux
+        type: choice
+        options: [linux, windows, both]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stability-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      has-work: ${{ steps.plan.outputs.has-work }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      - id: plan
+        run: node scripts/ci/stability-plan.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stability-plan
+          path: stability-plan.json
+          retention-days: 14
+          if-no-files-found: error
+
+  loop:
+    needs: plan
+    if: needs.plan.outputs.has-work == 'true'
+    name: stability (${{ matrix.id }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      STABILITY_TASK: ${{ toJSON(matrix) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      # Linux input setup matches test.yml, once per shard, never per repetition.
+      # Windows intentionally retains the Windows slice's pack-free lane policy.
+      - name: Identify frozen rollback checkout
+        if: runner.os == 'Linux'
+        id: frozen
+        run: node --input-type=module -e "import fs from 'node:fs'; const pin = JSON.parse(fs.readFileSync('docs/save-surface.json')).frozenRelease; if (!/^[a-f0-9]{40}$/.test(pin)) throw new Error('Invalid frozen pin'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'sha=' + pin + '\n');"
+      - name: Restore frozen rollback checkout
+        if: runner.os == 'Linux'
+        id: frozencache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/frozen-rollback
+          key: frozen-rollback-${{ runner.os }}-${{ steps.frozen.outputs.sha }}-v1
+      - name: Restore packs
+        if: runner.os == 'Linux'
+        id: packcache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      - name: Fetch and place packs
+        if: runner.os == 'Linux'
+        id: packs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/packs/fetch-packs.mjs . "${{ runner.temp }}/packs"
+      - name: Save packs
+        if: runner.os == 'Linux' && steps.packs.outputs.fetched == 'true' && steps.packcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      - name: Restore Wiki pages
+        if: runner.os == 'Linux'
+        id: wikicache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .local/gh-coverage/wiki-open-f2p
+          key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Configure public test inputs
+        if: runner.os == 'Linux'
+        run: node scripts/ci/coverage-inputs.mjs . "${{ runner.temp }}/packs/tree"
+      - name: Save Wiki pages
+        if: runner.os == 'Linux' && steps.wikicache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .local/gh-coverage/wiki-open-f2p
+          key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Install checksum-pinned restic for the local encrypted restore test
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bzip2 util-linux
+          sudo "$(command -v node)" scripts/ops/install-restic.mjs
+      - name: Linux first attempts
+        if: runner.os == 'Linux'
+        run: node scripts/ci/stability-run.mjs
+        env:
+          RS3_FROZEN_CACHE: ${{ runner.temp }}/frozen-rollback
+      - name: Windows first attempts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/windows-slice/run.ps1 -Checkout . -Work "${{ runner.temp }}/ws" -Stability
+      - name: Cache frozen rollback checkout
+        if: runner.os == 'Linux' && steps.frozencache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/frozen-rollback
+          key: frozen-rollback-${{ runner.os }}-${{ steps.frozen.outputs.sha }}-v1
+      - name: Keep first-attempt receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stability-${{ matrix.id }}
+          path: stability-${{ matrix.id }}.json
+          retention-days: 14
+          if-no-files-found: error
+
+  summary:
+    needs: [plan, loop]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.has-work == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: stability-*
+          path: stability-results
+          merge-multiple: true
+      - name: Summarize all planned first attempts
+        run: node scripts/ci/stability-summary.mjs stability-results
+      - name: Keep aggregate receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stability-receipt
+          path: stability-receipt.json
+          retention-days: 14
+          if-no-files-found: error
+      - name: Require every shard to succeed
+        env:
+          LOOP_RESULT: ${{ needs.loop.result }}
+        run: test "$LOOP_RESULT" = success

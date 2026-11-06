@@ -72,7 +72,7 @@ test('workflow checks PR head with full history and always uploads compact repor
   assert.doesNotMatch(q2, /candidate-patch|continue-on-error|pull_request_target/);
   const caller = await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8');
   assert.match(caller, /uses: \.\/\.github\/workflows\/differential.yml/);
-  assert.match(caller, /needs: \[gate, test, windows, differential\]/);
+  assert.match(caller, /needs: \[gate, inputs, test, windows, differential\]/);
   assert.match(caller, /RS3_COVERAGE_DIFFERENTIAL_RESULT: \$\{\{ needs.differential.result \}\}/);
 });
 
