@@ -4,6 +4,7 @@ import path from 'node:path';
 import http from 'node:http';
 import net from 'node:net';
 import { once } from 'node:events';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import { randomUUID, createHmac } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createFrontDoor, connectFrontDoor } from './front-door.mjs';
@@ -12,6 +13,17 @@ import os from 'node:os';
 const get = socketPath => new Promise((resolve, reject) => {
   const request = http.get({ socketPath, path: '/api/health' }, response => { response.resume(); response.once('end', () => resolve(response.statusCode)); }); request.once('error', reject);
 });
+async function waitForLeaseLoss(door, epoch) {
+  const signal = AbortSignal.timeout(10000);
+  for (;;) {
+    const status = await door.status();
+    if (status.epoch !== epoch) {
+      assert.equal(status.frozen, true); assert.equal(status.recoveryRequired, true); return;
+    }
+    // Yield for the server-side close event; the epoch change acknowledges it.
+    await nextTurn(undefined, { signal });
+  }
+}
 async function fixture(t) {
   const root = path.join((process.env.RS3_LIVE_SWAP_TEST_ROOT || path.join(os.tmpdir(), 'rs3-live-swap-tests')), 'operator-door'); await mkdir(root, { recursive: true });
   const directory = await mkdtemp(path.join(root, 'run-'));
@@ -67,12 +79,9 @@ test('control-channel loss durably freezes; replacement control lease can inspec
   const config = await fixture(t), door = await createFrontDoor(config), closeControl = await door.control(config.control);
   t.after(async () => { await closeControl(); await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   const control = await connectFrontDoor(config.control, config.token);
-  await control.freeze(); control.disconnect();
-  const deadline = Date.now() + 2000;
-  while (Date.now() < deadline) {
-    const retained = JSON.parse(await readFile(config.stateFile)); if (retained.recoveryRequired) break;
-    await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  await control.freeze(); const { epoch } = await door.status(); control.disconnect();
+  await waitForLeaseLoss(door, epoch); await door.settled();
+  assert.equal(JSON.parse(await readFile(config.stateFile)).recoveryRequired, true);
   const replacement = await connectFrontDoor(config.control, config.token);
   assert.equal((await replacement.status()).frozen, true); replacement.disconnect();
   assert.equal(await get(config.listen), 503);
@@ -94,8 +103,9 @@ for (const window of ['probe', 'disk']) test(`lease loss during resume ${window}
   const closeControl = await door.control(config.control);
   t.after(async () => { release(); await closeControl(); await door.close(); await new Promise(resolve => backend.close(resolve)); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   const controller = await connectFrontDoor(config.control, config.token), identity = { port, version: 'synthetic' };
-  await controller.route(identity); const result = controller.resume(identity).catch(error => error); await barrier;
-  controller.disconnect(); await result; await new Promise(resolve => setTimeout(resolve, 25)); release(); await door.settled();
+  await controller.route(identity); const { epoch } = await door.status();
+  const result = controller.resume(identity).catch(error => error); await barrier;
+  controller.disconnect(); await result; await waitForLeaseLoss(door, epoch); release(); await door.settled();
   assert.equal((await door.status()).frozen, true); assert.equal(await get(config.listen), 503);
   const retained = JSON.parse(await readFile(config.stateFile)); assert.equal(retained.frozen, true); assert.equal(retained.recoveryRequired, true);
 });
