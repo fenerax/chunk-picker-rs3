@@ -91,3 +91,61 @@ test('evicted key masks recompute deterministically while older proof footprints
   assert.equal(fast.evaluate('a', new Set(['b'])), false, 'recomputed mask still rejects the retained root proof');
   assert.equal(fast.evaluate('a'), true, 'the guarded attempt did not replace the independent proof');
 });
+
+
+test('bounded proofs retain FIFO order across hits, ring wraps and clear', () => {
+  const rows = Object.fromEntries(Array.from({ length: 12 }, (_, index) => [String(index), { value: index % 2 === 0 }]));
+  const f = graph(rows, { maxEntries: 2 });
+  for (let index = 0; index < 10; index++) {
+    const key = String(index), next = String(index + 1);
+    assert.equal(f.evaluate(key), index % 2 === 0);
+    assert.equal(f.evaluate(next), index % 2 !== 0);
+    const count = f.counts.get(key);
+    f.evaluate(key); // A hit must not move the oldest proof to the FIFO tail.
+    assert.equal(f.counts.get(key), count);
+    f.evaluate(String(index + 2));
+    f.evaluate(next);
+    assert.equal(f.counts.get(next), 1, 'the second inserted proof is still cached');
+    f.evaluate(key);
+    assert.equal(f.counts.get(key), count + 1, 'the first inserted proof was evicted');
+    f.clear();
+    f.counts.clear();
+  }
+});
+
+test('clearing during a nested computation resets FIFO bookkeeping before publication', () => {
+  const cache = createObligationCache({ maxEntries: 2 });
+  const tasks = ['old', 'outer', 'inner', 'last'].map(key => ({ key }));
+  let calls = 0;
+  const evaluate = task => cache.evaluate(task, new Set(), () => { calls++; return true; });
+  evaluate(tasks[0]);
+  cache.evaluate(tasks[1], new Set(), () => { cache.clear(); return evaluate(tasks[2]); });
+  const before = calls;
+  evaluate(tasks[1]); evaluate(tasks[2]);
+  assert.equal(calls, before, 'inner and outer are both retained after the clear');
+  evaluate(tasks[3]);
+  evaluate(tasks[1]);
+  assert.equal(calls, before + 1, 'outer remains cached when the older inner proof is evicted');
+  evaluate(tasks[2]);
+  assert.equal(calls, before + 2);
+});
+
+test('leaf and recursive proofs share FIFO bounds and release invalidates both paths', () => {
+  const cache = createObligationCache({ maxEntries: 2 });
+  const tasks = ['first', 'second', 'third'].map(key => ({ key }));
+  const counts = new Map();
+  let available = true;
+  const read = (task, leaf = false) => cache[leaf ? 'evaluateLeaf' : 'evaluate'](task, new Set(), () => {
+    counts.set(task, (counts.get(task) ?? 0) + 1); return available;
+  });
+  read(tasks[0], true); read(tasks[1]); read(tasks[2], true);
+  read(tasks[1]);
+  assert.equal(counts.get(tasks[1]), 1, 'the recursive proof survives the first leaf eviction');
+  read(tasks[0], true);
+  assert.equal(counts.get(tasks[0]), 2);
+  available = false; cache.release();
+  assert.equal(read(tasks[0], true), false);
+  assert.equal(read(tasks[1]), false);
+  assert.equal(counts.get(tasks[0]), 3);
+  assert.equal(counts.get(tasks[1]), 2);
+});
