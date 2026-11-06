@@ -76,16 +76,33 @@ export function evaluateCoverage({ ubuntu, windows, differential, allowlist, fil
     total: tests.size, covered: covered.length, allowed, uncovered, stale };
 }
 
+export function mergeLinuxReports(reports, inventories) {
+  if (reports.length !== inventories.length) throw Error('Missing Linux shard report.');
+  for (let i = 0; i < reports.length; i++) validateReport(reports[i], 'test', inventories[i]);
+  const merged = { schema, lane: 'test', passed: true };
+  for (const field of ['files', 'completedFiles', 'tests', 'fileResults']) merged[field] = reports.flatMap(report => report[field]);
+  unique(merged.files, 'Linux shard assignments');
+  return merged;
+}
+
 export async function coverageGate(directory, checkout = fileURLToPath(new URL('../../', import.meta.url))) {
   const { discoverTests } = await import(new URL('../test-selection.mjs', import.meta.url));
   const { windowsBoundTests } = await import(new URL('../private-companion/neutral-lane.mjs', import.meta.url));
   const read = async file => JSON.parse(await readFile(file, 'utf8'));
-  const [ubuntu, windows, differential, allowlist, inventory, differentialInventory] = await Promise.all([
-    read(path.join(directory, 'test.json')), read(path.join(directory, 'windows.json')),
+  const [windows, differential, allowlist, inventory, differentialInventory] = await Promise.all([
+    read(path.join(directory, 'windows.json')),
     read(path.join(directory, 'differential.json')),
     read(path.join(checkout, '.github/coverage-allowlist.json')), discoverTests(path.join(checkout, 'tests'), 'full'),
     discoverTests(path.join(checkout, 'tests'), 'differential'),
   ]);
+  let ubuntu;
+  if (process.env.RS3_COVERAGE_SHARDS) {
+    const count = Number(process.env.RS3_COVERAGE_SHARDS);
+    const { shardTests } = await import('./test-shards.mjs');
+    const plan = await shardTests(inventory, count);
+    ubuntu = mergeLinuxReports(await Promise.all(plan.map((_, i) => read(path.join(directory, `test-shard-${i + 1}.json`)))),
+      plan.map(shard => shard.files.map(file => `tests/${file}`)));
+  } else ubuntu = await read(path.join(directory, 'test.json'));
   return evaluateCoverage({ ubuntu, windows, differential, allowlist,
     files: inventory.map(file => `tests/${file}`), windowsFiles: windowsBoundTests.map(file => `tests/${file}`),
     differentialFiles: differentialInventory.map(file => `tests/${file}`) });
