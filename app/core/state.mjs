@@ -1,5 +1,5 @@
 import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
-import { mergePluginItemEvidence } from './plugin-item-evidence.mjs';
+import { mergePluginItemEvidence, pluginItemEvidenceFromEnvelope } from './plugin-item-evidence.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
@@ -954,10 +954,10 @@ export function importBackup(document, registry, { owned = false } = {}) {
   backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
   let state = owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
-  if (backup.optionalSidecarEvidence?.pluginItems !== undefined) {
-    if (backup.optionalSidecarEvidence.version !== 1) fail('Unsupported optional evidence version');
+  const pluginItems = pluginItemEvidenceFromEnvelope(backup.optionalSidecarEvidence);
+  if (pluginItems !== undefined) {
     state = { ...state, provenance: { ...state.provenance, pluginItemEvidence: mergePluginItemEvidence(
-      state.provenance?.pluginItemEvidence, backup.optionalSidecarEvidence.pluginItems) } };
+      state.provenance?.pluginItemEvidence, pluginItems) } };
     if (Object.keys(state.provenance.pluginItemEvidence.players).some(id => !state.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
   }
   return state;

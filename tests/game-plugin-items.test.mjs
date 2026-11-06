@@ -12,7 +12,7 @@ import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
 import { applyCommand, createGroupState, importBackup, validateState } from '../app/core/state.mjs';
 import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
-import { exportPluginItemEvidence } from '../app/plugin-items.mjs';
+import { exportPluginItemEvidence, openPluginItems, openPluginJournalCommits } from '../app/plugin-items.mjs';
 import { currencyAfterCommand, loadPluginCurrency, observePluginCurrency } from '../app/storage/plugin-currency.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
 
@@ -58,7 +58,7 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
   let queue = Promise.resolve();
   async function start() {
     if (durable) store = await openStore({ dataDir, initialState: state, taskCatalogue, retention: false, now: () => new Date(at).toISOString(),
-      beforeCommit: () => { if (failing.command) throw new Error('Synthetic write failure'); if (failing.publication) throw new Error('Synthetic publication failure'); } });
+      beforeCommit: async () => { if (failing.command) throw new Error('Synthetic write failure'); if (failing.publication) throw new Error('Synthetic publication failure'); await failing.onCommit?.(); } });
     controller = await openGamePlugin({ dataDir, store, clock: () => at, world: { chunks: new Map() }, registry: { resolve: () => ({}) }, questMapping: new Map(),
       serializeMutation: operation => { const next = queue.then(operation); queue = next.catch(() => {}); return next; },
       bodyJSON: async () => input, json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; },
@@ -659,7 +659,7 @@ for (const route of ['replace', 'transfer', 'member', 'import', 'mapped']) test(
   // The frozen loader ignores the optional journal envelope; currency and all
   // ordinary saved state must still load identically on both releases.
   assert.deepEqual(loadLiveBackup(portable), importBackup({ ...portable, optionalSidecarEvidence: undefined }));
-  assert.deepEqual(importBackup(portable).provenance.pluginItemEvidence, portable.optionalSidecarEvidence.pluginItems);
+  assert.deepEqual(importBackup(portable).provenance.pluginItemEvidence.players, portable.optionalSidecarEvidence.entries.pluginItems.players);
   if (route === 'import' || route === 'mapped') {
     const state = route === 'import' ? importBackup(portable) : mapTransferRoster(importBackup(portable),
       [{ id: 'x', name: 'Synthetic destination' }, { id: 'y', name: 'Synthetic partner' }], { a: 'x', b: 'y' });
@@ -731,7 +731,7 @@ test('currency provenance and fences coexist with main storage sidecar serializa
   assert.equal(f.state.legacy.syntheticPadding.length, 300000);
   const portable = await f.portable();
   assert.deepEqual(loadLiveBackup(portable), importBackup({ ...portable, optionalSidecarEvidence: undefined }));
-  assert.deepEqual(importBackup(portable).provenance.pluginItemEvidence, portable.optionalSidecarEvidence.pluginItems);
+  assert.deepEqual(importBackup(portable).provenance.pluginItemEvidence.players, portable.optionalSidecarEvidence.entries.pluginItems.players);
   assert.deepEqual(loadLiveBackup(portable).members, f.state.members);
   await f.restart();
   await f.send({ ...items({ backpack: null }), pouch: null });
@@ -1255,13 +1255,156 @@ for (const bound of ['pending-events', 'journal-identities']) test(`a full ${bou
 
 const transferOptions = { dataset: { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} },
   world: { chunks: new Map() }, route: '/api/restore/preview' };
+
+function fullJournalBackup(world, owner = 'a') {
+  const at = '2026-10-22T12:00:00.000Z';
+  const record = { baselineAt: at, items: Object.fromEntries(Array.from({ length: 500 }, (_, i) => [900000 + i,
+    { name: `Synthetic journal item ${i}`, ownedAt: at, wornAt: at, first: true }])), handled: [], journal: { id: 'bbbbbbbbbbbbbbbb', event: 500 } };
+  return { format: 'rs3-chunk-picker', schemaVersion: 1,
+    state: createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]),
+    optionalSidecarEvidence: { schemaVersion: 1, entries: { pluginItems: { version: 1, players: {
+      [owner]: { records: { [world]: record }, commits: { journals: [{ id: 'bbbbbbbbbbbbbbbb', committed: 500, pending: [] }] } },
+    } } } } };
+}
+
+for (const world of ['beta', 'unknown']) for (const entrypoint of ['restore', 'transfer', 'source-member', 'retained-member', 'import', 'replacement-preview', 'replacement-commit']) {
+  test(`late ${world} evidence cannot invalidate ${entrypoint} publication`, async t => {
+    const target = await fixture(t, { durable: true });
+    const mapped = ['transfer', 'source-member', 'retained-member'].includes(entrypoint);
+    const backup = fullJournalBackup(world, mapped ? 'b' : 'a');
+    let body = { backup }, options = transferOptions, prepared;
+    if (entrypoint === 'transfer') body.rosterMapping = { a: 'b', b: 'a' };
+    if (entrypoint.endsWith('member')) {
+      body = { backup, memberId: 'a', sourceMemberId: 'b' };
+      options = { ...options, route: '/api/member-restore/preview' };
+      if (entrypoint === 'retained-member') {
+        const backupId = '0000000000000000-3333333333333333.json.gz';
+        await writeFile(path.join(target.dataDir, 'backups', backupId), gzipSync(JSON.stringify(backup)));
+        body = { backupId, memberId: 'a', sourceMemberId: 'b' };
+      }
+    }
+    if (entrypoint === 'import') {
+      await target.store.replace(backup, target.state.revision);
+      body = { document: { maps: { synthetic: { chunks: {} } } },
+        members: target.state.members.map(({ id, name }) => ({ id, name, mapId: 'synthetic' })) };
+      options = { ...options, route: '/api/import/preview', pickerId: 'legacy' };
+    }
+    if (entrypoint.startsWith('replacement')) await target.store.previewReplacement(backup);
+    else prepared = await target.store.prepareTransfer(serialize(body), options);
+    const revision = target.state.revision;
+    const event = [1, UNKNOWN, 'Synthetic late journal'];
+    if (world === 'beta') event.push('beta');
+    const acknowledged = (await target.send(items({ events: [event] }), true)).items.journal.event;
+    assert.equal(target.state.revision, revision, 'Non-live journals do not invalidate gameplay revisions');
+    const before = await readFile(path.join(target.dataDir, 'state.json'));
+    if (entrypoint === 'replacement-preview') await assert.rejects(target.store.previewReplacement(backup), /Invalid plugin item record/);
+    else if (entrypoint === 'replacement-commit') await assert.rejects(target.store.replace(backup, revision), /Invalid plugin item record/);
+    else {
+      await assert.rejects(target.store.applyTransfer(prepared.ticket, revision), error => error.importConflict === true && /Revision conflict/.test(error.message));
+      if (entrypoint !== 'import') await assert.rejects(target.store.prepareTransfer(serialize(body), options), /Invalid plugin item record/);
+    }
+    assert.deepEqual(await readFile(path.join(target.dataDir, 'state.json')), before, 'Rejected publication leaves the destination unchanged');
+    await target.restart();
+    assert.equal((await target.send(items(), true)).items.journal.event, acknowledged, 'Restart and later reports remain usable');
+    const retained = await exportPluginItemEvidence(target.dataDir);
+    assert.ok(entrypoint === 'import' ? retained.players.a.commits.journals.some(row => row.pending.length === 1)
+      : retained.players.a.records[world].items[UNKNOWN]);
+  });
+}
+
+for (const world of ['beta', 'unknown']) test(`a ${world} report arriving during publication waits and retains its unacknowledged suffix`, async t => {
+  const target = await fixture(t, { durable: true });
+  const prepared = await target.store.prepareTransfer(serialize({ backup: fullJournalBackup(world) }), transferOptions);
+  let entered, release;
+  const atCommit = new Promise(resolve => { entered = resolve; }), gate = new Promise(resolve => { release = resolve; });
+  target.failing.onCommit = () => { entered(); return gate; };
+  const applying = target.store.applyTransfer(prepared.ticket, target.state.revision);
+  let reporting;
+  try {
+    await Promise.race([atCommit, applying.then(() => { throw new Error('Publication did not reach its barrier'); })]);
+    const event = [1, UNKNOWN, 'Synthetic concurrent report item'];
+    if (world === 'beta') event.push('beta');
+    reporting = target.send(items({ events: [event] }), true);
+    await new Promise(resolve => setImmediate(resolve));
+  } finally { release(); }
+  await applying;
+  delete target.failing.onCommit;
+  assert.equal((await reporting).items.journal.event, 0);
+  assert.match(target.review().itemRetentionIssue, /unacknowledged/);
+  assert.equal(Object.keys(target.state.provenance.pluginItemEvidence.players.a.records[world].items).length, 500);
+  await target.restart();
+  assert.equal((await target.send(items(), true)).items.journal.event, 0);
+  const evidence = await exportPluginItemEvidence(target.dataDir);
+  assert.ok(evidence.players.a.commits.journals.some(row => row.id === journalId && row.pending[0]?.[1] === UNKNOWN));
+});
+
+for (const limit of ['items', 'handled', 'pending']) test(`a report prepared before import cannot exceed the inherited ${limit} limit afterward`, async t => {
+  const target = await fixture(t, { durable: true }), backup = fullJournalBackup('unknown');
+  const evidence = backup.optionalSidecarEvidence.entries.pluginItems.players.a, at = '2026-10-22T12:00:00.000Z';
+  const stale = { baselineAt: at, items: {}, handled: [], journal: null };
+  if (limit === 'items') stale.items[UNKNOWN] = { name: 'Synthetic late item', ownedAt: at, wornAt: at, first: true };
+  else {
+    evidence.records.unknown.items = {};
+    if (limit === 'handled') {
+      evidence.records.unknown.handled = Array.from({ length: 2000 }, (_, i) => `custom:handled-${String(i).padStart(4, '0')}`);
+      stale.handled = ['custom:late-handled'];
+    } else evidence.commits = { journals: [{ id: journalId, committed: 0,
+      pending: Array.from({ length: 256 }, (_, i) => [i + 1, 900000 + i, 'Synthetic pending item', 'unknown']) }] };
+  }
+  const records = limit === 'pending'
+    ? await openPluginJournalCommits({ dataDir: target.dataDir, members: () => target.state.members,
+      inherited: player => target.state.provenance?.pluginItemEvidence?.players[player]?.commits })
+    : await openPluginItems({ dataDir: target.dataDir, journalWorld: 'unknown', members: () => target.state.members,
+      inherited: player => target.state.provenance?.pluginItemEvidence?.players[player]?.records.unknown });
+  t.after(() => records.close());
+  await target.store.replace(backup, target.state.revision);
+  const before = await readFile(path.join(target.dataDir, 'state.json'));
+  await assert.rejects(records.put('a', limit === 'pending' ? { journals: [{ id: journalId, committed: 0,
+    pending: [[257, UNKNOWN, 'Synthetic late pending item', 'unknown']] }] } : stale), /Invalid plugin item record|Too many pending/);
+  assert.deepEqual(await readFile(path.join(target.dataDir, 'state.json')), before);
+  assert.doesNotThrow(() => records.get('a'));
+  await target.restart();
+  assert.doesNotThrow(() => target.review());
+});
+
+test('restoring B keeps A\'s container-only beta review', async t => {
+  const target = await fixture(t, { durable: true });
+  await target.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic beta container item']] }), true);
+  const before = target.review();
+  assert.ok(before.items.some(row => row.taskId === WEAR_TASK && row.world === 'beta'));
+  const prepared = await target.store.prepareTransfer(serialize({ backup: await target.store.backup(), memberId: 'b', sourceMemberId: 'b' }),
+    { ...transferOptions, route: '/api/member-restore/preview' });
+  await target.store.applyTransfer(prepared.ticket, target.state.revision);
+  const after = target.review();
+  assert.deepEqual(after.items, before.items);
+});
+
+test('dismissing unmapped retained journals hides their identities on later reports without deleting evidence', async t => {
+  const target = await fixture(t, { durable: true });
+  await target.send(items({ events: [[1, UNKNOWN, 'Synthetic unmapped journal']] }));
+  assert.deepEqual(target.review().unmappedItems, [{ gameItemId: UNKNOWN, name: 'Synthetic unmapped journal' }]);
+  await target.controller.finish('a');
+  assert.deepEqual(target.review(), { preview: null });
+  await target.send(items());
+  assert.deepEqual(target.review(), { preview: null });
+  await target.send(items({ events: [[2, UNKNOWN - 1, 'Synthetic other unmapped journal']] }));
+  assert.deepEqual(target.review().unmappedItems, [{ gameItemId: UNKNOWN - 1, name: 'Synthetic other unmapped journal' }]);
+  const retained = await exportPluginItemEvidence(target.dataDir);
+  assert.ok(retained.players.a.records.unknown.items[UNKNOWN]);
+  await target.restart();
+  assert.ok(target.review().unmappedItems.some(row => row.gameItemId === UNKNOWN), 'Dismissals are temporary; acknowledged facts remain durable');
+});
+
 for (const entrypoint of ['portable-restore', 'portable-transfer', 'source-member', 'retained-member']) test(`acknowledged journals survive ${entrypoint} with destination ownership`, async t => {
   const source = await fixture(t, { durable: true }), target = await fixture(t, { durable: true });
   await source.send(items({ events: [[1, CHAINBODY, 'Synthetic legacy item'], [2, BRONZE_DAGGER, 'Synthetic beta item', 'beta'],
     [3, YEW_SHORTBOW, 'Synthetic live bow', 'live'], [4, UNKNOWN, 'Synthetic unmapped item']] }));
   const exported = JSON.parse((await source.store.exportBackup()).bytes.toString());
-  assert.equal(exported.optionalSidecarEvidence.version, 1);
-  assert.equal(exported.optionalSidecarEvidence.pluginItems.players.a.commits.journals[0].committed, 4);
+  assert.deepEqual(Object.keys(exported.optionalSidecarEvidence).sort(), ['entries', 'schemaVersion']);
+  assert.equal(exported.optionalSidecarEvidence.schemaVersion, 1);
+  assert.deepEqual(Object.keys(exported.optionalSidecarEvidence.entries.pluginItems).sort(), ['players', 'version']);
+  assert.equal(exported.optionalSidecarEvidence.entries.pluginItems.version, 1);
+  assert.equal(exported.optionalSidecarEvidence.entries.pluginItems.players.a.commits.journals[0].committed, 4);
   let owner = 'a';
   if (entrypoint === 'portable-restore') await target.store.replace(exported, target.state.revision);
   else {
@@ -1294,7 +1437,7 @@ for (const entrypoint of ['portable-restore', 'portable-transfer', 'source-membe
   assert.ok(rows.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'));
   assert.ok(rows.some(row => row.taskId === goal('0002ae') && row.world === 'beta'));
   const roundTrip = await target.store.backup();
-  assert.equal(roundTrip.optionalSidecarEvidence.pluginItems.players[owner].commits.journals[0].committed, 4);
+  assert.equal(roundTrip.optionalSidecarEvidence.entries.pluginItems.players[owner].commits.journals[0].committed, 4);
 });
 
 for (const retained of [false, true]) test(`restoring only B preserves A's dismissed acknowledged legacy journal (retained ${retained})`, async t => {
@@ -1329,7 +1472,7 @@ test('portable recovery carries an unresolved prefix and drains it without retra
     [2, CHAINBODY, 'Synthetic queued legacy item']] }))).items.journal.event, 0);
   await rm(blocked, { recursive: true });
   const backup = await source.store.backup();
-  const ledger = backup.optionalSidecarEvidence.pluginItems.players.a.commits.journals[0];
+  const ledger = backup.optionalSidecarEvidence.entries.pluginItems.players.a.commits.journals[0];
   assert.equal(ledger.committed, 0); assert.equal(ledger.pending.length, 2);
   await target.store.replace(backup, target.state.revision); await target.restart();
   assert.match(target.review().itemRetentionIssue, /unacknowledged/);
@@ -1343,14 +1486,15 @@ test('invalid evidence and a failed import publication leave the destination unc
   await source.send(items({ events: [[1, CHAINBODY, 'Synthetic journal item']] }));
   const backup = await source.store.backup(), before = await readFile(path.join(target.dataDir, 'state.json'));
   const invalid = structuredClone(backup);
-  invalid.optionalSidecarEvidence.pluginItems.players.a.records.unknown.items[CHAINBODY].wornAt = 'invalid';
+  invalid.optionalSidecarEvidence.entries.pluginItems.players.a.records.unknown.items[CHAINBODY].wornAt = 'invalid';
   await assert.rejects(target.store.prepareTransfer(serialize({ backup: invalid }), transferOptions), /Invalid plugin item fact/);
   for (const field of ['records', 'commits', 'pluginItems']) {
     const malformed = structuredClone(backup);
-    if (field === 'pluginItems') malformed.optionalSidecarEvidence.pluginItems = null;
-    else if (field === 'records') malformed.optionalSidecarEvidence.pluginItems.players.a.records.unknown = null;
-    else malformed.optionalSidecarEvidence.pluginItems.players.a.commits = null;
-    assert.throws(() => validateState({ ...source.state, provenance: { pluginItemEvidence: malformed.optionalSidecarEvidence.pluginItems } }), /Invalid/);
+    if (field === 'pluginItems') malformed.optionalSidecarEvidence.entries.pluginItems = null;
+    else if (field === 'records') malformed.optionalSidecarEvidence.entries.pluginItems.players.a.records.unknown = null;
+    else malformed.optionalSidecarEvidence.entries.pluginItems.players.a.commits = null;
+    const evidence = malformed.optionalSidecarEvidence.entries.pluginItems;
+    assert.throws(() => validateState({ ...source.state, provenance: { pluginItemEvidence: evidence && { v: 1, players: evidence.players } } }), /Invalid/);
   }
   const prepared = await target.store.prepareTransfer(serialize({ backup }), transferOptions);
   target.failing.publication = true;
@@ -1372,7 +1516,7 @@ for (const world of ['live', 'beta', 'unknown']) test(`concurrent ${world} journ
   await source.restart();
   const backup = await source.store.backup();
   let interrupted = false, scopeReads = 0;
-  backup.optionalSidecarEvidence.pluginItems = await exportPluginItemEvidence(source.dataDir, id => id, undefined, {
+  backup.optionalSidecarEvidence.entries.pluginItems = { version: 1, players: (await exportPluginItemEvidence(source.dataDir, id => id, undefined, {
     read: async file => {
       const bytes = await readFile(file);
       if (path.basename(file) === scope) {
@@ -1384,9 +1528,9 @@ for (const world of ['live', 'beta', 'unknown']) test(`concurrent ${world} journ
       }
       return bytes;
     },
-  });
+  })).players };
   assert.ok(scopeReads >= 2, 'A changed generation forces a fresh capture of every scope');
-  assert.ok(backup.optionalSidecarEvidence.pluginItems.players.a.records[world].items[CHAINBODY].wornAt);
+  assert.ok(backup.optionalSidecarEvidence.entries.pluginItems.players.a.records[world].items[CHAINBODY].wornAt);
   await target.store.replace(backup, target.state.revision);
   assert.ok(target.review().items.some(row => row.taskId === WEAR_TASK && row.world === world));
   assert.deepEqual(target.state.members[0].completedTasks, [], 'Importing live evidence never completes a task');

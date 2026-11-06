@@ -29,8 +29,9 @@ Retained journal records rebuild labelled review rows at startup and after every
 successful whole-picker or member import, without a report or restart. Rebuilding
 does not issue completion commands, including for live evidence. Non-live records never
 become live facts or automatic completions. Non-live containers remain ephemeral.
-Member imports preserve other players' temporary item dismissals while refreshing
-the imported player's review.
+Member imports preserve other players' temporary item dismissals and container-only
+reviews while refreshing only the imported player's review. Dismissing unmapped
+items hides their item IDs for the running session without removing retained facts.
 
 `plugin-item-journal-commits.json` is a separate version 1 sidecar containing
 `{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.
@@ -47,7 +48,10 @@ drains its existing durable pending work first. The rejected incoming suffix
 stays unacknowledged and can be accepted on the next retry.
 
 Portable exports include the optional envelope
-`optionalSidecarEvidence: {version: 1, pluginItems: {v: 1, players: ...}}`.
+`optionalSidecarEvidence: {schemaVersion: 1, entries: {pluginItems: {version: 1, players: ...}}}`.
+The common envelope contains code-owned evidence types; journals occupy one entry,
+using the same envelope contract as replay suppression. The adapters' internal
+plain-data shape remains `{v: 1, players: ...}`.
 Each player contains `records` keyed by `live`, `beta`, or `unknown`, and
 `commits` with the ledger shape above. The fixed-file adapters
 `exportPluginItemEvidence` and `importPluginItemEvidence` in `app/plugin-items.mjs`
@@ -60,6 +64,14 @@ retained destination evidence rather than revoking previous acknowledgements.
 Portable backup, backup-ID/member restore, transfer, and direct replacement all
 use this path. Invalid records, conflicting pending identities, or oversized
 unions refuse publication without changing the destination.
+Prepared import, restore, and transfer tickets also bind to the fixed sidecar
+generations captured before preparation. A sidecar change requires a new preview,
+even when the gameplay revision is unchanged. Publication checks that binding
+inside the mutation queue while excluding sidecar replacements. Direct replacement
+previews and commits validate the latest unions under the same gate. A report
+prepared before publication must validate its record against the newly imported
+evidence before writing. Item, handled-task, player, journal, and pending-event
+bounds therefore apply to the active combined view, not just individual files.
 
 All portable exports, transfer exports, directory snapshots, and service backups
 use one generation-checked capture of the fixed scope files, commit ledger, and

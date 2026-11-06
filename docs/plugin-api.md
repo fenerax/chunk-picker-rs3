@@ -333,7 +333,8 @@ at most eight journal identities and 256 unresolved events per player. It saves
 the pending event payloads before scope writes and records fully committed
 acknowledgements separately from processing watermarks. Portable exports carry
 validated records and the ledger in the optional version 1
-`optionalSidecarEvidence.pluginItems` envelope; imports map player IDs into
+`optionalSidecarEvidence: {schemaVersion: 1, entries: {pluginItems: {version: 1, players: ...}}}`
+envelope; imports map player IDs into
 `state.provenance.pluginItemEvidence` before publishing. Whole-directory and
 service-recovery snapshots include every file in `pluginItemFiles`.
 Every export and backup uses a shared generation-checked capture of these files
@@ -342,6 +343,13 @@ and persisted inherited evidence. Concurrent replacements retry the entire captu
 always carry their evidence. Successful whole-picker and member imports refresh
 retained review rows immediately, including when the plugin is offline; this
 refresh never automatically completes tasks.
+Member imports refresh only the imported players, preserving other players'
+container-only reviews and temporary dismissals. Dismissed unmapped item IDs stay
+hidden for the session while their acknowledged evidence remains retained.
+Prepared imports bind to the destination sidecar generations as well as the save
+revision. If a journal arrives before publication, retry the preview. Publication
+and sidecar writes share an exclusion gate, and later reports validate against the
+imported evidence before writing, so combined record limits cannot be exceeded.
 
 Cached bank coins are historical observations, not authoritative current funds.
 Transport currency counts only the live pouch and backpack, both readable in the

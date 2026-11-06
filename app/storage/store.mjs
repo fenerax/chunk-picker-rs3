@@ -3,8 +3,9 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
+import { pluginItemGeneration, withPluginItemEvidenceWrite } from './plugin-item-snapshot.mjs';
 import { exportPluginItemEvidence } from '../plugin-items.mjs';
-import { reconcilePluginItemEvidence } from '../core/plugin-item-evidence.mjs';
+import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope } from '../core/plugin-item-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
@@ -357,7 +358,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const members = new Set(document.state.members.map(member => member.id));
     const pluginItems = await exportPluginItemEvidence(directory, id => members.has(id) ? id : undefined, document.state.provenance?.pluginItemEvidence);
     return Object.keys(pluginItems.players).length ? { ...document,
-      optionalSidecarEvidence: { version: 1, ...document.optionalSidecarEvidence, pluginItems } } : document;
+      optionalSidecarEvidence: { schemaVersion: 1, entries: { ...document.optionalSidecarEvidence?.entries,
+        pluginItems: { version: 1, players: pluginItems.players } } } } : document;
   }
   const envelopePrefix = `${JSON.stringify({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION }).slice(0, -1)},"state":`;
   let serializedFields = new WeakMap();
@@ -1183,7 +1185,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A replacement establishes a new undo boundary. Earlier snapshots may
     // describe another roster and must never rewrite the restored gameplay.
     ready.history = [{ id: `revision-${revision}`, revision, type: 'restore', at: timestamp(), ...(actor ? { actor } : {}) }];
-    const destinationItems = (await itemEvidenceEnvelope(envelope(base))).optionalSidecarEvidence?.pluginItems;
+    const destinationItems = pluginItemEvidenceFromEnvelope((await itemEvidenceEnvelope(envelope(base))).optionalSidecarEvidence);
     const pluginItemEvidence = reconcilePluginItemEvidence(ready, base, { provenance: { pluginItemEvidence: incomingItems } },
       { provenance: { pluginItemEvidence: destinationItems } }).provenance?.pluginItemEvidence;
     if (pluginItemEvidence) ready.provenance.pluginItemEvidence = pluginItemEvidence;
@@ -1568,21 +1570,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     async prepareTransfer(input, options) {
       const revision = current.revision;
       const checkpoint = currentDiskSerialized;
+      const itemGeneration = await pluginItemGeneration(directory);
       const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options: { ...options, now: timestamp() },
         rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec }, { budget: options.importBudget, userId: options.importUserId,
         prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
       const ticket = {};
-      importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint });
+      importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint, itemGeneration });
       delete result.publication;
       return { ...result, ticket };
     },
     applyTransfer(ticket, expectedRevision) {
-      return enqueue(async () => {
+      return enqueue(() => withPluginItemEvidenceWrite(directory, async () => {
         const prepared = importTickets.get(ticket);
         importTickets.delete(ticket);
         if (!prepared?.publication) throw new TypeError('A validated import result is required.');
         if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new TypeError('expectedRevision must be a nonnegative safe integer.');
-        if (expectedRevision !== current.revision || prepared.revision !== current.revision || prepared.checkpoint !== currentDiskSerialized) {
+        if (expectedRevision !== current.revision || prepared.revision !== current.revision || prepared.checkpoint !== currentDiskSerialized
+          || prepared.itemGeneration !== await pluginItemGeneration(directory)) {
           throw Object.assign(new RevisionConflict({ revision: current.revision }), { importConflict: true });
         }
         const start = performance.now();
@@ -1619,20 +1623,20 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           try { listener({ revision: current.revision, restored: true, restoredMemberIds: publication.restoredMemberIds, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
         }
         return { state: current, reply: publication.reply, applyMs: performance.now() - start };
-      });
+      }));
     },
     replace(document, expectedRevision, { actor } = {}) {
       const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
-      return enqueue(async () => {
+      return enqueue(() => withPluginItemEvidenceWrite(directory, async () => {
         checkRevision(expectedRevision);
         const ready = await replacementState(document, cloneCurrent(), attribution);
         return persist(ready, 'replace');
-      });
+      }));
     },
     async previewReplacement(document, { actor } = {}) {
       const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
       const base = cloneCurrent();
-      return { current: base, state: await replacementState(document, base, attribution) };
+      return withPluginItemEvidenceWrite(directory, async () => ({ current: base, state: await replacementState(document, base, attribution) }));
     },
     close({ beforeUnlock } = {}) {
       if (closePromise) return closePromise;

@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { replaceSidecar } from './plugin-achievements.mjs';
-import { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-snapshot.mjs';
+import { capturePluginItemFiles, pluginItemFiles, withPluginItemEvidenceWrite } from './storage/plugin-item-snapshot.mjs';
 export { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-snapshot.mjs';
 
 // Live-world item evidence per player: item IDs seen owned or worn,
@@ -113,14 +113,17 @@ async function openPluginRecords({ dataDir, members, clock = Date.now, log = con
       if (closed) return Promise.reject(Object.assign(new Error('The picker is stopping.'), { status: 503 }));
       try { validateRecord(record); } catch (error) { return Promise.reject(error); }
       const value = structuredClone(record);
-      const pending = queue.then(() => withStoreWrite(dataDir, async () => {
+      const pending = queue.then(() => withStoreWrite(dataDir, () => withPluginItemEvidenceWrite(dataDir, async () => {
         const live = new Set(members().map(member => member.id));
         const players = Object.fromEntries(Object.entries(current.players).filter(([id]) => live.has(id)));
-        if (live.has(player)) Object.defineProperty(players, player, { value, enumerable: true, configurable: true, writable: true });
+        // A report may have read its record before an import published. Validate
+        // against the now-current inherited evidence before changing the sidecar.
+        const combined = merge(inherited(player), Object.hasOwn(players, player) ? players[player] : null, value);
+        if (live.has(player)) Object.defineProperty(players, player, { value: combined, enumerable: true, configurable: true, writable: true });
         const next = { v: 1, players };
         await replaceSidecar(file, `${JSON.stringify(validate(next, validateRecord))}\n`, corrupt, clock);
         current = next; corrupt = false;
-      }));
+      })));
       queue = pending.catch(() => {}); return pending;
     },
     async close() { closed = true; await queue; },

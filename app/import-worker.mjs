@@ -6,7 +6,7 @@ import { deserialize } from 'node:v8';
 import { backupPreviewState, MAX_PORTABLE_BACKUP_BYTES } from './backup-transfer.mjs';
 import { openStore } from './storage/store.mjs';
 import { exportPluginItemEvidence, importPluginItemEvidence } from './plugin-items.mjs';
-import { reconcilePluginItemEvidence } from './core/plugin-item-evidence.mjs';
+import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope } from './core/plugin-item-evidence.mjs';
 import { createRuleRegistryFromDefinitions } from './core/rule-registry.mjs';
 import { importBackup, previewRestore, applyValidatedCommand, validateState } from './core/state.mjs';
 import { decodeCompletionDocument } from './storage/completion-codec.mjs';
@@ -105,10 +105,10 @@ async function run(job) {
     }
     if (backup) {
       requireTransferDataset(dataset, backup);
-      if (backup.optionalSidecarEvidence?.pluginItems !== undefined) {
-        if (backup.optionalSidecarEvidence.version !== 1) fail(422, 'Unsupported optional evidence version.');
-        backup = { ...backup, optionalSidecarEvidence: { ...backup.optionalSidecarEvidence,
-          pluginItems: importPluginItemEvidence(job.dataDir, backup.optionalSidecarEvidence.pluginItems) } };
+      const pluginItems = pluginItemEvidenceFromEnvelope(backup.optionalSidecarEvidence);
+      if (pluginItems !== undefined) {
+        backup = { ...backup, optionalSidecarEvidence: { ...backup.optionalSidecarEvidence, entries: { ...backup.optionalSidecarEvidence.entries,
+          pluginItems: { version: 1, players: importPluginItemEvidence(job.dataDir, pluginItems).players } } } };
       }
     }
     const legacy = !backup && !pasted;

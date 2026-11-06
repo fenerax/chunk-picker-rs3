@@ -1,25 +1,40 @@
-import { lstat, readFile } from 'node:fs/promises';
+import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
 export const pluginItemFiles = Object.freeze(['plugin-items.json', 'plugin-item-journal-beta.json',
   'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json']);
 const captureFiles = ['state.json', ...pluginItemFiles];
+const writers = new Map();
+
+// Publications and sidecar replacements share this gate in the live process.
+// Worker isolates only prepare/read evidence; they never publish these files.
+export async function withPluginItemEvidenceWrite(dataDir, work) {
+  const directory = await realpath(dataDir), key = process.platform === 'win32' ? directory.toLowerCase() : directory;
+  const prior = writers.get(key) ?? Promise.resolve();
+  const result = prior.then(work);
+  const settled = result.catch(() => {});
+  writers.set(key, settled);
+  void settled.then(() => { if (writers.get(key) === settled) writers.delete(key); });
+  return result;
+}
+
+export async function pluginItemGeneration(dataDir, { includeState = false } = {}) {
+  const result = [];
+  for (const name of includeState ? captureFiles : pluginItemFiles) {
+    try {
+      const info = await lstat(path.join(dataDir, name), { bigint: true });
+      if (!info.isFile() || info.nlink !== 1n) throw new Error('Plugin evidence capture requires regular unlinked files.');
+      result.push([info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(':'));
+    } catch (error) { if (error.code !== 'ENOENT') throw error; result.push(null); }
+  }
+  return JSON.stringify(result);
+}
 
 // Atomic replacements give each file a new generation, including across worker
 // isolates. Read every generation before any bytes and again after all bytes:
 // a commit cannot enter the capture without its scopes or inherited evidence.
 export async function capturePluginItemFiles(dataDir, { read = readFile, discard = async () => {} } = {}) {
-  async function generation() {
-    const result = [];
-    for (const name of captureFiles) {
-      try {
-        const info = await lstat(path.join(dataDir, name), { bigint: true });
-        if (!info.isFile() || info.nlink !== 1n) throw new Error('Plugin evidence capture requires regular unlinked files.');
-        result.push([info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(':'));
-      } catch (error) { if (error.code !== 'ENOENT') throw error; result.push(null); }
-    }
-    return JSON.stringify(result);
-  }
+  const generation = () => pluginItemGeneration(dataDir, { includeState: true });
   for (let attempt = 0; attempt < 8; attempt++) {
     const before = await generation(), files = {};
     for (const name of captureFiles) {

@@ -4,6 +4,20 @@ const exactKeys = (value, keys) => object(value) && Object.keys(value).length ==
 const time = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value));
 const text = (value, max) => typeof value === 'string' && value.length >= 1 && value.length <= max && !/[\x00-\x1f\x7f-\x9f]/.test(value);
 
+// Shared envelope contract with the optional-sidecar registry. Only this
+// code-owned entry is interpreted here; other evidence types remain opaque.
+export function pluginItemEvidenceFromEnvelope(envelope) {
+  if (envelope === undefined) return;
+  if (!exactKeys(envelope, ['schemaVersion', 'entries']) || envelope.schemaVersion !== 1 || !object(envelope.entries)) throw new TypeError('Invalid optional sidecar evidence.');
+  for (const [id, entry] of Object.entries(envelope.entries)) {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id) || ['__proto__', 'constructor', 'prototype'].includes(id)
+      || !exactKeys(entry, ['version', 'players']) || entry.version !== 1 || !object(entry.players)
+      || Object.values(entry.players).some(record => !object(record))) throw new TypeError('Invalid optional sidecar evidence.');
+  }
+  const entry = Object.hasOwn(envelope.entries, 'pluginItems') ? envelope.entries.pluginItems : undefined;
+  return entry === undefined ? undefined : { v: 1, players: entry.players };
+}
+
 export function validateItemRecord(record) {
   // bank is optional: records written before the plugin read the bank have none.
   if (!exactKeys(record, ['baselineAt', 'items', 'handled', 'journal']) && !exactKeys(record, ['baselineAt', 'items', 'handled', 'journal', 'bank']) || !time(record.baselineAt) || !object(record.items)

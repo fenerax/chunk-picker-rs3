@@ -241,7 +241,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const retained = [record, ...others.map(row => row.record), ...journalRecords(player).map(row => row.record)]
         .flatMap(record => Object.entries(record.items).filter(([id]) => !GAME_ITEMS.has(Number(id)))
           .map(([id, fact]) => ({ gameItemId: Number(id), name: fact.name })));
-      unmapped = [...new Map([...unmapped, ...retained].map(row => [row.gameItemId, row])).values()];
+      unmapped = [...new Map([...unmapped, ...retained].map(row => [row.gameItemId, row])).values()]
+        .filter(row => !dismissed?.has(`unmapped:${row.gameItemId}`));
     }
     // Prefer live rows when several environments support the same task. Match all
     // records before publishing one review, so queued evidence cannot hide containers.
@@ -386,9 +387,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     bankAcks.set(player, { snapshot: part.snapshot, world, seenAt });
     await matchItems(player, report, record, world, null);
   }
-  async function rememberItemsHandled(player, rows) {
+  async function rememberItemsHandled(player, rows, unmapped = []) {
     const dismissed = itemHandled.get(player) ?? new Set();
     for (const row of rows) dismissed.add(row.taskId);
+    for (const row of unmapped) dismissed.add(`unmapped:${row.gameItemId}`);
     if (dismissed.size) itemHandled.set(player, dismissed);
     const live = rows.filter(row => row.world === 'live').map(row => row.taskId);
     const record = live.length ? itemStore.get(player) : null;
@@ -527,8 +529,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // Retained sidecars for the other players still describe the same evidence.
     const restored = new Set(restoredMemberIds ?? members);
     for (const id of itemHandled.keys()) if (!members.has(id) || restored.has(id)) itemHandled.delete(id);
-    itemRetentionIssues.clear();
-    for (const player of members) {
+    for (const id of itemRetentionIssues.keys()) if (!members.has(id) || restored.has(id)) itemRetentionIssues.delete(id);
+    for (const player of restored) {
+      if (!members.has(player)) continue;
       if (journalCommits.get(player).journals.some(entry => entry.pending.length)) itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
       const live = itemStore.get(player);
       const result = itemMatches(player, { items: {}, handled: [] }, 'unknown', [], live ? [{ record: live, world: 'live' }] : [], false);
@@ -701,7 +704,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // row shown, including skipped rows. Beta/unknown copies may report live later.
       const ids = (review?.proposal?.preview.achievements ?? []).filter(row => row.world === 'live').map(row => row.achievementId);
       if (ids.length) rememberHandled(memberId, ids);
-      await rememberItemsHandled(memberId, review?.proposal?.preview.items ?? []);
+      await rememberItemsHandled(memberId, review?.proposal?.preview.items ?? [], review?.proposal?.preview.unmappedItems ?? []);
       pending.delete(memberId); notify();
     },
     rememberTasks(memberId, bytes) {
