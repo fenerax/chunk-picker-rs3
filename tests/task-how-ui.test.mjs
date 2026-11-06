@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createViewCache } from '../app/web/browser-state.mjs';
 import { appendTaskHow, renderTaskHow, taskHowSteps } from '../app/web/task-how.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
 import { pathDefinitions, pathState, caveDefinitions, caveState } from './task-how-fixture.mjs';
@@ -17,6 +18,21 @@ const button = (text, action, cls) => { const node = document.createElement('but
 const text = node => [node.textContent ?? '', ...node.children.map(text)].join(' ');
 const proof = { proofStatus: 'partial', root: 'a', nodes: { a: { kind: 'task', label: 'Do the task.', subjectId: 'private:technical-id', rule: 'task-requirements', allOf: ['b'] }, b: { kind: 'gap', label: 'The picker cannot show the source yet.', allOf: [] } } };
 const task = { id: 'task:x', label: 'Test task', status: 'available' };
+test('How labels cached revisions as updating until the live answer replaces them', async () => {
+  for (const cachedRevision of [6, 7, 8]) {
+    const cache = createViewCache({ storage: undefined }); cache.configure({ picker: 'fixture' });
+    const old = structuredClone(proof); old.nodes.a.label = 'Cached answer';
+    cache.remember('how', task.id, cachedRevision, old);
+    const row = new Node('div'); let resolve;
+    const toggle = appendTaskHow(row, task, { document, button, cache, revision: () => 7,
+      scope: () => 'one:7', load: () => new Promise(done => { resolve = done; }) });
+    const pending = toggle.events.click();
+    assert.equal(text(row).includes('Cached answer'), cachedRevision <= 7);
+    assert.equal(text(row).includes('Updating…'), cachedRevision <= 7);
+    resolve(proof); await pending;
+    assert.doesNotMatch(text(row), /Cached answer/); assert.match(text(row), /Do the task/);
+  }
+});
 test('player steps put supplies before the selected entrance and the goal last', () => {
   const definitions = caveDefinitions();
   definitions.chunks['12593'].Nickname = 'South marsh';

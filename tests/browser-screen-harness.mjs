@@ -1,5 +1,6 @@
 import { createViewCache, replaceView } from '../app/web/browser-state.mjs';
 import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
+import { loadTaskWhyEvidence } from '../app/web/task-why.mjs';
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import { retryStartupRead, withStartupTimeout, showStartupRetry, startupRetryAfter, setStartupSession } from '../app/startup-read.mjs';
 import { readFile } from 'node:fs/promises';
@@ -69,6 +70,7 @@ export function runScreenGraph(context, modules) {
   context.createStreamSafe ??= createStreamSafe;
   context.bindTaskViewPreferences ??= get => bindTaskViewPreferences(get, () => context.localStorage);
   context.createWhyChainDisclosure ??= createWhyChainDisclosure;
+  context.loadTaskWhyEvidence ??= loadTaskWhyEvidence;
   context.createQuestMap ??= createQuestMap;
   context.buildChunkPlanningIndex ??= buildChunkPlanningIndex;
   context.selectDuoTaskLists ??= selectDuoTaskLists;

@@ -3,10 +3,12 @@ import { registerHooks } from 'node:module';
 import { parentPort, workerData } from 'node:worker_threads';
 
 const snapshots = [];
+const whyIndexes = new WeakMap(); let whyIndexSequence = 0;
 let ledger = () => [], request, locations = 0, paused = false;
 const probe = globalThis.__residentPlanningProbe = {
   evaluateFull: 0,
   snapshots,
+  whyIndexId(index) { if (!index || typeof index !== 'object') return; if (!whyIndexes.has(index)) whyIndexes.set(index, ++whyIndexSequence); return whyIndexes.get(index); },
   setLedger: value => { ledger = value; },
   location() {
     locations++;
@@ -47,6 +49,7 @@ registerHooks({ load(url, context, next) {
   globalThis.__residentPlanningProbe.snapshots.push(() => [...entries].map(([key, value]) => {
     const entry = metadata.get(value);
     return { owner: 'picker:' + entry.owner, revision: value.revision, planning: !!value.planningIndex,
+      whyIndexId: globalThis.__residentPlanningProbe.whyIndexId(value.whyIndex), whyIndexCharge: entry.costs?.explanations ?? 0,
       charge: entry.measuredCost, planningCharge: entry.costs?.planning ?? 0,
       measured: snapshotBytes(value, entry.state, context(value.baseline), locations(value.baseline), entry.predictionBytes)
         + Buffer.byteLength(key) + Buffer.byteLength(entry.owner) };

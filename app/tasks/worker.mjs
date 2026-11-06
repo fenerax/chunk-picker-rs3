@@ -4,6 +4,7 @@ if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
 import { createHowCache } from './how-cache.mjs';
+import { taskWhyDisplay, createTaskWhyIndex } from './task-why-display.mjs';
 import { startupPhase } from '../startup-timing.mjs';
 import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
@@ -322,7 +323,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
   const detailed = normalized.previewChunkId !== undefined || normalized.planningChunkId !== undefined;
   if (!draftSnapshot || detailed && !draftSnapshot.baseline) {
     const hypothetical = applySandboxChanges(state, memberId, normalized.changes, getSandboxCatalogue(), taskIndex);
-    draftSnapshot = { ...draftSnapshot, state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs, cacheSizing: snapshotBudget.pickerOwners <= 1 }) };
+    draftSnapshot = { ...draftSnapshot, whyIndex: undefined, state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs, cacheSizing: snapshotBudget.pickerOwners <= 1 }) };
   }
   // Build all optional fields off-ledger. A rejected candidate must leave the
   // prior draft and baseline intact, including when a cached draft grows.
@@ -347,7 +348,9 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
     viewContexts.delete(draftSnapshot.baseline); draftSnapshot.state = undefined;
     // Shared workers keep ordinary drafts small so each picker has room for
     // its own prediction cache. A detailed draft still uses final preflight.
-    if (snapshotBudget.pickerOwners > 1 && !detailed && !draftSnapshot.predict && !draftSnapshot.planningIndex) draftSnapshot.baseline = undefined;
+    if (snapshotBudget.pickerOwners > 1 && !detailed && !draftSnapshot.predict && !draftSnapshot.planningIndex) {
+      draftSnapshot.baseline = undefined; draftSnapshot.whyIndex = undefined;
+    }
     if (snapshot && !sandboxCache.fits(draftSnapshot, [snapshot])) {
       const cost = sandboxCache.measure(draftSnapshot), base = completeCache.measure(snapshot);
       const planning = completeCache.planningCharge(snapshot);
@@ -450,7 +453,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
   requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
-      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
+      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId });
     }
     if (snapshotKey !== undefined) {
@@ -487,6 +490,22 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
     } else if (type === 'roll-pool') result = timed(timingMs, 'rollPoolMs', () => rollPoolFor(state, memberId, draft ?? chunkId));
+    else if (type === 'why-task') {
+      if (typeof chunkId !== 'string' || !chunkId || chunkId.length > 512) throw new TypeError('Invalid Why task subject.');
+      // A miss must not calculate a new full result. Let the caller use its
+      // existing full-detail path. No new worker cache or snapshot is created.
+      const key = JSON.stringify(calculationKey(state, memberId, input)), snapshot = snapshots.get(key);
+      if (snapshot?.baseline && snapshot.whyIndex === undefined) {
+        snapshot.whyIndex = createTaskWhyIndex(snapshot.baseline, { cancelled: abandoned }) ?? false;
+        // The complete native index graph (including conservative duplicate row
+        // charges) joins this picker's existing snapshot owner before reuse.
+        if (!completeCache.set(key, snapshot, state, pickerId)) {
+          snapshot.whyIndex = false;
+          completeCache.set(key, snapshot, state, pickerId);
+        }
+      }
+      result = taskWhyDisplay(snapshot?.baseline, chunkId, memberId, state.revision, { index: snapshot?.whyIndex ?? false }) ?? { unavailable: true };
+    }
     else if (type === 'how-task') {
       if (typeof chunkId !== 'string' || !chunkId || chunkId.length > 512) throw new TypeError('Invalid How task subject.');
       const key = JSON.stringify([pickerId, selectedDataset.digest, input, state.revision, memberId, chunkId, 1]);
@@ -599,7 +618,7 @@ else parentPort.on('message', handleMessage);
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
-const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'resident-chunk-planning', 'sandbox', 'area-check', 'how-task', 'prepare-rules', 'roll-pool'];
+const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'resident-chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'prepare-rules', 'roll-pool'];
 // The generated catalogue is large and shares completion families between rows.
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.

@@ -1,4 +1,4 @@
-import { replaceView } from './browser-state.mjs';
+import { replaceView, paintExplanationPreview } from './browser-state.mjs';
 let sequence = 0;
 // Chunk-data access is how the picker has always judged places. It stays a
 // named gap in the proof (for audits) but reads as one footnote, not a step.
@@ -104,23 +104,26 @@ export function appendTaskHow(row, task, { document, button, load, scope, advanc
   const toggle = button('How?', () => open(), 'task-how task-why-link');
   toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-controls', panel.id);
   let version = 0, controller;
-  function close() { version++; controller?.abort(); panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); panel.setAttribute('aria-busy', 'false'); }
+  function close() { version++; controller?.abort(); panel.hidden = true; panel.replaceChildren(); toggle.setAttribute('aria-expanded', 'false'); panel.setAttribute('aria-busy', 'false'); }
   async function refresh() {
     const current = ++version, captured = scope(); controller?.abort(); controller = new AbortController();
-    const token = cache?.token(), savedRevision = revision(), cached = !readOnly && cache?.peek('how', cacheKey, savedRevision);
-    const status = Object.assign(document.createElement('p'), { textContent: cached ? 'Updating… · Last known planning path' : 'Checking the planning path…', className: 'task-why-loading' });
-    status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-    panel.setAttribute('aria-busy', 'true'); panel.replaceChildren(status);
-    if (cached) panel.append(renderTaskHow(cached.value, { document, advanced: advanced(), locationName }));
+    const token = cache?.token(), savedRevision = revision();
+    panel.setAttribute('aria-busy', 'true');
+    paintExplanationPreview(panel, { cache: readOnly ? undefined : cache, view: 'how', key: cacheKey, revision: savedRevision,
+      status: Object.assign(document.createElement('p'), { className: 'task-why-loading' }),
+      checking: 'Checking the planning path…', lastKnown: 'planning path',
+      render: value => renderTaskHow(value, { document, advanced: advanced(), locationName }) });
     try {
       if (readOnly) { panel.replaceChildren(Object.assign(document.createElement('p'), { textContent: 'How is not available in this saved view. Opening it cannot start a calculator.' })); return; }
       const proof = await load(task, controller.signal);
-      if (current !== version || cache && !cache.current(token)) return;
-      if (captured !== scope()) throw new Error('The selected map or saved state changed. Open How again.');
+      if (current !== version) return;
+      if (cache && !cache.current(token)) { panel.replaceChildren(); return; }
+      if (captured !== scope() || savedRevision !== revision()) throw new Error('The selected map or saved state changed. Open How again.');
       cache?.remember('how', cacheKey, savedRevision, proof);
       replaceView(panel, () => panel.replaceChildren(renderTaskHow(proof, { document, advanced: advanced(), locationName })), document);
     } catch (error) {
-      if (current !== version || cache && !cache.current(token) || error.name === 'AbortError') return;
+      if (current !== version) return;
+      if (cache && !cache.current(token) || error.name === 'AbortError') { panel.replaceChildren(); return; }
       const retry = button('Retry How', () => refresh(), 'task-why-retry');
       panel.replaceChildren(Object.assign(document.createElement('p'), { textContent: error.message || 'This path is unavailable. Try again.' }), retry);
     } finally { if (current === version) panel.setAttribute('aria-busy', 'false'); }

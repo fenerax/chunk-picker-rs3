@@ -90,7 +90,7 @@ function workerEvaluation(message) {
     get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } };
 }
 function validStateInput(state, input, stateInput, type) {
-  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
+  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
     && stateInput.stateJSON.byteLength > 0 && typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
     && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members)
     && state.members.length > 0 && state.members.every(member => member && typeof member.id === 'string' && member.id.length > 0)
@@ -407,6 +407,16 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
         // advisory lane as Preview so foreground saved tasks remain independent.
         return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, [], resultView, stateInput, false, pickerId);
       }
+      if (type === 'why-task') {
+        const read = lane => lane
+          ? lane.readSnapshot(state, memberId, chunkId, key, input, signal, stateInput, pickerId)
+          : Promise.resolve({ result: { unavailable: true } });
+        return read(foreground).then(value => {
+          // Group peers may have been evaluated on the existing duo lane.
+          // Read it only if already present; never allocate a lane for Why.
+          return value.result?.unavailable ? read(duo) : value;
+        });
+      }
       if (type !== 'death-estimates') return raceSavedPrediction(foreground.evaluate(state, memberId, type, chunkId, key, input, requestSignal, chunkIds, resultView, stateInput, duoSidebarProjection, pickerId));
       if (state.revision < picker.latestRevision) return Promise.reject(Object.assign(new Error('Calculation superseded by a newer save. Request the current tasks.'), { status: 409 }));
       if (!death) {
@@ -678,6 +688,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function storeEvaluation(key, revision, type, value, pickerId) {
     if (type === 'how-task') return false; // Proofs have a separate small worker cache.
+    if (type === 'why-task' && value.result?.unavailable) return false;
     const bytes = value.sandboxJSON ? value.sandboxJSON.length
       + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs, resultCache: value.resultCache }))
       : value.playJSON ? (value.resultJSON?.length ?? 0) + (value.duoJSON?.length ?? 0) + (value.duoSidebarJSON?.length ?? 0) + value.playJSON.length
@@ -789,6 +800,10 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     announce();
     restartTimer = setTimeout(launch, delay);
   }
+  function canReadResident(type, pickerId) {
+    return !closed && !closedPickers.has(pickerId) && status === 'ready' && worker && !worker.profileRetiring
+      && !active && !queue.length && !warmQueue.length && supported.has(type);
+  }
   function pump() {
     if (closed || status !== 'ready') return;
     if (!active && worker.profileRetiring) { retire(); return; }
@@ -797,6 +812,19 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return;
     }
     if (calculatorPool) {
+      const candidates = queue.length ? queue : warmQueue;
+      const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
+      const next = candidates.find(entry => entry.pickerId === id) ?? candidates[0];
+      if (next?.type === 'why-task') {
+        if (!worker.tryReadSnapshot(next.pickerId, () => {
+          sentSnapshots = worker.snapshotHints;
+          dispatch(fairness ? fairTake() : queue.shift());
+        })) {
+          settle(next, undefined, { result: { unavailable: true } });
+          pump();
+        }
+        return;
+      }
       worker.schedule(() => {
         if (closed || status !== 'ready' || active) return;
         // Expired optional work must not hide another picker's warm queue.
@@ -1114,9 +1142,13 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       if (stored) counts.promoted++;
       return stored;
     },
+    readSnapshot(state, memberId, taskId, key, input, signal, stateInput, pickerId) {
+      if (!canReadResident('why-task', pickerId))
+        return Promise.resolve({ result: { unavailable: true } });
+      return scheduler.evaluate(state, memberId, 'why-task', taskId, key, input, signal, [], 'full', stateInput, false, pickerId);
+    },
     tryResidentPlanning(state, memberId, chunkId, key, input, signal, chunkIds, resultView, stateInput, pickerId) {
-      if (closed || closedPickers.has(pickerId) || status !== 'ready' || worker?.profileRetiring || active || queue.length || warmQueue.length
-        || !supported.has('resident-chunk-planning')) return;
+      if (!canReadResident('resident-chunk-planning', pickerId)) return;
       return scheduler.evaluate(state, memberId, 'chunk-planning', chunkId, key, input, signal, chunkIds, resultView, stateInput, false, pickerId, true);
     },
     preemptResidentPlanning() {

@@ -142,6 +142,7 @@ function baseBytes(snapshot, state, context, separatePlanning = false, allowTrus
   return separatePlanning ? referenceBound(data, false, checkpoint) : serializedBytes(data, checkpoint);
 }
 const componentData = {
+  explanations: value => value.whyIndex,
   views: value => [value.baseline?.currentBiS, value.baseline?.activityInfo],
   estimates: value => value.estimates,
   locations: (_value, locations) => locations,
@@ -221,6 +222,7 @@ export function createSnapshotCache(entries, budget, { context = () => undefined
   const version = value => ({
     base: [value.baseline, context(value.baseline), value.playResult, value.sandboxDelta],
     planning: [value.planningIndex, value.planningIndex?.byLocation, value.planningIndex?.clueLocations],
+    explanations: [value.whyIndex],
     views: [value.baseline?.currentBiS, value.baseline?.activityInfo],
     estimates: [value.estimates, value.estimates?.size],
     locations: [locations(value.baseline)],
