@@ -355,21 +355,30 @@ replay fences remain private, durable and are never undone.
 
 For live item reports, a reset sequence, changed key, replay or ambiguous clock
 invalidates plugin currency instead of retaining unsupported funds or blocking
-item processing. Status returns `items: null` to request another reading using
-the existing protocol. A stable stream recovers after a 60-second server-time
-quarantine. Client timestamps cannot order different keys: future timestamps
+item processing. Status clears `items.snapshot` to null to request another
+reading while retaining the acknowledged `items.journal`; currency ambiguity
+must not discard durable item-journal acknowledgements. A stable stream recovers
+after a 60-second server-time quarantine. Client timestamps cannot order different
+keys: future timestamps
 and observations over 30 seconds old cannot publish current currency, and
 rejected timestamps cannot create a durable fence or extend recovery. Within a
 stream, sequence must increase and plausible timestamps must not decrease.
 Unchanged and unreadable accepted observations advance ordering too. A failed
 save acknowledges nothing and commits neither the balance nor its fence.
+
+Plugin 1.0.0 still cannot prove report generation after a restart, stream reset,
+manual correction or restore. A retired stream under clock skew, or a delayed
+report generated before a manual correction or restore, can publish an incorrect
+known balance that persists across restart. These accepted limitations require
+a plugin-side freshness challenge, planned for plugin 1.1 after moderation.
 The metadata is bounded; portable exports retain fact-provenance annotations
 but exclude private ordering fences. See
 [save metadata](save-schema.md#game-plugin-current-currency).
 
 Status `items` is null until the first items report, then exactly
-`{snapshot, journal}`: the last snapshot processed and the newest journal event
-processed (`null` before the first readable look). The plugin resends when its
+`{snapshot, journal}`: the last snapshot processed (null when another reading
+is requested) and the newest journal event processed (`null` before the first
+readable look). The plugin resends when its
 snapshot differs or journal events remain unacknowledged, even if the containers
 have not changed. It drops journal events at or below the acknowledged event
 for the same journal ID. An acknowledgement covers all environments in the

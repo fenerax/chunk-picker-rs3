@@ -37,7 +37,11 @@ Portable `state.provenance.pluginCurrencyFacts` holds at most 1,000 member-ID
 entries with the same `{coins, source}` facts. Ownership updates copy this map;
 unchanged legacy adoption writes it without changing the gameplay revision or
 adding a History entry. Export, import and roster transfer retain it (remapping
-only member IDs). Restore reads the selected source's map; Undo's per-entry
+only member IDs). Before a mapped transfer archives History or changes member
+IDs, it resolves each source member's current ownership from History and the
+portable map. This also recovers Undo performed by the frozen rollback release,
+whose portable map can still describe the amount before Undo.
+Restore reads the selected source's map; Undo's per-entry
 annotations take precedence over an older map preserved by a rollback release.
 The map carries ownership only, never sequence or timestamp fences. Previous
 releases accept and preserve it as additive provenance.
@@ -57,6 +61,15 @@ over 30 seconds old cannot publish current currency. Increasing sequence and
 nondecreasing plausible time are required within a stream; client time alone
 never orders different keys. Format-1 ledgers migrate without adopting their
 untrusted client timestamps as server fences.
+
+Known limitations accepted for plugin 1.0.0: a retired stream can re-enter with
+a plausible clock-skewed timestamp, and a delayed report generated before a
+manual correction or restore can overwrite that correction. Receive ordering,
+sequence checks and client timestamp filters cannot prove when a report was
+generated relative to those boundaries. These cases can leave an incorrect
+known balance across restart. Closing them requires a plugin-side freshness
+challenge, planned for plugin 1.1 after store moderation; this release does not
+change the plugin wire format or add a manual confirmation mode.
 
 Keys are never evicted to admit old traffic. Invalid metadata fails closed on
 load. Undo and restore retain active replay fences; imported private metadata

@@ -57,7 +57,7 @@ function fail(error) {
   failed = true;
   if (!process.connected) { void stop(1); return; }
   const deadline = setTimeout(() => { void stop(1); }, 500);
-  try { process.send({ kind: 'error', error: { name: error.name, message: error.message, stack: error.stack } }, () => {
+  try { process.send({ kind: 'error', error: { name: error.name, message: error.message, stack: error.stack, code: error.code } }, () => {
     clearTimeout(deadline); void stop(1);
   }); } catch { clearTimeout(deadline); void stop(1); }
 }
@@ -103,7 +103,7 @@ process.on('message', message => {
       const probeImport = message.probeImport ?? process.env.RS3_WORKER_MEMORY_PROBE_IMPORT;
       probeEnabled = !!probeImport;
       worker = new Worker(new URL('./worker.mjs', import.meta.url), {
-        workerData: decodeReceivedProcessMessage(message.data), resourceLimits: TASK_WORKER_RESOURCE_LIMITS,
+        workerData: { ...decodeReceivedProcessMessage(message.data), enforceMemoryLimit: true }, resourceLimits: TASK_WORKER_RESOURCE_LIMITS,
         // Diagnostic preloads need an explicit list. Native inheritance filters
         // process-only V8 flags; explicitly forwarding those flags rejects them.
         ...(probeEnabled ? { execArgv: ['--import', probeImport] } : {}),

@@ -475,7 +475,7 @@ test('durable currency freshness neutralises replay and out-of-order reports aft
   const latest = f.lastReport;
   await f.restart();
   for (const report of [original, { ...original, seq: latest.seq + 1 }, { ...original, sentAt: new Date(f.at + 1000).toISOString() }]) {
-    assert.equal((await f.replay(report)).items, null, 'Ambiguity requests a new reading');
+    assert.equal((await f.replay(report)).items.snapshot, null, 'Ambiguity requests a new reading');
     await f.restart();
     assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined, 'Historical funds never become current');
   }
@@ -489,7 +489,7 @@ test('switching keys invalidates currency until a stable server-time stream reco
   await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
   const original = f.lastReport;
   const { key } = await f.createKey();
-  assert.equal((await f.replay({ ...original, items: { ...items(), pouch: [] } }, key)).items, null);
+  assert.equal((await f.replay({ ...original, items: { ...items(), pouch: [] } }, key)).items.snapshot, null);
   assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
   f.advance(61000);
   const newer = { ...original, seq: 2, sentAt: new Date(f.at).toISOString(), items: { ...items(), pouch: [] } };
@@ -529,7 +529,7 @@ test('Undo and restore never roll back the private currency freshness fence', as
   await f.restart();
   const after = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).pluginCurrency;
   assert.deepEqual(after.keys, before.keys, 'Portable restore preserves ordering fences');
-  assert.equal((await f.replay(original)).items, null);
+  assert.equal((await f.replay(original)).items.snapshot, null);
   assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
 });
 
@@ -554,7 +554,7 @@ for (const restart of [false, true]) test(`Undo restores manual currency ownersh
   await f.send({ ...items({ backpack: null }), pouch: null });
   assert.deepEqual(f.state.members[0].transportFacts, facts, 'Unreadable coins cannot erase the restored manual fact or manual items');
   await f.restart();
-  assert.equal((await f.replay(historical)).items, null, 'Undo never rolls back freshness');
+  assert.equal((await f.replay(historical)).items.snapshot, null, 'Undo never rolls back freshness');
   assert.deepEqual(f.state.members[0].transportFacts, facts);
 });
 
@@ -587,7 +587,7 @@ test('restore treats imported currency as manual while retaining freshness', asy
   assert.equal(f.state.members[0].transportFacts.currencies.coins, 100);
   assert.equal(f.state.members[0].transportFacts.items['synthetic-item'], 100);
   await f.restart();
-  assert.equal((await f.replay(historical)).items, null);
+  assert.equal((await f.replay(historical)).items.snapshot, null);
   assert.equal(f.state.members[0].transportFacts.currencies.coins, 100);
 });
 
@@ -684,6 +684,37 @@ test('Undo retains adopted legacy provenance in a portable round trip', async t 
     const result = observePluginCurrency(importBackup(portable), undefined, { memberId: 'a', keyId: '11111111-1111-4111-8111-111111111111', seq: 1, sentAt: at, coins: null }, { now: () => at });
     assert.equal(result.state.members[0].transportFacts?.currencies?.coins, undefined);
   }
+});
+
+for (const manual of [false, true]) test(`mapped transfer resolves frozen-release Undo ownership before archiving History (manual ${manual})`, async t => {
+  const f = await fixture(t, { durable: true });
+  if (manual) {
+    await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 100 } } });
+    await f.send({ ...items(), pouch: [[0, 995, 200, 'Coins']] });
+  } else {
+    await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+    await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 0 } } });
+  }
+  const at = new Date(f.at).toISOString();
+  const undone = applyLiveCommand(loadLiveBackup(await f.portable()), { type: 'undo' }, { expectedRevision: f.state.revision, now: () => at });
+  assert.equal(undone.members[0].transportFacts.currencies.coins, 100);
+  // The frozen writer preserves the stale map: current ownership lives in History.
+  assert.equal(undone.provenance.pluginCurrencyFacts.a.coins, manual ? 200 : 0);
+  const dataDir = await mkdtemp(path.join(path.dirname(f.dataDir), '.plugin-mapped-test-'));
+  let destination = await openStore({ dataDir, initialState: createGroupState([{ id: 'x', name: 'Synthetic X' }, { id: 'y', name: 'Synthetic Y' }]), retention: false, now: () => at });
+  t.after(async () => { await destination.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const preview = await destination.prepareTransfer(serialize({ backup: exportLiveBackup(undone), rosterMapping: { a: 'x', b: 'y' } }), {
+    dataset: { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} },
+    world: { chunks: new Map() }, route: '/api/restore/preview' });
+  await destination.applyTransfer(preview.ticket, destination.getInfo().revision);
+  assert.deepEqual(destination.getState().provenance.pluginCurrencyFacts.x, { coins: 100, source: manual ? 'manual' : 'plugin' });
+  await destination.close();
+  destination = await openStore({ dataDir, retention: false, now: () => at });
+  await destination.observePluginCurrency({ memberId: 'x', keyId: '11111111-1111-4111-8111-111111111111', seq: 1, sentAt: at, coins: null });
+  await destination.close();
+  destination = await openStore({ dataDir, retention: false, now: () => at });
+  assert.equal(destination.getState().members.find(row => row.id === 'x').transportFacts?.currencies?.coins, manual ? 100 : undefined);
+  assert.deepEqual(loadLiveBackup(await destination.backup()), destination.getState(), 'The mapped save still loads on the frozen release');
 });
 
 test('currency provenance and fences coexist with main storage sidecar serialization', async t => {

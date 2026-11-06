@@ -70,6 +70,12 @@ function currentFact(state, ledger, player) {
   return { coins, source: saved || last?.actor || coins === null ? 'manual' : 'legacy' };
 }
 
+/** Resolve ownership while source History and member IDs still agree. */
+export function portableCurrencyFacts(state) {
+  return Object.fromEntries(state.members.map(({ id }) => [id, currentFact(state, empty(), id)])
+    .filter(([, fact]) => fact.coins !== null));
+}
+
 function portableFacts(state) {
   const rows = state.provenance?.pluginCurrencyFacts;
   if (rows === undefined) return {};

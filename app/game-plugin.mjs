@@ -520,7 +520,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
               currencyRetry = (await store.observePluginCurrency({ memberId: credential.player, keyId: credential.id, seq: report.seq, sentAt: report.sentAt, coins })).currencyRetry;
             }
             await receiveItems(credential.player, report);
-            if (currencyRetry) itemAcks.delete(credential.player);
+            if (currencyRetry && itemAcks.has(credential.player)) {
+              // Request a fresh snapshot without losing the durable journal ack.
+              itemAcks.set(credential.player, { ...itemAcks.get(credential.player), snapshot: null });
+            }
           }
           if (report.bank) await receiveBank(credential.player, report);
           notify();

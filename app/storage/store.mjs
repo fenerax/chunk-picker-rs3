@@ -1174,6 +1174,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A replacement establishes a new undo boundary. Earlier snapshots may
     // describe another roster and must never rewrite the restored gameplay.
     ready.history = [{ id: `revision-${revision}`, revision, type: 'restore', at: timestamp(), ...(actor ? { actor } : {}) }];
+    // Prepare the same additive ownership annotations that publication retains.
+    // Preview must describe the exact replacement, including portable metadata.
+    currencyAfterRestore(undefined, ready);
     return importReader ? validateOwnedState(ready, registry) : validateState(ready, registry);
   }
   function historyRecord(event) {
