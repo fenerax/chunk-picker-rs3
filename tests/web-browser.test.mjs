@@ -4077,6 +4077,7 @@ test('viewer Why uses saved facts when full details are absent, keeping all requ
   h.run("definitions.challenges = {Mining:{'Mine fixture ore':{Category:['Show Skill Tasks']}}}; result={memberId:'actor1',stateRevision:7,tasks:[whyTask]}; $('active-tasks').replaceChildren(taskRow(whyTask))");
   h.route((path, body) => {
     assert.equal(body, undefined);
+    if (h.calls.at(-1).requestPath.includes('/api/task-why?')) return { ok: false, status: 409, value: { code: 'TASK_WHY_UNAVAILABLE' } };
     return h.calls.at(-1).requestPath.includes('view=play-v1')
       ? { format: 'play-v1', memberId: 'actor1', stateRevision: 7, tasks: [visible] }
       : { ok: false, status: 409, value: { code: 'TASK_DETAILS_UNAVAILABLE' } };

@@ -197,11 +197,20 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }
     get snapshotHints() { return this.slot?.snapshots; }
+    // A snapshot probe never joins the allocator or the wake queue. Other
+    // admitted pickers keep their turn; a busy/retired pool is an immediate miss.
+    tryReadSnapshot(pickerId, run) {
+      const slot = [...slots].find(value => value.ready && !value.stopping && !value.worker.profileRetiring
+        && !value.owner && (limit === 1 || value.group === this.group));
+      return this.tryResident(pickerId, run, slot);
+    }
     // Optional resident work never waits, allocates, or jumps a queued job.
     // A weak hint cannot keep a retired calculator or its graphs alive.
     tryIdle(pickerId, run) {
-      const slot = this.lastSlot?.deref();
-      if (closed || this.stopped || waiting.size || optimizationsSuspended || !slot || !slots.has(slot)
+      return this.tryResident(pickerId, run, this.lastSlot?.deref());
+    }
+    tryResident(pickerId, run, slot) {
+      if (closed || this.stopped || this.slot || waiting.size || optimizationsSuspended || !slot || !slots.has(slot)
         || !slot.ready || slot.stopping || slot.worker.profileRetiring || slot.owner
         || sessions && (sessions.memoryBytes === 0 || reserved() > sessions.memoryBytes)) return false;
       clock.clearTimeout(slot.timer);

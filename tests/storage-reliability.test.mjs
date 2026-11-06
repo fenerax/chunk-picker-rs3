@@ -331,3 +331,34 @@ test('long synthetic history keeps daily checkpoints, archives every older snaps
   t.diagnostic(JSON.stringify({ commands: count, standaloneSnapshots: files.length, archivedSnapshots: count - files.length,
     activeHistory: compact.getState().history.length, retainedBytes, baselineBytes, reductionPercent: Math.round(100 * (1 - retainedBytes / baselineBytes)) }));
 });
+
+test('SIGKILL during replacement preserves the acknowledged action and replays it exactly once', async t => {
+  const dataDir = await directory(t);
+  const child = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/note-receipt-child.mjs', import.meta.url)), dataDir],
+    { cwd: root, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  const exited = once(child, 'exit'); let acknowledged, stderr = '';
+  child.stderr.on('data', bytes => { stderr += bytes; });
+  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited; });
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Save child timed out: ${stderr}`)), CHILD_STARTUP_MS);
+    child.on('message', message => {
+      if (message.phase === 'acknowledged') acknowledged = message;
+      if (message.phase === 'synced-before-rename') { clearTimeout(timeout); resolve(); }
+    });
+    exited.then(() => { clearTimeout(timeout); reject(new Error(`Save child exited early: ${stderr}`)); });
+  });
+  assert.ok(acknowledged);
+  child.kill('SIGKILL'); await exited;
+  const store = await trackedStore(t, { dataDir });
+  assert.equal(store.getInfo().revision, 1);
+  assert.equal(store.getState().rules['access.shared'], true);
+  const replay = await store.command(setRule(true), 0, { requestId: acknowledged.first, requestAck: 0 });
+  assert.equal(replay.revision, 1);
+  assert.equal(store.getInfo().revision, 1);
+  const second = await store.command(setRule(false), 1, { requestId: acknowledged.second, requestAck: 1 });
+  assert.equal(second.revision, 2);
+  const duplicate = await store.command(setRule(false), 1, { requestId: acknowledged.second, requestAck: 1 });
+  assert.equal(duplicate.revision, 2);
+  assert.equal(store.getState().history.length, 2);
+  await store.close();
+});
