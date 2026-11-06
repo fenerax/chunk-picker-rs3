@@ -12,9 +12,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { createGroupState } from '../app/core/state.mjs';
-import { reconcileForRollback } from '../scripts/linux/reconcile-plugin-suppression.mjs';
+import { checkStart } from '../scripts/linux/start-check.mjs';
 import { reconcilePluginHandledSidecars } from '../app/storage/plugin-handled-sidecars.mjs';
-import { reconcileBeforeStart } from '../scripts/linux/reconcile-plugin-suppression.mjs';
+import { inventory } from '../scripts/linux/files.mjs';
 import { deployStopped } from '../scripts/linux/operator.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
 import { createHash } from 'node:crypto';
@@ -27,8 +27,7 @@ before(async () => {
   if (process.env.RS3_FROZEN_ROLLBACK_ROOT) {
     checkout = path.resolve(process.env.RS3_FROZEN_ROLLBACK_ROOT);
   } else {
-  try { await execute('git', ['cat-file', '-e', `${release}^{commit}`], { cwd: root }); }
-  catch { return; } // A shallow public checkout may not contain the pinned release.
+  await execute('git', ['cat-file', '-e', `${release}^{commit}`], { cwd: root });
   await mkdir(path.join(root, '.local'), { recursive: true });
   checkout = path.join(root, '.local', `frozen-plugin-runtime-${randomUUID()}`);
   await execute('git', ['worktree', 'add', '--detach', checkout, release], { cwd: root });
@@ -44,6 +43,13 @@ const itemTask = 'rs3:goal:equipment:000dc1', achievementTask = 'diary:synthetic
 const tasks = [{ id: itemTask, category: 'BiS', label: 'Obtain a Yew shortbow' },
   { id: achievementTask, category: 'Diary', label: '~|Synthetic Achievements#Easy|~ First Task' }];
 const identity = { admin: true }, now = '2026-11-01T12:00:00.000Z';
+
+async function runStartGate(dataDir) {
+  const controlDir = await mkdtemp(path.join(root, '.local', 'synthetic-start-control-'));
+  try { await checkStart({ dataDir, controlDir }); }
+  catch (error) { throw error.cause ?? error; }
+  finally { await rm(controlDir, { recursive: true, force: true }); }
+}
 
 async function failedSidecarWindow(t, kind, { directory, legacy = false, atomic = false } = {}) {
   await mkdir(path.join(root, '.local'), { recursive: true });
@@ -103,18 +109,20 @@ async function failedSidecarWindow(t, kind, { directory, legacy = false, atomic 
     } };
 }
 
-for (const kind of ['items', 'achievements']) for (const bridge of ['startup', 'rollback-command']) {
+for (const kind of ['items', 'achievements']) for (const bridge of ['startup', 'start-gate']) {
   test(`${bridge} heals the failed ${kind} sidecar before frozen-controller Undo and replay`, async t => {
-    if (!frozenStore) return t.skip('Pinned rollback release is unavailable in this shallow checkout.');
     const f = await failedSidecarWindow(t, kind);
     // Reconciliation must fence startup/rollback while the failure persists.
     if (bridge === 'startup') await assert.rejects(openStore({ dataDir: f.dataDir, retention: false }));
-    else await assert.rejects(execute(process.execPath, [path.join(root, 'scripts/linux/reconcile-plugin-suppression.mjs'), f.dataDir]),
-      error => error.code === 1 && /Rollback refused/.test(error.stderr));
+    else {
+      const before = await inventory(f.dataDir);
+      await assert.rejects(runStartGate(f.dataDir));
+      assert.deepEqual(await inventory(f.dataDir), before, 'A refused ExecStartPre leaves picker bytes unchanged');
+    }
     await f.repair();
     const saved = await readFile(path.join(f.dataDir, 'state.json'));
     if (bridge === 'startup') { const healed = await openStore({ dataDir: f.dataDir, retention: false }); await healed.close(); }
-    else await reconcileForRollback(f.dataDir);
+    else await runStartGate(f.dataDir);
     const after = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'))), before = JSON.parse(saved);
     assert.deepEqual({ ...after.state, provenance: undefined }, { ...before.state, provenance: undefined }, 'Reconciliation never changes gameplay or Undo');
     if (bridge === 'startup') assert.deepEqual(after.state.provenance.pluginAutoHandled.owner[kind],
@@ -122,7 +130,7 @@ for (const kind of ['items', 'achievements']) for (const bridge of ['startup', '
     const record = JSON.parse(await readFile(f.file, 'utf8')).players.owner;
     assert.deepEqual(record.handled, kind === 'items' ? ['custom:previous', itemTask].sort() : [1, 99]);
     assert.deepEqual({ ...record, handled: f.previous.handled }, f.previous, 'Keep baseline, journal, bank and existing decisions');
-    await reconcileForRollback(f.dataDir); // Idempotent on the same checkpoint.
+    await runStartGate(f.dataDir); // Idempotent on the same checkpoint.
     await f.replayFrozen();
   });
 }
@@ -131,11 +139,32 @@ test('the stopped reconciliation step refuses a live writer', async t => {
   await mkdir(path.join(root, '.local'), { recursive: true });
   const dataDir = await mkdtemp(path.join(root, '.local', 'rollback-owner-test-'));
   const store = await openStore({ dataDir, initialState: createGroupState([{ id: 'owner', name: 'Explorer' }]), retention: false });
-  try { await assert.rejects(reconcileForRollback(dataDir), /already|holds|owner|lock/i); }
+  try { await assert.rejects(runStartGate(dataDir), /already|holds|owner|lock/i); }
   finally { await store.close(); await rm(dataDir, { recursive: true, force: true }); }
 });
 
-for (const bridge of ['startup', 'rollback-command']) test(`${bridge} refuses a failed sidecar directory sync and retries unchanged markers`, async t => {
+test('ExecStartPre admits an uninitialized store but refuses orphaned replay evidence without changing bytes', async t => {
+  const f = await emptyStore(t); await f.store.close();
+  await rm(path.join(f.dataDir, 'state.json'));
+  for (const name of ['plugin-items.json', 'plugin-achievements.json']) await rm(path.join(f.dataDir, name), { force: true });
+  const before = await inventory(f.dataDir);
+  await runStartGate(f.dataDir);
+  assert.deepEqual(await inventory(f.dataDir), before);
+  await sidecar(f.dataDir, 'items', [itemTask]);
+  const orphaned = await inventory(f.dataDir);
+  await assert.rejects(runStartGate(f.dataDir), /no owning checkpoint/);
+  assert.deepEqual(await inventory(f.dataDir), orphaned);
+});
+
+test('ExecStartPre reconciles recovered gameplay without requiring regenerated credentials', async t => {
+  const f = await emptyStore(t); await f.store.close();
+  await rm(path.join(f.dataDir, 'access-token'));
+  const before = await inventory(f.dataDir);
+  await runStartGate(f.dataDir);
+  assert.deepEqual(await inventory(f.dataDir), before);
+});
+
+for (const bridge of ['startup', 'start-gate']) test(`${bridge} refuses a failed sidecar directory sync and retries unchanged markers`, async t => {
   await mkdir(path.join(root, '.local'), { recursive: true });
   const dataDir = await mkdtemp(path.join(root, '.local', 'rollback-sync-test-'));
   const initialState = createGroupState([{ id: 'owner', name: 'Explorer' }]);
@@ -157,12 +186,14 @@ for (const bridge of ['startup', 'rollback-command']) test(`${bridge} refuses a 
     return open(file, flags, ...options);
   });
   syncBuiltinESMExports();
+  const before = await inventory(dataDir);
   try {
-    await assert.rejects(bridge === 'startup' ? openStore({ dataDir, retention: false }) : reconcileForRollback(dataDir), /Synthetic directory failure/);
+    await assert.rejects(bridge === 'startup' ? openStore({ dataDir, retention: false }) : runStartGate(dataDir), /Synthetic directory failure/);
     assert.ok(synced && closed);
     assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), saved);
+    if (bridge === 'start-gate') assert.deepEqual(await inventory(dataDir), before, 'Refusal restores every picker byte');
   } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
-  try { await reconcileForRollback(dataDir); } // Retry also syncs already-installed markers.
+  try { await runStartGate(dataDir); } // Retry also syncs already-installed markers.
   finally { await rm(dataDir, { recursive: true, force: true }); }
 });
 
@@ -210,7 +241,6 @@ function suppressed(state, kind) {
 for (const kind of ['items', 'achievements']) {
   for (const atomic of [false, true]) for (const transport of ['replace', 'whole', 'member']) {
     test(`portable ${transport} retains frozen-only ${kind} decisions${atomic ? ' alongside atomic decisions' : ''}`, async t => {
-      if (!frozenStore) return t.skip('Pinned rollback release is unavailable in this shallow checkout.');
       const f = await failedSidecarWindow(t, kind, { legacy: true, atomic });
       const source = await openStore({ dataDir: f.dataDir, retention: false });
       let portable;
@@ -267,7 +297,7 @@ for (const kind of ['items', 'achievements']) {
     });
   }
 
-  for (const bridge of ['startup', 'rollback-command']) test(`${bridge} refuses ${kind} overflow before changing the checkpoint or sidecars`, async t => {
+  for (const bridge of ['startup', 'start-gate']) test(`${bridge} refuses ${kind} overflow before changing the checkpoint or sidecars`, async t => {
     const dest = await emptyStore(t);
     await dest.store.close();
     const file = path.join(dest.dataDir, 'state.json'), document = JSON.parse(await readFile(file));
@@ -275,7 +305,7 @@ for (const kind of ['items', 'achievements']) {
     const bytes = JSON.stringify(document); await writeFile(file, bytes);
     await sidecar(dest.dataDir, kind, full(kind));
     const legacyBytes = await readFile(path.join(dest.dataDir, `plugin-${kind}.json`));
-    await assert.rejects(bridge === 'startup' ? openStore({ dataDir: dest.dataDir, retention: false }) : reconcileForRollback(dest.dataDir), /Invalid plugin/);
+    await assert.rejects(bridge === 'startup' ? openStore({ dataDir: dest.dataDir, retention: false }) : runStartGate(dest.dataDir), /Invalid plugin/);
     assert.equal(await readFile(file, 'utf8'), bytes);
     assert.deepEqual(await readFile(path.join(dest.dataDir, `plugin-${kind}.json`)), legacyBytes);
   });
@@ -294,7 +324,8 @@ for (const kind of ['items', 'achievements']) {
 
 async function operatorFixture(t) {
   const dest = await emptyStore(t); await dest.store.close();
-  const controlDir = path.join(dest.dataDir, 'operator-control'); await mkdir(controlDir);
+  const controlDir = await mkdtemp(path.join(root, '.local', 'suppression-operator-control-'));
+  t.after(() => rm(controlDir, { recursive: true, force: true }));
   const settings = { dataDir: dest.dataDir, controlDir, current: path.join(controlDir, 'current.json'), minFreeBytes: 0 };
   await writeFile(dest.dataDir + '.dataset.json', '{}');
   t.after(() => rm(dest.dataDir + '.dataset.json', { force: true }));
@@ -313,13 +344,25 @@ async function operatorFixture(t) {
 
 for (const kind of ['items', 'achievements']) for (const repair of [false, true]) {
   test(`real operator rollback ${repair ? 'heals' : 'refuses'} the failed ${kind} sidecar before frozen replay`, async t => {
-    if (!frozenStore) return t.skip('Pinned rollback release is unavailable in this shallow checkout.');
     const f = await operatorFixture(t);
     let active = true, starts = 0, window, rollbackChecked = false;
     const controller = {
       state: async () => ({ active, stopped: !active }), stop: async () => { active = false; },
       start: async () => {
-        assert.equal(active, false); starts++;
+        assert.equal(active, false);
+        // Real systemd start runs the common ExecStartPre. The fixture supplies
+        // only the operator owner proof, not an alternate reconciliation path.
+        const lock = JSON.stringify({ pid: process.pid }), digest = value => createHash('sha256').update(value).digest('hex');
+        await writeFile(path.join(f.settings.controlDir, 'operation.lock'), lock);
+        await writeFile(path.join(f.settings.controlDir, 'start-permit.json'), JSON.stringify({ expiresAt: Date.now() + 20000,
+          lockSha256: digest(lock), pointerSha256: digest(await readFile(f.settings.current)), processIdentity: 'synthetic:start' }));
+        const before = await inventory(f.settings.dataDir);
+        try { await checkStart(f.settings, { identity: async () => 'synthetic:start' }); }
+        catch (error) {
+          assert.deepEqual(await inventory(f.settings.dataDir), before, 'A refused start changes no picker bytes');
+          assert.equal(active, false); throw error;
+        }
+        starts++;
         if (starts === 1) {
           window = await failedSidecarWindow(t, kind, { directory: f.settings.dataDir });
           if (repair) await window.repair();
@@ -359,9 +402,66 @@ test('service start reconciliation gates every active picker, including quaranti
   const file = path.join(target, 'state.json'), state = JSON.parse(await readFile(file)); state.state = suppressed(state.state, 'items');
   await writeFile(file, JSON.stringify(state));
   await writeFile(path.join(target, 'plugin-items.json'), '{}');
-  const settings = { dataDir: first.dataDir, multiPicker: { registryDir, pickerRoot } };
-  await assert.rejects(reconcileBeforeStart({ settings, assertStopped: async () => {} }), { code: 'PLUGIN_RECONCILIATION_FAILED' });
+  const legacyFile = path.join(first.dataDir, 'state.json'), legacy = JSON.parse(await readFile(legacyFile));
+  legacy.state = suppressed(legacy.state, 'achievements'); await writeFile(legacyFile, JSON.stringify(legacy));
+  const controlDir = await mkdtemp(path.join(root, '.local', 'suppression-service-control-'));
+  t.after(() => rm(controlDir, { recursive: true, force: true }));
+  const settings = { dataDir: first.dataDir, controlDir, multiPicker: { registryDir, pickerRoot } };
+  const before = await inventory(first.dataDir);
+  await assert.rejects(checkStart(settings), { code: 'PLUGIN_RECONCILIATION_FAILED' });
+  assert.deepEqual(await inventory(first.dataDir), before);
   await rm(path.join(target, 'plugin-items.json'));
-  await reconcileBeforeStart({ settings, assertStopped: async () => {} });
+  await checkStart(settings);
   assert.deepEqual(JSON.parse(await readFile(path.join(target, 'plugin-items.json'))).players.owner.handled, [itemTask]);
+  assert.deepEqual(JSON.parse(await readFile(path.join(first.dataDir, 'plugin-achievements.json'))).players.owner.handled, [1]);
+});
+
+for (const kind of ['items', 'achievements']) test(`owner Undo keeps ${kind} suppressed through restore, member transfer and frozen rollback`, async t => {
+  const f = await failedSidecarWindow(t, kind); await f.repair();
+  await f.replayFrozen({ current: true }); // Undo the automatic tick, then report again.
+  await f.close();
+  const source = await openStore({ dataDir: f.dataDir, retention: false });
+  let portable;
+  try { portable = await source.backup(); } finally { await source.close(); }
+  const restored = await emptyStore(t);
+  await restored.store.replace(portable, 0);
+  portable = await restored.store.backup();
+  const initialState = createGroupState([{ id: 'partner', name: 'Explorer' }]); initialState.tasks = tasks;
+  const destination = await emptyStore(t, { initialState });
+  const preview = await destination.store.prepareTransfer(serialize({ backup: portable, memberId: 'partner', sourceMemberId: 'owner' }),
+    { ...transferOptions, route: '/api/member-restore/preview' });
+  await destination.store.applyTransfer(preview.ticket, 0);
+  await destination.store.command({ type: 'undo' }, destination.store.getInfo().revision); // Undo the member restore too.
+  await destination.store.close();
+  await runStartGate(destination.dataDir);
+  await f.replayFrozen({ target: destination.dataDir, memberId: 'partner', undo: false });
+  await f.close();
+});
+
+for (const failure of ['publication', 'cleanup']) test(`ExecStartPre restores exact sidecar preimages on ${failure} failure`, async t => {
+  const state = suppressed(createGroupState([{ id: 'owner', name: 'Explorer' }]), 'items');
+  state.provenance.pluginAutoHandled.owner.achievements = [1];
+  const f = await emptyStore(t, { initialState: state }); await f.store.close();
+  await sidecar(f.dataDir, 'items', ['custom:previous']); await sidecar(f.dataDir, 'achievements', [99]);
+  const before = await inventory(f.dataDir), original = fs.promises.rename, remove = fs.promises.rm;
+  let published = false, failed = false;
+  t.mock.method(fs.promises, 'rename', async (from, to) => {
+    if (failure === 'publication' && from.endsWith('.new') && to === path.join(f.dataDir, 'plugin-items.json')) throw Object.assign(new Error('Synthetic publication failure'), { code: 'EIO' });
+    await original(from, to);
+    if (from.endsWith('.new')) published = true;
+  });
+  t.mock.method(fs.promises, 'rm', async (file, ...args) => {
+    if (failure === 'cleanup' && published && !failed && file.includes('plugin-items.json.reconcile-') && file.endsWith('.previous')) {
+      failed = true;
+      throw Object.assign(new Error('Synthetic cleanup failure'), { code: 'EIO' });
+    }
+    return remove(file, ...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(runStartGate(f.dataDir), new RegExp(`Synthetic ${failure} failure`));
+    assert.ok(published, 'Exercise rollback after an earlier sidecar was installed');
+    assert.deepEqual(await inventory(f.dataDir), before);
+  } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
+  await runStartGate(f.dataDir);
 });

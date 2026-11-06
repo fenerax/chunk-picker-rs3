@@ -353,9 +353,11 @@ folding. Restore preparation and publication validate both union limits against
 the destination sidecars before changing the checkpoint; overflow never commits
 an unstartable restore. Unreadable or invalid evidence refuses the operation.
 The frozen `06e15939` loader preserves this extension, but its plugin controller
-ignores it. Before starting that runtime, the stopped rollback procedure must
-successfully run the new release's
-[`reconcile-plugin-suppression.mjs`](../scripts/linux/reconcile-plugin-suppression.mjs)
-as described in [the Linux rollback steps](linux-operator.md#plugin-replay-suppression-before-rollback).
-Failed reconciliation keeps startup/rollback refused; successful reconciliation
-does not change gameplay, History or Undo.
+ignores it. All service starts, including frozen rollback, pass the installed
+[`start-check.mjs`](../scripts/linux/start-check.mjs) ExecStartPre as described in
+[the Linux rollback steps](linux-operator.md#plugin-replay-suppression-before-rollback).
+It validates all stores before publication, restores preimages on failure and
+keeps refused picker data byte-identical. Refusal keeps the site down and uses
+the unit's existing start limit and OnFailure alert; no degraded start or manual
+reconciliation step exists. An owner Undo deliberately retains automatic replay
+suppression through restore, transfer and rollback.

@@ -1,19 +1,13 @@
-import { isMain } from '../release/vps/entrypoint.mjs';
 import path from 'node:path';
-import { noLinks, exists, json } from './files.mjs';
-import { reconcileStoppedPluginSuppression } from '../../app/storage/store.mjs';
+import { noLinks, exists, json, assertReleased } from './files.mjs';
+import { prepareStoppedPluginSuppression } from '../../app/storage/store.mjs';
+import { legacyPluginHandledFiles, publishPluginHandledSidecars } from '../../app/storage/plugin-handled-sidecars.mjs';
 import { registryRecoveryDocument } from '../../app/storage/registry.mjs';
 import { pickerPath } from './service-checkpoint.mjs';
 
-export async function reconcileForRollback(dataDir) {
-  if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) throw new TypeError('An absolute stopped-store directory is required.');
-  await noLinks(dataDir);
-  await reconcileStoppedPluginSuppression({ dataDir });
-}
-
-export async function reconcileBeforeStart({ settings, assertStopped }) {
+export async function reconcileBeforeStart(settings) {
+  const prepared = [];
   try {
-    await assertStopped();
     const directories = new Set();
     if (!settings.multiPicker) directories.add(settings.dataDir);
     else {
@@ -27,20 +21,22 @@ export async function reconcileBeforeStart({ settings, assertStopped }) {
         directories.add(dataDir);
       }
     }
-    for (const dataDir of directories) await reconcileForRollback(dataDir);
-    await assertStopped();
+    // Validate every store before publishing any sidecar. A later invalid
+    // picker must not leave earlier pickers changed on a refused start.
+    for (const dataDir of directories) {
+      if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) throw new TypeError('An absolute stopped-store directory is required.');
+      await noLinks(await exists(dataDir) ? dataDir : path.dirname(dataDir));
+      await assertReleased(dataDir);
+      // Fresh/reserved stores and quarantined placeholders have no gameplay
+      // checkpoint yet. Never bypass orphaned handled decisions, though.
+      if (!await exists(path.join(dataDir, 'state.json'))) {
+        for (const name of legacyPluginHandledFiles) if (await exists(path.join(dataDir, name))) throw new Error('Plugin evidence has no owning checkpoint.');
+        continue;
+      }
+      prepared.push(await prepareStoppedPluginSuppression({ dataDir }));
+    }
+    await publishPluginHandledSidecars(prepared.flatMap(entry => entry.publications));
   } catch (cause) {
     throw Object.assign(new Error('Plugin replay reconciliation failed; keep the runtime stopped.', { cause }), { code: 'PLUGIN_RECONCILIATION_FAILED' });
-  }
-}
-
-if (isMain(import.meta.url)) {
-  try {
-    if (process.argv.length !== 3) throw new Error('A stopped-store directory is required.');
-    await reconcileForRollback(process.argv[2]);
-    process.stdout.write('Plugin replay suppression reconciled for rollback.\n');
-  } catch {
-    process.stderr.write('Rollback refused: plugin replay suppression reconciliation failed. Keep the writer stopped.\n');
-    process.exitCode = 1;
-  }
+  } finally { for (const entry of prepared.reverse()) await entry.release(); }
 }

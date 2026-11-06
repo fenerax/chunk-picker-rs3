@@ -4,8 +4,9 @@ import { isMain } from '../release/vps/entrypoint.mjs';
 import path from 'node:path';
 import { readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { exists, json, sha } from './files.mjs';
+import { exists, json, sha, atomic, encode } from './files.mjs';
 import { operatorSettings, readRelease, serviceIdentity, assertServiceAccess } from './runtime.mjs';
+import { reconcileBeforeStart } from './plugin-suppression-gate.mjs';
 
 export async function processIdentity(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Invalid operator owner.');
@@ -15,7 +16,20 @@ export async function processIdentity(pid) {
   if (!/^\d+$/.test(start ?? '')) throw new Error('Unverifiable operator owner.');
   return (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() + ':' + start;
 }
-export async function checkStart(settings, { identity = processIdentity, now = Date.now() } = {}) {
+export async function checkStart(settings, { identity = processIdentity, now = Date.now(), access = async () => {} } = {}) {
+  await checkStartPermit(settings, { identity, now });
+  await access();
+  const refusal = path.join(settings.controlDir, 'plugin-reconciliation-refused.json');
+  await rm(refusal, { force: true });
+  try { await reconcileBeforeStart(settings); }
+  catch (error) {
+    // Control evidence is outside picker data. It prevents the operator from
+    // spending another start on rollback after ExecStartPre already refused.
+    await atomic(refusal, encode({ schemaVersion: 1, at: new Date().toISOString(), code: 'PLUGIN_RECONCILIATION_FAILED' }));
+    throw error;
+  }
+}
+async function checkStartPermit(settings, { identity, now }) {
   if (settings.multiPicker) {
     const progress = path.join(settings.controlDir, 'service-restore', 'progress.json');
     if (await exists(progress) && (await json(progress)).phase !== 'complete') throw new Error('Service recovery is incomplete.');
@@ -40,6 +54,6 @@ export async function checkStartAccess(settings, { identity = serviceIdentity, r
   await access(release.config.coreRoot, account, ['app/server.mjs']);
 }
 if (isMain(import.meta.url)) {
-  try { const settings = await operatorSettings(); await checkStart(settings); await checkStartAccess(settings); }
+  try { const settings = await operatorSettings(); await checkStart(settings, { access: () => checkStartAccess(settings) }); }
   catch { process.stderr.write('Service start blocked; reconcile maintenance evidence privately.\n'); process.exitCode = 1; }
 }

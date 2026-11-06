@@ -16,7 +16,6 @@ import { processIdentity } from './start-check.mjs';
 import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
 import { deadman, recordStatus, withStatus } from './ops-status.mjs';
 import { phaseReceipt, inPhase } from './phases.mjs';
-import { reconcileBeforeStart } from './reconcile-plugin-suppression.mjs';
 
 const execute = promisify(execFile);
 export function systemd(settings, { executeCommand = execute } = {}) {
@@ -139,7 +138,6 @@ export async function healthRecovery({ settings, release, controller, request = 
     || (afterStop.restarts !== state.restarts && afterStop.restarts !== '0')) throw new Error('Writer failed during health recovery; operator reconciliation required.');
   await assertSameRelease(release);
   await assertHealthEvidence(settings);
-  await reconcileBeforeStart({ settings, assertStopped: stopped });
   await controller.start(undefined, { health: true, restarts: afterStop.restarts, mainStartedAt: state.mainStartedAt }); await waitReady(release, request, wait, controller);
   return { recovered: 'writer' };
 }
@@ -178,7 +176,6 @@ async function deployStoppedImpl({ settings, current, candidate, controller, can
       if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Current pointer changed before activation.');
       await atomic(settings.current, candidate.pointerBytes, 0o644); swapped = true;
     });
-    await inPhase(timings, 'start:plugin-reconciliation', () => reconcileBeforeStart({ settings, assertStopped: stopped }));
     await inPhase(timings, 'start-gate', () => controller.start(timings));
     await timings.mark('started');
     await inPhase(timings, 'started-to-ready', () => waitReady(candidate, request, wait, controller));
@@ -190,7 +187,8 @@ async function deployStoppedImpl({ settings, current, candidate, controller, can
     // A failed final probe takes this path without writing the store or pointer.
     // After candidate startup, use its LATEST save: never restore an old backup.
     await controller.stop(); await stopped();
-    if (error.code === 'PLUGIN_RECONCILIATION_FAILED') throw error;
+    if (error.code === 'PLUGIN_RECONCILIATION_FAILED'
+      || await exists(path.join(settings.controlDir, 'plugin-reconciliation-refused.json'))) throw error;
     if (swapped || rebound) {
       // Re-prove reverse compatibility against any candidate-startup writes.
       const selected = await readRelease(settings.current, settings.dataDir);
@@ -204,7 +202,6 @@ async function deployStoppedImpl({ settings, current, candidate, controller, can
       await assertSameRelease(current);
       if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Old pointer changed; automatic restart refused.');
     }
-    await inPhase(timings, 'rollback:plugin-reconciliation', () => reconcileBeforeStart({ settings, assertStopped: stopped }));
     await inPhase(timings, 'rollback:start-gate', () => controller.start(timings));
     await inPhase(timings, 'rollback:started-to-ready', () => waitReady(current, request, wait, controller));
     await rm(path.join(settings.controlDir, 'activation.json'), { force: true });
@@ -329,7 +326,7 @@ async function runOperatorImpl(settings, command, argument, evidence, mode) {
         } finally {
           // Backup failure must still resume the unchanged old service, but a
           // partial restore must stay stopped for inspection.
-          if (command === 'backup' && wasActive) { await assertStopped(controller, settings.dataDir); await reconcileBeforeStart({ settings, assertStopped: () => assertStopped(controller, settings.dataDir) }); await controller.start(); await waitReady(release, privateRequest, delay, controller); }
+          if (command === 'backup' && wasActive) { await assertStopped(controller, settings.dataDir); await controller.start(); await waitReady(release, privateRequest, delay, controller); }
         }
       }
       await rm(pause);

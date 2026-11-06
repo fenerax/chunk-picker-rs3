@@ -4,7 +4,7 @@ import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfe
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { hasPluginHandled, withPluginHandled } from './plugin-handled.mjs';
-import { reconcilePluginHandledSidecars, foldLegacyPluginHandled } from './plugin-handled-sidecars.mjs';
+import { reconcilePluginHandledSidecars, preparePluginHandledSidecars, foldLegacyPluginHandled } from './plugin-handled-sidecars.mjs';
 import { withPluginEvidence } from './plugin-evidence-lock.mjs';
 import { appendOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence, withOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
@@ -236,9 +236,10 @@ async function atomicWrite(file, contents, { beforeRename, onPostPublishSyncErro
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, replayEvidenceReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
+  if (replayEvidenceReader && !readOnly) throw new TypeError('Replay evidence readers must be read-only.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
   const encodeCompletions = completionCodec ? createCompletionEncoder() : document => document;
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
@@ -702,7 +703,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const document = label ? JSON.stringify({ ...envelope((await hydrateHistory(state)).state), retentionPinned: true, retentionLabel: label })
       : ['replace', 'catalogue-refresh'].includes(operation)
       ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized;
-    const bytes = await gzipAsync(appendOptionalSidecarEvidence(document, await captureOptionalSidecarEvidence(state, { dataDir: directory })), { level: constants.Z_BEST_SPEED });
+    // A pre-command checkpoint records the committed state. Optional file I/O
+    // must not block Undo while a controller is retrying a failed sidecar.
+    // Portable reads/exports separately capture and validate legacy files.
+    const bytes = await gzipAsync(appendOptionalSidecarEvidence(document, await captureOptionalSidecarEvidence(state)), { level: constants.Z_BEST_SPEED });
     const file = path.join(backupsDir, name);
     reportDurability(await atomicWrite(file, bytes));
     if (label) reportDurability(await atomicWrite(`${file}.meta.json`, JSON.stringify({ label })));
@@ -982,13 +986,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         || parseSavedDocument(bytes)?.state?.revision !== expectedCheckpoint.revision) throw new Error('Handover checkpoint changed.');
     }
     if (!readOnly) { await mkdir(backupsDir, { recursive: true }); await mkdir(historyDir, { recursive: true }); }
-    const tokenFile = path.join(directory, 'access-token');
-    try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
-      if (error.code !== 'ENOENT' || readOnly) throw error;
-      token = randomBytes(32).toString('base64url');
-      reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
+    if (!replayEvidenceReader) {
+      const tokenFile = path.join(directory, 'access-token');
+      try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
+        if (error.code !== 'ENOENT' || readOnly) throw error;
+        token = randomBytes(32).toString('base64url');
+        reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
+      }
+      if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
     }
-    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
     let existing = false;
     try {
       const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
@@ -1666,19 +1672,18 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   return store;
 }
 
-// Offline rollback bridge: decode through the current reader under the same
-// writer locks as startup, without migrating or publishing gameplay state.
-export async function reconcileStoppedPluginSuppression({ dataDir }) {
+// ExecStartPre bridge: the kernel guard excludes every supported runtime.
+// Do not create a file lock: a refused start must leave the stopped tree intact.
+export async function prepareStoppedPluginSuppression({ dataDir }) {
   const directory = path.resolve(dataDir);
   const releaseGuard = await acquireProcessGuard(directory);
-  let releaseFileLock, reader;
+  let reader;
   try {
-    releaseFileLock = await acquireLock(directory);
-    reader = await openStore({ dataDir: directory, readOnly: true, retention: false });
-    await reconcilePluginHandledSidecars({ dataDir: directory, state: reader.getState() });
-  } finally {
-    try { await reader?.close(); } finally {
-      try { await releaseFileLock?.(); } finally { await releaseGuard(); }
-    }
+    reader = await openStore({ dataDir: directory, readOnly: true, replayEvidenceReader: true, retention: false });
+    const publications = await preparePluginHandledSidecars({ dataDir: directory, state: reader.getState() });
+    return { publications, release };
+  } catch (error) { await release(); throw error; }
+  async function release() {
+    try { await reader?.close(); } finally { await releaseGuard(); }
   }
 }

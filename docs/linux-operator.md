@@ -246,34 +246,27 @@ It never restores an older gameplay snapshot as an automatic rollback.
 
 ### Plugin replay suppression before rollback
 
-Before starting a runtime older than the committed plugin replay policy, keep
-the writer stopped and run the **new release's** reconciliation tool on each
-picker data directory, under the operator lock:
+The installed `scripts/linux/start-check.mjs` **ExecStartPre** is the single
+reconciliation gate. Boot, manual start, health recovery, deploy start and
+automatic rollback all reach it through the service unit. Keep these current
+operator tools installed when selecting an older runtime; there is no separate
+manual reconciliation step. Load/compatibility probes on disposable copies
+cannot substitute for this gate.
 
-```sh
-/opt/node/bin/node /path/to/new-release/scripts/linux/reconcile-plugin-suppression.mjs /absolute/picker-data-directory
-```
-
-Run it as the service account with access to that directory. Only after this
-command exits successfully may the rollback procedure select and start the old
-runtime. Chain the start with `&&`, or stop the procedure on any nonzero exit;
-never continue after `Rollback refused`. Keep the new release available until
-the rollback is complete. The installed operator now runs this gate before
-candidate starts, automatic failed-candidate rollback, manual deployment and
-health/backup restarts. The service wrapper also runs it before loading the
-selected runtime, including starts outside the operator. In service mode it
-visits the legacy store and every materialized active picker, including
-quarantined stores. A failure leaves the runtime stopped. Load/compatibility
-probes on disposable copies do not reconcile the real stores.
-
-The tool acquires the ordinary store writer locks, decodes the latest saved
-checkpoint without changing gameplay, and merges committed
+The gate checks every materialized active picker, including quarantined stores
+and the legacy store, under ordinary writer ownership. It validates every union
+and stages all writes and exact preimages before publishing any sidecar. It
+decodes the saved checkpoint without changing gameplay and merges committed
 `state.provenance.pluginAutoHandled` decisions into `plugin-items.json` and
 `plugin-achievements.json`. Existing handled decisions and item evidence,
 baseline, bank and journal metadata remain intact. File and directory sync
-must succeed; unreadable evidence, invalid unions, capacity overflow or writer
-ownership refuses the rollback. A partial sidecar publication is safe to retry
-while stopped: the unions are monotonic and idempotent.
+must succeed. Unreadable evidence, invalid unions, capacity overflow or writer
+ownership refuse the start. A publication failure restores exact preimages and
+removes staging files. Refusal leaves picker data byte-identical, records only
+control-directory refusal evidence, and keeps the site down. There is no start
+with plugin intake disabled. The unit's existing three-start limit and OnFailure
+notification remain responsible for bounded failures and alerts; the operator
+does not start another runtime after a gate refusal or add a retry loop.
 
 The current runtime also strictly reads both legacy handled sidecars and folds
 their decisions into saved provenance before serving a writable store, without
@@ -283,8 +276,9 @@ limits are checked before any checkpoint or sidecar is published. Writable
 startup then reconciles the sidecars; standby activation refuses new evidence
 that requires a restart to fold it durably. This heals an earlier crash window
 on restart. Frozen release `06e15939` retains the provenance field but its plugin
-controller only reads the legacy sidecars, so it requires the stopped reconcile
-step even when a backup loads and Undo succeeds.
+controller only reads the legacy sidecars, so its starts must pass ExecStartPre
+even when a backup loads and Undo succeeds. An owner Undo deliberately keeps
+automatic replay suppression through restore, transfer and rollback.
 
 The pointer replacement uses expected-byte checks under the shared operator
 lock. Binding and pointer are two writes with a recovery journal, not a single

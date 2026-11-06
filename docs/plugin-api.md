@@ -217,11 +217,10 @@ Successful automatic batches handle all matched IDs whose tasks were ticked
 (including several IDs that map to the same single task); failed
 automatic commands leave `retry` rows and do not handle their IDs. Unmatched
 IDs and matches whose tasks are already complete are not handled, so later task
-list changes can still use them. This sidecar is **outside the save, Undo and
-save backups**. Undo removes ticks and `achievementProgress`, but keeps handled
-IDs. Deleting the sidecar re-enables automatic ticks for completions the picker
-sees again. Keep it alongside the save when moving the picker to preserve these
-choices.
+list changes can still use them. Undo removes ticks and `achievementProgress`,
+but deliberately keeps handled IDs. Portable exports capture these decisions,
+and restores, transfers and rollback preserve them. Removing the sidecar does
+not clear automatic suppression already committed in saved provenance.
 
 IDs accepted for handling count as handled in memory while their sidecar write
 is pending, preventing repeats or reoffers. Sidecar writes and retries run in

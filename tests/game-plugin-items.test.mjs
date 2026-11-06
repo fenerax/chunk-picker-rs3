@@ -33,7 +33,7 @@ const items = ({ snapshot = '0123456789abcdef', worn = [], backpack = [], events
 async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, externalLegacy = false } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   let at = Date.parse('2026-10-22T12:00:00Z'), input, output, seq = 0, controller;
-  const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false };
+  const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false, tickPublication: false };
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]), currencyMetadata;
   if (legacyCoins !== undefined) state = applyCommand(state, { type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: legacyCoins } } });
   if (externalLegacy) state.legacy = { syntheticPadding: 'x'.repeat(300000) };
@@ -56,7 +56,7 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
   let queue = Promise.resolve();
   async function start() {
     if (durable) store = await openStore({ dataDir, initialState: state, taskCatalogue, retention: false, now: () => new Date(at).toISOString(),
-      beforeCommit: () => { if (failing.command) throw new Error('Synthetic write failure'); } });
+      beforeCommit: ({ operation }) => { if (failing.command || failing.tickPublication && operation === 'command') throw new Error('Synthetic write failure'); } });
     controller = await openGamePlugin({ dataDir, store, clock: () => at, world: { chunks: new Map() }, registry: { resolve: () => ({}) }, questMapping: new Map(),
       serializeMutation: operation => { const next = queue.then(operation); queue = next.catch(() => {}); return next; },
       bodyJSON: async () => input, json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; },
@@ -255,15 +255,14 @@ for (const restore of ['checkpoint', 'older-backup', 'member']) test(`an automat
 
 test('a failed gameplay publication commits neither the item tick nor its suppression', async t => {
   const f = await fixture(t, { durable: true });
-  const file = path.join(f.dataDir, 'state.json'), backup = path.join(f.dataDir, 'synthetic-held-state.json');
-  await rename(file, backup); await mkdir(file);
+  f.failing.tickPublication = true;
   const value = items({ backpack: [[0, YEW_SHORTBOW, 1, 'Synthetic bow']] });
   const revision = f.state.revision;
   await f.send(value);
   assert.equal(f.state.revision, revision);
   assert.equal(f.store.isPluginHandled('a', 'items', goal('000dc1')), false);
   assert.ok(f.review().items.some(row => row.taskId === goal('000dc1')), 'The failed tick stays available for retry');
-  await rm(file, { recursive: true }); await rename(backup, file);
+  f.failing.tickPublication = false;
   await f.restart();
   await f.send(value);
   assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')));
