@@ -1,4 +1,6 @@
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+import { assertWorkerHeapLimit } from './worker-limits.mjs';
+if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
 import { createHowCache } from './how-cache.mjs';
