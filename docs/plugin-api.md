@@ -335,6 +335,12 @@ validated records and the ledger in the optional version 1
 `optionalSidecarEvidence.pluginItems` envelope; imports map player IDs into
 `state.provenance.pluginItemEvidence` before publishing. Whole-directory and
 service-recovery snapshots include every file in `pluginItemFiles`.
+Every export and backup uses a shared generation-checked capture of these files
+and persisted inherited evidence. Concurrent replacements retry the entire capture
+(up to eight attempts, then a retryable error), so exported acknowledgements
+always carry their evidence. Successful whole-picker and member imports refresh
+retained review rows immediately, including when the plugin is offline; this
+refresh never automatically completes tasks.
 
 Cached bank coins are historical observations, not authoritative current funds.
 Transport currency counts only the live pouch and backpack, both readable in the

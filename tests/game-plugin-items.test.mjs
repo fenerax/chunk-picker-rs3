@@ -12,6 +12,7 @@ import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
 import { applyCommand, createGroupState, importBackup, validateState } from '../app/core/state.mjs';
 import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
+import { exportPluginItemEvidence } from '../app/plugin-items.mjs';
 
 const identity = { admin: true };
 const journalId = 'aaaaaaaaaaaaaaaa';
@@ -843,6 +844,12 @@ for (const entrypoint of ['portable-restore', 'portable-transfer', 'source-membe
   assert.ok(evidence.players[owner].records.unknown.items[CHAINBODY].wornAt);
   assert.ok(evidence.players[owner].records.beta.items[BRONZE_DAGGER].wornAt);
   if (owner === 'b') assert.equal(evidence.players.a, undefined, 'Source IDs cannot leak into the destination roster');
+  const revision = target.state.revision, history = structuredClone(target.state.history);
+  const immediate = target.controller.review(identity, owner).items;
+  assert.ok(immediate.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'), 'Imported legacy journals are visible without a restart or report');
+  assert.ok(immediate.some(row => row.taskId === goal('0002ae') && row.world === 'beta'));
+  assert.equal(target.state.revision, revision);
+  assert.deepEqual(target.state.history, history, 'Rebuilding retained review never issues completion commands');
   await target.restart();
   const rows = target.controller.review(identity, owner).items;
   assert.ok(rows.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'));
@@ -887,5 +894,63 @@ test('invalid evidence and a failed import publication leave the destination unc
   await assert.rejects(target.store.applyTransfer(prepared.ticket, target.state.revision), /Synthetic publication failure/);
   assert.deepEqual(await readFile(path.join(target.dataDir, 'state.json')), before);
   assert.equal(target.state.provenance?.pluginItemEvidence, undefined);
+  assert.deepEqual(target.review(), { preview: null }, 'A failed import cannot publish review projections');
   await assert.rejects(readFile(path.join(target.dataDir, 'plugin-item-journal-unknown.json')), { code: 'ENOENT' });
+});
+
+for (const world of ['live', 'beta', 'unknown']) test(`concurrent ${world} journal export retains acknowledged evidence through restore and restart`, async t => {
+  const source = await fixture(t, { durable: true }), target = await fixture(t, { durable: true });
+  await source.send(items());
+  const scope = world === 'live' ? 'plugin-items.json' : `plugin-item-journal-${world}.json`;
+  if (world !== 'live') await writeFile(path.join(source.dataDir, scope), JSON.stringify({ v: 1, players: {} }));
+  await writeFile(path.join(source.dataDir, 'plugin-item-journal-commits.json'), JSON.stringify({ v: 1, players: { a: {
+    journals: [{ id: journalId, committed: 0, pending: [[1, CHAINBODY, 'Synthetic concurrent item', world]] }],
+  } } }));
+  await source.restart();
+  const backup = await source.store.backup();
+  let interrupted = false, scopeReads = 0;
+  backup.optionalSidecarEvidence.pluginItems = await exportPluginItemEvidence(source.dataDir, id => id, undefined, {
+    read: async file => {
+      const bytes = await readFile(file);
+      if (path.basename(file) === scope) {
+        scopeReads++;
+        if (!interrupted) {
+          interrupted = true;
+          assert.equal((await source.send(items())).items.journal.event, 1, 'Publish the scope and committed ledger after reading the old scope');
+        }
+      }
+      return bytes;
+    },
+  });
+  assert.ok(scopeReads >= 2, 'A changed generation forces a fresh capture of every scope');
+  assert.ok(backup.optionalSidecarEvidence.pluginItems.players.a.records[world].items[CHAINBODY].wornAt);
+  await target.store.replace(backup, target.state.revision);
+  assert.ok(target.review().items.some(row => row.taskId === WEAR_TASK && row.world === world));
+  assert.deepEqual(target.state.members[0].completedTasks, [], 'Importing live evidence never completes a task');
+  await target.restart();
+  assert.ok(target.review().items.some(row => row.taskId === WEAR_TASK && row.world === world));
+  assert.equal((await target.send(items())).items.journal.event, 1);
+  assert.ok(target.review().items.some(row => row.taskId === WEAR_TASK && row.world === world), 'An empty report cannot erase the evidence behind its acknowledgement');
+});
+
+for (const storage of ['inline', 'static']) test(`export retries concurrent ${storage} inherited evidence publication instead of using a worker stale state`, async t => {
+  const source = await fixture(t, { durable: true }), target = await fixture(t, { durable: true });
+  await source.send(items({ events: [[1, CHAINBODY, 'Synthetic inherited item']] }));
+  const backup = await source.store.backup();
+  if (storage === 'static') backup.state.provenance = { ...backup.state.provenance, syntheticPadding: 'x'.repeat(270000) };
+  let imported = false, reads = 0;
+  const evidence = await exportPluginItemEvidence(target.dataDir, id => id, target.state.provenance?.pluginItemEvidence, {
+    read: async file => {
+      const bytes = await readFile(file);
+      if (path.basename(file) === 'state.json') {
+        reads++;
+        if (!imported) { imported = true; await target.store.replace(backup, target.state.revision); }
+      }
+      return bytes;
+    },
+  });
+  assert.ok(reads >= 2);
+  if (storage === 'static') assert.ok(JSON.parse(await readFile(path.join(target.dataDir, 'state.json'))).storage.fields.provenance);
+  assert.equal(evidence.players.a.commits.journals[0].committed, 1);
+  assert.ok(evidence.players.a.records.unknown.items[CHAINBODY].wornAt);
 });

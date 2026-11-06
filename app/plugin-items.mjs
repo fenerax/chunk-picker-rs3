@@ -1,7 +1,12 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
+import { gunzip } from 'node:zlib';
+import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { replaceSidecar } from './plugin-achievements.mjs';
+import { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-snapshot.mjs';
+export { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-snapshot.mjs';
 
 // Live-world item evidence per player: item IDs seen owned or worn,
 // the first snapshot's time, item tasks the player already handled, and the
@@ -11,6 +16,24 @@ import { validateItemRecord, validateJournalCommits, mergeItemRecords, mergeJour
 export { validateItemRecord } from './core/plugin-item-evidence.mjs';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+const gunzipAsync = promisify(gunzip);
+
+async function capturedInheritedEvidence(dataDir, files) {
+  if (!files['state.json']) return;
+  const document = JSON.parse(files['state.json']);
+  const reference = document.storage?.fields?.provenance;
+  if (!reference) return document.state?.provenance?.pluginItemEvidence;
+  // Static fields are immutable and content addressed. Resolve the exact field
+  // pinned by the captured state, never a later worker or in-memory state.
+  if (!exactKeys(reference, ['id', 'sha256']) || !/^[a-f0-9]{64}$/.test(reference.sha256)
+    || reference.id !== `static-${reference.sha256}.json.gz`) throw new TypeError('Invalid static provenance reference.');
+  const base = await realpath(path.join(dataDir, 'static'));
+  const file = await realpath(path.join(base, reference.id));
+  if (path.dirname(file) !== base) throw new TypeError('Invalid static provenance location.');
+  const bytes = await gunzipAsync(await readFile(file));
+  if (createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new TypeError('Static provenance checksum mismatch.');
+  return JSON.parse(bytes).pluginItemEvidence;
+}
 
 function validate(value, validateRecord = validateItemRecord) {
   if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)) throw new TypeError('Invalid plugin item store.');
@@ -23,17 +46,18 @@ function validate(value, validateRecord = validateItemRecord) {
 
 const journalWorlds = ['beta', 'unknown'];
 const pluginItemFile = journalWorld => journalWorld ? `plugin-item-journal-${journalWorld}.json` : 'plugin-items.json';
-/** Every durable item-evidence sidecar; service recovery copies exactly these names. */
 const commitFile = 'plugin-item-journal-commits.json';
-export const pluginItemFiles = Object.freeze([pluginItemFile(), ...journalWorlds.map(pluginItemFile), commitFile]);
 
 // The adapter returns plain, validated data. Import never writes paths supplied by a backup.
-export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, inherited) {
+export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, inherited, captureOptions) {
+  const files = await capturePluginItemFiles(dataDir, captureOptions);
+  // A worker's supplied state may predate a concurrent import. Include the
+  // inherited evidence published alongside the captured sidecar generations.
+  const persisted = await capturedInheritedEvidence(dataDir, files);
   const players = new Map();
   for (const file of pluginItemFiles) {
-    let contents;
-    try { contents = await readFile(path.join(dataDir, file), 'utf8'); }
-    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    const contents = files[file];
+    if (contents === undefined) continue;
     const commits = file === commitFile;
     const document = validate(JSON.parse(contents), commits ? validateJournalCommits : validateItemRecord);
     const world = file === pluginItemFile() ? 'live' : file === pluginItemFile('beta') ? 'beta' : 'unknown';
@@ -44,7 +68,7 @@ export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, 
       players.set(id, record);
     }
   }
-  return importPluginItemEvidence(dataDir, mergePluginItemEvidence(inherited, { v: 1, players: Object.fromEntries(players) }), mapPlayerId);
+  return importPluginItemEvidence(dataDir, mergePluginItemEvidence(inherited, persisted, { v: 1, players: Object.fromEntries(players) }), mapPlayerId);
 }
 
 export function importPluginItemEvidence(_dataDir, evidence, mapPlayerId = id => id) {

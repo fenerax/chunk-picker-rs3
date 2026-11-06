@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { copyFile, lstat, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { packRelative } from '../../app/packs.mjs';
-import { pluginItemFiles } from '../../app/plugin-items.mjs';
+import { capturePluginItemFiles, pluginItemFiles } from '../../app/plugin-items.mjs';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { snapshotPath, snapshotRoot, withDirectoryBarriers } from '../../app/storage/snapshot.mjs';
@@ -74,12 +74,17 @@ async function inputBytes(inputs) {
   return bytes;
 }
 async function copyGameplay(source, target, mutate) {
+  const evidence = await capturePluginItemFiles(source);
   const files = await inventory(source, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
   await mutate('capture.gameplay', () => mkdir(target, { mode: 0o700 }));
   for (const row of files.filter(row => gameplayRoots.has(row.path.split('/')[0]))) {
+    if (row.path === 'state.json' || pluginItemFiles.includes(row.path)) continue;
     const to = path.join(target, row.path);
     if (row.directory) await mutate('capture.gameplay', () => mkdir(to, { mode: 0o700 }));
     else await mutate('capture.gameplay', () => copyFile(path.join(source, row.path), to, 1));
+  }
+  for (const [name, bytes] of Object.entries(evidence)) {
+    await mutate('capture.gameplay', () => writeFile(path.join(target, name), bytes, { flag: 'wx', mode: 0o600 }));
   }
 }
 export async function copyServiceTree(source, target, step, label) {

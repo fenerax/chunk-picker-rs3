@@ -25,7 +25,9 @@ record refuses the write and journal acknowledgement, preserving existing facts.
 Files use the existing queued, synced atomic sidecar replacement and corrupt-file
 archive. An acknowledgement is issued only after every affected scope has been
 saved; a partial write leaves the prefix unacknowledged for idempotent retry.
-Non-live journal records rebuild labelled review rows at startup and never
+Retained journal records rebuild labelled review rows at startup and after every
+successful whole-picker or member import, without a report or restart. Rebuilding
+does not issue completion commands, including for live evidence. Non-live records never
 become live facts or automatic completions. Non-live containers remain ephemeral.
 
 `plugin-item-journal-commits.json` is a separate version 1 sidecar containing
@@ -56,6 +58,14 @@ retained destination evidence rather than revoking previous acknowledgements.
 Portable backup, backup-ID/member restore, transfer, and direct replacement all
 use this path. Invalid records, conflicting pending identities, or oversized
 unions refuse publication without changing the destination.
+
+All portable exports, transfer exports, directory snapshots, and service backups
+use one generation-checked capture of the fixed scope files, commit ledger, and
+`state.json` (including inherited evidence). Atomic file identities and timestamps
+must remain unchanged before and after the complete capture; a concurrent write
+retries the capture, up to eight attempts, then returns a retryable export error.
+This also covers writes from other worker isolates. No acknowledgement can be
+exported with an older scope or inherited-evidence snapshot.
 
 These records remain outside gameplay Undo and are included in operational
 snapshots and service-recovery backups. Older releases ignore the optional

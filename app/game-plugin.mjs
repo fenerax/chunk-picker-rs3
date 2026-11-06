@@ -236,7 +236,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     }
     return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
   }
-  async function matchItems(player, report, record, world, unmapped, others = []) {
+  function itemMatches(player, record, world, unmapped, others = [], autoTick = true) {
     const owner = member(player), dismissed = itemHandled.get(player);
     if (unmapped !== null) {
       const retained = [record, ...others.map(row => row.record), ...journalRecords(player).map(row => row.record)]
@@ -250,7 +250,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const results = [{ record, world }, ...others, ...journalRecords(player)].sort((a, b) =>
       ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
-        task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: world === 'live',
+        task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live',
         handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: unmapped ?? [] }));
     const ticks = results.flatMap(result => result.ticks), tickIds = new Set(ticks.map(row => row.taskId));
     const unique = new Map();
@@ -260,6 +260,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       more: results.reduce((sum, result) => sum + result.more, 0) + Math.max(0, rows.length - ITEM_REVIEW_LIMIT) };
     // null keeps the unmapped list from the last items report.
     if (unmapped === null) { const prior = liveReview(player)?.report; result.unmapped = prior?.unmappedItems ?? []; result.unmappedMore = prior?.unmappedItemsMore ?? 0; }
+    return result;
+  }
+  async function matchItems(player, report, record, world, unmapped, others = []) {
+    const result = itemMatches(player, record, world, unmapped, others);
     if (result.ticks.length) {
       try {
         // Live owned items tick their BiS goals. Already inside the server's mutation queue: the
@@ -529,12 +533,23 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     authorizeKey?.(request, credential.player);
     return credential;
   }
-  // Restore reviewable journals without a sender retransmission or any live ticks.
-  for (const owner of state().members) {
-    const unresolved = journalCommits.get(owner.id).journals.some(entry => entry.pending.length);
-    if (unresolved) itemRetentionIssues.set(owner.id, ITEM_RETENTION_NOTICE);
-    if (unresolved || journalRecords(owner.id).length) await matchItems(owner.id, { sentAt: new Date(clock()).toISOString() }, { items: {}, handled: [] }, 'unknown', []);
+  // Startup and successful imports use the same synchronous projection. Imported
+  // live evidence is reviewable too, but restoration never issues a tick command.
+  function rebuildRetainedReviews() {
+    const members = new Set(state().members.map(owner => owner.id));
+    for (const id of pending.keys()) if (!members.has(id)) pending.delete(id);
+    itemHandled.clear(); itemRetentionIssues.clear();
+    for (const player of members) {
+      if (journalCommits.get(player).journals.some(entry => entry.pending.length)) itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
+      const live = itemStore.get(player);
+      const result = itemMatches(player, { items: {}, handled: [] }, 'unknown', [], live ? [{ record: live, world: 'live' }] : [], false);
+      itemReview(player, { sentAt: new Date(clock()).toISOString() }, result);
+    }
   }
+  rebuildRetainedReviews();
+  const unsubscribe = store.subscribe?.(event => {
+    if (!closed && event.restored) { rebuildRetainedReviews(); notify(); }
+  });
   return {
     authenticate: credentialFor,
     async handle(request, response, { route, security, closed: serverClosed }) {
@@ -696,6 +711,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     close() {
       if (closePromise) return closePromise;
       closed = true;
+      unsubscribe?.();
       closePromise = (async () => {
         await handledFlush;
         await flushHandled(true);
