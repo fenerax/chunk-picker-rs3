@@ -18,15 +18,19 @@ export class ProcessWorker extends EventEmitter {
   #sequence = 0;
   #failed = false;
   #profileTimeoutMs;
+  #clock;
   rssBytes = 0;
 
-  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, profileTimeoutMs = 20000 } = {}) {
+  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, profileTimeoutMs = 20000,
+    forkProcess = fork, clock = { now: () => Date.now(),
+      setTimeout: (...args) => setTimeout(...args), clearTimeout: timer => clearTimeout(timer) } } = {}) {
     super();
     this.#profileTimeoutMs = profileTimeoutMs;
+    this.#clock = clock;
     // Serialization failures must occur before a child is created.
     const data = encodeProcessMessage(workerData);
     this.#exitPromise = new Promise(resolve => { this.#resolveExit = resolve; });
-    this.#child = fork(fileURLToPath(new URL('./process-worker-host.mjs', import.meta.url)), [], {
+    this.#child = forkProcess(fileURLToPath(new URL('./process-worker-host.mjs', import.meta.url)), [], {
       // The relay host collects its own garbage (relay-collector.mjs).
       execArgv: [...process.execArgv, '--expose-gc', `--max-old-space-size=${WORKER_OLD_GENERATION_MB}`, '--max-semi-space-size=16'],
       // Optional warm-store failures must reach the service journal too.
@@ -45,7 +49,7 @@ export class ProcessWorker extends EventEmitter {
           if (request) {
             const cleaned = message.cancelled || request.operation === 'stop' && !message.error;
             if (!request.timedOut || cleaned) {
-              this.#profiles.delete(message.id); clearTimeout(request.timer);
+              this.#profiles.delete(message.id); this.#clock.clearTimeout(request.timer);
               if (request.timedOut && cleaned) this.#restoreProfile();
               message.error ? request.reject(new Error('Calculator profile unavailable.')) : request.resolve(message.profile);
             }
@@ -56,7 +60,7 @@ export class ProcessWorker extends EventEmitter {
         else if (message.kind === 'memory') {
           const request = this.#memory.get(message.id);
           if (request) {
-            this.#memory.delete(message.id); clearTimeout(request.timer);
+            this.#memory.delete(message.id); this.#clock.clearTimeout(request.timer);
             if (message.error) request.reject(new Error(message.error));
             else request.resolve({ pid: message.pid, main: message.main, workers: message.workers });
           }
@@ -91,12 +95,12 @@ export class ProcessWorker extends EventEmitter {
   #finish(code) {
     if (this.#exited) return;
     this.#exited = true;
-    for (const timer of this.#killTimers) clearTimeout(timer);
+    for (const timer of this.#killTimers) this.#clock.clearTimeout(timer);
     for (const { reject, timer } of this.#memory.values()) {
-      clearTimeout(timer); reject(new Error('Task worker process exited.'));
+      this.#clock.clearTimeout(timer); reject(new Error('Task worker process exited.'));
     }
     this.#memory.clear();
-    for (const { reject, timer } of this.#profiles.values()) { clearTimeout(timer); reject(new Error('Calculator exited.')); }
+    for (const { reject, timer } of this.#profiles.values()) { this.#clock.clearTimeout(timer); reject(new Error('Calculator exited.')); }
     this.#profiles.clear();
     this.#resolveExit(code);
     this.emit('exit', code);
@@ -115,7 +119,7 @@ export class ProcessWorker extends EventEmitter {
     this.#stopping = true;
     if (this.#child.connected) this.#send({ kind: 'terminate' });
     const kill = signal => { if (!this.#exited) try { this.#child.kill(signal); } catch {} };
-    this.#killTimers = [setTimeout(() => kill('SIGTERM'), 1000), setTimeout(() => kill('SIGKILL'), 2000)];
+    this.#killTimers = [this.#clock.setTimeout(() => kill('SIGTERM'), 1000), this.#clock.setTimeout(() => kill('SIGKILL'), 2000)];
     for (const timer of this.#killTimers) timer.unref();
     return this.#exitPromise;
   }
@@ -123,13 +127,13 @@ export class ProcessWorker extends EventEmitter {
   unref() { this.#child.unref(); this.#child.channel?.unref(); return this; }
   ref() { this.#child.ref(); this.#child.channel?.ref(); return this; }
 
-  async startCpuProfile({ deadline = Date.now() + 600000 } = {}) {
+  async startCpuProfile({ deadline = this.#clock.now() + 600000 } = {}) {
     await this.#profileRequest('start', deadline);
     return { stop: () => this.#profileRequest('stop') };
   }
 
   #restoreProfile() {
-    for (const [id, request] of this.#profiles) if (request.timedOut) { clearTimeout(request.timer); this.#profiles.delete(id); }
+    for (const [id, request] of this.#profiles) if (request.timedOut) { this.#clock.clearTimeout(request.timer); this.#profiles.delete(id); }
     this.profileRetiring = undefined; this.emit('profile-cleaned');
   }
 
@@ -142,7 +146,7 @@ export class ProcessWorker extends EventEmitter {
     if (this.#exited || this.#stopping || this.profileRetiring) return Promise.reject(new Error('Calculator profile unavailable.'));
     const id = ++this.#sequence;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const timer = this.#clock.setTimeout(() => {
         this.#profiles.get(id).timedOut = true;
         // Mark uncertainty before any replacement can join this capture.
         // The scheduler/host may retire only when the request is finished.
@@ -159,7 +163,7 @@ export class ProcessWorker extends EventEmitter {
     if (this.#exited || this.#stopping) return Promise.reject(new Error('Task worker process has stopped.'));
     const id = `adapter-memory-${++this.#sequence}`;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.#memory.delete(id); reject(new Error('Task worker memory probe timed out.')); }, 20000);
+      const timer = this.#clock.setTimeout(() => { this.#memory.delete(id); reject(new Error('Task worker memory probe timed out.')); }, 20000);
       timer.unref(); this.#memory.set(id, { resolve, reject, timer });
       this.#send({ kind: 'memory', id });
     });

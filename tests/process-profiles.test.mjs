@@ -1,162 +1,134 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { setTimeout as delay } from 'node:timers/promises';
 import { createProcessProfiles } from '../app/tasks/process-profiles.mjs';
+import { checkpoint, manualClock, profileControls, profile } from './helpers/process-lifecycle.mjs';
 
-function fixture(options = {}) {
-  const online = Promise.withResolvers(), relayStarted = Promise.withResolvers();
-  const calls = [], retired = Promise.withResolvers(); let retirements = 0;
-  const session = { disconnect() { calls.push('disconnect'); }, post(method, callback) {
-    calls.push(method); if (method === 'Profiler.start') relayStarted.resolve();
-    callback(null, { profile: { nodes: [1] } });
-  } };
-  const worker = { startCpuProfile() { calls.push('native-start'); return { stop: async () => { calls.push('native-stop'); return { nodes: [1] }; } }; } };
-  const profiles = createProcessProfiles({ worker, online: online.promise, retire() { retirements++; retired.resolve(); }, openSession: async () => session, stopTimeoutMs: 20, ...options });
-  return { profiles, online, relayStarted, calls, retired: retired.promise, retirements: () => retirements };
+function fixture() {
+  const c = profileControls(), clock = manualClock();
+  let retirements = 0, restores = 0;
+  const profiles = createProcessProfiles({ worker: c.worker, online: c.gates.online.issue(),
+    openSession: c.openSession, clock, stopTimeoutMs: 10,
+    retire() { retirements++; }, restore() { restores++; } });
+  return { c, clock, profiles, retirements: () => retirements, restores: () => restores };
 }
+const observe = promise => promise.then(value => ({ value }), error => ({ error }));
+const cancelled = result => assert.match(result.error?.message ?? '', /cancelled|did not stop/);
 
-test('expiry while waiting online stops only the relay; repeated captures preserve the calculator', async () => {
+test('repeated expiry before worker-online stops relay only and allows subsequent capture', async () => {
   const f = fixture();
-  for (let index = 0; index < 4; index++) {
-    const started = assert.rejects(f.profiles.start(Date.now() + 30), /cancelled/);
-    // Keep this unit test alive while the production watchdog is unreferenced.
-    await delay(45); await started;
-    assert.equal(f.retirements(), 0); assert.ok(!f.calls.includes('native-start'));
+  for (let i = 0; i < 4; i++) {
+    const started = observe(f.profiles.start(f.clock.now() + 100));
+    for (const stage of ['open', 'enable', 'relay-start', 'relay-stop']) await f.c.ack(stage);
+    await f.clock.advance(100); cancelled(await started);
+    assert.equal(f.c.gates['native-start'].calls, 0); assert.equal(f.retirements(), 0);
   }
-  assert.equal(f.calls.filter(call => call === 'Profiler.stop').length, 4);
-  f.online.resolve(); await f.profiles.start(Date.now() + 1000); await f.profiles.stop();
-  assert.equal(f.calls.filter(call => call === 'native-start').length, 1);
-  assert.equal(f.retirements(), 0);
+  assert.equal(f.c.gates['relay-stop'].calls, 4);
+  const next = f.profiles.start(f.clock.now() + 100); await f.c.cleanup(); await next;
+  assert.deepEqual(await f.profiles.stop(), { calculator: profile, relay: profile });
+  assert.equal(f.retirements(), 0); assert.equal(f.clock.pending(), 0);
 });
 
-for (const stage of ['open', 'Profiler.enable', 'Profiler.start', 'online']) {
-  test(`cancellation during ${stage} is rechecked before issuing a native request`, async () => {
-    const entered = Promise.withResolvers(), release = Promise.withResolvers();
-    const calls = [], retired = Promise.withResolvers(); let retirements = 0;
-    const session = { disconnect() { calls.push('disconnect'); }, post(method, callback) {
-      calls.push(method);
-      if (method === stage) { entered.resolve(); void release.promise.then(() => callback(null, {})); }
-      else callback(null, { profile: {} });
-    } };
-    const profiles = createProcessProfiles({ worker: { startCpuProfile() { assert.fail('cancelled start reached calculator'); } },
-      online: stage === 'online' ? entered.promise.then(() => release.promise) : Promise.resolve(),
-      retire() { retirements++; }, openSession: async () => { if (stage === 'open') { entered.resolve(); await release.promise; } return session; } });
-    const started = assert.rejects(profiles.start(Date.now() + 1000), /cancelled/);
-    if (stage === 'online') { await delay(5); entered.resolve(); } else await entered.promise;
-    const cancelled = profiles.cancel(); release.resolve();
-    assert.equal(await cancelled, true); await started;
-    assert.equal(retirements, 0); assert.ok(calls.includes('disconnect'));
+const admission = ['open', 'enable', 'relay-start', 'online', 'native-start'];
+for (const stage of admission) for (const side of ['before', 'after']) {
+  test(`cancel ${side} ${stage} acknowledgement rechecks native admission and joins cleanup`, async () => {
+    const f = fixture(), started = observe(f.profiles.start(f.clock.now() + 100));
+    const index = admission.indexOf(stage) + Number(side === 'after');
+    for (const name of admission.slice(0, index)) await f.c.ack(name);
+    await checkpoint();
+    const issued = f.c.gates['native-start'].calls;
+    const stopping = observe(f.profiles.cancel());
+    await f.c.cleanup();
+    const result = await started;
+    if (stage === 'native-start' && side === 'after') assert.equal(result.error, undefined);
+    else cancelled(result);
+    assert.equal(f.c.gates['native-start'].calls, issued, 'cancel must never issue a new native request');
+    if (issued && !(stage === 'native-start' && side === 'after')) {
+      assert.match((await stopping).error.message, /did not stop/);
+      assert.equal(f.retirements(), 1); assert.equal(f.restores(), 1);
+    } else { assert.equal((await stopping).value, true); assert.equal(f.retirements(), 0); }
+    if (issued) assert.equal(f.c.gates['native-stop'].calls, 1);
+    assert.ok(f.c.calls.includes('disconnect')); assert.equal(f.clock.pending(), 0);
   });
 }
 
-for (const operation of ['start', 'stop']) {
-  test(`an uncertain native ${operation} retires and stops relay sampling at the deadline`, async () => {
-    const pending = Promise.withResolvers();
-    const f = fixture({ worker: { startCpuProfile() { return operation === 'start' ? pending.promise : { stop: () => pending.promise }; } } });
-    f.online.resolve();
-    const started = f.profiles.start(Date.now() + 30);
-    const completed = operation === 'start' ? assert.rejects(started, /did not stop/) : started;
-    await f.retired; await completed;
-    assert.equal(f.retirements(), 1);
-    assert.ok(f.calls.includes('Profiler.stop')); assert.ok(f.calls.includes('disconnect'));
-    await assert.rejects(f.profiles.stop());
-    if (operation === 'start') pending.resolve({ stop: async () => ({}) }); else pending.resolve({});
-  });
-}
-
-test('cancelling an issued native capture proves cleanup without retirement when stop succeeds', async () => {
-  const f = fixture(); f.online.resolve();
-  await f.profiles.start(Date.now() + 1000);
-  assert.equal(await f.profiles.cancel(), true);
-  assert.equal(f.retirements(), 0);
-  assert.ok(f.calls.includes('native-stop')); assert.ok(f.calls.includes('Profiler.stop'));
-  await f.profiles.start(Date.now() + 1000); await f.profiles.stop();
+test('deadline stops both captures without parent stop and retains valid output for retrieval', async () => {
+  const f = fixture(), start = f.profiles.start(f.clock.now() + 100);
+  await f.c.admit(); await start;
+  await f.c.ack('relay-stop'); await f.c.ack('native-stop');
+  await f.clock.advance(100);
+  assert.equal(f.c.gates['relay-stop'].calls, 1); assert.equal(f.c.gates['native-stop'].calls, 1);
+  assert.deepEqual(await f.profiles.stop(), { calculator: profile, relay: profile });
+  const next = f.profiles.start(f.clock.now() + 100); await next; await f.profiles.stop();
+  assert.equal(f.retirements(), 0); assert.equal(f.clock.pending(), 0);
 });
 
-for (const stalled of [false, true]) {
-  test(`relay failure ${stalled ? 'waits for uncertain native cleanup' : 'preserves a healthy native calculator'}`, async () => {
-    let retirements = 0, disconnected = false;
-    const profiles = createProcessProfiles({ online: Promise.resolve(), stopTimeoutMs: 20, retire() { retirements++; },
-      worker: { startCpuProfile: () => ({ stop: () => stalled ? new Promise(() => {}) : {} }) },
-      openSession: async () => ({ disconnect() { disconnected = true; }, post(method, callback) {
-        callback(method === 'Profiler.stop' ? new Error('Synthetic relay failure.') : null, {});
-      } }),
-    });
-    await profiles.start(Date.now() + 1000);
-    if (stalled) { const cancelled = assert.rejects(profiles.cancel(), /did not stop/); await delay(30); await cancelled; }
-    else assert.equal(await profiles.cancel(), true);
-    assert.equal(retirements, Number(stalled)); assert.equal(disconnected, true);
-  });
-}
-
+test('deadline with missing relay start-ack stops sampling before its late acknowledgement', async () => {
+  const f = fixture(), started = observe(f.profiles.start(f.clock.now() + 100));
+  await f.c.ack('open'); await f.c.ack('enable'); await f.c.ack('relay-stop');
+  assert.equal(f.c.gates['relay-start'].calls, 1);
+  await f.clock.advance(100);
+  cancelled(await started);
+  assert.equal(f.c.gates['relay-stop'].calls, 1); assert.ok(f.c.calls.includes('disconnect'));
+  assert.equal(f.retirements(), 0); assert.equal(f.c.gates['native-start'].calls, 0);
+  await f.c.ack('relay-start'); await f.c.ack('online');
+  assert.equal(f.c.gates['native-start'].calls, 0, 'late relay acknowledgement cannot admit a cancelled capture');
+  assert.equal(f.clock.pending(), 0);
+});
 
 for (const operation of ['start', 'stop']) {
-  test(`late native ${operation} cleanup clears idle retirement without a parent stop`, async () => {
-    const pending = Promise.withResolvers(); let restores = 0;
-    const f = fixture({ restore() { restores++; }, worker: { startCpuProfile() {
-      return operation === 'start' ? pending.promise : { stop: () => pending.promise };
-    } } });
-    f.online.resolve();
-    const started = f.profiles.start(Date.now() + 20);
-    const completion = operation === 'start' ? assert.rejects(started, /did not stop/) : started;
-    await f.retired; await completion;
-    assert.equal(f.retirements(), 1); assert.equal(restores, 0);
+  test(`uncertain native ${operation}: deadline retires, late stop proof alone restores`, async () => {
+    const f = fixture(), started = observe(f.profiles.start(f.clock.now() + 100));
+    for (const name of admission.filter(name => operation !== 'start' || name !== 'native-start')) await f.c.ack(name);
+    await f.c.ack('relay-stop'); await f.clock.advance(100);
+    if (operation === 'stop') await f.clock.advance(10);
+    assert.equal(f.retirements(), 1); assert.equal(f.restores(), 0);
+    assert.ok(f.c.calls.includes('Profiler.stop')); assert.ok(f.c.calls.includes('disconnect'));
+    if (operation === 'start') cancelled(await started); else assert.equal((await started).error, undefined);
     await assert.rejects(f.profiles.cancel(), /did not stop/);
-    await assert.rejects(f.profiles.start(Date.now() + 1000), /unavailable/i);
-    assert.equal(restores, 0, 'a repeated cancel cannot prove uncertain native cleanup');
-    if (operation === 'start') pending.resolve({ stop: async () => ({}) }); else pending.resolve({});
-    await delay(5);
-    assert.equal(restores, 1);
-    assert.ok(f.calls.includes('Profiler.stop'));
+    await assert.rejects(f.profiles.start(f.clock.now() + 100), /unavailable/);
+    await assert.rejects(f.profiles.stop(), /did not stop/);
+    await f.c.ack('native-start');
+    assert.equal(f.restores(), 0, 'late start acknowledgement is not stop proof');
+    await f.c.ack('native-stop');
+    assert.equal(f.restores(), 1); assert.equal(f.c.gates['native-stop'].calls, 1);
+    const next = f.profiles.start(f.clock.now() + 100); await next; await f.profiles.cancel();
+    assert.equal(f.clock.pending(), 0);
   });
 }
 
+for (const operation of ['start', 'stop']) for (const side of ['before', 'after']) {
+  test(`relay ${operation} acknowledgement ${side === 'before' ? 'withheld' : 'delivered'} at cancellation cannot block cleanup`, async () => {
+    const f = fixture(), started = observe(f.profiles.start(f.clock.now() + 100));
+    for (const name of ['open', 'enable']) await f.c.ack(name);
+    if (operation === 'stop' || side === 'after') { await f.c.ack('relay-start'); await f.c.ack('online'); await f.c.ack('native-start'); }
+    await checkpoint();
+    if (operation === 'stop' && side === 'after') await f.c.ack('relay-stop');
+    await f.c.ack('native-stop');
+    const stopping = f.profiles.cancel(); await checkpoint();
+    await f.clock.advance(10); assert.equal(await stopping, true);
+    assert.equal(f.retirements(), 0); assert.ok(f.c.calls.includes('disconnect'));
+    await f.c.cleanup(); await started; assert.equal(f.clock.pending(), 0);
+  });
+}
 
-test('host deadline stops relay sampling while its start acknowledgement is missing', async () => {
-  const entered = Promise.withResolvers(), stopped = Promise.withResolvers(); let release;
-  const calls = [];
-  const f = fixture({ openSession: async () => ({ disconnect() { calls.push('disconnect'); }, post(method, callback) {
-    calls.push(method);
-    if (method === 'Profiler.start') { release = () => callback(null, {}); entered.resolve(); }
-    else { callback(null, { profile: {} }); if (method === 'Profiler.stop') stopped.resolve(); }
-  } }) });
-  const started = assert.rejects(f.profiles.start(Date.now() + 30), /cancelled/);
-  await entered.promise;
-  await Promise.race([stopped.promise, delay(1000).then(() => assert.fail('relay deadline did not stop sampling'))]);
-  assert.ok(calls.includes('disconnect')); assert.equal(f.retirements(), 0);
-  release(); await started;
+for (const stalled of [false, true]) test(`relay failure still joins ${stalled ? 'uncertain' : 'healthy'} native cleanup`, async () => {
+  const f = fixture(), started = f.profiles.start(f.clock.now() + 100);
+  await f.c.admit(); await started;
+  if (!stalled) await f.c.ack('native-stop');
+  const stopping = observe(f.profiles.cancel());
+  f.c.gates['relay-stop'].fail(); await checkpoint();
+  if (stalled) await f.clock.advance(10);
+  const result = await stopping;
+  assert.equal(f.retirements(), Number(stalled)); assert.ok(f.c.calls.includes('disconnect'));
+  if (stalled) { assert.match(result.error.message, /did not stop/); await f.c.ack('native-stop'); }
+  else assert.equal(result.value, true);
+  assert.equal(f.clock.pending(), 0);
 });
 
-test('host deadline retires a calculator without waiting for its native start acknowledgement', async () => {
-  const pending = Promise.withResolvers(); let stopped = 0;
-  const f = fixture({ stopTimeoutMs: 500, worker: { startCpuProfile: () => pending.promise } });
-  f.online.resolve();
-  const started = assert.rejects(f.profiles.start(Date.now() + 30), /cancelled|did not stop/);
-  try {
-    await delay(120);
-    assert.equal(f.retirements(), 1, 'deadline cleanup must not wait for the native handle');
-  } finally {
-    pending.resolve({ stop: async () => { stopped++; return {}; } });
-    await started;
-    await delay(5);
-    assert.equal(stopped, 1, 'a late native handle still receives stop');
-  }
-});
-
-for (const stage of ['Profiler.start', 'Profiler.stop']) test(`relay ${stage} acknowledgement cannot block deadline cleanup`, async () => {
-  const entered = Promise.withResolvers(); let release, disconnected = false;
-  const f = fixture({ openSession: async () => ({ disconnect() { disconnected = true; }, post(method, callback) {
-    if (method === stage) { release = () => callback(null, { profile: {} }); entered.resolve(); }
-    else callback(null, { profile: {} });
-  } }) });
-  f.online.resolve();
-  const started = f.profiles.start(Date.now() + 30).catch(() => {});
-  await entered.promise;
-  const stopping = f.profiles.cancel().catch(() => {});
-  try {
-    const completed = await Promise.race([Promise.all([started, stopping]).then(() => true), delay(150).then(() => false)]);
-    assert.equal(completed, true, 'capture cleanup must finish without an acknowledgement');
-    assert.equal(disconnected, true);
-    assert.equal(f.retirements(), 0);
-  } finally { release(); await started; await stopping; }
+test('invalid, expired and concurrent admissions are refused without disturbing ownership', async () => {
+  const f = fixture();
+  for (const deadline of [NaN, Infinity, f.clock.now(), f.clock.now() - 1]) await assert.rejects(f.profiles.start(deadline), /unavailable/);
+  const started = f.profiles.start(f.clock.now() + 100); await f.c.admit(); await started;
+  await assert.rejects(f.profiles.start(f.clock.now() + 100), /unavailable/);
+  await f.c.cleanup(); await f.profiles.cancel(); assert.equal(f.clock.pending(), 0);
 });

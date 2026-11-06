@@ -1,21 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { serialize, deserialize } from 'node:v8';
 import childProcesses from 'node:child_process';
-import { syncBuiltinESMExports } from 'node:module';
-import { EventEmitter } from 'node:events';
 import { ProcessWorker } from '../app/tasks/process-worker.mjs';
 import { encodeProcessMessage, decodeProcessMessage } from '../app/tasks/process-worker-transport.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 import { createDeepProfiles } from '../app/deep-profiles.mjs';
-import { mkdtemp, rm, readdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
+import { checkpoint, profile } from './helpers/process-lifecycle.mjs';
+import { adapterFixture, hostFixture } from './helpers/process-host.mjs';
 
 const definitions = {
   chunks: { '12341': {}, '12342': {} },
@@ -27,21 +25,26 @@ function sharedBytes(value) {
   Buffer.from(shared).set(bytes); return shared;
 }
 function waitFor(worker, predicate) {
-  return new Promise((resolve, reject) => {
+  const pending = new Promise((resolve, reject) => {
     const message = value => { if (predicate(value)) { cleanup(); resolve(value); } };
     const error = value => { cleanup(); reject(value); };
     const exit = () => error(new Error('Process exited before the expected response.'));
     const cleanup = () => { worker.off('message', message); worker.off('error', error); worker.off('exit', exit); };
     worker.on('message', message); worker.on('error', error); worker.on('exit', exit);
   });
+  // Several observations can be outstanding when a real witness fails. They
+  // still reject their callers, without secondary unhandled-rejection noise.
+  pending.catch(() => {}); return pending;
 }
 async function fixture(t, options = {}) {
+  t.diagnostic('phase: spawning real relay host and calculator');
   const world = buildWorld(definitions);
   const worker = new ProcessWorker(genericWorkerData({ definitionBytes: sharedBytes(JSON.stringify(definitions)),
     world: { chunks: world.chunks, surface: world.surface } }), options);
   t.after(() => worker.terminate());
   const [ready] = await once(worker, 'message');
   assert.equal(ready.type, 'ready'); assert.ok(ready.catalogue.length > 0);
+  t.diagnostic('phase: calculator ready');
   const state = createGroupState([{ id: 'player1', name: 'Player 1', unlocked: ['12341'] }]);
   let id = 0;
   return { worker, state, send: async request => {
@@ -75,7 +78,7 @@ test('process transport preserves shared aliases, cycles, views and native conta
 });
 
 test('uncloneable initialization values fail before spawning an owned child', () => {
-  assert.throws(() => new ProcessWorker({ invalid: () => {} }), { name: 'DataCloneError' });
+  assert.throws(() => new ProcessWorker({ invalid: () => {} }, { forkProcess() { assert.fail('must serialize before fork'); } }), { name: 'DataCloneError' });
 });
 
 test('isolated task worker compiles, evaluates, reuses shared state and requests missing snapshot resend', { timeout: 15000 }, async t => {
@@ -101,25 +104,10 @@ test('isolated task worker compiles, evaluates, reuses shared state and requests
   assert.equal(memory.pid, worker.pid); assert.ok(memory.main.rss > 0); assert.deepEqual(memory.workers, []);
 });
 
-// This test-only preload witnesses a host-local cancellation word during
-// synchronous worker work. Its memory listener uses the same diagnostic port
-// contract as the optional performance harness; no app worker code changes.
-const probeImport = `data:text/javascript;base64,${Buffer.from(`
-  import { parentPort, threadId } from 'node:worker_threads';
-  parentPort.on('message', message => {
-    if (message.memoryPort) {
-      message.memoryPort.postMessage({ threadId, memoryUsage: process.memoryUsage() }); message.memoryPort.close();
-    }
-    if (message.testWaitForCancellation) {
-      const flag = new Int32Array(message.cancellation), deadline = Date.now() + (message.testHoldMs ?? 4000);
-      parentPort.postMessage({ type: 'progress', id: message.id, testBlocked: true });
-      while (!Atomics.load(flag, 0) && Date.now() < deadline) Atomics.wait(flag, 0, 0, 20);
-      parentPort.postMessage({ type: 'progress', id: message.id, testCancellationObserved: !!Atomics.load(flag, 0) });
-    }
-  });
-`).toString('base64')}`;
+const probeImport = new URL('./fixtures/process-worker-probe.mjs', import.meta.url).href;
 
 test('cancel IPC updates the child-local SAB while its worker is synchronous; isolate memory can be probed', { timeout: 15000 }, async t => {
+  t.diagnostic('phase: real IPC witness starting');
   const { worker, state } = await fixture(t, { probeImport });
   const cancellation = new SharedArrayBuffer(4), id = 99;
   const blocked = waitFor(worker, message => message.id === id && message.testBlocked);
@@ -137,6 +125,7 @@ test('cancel IPC updates the child-local SAB while its worker is synchronous; is
 });
 
 test('terminate is idempotent and resolves only after its owned process exits', { timeout: 15000 }, async t => {
+  t.diagnostic('phase: real IPC witness starting');
   const { worker } = await fixture(t);
   const pid = worker.pid, exit = once(worker, 'exit');
   const first = worker.terminate(), second = worker.terminate(); assert.equal(first, second);
@@ -146,178 +135,6 @@ test('terminate is idempotent and resolves only after its owned process exits', 
   await assert.rejects(worker.getMemoryUsage(), /stopped/);
 });
 
-test('host deadline ends both captures without a parent stop command', { timeout: 10000 }, async t => {
-  const { worker } = await fixture(t);
-  const deadline = Date.now() + 300;
-  const handle = await worker.startCpuProfile({ deadline });
-  await delay(550);
-  const profile = await handle.stop();
-  for (const kind of ['calculator', 'relay']) {
-    const capture = typeof profile[kind] === 'string' ? JSON.parse(profile[kind]) : profile[kind];
-    assert.ok(capture.nodes.length > 0);
-    assert.ok(capture.endTime - capture.startTime < 500000, `${kind} capture must end at its local deadline`);
-  }
-  const next = await worker.startCpuProfile(); await next.stop();
-});
-
-test('expiry before the host observes online preserves the process and foreground work', { timeout: 10000 }, async t => {
-  const original = childProcesses.fork; let nativeStarts = 0;
-  const preload = `data:text/javascript;base64,${Buffer.from(`
-    import { Worker } from 'node:worker_threads';
-    const once = Worker.prototype.once, start = Worker.prototype.startCpuProfile;
-    Worker.prototype.once = function(event, listener) {
-      return once.call(this, event, event === 'online' ? (...args) => setTimeout(() => listener(...args), 5000) : listener);
-    };
-    Worker.prototype.startCpuProfile = function(...args) {
-      process.send({ kind: 'synthetic-native-start' }); return start.apply(this, args);
-    };
-  `).toString('base64')}`;
-  childProcesses.fork = (module, args, options) => {
-    const child = original(module, args, { ...options, execArgv: [...options.execArgv, '--import', preload] });
-    child.on('message', message => { if (message.kind === 'synthetic-native-start') nativeStarts++; });
-    return child;
-  };
-  syncBuiltinESMExports();
-  let f;
-  try { f = await fixture(t, { profileTimeoutMs: 200 }); }
-  finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-  let exits = 0; f.worker.on('exit', () => { exits++; });
-  for (let index = 0; index < 4; index++) {
-    const foreground = f.send({ type: 'evaluate' });
-    await assert.rejects(f.worker.startCpuProfile({ deadline: Date.now() + 80 }), /unavailable/);
-    assert.equal((await foreground).error, undefined);
-    assert.equal(exits, 0); assert.equal(f.worker.profileRetiring, undefined);
-  }
-  const cleaned = once(f.worker, 'profile-cleaned');
-  await assert.rejects(f.worker.startCpuProfile(), /unavailable/);
-  await cleaned;
-  assert.equal(exits, 0); assert.equal(f.worker.profileRetiring, undefined);
-  assert.equal(nativeStarts, 0);
-  assert.equal((await f.send({ type: 'evaluate' })).error, undefined);
-});
-
-for (const operation of ['start', 'stop']) test(`an uncertain native ${operation} retires the real host after foreground completion`, { timeout: 10000 }, async t => {
-  const original = childProcesses.fork;
-  const preload = `data:text/javascript;base64,${Buffer.from(`
-    import { Worker } from 'node:worker_threads';
-    const start = Worker.prototype.startCpuProfile;
-    Worker.prototype.startCpuProfile = function() {
-      if ('${operation}' === 'start') return new Promise(() => {});
-      return start.call(this).then(handle => ({ stop() { void handle.stop(); return new Promise(() => {}); } }));
-    };
-  `).toString('base64')}`;
-  childProcesses.fork = (module, args, options) => original(module, args, { ...options, execArgv: [...options.execArgv, '--import', preload] });
-  syncBuiltinESMExports();
-  let f;
-  try { f = await fixture(t, { probeImport, profileTimeoutMs: operation === 'stop' ? 5000 : 200 }); }
-  finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-  const retiring = once(f.worker, 'profile-retiring'), exited = once(f.worker, 'exit');
-  // A stop-uncertainty test begins with a confirmed native start. Starting
-  // while the synthetic isolate is blocked would also test start uncertainty.
-  let capture;
-  if (operation === 'stop') { capture = f.worker.startCpuProfile({ deadline: Date.now() + 1000 }); await capture; }
-  const id = 801, cancellation = new SharedArrayBuffer(4);
-  const blocked = waitFor(f.worker, message => message.id === id && message.testBlocked);
-  const completed = waitFor(f.worker, message => message.id === id && message.type !== 'progress');
-  f.worker.postMessage({ id, state: f.state, memberId: 'player1', cancellation, testWaitForCancellation: true, ...(operation === 'stop' ? { testHoldMs: 6000 } : {}) });
-  await blocked;
-  if (operation === 'start') capture = assert.rejects(f.worker.startCpuProfile({ deadline: Date.now() + 80 }), /unavailable/);
-  await retiring; assert.doesNotThrow(() => process.kill(f.worker.pid, 0));
-  await assert.rejects(f.worker.startCpuProfile(), /unavailable/);
-  await delay(2300);
-  assert.doesNotThrow(() => process.kill(f.worker.pid, 0), 'profiling must never kill a busy worker');
-  f.worker.postMessage({ type: 'cancel', id });
-  assert.equal((await completed).error, undefined);
-  await exited; await capture;
-});
-
-for (const operation of ['start', 'stop']) {
-  test(`late native ${operation} cleanup cancels retirement beyond the former kill deadline`, { timeout: 10000 }, async t => {
-    const original = childProcesses.fork;
-    const preload = `data:text/javascript;base64,${Buffer.from(`
-      import { Worker } from 'node:worker_threads';
-      const start = Worker.prototype.startCpuProfile, release = Promise.withResolvers();
-      process.on('message', message => { if (message.kind === 'synthetic-profile-release') release.resolve(); });
-      Worker.prototype.startCpuProfile = async function() {
-        if ('${operation}' === 'start') {
-          await release.promise; return { stop: async () => ({}) };
-        }
-        const handle = await start.call(this);
-        return { stop: async () => { const result = await handle.stop(); await release.promise; return result; } };
-      };
-    `).toString('base64')}`;
-    let child;
-    childProcesses.fork = (module, args, options) => child = original(module, args, { ...options, execArgv: [...options.execArgv, '--import', preload] });
-    syncBuiltinESMExports();
-    let f;
-    try { f = await fixture(t, { probeImport, profileTimeoutMs: 5000 }); }
-    finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-    const worker = f.worker, id = 803;
-    const blocked = waitFor(worker, message => message.id === id && message.testBlocked);
-    const completed = waitFor(worker, message => message.id === id && message.type !== 'progress');
-    worker.postMessage({ id, state: f.state, memberId: f.state.members[0].id, cancellation: new SharedArrayBuffer(4), testWaitForCancellation: true, testHoldMs: 6000 });
-    await blocked;
-    const retiring = once(worker, 'profile-retiring'), cleaned = once(worker, 'profile-cleaned');
-    const started = worker.startCpuProfile({ deadline: Date.now() + 1000 });
-    const capture = operation === 'start' ? assert.rejects(started, /unavailable/) : started;
-    await retiring;
-    await delay(500); child.send({ kind: 'synthetic-profile-release' });
-    await cleaned; await capture;
-    await delay(1100);
-    assert.equal(worker.profileRetiring, undefined);
-    assert.doesNotThrow(() => process.kill(worker.pid, 0));
-    worker.postMessage({ type: 'cancel', id }); assert.equal((await completed).error, undefined);
-    assert.equal((await f.send({ type: 'evaluate' })).error, undefined);
-  });
-}
-
-for (const acknowledgement of ['delayed', 'missing']) {
-  test(`${acknowledgement} start acknowledgement disables capture and late cleanup preserves foreground work`, { timeout: 10000 }, async t => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'profile-ack-'));
-    const profiles = await createDeepProfiles(dir);
-    const original = childProcesses.fork, captured = Promise.withResolvers(), cleaned = Promise.withResolvers();
-    let worker, deliverLate, deliverCleanup;
-    childProcesses.fork = (...args) => {
-      const child = original(...args), emit = child.emit.bind(child);
-      child.emit = (event, message, ...rest) => {
-        if (event === 'message' && message.kind === 'profile-cleaned') {
-          deliverCleanup = () => emit(event, message, ...rest); cleaned.resolve(); return true;
-        }
-        if (event === 'message' && message.kind === 'profile' && message.cancelled) return true;
-        if (event === 'message' && message.kind === 'profile' && !message.profile && !message.error) {
-          captured.resolve();
-          if (acknowledgement === 'delayed') deliverLate = () => emit(event, message, ...rest);
-          return true;
-        }
-        return emit(event, message, ...rest);
-      };
-      return child;
-    };
-    syncBuiltinESMExports();
-    let f;
-    try { f = await fixture(t, { probeImport, profileTimeoutMs: 1000 }); worker = f.worker; }
-    finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-    t.after(async () => { deliverCleanup?.(); await profiles.close(); await worker.terminate(); await rm(dir, { recursive: true, force: true }); });
-    profiles.attach(worker);
-    const started = profiles.start(60); await captured.promise;
-    const id = 802, blocked = waitFor(worker, message => message.id === id && message.testBlocked);
-    const completed = waitFor(worker, message => message.id === id && message.type !== 'progress');
-    worker.postMessage({ id, state: f.state, memberId: f.state.members[0].id, cancellation: new SharedArrayBuffer(4), testWaitForCancellation: true });
-    await blocked;
-    await cleaned.promise; await started; await profiles.stop();
-    assert.equal(profiles.status().active, false);
-    assert.equal(worker.profileRetiring, true);
-    deliverLate?.(); await delay(20);
-    assert.equal(worker.profileRetiring, true, 'a late start ack is not proof of cleanup');
-    deliverCleanup(); await delay(20);
-    assert.equal(worker.profileRetiring, undefined);
-    worker.postMessage({ type: 'cancel', id }); assert.equal((await completed).error, undefined);
-    assert.equal((await f.send({ type: 'evaluate' })).error, undefined);
-    assert.doesNotThrow(() => process.kill(worker.pid, 0));
-    assert.ok(profiles.status().failures > 0);
-  });
-}
-
 test('initialization failure forwards the worker error and leaves no child process', { timeout: 15000 }, async t => {
   const worker = new ProcessWorker({ definitions: null });
   t.after(() => worker.terminate());
@@ -326,58 +143,6 @@ test('initialization failure forwards the worker error and leaves no child proce
   await exited; assert.throws(() => process.kill(worker.pid, 0), { code: 'ESRCH' });
 });
 
-test('a host that ignores graceful termination is killed before retirement resolves', { timeout: 10000 }, async () => {
-  const original = childProcesses.fork, child = new EventEmitter(), signals = [];
-  child.pid = 123; child.connected = true;
-  child.send = (message, callback) => callback?.();
-  child.kill = signal => { signals.push(signal); if (signal === 'SIGKILL') child.emit('exit', null, signal); return true; };
-  childProcesses.fork = () => child; syncBuiltinESMExports();
-  try {
-    const worker = new ProcessWorker({ definitions });
-    let retired = false;
-    const retirement = worker.terminate().then(() => { retired = true; });
-    assert.equal(retired, false);
-    await retirement;
-    assert.equal(retired, true); assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
-  } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-});
-
-test('RSS telemetry validates samples and retains the last valid measurement without new reports', async () => {
-  const original = childProcesses.fork, child = new EventEmitter();
-  child.pid = 123; child.connected = true;
-  child.send = (_message, callback) => callback?.();
-  child.kill = () => { child.emit('exit', 0); return true; };
-  childProcesses.fork = () => child; syncBuiltinESMExports();
-  try {
-    const worker = new ProcessWorker({ definitions }, { trackRss: true });
-    child.emit('message', { kind: 'memory-rss', rssBytes: 200 });
-    assert.equal(worker.rssBytes, 200);
-    for (const rssBytes of [undefined, NaN, Infinity, -1, '0', 1.5]) {
-      child.emit('message', { kind: 'memory-rss', rssBytes });
-      assert.equal(worker.rssBytes, 200);
-    }
-    await new Promise(resolve => setImmediate(resolve));
-    assert.equal(worker.rssBytes, 200, 'a missing report keeps the last measurement');
-    child.emit('message', { kind: 'memory-rss', rssBytes: 100 });
-    assert.equal(worker.rssBytes, 100, 'a valid new sample can lower the measurement');
-    await worker.terminate({ force: true });
-  } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-});
-
-test('memory emergency upgrades an existing graceful retirement to immediate force-kill', async () => {
-  const original = childProcesses.fork, child = new EventEmitter(), signals = [];
-  child.pid = 123; child.connected = true;
-  child.send = (_message, callback) => callback?.();
-  child.kill = signal => { signals.push(signal); child.emit('exit', null, signal); return true; };
-  childProcesses.fork = () => child; syncBuiltinESMExports();
-  try {
-    const worker = new ProcessWorker({ definitions });
-    const retirement = worker.terminate();
-    assert.equal(worker.terminate({ force: true }), retirement);
-    assert.deepEqual(signals, ['SIGKILL'], 'emergency retirement does not wait for the graceful kill timer');
-    await retirement;
-  } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
-});
 
 // kill(pid, 0) also succeeds for Linux zombies. An orphan can have exited
 // without being reaped when a container's PID 1 does not collect children.
@@ -396,26 +161,31 @@ async function processHasExited(pid, { platform = process.platform, kill = proce
   return match[1] === 'Z' || match[1] === 'X';
 }
 
-test('orphan exit detection distinguishes live, stopped, zombie and missing processes', async () => {
-  const missing = Object.assign(new Error('missing'), { code: 'ESRCH' });
-  const denied = Object.assign(new Error('denied'), { code: 'EPERM' });
-  const gone = Object.assign(new Error('gone'), { code: 'ENOENT' });
-  const kill = () => {};
-  for (const state of ['R', 'S', 'D', 'T', 't', 'I', 'Z', 'X']) {
-    assert.equal(await processHasExited(123, { platform: 'linux', kill,
-      readStat: async () => `123 (name with ) and\nspaces) ${state} 1 2 3` }), ['Z', 'X'].includes(state), state);
-  }
-  for (const platform of ['linux', 'win32', 'darwin']) {
-    assert.equal(await processHasExited(123, { platform, kill: () => { throw missing; } }), true);
-    await assert.rejects(processHasExited(123, { platform, kill: () => { throw denied; } }), { code: 'EPERM' });
-  }
-  for (const platform of ['win32', 'darwin']) {
-    assert.equal(await processHasExited(123, { platform, kill, readStat: () => assert.fail('must not read /proc') }), false);
-  }
-  assert.equal(await processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw gone; } }), true);
-  assert.equal(await processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw missing; } }), true);
-  await assert.rejects(processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw denied; } }), { code: 'EPERM' });
-  await assert.rejects(processHasExited(123, { platform: 'linux', kill, readStat: async () => 'malformed' }), /process state/);
+const osError = code => Object.assign(new Error('Synthetic process metadata failure.'), { code });
+const orphanStates = [
+  ...['R', 'S', 'D', 'T', 't', 'I', 'Z', 'X'].map(state => ({
+    name: `Linux state ${state}`, platform: 'linux', expected: ['Z', 'X'].includes(state),
+    readStat: async () => `123 (name with ) and\nspaces) ${state} 1 2 3`,
+  })),
+  ...['linux', 'win32', 'darwin'].flatMap(platform => [
+    { name: `${platform} missing at existence check`, platform, killError: 'ESRCH', expected: true },
+    { name: `${platform} existence check denied`, platform, killError: 'EPERM', error: 'EPERM' },
+  ]),
+  ...['win32', 'darwin'].map(platform => ({ name: `${platform} live without proc metadata`, platform, expected: false })),
+  ...['ENOENT', 'ESRCH'].map(code => ({ name: `Linux opened-then-reaped (${code})`, platform: 'linux', statError: code, expected: true })),
+  { name: 'Linux metadata denied', platform: 'linux', statError: 'EPERM', error: 'EPERM' },
+  { name: 'Linux malformed metadata', platform: 'linux', readStat: async () => 'malformed', error: /process state/ },
+];
+for (const row of orphanStates) test(`orphan state: ${row.name}`, async () => {
+  const result = processHasExited(123, { platform: row.platform,
+    kill() { if (row.killError) throw osError(row.killError); },
+    readStat: row.readStat ?? (async () => {
+      if (row.statError) throw osError(row.statError);
+      assert.fail('this state must not open /proc metadata');
+    }),
+  });
+  if (row.error) await assert.rejects(result, typeof row.error === 'string' ? { code: row.error } : row.error);
+  else assert.equal(await result, row.expected);
 });
 
 test('an owned calculator exits when its parent disappears without calling terminate', { timeout: 15000 }, async t => {
@@ -432,9 +202,11 @@ test('an owned calculator exits when its parent disappears without calling termi
   });
   let workerPid;
   t.after(() => { if (parent.exitCode === null && parent.signalCode === null) parent.kill(); if (workerPid) try { process.kill(workerPid, 'SIGKILL'); } catch {} });
+  t.diagnostic('phase: waiting for owned parent/calculator ready');
   const [ready] = await once(parent, 'message'); workerPid = ready.workerPid;
   assert.ok(workerPid > 0); assert.doesNotThrow(() => process.kill(workerPid, 0));
   const exited = once(parent, 'exit'); parent.send({ stop: true }); await exited;
+  t.diagnostic('phase: parent exited; observing actual orphan state');
   const deadline = Date.now() + 5000;
   while (true) {
     if (await processHasExited(workerPid)) { workerPid = undefined; break; }
@@ -442,3 +214,218 @@ test('an owned calculator exits when its parent disappears without calling termi
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 });
+
+const observe = promise => promise.then(value => ({ value }), error => ({ error }));
+
+test('real native profiler and IPC return both valid captures and permit reuse', { timeout: 10000 }, async t => {
+  const { worker } = await fixture(t);
+  for (let index = 0; index < 2; index++) {
+    t.diagnostic(`phase: real native start ${index + 1}`);
+    const handle = await worker.startCpuProfile();
+    t.diagnostic(`phase: real native stop ${index + 1}`);
+    const result = await handle.stop();
+    for (const kind of ['calculator', 'relay']) {
+      const capture = typeof result[kind] === 'string' ? JSON.parse(result[kind]) : result[kind];
+      assert.ok(capture.nodes.length > 0, `${kind} has native profile nodes`);
+      assert.ok(capture.endTime >= capture.startTime, `${kind} has a valid time span`);
+    }
+  }
+});
+
+test('host deadline stops both captures before any parent stop request', async t => {
+  const f = hostFixture(t), started = f.worker.startCpuProfile({ deadline: f.clock.now() + 100 });
+  await f.admit(); const handle = await started;
+  await f.c.ack('relay-stop'); await f.c.ack('native-stop');
+  await f.clock.advance(100);
+  assert.equal(f.inbound.filter(m => m.operation === 'stop').length, 0);
+  assert.equal(f.c.gates['relay-stop'].calls, 1); assert.equal(f.c.gates['native-stop'].calls, 1);
+  assert.deepEqual(await handle.stop(), { calculator: profile, relay: profile });
+  const next = await f.worker.startCpuProfile(); await next.stop(); assert.deepEqual(f.exits, []);
+});
+
+test('expiry before worker-online preserves foreground and repeated capture admission', async t => {
+  const f = hostFixture(t);
+  f.worker.postMessage({ id: 1, type: 'evaluate' });
+  for (let index = 0; index < 4; index++) {
+    const started = observe(f.worker.startCpuProfile({ deadline: f.clock.now() + 100 }));
+    for (const stage of ['open', 'enable', 'relay-start', 'relay-stop']) await f.c.ack(stage);
+    await f.clock.advance(100);
+    assert.match((await started).error.message, /unavailable/);
+    assert.equal(f.c.gates['native-start'].calls, 0);
+    assert.equal(f.worker.profileRetiring, undefined); assert.deepEqual(f.exits, []);
+  }
+  f.complete(); f.online();
+  const next = f.worker.startCpuProfile(); await f.c.cleanup(); await (await next).stop();
+  assert.deepEqual(f.exits, []);
+});
+
+test('parent timeout before worker-online proves cleanup without retiring foreground', async t => {
+  const f = hostFixture(t), started = observe(f.worker.startCpuProfile());
+  f.worker.postMessage({ id: 1, type: 'evaluate' });
+  for (const stage of ['open', 'enable', 'relay-start', 'relay-stop']) await f.c.ack(stage);
+  await f.clock.advance(200);
+  assert.match((await started).error.message, /unavailable/);
+  assert.equal(f.c.gates['native-start'].calls, 0); assert.equal(f.c.gates['relay-stop'].calls, 1);
+  assert.equal(f.worker.profileRetiring, undefined); assert.deepEqual(f.exits, []);
+  f.complete(); f.online(); await checkpoint(); assert.deepEqual(f.exits, []);
+});
+
+for (const operation of ['start', 'stop']) for (const lateCleanup of [false, true]) {
+  test(`native ${operation} uncertainty ${lateCleanup ? 'restores on late stop proof' : 'retires after foreground-complete'}`, async t => {
+    const f = hostFixture(t);
+    f.worker.postMessage({ id: 1, type: 'evaluate' });
+    const started = observe(f.worker.startCpuProfile({ deadline: f.clock.now() + 100 }));
+    for (const name of ['open', 'enable', 'relay-start']) await f.c.ack(name);
+    f.online(); await checkpoint();
+    assert.equal(f.c.gates['native-start'].calls, 1, 'phase: request-issued before deadline');
+    if (operation === 'stop') await f.c.ack('native-start');
+    await f.c.ack('relay-stop'); await f.clock.advance(100);
+    if (operation === 'stop') await f.clock.advance(10);
+    assert.equal(f.worker.profileRetiring, true);
+    assert.deepEqual(f.exits, [], 'uncertainty cannot retire foreground work');
+    await assert.rejects(f.worker.startCpuProfile(), /unavailable/);
+    await f.clock.advance(2500);
+    assert.deepEqual(f.exits, [], 'no former kill deadline may retire foreground work');
+    if (lateCleanup) {
+      await f.c.ack('native-start');
+      assert.equal(f.worker.profileRetiring, true, 'start-ack is not stop proof');
+      await f.c.ack('native-stop'); assert.equal(f.worker.profileRetiring, undefined);
+    }
+    const completed = once(f.worker, 'message'); f.complete();
+    assert.equal((await completed)[0].id, 1);
+    await checkpoint();
+    assert.equal(f.exits.length, Number(!lateCleanup));
+    const result = await started;
+    if (operation === 'start') assert.match(result.error.message, /unavailable/);
+    else assert.equal(result.error, undefined);
+    if (lateCleanup) {
+      f.worker.postMessage({ id: 2, type: 'evaluate' }); f.complete(2);
+      const next = await f.worker.startCpuProfile(); await next.stop(); assert.deepEqual(f.exits, []);
+    }
+  });
+}
+
+for (const acknowledgement of ['delayed', 'missing']) {
+  test(`${acknowledgement} start-ack disables capture; only cleanup proof restores foreground`, async t => {
+    let held;
+    const f = hostFixture(t, { drop(message) {
+      if (message.kind === 'profile' && !message.error && !message.profile) { held = message; return true; }
+      return message.kind === 'profile-cleaned' || message.cancelled;
+    } });
+    f.worker.postMessage({ id: 1, type: 'evaluate' });
+    const started = observe(f.worker.startCpuProfile()); await f.admit();
+    assert.ok(held, 'phase: start-ack held after actual host acknowledgement');
+    await f.c.ack('relay-stop'); await f.c.ack('native-stop');
+    await f.clock.advance(200);
+    assert.match((await started).error.message, /unavailable/);
+    assert.equal(f.worker.profileRetiring, true); assert.deepEqual(f.exits, []);
+    if (acknowledgement === 'delayed') f.child.emit('message', held);
+    await checkpoint(); assert.equal(f.worker.profileRetiring, true);
+    f.child.emit('message', { kind: 'profile-cleaned' }); await checkpoint();
+    assert.equal(f.worker.profileRetiring, undefined);
+    f.complete(); await checkpoint(); assert.deepEqual(f.exits, []);
+    assert.equal(f.c.gates['native-stop'].calls, 1); assert.equal(f.c.gates['relay-stop'].calls, 1);
+  });
+}
+
+test('cancelled profile reply never publishes a profile or grants a capture handle', async t => {
+  const f = adapterFixture(t), started = observe(f.worker.startCpuProfile());
+  const request = f.sent.find(message => message.operation === 'start');
+  f.reply({ kind: 'profile', id: request.id, cancelled: true, error: true, profile: { calculator: profile, relay: profile } });
+  assert.match((await started).error?.message ?? '', /unavailable/);
+  assert.equal(f.sent.filter(message => message.operation === 'stop').length, 0);
+});
+
+test('cancelled calculator and relay profiles never reach published storage', { timeout: 10000 }, async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'cancelled-profile-'));
+  const f = adapterFixture(t), profiles = await createDeepProfiles(directory);
+  t.after(async () => { await profiles.close(); await rm(directory, { recursive: true, force: true }); });
+  f.child.on('request-issued', message => {
+    if (message.kind !== 'profile') return;
+    f.reply({ kind: 'profile', id: message.id, ...(message.operation === 'stop'
+      ? { cancelled: true, error: true, profile: { calculator: profile, relay: profile } } : {}) });
+  });
+  profiles.attach(f.worker);
+  await profiles.start(); await profiles.stop();
+  const published = await profiles.list();
+  assert.equal(published.filter(entry => /-(calculator|relay)\./.test(entry.name)).length, 0,
+    'cancelled worker bytes must never be published');
+  assert.ok(published.some(entry => /-picker\./.test(entry.name)), 'real picker capture is still published');
+  assert.ok(profiles.status().failures > 0); assert.equal(profiles.status().active, false);
+});
+
+test('graceful escalation issues SIGTERM then SIGKILL and joins exit exactly once', async t => {
+  const f = adapterFixture(t);
+  f.child.kill = signal => { f.signals.push(signal); if (signal === 'SIGKILL') f.child.emit('exit', null, signal); };
+  let retired = false;
+  const retirement = f.worker.terminate(); assert.equal(retirement, f.worker.terminate());
+  void retirement.then(() => { retired = true; });
+  await f.clock.advance(999); assert.equal(retired, false); assert.deepEqual(f.signals, []);
+  await f.clock.advance(1); assert.deepEqual(f.signals, ['SIGTERM']); assert.equal(retired, false);
+  await f.clock.advance(1000); await retirement;
+  assert.deepEqual(f.signals, ['SIGTERM', 'SIGKILL']); assert.equal(retired, true); assert.equal(f.clock.pending(), 0);
+});
+
+test('real forced kill joins the owned host exit', { timeout: 10000 }, async t => {
+  const { worker } = await fixture(t), pid = worker.pid;
+  t.diagnostic('phase: owned host ready; sending SIGKILL');
+  const exit = once(worker, 'exit'), retirement = worker.terminate({ force: true });
+  assert.equal(await retirement, (await exit)[0]);
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+});
+
+test('RSS samples retain the last valid measurement, including decreases', async t => {
+  const f = adapterFixture(t);
+  f.reply({ kind: 'memory-rss', rssBytes: 200 }); assert.equal(f.worker.rssBytes, 200);
+  for (const rssBytes of [undefined, NaN, Infinity, -1, '0', 1.5]) {
+    f.reply({ kind: 'memory-rss', rssBytes }); assert.equal(f.worker.rssBytes, 200);
+  }
+  await f.clock.advance(500); assert.equal(f.worker.rssBytes, 200);
+  f.reply({ kind: 'memory-rss', rssBytes: 100 }); assert.equal(f.worker.rssBytes, 100);
+});
+
+test('memory emergency upgrades graceful retirement to immediate force-kill', async t => {
+  const f = adapterFixture(t), retirement = f.worker.terminate();
+  assert.equal(f.worker.terminate({ force: true }), retirement);
+  assert.deepEqual(f.signals, ['SIGKILL']); await retirement; assert.equal(f.clock.pending(), 0);
+});
+
+test('parent IPC disappearance stops the owned host even during foreground work', async t => {
+  const f = hostFixture(t);
+  f.worker.postMessage({ id: 1, type: 'evaluate' });
+  f.parent.connected = false; f.parent.emit('disconnect'); await checkpoint();
+  assert.deepEqual(f.exits, [0], 'orphan shutdown must stop the owned host');
+});
+
+const hostTransitions = [
+  ['relay-ready', async f => { for (const name of ['open', 'enable', 'relay-start']) await f.c.ack(name); }],
+  ['worker-online', async f => { f.online(); await checkpoint(); }],
+  ['request-issued', async f => { assert.equal(f.c.gates['native-start'].calls, 1); }],
+  ['start-ack', f => f.c.ack('native-start')],
+  ['deadline', f => f.clock.advance(100)],
+  ['stop-ack', async f => { await f.c.ack('relay-stop'); await f.c.ack('native-stop'); }],
+  ['foreground-complete', async f => { f.complete(); await checkpoint(); }],
+];
+for (const [index, [phase]] of hostTransitions.entries()) for (const side of ['before', 'after']) {
+  test(`host cancellation ${side} ${phase} joins acknowledgements without losing foreground`, async t => {
+    const f = hostFixture(t);
+    f.worker.postMessage({ id: 1, type: 'evaluate' });
+    const started = observe(f.worker.startCpuProfile({ deadline: f.clock.now() + 100 }));
+    await checkpoint();
+    for (const [, transition] of hostTransitions.slice(0, index + Number(side === 'after'))) await transition(f);
+    const issued = f.c.gates['native-start'].calls;
+    f.parent.emit('message', { kind: 'profile', operation: 'cancel', id: 'cancel-proof' });
+    await checkpoint(); await f.c.cleanup();
+    assert.equal(f.c.gates['native-start'].calls, issued, 'cancel cannot admit new native work');
+    assert.equal(f.c.gates['native-stop'].calls, issued, 'every issued native handle is stopped');
+    assert.equal(f.worker.profileRetiring, undefined, 'late cleanup restores the adapter');
+    assert.deepEqual(f.exits, [], 'cancel and late acknowledgement preserve foreground');
+    if (!(phase === 'foreground-complete' && side === 'after')) f.complete();
+    await checkpoint(); await started;
+    assert.deepEqual(f.exits, []); assert.equal(f.clock.pending(), 0);
+    if (issued && index + Number(side === 'after') < 4) {
+      assert.ok(f.outbound.some(message => message.kind === 'profile-retiring'), 'missing native start-ack reports uncertainty');
+      assert.ok(f.outbound.some(message => message.kind === 'profile-cleaned'), 'late stop-ack proves cleanup');
+    } else assert.ok(f.outbound.some(message => message.id === 'cancel-proof' && message.cancelled), 'cancel acknowledged');
+  });
+}
