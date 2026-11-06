@@ -9,26 +9,50 @@ The inline Why loader previously requested full tasks plus full definitions
 before calling `explainTask`. It now first reads
 `/api/task-why?view=display-v1` for one task, member and exact revision. The
 existing Why-chain API keeps its original format. How already uses a separate
-per-task API and needs no change.
+per-task API; both explanation controls now share an exact-revision cache guard.
 
 The display carries only inputs used by `explainTask`, including the original
 set-standing and needed-for-chain algorithms and their order. Rule descriptions
 and location labels still come from the same browser models. Saved gzip
 evidence is preferred; otherwise a writer reads an existing foreground or duo
-calculator snapshot through normal picker-scoped scheduler admission. A miss
-does not evaluate tasks or create a lane. A viewer never requests a worker.
+calculator snapshot through picker-scoped scheduler admission. The pool operation
+can borrow only an existing ready, idle physical calculator. Busy, retiring and
+absent calculators return unavailable immediately, without allocator/wake-queue
+admission. A miss does not evaluate tasks or create a lane. A viewer never
+requests a worker.
 
 The UTF-8 JSON envelope is capped at 65,536 bytes before IPC/HTTP. Missing or
 oversized evidence falls back to the previous full-details loader without
 truncation. Sandbox keeps that loader. HTTP and browser guards reject a changed
-revision/member/scope; the Why display cache only paints an exact revision.
+revision/member/scope; Why and How only paint an exact cached revision.
 
-There is no new worker cache or retained projection index. The temporary
-dependency index uses a request-local wrapper, so it cannot extend a snapshot's
-lifetime or add an uncharged index to it. Successful scheduler replies are
-charged by serialized bytes to its existing response cache; misses are not
-cached. Existing snapshot ledger quotas, per-picker keys, fairness and process
-isolation remain in place. Normal list payloads are unchanged.
+Saved display and Why-chain reads share an explicit context-owned parse cache.
+It reserves `1024 + 32 * decodedBytes + compressedBackingBytes` before decoding,
+inside the existing 48 MiB HTTP response-cache quota. This is a conservative
+ownership charge, not an RSS measurement. A gzip trailer provides the admission
+size; bounded native output and decoded-length validation reject forged sizes.
+The general decoded limit is 1 MiB; writer display reads admit at most 256 KiB,
+and saved Why-chain reads admit at most 2,048 task rows.
+Invalidation clears timers and references on replacement, revision rebind,
+eviction, expiry, deletion fence and close. Native in-flight decodes remain
+pinned and charged until settlement; context close awaits that drain.
+
+Traversal and allocation admission precede dependency-index construction, Set
+scans and sorting. Writer display derivation admits at most 128 rows, 32,768
+work units and a 512 KiB allocation estimate; isolated calculators admit at most
+20,000 rows, 400,000 work units and an 8 MiB estimate. Work includes visited
+strings, dependencies, blockers, diagnostics and worst-case dependent sorts.
+Related-label output is bounded before mapping it. UTF-8/JSON escape counting
+checks the envelope without allocating its serialization; oversized arrays and
+strings are rejected by length before walking/copying them. Only matching boss
+gates and the four gate fields consumed by the explanation are projected, using
+the same gate selector as the full answer. Budget exhaustion returns unavailable
+without truncation and leaves the full loader available.
+
+There is no new worker cache or reusable projection index. The bounded index is
+request-local. Successful scheduler replies are charged to its existing response
+cache; misses are not cached. Snapshot ledger quotas, per-picker keys, fairness,
+process isolation and normal list payloads are unchanged.
 
 ## Verification gates
 
@@ -44,6 +68,11 @@ Declared before execution:
 - A hard 64 KiB envelope, no unrelated-catalogue growth, no added list fields,
   no full evaluation on a per-task miss, and picker isolation under colliding
   member/revision/input values.
+- Shared parse-ledger admission/release, pinned native decodes, and WeakRef/GC
+  collection while the owner remains reachable. GC is enabled only by this
+  test's subprocess configuration. Both stale explanation controls are covered.
+- Deterministic work/allocation counters for large unrelated graphs and oversized
+  projections, plus a resident logical lane whose physical calculator has retired.
 - Count gzip-accepted HTTP response-body bytes with the raw HTTP client and
   count calls. Separately report exact raw/gzip JSON sizes for the larger
   synthetic catalogue. Headers/TLS and live-site latency are outside the metric.
@@ -71,22 +100,22 @@ full supplement by a few bytes between runs. The final passing run measured:
 
 | Group | Member | Full supplement: 2 calls | Per task: 1 call |
 | --- | --- | ---: | ---: |
-| Off | one | 11,266 bytes | 4,378 bytes |
-| Off | two | 11,423 bytes | 4,366 bytes |
-| On | one | 11,437 bytes | 4,323 bytes |
-| On | two | 11,540 bytes | 4,339 bytes |
+| Off | one | 11,271 bytes | 337 bytes |
+| Off | two | 11,425 bytes | 335 bytes |
+| On | one | 11,437 bytes | 277 bytes |
+| On | two | 11,541 bytes | 285 bytes |
 
-Earlier runs that reached these assertions measured full supplements of
-11,265/11,424/11,447/11,552 bytes in the same order; per-task bytes were
-identical. Their later harness failures are described below. No byte sample is
-used as a wall-time measurement or as a production-size estimate.
+Projecting only matching boss gates removes unrelated gate/gear data from this
+fixture while preserving the explanation. No byte sample is used as a wall-time
+measurement or as a production-size estimate.
 
 ## Verification results
 
-All 64 distinct focused tests pass across the appropriate dataset runs:
-7 projection/loader/cache/size tests, 2 real HTTP cases, 7 picker-isolation
-tests, 4 selected scheduler tests, 7 existing Why component tests, 35 existing
-Why-chain/How UI tests, and 2 selected browser-controller tests. The HTTP
+All 87 distinct focused tests pass across the appropriate dataset runs:
+9 projection/loader/cache/budget tests, 2 real HTTP cases, 7 picker-isolation
+tests, 6 selected scheduler tests, 7 existing Why component tests, 36
+Why-chain/How UI tests, 10 HTTP-response tests, 3 saved-evidence owner tests,
+6 task-provenance tests and 1 selected context-close test. The HTTP
 cases each cover both members and include the old fallback and a save landing
 during a worker read. The projection matrix compares 40 complete explanation
 objects and rendered line order. `git diff --check` passes.
@@ -112,8 +141,9 @@ command. No production save or fixed picker port is needed. Set
 
 ```sh
 node --test --test-concurrency=1 tests/task-why-display.test.mjs tests/task-why-display-server.test.mjs tests/worker-picker-keys.test.mjs tests/task-why.test.mjs
-node --test --test-concurrency=1 --test-name-pattern="Why reads|shared cache quotas|duo lane validates|claim display revisions" tests/scheduler.test.mjs
-node --test --test-concurrency=1 --test-name-pattern="viewer Why|actual task dialog shows" tests/web-browser.test.mjs
+node --test --test-concurrency=1 tests/saved-why-evidence.test.mjs tests/http-response.test.mjs
+node --test --test-concurrency=1 --test-name-pattern="Why|shared cache quotas|duo lane validates|claim display revisions" tests/scheduler.test.mjs
+node --test --test-concurrency=1 --test-name-pattern="deferred owned context eviction" tests/picker-calculator-cap.test.mjs
 ```
 
 With the inherited/default dataset, the existing Why-chain and How UI checks
@@ -121,6 +151,7 @@ use their original synthetic fixtures:
 
 ```sh
 node --test --test-concurrency=1 tests/task-why-chain.test.mjs tests/task-how-ui.test.mjs
+node --test --test-concurrency=1 tests/task-provenance.test.mjs
 ```
 
 Exploratory runs exposed harness errors, retained here rather than counted as
@@ -132,3 +163,7 @@ that precedes full details in the UI. The browser probe initially clicked a
 hover-only control before moving the pointer onto its row. The corrected runs
 remove environment overrides, use the appropriate dataset/rules, settle the
 compact list, and hover before clicking. Test timeouts are not latency samples.
+The first bounded-work run also rejected valid fixture answers because its
+preflight included entire unrelated boss-gate gear records. The final projection
+uses the shared matching-gate selector and bounded UTF-8/escape counting; all
+HTTP, worker-isolation and browser assertions then pass.

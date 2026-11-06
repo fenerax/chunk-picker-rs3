@@ -6,7 +6,7 @@ import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
-import { savedWhyChain, savedWhyDisplay, validateWhyDisplay, forgetSavedWhyChain } from './task-why-http.mjs';
+import { savedWhyChain, savedWhyDisplay, validateWhyDisplay, forgetSavedWhyChain, createSavedWhyEvidence } from './task-why-http.mjs';
 import { verifyDatasetBinding } from './dataset-binding.mjs';
 import { snapshotStore, withStoreWrite } from './storage/snapshot.mjs';
 import { startupPhase } from './startup-timing.mjs';
@@ -275,6 +275,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   const gzipFullStateParts = process.env.RS3_FULL_STATE_GZIP_PARTS === '1';
   const responseBudget = 48 * 1024 * 1024;
   const responseCache = createResponseCache({ maxEntries: 32, maxBytes: responseBudget });
+  const savedWhyEvidence = createSavedWhyEvidence({ cache: responseCache });
   const stateResponseBuilds = createStateResponseBuilds();
   const stateResponses = new Set();
   const stateResponseLeases = createResponseLeases({ maxBytes: responseBudget });
@@ -402,6 +403,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   // Preserve completed bytes while calculators sleep. Viewers only read these;
   // they never touch scheduler admission, cache LRU, prewarming or worker timers.
   const savedTaskResults = new Map();
+  function clearSavedTaskResults() {
+    for (const entry of savedTaskResults.values()) forgetSavedWhyChain(entry);
+    savedTaskResults.clear();
+  }
   const retainedFullBytes = row => row.fullGzip?.length ?? 0;
   const taskFingerprint = () => calculationState().input;
   let savedTaskFingerprint = store.getCalculationSnapshot().taskInputKey;
@@ -447,6 +452,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       ...(evaluation.duoSidebarJSON ? { duoSidebarJSON: evaluation.duoSidebarJSON } : {}) };
     entry.bytes = ['playJSON', 'duoJSON', 'duoSidebarJSON', 'duoInspectionJSON'].reduce((sum, key) => sum + (entry[key]?.length ?? 0), 0);
     rebindTaskRevision(entry, revision);
+    if (previous) forgetSavedWhyChain(previous);
     savedTaskResults.delete(memberId);
     if (entry.bytes > 32 * 1024 * 1024 && entry.duoInspectionJSON) {
       entry.bytes -= entry.duoInspectionJSON.length; delete entry.duoInspectionJSON;
@@ -459,7 +465,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (row.duoInspectionJSON) { row.bytes -= row.duoInspectionJSON.length; delete row.duoInspectionJSON; }
     }
     while (savedTaskResults.size > 8 || [...savedTaskResults.values()].reduce((sum, result) => sum + result.bytes, 0) > 32 * 1024 * 1024) {
-      savedTaskResults.delete(savedTaskResults.keys().next().value);
+      const key = savedTaskResults.keys().next().value;
+      forgetSavedWhyChain(savedTaskResults.get(key)); savedTaskResults.delete(key);
     }
     // Full-detail retention never evicts the task list for another player.
     for (const result of savedTaskResults.values()) {
@@ -789,7 +796,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     if (choicesChanged || !taskResultsUnchanged) preparedOffers.clear();
     if (taskResultsUnchanged) {
       for (const entry of savedTaskResults.values()) rebindTaskRevision(entry, revision);
-    } else { savedTaskResults.clear(); lastClaimCheckKey = undefined; }
+    } else { clearSavedTaskResults(); lastClaimCheckKey = undefined; }
     savedTaskFingerprint = gameplay;
     poolRanking.sync(gameplay);
     knownTaskMembers = new Set(calculationState().metadata.members.map(member => member.id));
@@ -1021,7 +1028,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const revision = store.getInfo().revision;
               validateWhyDisplay(query, { revision, members: knownTaskMembers });
               let display = await savedWhyDisplay(query, { revision, entry: savedTaskResults.get(query.get('memberId')),
-                currentRevision: () => store.getInfo().revision });
+                currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence });
               if (!display && !identity.readOnly && taskWorker?.supports('why-task')) {
                 const captured = calculationState(), controller = new AbortController();
                 const disconnected = () => { if (!response.writableEnded) controller.abort(); };
@@ -1040,7 +1047,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               await json(request, response, 200, display); return;
             }
             await json(request, response, 200, await savedWhyChain(query, { revision: store.getInfo().revision, members: knownTaskMembers,
-              entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision })); return;
+              entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence })); return;
           }
           if (route === '/api/tasks' && identity.readOnly) { await readSavedTasks(request, response); return; }
           if (route === '/api/backlog-search') {
@@ -1149,6 +1156,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               startupWarmup: startupWarmup?.diagnostics() ?? { status: 'disabled' },
               idleGc: idleMemory.diagnostics(),
               viewerTaskCache: { entries: savedTaskResults.size,
+                parsedEvidence: savedWhyEvidence.stats(),
                 playBytes: [...savedTaskResults.values()].reduce((sum, row) => sum + row.bytes, 0),
                 fullCompressedBytes: [...savedTaskResults.values()].reduce((sum, row) => sum + retainedFullBytes(row), 0) },
               responseCache: { entries: responseCache.size, bytes: responseCache.bytes }, staticCache: { entries: runtime.staticCache.size, bytes: runtime.staticCache.bytes } }); return;
@@ -2081,7 +2089,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     pickerId, store,
     getRetentionCounts: () => ({ requests: requests.size, jobs: jobs.size, bodies: bodyRequests.size,
       clients: clients.size + clientCredentials.size, responses: responseCache.size, responseBytes: responseCache.bytes,
-      savedResults: savedTaskResults.size, readiness: readinessPrepared ? 1 : 0, store: store ? 1 : 0 }),
+      savedResults: savedTaskResults.size, parsedEvidence: savedWhyEvidence.stats().entries,
+      parsedEvidenceBytes: savedWhyEvidence.stats().bytes, readiness: readinessPrepared ? 1 : 0, store: store ? 1 : 0 }),
     withEmptyDefault(work) {
       return serializeMutation(() => {
         if (closed || store.getInfo().revision !== 0) throw httpError(409, 'This sign-in already has gameplay.');
@@ -2098,6 +2107,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     },
     fenceDeletion() {
       closed = true;
+      void savedWhyEvidence.close();
       stateResponseBuilds.close();
       for (const response of stateResponses) response.destroy();
       // These sockets belong only to the fenced picker. Do not let unfinished
@@ -2218,6 +2228,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     close() {
       if (closePromise) return closePromise;
       closed = true;
+      const evidenceClosed = savedWhyEvidence.close();
       stateResponseBuilds.close();
       for (const response of stateResponses) response.destroy();
       idleMemory.close();
@@ -2243,8 +2254,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), gamePlugin.close()]);
         progressClient.close(); originalSyncClient?.close();
         while (jobs.size) await Promise.allSettled([...jobs]);
+        await evidenceClosed;
         stateResponseBuilds.clear(); responseCache.clear(); sandboxPools.clear(); rollPoolCache = undefined;
-        poolRanking.clear(); rankingPools.clear(); savedTaskResults.clear(); preparedOffers.clear();
+        poolRanking.clear(); rankingPools.clear(); clearSavedTaskResults(); preparedOffers.clear();
         runeMetricsPreviews.clear(); originalSyncPreviews.clear();
         identityLookup = undefined; calculationSnapshot = undefined;
         trainingSourceIndex = undefined; bankingRouteProvider = undefined;

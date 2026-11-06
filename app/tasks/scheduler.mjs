@@ -396,8 +396,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
         return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, [], resultView, stateInput, false, pickerId);
       }
       if (type === 'why-task') {
-        const read = lane => lane?.getHealth().resident && lane.supports(type)
-          ? lane.evaluate(state, memberId, type, chunkId, key, input, signal, [], resultView, stateInput, false, pickerId)
+        const read = lane => lane
+          ? lane.readSnapshot(state, memberId, chunkId, key, input, signal, stateInput, pickerId)
           : Promise.resolve({ result: { unavailable: true } });
         return read(foreground).then(value => {
           // Group peers may have been evaluated on the existing duo lane.
@@ -784,6 +784,19 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return;
     }
     if (calculatorPool) {
+      const candidates = queue.length ? queue : warmQueue;
+      const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
+      const next = candidates.find(entry => entry.pickerId === id) ?? candidates[0];
+      if (next?.type === 'why-task') {
+        if (!worker.tryReadSnapshot(next.pickerId, () => {
+          sentSnapshots = worker.snapshotHints;
+          dispatch(fairness ? fairTake() : queue.shift());
+        })) {
+          settle(next, undefined, { result: { unavailable: true } });
+          pump();
+        }
+        return;
+      }
       worker.schedule(() => {
         if (closed || status !== 'ready' || active) return;
         // Expired optional work must not hide another picker's warm queue.
@@ -1099,6 +1112,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       const stored = storeEvaluation(JSON.stringify(['play-v1', pickerKey(pickerId, key)]), revision, 'evaluate', cachedPlayValue(value), pickerId);
       if (stored) counts.promoted++;
       return stored;
+    },
+    readSnapshot(state, memberId, taskId, key, input, signal, stateInput, pickerId) {
+      if (closed || status !== 'ready' || !worker || worker.profileRetiring || !supported.has('why-task') || active || queue.length || warmQueue.length)
+        return Promise.resolve({ result: { unavailable: true } });
+      return scheduler.evaluate(state, memberId, 'why-task', taskId, key, input, signal, [], 'full', stateInput, false, pickerId);
     },
     evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false, pickerId = 'legacy-shared') {
       counts.requested++;

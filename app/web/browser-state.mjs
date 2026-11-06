@@ -1,5 +1,11 @@
 const projections = new WeakMap();
 
+// Explanation answers must never paint a provisional answer from another save.
+export function exactExplanationEntry(cache, view, key, revision) {
+  const entry = cache?.peek(view, key, revision);
+  return entry?.revision === revision ? entry : undefined;
+}
+
 /** Migration evidence belongs to durable saves and import details, not display state. */
 function browserProvenance(provenance) {
   if (!provenance || typeof provenance !== 'object') return provenance;

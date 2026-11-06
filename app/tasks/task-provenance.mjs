@@ -78,6 +78,12 @@ export function taskExplanation(task, result) {
   return [task.explanation, ...taskWarnings(task, result).map(reason => reason.detail)].filter(Boolean).join(' ');
 }
 
+/** Gate selection shared by the full explanation and its bounded evidence read. */
+export function taskBossGates(task, result) {
+  const monsters = new Set([task.monster, ...list(task.record?.Monsters), ...(task.sources ?? []).filter(source => source.kind === 'drop' || source.kind === 'monster').map(source => source.source ?? source.name)].filter(Boolean).map(plain));
+  return (result.bossGates ?? []).filter(status => status.monsters.some(monster => monsters.has(monster)));
+}
+
 /**
  * describeRule(id) returns { label, section, on, source } for a rule the Rules
  * screen knows, or undefined for tags that are not player-facing rules.
@@ -103,8 +109,7 @@ export function explainTask(task, { result = { tasks: [] }, describeRule = () =>
 
   // A boss task reaches the list only once that boss's gate is open; a task
   // still waiting on a closed gate says what the gate needs.
-  const monsters = new Set([task.monster, ...list(record.Monsters), ...(task.sources ?? []).filter(source => source.kind === 'drop' || source.kind === 'monster').map(source => source.source ?? source.name)].filter(Boolean).map(plain));
-  const gates = (result.bossGates ?? []).filter(status => status.monsters.some(monster => monsters.has(monster)));
+  const gates = taskBossGates(task, result);
   const gate = gates.find(status => status.open) ?? (task.status === 'available' ? undefined : gates[0]);
   const reasons = suppressed ?? result.presentation?.suppressed?.[task.id] ?? [];
   const decisive = rules.filter(rule => rule.reason === 'tag');

@@ -67,6 +67,33 @@ test('Why reads use existing lanes and charge bounded successful responses, neve
   assert.ok(scheduler.getDiagnostics().cache.bytes <= 512);
 });
 
+test('Why snapshot reads cannot wake a retired physical pool slot behind a resident logical lane', async t => {
+  const { workers, scheduler, evaluate } = await fixture(t, { supports: ['evaluate', 'why-task'], maxCalculators: 1 });
+  const read = id => scheduler.evaluate({ revision: 0 }, 'actor1', 'why-task', id, `why:${id}`, 'same-input');
+  const existing = read('existing'); await until(() => workers[0].messages.some(message => message.type === 'why-task'));
+  workers[0].finish({ task: { id: 'existing' } }); await existing;
+  assert.equal(workers.length, 1);
+  const active = evaluate('same-input'); await until(() => workers[0].messages.at(-1)?.type === 'evaluate');
+  const messages = workers[0].messages.length;
+  assert.deepEqual((await read('busy')).result, { unavailable: true });
+  assert.equal(workers[0].messages.length, messages); workers[0].finish(); await active;
+  workers[0].profileRetiring = true; workers[0].emit('profile-retiring');
+  await until(() => workers[0].terminated);
+  assert.equal(scheduler.getHealth().resident, true, 'logical endpoint outlives its physical calculator');
+  assert.deepEqual((await read('cold')).result, { unavailable: true });
+  assert.equal(workers.length, 1, 'snapshot probe must not allocate a calculator');
+  assert.equal(workers[0].messages.length, messages);
+  assert.equal(scheduler.getHealth().duo.status, 'idle');
+});
+
+test('Why snapshot reads reject a dedicated calculator already marked for retirement', async t => {
+  const { workers, scheduler } = await fixture(t, { supports: ['evaluate', 'why-task'] });
+  workers[0].profileRetiring = true;
+  const result = await scheduler.evaluate({ revision: 0 }, 'actor1', 'why-task', 'cold', 'why:cold', 'same-input');
+  assert.deepEqual(result.result, { unavailable: true }); assert.equal(workers.length, 1);
+  assert.equal(workers[0].messages.length, 0);
+});
+
 test('claim display revisions preserve task caches and do not wake or control prediction workers', async t => {
   const { workers, scheduler, evaluate } = await fixture(t);
   const first = evaluate('same-input'); await until(() => workers[0].messages.length === 1);

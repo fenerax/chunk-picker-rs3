@@ -1,4 +1,4 @@
-import { replaceView } from './browser-state.mjs';
+import { replaceView, exactExplanationEntry } from './browser-state.mjs';
 import { explainTask } from '../tasks/task-provenance.mjs';
 
 let sequence = 0;
@@ -108,8 +108,7 @@ export function appendTaskWhy(row, task, { document, button, icon, load, openRul
     const restoreFocus = focused && (focused === panel || panel.contains?.(focused));
     panel.setAttribute('aria-busy', 'true');
     panel.tabIndex = -1;
-    const candidate = cache?.peek('why', cacheKey, savedRevision);
-    const cached = candidate?.revision === savedRevision ? candidate : undefined;
+    const cached = exactExplanationEntry(cache, 'why', cacheKey, savedRevision);
     const status = Object.assign(document.createElement('p'), { textContent: cached ? 'Updating… · Last known explanation' : 'Checking…', className: 'task-why-loading' });
     status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     panel.replaceChildren(status);

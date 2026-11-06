@@ -440,7 +440,7 @@ test('deferred owned context eviction releases response bodies, pending jobs and
   assert.equal([...clock.timers].filter(x=>x.ms===25).length,1);
   finish(old,'late-cancelled');const next=await f.next();finish(next,'quiet');assert.equal((await quiet).result.marker,'quiet');
   await Promise.all(opened.map(value=>value.close()));await tick();
-  for(const value of opened)assert.deepEqual(value.getRetentionCounts(),{requests:0,jobs:0,bodies:0,clients:0,responses:0,responseBytes:0,savedResults:0,readiness:0,store:0});
+  for(const value of opened)assert.deepEqual(value.getRetentionCounts(),{requests:0,jobs:0,bodies:0,clients:0,responses:0,responseBytes:0,savedResults:0,parsedEvidence:0,parsedEvidenceBytes:0,readiness:0,store:0});
   for(const lane of [scheduler.getDiagnostics(),scheduler.getDiagnostics().predictionLane]){
     assert.equal(lane.queue.depth,0);assert.equal(lane.queue.active,0);assert.equal(lane.cache.entries,0);assert.equal(lane.cache.bytes,0);
     assert.deepEqual(lane.retainedWork,{pending:0,cancellationGrace:0,stateInputs:0});

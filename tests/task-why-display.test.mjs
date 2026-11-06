@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
-import { taskWhyDisplay, TASK_WHY_DISPLAY_LIMIT } from '../app/tasks/task-why-display.mjs';
+import { taskWhyDisplay, TASK_WHY_DISPLAY_LIMIT, WRITER_WHY_BUDGET } from '../app/tasks/task-why-display.mjs';
 import { explainTask } from '../app/tasks/task-provenance.mjs';
-import { savedWhyDisplay, validateWhyDisplay } from '../app/task-why-http.mjs';
+import { savedWhyDisplay, validateWhyDisplay, createSavedWhyEvidence } from '../app/task-why-http.mjs';
+import { createViewCache } from '../app/web/browser-state.mjs';
 import { appendTaskWhy, loadTaskWhyEvidence, renderTaskWhy } from '../app/web/task-why.mjs';
 
 const wire = value => JSON.parse(JSON.stringify(value));
@@ -54,7 +55,8 @@ test('wire evidence preserves complete Why content and rendered order across tas
   assert.equal(cases, 40);
 });
 
-test('saved evidence validates selectors, rejects old revisions during parse and never truncates', async () => {
+test('saved evidence validates selectors, rejects old revisions during parse and never truncates', async t => {
+  const evidence = createSavedWhyEvidence(); t.after(() => evidence.close());
   const result = fixture('one', false), entry = { revision: 7, fullGzip: gzipSync(JSON.stringify(result)) };
   const query = new URLSearchParams('view=display-v1&memberId=one&taskId=missing&revision=7');
   const scope = { revision: 7, members: new Set(['one', 'two']) };
@@ -62,8 +64,8 @@ test('saved evidence validates selectors, rejects old revisions during parse and
   assert.throws(() => validateWhyDisplay(query, { ...scope, revision: 8 }), { status: 409 });
   for (const extra of ['&taskId=locked', '&master=x', '&assignment=x']) assert.throws(() => validateWhyDisplay(new URLSearchParams(query + extra), scope), { status: 400 });
   assert.equal(await savedWhyDisplay(query, { revision: 7, currentRevision: () => 7 }), undefined);
-  await assert.rejects(savedWhyDisplay(query, { revision: 7, entry, currentRevision: () => 8 }), { status: 409 });
-  const display = await savedWhyDisplay(query, { revision: 7, entry, currentRevision: () => 7 });
+  await assert.rejects(savedWhyDisplay(query, { revision: 7, entry, currentRevision: () => 8, evidence }), { status: 409 });
+  const display = await savedWhyDisplay(query, { revision: 7, entry, currentRevision: () => 7, evidence });
   assert.equal(display.task.id, 'missing');
   result.tasks[1].sourceExclusion.detail = '🪨'.repeat(TASK_WHY_DISPLAY_LIMIT);
   assert.equal(taskWhyDisplay(result, 'missing', 'one', 7), undefined);
@@ -129,18 +131,54 @@ test('the shipped screen loader uses per-task evidence for selected and peer row
   }
 });
 
-test('Why never paints an older revision from the display cache', async () => {
+test('Why paints only an exact revision from the shared display cache', async () => {
+  for (const cachedRevision of [6, 7]) {
   const make = tag => ({ tag, children: [], events: {}, append(...children) { this.children.push(...children); },
     replaceChildren(...children) { this.children = children; }, setAttribute() {}, addEventListener(name, action) { this.events[name] = action; } });
   const doc = { createElement: make }, row = make('div'); let resolve;
-  const cache = { token: () => 1, current: () => true, peek: () => ({ revision: 6, value: { rules: [], sources: [], neededFor: [], hidden: ['Old answer'] } }), remember() {} };
+  const cache = createViewCache({ storage: undefined }); cache.configure({ picker: 'fixture' });
+  cache.remember('why', 'missing', cachedRevision, { rules: [], sources: [], neededFor: [], hidden: ['Cached answer'] });
   const toggle = appendTaskWhy(row, { id: 'missing', label: 'Missing goal' }, { document: doc, cache, revision: () => 7,
     button: (text, action) => { const node = make('button'); node.events.click = action; return node; }, icon: () => make('span'),
     load: () => new Promise(done => { resolve = done; }), scope: () => 'one:7' });
   const pending = toggle.events.click();
-  assert.ok(!JSON.stringify(row).includes('Old answer'));
+  assert.equal(JSON.stringify(row).includes('Cached answer'), cachedRevision === 7);
   resolve({ task: { id: 'missing', label: 'Current goal' }, result: { tasks: [] } }); await pending;
-  assert.ok(!JSON.stringify(row).includes('Old answer'));
+  assert.ok(!JSON.stringify(row).includes('Cached answer'));
+  }
+});
+
+test('unrelated graph traversal and index allocation stop at admission budgets', () => {
+  for (const limits of [undefined, WRITER_WHY_BUDGET]) {
+    const stats = {}, tasks = new Array(1_000_000);
+    Object.defineProperty(tasks, 0, { get() { assert.fail('must reject length before touching rows'); } });
+    assert.equal(taskWhyDisplay({ tasks }, 'missing', 'one', 7, { limits, stats }), undefined);
+    assert.equal(stats.work, 0); assert.equal(stats.allocation, 0); assert.equal(stats.serialized, 0);
+  }
+  const result = fixture('one', false), stats = {};
+  result.tasks[0].record.Tasks = Object.fromEntries(Array.from({ length: 10_000 }, (_, i) => [`Dependency ${i}`, 'Extra']));
+  assert.equal(taskWhyDisplay(result, 'missing', 'one', 7, { limits: WRITER_WHY_BUDGET, stats }), undefined);
+  assert.ok(stats.work <= WRITER_WHY_BUDGET.work); assert.ok(stats.allocation <= WRITER_WHY_BUDGET.allocation);
+  assert.equal(stats.serialized, 0);
+});
+
+test('oversized projection inputs never allocate the projection or serialize it', () => {
+  const result = fixture('one', false), stats = {};
+  const sources = new Array(1_000_000);
+  Object.defineProperty(sources, 0, { get() { assert.fail('must reject oversized source array before walking it'); } });
+  result.tasks[1].sources = sources;
+  assert.equal(taskWhyDisplay(result, 'missing', 'one', 7, { stats }), undefined);
+  assert.equal(stats.serialized, 0);
+  assert.equal(stats.derived, 0);
+  result.tasks[1].sources = [{ detail: 'x'.repeat(1_000_000) }];
+  assert.equal(taskWhyDisplay(result, 'missing', 'one', 7, { stats }), undefined);
+  assert.ok(stats.allocation < TASK_WHY_DISPLAY_LIMIT); assert.equal(stats.serialized, 0);
+  result.tasks[1].sources = [];
+  result.tasks.push(...Array.from({ length: 1000 }, (_, i) => ({ id: `set-${i}`, label: 'Outclassed tool'.repeat(8), category: 'Smithing',
+    record: { Set: 'Tools' }, blockers: [{ kind: 'outclassed' }] })));
+  assert.equal(taskWhyDisplay(result, 'set-high', 'one', 7, { stats }), undefined);
+  assert.equal(stats.serialized, 0, 'oversized set answer is rejected before mapping all its labels');
+  assert.equal(stats.derived, 0);
 });
 
 test('transfer bytes are row-bounded as unrelated catalogue/definitions grow', t => {

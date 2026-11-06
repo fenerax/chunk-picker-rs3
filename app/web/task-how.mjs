@@ -1,4 +1,4 @@
-import { replaceView } from './browser-state.mjs';
+import { replaceView, exactExplanationEntry } from './browser-state.mjs';
 let sequence = 0;
 // Chunk-data access is how the picker has always judged places. It stays a
 // named gap in the proof (for audits) but reads as one footnote, not a step.
@@ -107,7 +107,7 @@ export function appendTaskHow(row, task, { document, button, load, scope, advanc
   function close() { version++; controller?.abort(); panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); panel.setAttribute('aria-busy', 'false'); }
   async function refresh() {
     const current = ++version, captured = scope(); controller?.abort(); controller = new AbortController();
-    const token = cache?.token(), savedRevision = revision(), cached = !readOnly && cache?.peek('how', cacheKey, savedRevision);
+    const token = cache?.token(), savedRevision = revision(), cached = !readOnly && exactExplanationEntry(cache, 'how', cacheKey, savedRevision);
     const status = Object.assign(document.createElement('p'), { textContent: cached ? 'Updating… · Last known planning path' : 'Checking the planning path…', className: 'task-why-loading' });
     status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     panel.setAttribute('aria-busy', 'true'); panel.replaceChildren(status);

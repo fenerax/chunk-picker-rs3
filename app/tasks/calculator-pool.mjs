@@ -197,6 +197,19 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }
     get snapshotHints() { return this.slot?.snapshots; }
+    // A snapshot probe never joins the allocator or the wake queue. Other
+    // admitted pickers keep their turn; a busy/retired pool is an immediate miss.
+    tryReadSnapshot(pickerId, run) {
+      if (closed || this.stopped || this.slot || waiting.size) return false;
+      const slot = [...slots].find(value => value.ready && !value.stopping && !value.worker.profileRetiring
+        && !value.owner && (limit === 1 || value.group === this.group));
+      if (!slot) return false;
+      clock.clearTimeout(slot.timer);
+      slot.owner = this; slot.pickerId = pickerId; this.slot = slot;
+      this.startedCalculator = false;
+      run();
+      return true;
+    }
     schedule(peek, run, yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting) {
       Object.assign(this, { yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting }); waiting.set(this, { peek, run }); pump();
     }
