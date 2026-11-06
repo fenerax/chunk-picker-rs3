@@ -13,6 +13,7 @@ const { createTransferReviews } = await import('../app/save-transfer.mjs');
 const { projectBrowserState } = await import('../app/web/browser-state.mjs');
 const { createOriginalPasteUpload } = await import('../app/web/backup-transfer.mjs');
 const { readOriginalPaste, normalizeOriginalPaste, originalChunkList, originalRuleDecision, MAX_ORIGINAL_PASTE_BYTES } = await import('../app/original-paste.mjs');
+const { originalChunkURL } = await import('../app/original-chunk-url.mjs');
 const dataset = { datasetId: 'duo-legacy', coordinateSystem: 'surface-grid-v1', capabilities: {} };
 const world = { chunks: new Map(['12850', '12594', '13106', '12338'].map(id => [id, { id }])), neighbors: new Map(), walkable: new Set(), f2p: new Set() };
 const document = extra => ({ format: 'rs3-original-paste', chunksText: '12850', rulesText: '{}', ...extra });
@@ -43,6 +44,18 @@ test('CSV and documented chunk URL decode locally, with original selection order
     do { token = alphabet[value % 62] + token; value = Math.floor(value / 62); } while (value);
     assert.deepEqual(originalChunkList(`gitgeddes.github.io/ChunkPicker/?${token}`).unlocked,
       [String(7494 + 256 * (index % 47) - Math.floor(index / 47))]);
+  }
+});
+
+test('empty exported legacy chunk URLs import as empty territory', () => {
+  const url = originalChunkURL([], { ...dataset, datasetContractVersion: 1, identityNamespace: 'rs3' }, world);
+  assert.equal(url, 'https://gitgeddes.github.io/ChunkPicker/?');
+  for (const chunksText of [url, url.replace('https://', '')]) {
+    assert.deepEqual(originalChunkList(chunksText), { unlocked: [], selected: [] });
+    const result = normalizeOriginalPaste(document({ chunksText }), { current: currentState(), world, dataset });
+    assert.deepEqual(result.state.members[0].unlocked, []);
+    assert.deepEqual(result.state.members[0].selected, []);
+    assert.equal(result.archive.chunksText, chunksText);
   }
 });
 
