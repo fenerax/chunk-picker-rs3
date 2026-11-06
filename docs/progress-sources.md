@@ -1,7 +1,7 @@
 # Personal progress sources
 
 In **Activity Info → Progress sync**, choose **Sync progress**. The review names
-its source: **Game plugin**, **Platform API**, **RS3 hiscores**, or a configured legacy source. Review changes,
+its source: **Game plugin**, **Platform API**, **RS3 hiscores**, or a custom adapter. Review changes,
 then apply or cancel. Raw skill IDs, mapping reasons and save revision appear
 only with **Settings → Advanced**. Viewers have no sync controls.
 
@@ -16,7 +16,9 @@ Plugin progress does not need a saved RuneScape account name.
 
 The default web source is the published RuneScape Platform API: main Hiscores JSON plus Player Quests. It uses whole XP and shows official quest points in the preview only. See [Account progress sync](runemetrics.md) for endpoint contracts, limits and persistence. Plugin observations continue to win per field; a failed paired web snapshot leaves saved progress alone and preserves the existing levels-only fallback policy.
 
-An explicitly configured `webSource: 'runemetrics'` retains policy B: it keeps using RuneMetrics until HTTP 404 or 410 retires it for the process. The announced 10 November closure date remains reference metadata, not a timer. Private-profile, rate-limit and account errors keep their meanings. The optional `official-api` adapter slot remains available for custom adapters.
+RuneMetrics is never contacted, before or after the announced 10 November closure. Legacy `webSource: 'runemetrics'` and the default `official-api` factory now use Platform API. The old `runeMetrics` fetch/cache options remain an alias for `platformApi`; `runeMetricsEnabled` and `RS3_RUNEMETRICS_ENABLED` cannot re-enable the removed service or disable its replacement. A configured custom `officialApi` adapter remains supported.
+
+A failed paired Platform snapshot falls back to accepted plugin observations, then to levels-only Hiscores when no plugin facts exist. The fallback cannot lower current-account saved XP or levels, and never removes quests. If no source is available, the preview route returns HTTP 200 with `available: false`, a neutral status and no review token. No save, history entry or retry is created. A later explicit sync can recover when Platform is healthy again.
 
 ## Custom adapter contract
 
@@ -45,7 +47,7 @@ For an unavailable service return:
 
 ```js
 { available: false, source: 'official-api', sourceLabel: 'RuneScape API',
-  message: 'The new RuneScape API is not available yet. Levels sync from the game plugin now.' }
+  message: 'Web progress sync is temporarily unavailable. Your saved progress is unchanged.' }
 ```
 
 To configure a custom adapter:
@@ -62,9 +64,7 @@ account binding checks, skill IDs and XP units, quest status conversion, request
 limits, cache policy, timeout/abort and explicit unavailable errors in that
 adapter. Confirm the reply belongs to the saved account. Keep requests on demand,
 bounded and server-side. Add sanitized contract fixtures and fake-fetch tests;
-do not infer these details from the client/plugin API. If Jagex documents a
-RuneMetrics retirement payload in addition to HTTP Gone, recognize that exact
-payload in its adapter and raise `SOURCE_RETIRED`.
+do not infer these details from the client/plugin API.
 
 `previewProgress` builds the same revision-bound proposal regardless of source.
 The existing `/api/runemetrics/preview` and `/api/runemetrics/apply` names and

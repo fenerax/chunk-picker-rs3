@@ -387,8 +387,9 @@ async function processHasExited(pid, { platform = process.platform, kill = proce
   catch (error) { if (error.code === 'ESRCH') return true; throw error; }
   if (platform !== 'linux') return false;
   let stat;
+  // A reap between open and read makes Linux return ESRCH from the read.
   try { stat = await readStat(pid); }
-  catch (error) { if (error.code === 'ENOENT') return true; throw error; }
+  catch (error) { if (error.code === 'ENOENT' || error.code === 'ESRCH') return true; throw error; }
   // comm can contain spaces, newlines and ')'; the state follows its final ')'.
   const match = /^\d+ \([\s\S]*\) ([A-Za-z]) /.exec(stat);
   assert.ok(match, 'expected a Linux /proc/<pid>/stat process state');
@@ -412,6 +413,7 @@ test('orphan exit detection distinguishes live, stopped, zombie and missing proc
     assert.equal(await processHasExited(123, { platform, kill, readStat: () => assert.fail('must not read /proc') }), false);
   }
   assert.equal(await processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw gone; } }), true);
+  assert.equal(await processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw missing; } }), true);
   await assert.rejects(processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw denied; } }), { code: 'EPERM' });
   await assert.rejects(processHasExited(123, { platform: 'linux', kill, readStat: async () => 'malformed' }), /process state/);
 });

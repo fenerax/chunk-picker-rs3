@@ -37,7 +37,7 @@ export async function planLane({kit,release,lane,execution,runtimeOS,retainedBro
   // The tracer decides what a pass observed; the recipe decides what else the assembly holds.
   runnerPins.tracer=await hashFile(path.join(kit,'checks/private-source/scripts/test-trace.mjs')).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
   if(lane==='private-full')runnerPins.assembly=await hashFile(path.join(kit,'tools/companion-check.mjs'));
-  for(const name of ['scripts/test-selection.mjs','scripts/test.mjs','scripts/test-run-environment.mjs','scripts/test-port-check.mjs']){
+  for(const name of ['scripts/test-selection.mjs','scripts/test-classification.mjs','scripts/test-discovery.mjs','scripts/test-selection-exceptions.mjs','scripts/test.mjs','scripts/test-run-environment.mjs','scripts/test-port-check.mjs']){
     const input=project.entries.get(name);if(input)runnerPins[name]=input.sha256;
   }
   let declarations={};

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGroupState } from '../app/core/state.mjs';
-import { createQuestMapping } from '../app/integrations/runemetrics.mjs';
+import { createQuestMapping } from '../app/integrations/quest-mapping.mjs';
 import { validatePluginReport, pluginProposal, matchPluginAchievements } from '../app/integrations/game-plugin.mjs';
 
 const sentAt = '2026-10-19T12:00:00Z';

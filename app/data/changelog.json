@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-11-05",
+      "title": "Ready for the RuneMetrics shutdown",
+      "items": [
+        "Level and quest sync uses the RuneScape Platform API without contacting RuneMetrics.",
+        "If web sync is unavailable, your saved progress stays safe and you can keep playing. Connected plugin observations still take priority."
+      ]
+    },
+    {
+      "date": "2026-11-05",
       "title": "Back up and restore your picker",
       "items": [
         "In More > Saves > Export / Import, choose Full picker backup to download your save.",
@@ -17,7 +25,7 @@
       "title": "Level and quest sync, safer saves",
       "items": [
         "Levels and quests now sync through Jagex's new RuneScape Platform API, ahead of RuneMetrics closing on November 10.",
-        "RuneMetrics is still tried as a backup until it closes.",
+        "The RuneMetrics backup was removed in the November 5 shutdown update.",
         "Saving now also writes the folder changes to disk, so a crash during a write cannot lose saved data. A backup is taken before the first write at startup."
       ]
     },

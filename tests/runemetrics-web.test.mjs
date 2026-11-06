@@ -105,18 +105,18 @@ test('sync names the selected source and the unavailable state offers no Apply o
   assert.match(h.text(), /Source: Game plugin/);
   assert.doesNotMatch(h.text(), /Saved revision/);
   h.ui.fetchResponse = { available: false, memberId: 'a', runescapeName: 'AccountA', source: 'official-api',
-    message: 'The new RuneScape API is not available yet. Levels sync from the game plugin now.' };
+    message: 'Web progress sync is temporarily unavailable. Your saved progress is unchanged.' };
   await h.click('Sync progress');
   assert.equal(h.find('button', 'Apply progress snapshot'), undefined);
-  assert.match(h.text(), /game plugin now/);
+  assert.match(h.text(), /temporarily unavailable.*saved progress is unchanged/);
   assert.equal(h.walk(h.ui.nodes).find(node => node.attributes.role === 'status').className, 'info-meta');
   assert.equal(h.attempts.apply.length, 0);
 });
 
-test('a usable fallback preview keeps the one closure message visible alongside Apply', async () => {
+test('a usable plugin preview keeps the one unavailable message visible alongside Apply', async () => {
   const h = harness();
-  const message = 'RuneMetrics has closed; levels and quests come from the game plugin until the new Jagex API is connected';
-  h.ui.fetchResponse = { ...snapshot(7), source: 'hiscores', sourceLabel: 'RS3 hiscores', message };
+  const message = 'Web progress sync is temporarily unavailable. Your saved progress is unchanged.';
+  h.ui.fetchResponse = { ...snapshot(7), source: 'game-plugin', sourceLabel: 'Game plugin', message };
   await h.click('Sync progress');
   assert.equal(h.walk(h.ui.nodes).find(node => node.attributes.role === 'status').textContent, message);
   assert.ok(h.find('button', 'Apply progress snapshot'));

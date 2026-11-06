@@ -1,3 +1,4 @@
+// @test solo dataset=open-f2p
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import workerThreads from 'node:worker_threads';
