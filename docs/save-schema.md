@@ -7,6 +7,45 @@ replacement. Portable exports and History/Undo exclude this metadata. Importing
 or restoring gameplay preserves the current storage receipt ledger; imported
 receipts never replace it.
 
+## Game plugin current currency
+
+The optional private envelope field `pluginCurrency` has format 1, with `keys`
+and `players` objects. It is outside gameplay `state`, portable backups and
+History/Undo. It is written in the same synced atomic replacement as the current
+currency fact, including when the fact is unchanged or becomes unknown.
+
+- `keys` maps at most 1,000 plugin credential UUIDs to nonnegative safe integer
+  sequence watermarks. Currency sequences must strictly increase for each key.
+- `players` has at most 1,000 member-ID entries. Each holds `keyId`, `seq`,
+  `sentAt`, `coins`, `historyAt` and `historyRevision`. `coins` is a safe integer
+  from zero to one trillion, or null for unknown or a fact the plugin does not
+  own. It identifies plugin ownership
+  of the current fact, not an alternative spendable balance.
+- `sentAt` retains the newest accepted observation time across keys. Older
+  timestamps fail; equal timestamps require the same key and a higher sequence.
+  `historyAt` and `historyRevision` are null before the first fact change, then
+  identify the coalescible currency History group. They never delay a correction.
+
+An explicit manual `set-transport-facts` command releases plugin ownership,
+including when it confirms the same coin count; its watermark is retained.
+An unchanged coherent observation of a manual fact does not transfer ownership.
+For saves without this metadata, a matching, unattributed legacy currency
+History command identifies the previous plugin-owned fact.
+
+No watermark is evicted to make room: reaching either bound refuses another
+entry. Invalid metadata fails closed on load. Restore/import preserves the
+current private ledger rather than trusting metadata from an imported backup;
+Undo never rolls freshness back. Standby activation and import publication
+carry the ledger with the atomic storage envelope.
+
+The public backup remains schema 1. Current facts use the existing
+`transportFacts.currencies.coins` field; unknown removes only the plugin-owned
+coin entry. History uses ordinary `set-transport-facts` commands and inverse
+patches, including coalesced updates. The frozen previous-release loader can
+load these saves and undo the currency changes. Older releases ignore private
+envelope metadata and can drop it when writing; retain the original save to
+preserve freshness fences when rolling forward after such a rollback.
+
 ## Action receipts, format 2
 
 `actionReceipts` is optional. Its current shape is:

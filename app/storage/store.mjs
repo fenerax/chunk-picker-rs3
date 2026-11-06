@@ -27,6 +27,7 @@ import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../
 import { loadGameDefaults } from '../game-defaults.mjs';
 import { ACTION_CLIENT_SLOTS, loadActionReceipts, inspectActionReceipt, commitActionReceipt, openActionSession, acknowledgeActionSession } from './action-receipts.mjs';
 import { reportActivationTiming } from '../live-swap-timing.mjs';
+import { currencyAfterCommand, loadPluginCurrency, observePluginCurrency } from './plugin-currency.mjs';
 import { boundedOutput, rosterOutput } from '../import-output.mjs';
 
 const gzipAsync = promisify(gzip), gunzipAsync = promisify(gunzip);
@@ -271,7 +272,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const importTickets = new WeakMap();
   // Receipts are private storage metadata, committed in the SAME replacement
   // as gameplay. Never evict IDs: an arbitrarily delayed retry must fail closed.
-  let receipts;
+  let receipts, pluginCurrency;
   let acknowledgements = [];
   function acknowledgementFor(slot, row) {
     return { slot, clientId: row.clientId, generation: row.generation, principal: row.principal,
@@ -388,7 +389,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   // Registries and exact migration archives can dwarf gameplay. Compact JSON
   // keeps durable writes bounded without changing portable backup semantics.
-  const serialized = (state, ledger = receipts) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}}\n`;
+  const serialized = (state, ledger = receipts, currency = pluginCurrency) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}${currency ? `,"pluginCurrency":${JSON.stringify(currency)}` : ''}}\n`;
   async function importDocument(bytes) {
     const document = await parseJSONStream([bytes], { maxBytes: MAX_PORTABLE_BACKUP_BYTES });
     return document;
@@ -469,7 +470,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     staticReferences.set(value, reference);
     return reference;
   }
-  async function serializedDiskState(state, ledger = receipts) {
+  async function serializedDiskState(state, ledger = receipts, currency = pluginCurrency) {
     // Preserve rejected metadata before ANY replacement can drop it. Evidence
     // remains private, content addressed, and outside ordinary backup pruning.
     await retainReceiptQuarantine();
@@ -487,9 +488,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       fields[key] = await staticReference(key, value, bytes);
       delete compact[key];
     }
-    if (!Object.keys(fields).length && !completionCodec) return serialized(state, ledger);
+    if (!Object.keys(fields).length && !completionCodec) return serialized(state, ledger, currency);
     return `${JSON.stringify(encodeCompletions({ ...envelope(compact), ...(coordination.has(state) ? { coordination: coordinationOf(state) } : {}),
       ...(ledger ? { actionReceipts: ledger } : {}),
+      ...(currency ? { pluginCurrency: currency } : {}),
       ...(Object.keys(fields).length ? { storage: { schemaVersion: 1, fields } } : {}) }))}\n`;
   }
   function gameplayFingerprint() {
@@ -945,6 +947,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try {
       const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
       current = await importStoredBackup(document, true);
+      pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
       const metadata = receiptMetadata(document.actionReceipts, current.revision);
       const acknowledged = await acknowledgedReceipts(metadata.ledger);
       receipts = acknowledged.ledger; acknowledgements = acknowledged.records; receiptQuarantine = metadata.quarantine;
@@ -1028,7 +1031,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     queue = result.catch(() => {});
     return result;
   }
-  async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false } = {}) {
+  async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, currency = pluginCurrency } = {}) {
     const observed = cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
     const validated = cleanup ? observed : await compactHistory(observed, archived);
     const previousCoordination = operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} }
@@ -1038,7 +1041,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Preserve the old durable state before replacing its revision.
     if (!cleanup) await retainBackup(current, operation, backupLabel);
     const { ledger: nextReceipts, result: receiptResult } = commitActionReceipt(receipts, receipt, validated);
-    const diskDocument = await serializedDiskState(validated, nextReceipts);
+    const diskDocument = await serializedDiskState(validated, nextReceipts, currency);
     const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
       beforeRename: beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined });
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
@@ -1047,6 +1050,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       !== JSON.stringify(validated.members.map(member => [member.id, member.selected, member.pendingRoll]));
     current = validated;
     receipts = nextReceipts;
+    pluginCurrency = currency;
     currentDiskSerialized = diskDocument;
     reportDurability(publication);
     if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
@@ -1107,7 +1111,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         }
       }
       return persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
-        receipt, noteEdit: command.type === 'set-note',
+        receipt, noteEdit: command.type === 'set-note', currency: currencyAfterCommand(pluginCurrency, command),
         ...(command.type === 'go-members' ? { backupLabel: 'Before going members' } : {}) });
     });
   }
@@ -1269,7 +1273,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
       const summary = boundedOutput({ revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } });
       return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
-        coordination: coordination.get(state), receipts,
+        coordination: coordination.get(state), receipts, pluginCurrency,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
         choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
     },
@@ -1374,6 +1378,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     command(command, expectedRevision, { actor, requestId, requestAck } = {}) {
       return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck);
     },
+    observePluginCurrency(observation) {
+      return enqueue(async () => {
+        const result = observePluginCurrency(current, pluginCurrency, observation,
+          { now: timestamp, world, registry, taskCatalogue, membersStartBanks, xpChoiceCatalogue });
+        const ready = result.state === current ? current : await prepared(result.state, 'command');
+        if (ready.revision !== result.state.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
+        return persist(ready, 'plugin-currency', undefined, false, current, false, undefined,
+          { cleanup: ready === current, currency: result.metadata });
+      });
+    },
     commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck); },
     async replayCommandSerialized(command, requestId, { actor, view, requestAck } = {}) {
       const receipt = commandReceipt(command, actor, requestId, requestAck);
@@ -1441,6 +1455,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
           if (closing) throw new Error('Standby activation was cancelled by shutdown.');
           current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
+          pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
           receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
           releaseGuard = guard; releaseFileLock = fileLock;
           readOnly = false; frozen = false; liveSwapStrict = true;
@@ -1530,6 +1545,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = publication.state;
         currentDiskSerialized = publication.disk;
         receipts = publication.receipts;
+        pluginCurrency = publication.pluginCurrency;
         receiptQuarantine = undefined;
         if (publication.coordination) coordination.set(current, publication.coordination);
         for (const { key, json, reference } of publication.fields) {

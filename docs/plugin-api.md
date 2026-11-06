@@ -49,7 +49,8 @@ with status reads. Errors use `{ "message": "…" }`; rate limits return 429 and
 ```
 
 `v`, `seq`, `sentAt`, and `position` are required. `seq` is a nonnegative safe
-integer, increasing per key during a server session. Use Unix milliseconds to
+integer, increasing per key. Currency observations retain this watermark across
+server restarts. Use Unix milliseconds to
 start a new plugin session without reusing sequence numbers. Retries with an
 old sequence return 409 without changing anything. `sentAt` is a valid ISO UTC
 timestamp with seconds and optional 1–3 fractional digits.
@@ -326,14 +327,32 @@ The sidecar is outside the save, Undo and backups.
 
 Cached bank coins are historical observations, not authoritative current funds.
 Transport currency counts only the live pouch and backpack, both readable in the
-same items report. A null or omitted pouch, or a null backpack, leaves the saved
-balance unchanged; partial reads never combine with older container counts.
+same items report. A null or omitted pouch, or a null backpack, immediately
+removes the plugin-derived coin fact: the balance is unknown, not zero. Manual
+currency facts and other travel facts are retained. Partial reads never combine
+with older container counts.
 Readable empty containers count as zero. Worn items and the toolbelt do not
 contribute currency. Bank-only reports cannot publish an older carried total.
 The current protocol cannot reliably distinguish an empty bank from an
 unavailable read; including
 the retained bank count can count a withdrawn stack twice, even with age zero.
 Bank item evidence and its observation time are still retained separately.
+
+Current currency corrections and invalidations are synced before the report is
+acknowledged, independently of History throttling. Consecutive plugin currency
+changes within one minute coalesce into one ordinary `set-transport-facts`
+History entry; an intervening command starts another entry. Undo reverses the
+whole coalesced group. The existing History/Undo format is unchanged.
+
+Private `pluginCurrency` metadata in the atomic save envelope retains each
+key's latest currency sequence and each player's latest currency timestamp.
+An older timestamp or reused sequence returns 409 before item processing, even
+after restart. Different keys must advance the player's timestamp; equal
+timestamps are accepted only for increasing sequences from the same key.
+Unchanged and unreadable observations advance the durable fence too. A failed
+save acknowledges nothing and commits neither the balance nor its fence.
+The metadata is bounded and excluded from portable exports and Undo; see
+[save metadata](save-schema.md#game-plugin-current-currency).
 
 Status `items` is null until the first items report, then exactly
 `{snapshot, journal}`: the last snapshot processed and the newest journal event
