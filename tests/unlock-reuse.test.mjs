@@ -65,6 +65,26 @@ test('unlock reuse ignores save and roll bookkeeping while retaining every task 
   assert.notEqual(fingerprint(original), input, 'Immutable catalogue replacement invalidates its cached digest');
 });
 
+test('worker task digests retain exact reuse keys across import and invalidate replaced catalogues', () => {
+  const source = { ...state(), identityRegistry: { entries: {}, aliases: {}, unresolved: [] }, legacy: { maps: {} } };
+  const imported = structuredClone(source);
+  const worker = createTaskReuseFingerprint(), writer = createTaskReuseFingerprint();
+  const fields = ['tasks', 'identityRegistry', 'legacy'];
+  const serialized = new WeakMap(fields.map(key => [source[key], JSON.stringify(source[key])]));
+  const stringify = JSON.stringify;
+  let digests;
+  JSON.stringify = () => { throw new Error('Prepared task JSON was serialized again'); };
+  try { digests = structuredClone(worker.exportStatic(source, serialized)); }
+  finally { JSON.stringify = stringify; }
+  writer.seedStatic(imported, digests);
+  assert.equal(writer(imported), taskReuseInputKey(imported));
+  for (const key of ['tasks', 'identityRegistry', 'legacy']) {
+    const changed = { ...imported, [key]: key === 'tasks' ? [{ id: 'custom:replaced' }] : { synthetic: 'changed' } };
+    assert.equal(writer(changed), taskReuseInputKey(changed));
+    assert.notEqual(writer(changed), writer(imported));
+  }
+});
+
 test('chunk notes do not invalidate task reuse, while nested notes and unknown gameplay still do', () => {
   const original = state(), expected = taskReuseInputKey(original), fingerprint = createTaskReuseFingerprint();
   for (const memberIndex of [0, 1]) for (const notes of [{}, { '12341': 'Plan\n<literal>' }, { '12342': 'Changed plan' }]) {
