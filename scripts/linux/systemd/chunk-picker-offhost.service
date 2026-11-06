@@ -14,6 +14,11 @@ LoadCredential=b2-key:/etc/chunk-picker/secrets/b2-key
 LoadCredential=restic-password:/etc/chunk-picker/secrets/restic-password
 LoadCredential=offhost-ping:/etc/chunk-picker/secrets/offhost-ping
 UMask=0077
+Nice=10
+CPUWeight=20
+IOWeight=20
+# Working memory measured below 750 MiB; allow reclaimable page cache too.
+MemoryMax=2G
 # One overall 30-minute application deadline; systemd bounds teardown too.
 TimeoutStartSec=35min
 TimeoutStopSec=30s

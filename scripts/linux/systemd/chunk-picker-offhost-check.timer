@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Chunk Picker off-site repository integrity check
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 America/Moncton
+Persistent=yes
+RandomizedDelaySec=5min
+Unit=chunk-picker-offhost-check.service
+
+[Install]
+WantedBy=timers.target

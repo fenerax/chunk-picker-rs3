@@ -16,7 +16,8 @@ export const messages = Object.freeze({
   'offhost-paused': 'Off-site delivery is deliberately paused',
   'monitor-data': 'Monitoring evidence is unreadable', 'release-window': 'Release window is invalid or expired',
   'unit-writer': 'Writer service failed', 'unit-backup': 'Backup service failed', 'unit-health': 'Health service failed',
-  'unit-offhost': 'Off-site service failed', 'unit-monitor': 'Monitor service failed', test: 'Notification delivery test',
+  'unit-offhost': 'Off-site service failed', 'unit-offhost-check': 'Off-site repository check service failed',
+  'unit-monitor': 'Monitor service failed', test: 'Notification delivery test',
 });
 export const severity = value => ['warning', 'critical', 'urgent'].includes(value);
 export function releaseWindow(window, now) {
@@ -88,7 +89,8 @@ export async function notify({ controlDir, faults, window, now = Date.now(), rep
   return result.skipped ? { delivered: false, pending: true } : result;
 }
 export const failureUnits = Object.freeze({ 'chunk-picker.service': 'unit-writer', 'chunk-picker-backup.service': 'unit-backup',
-  'chunk-picker-health.service': 'unit-health', 'chunk-picker-offhost.service': 'unit-offhost', 'chunk-picker-monitor.service': 'unit-monitor' });
+  'chunk-picker-health.service': 'unit-health', 'chunk-picker-offhost.service': 'unit-offhost',
+  'chunk-picker-offhost-check.service': 'unit-offhost-check', 'chunk-picker-monitor.service': 'unit-monitor' });
 export async function notifyFailure(config, command, options = {}) {
   const code = command === 'test' ? 'test' : failureUnits[command];
   if (!code) throw Error('Unknown failure unit.');

@@ -1,8 +1,8 @@
 [Unit]
-Description=Retry Chunk Picker off-site delivery independently
+Description=Daily Chunk Picker off-site delivery after local backup
 
 [Timer]
-OnCalendar=*-*-* *:30:00
+OnCalendar=*-*-* 04:30:00 America/Moncton
 Persistent=yes
 RandomizedDelaySec=5min
 Unit=chunk-picker-offhost.service

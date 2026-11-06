@@ -9,7 +9,8 @@ import { stagingBudget } from './staging.mjs';
 
 export const recoveryUnits = Object.freeze(['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-backup.timer',
   'chunk-picker-health.service', 'chunk-picker-health.timer', 'chunk-picker-monitor.service', 'chunk-picker-monitor.timer',
-  'chunk-picker-notify@.service', 'chunk-picker-offhost.service', 'chunk-picker-offhost.timer']);
+  'chunk-picker-notify@.service', 'chunk-picker-offhost.service', 'chunk-picker-offhost.timer',
+  'chunk-picker-offhost-check.service', 'chunk-picker-offhost-check.timer']);
 function within(root, file) {
   const relative = path.relative(root, file);
   if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw Error('Recovery allowlist refused.');
