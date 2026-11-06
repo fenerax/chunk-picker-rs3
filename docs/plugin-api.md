@@ -315,6 +315,20 @@ set it. The proposal preview carries `items`,
 `items: [{taskId}]` chosen from the preview; omitted rows stay unticked. The
 command records `member.itemProgress` (see the save schema). Apply and
 Dismiss mark every shown row handled so it is not offered again.
+This includes skipped mapped item rows and every retained supporting world.
+The decision and Apply's gameplay are validated together before publication.
+Food, runes, unmapped identities, beta/unknown-only and catch-up-only rows can
+all be applied, skipped or dismissed. Container-only decisions retain their
+handled identities without manufacturing facts. The authoritative decision and
+selected gameplay publish atomically in the current save; an actual scope
+capacity refusal changes nothing and leaves the review available for retry.
+As a best-effort compatibility copy, the receiver syncs and verifies
+representable task IDs and `~plugin-review:<taskId>` markers in the legacy live
+sidecar, without moving non-live facts there. Lowering merges existing records
+for every current player. Insufficient legacy capacity or lowering failure
+cannot block a valid decision, backup, export or preview. Surviving provenance
+and legacy markers recover decisions on return to the current release. The
+accepted emergency-rollback limit is listed alongside currency limits below.
 
 Live-world evidence (current live containers or explicitly live journal events)
 is saved in `plugin-items.json`
@@ -324,6 +338,14 @@ archive. Per player it keeps `baselineAt`, `items` facts
 2,000) and a processed `journal` `{id, event}` watermark. Containers retain only
 reviewed IDs; journals also retain unmapped IDs so acknowledgement does not discard
 their evidence. Each record holds at most 500 distinct item IDs.
+
+All item-sidecar readers, including backup/export readers, log and ignore syntax,
+record or semantic corruption before merging it with authoritative provenance.
+This includes invalid reserved review markers and journal scopes. The original
+bytes stay available for the next successful writer's `.corrupt-` archive.
+Authoritative provenance stays strict; bounded unmapped item IDs and unknown
+literal handled task IDs remain valid evidence.
+
 Beta and unknown-world **journal** evidence uses separate
 `plugin-item-journal-beta.json` and `plugin-item-journal-unknown.json` sidecars
 with the same version 1 shape and bounds. Legacy triples join the unknown store.
@@ -344,8 +366,9 @@ always carry their evidence. Successful whole-picker and member imports refresh
 retained review rows immediately, including when the plugin is offline; this
 refresh never automatically completes tasks.
 Member imports refresh only the imported players, preserving other players'
-container-only reviews and temporary dismissals. Dismissed unmapped item IDs stay
-hidden for the session while their acknowledged evidence remains retained.
+container-only reviews and dismissals. Container-only decisions retain handled
+identities without persisting non-live facts; mapped decisions also attempt a
+legacy task-marker projection.
 Prepared imports bind to the destination sidecar generations as well as the save
 revision. If a journal arrives before publication, retry the preview. Publication
 and sidecar writes share an exclusion gate, and later reports validate against the
@@ -397,6 +420,10 @@ manual correction or restore. A retired stream under clock skew, or a delayed
 report generated before a manual correction or restore, can publish an incorrect
 known balance that persists across restart. These accepted limitations require
 a plugin-side freshness challenge, planned for plugin 1.1 after moderation.
+After an emergency rollback to the frozen release, dismissed or applied plugin review rows may be offered again and can be dismissed again. No task progress is lost.
+This includes frozen Undo and frozen restore/export/import. Returning to the
+current release retains any decision still held in its provenance or legacy
+markers; a frozen operation that discards all carriers cannot recover it.
 The metadata is bounded; portable exports retain fact-provenance annotations
 but exclude private ordering fences. See
 [save metadata](save-schema.md#game-plugin-current-currency).
@@ -428,8 +455,11 @@ Legacy triples and four-field beta and unknown events keep their own
 record per environment, and their rows stay in every later review (items or
 bank), including immediately after receiver startup without retransmission,
 even after the sender drops the acknowledged events. Retained journal dismissals
-persist in their scope's bounded handled list; they do not suppress later live
-task evidence. Non-live container dismissals last for the receiver run. Legacy
+persist in every retained scope that supports the shown task, regardless of the
+displayed world. Apply and Dismiss validate all handled-list unions first and
+publish the decision with any selected gameplay in one atomic save write. A
+capacity refusal returns an explanatory error without changing any scope or
+gameplay. Container-only decisions are retained too. Legacy
 triples receive the same delivery acknowledgement while retaining unknown provenance.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;

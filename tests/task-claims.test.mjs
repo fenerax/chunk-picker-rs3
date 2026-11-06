@@ -9,6 +9,9 @@ import { lookupPermanentId } from '../app/tasks/identity.mjs';
 import { createCollectionEngine } from '../app/tasks/collection.mjs';
 import { projectPlayState } from '../app/play-view.mjs';
 import { openStore } from '../app/storage/store.mjs';
+import { openPluginItems } from '../app/plugin-items.mjs';
+import { runImportJob } from '../app/import-jobs.mjs';
+import { frozenRuntime } from './helpers/frozen-release.mjs';
 
 const now = () => '2026-10-12T12:00:00.000Z';
 const owners = [{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }];
@@ -484,6 +487,84 @@ test('[regression] archived release Undo cannot revive a claim after cleanup and
     assert.equal(full.history.find(event => event.revision === 2).undo, undefined);
     assert.deepEqual(importBackup(exportBackup(full)), full);
   } finally { await reopened.close(); }
+});
+
+async function archivedClaimsWithItemDecision(t) {
+  const state = initial();
+  state.legacy = { evidence: 'Synthetic retained legacy. '.repeat(12000) };
+  state.provenance = { evidence: 'Synthetic retained provenance. '.repeat(12000) };
+  const retention = { historyEntries: 1, backupDays: 90 };
+  const fixture = await isolatedStore(t, { initialState: state, retention });
+  const { store, dataDir } = fixture;
+  await store.command(claim(), 0);
+  await store.command({ type: 'clear-task-claim', memberId: 'actor1', taskId: 'custom:first' }, 1);
+  await store.command(claim('custom:first', 'reed'), 2);
+  await store.command({ type: 'set-task-status', memberId: 'actor1', taskId: 'custom:second', note: 'one' }, 3);
+  await store.command({ type: 'set-task-status', memberId: 'actor1', taskId: 'custom:second', note: 'two' }, 4);
+  await store.reconcileTaskClaims([], 5);
+  assert(!store.getHistory().history.some(event => event.revision === 2));
+  const items = await openPluginItems({ dataDir, members: () => owners, journalWorld: 'beta' });
+  try { await items.put('actor1', { baselineAt: now(), handled: [], journal: null, items: {
+    34830: { name: 'Synthetic beta wearable', ownedAt: now(), wornAt: now(), first: true } } }); }
+  finally { await items.close(); }
+  await store.commitPluginReview({ memberId: 'actor1', taskIds: ['rs3:task:000b41', 'rs3:goal:equipment:000597'],
+    taskWorlds: ['beta', 'beta'], unmappedIds: [] }, 6);
+  const disk = JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8'));
+  assert.equal(disk.coordination.invalidatedUndo['custom:first'], 5);
+  return { ...fixture, retention, disk };
+}
+
+for (const mode of ['writable', 'read-only', 'preparation hook']) test(`[regression] item recovery retains archived claim coordination and static references (${mode})`, async t => {
+  const { store, dataDir, retention, disk } = await archivedClaimsWithItemDecision(t);
+  await store.close();
+  const before = await readFile(path.join(dataDir, 'state.json'));
+  const reopened = await openStore({ dataDir, now, retention, ...(mode === 'read-only' ? { readOnly: true } : {}),
+    ...(mode === 'preparation hook' ? { prepareState: state => state } : {}) });
+  try {
+    const full = (mode === 'read-only' ? await runImportJob({ kind: 'backup', dataDir, retention }) : await reopened.backup()).state;
+    assert.equal(full.history.find(event => event.revision === 2).undo, undefined);
+    assert.deepEqual(importBackup(exportBackup(full)), full);
+    assert.deepEqual(full.taskClaims, {});
+    assert.ok(full.provenance.pluginItemEvidence.players.actor1.records.beta.handled.includes('rs3:task:000b41'));
+    const after = JSON.parse(await readFile(path.join(dataDir, 'state.json')));
+    assert.deepEqual(after.coordination, disk.coordination);
+    assert.deepEqual(after.storage.fields.legacy, disk.storage.fields.legacy, 'Unchanged immutable fields keep their verified references');
+    if (mode === 'read-only') assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), before);
+    else {
+      await assert.rejects(reopened.command({ type: 'undo', undoRevision: 2 }, 6), /not reversible/);
+      const preview = await reopened.previewReplacement(exportBackup(full));
+      assert.equal(preview.state.provenance.restore.previousHistory.find(event => event.revision === 2).undo, undefined);
+      await reopened.replace(exportBackup(full), 6);
+      assert.deepEqual(JSON.parse(await readFile(path.join(dataDir, 'state.json'))).coordination.invalidatedUndo, {}, 'Replacement establishes its own Undo boundary');
+    }
+  } finally { await reopened.close(); }
+  const again = await openStore({ dataDir, now, retention });
+  try { assert.deepEqual((await again.backup()).state.taskClaims, {}); }
+  finally { await again.close(); }
+});
+
+test('[regression] an item decision and cancelled archived claims survive a real frozen portable round trip', async t => {
+  const frozen = await frozenRuntime(t);
+  const { store } = await archivedClaimsWithItemDecision(t);
+  const portable = await store.backup();
+  const root = path.resolve('.local/task-claim-tests'), dataDir = await mkdtemp(path.join(root, 'frozen-'));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const old = await frozen.openStore({ dataDir, initialState: frozen.core.importBackup(portable), now, retention: false });
+  let returned;
+  try {
+    await old.command({ type: 'set-journal', memberId: 'actor1', note: 'Synthetic frozen edit' }, old.getInfo().revision);
+    await old.command({ type: 'undo' }, old.getInfo().revision);
+    returned = await old.backup();
+  } finally { await old.close(); }
+  const upgraded = await openStore({ dataDir, now, retention: false });
+  try {
+    const full = (await upgraded.backup()).state;
+    assert.equal(full.history.find(event => event.revision === 2).undo, undefined);
+    assert.deepEqual(full.taskClaims, {});
+    assert.ok(full.provenance.pluginItemEvidence.players.actor1.records.beta.handled.includes('rs3:task:000b41'));
+    assert.deepEqual(full.members, importBackup(returned).members);
+    await assert.rejects(upgraded.command({ type: 'undo', undoRevision: 2 }, full.revision), /not reversible/);
+  } finally { await upgraded.close(); }
 });
 
 test('[regression] assigned actors cannot Undo another player claim in archived history', async t => {

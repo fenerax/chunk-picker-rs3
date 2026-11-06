@@ -1,17 +1,23 @@
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 export const pluginItemFiles = Object.freeze(['plugin-items.json', 'plugin-item-journal-beta.json',
   'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json']);
 const captureFiles = ['state.json', ...pluginItemFiles];
 const writers = new Map();
+const context = new AsyncLocalStorage();
 
 // Publications and sidecar replacements share this gate in the live process.
 // Worker isolates only prepare/read evidence; they never publish these files.
 export async function withPluginItemEvidenceWrite(dataDir, work) {
   const directory = await realpath(dataDir), key = process.platform === 'win32' ? directory.toLowerCase() : directory;
+  if (context.getStore()?.key === key && context.getStore().active) return work();
   const prior = writers.get(key) ?? Promise.resolve();
-  const result = prior.then(work);
+  const result = prior.then(async () => {
+    const owner = { key, active: true };
+    try { return await context.run(owner, work); } finally { owner.active = false; }
+  });
   const settled = result.catch(() => {});
   writers.set(key, settled);
   void settled.then(() => { if (writers.get(key) === settled) writers.delete(key); });

@@ -236,24 +236,31 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
   }
   function itemMatches(player, record, world, unmapped, others = [], autoTick = true) {
-    const owner = member(player), dismissed = itemHandled.get(player);
+    const owner = member(player), dismissed = itemHandled.get(player), live = itemStore.get(player);
+    const retained = [...(live ? [{ record: live, world: 'live' }] : []), ...journalRecords(player)];
+    const handledByWorld = new Map(retained.map(({ record, world }) => [world, new Set(record.handled)]));
+    const explicit = handledByWorld.get('live');
     if (unmapped !== null) {
-      const records = [record, ...others.map(row => row.record), ...journalRecords(player).map(row => row.record)];
+      const records = [record, ...others.map(row => row.record), ...retained.map(row => row.record)];
       const retainedHandled = new Set(records.flatMap(record => record.handled));
-      const retained = records
+      const retainedUnmapped = records
         .flatMap(record => Object.entries(record.items).filter(([id]) => !GAME_ITEMS.has(Number(id)))
           .map(([id, fact]) => ({ gameItemId: Number(id), name: fact.name })));
-      unmapped = [...new Map([...unmapped, ...retained].map(row => [row.gameItemId, row])).values()]
+      unmapped = [...new Map([...unmapped, ...retainedUnmapped].map(row => [row.gameItemId, row])).values()]
         .filter(row => !dismissed?.has(`unmapped:${row.gameItemId}`) && !retainedHandled.has(`unmapped:${row.gameItemId}`));
     }
     // Prefer live rows when several environments support the same task. Match all
     // records before publishing one review, so queued evidence cannot hide containers.
     // Retained journal records join every review (items and bank) until handled.
-    const results = [{ record, world }, ...others, ...journalRecords(player)].sort((a, b) =>
+    const results = [{ record, world }, ...others, ...retained.filter(row => row.world !== 'live')].sort((a, b) =>
       ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
         task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live',
-        handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: unmapped ?? [] }));
+        // Fresh container and bank records do not carry retained decisions.
+        // Literal handled IDs in their own scope are authoritative; rollback
+        // markers remain optional and cannot determine current suppression.
+        handled: id => record.handled.includes(id) || !!handledByWorld.get(world)?.has(id) || !!dismissed?.has(id)
+          || !!explicit?.has(`~plugin-review:${id}`), unmapped: unmapped ?? [] }));
     const ticks = results.flatMap(result => result.ticks), tickIds = new Set(ticks.map(row => row.taskId));
     const unique = new Map();
     for (const row of results.flatMap(result => result.rows)) if (!tickIds.has(row.taskId) && !unique.has(row.taskId)) unique.set(row.taskId, row);
@@ -390,22 +397,6 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     await matchItems(player, report, record, world, null);
   }
   async function rememberItemsHandled(player, rows, unmapped = []) {
-    for (const journal of journalStores.values()) {
-      const record = journal.get(player);
-      if (!record) continue;
-      const retainedTasks = new Set();
-      for (const [id, fact] of Object.entries(record.items)) {
-        const item = GAME_ITEMS.get(Number(id));
-        if (item && fact.ownedAt) retainedTasks.add(item.goalId);
-        if (fact.wornAt) for (const [taskId, ids] of GAME_WORN_TASKS) if (ids.has(Number(id))) retainedTasks.add(taskId);
-      }
-      const ids = rows.filter(row => row.world !== 'live' && retainedTasks.has(row.taskId)).map(row => row.taskId);
-      ids.push(...unmapped.filter(row => record.items[row.gameItemId]).map(row => `unmapped:${row.gameItemId}`));
-      if (!ids.length) continue;
-      record.handled = [...new Set([...record.handled, ...ids])].sort();
-      // A failed or full durable dismissal remains reviewable for retry.
-      await journal.put(player, record);
-    }
     const dismissed = itemHandled.get(player) ?? new Set();
     for (const row of rows) dismissed.add(row.taskId);
     for (const row of unmapped) dismissed.add(`unmapped:${row.gameItemId}`);
@@ -716,14 +707,24 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (nothing(achievements)) throw fail(400, 'Nothing is selected. Dismiss the review instead.');
       return { ...review.proposal, command: { ...command, achievements } };
     },
-    async finish(memberId) {
+    async finish(memberId, { command, expectedRevision = store.getInfo().revision, actor } = {}) {
       const review = liveReview(memberId);
-      // Apply and Dismiss both make the player's choice final for every live
-      // row shown, including skipped rows. Beta/unknown copies may report live later.
+      const rows = review?.proposal?.preview.items ?? [], unmapped = review?.proposal?.preview.unmappedItems ?? [];
+      // Capture and validate all retained scopes inside the store's mutation
+      // queue. Apply's gameplay and the decision share one state-file commit.
+      let result;
+      if (rows.length || unmapped.length) result = await store.commitPluginReview({ memberId, command,
+        taskIds: rows.map(row => row.taskId), taskWorlds: rows.map(row => row.world), unmappedIds: unmapped.map(row => row.gameItemId) }, expectedRevision, { actor });
+      else if (command) result = await store.command(command, expectedRevision, { actor });
+      importedRevision = -1; // Dismissal retains metadata without advancing gameplay.
+      const dismissed = itemHandled.get(memberId) ?? new Set();
+      for (const row of rows) dismissed.add(row.taskId);
+      for (const row of unmapped) dismissed.add(`unmapped:${row.gameItemId}`);
+      if (dismissed.size) itemHandled.set(memberId, dismissed);
       const ids = (review?.proposal?.preview.achievements ?? []).filter(row => row.world === 'live').map(row => row.achievementId);
       if (ids.length) rememberHandled(memberId, ids);
-      await rememberItemsHandled(memberId, review?.proposal?.preview.items ?? [], review?.proposal?.preview.unmappedItems ?? []);
       pending.delete(memberId); notify();
+      return result;
     },
     rememberTasks(memberId, bytes) {
       if (closed || !bytes) return;

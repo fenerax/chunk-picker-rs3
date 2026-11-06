@@ -36,10 +36,54 @@ successful whole-picker or member import, without a report or restart. Rebuildin
 does not issue completion commands, including for live evidence. Non-live records never
 become live facts or automatic completions. Non-live containers remain ephemeral.
 Member imports preserve other players' item dismissals and container-only
-reviews while refreshing only the imported player's review. Dismissing unmapped
-items records `unmapped:<itemId>` in the scope's bounded `handled` list without
-removing retained facts. Retained beta/unknown journal dismissals persist through
-restart and portable recovery; ephemeral container dismissals remain session-only.
+reviews while refreshing only the imported player's review. An explicit Apply or Dismiss retains each shown task in
+every live, beta and unknown scope that supports it, regardless of the displayed
+row's world, including skipped rows, unmapped identities, food, runes and tasks
+supported only by beta, unknown-world or catch-up evidence. Container-only
+decisions retain handled IDs in their displayed scope without inventing facts.
+Supporting durable pending journal events count too: their scope can retain a
+decision before its facts are written, without acknowledging or inventing facts.
+All affected handled-list unions are validated before publication. The complete
+decision is published in the active compatibility copy in `state.json`, together
+with Apply's gameplay changes. Mapped decisions also retain reserved
+`~plugin-review:<taskId>` markers when space permits. An optional legacy
+projection lowers representable task IDs and markers into `plugin-items.json`,
+syncs them and reads them back. No non-live item facts are copied to the live scope.
+Lowering merges the existing sidecar records for every current roster member,
+including members absent from the older provenance capture. Only an explicit
+roster change may prune a former member. Recovery compares decision markers,
+not ordinary newer facts. Writable open repairs a missing projection when
+possible; read-only backup, export and preview workers recover surviving
+decisions in memory. Optional lowering failure or insufficient legacy capacity
+never refuses or rolls back a valid current-release decision. The authoritative
+state publication stays atomic under the journal write gate. Legacy marker
+lowering reserves room for remaining automatic Obtain tasks when it can fit.
+If a valid handled union needs the space, paired optional review markers may be
+omitted; their literal task decisions remain retained.
+An actual current-scope capacity refusal leaves the save, evidence and review unchanged
+and identifies the scope and 2,000-ID bound. Dismissal alone does not increment the
+gameplay revision. Retained decisions persist through restart and portable
+recovery; surviving portable decisions are never removed on roll-forward.
+Every container, bank and journal matcher consults that player's retained literal
+handled IDs in the matching world, even when optional rollback markers cannot fit.
+Recovery carries private claim coordination and the unsealed-archive guard to
+replacement state objects. Immutable field references remain attached to their
+unchanged field objects; changed fields are serialized and hashed again.
+Every optional item sidecar reader validates record shape and semantic fields,
+including reserved review markers, player ownership and journal scopes. A corrupt
+optional source is logged and excluded before merging, including during startup,
+reports, backups and exports. Its bytes remain untouched until the existing writer
+archives the original on a successful write. Authoritative provenance and combined
+evidence unions remain strictly validated. Unknown literal task IDs and unmapped
+item IDs within the declared bounds remain valid evidence.
+Frozen operations can discard carriers or re-offer decided rows; see the
+accepted rollback limit alongside currency limits below. Automatic live completion
+keeps its existing retention behavior.
+For handled-list capacity recovery, stop the receiver after writable recovery,
+keep a backup, and remove only reviewed obsolete unrelated handled IDs from the
+active compatibility copy and the corresponding sidecar. Preserve every review
+marker and its paired literal task ID. Removing item facts to free the 500-item
+bound must also preserve these decisions; it does not reopen dismissed tasks.
 
 `plugin-item-journal-commits.json` is a separate version 1 sidecar containing
 `{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.
@@ -133,6 +177,11 @@ When editing a portable export instead of the stored save, remove the same fact
 from both its active provenance copy and optional envelope. Keep the marker;
 never clear historical archives to make room. Dismissal hides review rows but
 retains their evidence, so it does not itself free an item-ID slot.
+The same stopped-receiver procedure applies to a full 2,000-ID handled list:
+remove only player-reviewed obsolete decisions from the active copy and matching
+sidecars (and both carriers when editing an export). Removing a handled identity
+allows its retained task or unmapped item to be offered again; preserve decisions
+the player still needs and keep the archive marker and journal ledger intact.
 
 ## Game plugin current currency
 
@@ -197,6 +246,11 @@ generated relative to those boundaries. These cases can leave an incorrect
 known balance across restart. Closing them requires a plugin-side freshness
 challenge, planned for plugin 1.1 after store moderation; this release does not
 change the plugin wire format or add a manual confirmation mode.
+
+After an emergency rollback to the frozen release, dismissed or applied plugin review rows may be offered again and can be dismissed again. No task progress is lost.
+This also applies after frozen Undo or frozen restore/export/import. Current
+decisions still present in provenance or legacy markers are recovered on return;
+a frozen restore/export that discards every carrier cannot recover that decision.
 
 Keys are never evicted to admit old traffic. Invalid metadata fails closed on
 load. Undo and restore retain active replay fences; imported private metadata
