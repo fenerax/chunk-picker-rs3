@@ -97,6 +97,7 @@ test('public diagnostics strip external paths and credentials, keeping assertion
   const output = diagnostic(new Error('expected 1, actual 2 at C:\\outside\\file.mjs and /home/runner/tool.mjs Bearer invented-value'), 'C:\\repo');
   assert.match(output, /expected 1, actual 2/);
   assert.doesNotMatch(output, /outside|\/home\/runner|invented-value/);
+  assert.equal(diagnostic('import failed\nat /unusual/tool.mjs\nBearer invented-value'), 'import failed\nat [external-path]\nBearer <token>');
 });
 
 test('workflow pins existing action SHAs, is read-only, cancels old pushes, and retains receipts even on failure', async () => {

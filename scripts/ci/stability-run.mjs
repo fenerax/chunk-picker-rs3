@@ -11,7 +11,7 @@ import { redact } from '../test-timing-reporter.mjs';
 // Keep original assertion/error details in the job log, but never publish machine
 // paths or credentials. Receipts use the stricter existing finite-vocabulary redactor.
 export function diagnostic(error, cwd = process.cwd()) {
-  return redact(inspect(error, { depth: 5, colors: false }))
+  return redact(typeof error === 'string' ? error : inspect(error, { depth: 5, colors: false }))
     .replaceAll(cwd, '.').replaceAll(cwd.replaceAll('\\', '/'), '.')
     .replace(/[A-Za-z]:[\\/][^\s'"<>)]*/g, '[external-path]')
     .replace(/(?<![\w.])\/[A-Za-z0-9_.-]+(?:\/[^\s'"<>)]*)?/g, '[external-path]');
@@ -63,6 +63,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       const abort = () => controller.abort();
       for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, abort);
       let idleSince = Date.now();
+      let output = '';
+      const failureOutput = result => {
+        if (!result.passed && output) console.error(diagnostic(output));
+      };
       try {
         return await runAdaptive({ files: [file], cwd, env: environment.env,
           minConcurrency: 1, maxConcurrency: 1, signal: controller.signal,
@@ -71,9 +75,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
             else if (Date.now() - idleSince > 120000) { console.error('Memory admission starved for 120s'); controller.abort(); }
           },
           onEvent: event => {
+            if (['test:stdout', 'test:stderr'].includes(event.type)) output = (output + event.data.message).slice(-32768);
             if (event.type === 'test:fail') console.error(diagnostic(event.data.details?.error));
             if (event.type === 'test:diagnostic' && /deadline/.test(event.data.message)) console.error(event.data.message);
-          } });
+          }, onFile: failureOutput, onFileError: failureOutput });
       } finally { for (const signal of ['SIGINT', 'SIGTERM']) process.removeListener(signal, abort); }
     } });
     process.exitCode = result.passed ? 0 : 1;
