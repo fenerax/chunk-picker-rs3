@@ -74,16 +74,11 @@ export function selectDuoTasks({ state, results, registry, selectedMemberId, fil
       availability.get(id)[member.id] = true;
     }
   }
-  // Personal filters compare both owners. Reuse projections only within this
-  // selection; the next call may have a different saved snapshot or catalogue.
-  const projectedMembers = personalFilter !== 'group' && sources.length
-    ? new Map(state.members.map(member => [member.id, projectMemberTaskFacts(state, member, catalogue)])) : undefined;
-  const projection = projectedMembers ? { projectMemberTaskFacts: (_state, member) => projectedMembers.get(member.id) } : undefined;
   const combined = new Map();
   for (const { member: savedMember, result, candidates, presentedIds, neverShowIds } of sources) {
-    const member = projectedMembers?.get(savedMember.id) ?? projectMemberTaskFacts(state, savedMember, catalogue);
+    const member = projectMemberTaskFacts(state, savedMember, catalogue);
     const completionGroups = result.collectionPlanning?.completionGroups ?? {};
-    const facts = createTaskFactsIndex(state, member.id, registry, { tasks: catalogue, completionGroups }, projection);
+    const facts = createTaskFactsIndex(state, member.id, registry, { tasks: catalogue, completionGroups });
     for (const task of candidates) {
       if (!visible(task) || neverShowIds.has(task.id) || (!showBlocked && task.status !== 'available')) continue;
       const id = canonical(task);
