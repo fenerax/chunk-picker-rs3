@@ -1,126 +1,58 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { isBuiltin } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { constants, setPriority } from 'node:os';
-import { moduleTokens } from './private-companion/tooling-module-graph.mjs';
+import { fileReferences, importGraph } from './test-affected-graph.mjs';
 import { affectedRules, globalTestChange, inertChange, ruleMatches } from './test-affected-rules.mjs';
 
+export { importGraph };
+export const moduleReferences = source => {
+  const { references, reasons } = fileReferences(source);
+  if (reasons.length) throw Error(reasons.join('; '));
+  return [...new Set(references.map(ref => ref.specifier))];
+};
 export function feedbackOrder(files) {
   const early = ['browser-module-graph.test.mjs', 'server.test.mjs', 'storage-static.test.mjs'];
   const rank = file => early.indexOf(file) < 0 ? early.length : early.indexOf(file);
   return [...files].sort((a, b) => rank(a) - rank(b));
 }
-
-// Tokenization ignores comments, strings and regex bodies, and visits template
-// interpolation code. No module is evaluated while constructing the graph.
-function fileReferences(source) {
-  const tokens = moduleTokens(source), references = [];
-  const constant = start => {
-    let i = start, depth = 0;
-    while (tokens[i]?.value === '(') { depth++; i++; }
-    const token = tokens[i++];
-    if (!token || token.escaped || !(token.kind === 'string' || token.kind === 'template' && !token.value.includes('${'))) throw Error('Unresolved constant file load');
-    while (depth-- > 0) if (tokens[i++]?.value !== ')') throw Error('Unresolved constant expression');
-    if (![',', ')'].includes(tokens[i]?.value)) throw Error('Unresolved file-load expression');
-    return { specifier: token.value, end: i };
-  };
-  const add = (token, options = {}) => {
-    if (!token || token.escaped || token.kind !== 'string') throw Error('Unresolved module specifier');
-    references.push({ specifier: token.value, kind: 'import', ...options });
-  };
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (t.kind !== 'identifier') continue;
-    if (t.value === 'import') {
-      if (tokens[i + 1]?.value === '(') references.push({ ...constant(i + 2), kind: 'import' });
-      else if (tokens[i + 1]?.kind === 'string') add(tokens[i + 1]);
-    }
-    if (t.value === 'from' && tokens[i + 1]?.kind === 'string') add(tokens[i + 1]);
-    if (t.value === 'datasetJSON' && tokens[i + 1]?.value === '(') references.push({ ...constant(i + 2), kind: 'file', root: true });
-    if (['require', 'createRequire', 'getBuiltinModule'].includes(t.value) && tokens[i + 1]?.value === '(') throw Error('Unmodeled module loader');
-    if (['readFile', 'readFileSync', 'readdir', 'readdirSync'].includes(t.value) && tokens[i + 1]?.value === '(') {
-      // The URL expression supplies its own module-relative edge below.
-      if (!(tokens[i + 2]?.value === 'new' && tokens[i + 3]?.value === 'URL')) references.push({ ...constant(i + 2), kind: 'file', root: true, directory: t.value.startsWith('readdir') });
-    }
-    if (t.value === 'URL' && tokens[i - 1]?.value === 'new' && tokens[i + 1]?.value === '(') {
-      const ref = constant(i + 2);
-      if (/^[a-z][a-z\d+.-]*:/i.test(ref.specifier) && !ref.specifier.startsWith('file:')) continue;
-      const base = tokens.slice(ref.end + 1, ref.end + 6).map(token => token.value).join('');
-      if (tokens[ref.end]?.value !== ',' || base !== 'import.meta.url') throw Error('Unresolved file URL base');
-      references.push({ ...ref, kind: 'file', directory: ref.specifier.endsWith('/') });
-    }
+const reach = (reverse, starts) => {
+  const visited = new Set(starts), queue = [...visited];
+  for (let i = 0; i < queue.length; i++) for (const importer of reverse.get(queue[i]) ?? []) {
+    if (!visited.has(importer)) { visited.add(importer); queue.push(importer); }
   }
-  return references;
-}
-
-export const moduleReferences = source => [...new Set(fileReferences(source).map(ref => ref.specifier))];
-
-const repository = fileURLToPath(new URL('../', import.meta.url));
-function resolveReference(file, ref) {
-  const base = pathToFileURL(ref.root ? repository + path.sep : path.join(repository, file));
-  const url = new URL(ref.specifier, base);
-  // fileURLToPath applies Node's percent decoding and refuses encoded slashes.
-  const target = path.relative(repository, fileURLToPath(url)).replaceAll('\\', '/');
-  if (!target || target === '..' || target.startsWith('../') || path.isAbsolute(target)) throw Error('File reference outside repository');
-  return target + (ref.directory ? '/' : '');
-}
-
-export function importGraph(sources) {
-  const reverse = new Map(), uncertain = [];
-  for (const [file, source] of sources) {
-    let references;
-    try { references = fileReferences(source); }
-    catch { uncertain.push(file); continue; }
-    for (const ref of references) {
-      try {
-        if (ref.kind === 'import' && isBuiltin(ref.specifier)) continue;
-        if (ref.kind === 'import' && !/^(?:\.{1,2}\/|file:)/.test(ref.specifier)) throw Error('Unresolved package import');
-        const target = resolveReference(file, ref);
-        if (ref.kind === 'import' && !sources.has(target)) throw Error('Missing imported module');
-        if (!reverse.has(target)) reverse.set(target, new Set());
-        reverse.get(target).add(file);
-      } catch { uncertain.push(file); }
-    }
-  }
-  return { reverse, uncertain: [...new Set(uncertain)] };
-}
-
-export function selectAffected({ sources, graph, changed, tests, rules = affectedRules }) {
-  const full = (uncertain = [], reason = 'Uncertain dependencies') => ({ files: [...new Set(tests)].sort(), uncertain, reason, full: true });
-  // These decisions precede graph construction, including for an invalid graph.
-  if (changed.some(globalTestChange)) return full([], 'Global test/data input');
-  changed = changed.filter(file => !inertChange(file));
-  if (!changed.length) return { files: [], uncertain: [] };
+  return visited;
+};
+export function selectAffected({ sources, graph, changed, tests, rules = affectedRules, symlinks = [] }) {
+  const full = reason => ({ files: [...new Set(tests)].sort(), uncertain: [], reason, full: true });
+  if (changed.some(globalTestChange)) return full('Global test/data input');
+  // With any tracked symlink, conservatively treat every change as global.
+  // This also covers link chains, directory links and external/absolute targets.
+  if (symlinks.length && changed.length) return full('Tracked symlinks present');
   graph ??= importGraph(sources);
   const { reverse, uncertain } = graph;
-  // A lexical failure must never silently omit an importer. Such a checkout
-  // still gets correct feedback, conservatively running the whole inventory.
-  if (uncertain.length) return full(uncertain);
   const directories = [...reverse.keys()].filter(key => key.endsWith('/'));
-  const selected = new Set();
-  // A source node existing in the graph is not proof that any test covers it.
-  // Every changed path must reach a feedback test or match a usable contract.
+  const inputs = file => [file, ...directories.filter(dir => dir === './' || file.startsWith(dir))];
+  changed = changed.filter(file => !inertChange(file) || inputs(file).some(key => reverse.has(key)));
+  if (!changed.length) return { files: [], uncertain };
+  const opaque = reach(reverse, uncertain), selected = new Set();
   for (const file of changed) {
-    const visited = new Set([file]), pending = [file, ...directories.filter(dir => file.startsWith(dir))];
-    for (let i = 0; i < pending.length; i++) for (const importer of reverse.get(pending[i]) ?? []) {
-      if (!visited.has(importer)) { visited.add(importer); pending.push(importer); }
-    }
+    if (file.endsWith('.mjs') && !reverse.has(file) && !tests.includes(file.slice(6))) return full('Module has no proven import consumers');
+    const visited = reach(reverse, inputs(file));
     const matching = rules.filter(rule => ruleMatches(rule, file));
     const consumers = tests.filter(test => visited.has(`tests/${test}`) || matching.some(rule => rule.tests.test(test)));
-    if (!consumers.length) return full([file], 'Changed path has no proven test coverage');
+    if (!consumers.length) return full('Changed path has no proven test coverage');
     for (const test of consumers) selected.add(test);
   }
-  return { files: feedbackOrder([...selected].sort()), uncertain };
+  const direct = feedbackOrder([...selected].sort());
+  const always = tests.filter(test => opaque.has(`tests/${test}`) && !selected.has(test)).sort();
+  return { files: [...direct, ...always], uncertain, always: always.length };
 }
-
-export async function affectedSelection({ cwd = fileURLToPath(new URL('../', import.meta.url)), base = 'origin/main' } = {}) {
+export async function affectedSelection({ cwd = fileURLToPath(new URL('../', import.meta.url)), base = 'origin/main', changed: changedOverride } = {}) {
   const git = args => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024 });
-  // Missing base is an error, never an empty selection. Include index/worktree
-  // changes as well as committed branch changes for the local pre-push check.
   const mergeBase = git(['merge-base', base, 'HEAD']).trim();
-  const changed = [...new Set([...git(['diff', '--no-renames', '--name-only', '-z', mergeBase]).split('\0'),
+  const changed = changedOverride ?? [...new Set([...git(['diff', '--no-renames', '--name-only', '-z', mergeBase]).split('\0'),
     ...git(['ls-files', '--others', '--exclude-standard', '-z']).split('\0')].filter(Boolean))];
   const names = git(['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*.mjs']).split('\0').filter(Boolean);
   const sources = new Map();
@@ -129,35 +61,39 @@ export async function affectedSelection({ cwd = fileURLToPath(new URL('../', imp
     catch (error) { if (error.code !== 'ENOENT') throw error; }
   }));
   const existing = new Set(sources.keys());
-  // Union old import edges for changed/deleted modules: deleting an import or
-  // moving a module must not hide tests that depended on its previous version.
   for (const name of changed.filter(name => name.endsWith('.mjs'))) {
     let previous;
     try { previous = git(['show', `${mergeBase}:${name}`]); } catch { continue; }
     sources.set(name, (sources.get(name) ?? '') + '\n' + previous);
   }
+  const symlinks = [];
+  // Read link blobs from both index and base; fs.readFile would follow the link.
+  for (const [rows, ref] of [[git(['ls-files', '-s', '-z']), ''], [git(['ls-tree', '-r', '-z', mergeBase]), mergeBase]]) {
+    for (const row of rows.split('\0')) {
+      const match = /^120000 [^\t]*\t(.*)$/.exec(row);
+      if (!match) continue;
+      const file = match[1], value = git(['show', `${ref}:${file}`]).trim();
+      symlinks.push({ file, target: path.posix.normalize(path.posix.join(path.posix.dirname(file), value)), directory: true });
+    }
+  }
   const { discoverTests } = await import('./test-selection.mjs');
-  // Audit classification/ports, then include every test entrypoint in feedback,
-  // including detector suites whose complete CI gate lives in another lane.
   await discoverTests(path.join(cwd, 'tests'), 'full');
   const tests = names.filter(name => /^tests\/[^/]+\.test\.mjs$/.test(name) && existing.has(name)).map(name => name.slice(6));
-  return { ...selectAffected({ sources, changed, tests }), changed, mergeBase };
+  return { ...selectAffected({ sources, changed, tests, symlinks }), changed, mergeBase, symlinks };
 }
-
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const base = args.find(arg => arg.startsWith('--base='))?.slice(7) ?? 'origin/main';
-  if (args.some(arg => arg !== '--list' && arg !== '--test-concurrency=1' && !arg.startsWith('--base='))) throw Error('Usage: test-affected.mjs [--list] [--base=origin/main] [--test-concurrency=1]');
+  const changed = args.filter(arg => arg.startsWith('--changed=')).map(arg => arg.slice(10));
+  if (args.some(arg => arg !== '--list' && arg !== '--test-concurrency=1' && !arg.startsWith('--base=') && !arg.startsWith('--changed='))) throw Error('Usage: test-affected.mjs [--list] [--base=origin/main] [--test-concurrency=1] [--changed=path ...]');
+  if (changed.length && !args.includes('--list')) throw Error('--changed is for synthetic --list inspection only');
   if (!args.includes('--list')) setPriority(0, constants.priority.PRIORITY_BELOW_NORMAL);
-  const selection = await affectedSelection({ base });
-  console.log(`Affected: ${selection.files.length} files (${selection.changed.length} changed paths)`);
+  const selection = await affectedSelection({ base, ...(changed.length ? { changed } : {}) });
+  console.log(`Affected: ${selection.files.length} files (${selection.changed.length} changed paths; ${selection.uncertain.length} uncertain nodes)`);
   if (selection.full) console.log(`Conservative full selection: ${selection.reason}.`);
   if (args.includes('--list')) console.log(selection.files.map(file => `tests/${file}`).join('\n'));
   else {
     const { runSelectedTests } = await import('./test.mjs');
-    // The local check is deliberately sequential, including isolated native
-    // node:test children (whose concurrency is always 1 in the adaptive runner).
-    const cap = process.env.GITHUB_ACTIONS === 'true' && !args.includes('--test-concurrency=1') ? 6 : 1;
-    await runSelectedTests(feedbackOrder(selection.files), { failFast: true, options: { minConcurrency: 1, maxConcurrency: cap, soloFirst: false } });
+    await runSelectedTests(feedbackOrder(selection.files), { failFast: true, options: { minConcurrency: 1, maxConcurrency: 1, soloFirst: false } });
   }
 }

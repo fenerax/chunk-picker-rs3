@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { balanceTests, assertPartition, shardTests } from '../scripts/ci/test-shards.mjs';
+import { balanceTests, assertPartition, shardTests, orderShardPrefix } from '../scripts/ci/test-shards.mjs';
 import { timingTable } from '../scripts/ci/update-test-timings.mjs';
 import { discoverTests } from '../scripts/test-selection.mjs';
 import { mergeLinuxReports } from '../scripts/ci/coverage-gate.mjs';
+import { runTestPhases } from '../scripts/test.mjs';
 
 test('deterministic timing-balanced shards cover every discovered full-suite file exactly once', async () => {
   const files = await discoverTests(undefined, 'full');
@@ -57,11 +58,33 @@ test('coverage aggregation refuses missing, overlapping, misassigned and failed 
   assert.throws(() => mergeLinuxReports([a, { ...b, completedFiles: [] }], inventories), /Incomplete/);
 });
 
-test('workflow gates four bounded shards on affected success and requires all shard reports', async () => {
+test('affected prefix runs once before the remainder; failure never admits the remainder', async () => {
+  assert.deepEqual(orderShardPrefix(['slow.test.mjs', 'solo.test.mjs', 'server.test.mjs', 'later.test.mjs'],
+    ['solo.test.mjs', 'slow.test.mjs', 'server.test.mjs', 'outside.test.mjs'], file => ({ solo: file === 'solo.test.mjs' })),
+  ['server.test.mjs', 'solo.test.mjs', 'slow.test.mjs']);
+  const files = ['slow.test.mjs', 'affected.test.mjs', 'last.test.mjs'], calls = [];
+  const result = await runTestPhases(files, ['affected.test.mjs'], async (group, affected) => {
+    calls.push({ group, affected }); return { passed: true, exitCode: 0 };
+  });
+  assert.equal(result.passed, true);
+  assert.deepEqual(calls, [{ group: ['affected.test.mjs'], affected: true }, { group: ['slow.test.mjs', 'last.test.mjs'], affected: false }]);
+  const admitted = [];
+  assert.equal((await runTestPhases(files, ['affected.test.mjs'], async group => {
+    admitted.push(...group); return { passed: false, exitCode: 1 };
+  })).passed, false);
+  assert.deepEqual(admitted, ['affected.test.mjs']);
+  await assert.rejects(runTestPhases(files, ['missing.test.mjs'], () => {}), /Invalid/);
+});
+
+test('workflow runs affected prefixes in four fail-fast bounded shards and requires all reports', async () => {
   const workflow = await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /needs: \[gate, affected\]/);
+  assert.doesNotMatch(workflow, /^  affected:/m);
+  assert.match(workflow, /needs: \[gate, inputs\]/);
+  assert.match(workflow, /fail-fast: true/);
+  assert.match(workflow, /timeout-minutes: 15/);
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
-  assert.match(workflow, /npm test -- --shard=\$\{\{ matrix.shard \}\}\/4/);
+  assert.match(workflow, /npm test -- --shard=\$\{\{ matrix.shard \}\}\/4 --affected-first/);
+  assert.match(workflow, /test "\$TEST_RESULT" = success/);
   assert.match(workflow, /RS3_COVERAGE_SHARDS: 4/);
   assert.match(workflow, /test-shard-\$\{\{ matrix.shard \}\}-coverage/);
   for (const use of workflow.matchAll(/uses: (actions\/[^@\s]+)@([^\s]+)/g)) assert.match(use[2], /^[a-f0-9]{40}$/);

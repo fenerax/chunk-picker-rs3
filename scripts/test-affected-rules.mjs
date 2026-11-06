@@ -1,7 +1,7 @@
 // Execution/configuration and data inputs can change tests without import edges.
-// Intentionally include all scripts and lock-like filenames rather than maintain
-// an incomplete list of test tooling or environment providers.
-export const globalTestChange = file => /^(?:\.github\/|scripts\/|packs\/|app\/datasets\/|app\/dataset[^/]*\.mjs$|app\/packs\.mjs$|app\/data\/.*\.(?:json|gz)$)/.test(file)
+// Operations scripts use ordinary reachability; test and dataset infrastructure
+// can affect every test independently of imports from test entrypoints.
+export const globalTestChange = file => /^(?:\.github\/|scripts\/(?:test(?:[.-]|$)|adaptive-test-runner|ci\/|build-open-f2p|fetch-open-f2p|private-companion\/)|packs\/|app\/datasets\/|app\/dataset[^/]*\.mjs$|app\/packs\.mjs$|app\/data\/.*\.(?:json|gz)$)/.test(file)
   || /(?:^|\/)(?:package\.json|npm-shrinkwrap\.json|[^/]*lock[^/]*)$/i.test(file)
   || /(?:^|\/)\.env(?:\.|$)/.test(file) || file === '.gitattributes';
 

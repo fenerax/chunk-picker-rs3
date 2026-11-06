@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { affectedSelection, feedbackOrder, importGraph, moduleReferences, selectAffected } from '../scripts/test-affected.mjs';
 import { GiB, runAdaptive } from '../scripts/adaptive-test-runner.mjs';
+import { checkedInputContract, inputContracts } from '../scripts/test-affected-contracts.mjs';
 
 test('static graph follows imports, reexports and literal lazy imports transitively', () => {
   const sources = new Map([
@@ -92,6 +93,74 @@ test('uncovered changes run everything; only explicitly inert changes can select
   assert.deepEqual(selectAffected({ sources, changed: ['.gitignore', 'unknown.json'], tests }).files, tests);
 });
 
+test('uncertainty selects only its transitive consumers, retaining other known edges', () => {
+  const sources = new Map([
+    ['app/known.mjs', 'export const value = 1;'],
+    ['app/opaque.mjs', "import './known.mjs'; import(target);"],
+    ['tests/opaque.test.mjs', "import '../app/opaque.mjs';"],
+    ['tests/known.test.mjs', "import '../app/known.mjs';"],
+    ['tests/unrelated.test.mjs', 'export const value = 1;'],
+  ]);
+  const graph = importGraph(sources), tests = ['opaque.test.mjs', 'known.test.mjs', 'unrelated.test.mjs'];
+  assert.deepEqual(graph.uncertain, ['app/opaque.mjs']);
+  assert.ok(graph.reverse.get('app/known.mjs').has('app/opaque.mjs'));
+  assert.deepEqual(selectAffected({ graph, tests, changed: ['tests/known.test.mjs'], rules: [] }).files, ['known.test.mjs', 'opaque.test.mjs']);
+  assert.deepEqual(selectAffected({ graph, tests, changed: ['app/known.mjs'], rules: [] }).files.sort(), ['known.test.mjs', 'opaque.test.mjs']);
+});
+
+test('audited finite-input loader contracts reject changes to reads or argument provenance', async () => {
+  for (const file of Object.keys(inputContracts)) {
+    const source = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.deepEqual(checkedInputContract(file, source), inputContracts[file].files, `Re-audit changed loader: ${file}`);
+    // The only computed input is a member of this literal array. The complete
+    // source guard also protects it from reassignment elsewhere in the body.
+    assert.match(source, /\['open-(?:f2p|starter)\.mjs', 'open-starter-data\.mjs'\]\.map\(name =>/);
+    assert.match(source, /readFileSync\(new URL\(name, import\.meta\.url\)\)/);
+    for (const mutation of [
+      source.replace("'open-starter-data.mjs'", "'../outside.json'"),
+      source.replace('new URL(name, import.meta.url)', 'new URL(options.filename, import.meta.url)'),
+      source + "\nreadFileSync('outside.json');\n",
+    ]) assert.equal(checkedInputContract(file, mutation), undefined, 'An expanded read scope must invalidate the contract');
+  }
+});
+
+test('referenced inert paths and literal filesystem percent/hash names select their consumers', () => {
+  for (const file of ['.gitignore', '.local/input.txt', '.git/input.txt', 'app/web/tone%20raw.css', 'app/web/tone#raw.css']) {
+    const sources = new Map([['tests/consumer.test.mjs', `import { readFileSync } from 'node:fs'; readFileSync('${file}', 'utf8');`]]);
+    const graph = importGraph(sources);
+    assert.deepEqual(graph.uncertain, [], file);
+    assert.ok(graph.reverse.get(file).has('tests/consumer.test.mjs'), file);
+    assert.ok(selectAffected({ graph, changed: [file], tests: ['consumer.test.mjs', 'server.test.mjs', 'docs-menu-paths.test.mjs'] }).files.includes('consumer.test.mjs'), file);
+  }
+});
+
+test('directory operation establishes a prefix without a trailing slash, including glob patterns', () => {
+  for (const call of ["readdirSync(new URL('../docs', import.meta.url))", "opendir('docs')", "glob('docs/*.md')"]) {
+    const graph = importGraph(new Map([['tests/consumer.test.mjs', call]]));
+    assert.deepEqual(graph.uncertain, [], call);
+    for (const changed of [['docs/new.md'], ['docs/deleted.md'], ['docs/old.md', 'docs/new.md']]) {
+      assert.deepEqual(selectAffected({ graph, changed, tests: ['consumer.test.mjs', 'other.test.mjs'], rules: [] }).files, ['consumer.test.mjs'], call);
+    }
+  }
+  const graph = importGraph(new Map([['tests/consumer.test.mjs', "glob('README.md')"]]));
+  assert.ok(selectAffected({ graph, changed: ['README.md'], tests: ['consumer.test.mjs', 'docs-menu-paths.test.mjs'] }).files.includes('consumer.test.mjs'));
+});
+
+test('unmodeled fs access stays local for aliases, computed members, parenthesized calls and module escape', () => {
+  for (const code of [
+    "import { readFileSync as read } from 'node:fs'; read(input);",
+    "import * as fs from 'node:fs'; fs['readFileSync']('app/web/input.txt');",
+    "import { readFileSync } from 'node:fs'; (readFileSync)('app/web/input.txt');",
+    "import fs from 'fs/promises'; consume(fs);",
+    "import { promises as fs } from 'node:fs'; consume(fs);",
+    "export { readFileSync as load } from 'node:fs';",
+  ]) {
+    const graph = importGraph(new Map([['tests/opaque.test.mjs', code], ['tests/known.test.mjs', 'export const x = 1;']]));
+    assert.deepEqual(graph.uncertain, ['tests/opaque.test.mjs'], code);
+    assert.deepEqual(selectAffected({ graph, changed: ['tests/known.test.mjs'], tests: ['known.test.mjs', 'opaque.test.mjs', 'other.test.mjs'], rules: [] }).files, ['known.test.mjs', 'opaque.test.mjs']);
+  }
+});
+
 test('parenthesized literal imports and URL-encoded filenames resolve like native file URLs', () => {
   for (const [expression, file] of [
     ["import((('../app/leaf.mjs')))", 'app/leaf.mjs'],
@@ -148,6 +217,12 @@ test('merge-base selection includes staged and untracked changes without running
   await writeFile(path.join(cwd, 'app/leaf.mjs'), 'export const leaf = 2;'); git(['add', 'app/leaf.mjs']);
   await writeFile(path.join(cwd, 'tests/new.test.mjs'), "import '../app/leaf.mjs';");
   assert.deepEqual((await affectedSelection({ cwd, base: 'baseline' })).files, ['consumer.test.mjs', 'new.test.mjs']);
+  const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd, input: 'leaf.mjs', encoding: 'utf8', windowsHide: true }).trim();
+  git(['update-index', '--add', '--cacheinfo', `120000,${blob},app/alias.mjs`]);
+  const linked = await affectedSelection({ cwd, base: 'baseline', changed: ['app/leaf.mjs'] });
+  assert.equal(linked.symlinks.length, 1);
+  assert.equal(linked.full, true);
+  assert.deepEqual(linked.files, ['consumer.test.mjs', 'new.test.mjs']);
   await assert.rejects(affectedSelection({ cwd, base: 'missing-base' }));
 });
 
@@ -161,7 +236,6 @@ test('today\'s missed regressions are selected against the actual repository gra
   const graph = importGraph(sources);
   const choose = file => {
     const result = selectAffected({ graph, changed: [file], tests });
-    if (result.uncertain.length) assert.deepEqual(result.files, [...tests].sort(), 'Unmodeled repository loads must use the complete feedback inventory');
     return result.files;
   };
   for (const file of ['app/core/state.mjs', 'app/core/synthetic-new-browser-module.mjs']) {

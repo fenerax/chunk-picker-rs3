@@ -1,4 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import { feedbackOrder } from '../test-affected.mjs';
+
+export function orderShardPrefix(files, selected, policy) {
+  const affected = new Set(selected), prefix = files.filter(file => affected.has(file));
+  // Group solo work to avoid repeatedly draining shared workers. Sentinels
+  // still lead, then longest-first assignment order is retained within groups.
+  return feedbackOrder([...prefix.filter(file => policy(file).solo), ...prefix.filter(file => !policy(file).solo)]);
+}
 
 export function assertPartition(files, shards) {
   const assigned = shards.flatMap(shard => shard.files);
