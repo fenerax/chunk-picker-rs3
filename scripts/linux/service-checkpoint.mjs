@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { copyFile, lstat, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { packRelative } from '../../app/packs.mjs';
+import { pluginItemFiles } from '../../app/plugin-items.mjs';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { snapshotPath, snapshotRoot, withDirectoryBarriers } from '../../app/storage/snapshot.mjs';
@@ -8,7 +9,7 @@ import { atomic, copyTree, directory, encode, exists, headroom, inventory, json,
 
 export const serviceFormat = 'picker-service-recovery-v1';
 export const pickerId = id => /^p_[0-9a-f]{32}$/.test(id);
-const gameplayRoots = new Set(['state.json', 'static', 'history', 'backups', 'plugin-achievements.json', 'plugin-items.json']);
+const gameplayRoots = new Set(['state.json', 'static', 'history', 'backups', 'plugin-achievements.json', ...pluginItemFiles]);
 export function pickerPath(settings, picker) {
   if (!pickerId(picker.id) || !['default', 'legacy-shared'].includes(picker.kind)) throw new Error('Invalid picker manifest.');
   return picker.kind === 'legacy-shared' ? settings.dataDir : path.join(settings.multiPicker.pickerRoot, picker.id);

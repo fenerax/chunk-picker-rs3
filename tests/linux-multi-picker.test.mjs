@@ -9,6 +9,7 @@ import { withDirectoryBarriers, withStoreWrite, snapshotStore, snapshotPath } fr
 import { openRegistry, registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { createPickerCheckpoint } from '../app/picker-router-checkpoint.mjs';
 import { captureServiceCheckpoint, verifyServiceBackup, copyServiceTree } from '../scripts/linux/service-checkpoint.mjs';
+import { pluginItemFiles } from '../app/plugin-items.mjs';
 import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine, reconcileServiceRecoveryTombstones } from '../scripts/linux/service-recovery.mjs';
 import { atomic, copyTree, encode, exists, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
@@ -105,6 +106,18 @@ test('per-picker checkpoints capture complete real writes while other stores kee
   const result = await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile, probe: portableProbe });
   assert.equal(result.restored, 3);
   for (const [i, picker] of f.pickers.slice(1).entries()) assert.equal((await json(path.join(target.multiPicker.pickerRoot, picker.id, 'state.json'))).state.revision, revisions[i]);
+});
+
+test('service recovery round-trips every durable plugin evidence sidecar', async t => {
+  const f = await fixture(t), picker = f.pickers[1], names = ['plugin-achievements.json', ...pluginItemFiles];
+  assert.deepEqual(pluginItemFiles, ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json']);
+  for (const [index, name] of names.entries()) await writeFile(path.join(f.dir(picker), name), encode({ v: 1, players: {}, synthetic: index }));
+  const backup = await f.capture(); await verifyServiceBackup(backup);
+  const target = await f.target();
+  await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile, probe: portableProbe });
+  for (const name of names) {
+    assert.deepEqual(await readFile(path.join(target.multiPicker.pickerRoot, picker.id, name)), await readFile(path.join(f.dir(picker), name)), name);
+  }
 });
 
 test('service export retains bindings and membership checkpoint, excludes all credentials and rejects tampering', async t => {

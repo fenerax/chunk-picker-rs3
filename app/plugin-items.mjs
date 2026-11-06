@@ -38,10 +38,15 @@ function validate(value) {
   return value;
 }
 
+const journalWorlds = ['beta', 'unknown'];
+const pluginItemFile = journalWorld => journalWorld ? `plugin-item-journal-${journalWorld}.json` : 'plugin-items.json';
+/** Every durable item-evidence sidecar; service recovery copies exactly these names. */
+export const pluginItemFiles = Object.freeze([pluginItemFile(), ...journalWorlds.map(pluginItemFile)]);
+
 /** Sidecar only: the caller owns the save directory's existing lock. */
 export async function openPluginItems({ dataDir, members, clock = Date.now, log = console.warn, journalWorld }) {
-  if (journalWorld !== undefined && !['beta', 'unknown'].includes(journalWorld)) throw new TypeError('Invalid journal world.');
-  const file = path.join(dataDir, journalWorld ? `plugin-item-journal-${journalWorld}.json` : 'plugin-items.json');
+  if (journalWorld !== undefined && !journalWorlds.includes(journalWorld)) throw new TypeError('Invalid journal world.');
+  const file = path.join(dataDir, pluginItemFile(journalWorld));
   let current = { v: 1, players: {} }, corrupt = false, queue = Promise.resolve(), closed = false, contents;
   try { contents = await readFile(file, 'utf8'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
