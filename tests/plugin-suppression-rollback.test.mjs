@@ -149,7 +149,7 @@ test('ExecStartPre admits an uninitialized store but refuses orphaned replay evi
   assert.deepEqual(await inventory(f.dataDir), before);
   await sidecar(f.dataDir, 'items', [itemTask]);
   const orphaned = await inventory(f.dataDir);
-  await assert.rejects(runStartGate(f.dataDir), /no owning checkpoint/);
+  await assert.rejects(runStartGate(f.dataDir), /Invalid replay checkpoint/);
   assert.deepEqual(await inventory(f.dataDir), orphaned);
 });
 
