@@ -1399,6 +1399,18 @@
       "reason": "Reviewed authored runtime, portable tooling, synthetic verification or placeholder provenance."
     },
     {
+      "path": "scripts/test-classification.mjs",
+      "reason": "Shared automatic test classification; no mirrored test registry."
+    },
+    {
+      "path": "scripts/test-selection-exceptions.mjs",
+      "reason": "Shared automatic test classification; no mirrored test registry."
+    },
+    {
+      "path": "scripts/test-discovery.mjs",
+      "reason": "Shared automatic test classification; no mirrored test registry."
+    },
+    {
       "path": "scripts/test-port-check.mjs",
       "reason": "Reviewed authored runtime, portable tooling, synthetic verification or placeholder provenance."
     },

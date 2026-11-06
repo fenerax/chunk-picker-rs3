@@ -3,7 +3,7 @@ import { lstatSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { classifyTest, selectTests } from './test-selection.mjs';
+import { readTestSelection } from './test-selection.mjs';
 
 const slash = value => value.replaceAll('\\', '/');
 const normalize = value => {
@@ -77,7 +77,8 @@ export async function affectedPrivateTests({ assemblyRoot, changedFiles = [], co
     await noLinks(filename);
     if (!(await lstat(filename)).isFile()) throw new Error(`Test input must be a regular file: ${filename}`);
   }
-  const all = selectTests(names, 'full'); // Unknown tests fail closed through the existing API.
+  const { classifyTest, selectTests } = await readTestSelection(path.join(root, 'tests'));
+  const all = selectTests(names, 'full');
   const fullOnly = all.filter(name => classifyTest(name) === 'full-only');
   const changes = [...new Set([...changedFiles.map(normalize), ...(diff ? changedFilesFromDiff(coreRoot ?? root, diff) : [])])].sort();
   for (const changed of changes) await noLinks(path.join(root, changed), { absent: true });
