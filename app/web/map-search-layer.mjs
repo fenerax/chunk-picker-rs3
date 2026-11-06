@@ -6,6 +6,8 @@ export class MapSearchLayer {
     this.viewKey = null;
     this.scope = null;
     this.disposed = false;
+    this.drawVersion = 0;
+    this.painting = false;
     if (stage?.ownerDocument?.createElement && stage.insertBefore) {
       const canvas = stage.ownerDocument.createElement('canvas');
       const context = canvas.getContext?.('2d');
@@ -37,6 +39,7 @@ export class MapSearchLayer {
     })) return false;
     this.matches = matches;
     this.dirty = true;
+    this.drawVersion++; this.painting = false;
     return true;
   }
 
@@ -46,6 +49,7 @@ export class MapSearchLayer {
     if (previous && (previous.world !== world || previous.memberId !== memberId || previous.revision !== revision)) {
       this.matches.clear();
       this.dirty = true;
+      this.drawVersion++; this.painting = false;
     }
   }
 
@@ -60,25 +64,47 @@ export class MapSearchLayer {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.clearRect(0, 0, width, height);
     }
-    const size = 128 * zoom;
-    context.save();
-    context.lineWidth = 2;
-    for (const point of this.matches.values()) {
-      const x = offset.x + point.x * size, y = offset.y + point.y * size;
-      if (x >= width || y >= height || x + size <= 0 || y + size <= 0) continue;
-      context.fillStyle = point.locked ? 'rgba(230,155,54,.22)' : 'rgba(238,66,219,.16)';
-      context.strokeStyle = point.locked ? '#e69b36' : '#f25fe3';
-      context.setLineDash(point.locked === false ? [] : [5, 3]);
-      const inset = Math.min(5, size * .2);
-      context.fillRect(x, y, size, size);
-      context.strokeRect(x + inset, y + inset, size - inset * 2, size - inset * 2);
-    }
-    context.restore();
+    const size = 128 * zoom, inset = Math.min(5, size * .2);
+    const offsetX = offset.x, offsetY = offset.y;
+    const version = ++this.drawVersion, points = this.matches.values();
+    const progressive = this.canvas && context === this.context && typeof requestAnimationFrame === 'function';
+    let next = points.next();
+    this.painting = true;
+    // Native canvas painting can outlast JS timing for thousands of dashed
+    // rectangles. Bound both visible paint and offscreen scanning per frame.
+    // Keep save/restore within each batch, and cancel obsolete viewport/scope work.
+    const paint = () => {
+      if (this.disposed || version !== this.drawVersion) return;
+      let previousLocked, hasStyle = false, visited = 0, painted = 0;
+      context.save();
+      context.lineWidth = 2;
+      while (!next.done) {
+        const point = next.value; next = points.next(); visited++;
+        const x = offsetX + point.x * size, y = offsetY + point.y * size;
+        if (x < width && y < height && x + size > 0 && y + size > 0) {
+          if (!hasStyle || previousLocked !== point.locked) {
+            context.fillStyle = point.locked ? 'rgba(230,155,54,.22)' : 'rgba(238,66,219,.16)';
+            context.strokeStyle = point.locked ? '#e69b36' : '#f25fe3';
+            context.setLineDash(point.locked === false ? [] : [5, 3]);
+            previousLocked = point.locked; hasStyle = true;
+          }
+          context.fillRect(x, y, size, size);
+          context.strokeRect(x + inset, y + inset, size - inset * 2, size - inset * 2);
+          painted++;
+        }
+        if (progressive && (painted >= 1024 || visited >= 4096)) break;
+      }
+      context.restore();
+      if (!next.done) requestAnimationFrame(paint);
+      else this.painting = false;
+    };
+    paint();
   }
 
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.drawVersion++; this.painting = false;
     this.matches.clear();
     this.canvas?.remove();
     this.canvas = this.context = null;

@@ -74,6 +74,7 @@ export function createScreenTaskDialogs(c) {
     else if (c.canWrite()) backlogBox.append(c.button('Backlog…', () => c.backlogForm(backlogBox, { ...task, id: commandTaskId }, () => c.closeDialog(generation), dialogMemberId), 'backlog-open'));
     if (['blocked', 'unsupported'].includes(task.status) && !task.id.startsWith('custom:')) stack.append(createWhyChainDisclosure(c, { taskId: task.id }, {
       memberId: dialogMemberId, revision: dialogRevision, advanced: c.advanced,
+      loadFull: async () => ({ result: await c.ensureDuoDetails(dialogMemberId, false, false), definitions: c.definitions }),
       current: () => c.dialogCurrent(generation) && c.state.revision === dialogRevision,
       ...(c.sandbox.active ? { result: detailResult, definitions: c.definitions } : {}),
     }));

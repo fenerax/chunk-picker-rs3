@@ -474,7 +474,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
-    const reconciledJournals = document.state.provenance?.pluginItemEvidenceReconciled === 1;
+    const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
     const state = importSavedState(document, registry);
     if (state.provenance?.pluginItemEvidenceReconciled === 1 && !reconciledJournals) journalRecovery.add(state);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
@@ -1090,7 +1090,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     queue = result.catch(() => {});
     return result;
   }
-  async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, currency = pluginCurrency } = {}) {
+  async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency } = {}) {
     if (operation === 'replace') currency = currencyAfterRestore(currency, next);
     const observed = cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
     const validated = cleanup ? observed : await compactHistory(observed, archived);
@@ -1108,6 +1108,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     const choicesChanged = JSON.stringify(current.members.map(member => [member.id, member.selected, member.pendingRoll]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.selected, member.pendingRoll]));
+    // A built-in note edit changes no saved task references. Reuse only the
+    // cached catalogue and identity fields; display fields come from durable state.
+    const previousPlay = reuseNoteProjection && validated.tasks === current.tasks
+      && validated.identityRegistry === current.identityRegistry && playProjections.get(current);
+    if (previousPlay) {
+      const { provenance, identityRegistry, progressSnapshots, ...display } = validated;
+      playProjections.set(validated, { ...previousPlay, state: { ...display,
+        tasks: previousPlay.state.tasks, identityRegistry: previousPlay.state.identityRegistry } });
+    }
     current = validated;
     receipts = nextReceipts;
     pluginCurrency = currency;
@@ -1177,7 +1186,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         }
       }
       return persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
-        receipt, noteEdit: command.type === 'set-note', currency: currencyAfterCommand(pluginCurrency, command, input.state, ready),
+        receipt, noteEdit: command.type === 'set-note', reuseNoteProjection: command.type === 'set-note' && ready === next,
+        currency: currencyAfterCommand(pluginCurrency, command, input.state, ready),
         ...(command.type === 'go-members' ? { backupLabel: 'Before going members' } : {}) });
     };
     return enqueue(() => itemReview ? withPluginItemEvidenceWrite(directory, work) : work());

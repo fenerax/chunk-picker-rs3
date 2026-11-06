@@ -245,7 +245,7 @@ export async function probe(core, dataDir, output, { retention } = {}) {
     const itemEvidenceFiles = (await saveIdentity(dataDir)).filter(row => itemFiles.includes(row.path));
     const adapter = path.join(core, 'app/plugin-items.mjs');
     let items;
-    try { await regular(adapter); items = await import(pathToFileURL(adapter)); }
+    try { await regular(adapter); items = await import(pathToFileURL(path.join(core, 'app/plugin-items.mjs'))); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     const owners = new Set(state.members.map(member => member.id));
     const itemEvidenceDigest = typeof items?.exportPluginItemEvidence === 'function'

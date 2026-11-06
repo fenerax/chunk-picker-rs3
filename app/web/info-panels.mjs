@@ -736,6 +736,8 @@ export function createInfoPanels(context) {
           if (task.blockers.length) row.append(list(task.blockers.map(blocker => blocker.detail)));
           if (!task.planningEligible) row.append(createWhyChainDisclosure(context, { master: master.name, assignment: task.name }, {
             memberId: result.memberId, revision: result.stateRevision, advanced,
+            loadFull: async () => ({ result: context.ensureMemberResult ? await context.ensureMemberResult(result.memberId) : result,
+              definitions: context.definitions?.() ?? {} }),
             ...(context.isSandbox?.() ? { result, definitions: context.definitions?.() ?? {} } : {}),
             current: () => context.state().revision === result.stateRevision && context.memberId() === result.memberId,
           }));

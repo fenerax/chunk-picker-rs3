@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { serialize } from 'node:v8';
 import { createSnapshotCache, snapshotBytes, createWorkerCacheBudget, trackPlanningIndex, trackSnapshotCore } from '../app/tasks/snapshot-cache.mjs';
 import { createEligibilityBudget, createEligibilityCache } from '../app/tasks/eligibility-cache.mjs';
+import { buildChunkPlanningIndex } from '../app/tasks/chunk-planning-index.mjs';
 
 const value = label => ({ baseline: { tasks: [{ label: label.repeat(400) }], metrics: {} }, estimates: new Map() });
 const state = { revision: 1, members: [{ id: 'same', unlocked: [] }] };
@@ -230,6 +231,51 @@ test('unrecognized planning shapes keep joint native sizing and shared aliases',
   const native = serialize([snapshot.baseline, snapshot.planningIndex.byLocation, snapshot.planningIndex.clueLocations, state]).byteLength;
   assert.ok(budget.bytes >= native);
   assert.equal(entries.size, 1);
+});
+
+test('cancelling planning measurement leaves its prior ledger charge intact', () => {
+  const baseline = { tasks: [{ id: 'task', record: { Chunks: ['12850'] } }] }, snapshot = { baseline };
+  const marker = {}, definitions = { chunks: { '12850': {} }, clues: {
+    easy: Object.fromEntries(Array.from({ length: 300 }, (_, i) => [String(i), marker])),
+  } };
+  // Shared clue markers exercise the native reference-byte scan as well as
+  // the producer charge. All locations belong to the synthetic world.
+  const world = { chunks: new Map(Array.from({ length: 300 }, (_, i) => [String(i), {}])) };
+  const index = trackPlanningIndex(buildChunkPlanningIndex(definitions, baseline, world), baseline);
+  const entries = new Map(), budget = createWorkerCacheBudget(1024 * 1024), cache = createSnapshotCache(entries, budget);
+  cache.set('base', snapshot, state, 'owner');
+  const before = budget.bytes, error = new Error('cancel measurement');
+  for (const limit of [2, 8, 20, 200]) {
+    snapshot.planningIndex = index;
+    let checks = 0;
+    assert.throws(() => cache.refresh(snapshot, false, false, () => { if (++checks >= limit) throw error; }), error);
+    assert.equal(budget.bytes, before);
+    assert.equal(entries.get('base'), snapshot);
+    assert.equal(cache.planningCharge(snapshot), 0);
+    delete snapshot.planningIndex; cache.refresh(snapshot);
+    assert.equal(budget.bytes, before, 'cancelled measurements leave no partial metadata to reuse');
+  }
+  snapshot.planningIndex = index; cache.refresh(snapshot);
+  assert.ok(cache.planningCharge(snapshot) > 0);
+  assert.ok(budget.bytes >= snapshotBytes(snapshot, state) + 9);
+});
+
+test('equal-size timing doubles can have different conservative reference charges', () => {
+  const costs = [];
+  // A payload byte matching V8's reference tag receives four conservative
+  // widening bytes. No actual timing or instrumentation is needed to show it.
+  for (const elapsedMs of [1.25, Buffer.from('5e0000000000f03f', 'hex').readDoubleLE()]) {
+    const snapshot = { baseline: { tasks: [], metrics: { elapsedMs } } };
+    const entries = new Map(), budget = createWorkerCacheBudget(1024 * 1024), cache = createSnapshotCache(entries, budget);
+    cache.set('base', snapshot, state, 'owner');
+    costs.push({ native: serialize(snapshot.baseline).length, charge: budget.bytes });
+  }
+  assert.equal(costs[0].native, costs[1].native);
+  assert.equal(costs[1].charge - costs[0].charge, 4);
+  const entries = new Map(), budget = createWorkerCacheBudget(2 * costs[0].charge), cache = createSnapshotCache(entries, budget);
+  const snapshot = { baseline: { tasks: [], metrics: { elapsedMs: Buffer.from('5e0000000000f03f', 'hex').readDoubleLE() } } };
+  assert.equal(cache.set('base', snapshot, state, 'owner'), false, 'a copied exact owner limit rejects the larger timing charge');
+  assert.equal(entries.size, 0, 'the snapshot is correctly absent before planning even starts');
 });
 
 

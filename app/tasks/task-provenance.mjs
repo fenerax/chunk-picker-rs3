@@ -38,10 +38,13 @@ function dependentIndex(result) {
 }
 
 /** Shortest "needed for X → required by Y" chains, preferring doable rows. */
-export function neededForChains(task, result, { limit = 3, depth = 3 } = {}) {
-  const index = dependentIndex(result), rank = row => row.status === 'available' ? 0 : 1;
-  const next = (row, seen) => (index.get(key(row.category, row.rawLabel ?? row.label)) ?? [])
-    .filter(item => !seen.has(item.id)).sort((a, b) => rank(a) - rank(b));
+export function neededForChains(task, result, { limit = 3, depth = 3, index = dependentIndex(result), visit = () => {} } = {}) {
+  const rank = row => row.status === 'available' ? 0 : 1;
+  const next = (row, seen) => {
+    const rows = index.get(key(row.category, row.rawLabel ?? row.label)) ?? [];
+    visit(rows, true);
+    return rows.filter(item => !seen.has(item.id)).sort((a, b) => rank(a) - rank(b));
+  };
   return next(task, new Set([task.id])).slice(0, limit).map(first => {
     const chain = [first], seen = new Set([task.id, first.id]);
     while (chain.length < depth) {
@@ -49,6 +52,7 @@ export function neededForChains(task, result, { limit = 3, depth = 3 } = {}) {
       if (!step) break;
       chain.push(step); seen.add(step.id);
     }
+    visit(chain, false);
     return chain.map(row => plain(row.label));
   });
 }
@@ -78,11 +82,17 @@ export function taskExplanation(task, result) {
   return [task.explanation, ...taskWarnings(task, result).map(reason => reason.detail)].filter(Boolean).join(' ');
 }
 
+/** Gate selection shared by the full explanation and its bounded evidence read. */
+export function taskBossGates(task, result) {
+  const monsters = new Set([task.monster, ...list(task.record?.Monsters), ...(task.sources ?? []).filter(source => source.kind === 'drop' || source.kind === 'monster').map(source => source.source ?? source.name)].filter(Boolean).map(plain));
+  return (result.bossGates ?? []).filter(status => status.monsters.some(monster => monsters.has(monster)));
+}
+
 /**
  * describeRule(id) returns { label, section, on, source } for a rule the Rules
  * screen knows, or undefined for tags that are not player-facing rules.
  */
-export function explainTask(task, { result = { tasks: [] }, describeRule = () => undefined, locationName = value => value, suppressed } = {}) {
+export function explainTask(task, { result = { tasks: [] }, describeRule = () => undefined, locationName = value => value, suppressed, related } = {}) {
   const record = task.record ?? {}, seen = new Set(), rules = [];
   const addRule = (id, reason) => {
     if (seen.has(id)) return; seen.add(id);
@@ -103,15 +113,14 @@ export function explainTask(task, { result = { tasks: [] }, describeRule = () =>
 
   // A boss task reaches the list only once that boss's gate is open; a task
   // still waiting on a closed gate says what the gate needs.
-  const monsters = new Set([task.monster, ...list(record.Monsters), ...(task.sources ?? []).filter(source => source.kind === 'drop' || source.kind === 'monster').map(source => source.source ?? source.name)].filter(Boolean).map(plain));
-  const gates = (result.bossGates ?? []).filter(status => status.monsters.some(monster => monsters.has(monster)));
+  const gates = taskBossGates(task, result);
   const gate = gates.find(status => status.open) ?? (task.status === 'available' ? undefined : gates[0]);
   const reasons = suppressed ?? result.presentation?.suppressed?.[task.id] ?? [];
   const decisive = rules.filter(rule => rule.reason === 'tag');
   return {
     label: plain(task.label), category: task.category, group: record.Label && record.Label !== task.category ? plain(record.Label) : undefined,
     categoryNote: CATEGORY_NOTES[task.category],
-    rules, set: setStanding(task, result), neededFor: neededForChains(task, result),
+    rules, set: related ? related.set : setStanding(task, result), neededFor: related ? related.neededFor : neededForChains(task, result),
     bossGate: gate ? { boss: gate.boss, open: gate.open, reason: gate.reason } : undefined,
     ...(task.slayerUnlockGate ? { slayerUnlockGate: task.slayerUnlockGate } : {}),
     sources, rareDrop: rare ? { label: rareDrop.label ?? 'Rare Drop', amount } : undefined,
