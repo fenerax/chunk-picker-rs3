@@ -1,5 +1,7 @@
 # G15 progress providers
 
+Historical implementation record. Its START inventory and retirement policy below are superseded by [the shutdown audit](runemetrics-sunset.md) and [current source routing](progress-sources.md).
+
 Base: `3b1577232a6a51f77de168497ee6d03ff8096353` (fetched main, START).
 No private save or pack content is used in this change's fixtures or measurements.
 

@@ -1,4 +1,4 @@
-import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember, validateObservedQuestPoints, isObservedProgressSource } from '../core/game-progress.mjs';
+import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp, progressBelongsToMember, preserveWebSkillProgress, validateObservedQuestPoints, isObservedProgressSource } from '../core/game-progress.mjs';
 import { canonicalTitle, UNMAPPED_QUEST_REASONS } from './quest-mapping.mjs';
 
 export function previewProgressSnapshot(state, memberId, snapshot, questMapping) {
@@ -17,11 +17,11 @@ export function previewProgressSnapshot(state, memberId, snapshot, questMapping)
     if (!Number.isSafeInteger(row.level) || row.level < 1 || row.level > 120 || typeof row.xp !== 'number' || !Number.isFinite(row.xp) || (snapshot.source === 'platform-api' && row.provenance?.source !== 'game-plugin' && !Number.isSafeInteger(row.xp)) || row.xp < 0 || row.xp > 200_000_000) {
       unmatched.skills.push({ id: row.id, skill, reason: 'Invalid level or XP; this row will not be applied.' }); continue;
     }
-    const after = { level: row.level, xp: row.xp }, prior = member.skillProgress?.[skill];
+    const protectedRow = snapshot.source === 'game-plugin' || row.provenance?.source === 'game-plugin'
+      ? row : preserveWebSkillProgress(row, member);
+    if (!protectedRow) continue;
+    const after = { level: protectedRow.level, xp: protectedRow.xp }, prior = member.skillProgress?.[skill];
     const saved = progressBelongsToMember(prior, member) ? prior : undefined;
-    // The server may have newer saved facts than the member used for fetching.
-    if (snapshot.source === 'hiscores' && row.provenance?.source !== 'game-plugin'
-      && progressBelongsToMember(saved, member) && (after.level < saved.level || after.xp < saved.xp)) continue;
     observedSkills.push({ skill, ...after, ...(row.provenance ? { provenance: row.provenance } : {}) });
     if (!saved || saved.level !== after.level || saved.xp !== after.xp) skills.push({ skill, before: saved ? { level: saved.level, xp: saved.xp } : null, after });
   }

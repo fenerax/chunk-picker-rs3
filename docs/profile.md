@@ -8,7 +8,7 @@ Levels are the saved account observations in `member.skillProgress`, including
 Invention and levels above F2P caps. Unknown skills stay blank; total and combat
 remain unknown until their required skills are recorded. F2P planning caps are
 shown separately from real levels. The sync date comes from the last applied
-RuneMetrics snapshot for the bound RuneScape name.
+web snapshot for the bound RuneScape name.
 
 Completed tasks combine the player's personal completions and picker challenge
 ticks, counting each canonical task once in the existing five task sections.

@@ -236,9 +236,13 @@ test('an idle sleeping worker is healthy; a stuck or failed one still recovers',
 
 test('writer recovery waits for released store; inactive services and startup grace stay untouched', async t => {
   const { settings, current, controller, events } = await fixture(t);
+  let restarts = '2';
+  const state = controller.state, stop = controller.stop;
+  controller.state = async () => ({ ...await state(), restarts });
+  controller.stop = async () => { await stop(); restarts = '0'; };
   let started = false;
   const start = controller.start;
-  controller.start = async () => { await start(); started = true; };
+  controller.start = async (_timings, options) => { assert.equal(options.restarts, '0'); await start(); started = true; };
   const request = async () => ({ ready: started, savesReady: true });
   assert.deepEqual(await healthRecovery({ settings, release: current, controller, request, wait: noWait }), { recovered: 'writer' });
   assert.deepEqual(events, ['stop', 'start']);

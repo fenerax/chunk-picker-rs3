@@ -1,7 +1,6 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createPlatformApiClient } from '../app/integrations/platform-api.mjs';
-import { createRuneMetricsClient } from '../app/integrations/runemetrics.mjs';
 import { createHiscoresSource } from '../app/integrations/hiscores.mjs';
 import { MAX_PROGRESS_RESPONSE_BYTES as limit } from '../app/integrations/bounded-response.mjs';
 import { platformProfile, platformResponse } from './helpers/platform-api-fixtures.mjs';
@@ -13,9 +12,6 @@ const cases = [
   { name: 'Platform API', create: createPlatformApiClient,
     profile: JSON.stringify(platformProfile(member.runescapeName)),
     isProfile: url => url.pathname.endsWith('index_lite.json'), other: platformResponse },
-  { name: 'RuneMetrics', create: createRuneMetricsClient,
-    profile: JSON.stringify({ name: member.runescapeName, skillvalues: [{ id: 0, level: 7, xp: 7000 }] }),
-    isProfile: url => url.pathname.endsWith('/profile'), other: () => Response.json({ quests: [] }) },
   { name: 'Hiscores', create: createHiscoresSource,
     profile: ['100,203,20300', ...Array.from({ length: 29 }, () => '100,7,700')].join('\n'),
     isProfile: () => true },
