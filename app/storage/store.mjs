@@ -714,13 +714,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (observed !== state && coordination.has(state)) coordination.set(observed, coordinationOf(state));
     return observed;
   }
+  function loadPreparationIsCurrent(state) {
+    return (!prepareState || prepareState.isCurrent?.(state) === true)
+      && (!migrateState || migrateState.isCurrent?.(state) === true);
+  }
   async function prepared(state, operation) {
     // The built-in identity-only hook explicitly proves that a gameplay command
     // kept its dataset stamp. Caller hooks keep their full copy/validation path.
     if (operation === 'command' && prepareState?.commandIsCurrent?.(state)
       && (!migrateState || migrateState.isCurrent?.(state))) return state;
-    if (operation === 'load' && prepareState?.isCurrent?.(state) === true
-      && (!migrateState || migrateState.isCurrent?.(state) === true)) return state;
+    if (operation === 'load' && loadPreparationIsCurrent(state)) return state;
     // Gameplay commands start from an already migrated private state. Caller
     // preparation hooks still receive migration context and may require repair
     // of catalogue changes made by an earlier hook.
@@ -825,6 +828,24 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // archive references. Keep untouched trees shared instead of cloning and
     // revalidating the complete catalogue/evidence at this retention boundary.
     return trimmed;
+  }
+  async function prepareLoadedState(state) {
+    // Currency predicates have the same complete History contract as hooks.
+    // Hydrate and validate once, then reuse that baseline for preparation and
+    // the committed-dependency check, even when every hook is already current.
+    const baseline = state.provenance?.historyArchive?.length ? (await hydrateHistory(state)).state : state;
+    const ready = await prepared(baseline, 'load');
+    if (ready === baseline) return state;
+    if (baseline !== state && JSON.stringify(ready.history) === JSON.stringify(baseline.history)) {
+      // Unchanged events retain the exact segments validated above. Hydration
+      // alone must not rewrite the save or create a catalogue refresh.
+      ready.history = structuredClone(state.history);
+      ready.provenance = { ...ready.provenance, historyArchive: structuredClone(state.provenance.historyArchive) };
+    } else if (ready.provenance?.historyArchive?.length) {
+      // A hook introduced dependencies outside the validated baseline.
+      await hydrateHistory(ready);
+    }
+    return ready;
   }
   async function standaloneBackups() {
     const entries = await readdir(backupsDir, { withFileTypes: true });
@@ -980,17 +1001,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
     currentDiskSerialized ??= await serializedDiskState(current);
-    if (existing && (prepareState || migrateState)) {
-      // Project retained events together with active events. Leaving the old
-      // segment references attached could revive pre-boundary undo on export.
-      const baseline = migrateState && current.provenance?.historyArchive?.length ? (await hydrateHistory(current)).state : current;
-      let ready = await prepared(baseline, 'load');
-      if (baseline !== current && JSON.stringify(ready.history) === JSON.stringify(baseline.history)) {
-        // Unchanged events can keep their existing retention segments. A
-        // reusable migration must not turn mere hydration into a refresh.
-        ready.history = structuredClone(current.history);
-        ready.provenance = { ...ready.provenance, historyArchive: structuredClone(current.provenance.historyArchive) };
-      }
+    if (existing) {
+      let ready = await prepareLoadedState(current);
       // Compare validated data directly: key ordering has no gameplay meaning,
       // and a changed projection should not stringify its large archive twice.
       // Exceptional numeric distinctions such as -0 conservatively refresh.
@@ -1013,8 +1025,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         reportDurability(publication);
       }
     }
-    // Confirm committed dependencies before recording startup observations.
-    if (current.provenance?.historyArchive?.length) await hydrateHistory(current);
+    // Existing saves were checked by prepareLoadedState before publication.
+    if (!existing && current.provenance?.historyArchive?.length) await hydrateHistory(current);
     // Daily observation metadata is independent of commands/catalogue changes.
     // Startup records today's counts without incrementing revision or History.
     if (!readOnly && !liveSwapStrict && progressQuestPoints !== undefined) {
@@ -1450,14 +1462,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           const acknowledged = await acknowledgedReceipts(metadata.ledger);
           reportActivationTiming(onActivationTiming, 'store.readValidate', phaseStarted);
           phaseStarted = performance.now();
-          const baseline = migrateState && latest.provenance?.historyArchive?.length ? (await hydrateHistory(latest)).state : latest;
-          const ready = await prepared(baseline, 'load');
-          if (baseline !== latest && JSON.stringify(ready.history) === JSON.stringify(baseline.history)) {
-            ready.history = structuredClone(latest.history);
-            ready.provenance = { ...ready.provenance, historyArchive: structuredClone(latest.provenance.historyArchive) };
-          }
+          const ready = await prepareLoadedState(latest);
           if (!isDeepStrictEqual(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
-          if (latest.provenance?.historyArchive?.length) await hydrateHistory(latest);
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
           if (closing) throw new Error('Standby activation was cancelled by shutdown.');
           current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
