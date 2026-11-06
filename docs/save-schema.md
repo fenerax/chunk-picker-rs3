@@ -7,6 +7,12 @@ replacement. Portable exports and History/Undo exclude this metadata. Importing
 or restoring gameplay preserves the current storage receipt ledger; imported
 receipts never replace it.
 
+The checked-in [save-surface manifest](save-surface.json) and
+[frozen save contract](save-surface.md) enumerate per-picker paths and their
+rollback policies. CI runs the actual `06e15939` dependency graph. The retained
+`tests/fixtures/rollback-main/` fixture is a fast hybrid check: five of its 22
+live app imports changed after the pin, so it is not a frozen runtime.
+
 ## Game plugin current currency
 
 The optional private envelope field `pluginCurrency` uses format 2. Its `keys`,

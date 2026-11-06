@@ -4,6 +4,9 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { applyCommand, createGroupState, importBackup, exportBackup } from '../app/core/state.mjs';
+// Fast hybrid check: three pinned files import 22 live app modules, five of
+// which changed after the pin. Only frozen-release-rollback.test runs the
+// actual frozen dependency graph.
 import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { createPlatformApiClient } from '../app/integrations/platform-api.mjs';
 import { previewRuneMetrics, createQuestMapping } from './helpers/legacy-runemetrics.mjs';
@@ -13,7 +16,7 @@ import { openStore } from '../app/storage/store.mjs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-test('a Platform-synced durable save loads with the frozen live-release loader', async t => {
+test('fast hybrid check: a Platform-synced durable save loads and Undoes', async t => {
   blockUnmockedFetch(t);
   const dataDir = await mkdtemp(path.join(tmpdir(), 'platform-rollback-'));
   let store;
@@ -47,7 +50,7 @@ test('a Platform-synced durable save loads with the frozen live-release loader',
   assert.equal(loaded.progressSnapshots.days[0].length, 4);
   assert.equal(loaded.progressSnapshots.days[0][2][0][2], 1, 'Timeline keeps main completion estimates');
 
-  // Prove that the real main validator rejects an incompatible saved source.
+  // Prove that the hybrid validator rejects an incompatible saved source.
   const unknownSource = structuredClone(durable);
   unknownSource.state.members[0].runeMetricsSync.source = 'platform-api';
   assert.throws(() => loadLiveBackup(unknownSource), /source must be runemetrics, official-api or hiscores/);
@@ -109,24 +112,20 @@ test('restore rejects persisted platform-api provenance without writing any stor
   }
 });
 
-// Keep the release exports mechanically tied to git show, never hand copies.
-// Pinned to the immutable release commit, not a moving branch. Shallow
-// checkouts without that commit still check the frozen header.
+// Keep the three pinned files mechanically tied to git show. Their 22 live
+// imports make this a fast hybrid check, not an exact frozen-runtime test.
 const LIVE_RELEASE_SHA = '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e';
-test('rollback fixtures are exports of the live release loader and validation at 06e1593', async () => {
+test('fast hybrid fixture files match their pinned sources at 06e15939', async () => {
   const cwd = fileURLToPath(new URL('../', import.meta.url));
   const sha = LIVE_RELEASE_SHA;
-  let present = true;
-  try { execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd, stdio: 'ignore' }); } catch { present = false; }
+  execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd, stdio: 'ignore' });
   for (const name of ['state', 'game-progress', 'progress-snapshots']) {
     const fixture = (await readFile(new URL(`./fixtures/rollback-main/${name}.mjs`, import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
-    assert.ok(fixture.startsWith(`// Frozen from live release ${sha}.\n`), `${name} fixture names the pinned release`);
-    if (!present) continue;
     const source = execFileSync('git', ['show', `${sha}:app/core/${name}.mjs`], { cwd, encoding: 'utf8' });
     const relocated = source.replace(/(from ['"])(\.[^'"]+)(['"])/g, (match, before, target, after) => {
       if (['./game-progress.mjs', './progress-snapshots.mjs'].includes(target)) return match;
       return before + (target.startsWith('./') ? '../../../app/core/' + target.slice(2) : '../../../app/' + target.slice(3)) + after;
     });
-    assert.equal(fixture, `// Frozen from live release ${sha}.\n// Only import paths are relocated; validation behavior must remain unchanged.\n${relocated}`);
+    assert.equal(fixture, `// Fast hybrid check: source pinned to ${sha}; imports use live app modules.\n// Five of 22 live imports changed after the pin; this is not a frozen runtime.\n${relocated}`);
   }
 });
