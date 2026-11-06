@@ -70,7 +70,7 @@ if (option('--child')) {
     const output = JSON.stringify({ node: process.version, baseline,
       baselineSha: execFileSync('git', ['rev-parse', baseline], { encoding: 'utf8' }).trim(), pairs, rows,
       medianBurstMs: Object.fromEntries(['before', 'after'].map(key => [key, median(rows.map(row => row[key].totalMs))])),
-      limitation: 'Synthetic durable store commands and full response parse; excludes HTTP, compression, browser rendering and real saves.' }, null, 2);
+      limitation: 'Synthetic durable store commands and full response parse; excludes HTTP, response compression, browser rendering and real saves.' }, null, 2);
     if (option('--out')) await writeFile(option('--out'), output + '\n');
     console.log(output);
   } finally { await rm(root, { recursive: true, force: true }); }
