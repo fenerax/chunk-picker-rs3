@@ -355,7 +355,7 @@ test('service start reconciliation gates every active picker, including quaranti
     memberships: [{ pickerId: id, role: 'owner', memberId: 'owner' }] }],
   pickers: [{ id, kind: 'default', ownerAccountId: owner, lifecycle: 'active', provisioning: 'ready', memberIds: ['owner'], createdAt: now }], capabilities: [] };
   await writeFile(path.join(registryDir, 'registry.json'), JSON.stringify(document));
-  await writeFile(path.join(target, 'quarantine.json'), '{}');
+  await writeFile(path.join(target, 'operator-quarantine.json'), '{}');
   const file = path.join(target, 'state.json'), state = JSON.parse(await readFile(file)); state.state = suppressed(state.state, 'items');
   await writeFile(file, JSON.stringify(state));
   await writeFile(path.join(target, 'plugin-items.json'), '{}');
