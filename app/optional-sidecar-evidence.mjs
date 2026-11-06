@@ -100,13 +100,13 @@ export async function captureOptionalSidecarEvidence(state, { dataDir } = {}) {
   const inputs = [state.provenance?.optionalSidecarEvidence, fromState(state)];
   for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
     if (!type.capture || dataDir === undefined && type.files?.length) continue;
-    const files = new Map();
+    const files = new Map(), unavailable = new Map();
     for (const name of type.files ?? []) {
       if (typeof name !== 'string' || !/^plugin-[a-z0-9-]+\.json$/.test(name)) invalid();
       try { files.set(name, await readFile(path.join(dataDir, name))); }
-      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      catch (error) { if (error.code !== 'ENOENT') unavailable.set(name, error.code ?? 'READ_FAILED'); }
     }
-    const players = await type.capture({ state, files });
+    const players = await type.capture({ state, files, unavailable });
     if (players !== undefined) inputs.push({ schemaVersion: 1, entries: { [id]: { version: 1, players } } });
   }
   const evidence = merge(state.members, ...inputs);

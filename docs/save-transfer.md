@@ -99,9 +99,12 @@ optional envelope. Suppression's atomic authority remains
 Register types in `app/optional-sidecar-evidence.mjs`. A registration supplies
 `mergePlayer(...records)`, which validates and immutably combines one or more
 per-player records. It may also supply `fromState(state)`, a code-owned `files`
-allowlist, `capture({ state, files })`, and `materialize(state, players)`.
+allowlist, `capture({ state, files, unavailable })`, and `materialize(state, players)`.
 Capture receives a Map of declared filenames to Buffers; missing files are
-omitted, and the type owns decoding and validation. Materialization is a pure,
+omitted. Non-missing read failures appear in the `unavailable` Map as filename
+and error code, so the type owns unavailable-file policy as well as decoding
+and validation. An unavailable file must not erase its committed state carrier.
+Materialization is a pure,
 synchronous state projection that preserves revision and History. The shared
 capsule is installed before this hook. A controller can read its type's capsule
 to rehydrate its own evidence cache. Incoming data never chooses a file path
