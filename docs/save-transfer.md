@@ -66,6 +66,13 @@ accounts, sessions, invitations, keys, reference datasets and artwork. Already
 accepted plugin observations materialized in gameplay remain in the backup;
 import does not authorize a live integration or reconnect a plugin client.
 
+Committed automatic plugin replay decisions also travel with the backup.
+Restores combine incoming decisions with the destination's decisions, so an
+older backup cannot make an undone observation tick again. Portable transfers
+map these decisions to the chosen destination players; member restore imports
+only the selected source player's decisions. Undo of a member restore retains
+these replay decisions too.
+
 ## Original picker chunks
 
 Only the full `duo-legacy` / `surface-grid-v1` / `rs3` contract supports the

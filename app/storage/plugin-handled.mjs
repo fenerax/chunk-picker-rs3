@@ -28,6 +28,31 @@ export function hasPluginHandled(state, player, kind, id) {
   return index[kind].has(id);
 }
 
+// Restore changes gameplay, never revokes a published replay decision. Sources
+// must already use destination member IDs (and member imports must be scoped
+// before mapping). Reject an oversized union rather than forget older decisions.
+export function reconcilePluginHandled(state, ...sources) {
+  const records = new Map();
+  const members = new Set(state.members.map(member => member.id));
+  let present = false;
+  for (const source of [state, ...sources]) {
+    const players = source.provenance?.pluginAutoHandled;
+    if (players === undefined) continue;
+    present = true;
+    if (!object(players)) throw new TypeError('Invalid plugin suppression players.');
+    for (const [id, input] of Object.entries(players)) {
+      if (!members.has(id)) continue;
+      validate(input);
+      const prior = records.get(id) ?? { achievements: [], items: [] };
+      records.set(id, validate({
+        achievements: [...new Set([...prior.achievements, ...input.achievements])].sort((a, b) => a - b),
+        items: [...new Set([...prior.items, ...input.items])].sort(),
+      }));
+    }
+  }
+  return present ? { ...state, provenance: { ...state.provenance, pluginAutoHandled: Object.fromEntries(records) } } : state;
+}
+
 export function withPluginHandled(state, command, input) {
   if (input === undefined) return state;
   if (command.type !== 'apply-game-progress') throw new TypeError('Plugin suppression requires a progress command.');

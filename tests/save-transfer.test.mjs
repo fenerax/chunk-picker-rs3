@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { originalChunkURL, legacyChunkIndex } from '../app/original-chunk-url.mjs';
 import { mapTransferRoster, requireTransferDataset, transferManifest, transferReport, createTransferReviews } from '../app/save-transfer.mjs';
 import { createGroupState, validateState, applyCommand } from '../app/core/state.mjs';
+import { reconcilePluginHandled } from '../app/storage/plugin-handled.mjs';
 
 const dataset = { datasetId: 'duo-legacy', datasetContractVersion: 1, coordinateSystem: 'surface-grid-v1', identityNamespace: 'rs3', digest: 'a'.repeat(64) };
 const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -78,6 +79,28 @@ test('transfer reports retain raw unknown chunk, task, rule and warning records'
   assert.equal(report.records[1].rawValue.status.backlogReason, '');
   assert.equal(report.counts.dropped, 0);
   assert.equal(report.counts.preservedForReview, 4);
+});
+
+test('partial roster mapping excludes unselected suppression even when its ID collides with the destination', () => {
+  const state = createGroupState([{ id: 'source', name: 'Source explorer' }]);
+  state.provenance = { pluginAutoHandled: {
+    source: { achievements: [1], items: ['custom:selected'] },
+    owner: { achievements: [2], items: ['custom:other'] },
+    absent: { achievements: [3], items: ['custom:absent'] },
+  } };
+  const mapped = mapTransferRoster(state, [{ id: 'owner' }], { source: 'owner' });
+  assert.deepEqual(mapped.provenance.pluginAutoHandled, { owner: { achievements: [1], items: ['custom:selected'] } });
+  assert.deepEqual(state.provenance.pluginAutoHandled.owner.achievements, [2], 'The source backup stays untouched');
+});
+
+test('suppression reconciliation rejects invalid or overflowing unions without dropping committed decisions', () => {
+  const state = createGroupState([{ id: 'owner', name: 'Explorer' }]);
+  state.provenance = { pluginAutoHandled: { owner: { achievements: [], items: Array.from({ length: 2000 }, (_, i) => `custom:${i}`) } } };
+  const before = structuredClone(state);
+  for (const record of [{ achievements: [], items: ['custom:overflow'] }, { achievements: [-1], items: [] }]) {
+    assert.throws(() => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: { owner: record } } }), /Invalid plugin suppression IDs/);
+    assert.deepEqual(state, before);
+  }
 });
 
 test('review receipts refuse changed uploads, mapping, identity, revision and expiration', () => {

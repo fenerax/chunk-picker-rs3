@@ -3,6 +3,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { deserialize } from 'node:v8';
 import { backupPreviewState, MAX_PORTABLE_BACKUP_BYTES } from './backup-transfer.mjs';
 import { openStore } from './storage/store.mjs';
+import { reconcilePluginHandled } from './storage/plugin-handled.mjs';
 import { createRuleRegistryFromDefinitions } from './core/rule-registry.mjs';
 import { importBackup, previewRestore, applyValidatedCommand, validateState } from './core/state.mjs';
 import { decodeCompletionDocument } from './storage/completion-codec.mjs';
@@ -145,8 +146,8 @@ async function run(job) {
       // Guards describe the imported member's already-migrated fields. Install
       // them before preparing the command, so migration cannot resurrect cleared
       // values and make the newly authored Undo stale. Other members keep theirs.
-      const guarded = { ...current };
-      if (pasted) guarded.provenance = { ...current.provenance, originalPasteImports: [
+      const guarded = reconcilePluginHandled({ ...current }, mappedMember);
+      if (pasted) guarded.provenance = { ...guarded.provenance, originalPasteImports: [
         ...(current.provenance?.originalPasteImports ?? []), { ...pasted.archive, memberId: owner.id } ] };
       for (const field of ['migratedMembers', 'journalMigratedMembers', 'taskStatusProvenance']) {
         const rows = mappedMember.legacy?.gameplayMigration?.[field]?.filter(row => row.memberId === owner.id);

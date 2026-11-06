@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { openStore } from '../app/storage/store.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serialize } from 'node:v8';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { applyCommand, createGroupState } from '../app/core/state.mjs';
@@ -337,8 +338,9 @@ test('multiple achievement ids matching one task are all handled by the single a
   assert.equal(f.commands.length, 2);
 });
 
-test('automatic achievement aliases stay suppressed after failed sidecar writes, Undo and restart', async t => {
+for (const restore of ['restart', 'older-backup', 'member']) test(`automatic achievement aliases stay suppressed after failed sidecar writes, Undo and ${restore} restore`, async t => {
   const f = await fixture(t, undefined, undefined, { durable: true });
+  const older = f.state;
   const file = path.join(f.dataDir, 'plugin-achievements.json');
   await mkdir(file);
   const complete = [[1, 'First Task', 0, 0], [2, 'First_Task', 0, 0]];
@@ -353,6 +355,19 @@ test('automatic achievement aliases stay suppressed after failed sidecar writes,
   assert.deepEqual(f.state.members[0].completedTasks, []);
   assert.equal(f.state.revision, revision, 'Neither alias can replay the undone tick');
   assert.deepEqual(f.controller.review(identity, 'a'), { preview: null });
+  const destination = restore === 'member' ? await fixture(t, undefined, undefined, { durable: true }) : f;
+  if (restore === 'member') {
+    await f.store.command({ type: 'set-runescape-name', memberId: 'a', name: 'FixtureActor' }, f.state.revision);
+    const review = await destination.store.prepareTransfer(serialize({ backup: await f.store.backup(), memberId: 'a', sourceMemberId: 'a' }),
+      { dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() }, route: '/api/member-restore/preview' });
+    await destination.store.applyTransfer(review.ticket, destination.state.revision);
+    await destination.store.command({ type: 'undo' }, destination.state.revision);
+  } else if (restore === 'older-backup') await destination.store.replace(older, destination.state.revision);
+  await destination.restart();
+  const restoredRevision = destination.state.revision;
+  await destination.send(part(1, 1, complete, secondSnapshot));
+  assert.deepEqual(destination.state.members[0].completedTasks, []);
+  assert.equal(destination.state.revision, restoredRevision, 'Restored aliases cannot tick again');
 });
 
 test('a persistently broken sidecar never blocks sync or reoffers pending handled IDs, and later recovers', async t => {

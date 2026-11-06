@@ -1,15 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { serialize } from 'node:v8';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { createGroupState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
-import { importBackup as loadRollbackBackup } from './fixtures/rollback-main/state.mjs';
+import { importBackup as loadRollbackBackup, applyCommand as rollbackCommand } from './fixtures/rollback-main/state.mjs';
 import { openStore } from '../app/storage/store.mjs';
+import { mapTransferRoster } from '../app/save-transfer.mjs';
 
 const roster = [{ id: 'synthetic-player', name: 'Synthetic player', runescapeName: 'FixtureActor' }];
 const dataset = { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} };
@@ -22,11 +23,62 @@ function platformSave() {
     runescapeName: roster[0].runescapeName, fetchedAt: '2026-11-04T12:00:00Z',
     skills: [{ skill: 'Attack', level: 7, xp: 700 }], quests: [{ taskId: state.tasks[0].id, title: state.tasks[0].label }] });
 }
-async function scratch(t) {
+async function scratch(t, options = {}) {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'synthetic-transfer-platform-'));
-  const store = await openStore({ dataDir, initialState: createGroupState(roster), retention: false, now: () => now });
+  const store = await openStore({ dataDir, initialState: createGroupState(roster), retention: false, now: () => now, ...options });
   t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
   return { dataDir, store };
+}
+
+for (const entrypoint of ['member-upload', 'member-retained', 'member-noop', 'whole-upload', 'whole-retained', 'import', 'direct-worker', 'direct-hook']) {
+  test(`${entrypoint} reconciles mapped replay suppression with destination decisions`, async t => {
+    const owner = roster[0].id, initialState = createGroupState([...roster, { id: 'partner', name: 'Destination partner' }]);
+    initialState.provenance = { pluginAutoHandled: {
+      [owner]: { achievements: [9], items: ['custom:previous'] },
+      partner: { achievements: [7], items: ['custom:partner'] },
+    } };
+    const { store, dataDir } = await scratch(t, { initialState,
+      ...(entrypoint === 'direct-hook' ? { prepareState: state => state } : {}) });
+    const incoming = createGroupState([{ ...roster[0], id: 'source',
+      ...(entrypoint !== 'member-noop' ? { name: 'Source explorer', runescapeName: 'SourceActor' } : {}) }, ...roster]);
+    incoming.provenance = { pluginAutoHandled: {
+      source: { achievements: [1, 1], items: ['custom:incoming', 'custom:incoming'] },
+      [owner]: { achievements: [2], items: ['custom:other'] },
+      absent: { achievements: [3], items: ['custom:absent'] },
+    } };
+    const member = entrypoint.startsWith('member'), backup = exportBackup(incoming);
+    const expected = { [owner]: { achievements: [1, 9], items: ['custom:incoming', 'custom:previous'] },
+      partner: { achievements: member ? [7] : [2, 7], items: member ? ['custom:partner'] : ['custom:other', 'custom:partner'] } };
+    if (entrypoint.startsWith('direct')) {
+      const mapped = mapTransferRoster(incoming, roster, { source: owner, [owner]: 'partner' });
+      const preview = await store.previewReplacement(mapped);
+      assert.deepEqual(preview.state.provenance.pluginAutoHandled, expected);
+      await store.replace(mapped, 0);
+    } else {
+      const backupId = '0000000000000000-0123456789abcdef.json.gz';
+      if (entrypoint.endsWith('retained')) await writeFile(path.join(dataDir, 'backups', backupId), gzipSync(JSON.stringify(backup)));
+      const reviewed = await store.prepareTransfer(serialize({
+        ...(entrypoint.endsWith('retained') ? { backupId } : { backup }),
+        ...(member ? { memberId: owner, sourceMemberId: 'source' } : { rosterMapping: { source: owner, [owner]: 'partner' } }),
+      }), { dataset, world, route: member ? '/api/member-restore/preview' : entrypoint === 'import' ? '/api/import/preview' : '/api/restore/preview' });
+      assert.deepEqual(store.getState(), initialState, 'Preview does not publish replay policy');
+      await store.applyTransfer(reviewed.ticket, 0);
+    }
+    assert.deepEqual(store.getState().provenance.pluginAutoHandled, expected);
+    if (!member) assert.deepEqual(store.getState().provenance.restore.incomingProvenance.pluginAutoHandled[owner].achievements,
+      [1, 1], 'Archived source evidence is separate from the reconciled live replay policy');
+    assert.deepEqual(loadRollbackBackup(await store.backup()), store.getState(), 'Previously live release can load the additive extension');
+    if (member && entrypoint !== 'member-noop') {
+      const rollback = rollbackCommand(loadRollbackBackup(await store.backup()), { type: 'undo' });
+      assert.deepEqual(rollback.provenance.pluginAutoHandled, expected, 'Old-release Undo retains replay decisions');
+      await store.command({ type: 'undo' }, store.getInfo().revision);
+      assert.deepEqual(store.getState().provenance.pluginAutoHandled, expected, 'Member restore Undo retains replay decisions');
+    }
+    assert.deepEqual(incoming.provenance.pluginAutoHandled.source.achievements, [1, 1], 'Source backup is unchanged');
+    const reopened = await openStore({ dataDir, readOnly: true });
+    try { assert.deepEqual(reopened.getState().provenance.pluginAutoHandled, expected, 'Replay policy survives reopening the saved bytes'); }
+    finally { await reopened.close(); }
+  });
 }
 function prepare(store, backup, member = false) {
   return store.prepareTransfer(serialize({ backup,

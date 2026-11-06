@@ -81,7 +81,7 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   }
   for (const row of next.provenance?.taskIdentityMigration?.legacyAlternativeMembers ?? []) row.memberId = mapped(row.memberId);
   if (next.provenance?.pluginAutoHandled) next.provenance.pluginAutoHandled = Object.fromEntries(
-    Object.entries(next.provenance.pluginAutoHandled).map(([id, record]) => [mapped(id), record]));
+    Object.entries(next.provenance.pluginAutoHandled).filter(([id]) => Object.hasOwn(entries, id)).map(([id, record]) => [mapped(id), record]));
   for (const task of next.tasks) if (task.memberIds) task.memberIds = task.memberIds.map(mapped);
   for (const claim of Object.values(next.taskClaims ?? {})) claim.memberId = mapped(claim.memberId);
   for (const goal of next.groupGoals ?? []) goal.completedBy = goal.completedBy.map(mapped);

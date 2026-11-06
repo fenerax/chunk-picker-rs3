@@ -3,7 +3,7 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
-import { hasPluginHandled, withPluginHandled } from './plugin-handled.mjs';
+import { hasPluginHandled, withPluginHandled, reconcilePluginHandled } from './plugin-handled.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
@@ -1132,8 +1132,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       else precedingEvidence.push(event);
     }
     const previousHistory = [...precedingEvidence, ...[...preceding.values()].sort((a, b) => a.revision - b.revision)];
+    const pluginAutoHandled = reconcilePluginHandled(ready, base).provenance?.pluginAutoHandled;
     ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}),
-      ...(ready.provenance?.pluginAutoHandled ? { pluginAutoHandled: ready.provenance.pluginAutoHandled } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
+      ...(pluginAutoHandled ? { pluginAutoHandled } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
       ...(completeIncoming.provenance !== undefined ? { incomingProvenance: completeIncoming.provenance } : {}) } };
     ready.revision = revision;
     // A replacement establishes a new undo boundary. Earlier snapshots may
@@ -1259,6 +1260,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const store = {
     async prepareImportPublication(next, operation, { validateBackup } = {}) {
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
+      // All transfer routes publish the union with the exact destination
+      // checkpoint. applyTransfer rejects a ticket if that checkpoint changes.
+      next = reconcilePluginHandled(next, current);
       importDependencies = [];
       const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
       // Export observes snapshots and hydrated History, not the compact disk

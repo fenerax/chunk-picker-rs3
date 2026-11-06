@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { validatePluginReport } from '../app/integrations/game-plugin.mjs';
@@ -172,8 +173,9 @@ test('an undone item tick is not ticked again, and a failed tick waits in review
   assert.equal(f.commands.length, 1, 'Handled across restart');
 });
 
-test('an automatic item tick keeps suppression through sidecar failure, Undo and restart', async t => {
+for (const restore of ['checkpoint', 'older-backup', 'member']) test(`an automatic item tick keeps suppression through sidecar failure, Undo and ${restore} restore`, async t => {
   const f = await fixture(t, { durable: true });
+  const older = f.state;
   const file = path.join(f.dataDir, 'plugin-items.json'), backup = path.join(f.dataDir, 'synthetic-held-items.json');
   const command = f.store.command;
   f.store.command = async (...args) => {
@@ -198,10 +200,21 @@ test('an automatic item tick keeps suppression through sidecar failure, Undo and
   assert.deepEqual(f.state.members[0].completedTasks, [], 'The failed sidecar cannot undo a committed suppression decision');
   assert.equal(f.state.revision, revision, 'Replay adds no tick or History entry');
   assert.equal(f.store.isPluginHandled('b', 'items', goal('000dc1')), false, 'Suppression belongs to the observed player');
-  await f.store.replace(f.state, f.state.revision);
-  await f.restart();
-  await f.send(value);
-  assert.deepEqual(f.state.members[0].completedTasks, [], 'A restored checkpoint retains its replay policy');
+  const destination = restore === 'member' ? await fixture(t, { durable: true }) : f;
+  if (restore === 'member') {
+    // A fresh picker has no handled sidecar to hide a lost transfer marker.
+    await f.store.command({ type: 'set-runescape-name', memberId: 'a', name: 'FixtureActor' }, f.state.revision);
+    const review = await destination.store.prepareTransfer(serialize({ backup: await f.store.backup(), memberId: 'a', sourceMemberId: 'a' }),
+      { dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() }, route: '/api/member-restore/preview' });
+    await destination.store.applyTransfer(review.ticket, destination.state.revision);
+    // Undo the restore too: imported replay decisions remain committed policy.
+    await destination.store.command({ type: 'undo' }, destination.state.revision);
+  } else await destination.store.replace(restore === 'checkpoint' ? f.state : older, f.state.revision);
+  await destination.restart();
+  const restoredRevision = destination.state.revision;
+  await destination.send(value);
+  assert.deepEqual(destination.state.members[0].completedTasks, [], 'Restore retains the committed replay policy');
+  assert.equal(destination.state.revision, restoredRevision, 'Restored observations cannot tick again');
 });
 
 test('a failed gameplay publication commits neither the item tick nor its suppression', async t => {
