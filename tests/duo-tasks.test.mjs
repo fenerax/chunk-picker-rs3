@@ -14,6 +14,45 @@ const result = (memberId, tasks, presented = tasks) => ({ memberId, stateRevisio
 const select = (snapshot, results, options = {}) => selectDuoTasks({ state: snapshot, results, registry, selectedMemberId: 'actor1', ...options });
 const ids = value => value.rows.map(row => row.id);
 
+test('personal availability excludes raw never-show identities independently for each owner', () => {
+  const snapshot = state(), canonical = 'rs3:task:ore';
+  snapshot.identityRegistry = { entries: { [canonical]: { category: 'Extra' } }, aliases: { old: canonical } };
+  const own = task(canonical), partner = task('old', { label: 'Partner ore', explanation: 'Partner evidence' });
+  const a = result('actor1', [own]), b = result('reed', [partner]);
+  b.neverShowIds = ['old', 'old', 'unrelated'];
+  const before = structuredClone({ snapshot, a, b });
+  for (const personalFilter of ['not-done', 'only-player']) {
+    const view = select(snapshot, [a, b], { personalFilter });
+    assert.deepEqual(ids(view), [canonical]);
+    assert.deepEqual(view.rows[0].availabilityByMember, { actor1: true });
+    assert.deepEqual(view.rows[0].memberIds, ['actor1']);
+    assert.strictEqual(view.rows[0].task, own);
+    assert.deepEqual(ids(select(snapshot, [a, b], { personalFilter, selectedMemberId: 'reed' })), []);
+  }
+  assert.deepEqual({ snapshot, a, b }, before);
+  // Exclusion checks raw IDs before canonical union: a canonical ID in this
+  // owner's list must not accidentally exclude a different raw alias.
+  b.neverShowIds = [canonical];
+  const visibleAlias = select(snapshot, [a, b], { personalFilter: 'not-done' });
+  assert.deepEqual(visibleAlias.rows[0].availabilityByMember, { actor1: true, reed: true });
+  assert.deepEqual(ids(select(snapshot, [a, b], { personalFilter: 'only-player' })), []);
+});
+
+test('never-show membership is rebuilt for changed results and ignores stale peer availability', () => {
+  const snapshot = state(), shared = task('shared');
+  const a = result('actor1', [shared]), b = result('reed', [shared]);
+  b.neverShowIds = ['shared'];
+  assert.deepEqual(ids(select(snapshot, [a, b], { personalFilter: 'only-player' })), ['shared']);
+  b.neverShowIds.length = 0;
+  assert.deepEqual(ids(select(snapshot, [a, b], { personalFilter: 'only-player' })), []);
+  b.stateRevision--;
+  assert.deepEqual(ids(select(snapshot, [a, b], { personalFilter: 'only-player' })), ['shared']);
+  delete b.neverShowIds; b.stateRevision++;
+  assert.deepEqual(ids(select(snapshot, [a, b], { personalFilter: 'only-player' })), []);
+  a.neverShowIds = ['shared'];
+  assert.deepEqual(ids(select(snapshot, [a, b], { personalFilter: 'not-done' })), []);
+});
+
 test('blocked inspection retains owner-specific imported rows with no engine result', () => {
   const snapshot = state(), imported = task('imported'); snapshot.tasks = [imported];
   snapshot.members[1].taskStatus.imported = { note: 'Preserved' };
