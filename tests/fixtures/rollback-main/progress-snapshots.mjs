@@ -1,5 +1,5 @@
-// Frozen from live release 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e.
-// Only import paths are relocated; validation behavior must remain unchanged.
+// Fast hybrid check: source pinned to 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e; imports use live app modules.
+// Five of 22 live imports changed after the pin; this is not a frozen runtime.
 export const PROGRESS_METRICS = Object.freeze(['unlockedChunks', 'completedTasks', 'questPoints', 'totalLevel', 'combatLevel']);
 export const MAX_PROGRESS_DAYS = 3660;
 const DAY = 86_400_000;

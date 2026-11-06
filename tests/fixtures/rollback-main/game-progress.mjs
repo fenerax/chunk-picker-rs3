@@ -1,5 +1,5 @@
-// Frozen from live release 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e.
-// Only import paths are relocated; validation behavior must remain unchanged.
+// Fast hybrid check: source pinned to 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e; imports use live app modules.
+// Five of 22 live imports changed after the pin; this is not a frozen runtime.
 import { datasetValue } from "../../../app/dataset-runtime.mjs";
 
 export const defaultRuneScapeNames = datasetValue("app/core/game-progress.mjs#defaultRuneScapeNames");
