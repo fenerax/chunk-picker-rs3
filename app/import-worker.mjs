@@ -1,4 +1,6 @@
 import { normalizeOriginalPaste, ORIGINAL_PASTE_FORMAT } from './original-paste.mjs';
+import { assertWorkerHeapLimit } from './tasks/worker-limits.mjs';
+if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 import { parentPort, workerData } from 'node:worker_threads';
 import { deserialize } from 'node:v8';
 import { backupPreviewState, MAX_PORTABLE_BACKUP_BYTES } from './backup-transfer.mjs';

@@ -1,6 +1,7 @@
 [Unit]
 OnFailure=chunk-picker-notify@%n.service
 Description=Chunk Picker serialized worker-first health recovery
+# No Requires=/Wants= on the writer: a timer tick must not start a failed unit.
 After=chunk-picker.service
 
 [Service]

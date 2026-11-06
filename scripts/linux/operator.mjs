@@ -18,25 +18,35 @@ import { deadman, recordStatus, withStatus } from './ops-status.mjs';
 import { phaseReceipt, inPhase } from './phases.mjs';
 
 const execute = promisify(execFile);
-export function systemd(settings) {
+export function systemd(settings, { executeCommand = execute } = {}) {
   const service = settings.service;
   const command = async args => {
-    try { return (await execute('systemctl', [...args, service], { timeout: 150000, maxBuffer: 16384, windowsHide: true })).stdout; }
+    try { return (await executeCommand('systemctl', [...args, service], { timeout: 150000, maxBuffer: 16384, windowsHide: true })).stdout; }
     catch { throw new Error('Service control refused; inspect the private system journal.'); }
   };
   return {
     async state() {
-      const fields = Object.fromEntries((await command(['show', '--property=ActiveState,SubState,MainPID,ActiveEnterTimestampMonotonic,ControlGroup,TasksCurrent'])).trim().split('\n').map(row => row.split('=')));
+      const fields = Object.fromEntries((await command(['show', '--property=ActiveState,SubState,MainPID,ActiveEnterTimestampMonotonic,ControlGroup,TasksCurrent,Result,InvocationID,NRestarts,ExecMainStartTimestampMonotonic,ExecMainCode,ExecMainStatus'])).trim().split('\n').map(row => row.split('=')));
       return { active: fields.ActiveState === 'active' && fields.SubState === 'running' && Number(fields.MainPID) > 0,
         stopped: ['inactive', 'failed'].includes(fields.ActiveState) && ['dead', 'failed'].includes(fields.SubState) && fields.MainPID === '0'
           && (fields.ControlGroup === '' || fields.TasksCurrent === '0'),
-        activeForMs: uptime() * 1000 - Number(fields.ActiveEnterTimestampMonotonic) / 1000 };
+        activeForMs: uptime() * 1000 - Number(fields.ActiveEnterTimestampMonotonic) / 1000,
+        invocationId: fields.InvocationID, result: fields.Result, restarts: fields.NRestarts,
+        mainStartedAt: fields.ExecMainStartTimestampMonotonic,
+        mainExitSucceeded: fields.ExecMainCode === '1' && fields.ExecMainStatus === '0',
+        healthIdentityKnown: Boolean(fields.InvocationID && /^\d+$/.test(fields.NRestarts ?? '') && /^[1-9]\d*$/.test(fields.ExecMainStartTimestampMonotonic ?? '')) };
     },
     stop: () => command(['stop']),
-    async start(timings) {
+    async start(timings, { health = false, restarts, mainStartedAt } = {}) {
       return inPhase(timings, 'start-permit', async () => {
         const lock = await readFile(path.join(settings.controlDir, 'operation.lock'));
         if (JSON.parse(lock).pid !== process.pid) throw new Error('Service start requires the current operator lock.');
+        if (health) {
+          await assertHealthEvidence(settings);
+          const state = await this.state();
+          if (!state.stopped || !/^\d+$/.test(state.restarts ?? '') || state.result !== 'success' || state.restarts !== restarts
+            || !state.mainExitSucceeded || state.mainStartedAt !== mainStartedAt) throw new Error('Health start requires its successfully drained writer.');
+        }
         const permit = path.join(settings.controlDir, 'start-permit.json');
         await atomic(permit, encode({ lockSha256: sha(lock), pointerSha256: sha(await readFile(settings.current)),
           processIdentity: await processIdentity(process.pid), expiresAt: Date.now() + 30000 }));
@@ -84,17 +94,51 @@ const ready = async (release, request) => {
     return (health.ready === true || asleep) && health.savesReady === true;
   } catch { return false; }
 };
+async function assertHealthEvidence(settings) {
+  // The operation lock serializes cooperating tools. Retained evidence also
+  // fences direct callers and interrupted operations; health never clears it.
+  for (const name of ['maintenance.json', 'tools-transaction.json', 'activation.json']) {
+    if (await exists(path.join(settings.controlDir, name))) throw new Error('Health recovery blocked by transaction evidence.');
+  }
+  const progress = path.join(settings.controlDir, 'service-restore', 'progress.json');
+  if (settings.multiPicker && await exists(progress) && (await json(progress)).phase !== 'complete') throw new Error('Service recovery is incomplete.');
+}
 export async function healthRecovery({ settings, release, controller, request = privateRequest, wait = delay, assertStopped: stopped = () => assertStopped(controller, settings.dataDir) }) {
+  await assertHealthEvidence(settings);
   const state = await controller.state();
-  if (!state.active || state.activeForMs < 300000) return { skipped: true };
+  if (!state.active || state.healthIdentityKnown === false || !Number.isFinite(state.activeForMs) || state.activeForMs < 300000) return { skipped: true };
+  const sameWriter = async () => {
+    await assertHealthEvidence(settings);
+    const current = await controller.state();
+    return current.active && current.healthIdentityKnown !== false && current.result !== 'start-limit-hit'
+      && current.invocationId === state.invocationId && current.restarts === state.restarts && current.mainStartedAt === state.mainStartedAt;
+  };
   if (await ready(release, request)) return { healthy: true };
-  for (let attempt = 0; attempt < 2; attempt++) { await wait(15000); if (await ready(release, request)) return { healthy: true }; }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await wait(15000); if (!await sameWriter()) return { skipped: true };
+    if (await ready(release, request)) return { healthy: true };
+  }
+  if (!await sameWriter()) return { skipped: true };
   try { await request(release, '/api/worker-restart', 'POST'); } catch {}
-  for (let attempt = 0; attempt < 6; attempt++) { await wait(5000); if (await ready(release, request)) return { recovered: 'workers' }; }
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await wait(5000); if (!await sameWriter()) return { skipped: true };
+    if (await ready(release, request)) return { recovered: 'workers' };
+  }
   // Never systemctl restart: stop must succeed and release ownership first.
+  // In particular, never stop a failed unit: doing so can clear failed state
+  // and erase systemd's deliberate crash-loop stop and OnFailure evidence.
+  if (!await sameWriter()) return { skipped: true };
   await controller.stop(); await stopped();
+  await assertHealthEvidence(settings);
+  const afterStop = await controller.state();
+  // A deliberate stop may clear restart accounting/InvocationID. Allow that
+  // reset to zero, but never a newly increased or otherwise changed count.
+  if ((afterStop.result && afterStop.result !== 'success')
+    || afterStop.mainExitSucceeded === false || afterStop.mainStartedAt !== state.mainStartedAt
+    || (afterStop.restarts !== state.restarts && afterStop.restarts !== '0')) throw new Error('Writer failed during health recovery; operator reconciliation required.');
   await assertSameRelease(release);
-  await controller.start(); await waitReady(release, request, wait, controller);
+  await assertHealthEvidence(settings);
+  await controller.start(undefined, { health: true, restarts: afterStop.restarts, mainStartedAt: state.mainStartedAt }); await waitReady(release, request, wait, controller);
   return { recovered: 'writer' };
 }
 async function activationReceipt(settings, timings, work) {
