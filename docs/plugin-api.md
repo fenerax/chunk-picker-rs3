@@ -346,7 +346,9 @@ whole coalesced group. The existing History/Undo format is unchanged.
 
 Private `pluginCurrency` metadata separates current ownership, stream ordering
 and optional History grouping. Manual provenance survives Undo and restore;
-invalidation cannot remove a manual fact. An unchanged legacy plugin balance
+invalidation cannot remove a manual fact. Member restores retain the selected
+source member's ownership, even for an unchanged amount, and their Undo
+restores the destination's previous ownership. An unchanged legacy plugin balance
 still acquires provenance. Replay fences remain durable and are never undone.
 
 For live item reports, a reset sequence, changed key, replay or ambiguous clock

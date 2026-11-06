@@ -54,6 +54,10 @@ load. Undo and restore retain active replay fences; imported private metadata
 cannot replace them. Restore uses preserved fact provenance; an older portable
 backup without ownership annotations establishes manual facts. Standby
 activation and import publication carry the ledger atomically.
+Member restores derive ownership from the selected source member's preserved
+History annotations, even if its coin count equals the destination. Their
+ordinary Undo restores the destination's previous ownership; source ordering
+metadata is never imported.
 
 The public backup remains schema 1. Current facts use the existing
 `transportFacts.currencies.coins` field; unknown removes only the plugin-owned

@@ -1260,7 +1260,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return { stateRevision: captured.revision, event: structuredClone({ ...event, hasUndo: Boolean(undo) }) };
   }
   const store = {
-    async prepareImportPublication(next, operation, { validateBackup } = {}) {
+    async prepareImportPublication(next, operation, { validateBackup, currencySource } = {}) {
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
       importDependencies = [];
       const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
@@ -1270,7 +1270,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         ? (await hydrateHistory(observed)).state : observed));
       const state = await compactHistory(observed);
       if (coordination.has(current)) coordination.set(state, { ...(operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} } : coordinationOf(current)), lastNonClaimRevision: state.revision });
-      const currency = operation === 'replace' ? currencyAfterRestore(pluginCurrency, state) : pluginCurrency;
+      const currency = operation === 'replace' ? currencyAfterRestore(pluginCurrency, state)
+        : currencyAfterCommand(pluginCurrency, state.history.at(-1)?.command ?? {}, current, state, currencySource);
       const disk = Buffer.from(await serializedDiskState(state, receipts, currency));
       const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized, { level: constants.Z_BEST_SPEED });
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));

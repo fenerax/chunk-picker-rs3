@@ -80,7 +80,7 @@ function annotateOrigin(state, player, before, after) {
 }
 
 /** Ownership follows restored facts. Ordering fences are never undone. */
-export function currencyAfterCommand(metadata, command, before, after) {
+export function currencyAfterCommand(metadata, command, before, after, currencySource) {
   if (!before || !after) return metadata;
   let ledger = loadPluginCurrency(metadata), changed = false;
   const undoRevision = command.type === 'undo' ? after.history.at(-1)?.command?.undoRevision : undefined;
@@ -88,10 +88,14 @@ export function currencyAfterCommand(metadata, command, before, after) {
     const player = owner.id, old = currentFact(before, ledger, player), coins = coinsOf(after, player);
     const inverse = undoRevision === undefined ? null : ledger.origins.find(row => row.revision === undoRevision && row.memberId === player)
       ?? before.history.find(row => row.revision === undoRevision)?.currencyOrigins?.[player];
+    const manual = ['set-transport-facts', 'replace-member'].includes(command.type) && command.memberId === player;
     let next = old;
     if (inverse) next = inverse.before.coins === coins ? inverse.before : { coins, source: 'manual' };
-    else if (command.type === 'set-transport-facts' && command.memberId === player || old.coins !== coins) next = { coins, source: 'manual' };
-    if (sameFact(old, next) && !(command.type === 'set-transport-facts' && command.memberId === player)) continue;
+    else if (command.type === 'replace-member' && manual && currencySource) {
+      const restored = currentFact(currencySource.state, empty(), currencySource.memberId);
+      next = restored.coins === coins && restored.source !== 'legacy' ? restored : { coins, source: 'manual' };
+    } else if (manual || old.coins !== coins) next = { coins, source: 'manual' };
+    if (sameFact(old, next) && !manual) continue;
     changed = true;
     annotateOrigin(after, player, old, next);
     ledger = command.type === 'undo' ? { ...ledger, facts: { ...ledger.facts, [player]: next } }

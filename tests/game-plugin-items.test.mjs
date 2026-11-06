@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { validatePluginReport } from '../app/integrations/game-plugin.mjs';
@@ -82,6 +83,12 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins } =
     command: command => store.command(command, store.getInfo().revision),
     backup: () => store.backup(),
     restore: async document => store.replace(document ?? await store.backup(), store.getInfo().revision),
+    restoreMember: async backup => {
+      const preview = await store.prepareTransfer(serialize({ backup, memberId: 'a', sourceMemberId: 'a' }), {
+        dataset: { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} },
+        world: { chunks: new Map() }, route: '/api/member-restore/preview' });
+      await store.applyTransfer(preview.ticket, store.getInfo().revision);
+    },
     sendBank: (value, beta = false) => send(value, beta, 'bank'),
     review: () => controller.review(identity, 'a'), restart: async () => { await controller.close(); if (durable) await store.close(); await start(); } };
 }
@@ -692,6 +699,31 @@ for (const manual of [false, true]) test(`frozen-release Undo preserves currency
     { memberId: 'a', keyId, seq: row.seq + 1, sentAt: at, coins: null }, { now: () => at });
   assert.equal(result.state.members[0].transportFacts?.currencies?.coins, manual ? 100 : undefined);
   assert.deepEqual(loadLiveBackup({ format: 'rs3-chunk-picker', schemaVersion: 1, state: result.state }), result.state);
+});
+
+for (const manual of [false, true]) for (const undo of [false, true]) test(`member restore preserves currency ownership even at an unchanged amount (manual ${manual}, undo ${undo})`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.command({ type: 'set-runescape-name', memberId: 'a', name: 'FixtureA' });
+  if (manual) await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 100 } } });
+  else await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  const saved = await f.backup();
+  if (manual) {
+    await f.send({ ...items(), pouch: [[0, 995, 200, 'Coins']] });
+    await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  } else await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 100 } } });
+  await f.command({ type: 'set-runescape-name', memberId: 'a', name: 'FixtureB' });
+  const fences = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).pluginCurrency.keys;
+  await f.restoreMember(saved);
+  if (undo) await f.command({ type: 'undo' });
+  const disk = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+  assert.deepEqual(disk.pluginCurrency.keys, fences);
+  const expectManual = undo ? !manual : manual;
+  assert.equal(disk.pluginCurrency.facts.a.source, expectManual ? 'manual' : 'plugin');
+  assert.deepEqual(loadLiveBackup(disk), f.state);
+  await f.restart();
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  await f.restart();
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, expectManual ? 100 : undefined);
 });
 
 for (const unknown of [false, true]) test(`an unreadable report invalidates a plugin balance restored by Undo (unknown ${unknown})`, async t => {
