@@ -108,7 +108,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) return;
       const complete = !['progress', 'prediction-prepared'].includes(message.type);
       const response = { ...message, id: slot.originalId };
-      if (complete) { slot.owner = undefined; owner.slot = undefined; idle(slot); }
+      if (complete) { owner.lastSlot = new WeakRef(slot); slot.owner = undefined; owner.slot = undefined; idle(slot); }
       if (complete) enforceMemory();
       owner.emit('message', response);
       if (complete && slot.worker.profileRetiring) void retire(slot);
@@ -197,6 +197,18 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }
     get snapshotHints() { return this.slot?.snapshots; }
+    // Optional resident work never waits, allocates, or jumps a queued job.
+    // A weak hint cannot keep a retired calculator or its graphs alive.
+    tryIdle(pickerId, run) {
+      const slot = this.lastSlot?.deref();
+      if (closed || this.stopped || waiting.size || optimizationsSuspended || !slot || !slots.has(slot)
+        || !slot.ready || slot.stopping || slot.worker.profileRetiring || slot.owner
+        || sessions && (sessions.memoryBytes === 0 || reserved() > sessions.memoryBytes)) return false;
+      clock.clearTimeout(slot.timer);
+      slot.owner = this; slot.pickerId = pickerId; this.slot = slot;
+      this.startedCalculator = false;
+      run(); return true;
+    }
     schedule(peek, run, yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting) {
       Object.assign(this, { yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting }); waiting.set(this, { peek, run }); pump();
     }
