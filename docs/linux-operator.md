@@ -254,7 +254,7 @@ manual reconciliation step. Load/compatibility probes on disposable copies
 cannot substitute for this gate.
 
 The gate checks every materialized active picker, including quarantined stores
-and the legacy store, under ordinary writer ownership. It validates every union
+and the legacy store, under the shared kernel writer guard. It validates every union
 and stages all writes and exact preimages before publishing any sidecar. It
 decodes the saved checkpoint without changing gameplay and merges committed
 `state.provenance.pluginAutoHandled` decisions into `plugin-items.json` and

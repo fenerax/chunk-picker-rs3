@@ -125,8 +125,9 @@ conflicting unknown records refuse import rather than silently lose evidence.
 
 The common player mapper selects source members before remapping their records.
 Both member and whole-picker imports combine mapped evidence with destination
-evidence before publication. Capture also runs for portable export, retained
-checkpoints and replacement preimages. Restoring retained files materializes
+evidence before publication. Portable exports and replacement preimages capture
+both legacy handled sets. Internal command checkpoints retain committed atomic
+evidence, allowing Undo while a sidecar is unavailable. Restoring retained files materializes
 their evidence before preparing the destination. This uses the existing schema-1
 save and plugin wire formats.
 

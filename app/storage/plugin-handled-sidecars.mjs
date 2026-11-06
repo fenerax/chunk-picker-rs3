@@ -71,8 +71,8 @@ export async function preparePluginHandledSidecars({ dataDir, state }) {
 }
 
 // Stage every write and its exact preimage before publishing any store. On a
-// refused start, restore published preimages using only rename/unlink, then
-// remove our staging files. Gameplay is never rewritten by this bridge.
+// refused start, restore published preimages and remove our staging files.
+// Gameplay is never rewritten by this bridge.
 export async function publishPluginHandledSidecars(publications) {
   const staged = [], installed = [], parents = [...new Set(publications.map(row => row.dataDir))];
   async function stage(file, bytes, metadata) {
