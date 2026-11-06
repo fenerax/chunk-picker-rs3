@@ -13,6 +13,14 @@ test('deterministic timing-balanced shards cover every discovered full-suite fil
   assert.deepEqual(await shardTests([...files].reverse()), shards);
   assert.equal(shards.length, 4);
   assert.ok(shards.every(shard => shard.files.length));
+  // Calibrated against the complete Linux shard ledgers from run 42294078968.
+  // Avoid the previous solo prefix followed by the longest shared file, while
+  // retaining the full inventory and duration-based (not file-count) balance.
+  const estimates = shards.map(shard => shard.estimatedMs);
+  assert.ok(Math.max(...estimates) < 400_000, `Predicted critical path: ${estimates}`);
+  assert.ok(Math.max(...estimates) - Math.min(...estimates) < 15_000, `Unbalanced plan: ${estimates}`);
+  const longest = shards.find(shard => shard.files.includes('game-plugin-items.test.mjs'));
+  assert.equal(longest.soloMs, 0, 'Do not delay the indivisible critical-path file with solo work');
   assert.throws(() => assertPartition(files, shards.slice(1)), /incomplete/);
   assert.throws(() => assertPartition(files, [...shards, shards[0]]), /duplicate/);
   const weights = { defaultMs: 10, files: { 'tests/slow.test.mjs': 100 } };

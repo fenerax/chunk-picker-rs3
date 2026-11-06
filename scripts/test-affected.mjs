@@ -1,65 +1,118 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isBuiltin } from 'node:module';
 import { constants, setPriority } from 'node:os';
 import { moduleTokens } from './private-companion/tooling-module-graph.mjs';
-import { affectedRules } from './test-affected-rules.mjs';
+import { affectedRules, globalTestChange, inertChange, ruleMatches } from './test-affected-rules.mjs';
+
+export function feedbackOrder(files) {
+  const early = ['browser-module-graph.test.mjs', 'server.test.mjs', 'storage-static.test.mjs'];
+  const rank = file => early.indexOf(file) < 0 ? early.length : early.indexOf(file);
+  return [...files].sort((a, b) => rank(a) - rank(b));
+}
 
 // Tokenization ignores comments, strings and regex bodies, and visits template
 // interpolation code. No module is evaluated while constructing the graph.
-export function moduleReferences(source) {
+function fileReferences(source) {
   const tokens = moduleTokens(source), references = [];
-  const add = token => {
-    if (!token) return;
-    if (token.escaped) throw Error('Escaped specifier requires conservative selection');
-    if (token.kind === 'string' || token.kind === 'template' && !token.value.includes('${')) references.push(token.value);
+  const constant = start => {
+    let i = start, depth = 0;
+    while (tokens[i]?.value === '(') { depth++; i++; }
+    const token = tokens[i++];
+    if (!token || token.escaped || !(token.kind === 'string' || token.kind === 'template' && !token.value.includes('${'))) throw Error('Unresolved constant file load');
+    while (depth-- > 0) if (tokens[i++]?.value !== ')') throw Error('Unresolved constant expression');
+    if (![',', ')'].includes(tokens[i]?.value)) throw Error('Unresolved file-load expression');
+    return { specifier: token.value, end: i };
+  };
+  const add = (token, options = {}) => {
+    if (!token || token.escaped || token.kind !== 'string') throw Error('Unresolved module specifier');
+    references.push({ specifier: token.value, kind: 'import', ...options });
   };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t.kind !== 'identifier') continue;
     if (t.value === 'import') {
-      if (tokens[i + 1]?.value === '(') add(tokens[i + 2]);
+      if (tokens[i + 1]?.value === '(') references.push({ ...constant(i + 2), kind: 'import' });
       else if (tokens[i + 1]?.kind === 'string') add(tokens[i + 1]);
     }
     if (t.value === 'from' && tokens[i + 1]?.kind === 'string') add(tokens[i + 1]);
-    // Tests also spawn CLI modules or read fixtures through literal file URLs.
-    if (t.value === 'URL' && tokens[i - 1]?.value === 'new' && tokens[i + 1]?.value === '(') add(tokens[i + 2]);
+    if (t.value === 'datasetJSON' && tokens[i + 1]?.value === '(') references.push({ ...constant(i + 2), kind: 'file', root: true });
+    if (['require', 'createRequire', 'getBuiltinModule'].includes(t.value) && tokens[i + 1]?.value === '(') throw Error('Unmodeled module loader');
+    if (['readFile', 'readFileSync', 'readdir', 'readdirSync'].includes(t.value) && tokens[i + 1]?.value === '(') {
+      // The URL expression supplies its own module-relative edge below.
+      if (!(tokens[i + 2]?.value === 'new' && tokens[i + 3]?.value === 'URL')) references.push({ ...constant(i + 2), kind: 'file', root: true, directory: t.value.startsWith('readdir') });
+    }
+    if (t.value === 'URL' && tokens[i - 1]?.value === 'new' && tokens[i + 1]?.value === '(') {
+      const ref = constant(i + 2);
+      if (/^[a-z][a-z\d+.-]*:/i.test(ref.specifier) && !ref.specifier.startsWith('file:')) continue;
+      const base = tokens.slice(ref.end + 1, ref.end + 6).map(token => token.value).join('');
+      if (tokens[ref.end]?.value !== ',' || base !== 'import.meta.url') throw Error('Unresolved file URL base');
+      references.push({ ...ref, kind: 'file', directory: ref.specifier.endsWith('/') });
+    }
   }
-  return [...new Set(references)];
+  return references;
+}
+
+export const moduleReferences = source => [...new Set(fileReferences(source).map(ref => ref.specifier))];
+
+const repository = fileURLToPath(new URL('../', import.meta.url));
+function resolveReference(file, ref) {
+  const base = pathToFileURL(ref.root ? repository + path.sep : path.join(repository, file));
+  const url = new URL(ref.specifier, base);
+  // fileURLToPath applies Node's percent decoding and refuses encoded slashes.
+  const target = path.relative(repository, fileURLToPath(url)).replaceAll('\\', '/');
+  if (!target || target === '..' || target.startsWith('../') || path.isAbsolute(target)) throw Error('File reference outside repository');
+  return target + (ref.directory ? '/' : '');
 }
 
 export function importGraph(sources) {
   const reverse = new Map(), uncertain = [];
   for (const [file, source] of sources) {
     let references;
-    try { references = moduleReferences(source); }
+    try { references = fileReferences(source); }
     catch { uncertain.push(file); continue; }
     for (const ref of references) {
-      if (!ref.startsWith('.')) continue;
-      const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), ref.replace(/[?#].*$/, '')));
-      if (!reverse.has(target)) reverse.set(target, new Set());
-      reverse.get(target).add(file);
+      try {
+        if (ref.kind === 'import' && isBuiltin(ref.specifier)) continue;
+        if (ref.kind === 'import' && !/^(?:\.{1,2}\/|file:)/.test(ref.specifier)) throw Error('Unresolved package import');
+        const target = resolveReference(file, ref);
+        if (ref.kind === 'import' && !sources.has(target)) throw Error('Missing imported module');
+        if (!reverse.has(target)) reverse.set(target, new Set());
+        reverse.get(target).add(file);
+      } catch { uncertain.push(file); }
     }
   }
-  return { reverse, uncertain };
+  return { reverse, uncertain: [...new Set(uncertain)] };
 }
 
-export function selectAffected({ sources, graph = importGraph(sources), changed, tests, rules = affectedRules }) {
+export function selectAffected({ sources, graph, changed, tests, rules = affectedRules }) {
+  const full = (uncertain = [], reason = 'Uncertain dependencies') => ({ files: [...new Set(tests)].sort(), uncertain, reason, full: true });
+  // These decisions precede graph construction, including for an invalid graph.
+  if (changed.some(globalTestChange)) return full([], 'Global test/data input');
+  changed = changed.filter(file => !inertChange(file));
+  if (!changed.length) return { files: [], uncertain: [] };
+  graph ??= importGraph(sources);
   const { reverse, uncertain } = graph;
   // A lexical failure must never silently omit an importer. Such a checkout
   // still gets correct feedback, conservatively running the whole inventory.
-  if (uncertain.length && changed.length) return { files: [...tests].sort(), uncertain };
-  const reached = new Set(changed), queue = [...changed];
-  for (let i = 0; i < queue.length; i++) for (const importer of reverse.get(queue[i]) ?? []) {
-    if (!reached.has(importer)) { reached.add(importer); queue.push(importer); }
+  if (uncertain.length) return full(uncertain);
+  const directories = [...reverse.keys()].filter(key => key.endsWith('/'));
+  const selected = new Set();
+  // A source node existing in the graph is not proof that any test covers it.
+  // Every changed path must reach a feedback test or match a usable contract.
+  for (const file of changed) {
+    const visited = new Set([file]), pending = [file, ...directories.filter(dir => file.startsWith(dir))];
+    for (let i = 0; i < pending.length; i++) for (const importer of reverse.get(pending[i]) ?? []) {
+      if (!visited.has(importer)) { visited.add(importer); pending.push(importer); }
+    }
+    const matching = rules.filter(rule => ruleMatches(rule, file));
+    const consumers = tests.filter(test => visited.has(`tests/${test}`) || matching.some(rule => rule.tests.test(test)));
+    if (!consumers.length) return full([file], 'Changed path has no proven test coverage');
+    for (const test of consumers) selected.add(test);
   }
-  const files = tests.filter(file => reached.has(`tests/${file}`)
-    || rules.some(rule => changed.some(name => rule.changes.test(name)) && rule.tests.test(file))).sort();
-  const early = ['browser-module-graph.test.mjs', 'server.test.mjs', 'storage-static.test.mjs'];
-  files.sort((a, b) => (early.indexOf(a) < 0 ? early.length : early.indexOf(a))
-    - (early.indexOf(b) < 0 ? early.length : early.indexOf(b)));
-  return { files, uncertain };
+  return { files: feedbackOrder([...selected].sort()), uncertain };
 }
 
 export async function affectedSelection({ cwd = fileURLToPath(new URL('../', import.meta.url)), base = 'origin/main' } = {}) {
@@ -98,13 +151,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!args.includes('--list')) setPriority(0, constants.priority.PRIORITY_BELOW_NORMAL);
   const selection = await affectedSelection({ base });
   console.log(`Affected: ${selection.files.length} files (${selection.changed.length} changed paths)`);
-  if (selection.uncertain.length) console.log('Conservative full selection: a module could not be scanned.');
+  if (selection.full) console.log(`Conservative full selection: ${selection.reason}.`);
   if (args.includes('--list')) console.log(selection.files.map(file => `tests/${file}`).join('\n'));
   else {
     const { runSelectedTests } = await import('./test.mjs');
     // The local check is deliberately sequential, including isolated native
     // node:test children (whose concurrency is always 1 in the adaptive runner).
     const cap = process.env.GITHUB_ACTIONS === 'true' && !args.includes('--test-concurrency=1') ? 6 : 1;
-    await runSelectedTests(selection.files, { failFast: true, options: { minConcurrency: 1, maxConcurrency: cap, soloFirst: false } });
+    await runSelectedTests(feedbackOrder(selection.files), { failFast: true, options: { minConcurrency: 1, maxConcurrency: cap, soloFirst: false } });
   }
 }

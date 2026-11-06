@@ -202,9 +202,20 @@ error; use `--base=<ref>` for an explicit alternative. The selector follows
 static imports, reexports, literal dynamic imports and literal file URLs without
 importing test modules. `scripts/test-affected-rules.mjs` adds repository contracts
 such as browser routes, the save surface, data packs and workflows. Changed and
-deleted modules retain their old import edges too. Unscannable code conservatively
-selects every test. Selection cannot guarantee a pass for computed runtime loads;
-the full merge gate remains mandatory.
+deleted modules retain their old import edges too. Literal `datasetJSON` keys,
+file reads and file URLs supply data edges; directory URLs cover every changed
+member, including additions, deletions and renames. Parenthesized constant imports
+and percent-encoded file specifiers use native file-URL resolution.
+
+Global inputs return the complete feedback inventory before graph filtering:
+all scripts and GitHub configuration, package manifests and lock-like filenames,
+dataset setup, packs, environment files and data JSON. This deliberately includes
+more than just test tooling. Unresolved imports/file loads, missing targets and
+changed paths without proven graph coverage or an explicit contract also select
+everything. Only explicitly inert paths (`.local/`, `.git/`, `.gitignore`) can be
+ignored. The current repository contains computed module and file loads, so its
+unresolved graph can cause broad full selections. Correctness takes precedence
+over selection speed; the separate full merge gate remains mandatory.
 
 The affected command lowers its process priority to BelowNormal and defaults to
 one worker; `--test-concurrency=1` makes that cap explicit, including in CI. On the
@@ -219,7 +230,8 @@ after the first failing file. Browser graph, route and storage sentinels run
 first, before slower affected files. The stage also warms the existing pack,
 Wiki and independent frozen-checkout caches before four full-suite shards start.
 Gating avoids spending runners on known failures; the green path pays for the
-affected selection twice. Broad foundational changes may select most tests.
+affected selection twice. Global or uncertain changes select every feedback test;
+the affected job has a 35-minute fallback budget, while shards retain 15 minutes.
 Windows and differential lanes remain independent. Matrix fail-fast is disabled
 to retain complete per-case coverage diagnostics from all shards after a failure.
 The coverage job requires affected, every shard, Windows and differential success,
@@ -229,13 +241,22 @@ passes somewhere using the existing skip allowance rules.
 `npm test -- --shard=1/4 --list` inspects the deterministic assignment. Every
 shard computes and audits the complete partition before execution, so an omitted
 or duplicated test is an error. Timings in `scripts/ci/test-timings.json` come from
-two recent public main ledgers (run IDs and SHAs are recorded). Regenerate with
+all four Linux shard ledgers in public PR run `42294078968` (run ID and SHA are
+recorded). Regenerate from one recent complete Linux run with
 `node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`. The table uses the
-slowest passing observation per file and its median as the new-file fallback.
+slowest passing observation in that measurement window and its median as the
+new-file fallback. Do not retain maxima from older execution environments.
 Balancing accounts for solo files, shared concurrency and indivisible long files.
-The latest baseline Linux job took 22m39s. One test alone took 10–13 minutes, so
-eight minutes per shard cannot be guaranteed without splitting that file; four
-15-minute shards aim for roughly 6–13 minutes plus setup on these observations.
+The original unsharded Linux job took 22m39s. The first sharded run finished in
+13m53s overall, with shard jobs of 3m27s, 5m06s, 10m52s and 6m48s. Its old weights
+overestimated `linux-multi-picker` (13m05s versus 2m59s observed) and
+`linux-tools-install` (9m19s versus 4m01s). Shard 3's 3m58s solo prefix followed
+by the 6m14s `game-plugin-items` file then determined the critical path. Per-file
+process wall times already include startup; fixed startup cost was not the main
+error. Fresh Linux weights predict 6m14s of execution per shard, roughly 6m35s
+including observed setup. The new file counts are 127, 417, 139 and 89; counts
+differ because duration and solo policy determine balance. These are estimates,
+not measured times for the new assignment; contention and admission can vary.
 Affected and shard ledgers are uploaded separately; each shard's coverage artifact
 has a unique filename and is combined only after validating its native counts.
 
