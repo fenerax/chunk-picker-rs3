@@ -6,7 +6,7 @@ import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
-import { savedWhyChain, forgetSavedWhyChain } from './task-why-http.mjs';
+import { savedWhyChain, savedWhyDisplay, validateWhyDisplay, forgetSavedWhyChain } from './task-why-http.mjs';
 import { verifyDatasetBinding } from './dataset-binding.mjs';
 import { snapshotStore, withStoreWrite } from './storage/snapshot.mjs';
 import { startupPhase } from './startup-timing.mjs';
@@ -723,7 +723,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     if (side) await waitForList(state.revision, signal);
     // Explicit Preview needs the same quiet window as the current task list:
     // queued bulk predictions must not start between its answer and Unlock.
-    const foreground = type === 'evaluate' && !side || type === 'predict' || type === 'how-task';
+    const foreground = type === 'evaluate' && !side || type === 'predict' || type === 'how-task' || type === 'why-task';
     const activeTaskKey = foreground && type === 'evaluate' ? JSON.stringify([state.revision, memberId]) : undefined;
     const automaticDeath = type === 'death-estimates' && state.rules?.['travel.automatic'] === true;
     if (foreground) {
@@ -1017,6 +1017,28 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           if (route === '/api/task-why') {
             noteTiming({ source: 'computed' });
             const query = new URL(request.url, 'http://localhost').searchParams;
+            if (query.has('view')) {
+              const revision = store.getInfo().revision;
+              validateWhyDisplay(query, { revision, members: knownTaskMembers });
+              let display = await savedWhyDisplay(query, { revision, entry: savedTaskResults.get(query.get('memberId')),
+                currentRevision: () => store.getInfo().revision });
+              if (!display && !identity.readOnly && taskWorker?.supports('why-task')) {
+                const captured = calculationState(), controller = new AbortController();
+                const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+                request.once('aborted', disconnected); response.once('close', disconnected);
+                try {
+                  if (captured.metadata.revision !== revision) throw httpError(409, 'The saved map changed. Open Why again.');
+                  const evaluation = await evaluatedTasks(nativeForegroundState ? captured.metadata : captured.state, query.get('memberId'), 'why-task', query.get('taskId'),
+                    controller.signal, [], 'full', nativeForegroundState ? captured.stateInput : undefined);
+                  if (!evaluation.result?.unavailable) display = evaluation.result;
+                } finally { request.off('aborted', disconnected); response.off('close', disconnected); }
+              }
+              if (response.destroyed) return;
+              if (store.getInfo().revision !== revision) throw httpError(409, 'The saved map changed. Open Why again.');
+              if (!invites.authenticate(request, security)) throw httpError(401, 'Access required.');
+              if (!display) throw Object.assign(httpError(409, 'Per-task evidence is unavailable. Open the full task details.'), { code: 'TASK_WHY_UNAVAILABLE' });
+              await json(request, response, 200, display); return;
+            }
             await json(request, response, 200, await savedWhyChain(query, { revision: store.getInfo().revision, members: knownTaskMembers,
               entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision })); return;
           }
@@ -2023,7 +2045,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         return;
       }
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),

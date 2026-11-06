@@ -1,6 +1,7 @@
 import { gunzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { buildWhyChain } from './tasks/why-chain.mjs';
+import { taskWhyDisplay } from './tasks/task-why-display.mjs';
 
 const unzip = promisify(gunzip);
 const failure = (status, message) => Object.assign(new Error(message), { status });
@@ -24,6 +25,23 @@ function parsedResult(entry, revision) {
   cached.timer = setTimeout(() => { if (parsedResults.get(entry) === cached) parsedResults.delete(entry); }, IDLE_MS);
   cached.timer.unref?.();
   return cached.promise;
+}
+
+export function validateWhyDisplay(query, { revision, members }) {
+  const allowed = new Set(['view', 'memberId', 'revision', 'taskId']);
+  if ([...query.keys()].some(key => !allowed.has(key) || query.getAll(key).length !== 1)
+    || query.get('view') !== 'display-v1' || !query.get('taskId') || query.get('taskId').length > 512) throw failure(400, 'Choose one task to explain.');
+  if (!members.has(query.get('memberId'))) throw failure(400, 'Choose a known player.');
+  if (query.get('revision') !== String(revision)) throw failure(409, 'The saved map changed. Open Why again.');
+}
+
+// Reuse the existing saved-evidence owner/parse when available. The derived
+// display is request-local and adds no retained bytes to saved list responses.
+export async function savedWhyDisplay(query, { revision, entry, currentRevision }) {
+  if (entry?.revision !== revision || !entry.fullGzip) return undefined;
+  const result = await parsedResult(entry, revision);
+  if (currentRevision() !== revision) throw failure(409, 'The saved map changed. Open Why again.');
+  return taskWhyDisplay(result, query.get('taskId'), query.get('memberId'), revision);
 }
 
 // Saved evidence only, including for viewers. Never wake a calculation worker.

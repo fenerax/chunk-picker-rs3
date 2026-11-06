@@ -82,7 +82,7 @@ export function taskExplanation(task, result) {
  * describeRule(id) returns { label, section, on, source } for a rule the Rules
  * screen knows, or undefined for tags that are not player-facing rules.
  */
-export function explainTask(task, { result = { tasks: [] }, describeRule = () => undefined, locationName = value => value, suppressed } = {}) {
+export function explainTask(task, { result = { tasks: [] }, describeRule = () => undefined, locationName = value => value, suppressed, related } = {}) {
   const record = task.record ?? {}, seen = new Set(), rules = [];
   const addRule = (id, reason) => {
     if (seen.has(id)) return; seen.add(id);
@@ -111,7 +111,7 @@ export function explainTask(task, { result = { tasks: [] }, describeRule = () =>
   return {
     label: plain(task.label), category: task.category, group: record.Label && record.Label !== task.category ? plain(record.Label) : undefined,
     categoryNote: CATEGORY_NOTES[task.category],
-    rules, set: setStanding(task, result), neededFor: neededForChains(task, result),
+    rules, set: related ? related.set : setStanding(task, result), neededFor: related ? related.neededFor : neededForChains(task, result),
     bossGate: gate ? { boss: gate.boss, open: gate.open, reason: gate.reason } : undefined,
     ...(task.slayerUnlockGate ? { slayerUnlockGate: task.slayerUnlockGate } : {}),
     sources, rareDrop: rare ? { label: rareDrop.label ?? 'Rare Drop', amount } : undefined,

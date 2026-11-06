@@ -38,6 +38,20 @@ async function fixture(t) {
   return { worker, send };
 }
 
+test('per-task Why reads remain picker-scoped with colliding member, revision and input keys', async t => {
+  const { send } = await fixture(t);
+  const first = await send({ pickerId: A, state: state('alpha') });
+  const second = await send({ pickerId: B, state: state('beta') });
+  const taskId = first.result.tasks.find(task => task.label === 'Alpha').id;
+  for (const [pickerId, value, expected] of [[A, state('alpha'), first], [B, state('beta'), second]]) {
+    const read = await send({ pickerId, state: value, type: 'why-task', chunkId: taskId });
+    assert.equal(read.error, undefined);
+    assert.equal(read.result.task.status, expected.result.tasks.find(task => task.id === taskId).status);
+  }
+  const missing = await send({ pickerId: 'p_' + 'c'.repeat(32), state: state('alpha'), type: 'why-task', chunkId: taskId });
+  assert.deepEqual(missing.result, { unavailable: true });
+});
+
 test('superseding A preserves B in-flight and later work at colliding input, revision and member IDs', async t => {
   const { worker, send } = await fixture(t);
   const chunks = Array(4).fill('12851');

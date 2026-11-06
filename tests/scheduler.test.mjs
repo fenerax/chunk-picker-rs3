@@ -10,7 +10,7 @@ async function until(predicate) {
   const deadline = Date.now() + 2000;
   while (!predicate()) { if (Date.now() > deadline) assert.fail('Condition did not become true.'); await delay(5); }
 }
-function factory() {
+function factory({ supports = [] } = {}) {
   const workers = [];
   function create() {
     const worker = new EventEmitter(); worker.messages = []; worker.terminated = false;
@@ -18,7 +18,7 @@ function factory() {
     worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 1); };
     worker.finish = (result = { metrics: { availableCount: 1 } }, id = worker.messages.at(-1).id) => worker.emit('message', { id, result, evaluationMs: 2, timingMs: { engineMs: 1, totalMs: 2 } });
     workers.push(worker);
-    queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [], compileMs: 1 }));
+    queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [], compileMs: 1, supports }));
     return worker;
   }
   return { create, workers };
@@ -42,12 +42,30 @@ function finishPlay(worker, play = '{"format":"play-v1"}', duo) {
   return message.playJSON.byteLength + (message.duoJSON?.byteLength ?? 0) + Buffer.byteLength(JSON.stringify({ evaluationMs: message.evaluationMs, timingMs: message.timingMs, cancelled: false }));
 }
 async function fixture(t, options = {}) {
-  const f = factory();
+  const f = factory(options);
   const scheduler = await createTaskScheduler({ workerFactory: f.create, firstCalculationDeadlineMs: options.deadlineMs ?? 30000, backoffMs: 10, maxBackoffMs: 20, ...options });
   t.after(() => scheduler.close());
   const evaluate = (key, revision = 0, memberId = 'actor1', signal, input = key) => scheduler.evaluate({ revision }, memberId, 'evaluate', undefined, key, input, signal);
   return { ...f, scheduler, evaluate };
 }
+
+test('Why reads use existing lanes and charge bounded successful responses, never misses', async t => {
+  const { workers, scheduler } = await fixture(t, { supports: ['evaluate', 'why-task'], cacheByteLimit: 512 });
+  const read = id => scheduler.evaluate({ revision: 0 }, 'actor1', 'why-task', id, `why:${id}`, 'same-input');
+  const miss = read('missing'); workers[0].finish({ unavailable: true });
+  assert.deepEqual((await miss).result, { unavailable: true });
+  assert.equal(scheduler.getDiagnostics().cache.entries, 0);
+  assert.equal(workers.length, 1); assert.equal(scheduler.getHealth().duo.status, 'idle');
+  const evidence = { format: 'task-why-display-v1', task: { id: 'small' } };
+  const first = read('small'); workers[0].finish(evidence); await first;
+  assert.equal(scheduler.getDiagnostics().cache.entries, 1);
+  assert.ok(scheduler.getDiagnostics().cache.bytes >= Buffer.byteLength(JSON.stringify(evidence)));
+  const sent = workers[0].messages.length;
+  assert.equal((await read('small')).hit, true); assert.equal(workers[0].messages.length, sent);
+  const oversized = read('oversized'); workers[0].finish({ padding: 'x'.repeat(1024) }); await oversized;
+  assert.equal(scheduler.getDiagnostics().cache.entries, 1);
+  assert.ok(scheduler.getDiagnostics().cache.bytes <= 512);
+});
 
 test('claim display revisions preserve task caches and do not wake or control prediction workers', async t => {
   const { workers, scheduler, evaluate } = await fixture(t);

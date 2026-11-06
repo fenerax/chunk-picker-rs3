@@ -4,6 +4,7 @@ if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
 import { createHowCache } from './how-cache.mjs';
+import { taskWhyDisplay } from './task-why-display.mjs';
 import { startupPhase } from '../startup-timing.mjs';
 import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
@@ -399,7 +400,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
   requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
-      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
+      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId });
     }
     if (snapshotKey !== undefined) {
@@ -436,6 +437,13 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
     } else if (type === 'roll-pool') result = timed(timingMs, 'rollPoolMs', () => rollPoolFor(state, memberId, draft ?? chunkId));
+    else if (type === 'why-task') {
+      if (typeof chunkId !== 'string' || !chunkId || chunkId.length > 512) throw new TypeError('Invalid Why task subject.');
+      // A miss must not calculate a new full result. Let the caller use its
+      // existing full-detail path. No new worker cache or snapshot is created.
+      const baseline = snapshots.get(JSON.stringify(calculationKey(state, memberId, input)))?.baseline;
+      result = taskWhyDisplay(baseline, chunkId, memberId, state.revision) ?? { unavailable: true };
+    }
     else if (type === 'how-task') {
       if (typeof chunkId !== 'string' || !chunkId || chunkId.length > 512) throw new TypeError('Invalid How task subject.');
       const key = JSON.stringify([pickerId, selectedDataset.digest, input, state.revision, memberId, chunkId, 1]);
@@ -540,7 +548,7 @@ else parentPort.on('message', handleMessage);
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
-const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'prepare-rules', 'roll-pool'];
+const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'prepare-rules', 'roll-pool'];
 // The generated catalogue is large and shares completion families between rows.
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
