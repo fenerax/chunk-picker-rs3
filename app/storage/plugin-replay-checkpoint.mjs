@@ -25,7 +25,6 @@ function hasReplayProvenance(provenance) {
     seen.add(node);
     if (hasReplayPlayers(node.pluginAutoHandled) || hasReplayEnvelope(node.optionalSidecarEvidence)
       || hasItemReplay(node.pluginItemEvidence?.players)) return true;
-    if (node.pluginItemEvidenceReconciled === 1) break;
   }
   return false;
 }

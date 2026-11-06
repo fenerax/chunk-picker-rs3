@@ -66,6 +66,25 @@ for (const kind of ['items', 'achievements']) for (const publication of ['replac
 }
 
 for (const kind of ['items', 'achievements']) {
+  for (const carrier of kind === 'items' ? ['atomic', 'capsule', 'items-capsule'] : ['atomic', 'capsule']) for (const publication of ['replace', 'note']) {
+    test(`${publication} validates archived ${carrier} ${kind} decisions against the legacy limit`, async t => {
+      let inject = false;
+      const incomingProvenance = carrier === 'atomic' ? { pluginAutoHandled: { owner: suppression(kind) } }
+        : { optionalSidecarEvidence: { schemaVersion: 1, entries: carrier === 'capsule'
+          ? { pluginReplaySuppression: { version: 1, players: { owner: suppression(kind) } } }
+          : { pluginItems: { version: 1, players: { owner: { records: { live: { baselineAt: now, items: {}, handled: [itemTask], journal: null } }, commits: { journals: [] } } } } } } };
+      const archive = state => ({ ...state, provenance: { ...state.provenance, restore: { incomingProvenance } } });
+      const f = await fixture(t, { prepareState: state => inject ? archive(state) : state });
+      await sidecar(f.dataDir, kind);
+      const before = await inventory(f.dataDir), state = f.store.getState();
+      inject = publication === 'note';
+      await assert.rejects(publication === 'replace' ? f.store.replace(archive(f.initialState), 0)
+        : f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic archive note' }, 0), /Invalid plugin/);
+      assert.deepEqual(f.store.getState(), state);
+      assert.deepEqual(await inventory(f.dataDir), before);
+    });
+  }
+
   test(`a preparation hook cannot discard committed ${kind} decisions before the legacy bridge catches up`, async t => {
     let discard = false;
     const f = await fixture(t, { prepareState: state => {

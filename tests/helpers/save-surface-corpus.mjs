@@ -233,6 +233,25 @@ export async function buildSaveCorpus(t) {
     features.add('restore-transfer'); snapshots.push({ feature: 'restore-transfer', ...await diskSnapshot(replacementDir), state: replacement.getState() });
   } finally { await replacement.close(); }
 
+  const archiveDir = await scratch(t, 'restore-archive-replay'), archivedSeed = seed();
+  archivedSeed.provenance = { restore: { incomingProvenance: {
+    pluginAutoHandled: { [roster[0].id]: { items: ['custom:archived-atomic'], achievements: [144] } },
+    optionalSidecarEvidence: { schemaVersion: 1, entries: {
+      pluginReplaySuppression: { version: 1, players: { [roster[0].id]: { items: ['custom:archived-capsule'], achievements: [145] } } },
+      pluginItems: { version: 1, players: { [roster[0].id]: { records: { live: { baselineAt: at, items: {}, handled: ['custom:archived-live'], journal: null } }, commits: { journals: [] } } } },
+    } },
+  } } };
+  const archivedStore = await openStore({ ...storeOptions, dataDir: archiveDir, initialState: archivedSeed });
+  try {
+    // Publish the portable compatibility copy before the frozen writer reads
+    // it, just as the main corpus does for its journal/sidecar evidence.
+    await archivedStore.replace(await archivedStore.backup(), archivedStore.getInfo().revision);
+    assert.equal(archivedStore.isPluginHandled(roster[0].id, 'items', 'custom:archived-live'), true);
+    assert.equal(archivedStore.isPluginHandled(roster[0].id, 'achievements', 145), true);
+    features.add('restore-archive-replay');
+    snapshots.push({ feature: 'restore-archive-replay', ...await diskSnapshot(archiveDir), state: archivedStore.getState() });
+  } finally { await archivedStore.close(); }
+
   // End on a harmless note Undo: progress/evidence must be exactly retained.
   await command({ type: 'set-note', memberId: roster[0].id, chunkId: '100', note: 'Synthetic rollback sentinel' }, 'rollback-sentinel');
   const before = (await store.backup()).state;
@@ -365,7 +384,7 @@ export async function buildSaveCorpus(t) {
   snapshots.push({ feature: 'plugin-start-gate', ...await diskSnapshot(gateDir), state: gate.getState() });
   return { dataDir, snapshots, features: [...features], before, controlDocuments,
     cases: [{ name: 'full-feature-save', dataDir }, { name: 'restore-transfer', dataDir: replacementDir },
-      { name: 'mapped-transfer', dataDir: transferDir },
+      { name: 'mapped-transfer', dataDir: transferDir }, { name: 'restore-archive-replay', dataDir: archiveDir },
       { name: 'codec-quarantine', dataDir: recoveryDir, options: { completionCodec: true } }, { name: 'identity-quarantine', dataDir: migrationDir },
       { name: 'legacy-receipts-undo', dataDir: legacyDir }, { name: 'members-pinned-backup', dataDir: membersDir },
       { name: 'roll-receipt', dataDir: rollDir }] };

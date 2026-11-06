@@ -75,6 +75,8 @@ that exceeds a bound refuses the load or import without changing the save.
 `provenance.pluginItemEvidenceReconciled: 1` seals the current provenance node's
 incoming archive as historical. Once sealed, only its active compatibility copy
 contributes evidence; older archive copies cannot refill facts removed later.
+Live handled decisions remain replay authority across that fence, including
+decisions recovered from archived registered capsules; this does not refill facts.
 A frozen restore wraps this sealed node in a new unsealed boundary, so current
 loaders recover its active copy and seal the new boundary. Normal writable
 startup durably publishes any newly recovered copy and marker before accepting
@@ -471,6 +473,15 @@ eligible again after a sidecar failure and restart. The extension stays absent
 on older saves until an automatic tick or startup folds in earlier decisions
 from the legacy handled sidecars. Backups and whole-picker restores retain the extension,
 and portable roster mapping remaps its member keys.
+
+The optional-sidecar registry recovers both this field and registered capsules
+from schema-owned `restore.incomingProvenance` archives, including archives
+written by the frozen release. A node's `transferRoster` mappings apply to its
+incoming evidence before roster filtering; its own carriers already use that
+node's member IDs. Recovery precedes publication limits, portable capture and
+the stopped-start gate. Item generation fences prevent reviewed facts from
+returning, while archived live item decisions remain replay authority. Invalid
+or overflowing recovered unions refuse publication or startup without writes.
 
 Writable startup strictly validates both legacy handled sidecars and durably
 folds their union into this provenance before serving, preserving revision,

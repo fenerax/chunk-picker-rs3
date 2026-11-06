@@ -19,7 +19,7 @@ export const optionalSidecarEvidenceTypes = Object.freeze({
     files: legacyPluginHandledFiles,
     capture: ({ state, files, unavailable, retainCommittedReplay }) => decodeLegacyPluginHandled(state, files,
       retainCommittedReplay ? new Map([...unavailable].filter(([, code]) => !['EACCES', 'EPERM', 'EISDIR', 'EBUSY'].includes(code))) : unavailable).provenance?.pluginAutoHandled,
-    fromState: state => state.provenance?.pluginAutoHandled,
+    fromProvenance: node => node.pluginAutoHandled,
     mergePlayer: (...records) => mergePluginHandledRecords(...records),
     materialize: (state, players) => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: players } }),
   },
@@ -39,7 +39,18 @@ export const optionalSidecarEvidenceTypes = Object.freeze({
         id => members.has(id) ? id : undefined, portablePluginItemEvidence(state));
       return Object.keys(evidence.players).length ? evidence.players : undefined;
     },
-    fromState: state => portablePluginItemEvidence(state)?.players,
+    fromProvenance: node => node.pluginItemEvidence === undefined ? undefined : mergePluginItemEvidence(node.pluginItemEvidence).players,
+    relatedEvidence: players => {
+      if (!object(players)) invalid();
+      const checked = Object.fromEntries(Object.entries(players).map(([id, record]) => [id,
+        mergePluginItemEvidence({ v: 1, players: { evidence: record } }).players.evidence]));
+      return { schemaVersion: 1, entries: { pluginReplaySuppression: { version: 1, players: liveDecisions(checked) } } };
+    },
+    archiveConsumed: node => {
+      if (node.pluginItemEvidenceReconciled === undefined) return false;
+      if (node.pluginItemEvidenceReconciled !== 1) throw new TypeError('Invalid plugin item archive generation.');
+      return true;
+    },
     mergePlayer: (...records) => mergePluginItemEvidence(...records.map(record => ({ v: 1, players: { evidence: record } }))).players.evidence,
     // Ordinary state writes validate all readable file evidence, but retain
     // facts in their existing sidecars. Import/export materializes the full
@@ -54,10 +65,13 @@ export const optionalSidecarEvidenceTypes = Object.freeze({
   },
 });
 
-function materializeLiveDecisions(state, players) {
-  const live = Object.fromEntries(Object.entries(players)
+function liveDecisions(players) {
+  return Object.fromEntries(Object.entries(players)
     .filter(([, record]) => record.records.live?.handled.length)
     .map(([id, record]) => [id, { items: record.records.live.handled, achievements: [] }]));
+}
+function materializeLiveDecisions(state, players) {
+  const live = liveDecisions(players);
   return Object.keys(live).length ? reconcilePluginHandled(state, { provenance: { pluginAutoHandled: live } }) : state;
 }
 
@@ -72,23 +86,58 @@ function validate(evidence) {
   return evidence;
 }
 
-function fromState(state) {
-  const entries = {};
-  for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
-    const players = type.fromState?.(state);
-    if (players !== undefined) entries[id] = { version: 1, players };
+function recoverProvenanceEvidence(state) {
+  const nodes = [], seen = new Set(), consumed = new Set();
+  // Frozen replacement archives incoming provenance. Interpret only that
+  // schema-owned chain; mappings at a node belong to its incoming evidence,
+  // while its own carriers already use that node's roster identities.
+  for (let node = state.provenance; object(node); node = node.restore?.incomingProvenance) {
+    if (seen.has(node)) throw new TypeError('Cyclic optional sidecar provenance.');
+    seen.add(node);
+    const capsule = node.optionalSidecarEvidence === undefined ? {} : validate(node.optionalSidecarEvidence).entries;
+    const entries = Object.fromEntries(Object.entries(capsule).filter(([id]) => !consumed.has(id)));
+    const inputs = [{ schemaVersion: 1, entries }];
+    for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
+      const players = type.fromProvenance?.(node);
+      // A fact generation fence never revokes live replay authority. Recover
+      // related decisions even from consumed item fields/capsules, without
+      // materializing their deliberately removed journal facts again.
+      if (type.relatedEvidence) for (const source of [players, capsule[id]?.players]) {
+        if (source !== undefined) inputs.push(type.relatedEvidence(source));
+      }
+      if (consumed.has(id)) continue;
+      if (players !== undefined) inputs.push({ schemaVersion: 1, entries: { [id]: { version: 1, players } } });
+      // Item facts can be deliberately reviewed/removed. Its generation fence
+      // consumes only item archives, never independent replay authority.
+      if (type.archiveConsumed?.(node)) consumed.add(id);
+    }
+    nodes.push({ node, inputs });
+    const incoming = node.restore?.incomingProvenance;
+    if (incoming !== undefined && incoming !== null && !object(incoming)) throw new TypeError('Invalid optional sidecar provenance archive.');
   }
-  return { schemaVersion: 1, entries };
+  let evidence;
+  for (const { node, inputs } of nodes.reverse()) {
+    if (evidence && Object.keys(evidence.entries).length) {
+      const mappings = [], visited = new Set();
+      for (let transfer = node.transferRoster; transfer !== undefined && transfer !== null; transfer = transfer.previous) {
+        if (!object(transfer) || visited.has(transfer)) throw new TypeError('Invalid optional sidecar ownership.');
+        visited.add(transfer); mappings.push(transfer.mapping);
+      }
+      for (const mapping of mappings.reverse()) evidence = mapOptionalSidecarEvidence(evidence, mapping);
+    }
+    evidence = merge(node === state.provenance ? state.members : undefined, evidence, ...inputs);
+  }
+  return evidence ?? { schemaVersion: 1, entries: {} };
 }
 
 function merge(members, ...inputs) {
-  const live = new Set(members.map(member => member.id)), entries = new Map();
+  const live = members && new Set(members.map(member => member.id)), entries = new Map();
   for (const input of inputs) {
     if (input === undefined) continue;
     for (const [id, entry] of Object.entries(validate(input).entries)) {
       const players = entries.get(id) ?? new Map(), type = Object.hasOwn(optionalSidecarEvidenceTypes, id) ? optionalSidecarEvidenceTypes[id] : undefined;
       for (const [player, record] of Object.entries(entry.players)) {
-        if (!live.has(player)) continue;
+        if (live && !live.has(player)) continue;
         const prior = players.get(player);
         if (type) {
           const merged = type.mergePlayer(...(prior === undefined ? [record] : [prior, record]));
@@ -126,14 +175,12 @@ function install(state, evidence, { publication = false } = {}) {
 }
 
 export function reconcileOptionalSidecarEvidence(state, ...sources) {
-  return install(state, merge(state.members, ...[state, ...sources].flatMap(source => [
-    source.provenance?.optionalSidecarEvidence, fromState(source),
-  ])));
+  return install(state, merge(state.members, ...[state, ...sources].map(source => recoverProvenanceEvidence({ members: state.members, ...source }))));
 }
 
 export function materializeOptionalSidecarEvidence(state, evidence, options) {
   return evidence === undefined ? state : install(state, merge(state.members,
-    state.provenance?.optionalSidecarEvidence, fromState(state), evidence), options);
+    recoverProvenanceEvidence(state), evidence), options);
 }
 
 export function mapOptionalSidecarEvidence(evidence, mapping) {
@@ -146,7 +193,7 @@ export function mapOptionalSidecarEvidence(evidence, mapping) {
 }
 
 export async function captureOptionalSidecarEvidence(state, { dataDir, retainCommittedReplay = false, storeOwned = false } = {}) {
-  const inputs = [state.provenance?.optionalSidecarEvidence, fromState(state)];
+  const inputs = [recoverProvenanceEvidence(state)];
   for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
     if (!type.capture || dataDir === undefined && type.files?.length) continue;
     const context = { state, dataDir, retainCommittedReplay, storeOwned };

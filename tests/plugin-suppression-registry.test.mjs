@@ -8,11 +8,45 @@ import { serialize } from 'node:v8';
 import { frozenRuntime } from './helpers/frozen-release.mjs';
 import { openStore } from '../app/storage/store.mjs';
 import { createGroupState } from '../app/core/state.mjs';
+import { reconcileOptionalSidecarEvidence, captureOptionalSidecarEvidence } from '../app/optional-sidecar-evidence.mjs';
+import { mapTransferRoster } from '../app/save-transfer.mjs';
 
 const at = '2026-11-01T12:00:00.000Z';
 const roster = [{ id: 'source', name: 'Explorer 1' }, { id: 'second', name: 'Explorer 2' }];
 const record = world => ({ baselineAt: at, items: { 857: { name: 'Synthetic bow', ownedAt: at, wornAt: null, first: true } },
   handled: [`custom:${world}`], journal: null });
+
+for (const carrier of ['atomic', 'capsule', 'items-capsule']) for (const nested of [false, true]) test(`archived ${carrier} ownership follows repeated roster maps${nested ? ' across restore boundaries' : ''} without remapping root decisions`, async () => {
+  const source = 'manual.name', decision = { items: ['custom:archive'], achievements: [123] };
+  const incomingProvenance = carrier === 'atomic' ? { pluginAutoHandled: { [source]: decision } } : { optionalSidecarEvidence: { schemaVersion: 1,
+    entries: carrier === 'capsule' ? { pluginReplaySuppression: { version: 1, players: { [source]: decision } } }
+      : { pluginItems: { version: 1, players: { [source]: { records: { live: record('live') }, commits: { journals: [] } } } } } } };
+  let state = createGroupState([{ id: source, name: 'Explorer' }]);
+  state.provenance = { restore: { incomingProvenance } };
+  for (const id of ['middle', 'partner']) {
+    if (nested && id === 'partner') state.provenance = { restore: { incomingProvenance: state.provenance } };
+    state = mapTransferRoster(state, [{ id, name: 'Explorer' }], { [state.members[0].id]: id });
+  }
+  state.provenance.pluginAutoHandled = { partner: { items: ['custom:root'], achievements: [] } };
+  state = reconcileOptionalSidecarEvidence(state);
+  const portable = await captureOptionalSidecarEvidence(state);
+  const expected = carrier === 'items-capsule' ? ['custom:live', 'custom:root'] : ['custom:archive', 'custom:root'];
+  assert.deepEqual(state.provenance.pluginAutoHandled, { partner: { items: expected, achievements: carrier === 'items-capsule' ? [] : [123] } });
+  assert.deepEqual(Object.keys(portable.entries.pluginReplaySuppression.players), ['partner']);
+  if (carrier === 'items-capsule') assert.deepEqual(Object.keys(portable.entries.pluginItems.players), ['partner']);
+});
+
+for (const carrier of ['field', 'capsule']) test(`a reviewed item generation keeps archived ${carrier} replay decisions without refilling facts`, () => {
+  const item = { records: { live: record('live') }, commits: { journals: [] } };
+  const state = createGroupState([{ id: 'owner', name: 'Explorer' }]);
+  state.provenance = { pluginItemEvidenceReconciled: 1,
+    pluginItemEvidence: { v: 1, players: { owner: { ...item, records: { live: { ...record('live'), items: {}, handled: [] } } } } },
+    restore: { incomingProvenance: carrier === 'field' ? { pluginItemEvidence: { v: 1, players: { owner: item } } }
+      : { optionalSidecarEvidence: { schemaVersion: 1, entries: { pluginItems: { version: 1, players: { owner: item } } } } } } };
+  const recovered = reconcileOptionalSidecarEvidence(state);
+  assert.deepEqual(recovered.provenance.pluginAutoHandled.owner.items, ['custom:live']);
+  assert.deepEqual(recovered.provenance.pluginItemEvidence.players.owner.records.live.items, {});
+});
 async function directory(t) {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'rs3-registry-acceptance-'));
   t.after(() => rm(dataDir, { recursive: true, force: true })); return dataDir;

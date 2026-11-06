@@ -38,6 +38,18 @@ test('empty legacy handled sets do not require a checkpoint', async t => {
   await checkStart(f);
   assert.deepEqual(await inventory(f.dataDir), before);
 });
+
+test('a clean start does not hydrate or validate unrelated gameplay dependencies', async t => {
+  const document = structuredClone(native);
+  // No replay or archive carrier exists. These deliberately unusable gameplay
+  // references belong to the selected runtime, not the reconciliation gate.
+  document.storage = { schemaVersion: 1, fields: { tasks: { id: 'unrelated-gameplay-dependency' } } };
+  document.schemaVersion = 2;
+  const f = await fixture(t, document), before = await inventory(f.dataDir);
+  await checkStart(f);
+  assert.deepEqual(await inventory(f.dataDir), before);
+});
+
 for (const source of ['inline', 'envelope', 'nested-envelope', 'static', 'legacy-items', 'legacy-achievements']) {
   test(`real ${source} replay evidence refuses an unreconcilable checkpoint without changing bytes`, async t => {
     const document = source.startsWith('legacy') ? undefined : structuredClone(native);
@@ -91,5 +103,40 @@ for (const carrier of ['root', 'envelope', 'nested-envelope', 'archive']) {
     await checkStart(f);
     const { readFile } = await import('node:fs/promises');
     assert.deepEqual(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'))).players.owner.handled, ['custom:synthetic']);
+  });
+}
+
+for (const carrier of ['atomic', 'capsule', 'items-capsule']) {
+  test(`archived ${carrier} decisions survive an unrelated item generation fence`, async t => {
+    const document = structuredClone(native);
+    const itemPlayers = { owner: { records: { live: { baselineAt: '2026-01-01T00:00:00.000Z', items: {}, handled: ['custom:synthetic'], journal: null } }, commits: { journals: [] } } };
+    const incomingProvenance = carrier === 'atomic' ? { pluginAutoHandled: suppression } : { optionalSidecarEvidence: carrier === 'capsule' ? evidence
+      : { schemaVersion: 1, entries: { pluginItems: { version: 1, players: itemPlayers } } } };
+    // Item generations consume archived facts, never their replay decisions.
+    const provenance = { pluginItemEvidenceReconciled: 1, restore: { incomingProvenance } };
+    document.state.provenance = { restore: { incomingProvenance: provenance } };
+    const f = await fixture(t, document);
+    await checkStart(f);
+    const { readFile } = await import('node:fs/promises');
+    assert.deepEqual(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'))).players.owner.handled, suppression.owner.items);
+    if (carrier !== 'items-capsule') assert.deepEqual(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-achievements.json'))).players.owner.handled, suppression.owner.achievements);
+  });
+}
+
+for (const kind of ['items', 'achievements']) for (const invalid of ['overflow', 'ownership', 'capsule']) {
+  test(`the start gate refuses unrecoverable archived ${kind} ${invalid} without changing bytes`, async t => {
+    const document = structuredClone(native);
+    document.state.provenance = { restore: { incomingProvenance: { optionalSidecarEvidence: evidence } } };
+    if (invalid === 'ownership') document.state.provenance.transferRoster = { mapping: { owner: 'invalid.destination' } };
+    if (invalid === 'capsule') document.state.provenance.restore.incomingProvenance.optionalSidecarEvidence = { ...evidence, schemaVersion: 2 };
+    const f = await fixture(t, document);
+    if (invalid === 'overflow') {
+      const handled = kind === 'items' ? Array.from({ length: 2000 }, (_, i) => `custom:${i}`).sort() : Array.from({ length: 20000 }, (_, i) => i + 100);
+      const record = kind === 'items' ? { baselineAt: '2026-01-01T00:00:00.000Z', items: {}, handled, journal: null } : { handled };
+      await writeFile(path.join(f.dataDir, `plugin-${kind}.json`), JSON.stringify({ v: 1, players: { owner: record } }));
+    }
+    const before = await inventory(f.dataDir);
+    await assert.rejects(checkStart(f), { code: 'PLUGIN_RECONCILIATION_FAILED' });
+    assert.deepEqual(await inventory(f.dataDir), before);
   });
 }

@@ -473,6 +473,52 @@ for (const kind of ['items', 'achievements']) test(`owner Undo keeps ${kind} sup
   await f.close();
 });
 
+for (const carrier of ['atomic', 'capsule', 'items-capsule']) for (const kind of carrier === 'items-capsule' ? ['items'] : ['items', 'achievements']) {
+  test(`real frozen restore recovers archived ${carrier} ${kind} decisions before startup and replay`, async t => {
+    const f = await failedSidecarWindow(t, kind); await f.repair();
+    await f.replayFrozen({ current: true }); // Owner Undo is part of the source save.
+    await f.close();
+    const source = await openStore({ dataDir: f.dataDir, retention: false });
+    let portable;
+    try { portable = await source.backup(); } finally { await source.close(); }
+    const players = portable.state.provenance.pluginAutoHandled;
+    portable.state.provenance = carrier === 'atomic' ? { pluginAutoHandled: players } : {
+      optionalSidecarEvidence: { schemaVersion: 1, entries: carrier === 'capsule'
+        ? { pluginReplaySuppression: { version: 1, players } }
+        : { pluginItems: portable.optionalSidecarEvidence.entries.pluginItems } } };
+    delete portable.optionalSidecarEvidence; // Exercise only the selected state carrier.
+    const destination = await mkdtemp(path.join(root, '.local', 'frozen-archive-replay-'));
+    t.after(() => rm(destination, { recursive: true, force: true }));
+    const old = await frozenStore({ dataDir: destination, initialState: createGroupState([{ id: 'owner', name: 'Explorer' }]), retention: false });
+    try { await old.replace(portable, 0); } finally { await old.close(); }
+    const disk = JSON.parse(await readFile(path.join(destination, 'state.json')));
+    assert.ok(disk.state.provenance.restore.incomingProvenance);
+    assert.equal(disk.state.provenance.pluginAutoHandled, undefined);
+    // Reopen independently, with no gate-produced legacy carrier to hide a
+    // missing archive read in the current runtime's publication/capture path.
+    const direct = await mkdtemp(path.join(root, '.local', 'current-archive-replay-'));
+    t.after(() => rm(direct, { recursive: true, force: true }));
+    await writeFile(path.join(direct, 'state.json'), JSON.stringify(disk));
+    const recovered = await openStore({ dataDir: direct, retention: false });
+    try {
+      assert.equal(recovered.isPluginHandled('owner', kind, kind === 'items' ? itemTask : 1), true);
+      assert.ok((await recovered.backup()).optionalSidecarEvidence.entries.pluginReplaySuppression.players.owner[kind].includes(kind === 'items' ? itemTask : 1));
+    } finally { await recovered.close(); }
+    await runStartGate(destination);
+    const lowered = JSON.parse(await readFile(path.join(destination, `plugin-${kind}.json`)));
+    assert.ok(lowered.players.owner.handled.includes(kind === 'items' ? itemTask : 1));
+    await f.replayFrozen({ target: destination, undo: false }); await f.close();
+    const current = await openStore({ dataDir: destination, retention: false });
+    try {
+      assert.equal(current.isPluginHandled('owner', kind, kind === 'items' ? itemTask : 1), true);
+      const exported = await current.backup();
+      assert.ok(exported.optionalSidecarEvidence.entries.pluginReplaySuppression.players.owner[kind].includes(kind === 'items' ? itemTask : 1));
+      if (carrier === 'items-capsule') assert.ok(exported.optionalSidecarEvidence.entries.pluginItems.players.owner.records.live.handled.includes(itemTask));
+    } finally { await current.close(); }
+    await f.replayFrozen({ target: destination, undo: false, current: true }); await f.close();
+  });
+}
+
 for (const failure of ['publication', 'cleanup']) test(`ExecStartPre restores exact sidecar preimages on ${failure} failure`, async t => {
   const state = suppressed(createGroupState([{ id: 'owner', name: 'Explorer' }]), 'items');
   state.provenance.pluginAutoHandled.owner.achievements = [1];

@@ -20,6 +20,7 @@
     "action-ack",
     "sidecars",
     "restore-transfer",
+    "restore-archive-replay",
     "rollback-sentinel",
     "retention-archive",
     "rules",
@@ -1157,7 +1158,7 @@
       "path": "/state/provenance/restore",
       "frozen": "preserved",
       "opaque": true,
-      "reason": "Restore retains complete incoming provenance and both histories as an opaque archive."
+      "reason": "Restore retains complete incoming provenance and both histories. Replay recovery interprets only schema-owned incomingProvenance and transferRoster boundaries: atomic suppression and registered capsules are recovered with member mappings before validation, portable export or startup. Other archived contents remain opaque."
     },
     {
       "path": "/state/provenance/source",
