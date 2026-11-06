@@ -59,6 +59,15 @@ const keyOf = (category, label) => `${category}\u0000${label}`;
 export function plainLabel(value) {
   return String(value).replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]).replace(/\*+$/g, '');
 }
+// Display context only: raw keys and plainLabel remain the identity inputs.
+function displayTaskLabel(rawLabel, record) {
+  if (!record.ClueTier || !record.ClueType) return plainLabel(rawLabel);
+  const tier = String(record.ClueTier).trim().toLowerCase();
+  const type = String(record.ClueType).trim().toLowerCase();
+  const prefix = `${tier.charAt(0).toUpperCase()}${tier.slice(1)} ${type} clue ${type === 'scan' || type === 'compass' ? 'spot' : 'step'}`;
+  // Map keys are image references, not instructions to print as prose.
+  return type === 'map' ? prefix : `${prefix}: ${plainLabel(rawLabel)}`;
+}
 const array = value => value == null ? [] : Array.isArray(value) ? value : [value];
 // Share the iterator factory; each query supplies its own pure predicate.
 function* ownProducerSources(candidates, qualifies) {
@@ -294,7 +303,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const needs = { ...record.Requirements, ...record.SkillsNeeded, ...record.Skills };
     if (skillCaps[category] !== undefined) needs[category] = Math.max(Number(needs[category] ?? 1), level);
     const wiki = /~\|([^|]+)\|~/.exec(rawLabel)?.[1];
-    const item = { id: taskId(category, rawLabel, record), key: keyOf(category, rawLabel), order: compiled.length, label: plainLabel(rawLabel), rawLabel, category, level, record, unknown, requirements, dependencies,
+    const item = { id: taskId(category, rawLabel, record), key: keyOf(category, rawLabel), order: compiled.length, label: displayTaskLabel(rawLabel, record), rawLabel, category, level, record, unknown, requirements, dependencies,
       wiki: wiki ? `https://runescape.wiki/w/${encodeURIComponent(wiki.replace(/#/g, '/'))}` : undefined,
       needs: Object.entries(needs), presentationNeeds: Object.entries({ ...record.Requirements, ...record.SkillsNeeded, ...record.Skills, ...(skillCaps[category] ? { [category]: level } : {}) }),
       tags: array(record.Category), manualChecks: manualChecks ?? [], dialogueSupply, finiteRewards: finiteRewards ?? [], personalAlternatives: personalAlternatives ?? [], sourceLocations: sourceLocations ?? [], completedDependencies: validCompletedDependencies ? [...new Set(completedDependencies)] : [], requirementAlternatives: requirementAlternatives ?? [], localRequirements: requirements.filter(requirement => requirement.field !== 'Items'), itemRequirements: requirements.filter(requirement => requirement.field === 'Items') };

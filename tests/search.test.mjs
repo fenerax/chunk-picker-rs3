@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createSearchDialog } from '../app/web/screen-search.mjs';
 import { createScreenDialogs } from '../app/web/screen-dialogs.mjs';
 import { projectPlayTask } from '../app/play-view.mjs';
+import { clueLabelCases } from './fixtures/clue-labels.mjs';
 import { chunkNotesForSearch, matchingSearchChunks, searchNoteExcerpt, sortSearchSources, searchLocations, searchPage } from '../app/web/screen-search-data.mjs';
 
 test('chunk notes search both players, deduplicates name matches, and keeps ownership attribution', () => {
@@ -83,6 +84,19 @@ function harness(t, { size = 241, evidence, delayed = false } = {}) {
   t.after(() => search.clear());
   return { c, search, all, find, query, mode, type, settle, matches, opens, items, resolve: value => resolve(value), loads: () => [chunkLoads, fullLoads] };
 }
+
+test('Tasks search still finds clue spots by their old location text', async t => {
+  const tasks = clueLabelCases.map(([, , rawLabel, label], index) => ({ id: `clue-${index}`, rawLabel, label, category: 'Nonskill' }));
+  const h = harness(t, { evidence: { tasks } });
+  h.search.open(); await h.settle();
+  h.mode().value = 'Tasks'; await h.mode().emit('change'); await h.settle();
+  for (const index of [0, 1]) {
+    const [, , oldText, expectedLabel] = clueLabelCases[index];
+    await h.type(oldText);
+    assert.ok(h.find(expectedLabel));
+    assert.equal(h.all().filter(node => node.className === 'search-result').length, 1);
+  }
+});
 
 test('paging reaches every result while highlights cover the whole result set and notes name both players', async t => {
   const h = harness(t); h.search.open(); await h.settle(); await h.type('ore');
