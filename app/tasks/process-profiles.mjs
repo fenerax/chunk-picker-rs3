@@ -3,21 +3,22 @@
 export function createProcessProfiles({ worker, online, retire, restore = () => {}, captureRelay = true, openSession = async () => {
   const { Session } = await import('node:inspector');
   const session = new Session(); session.connect(); return session;
-}, stopTimeoutMs = 1000 }) {
+}, stopTimeoutMs = 1000, clock = { now: () => Date.now(),
+  setTimeout: (...args) => setTimeout(...args), clearTimeout: timer => clearTimeout(timer) } }) {
   let current;
   const post = (session, method) => new Promise((resolve, reject) => session.post(method, (error, value) => error ? reject(error) : resolve(value)));
   const bounded = async (promise, timeout) => {
     let timer;
     try {
       return await Promise.race([promise, new Promise((_, reject) => {
-        timer = setTimeout(() => { timeout(); reject(new Error('Relay profiler did not stop.')); }, stopTimeoutMs); timer.unref?.();
+        timer = clock.setTimeout(() => { timeout(); reject(new Error('Relay profiler did not stop.')); }, stopTimeoutMs); timer.unref?.();
       })]);
-    } finally { clearTimeout(timer); }
+    } finally { clock.clearTimeout(timer); }
   };
-  const cancelled = capture => capture.cancelled || Date.now() >= capture.deadline;
+  const cancelled = capture => capture.cancelled || clock.now() >= capture.deadline;
   function check(capture) { if (cancelled(capture)) throw new Error('Capture cancelled.'); }
   function finish(capture) {
-    capture.cancelled = true; capture.cancel.resolve(); clearTimeout(capture.timer);
+    capture.cancelled = true; capture.cancel.resolve(); clock.clearTimeout(capture.timer);
     return capture.finished ??= (async () => {
       // Relay sampling stops independently of a stalled native start/stop.
       const relay = bounded((async () => {
@@ -47,10 +48,10 @@ export function createProcessProfiles({ worker, online, retire, restore = () => 
           if (!capture.handle) throw new Error('Native profiler did not stop.');
           return await Promise.race([
             cleanup,
-            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Native profiler did not stop.')), stopTimeoutMs); timer.unref?.(); }),
+            new Promise((_, reject) => { timer = clock.setTimeout(() => reject(new Error('Native profiler did not stop.')), stopTimeoutMs); timer.unref?.(); }),
           ]);
         } catch (error) { capture.uncertain = true; retire(); throw error; }
-        finally { clearTimeout(timer); }
+        finally { clock.clearTimeout(timer); }
       })();
       // A relay error must neither bypass native cleanup nor retire a healthy
       // calculator whose native stop succeeded.
@@ -62,9 +63,9 @@ export function createProcessProfiles({ worker, online, retire, restore = () => 
   }
   return {
     async start(deadline) {
-      if (current || !Number.isFinite(deadline) || deadline <= Date.now()) throw new Error('Capture unavailable.');
-      const capture = current = { deadline: Math.min(deadline, Date.now() + 600000), cancel: Promise.withResolvers() };
-      capture.timer = setTimeout(() => { void finish(capture).catch(() => {}); }, capture.deadline - Date.now()); capture.timer.unref?.();
+      if (current || !Number.isFinite(deadline) || deadline <= clock.now()) throw new Error('Capture unavailable.');
+      const capture = current = { deadline: Math.min(deadline, clock.now() + 600000), cancel: Promise.withResolvers() };
+      capture.timer = clock.setTimeout(() => { void finish(capture).catch(() => {}); }, capture.deadline - clock.now()); capture.timer.unref?.();
       capture.relayReady = (async () => {
         if (!captureRelay) return;
         capture.session = await openSession();
