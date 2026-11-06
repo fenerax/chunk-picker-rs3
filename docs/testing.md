@@ -16,7 +16,7 @@ npm test
 Undo, History, settings, tasks, planning and browser controllers. Fake DOM tests
 do not launch a browser. `npm test` selects top-level `tests/*.test.mjs`
 files, including server, worker and large-data integration tests, except the
-explicit `differentialTests` inventory. Those detector cases run with
+files classified `differential`. Those detector cases run with
 `node scripts/test.mjs differential` in `.github/workflows/differential.yml`.
 The coverage gate requires that job's native per-case report as well as the
 Linux and Windows reports, so moving a test cannot silently drop its coverage.
@@ -129,22 +129,52 @@ recovery. No full suite is needed to run that test.
 
 ## Adding tests
 
-`scripts/test-selection.mjs` is the classification source. Add a cheap test's
-filename to `quickTests` after inspecting its imports and fixtures. Keep browser,
-performance, golden/reference comparison, large-data and server/worker tests
-full-only. Integration families have named patterns; the remaining full-only
-files are listed explicitly. Tests owned by the differential job belong in
-`differentialTests` and are excluded from quick and full. A new file outside those
-patterns fails every suite until it is classified, so additions cannot silently
-miss quick feedback.
-Quick entries take precedence over patterns, allowing a reviewed fake DOM or
-small-fixture test from an integration family to participate.
+Create a top-level `tests/<name>.test.mjs`. It is automatically selected by full,
+with shared execution and the lane's default dataset, on Linux CI. No registry
+edit or classification approval is required. The coverage gate discovers the
+same files and still requires every case to pass somewhere. Keep fixtures and
+helpers free of the `.test.mjs` suffix unless they are independently runnable.
 
-The selection tests check required quick coverage, full-suite preservation and
-failure on unknown filenames. Remove or rename the corresponding classification
-when deleting or renaming a test, including any `soloTests` or `openF2PTests`
-policy entry. Keep fixtures and helper modules free of the `.test.mjs` suffix
-unless they are independently runnable tests.
+For a reviewed exception, put an optional comment on the first line of the test
+(after a shebang, if present):
+
+```js
+// @test quick solo dataset=open-f2p
+```
+
+The suite tokens are `quick`, `full`, `differential`, and `engine-differential`.
+Quick also runs in full; the differential suites are excluded from quick/full.
+`solo` runs a file first and alone; `shared` is the default. `dataset=open-f2p`
+sets the public dataset and removes the same pack, asset, authentication and
+profile overrides as before; `dataset=default` inherits the lane environment.
+Omitted fields retain defaults or existing compatibility exceptions. Duplicate
+or unknown options are errors. Classification reads comments without importing
+test modules. Later comments and strings have no effect.
+
+Keep browser, performance, golden/reference comparison, large-data and
+server/worker tests full-only unless their fixtures justify quick feedback.
+Split `<name>.private.test.mjs` files inherit their counterpart's suite, as
+before; dataset and solo settings belong to each entrypoint independently.
+Windows CI retains its reviewed slice in `.github/windows-slice/run.mjs`.
+
+`scripts/test-classification.mjs` owns the rules. Seven grouped compatibility
+rows in `scripts/test-selection-exceptions.mjs` preserve pre-migration policies
+without adding headers to hundreds of files. New tests never need entries
+there; use file metadata for exceptions. Renaming or removing a file cannot
+leave a missing-registration gate. The public export and private assemblies use
+the same classifier; private selector copies are no longer mirrored or overlaid
+when core supplies the automatic classifier. Historical pinned releases retain
+their old selector support.
+
+The migration comparison is reproducible against the exact pre-change commit:
+
+```sh
+node scripts/ci/compare-test-classification.mjs cde6e485
+```
+
+It compares suite membership, solo/shared, environment values and removals,
+lanes, fixed-port exceptions, concurrency, CI graph and runner commands for
+every existing entrypoint, and checks classification stays below one second.
 
 Inspect storage defaults before running a test that writes files. Use isolated
 synthetic saves and temporary directories; never point tests at a personal save.
@@ -152,7 +182,7 @@ Both suite commands check test sources for hard-coded ports in the 8000–9999
 range during discovery, including full-only files during a quick run. Use
 `port: 0` and read the bound address. The check covers literal options, listen
 calls and simple constant bindings. The two explicitly reviewed front-door
-fixtures in `scripts/test-selection.mjs` are exceptions because their lane
+fixtures in `scripts/test-classification.mjs` are exceptions because their lane
 validation requires ports in 8900–8999.
 
 ## Focused checks and renderer contracts

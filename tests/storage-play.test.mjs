@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { openStore } from '../app/storage/store.mjs';
-import { createGroupState } from '../app/core/state.mjs';
+import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { mergeCommandState } from '../app/web/command-state.mjs';
 
@@ -18,6 +18,45 @@ async function fixture(t, options = {}) {
   return store;
 }
 const snapshot = saved => ({ ...saved, state: JSON.parse(saved.stateJSON) });
+for (const completionCodec of [false, true]) for (const historyEntries of [30, 100]) {
+  test(`serialized History survives append, Undo and restart (codec=${completionCodec}, retention=${historyEntries})`, async t => {
+    let state = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }]);
+    for (let i = 0; i < 60; i++) state = applyCommand(state,
+      { type: 'set-note', memberId: 'one', chunkId: '12341', note: `Synthetic ${i}` }, { world });
+    state.legacy = { evidence: 'Synthetic retained evidence. '.repeat(12000) };
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'rs3-history-encoding-'));
+    let store = await openStore({ dataDir, initialState: state, world, completionCodec, retention: { historyEntries } });
+    t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+    const captured = store.getStateSnapshot();
+    for (const note of ['Saved 🦊', '']) {
+      const saved = await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '12341', note }, store.getState().revision);
+      assert.deepEqual(JSON.parse(saved.stateJSON), store.getState());
+      assert.deepEqual(JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8')).state.history, store.getState().history);
+    }
+    assert.deepEqual(JSON.parse(captured.stateJSON), state, 'An older response retains its complete immutable History');
+    await store.commandSerialized({ type: 'undo' }, store.getState().revision);
+    const expected = store.getState(), portable = await store.backup();
+    assert(expected.history.some(event => event.undoneRevision !== undefined));
+    assert.equal(portable.state.history.length, 63);
+    assert.deepEqual(JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8')).state.history, expected.history);
+    await store.close();
+    store = await openStore({ dataDir, world, completionCodec, retention: { historyEntries } });
+    assert.deepEqual(store.getState(), expected);
+    assert.deepEqual(await store.backup(), portable);
+  });
+}
+test('caller preparation that replaces an old History event invalidates serialized prefix reuse', async t => {
+  const store = await fixture(t, { prepareState(state, { operation }) {
+    if (operation === 'command' && state.history.length > 1) state.history[0].at = '2026-01-02T00:00:00.000Z';
+    return state;
+  } });
+  await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '12341', note: 'First' }, 0);
+  const captured = store.getStateSnapshot();
+  const saved = await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Second' }, 1);
+  assert.deepEqual(JSON.parse(saved.stateJSON), store.getState());
+  assert.equal(JSON.parse(saved.stateJSON).history[0].at, '2026-01-02T00:00:00.000Z');
+  assert.notEqual(JSON.parse(captured.stateJSON).history[0].at, '2026-01-02T00:00:00.000Z');
+});
 test('queued play acknowledgements omit unchanged trees, merge exactly and leave full views intact', async t => {
   const store = await fixture(t), initial = snapshot(store.getStateSnapshot({ view: 'play-v1' }));
   const [firstSaved, secondSaved] = await Promise.all([

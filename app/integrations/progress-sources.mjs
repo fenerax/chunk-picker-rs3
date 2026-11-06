@@ -1,15 +1,12 @@
-import { progressBelongsToMember } from '../core/game-progress.mjs';
 export { isObservedProgressSource } from '../core/game-progress.mjs';
 import { createPlatformApiClient } from './platform-api.mjs';
-import { createRuneMetricsSource } from './runemetrics.mjs';
-import { createOfficialApiSource } from './official-api.mjs';
 export { createOfficialApiSource } from './official-api.mjs';
 import { createHiscoresSource } from './hiscores.mjs';
 import { canonicalTitle } from './quest-mapping.mjs';
 import { previewProgressSnapshot } from './progress-preview.mjs';
-import { PLUGIN_PROGRESS_FRESH_MS, RUNE_METRICS_CLOSED_MESSAGE } from './progress-source-policy.mjs';
+import { PLUGIN_PROGRESS_FRESH_MS, PROGRESS_UNAVAILABLE_MESSAGE } from './progress-source-policy.mjs';
 
-export { RUNE_METRICS_CLOSED_MESSAGE } from './progress-source-policy.mjs';
+export { PROGRESS_UNAVAILABLE_MESSAGE } from './progress-source-policy.mjs';
 
 /** Overlay accepted plugin observations, including persisted personal progress.
  * Each row keeps its original provenance; web data fills only missing fields. */
@@ -51,76 +48,39 @@ export function mergePluginProgress(member, web, live) {
 /** Adapter contract: snapshot(member) returns normalized skills (XP, not
  * tenths), quest titles/statuses and fetchedAt, or available:false + message.
  * Providers never write state. Only reviewed commands can save observations. */
-export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () => null,
-  webSource = 'platform-api', officialApi = createOfficialApiSource(), hiscores,
-  runeMetricsEnabled = () => process.env.RS3_RUNEMETRICS_ENABLED !== '0',
-  clock = runeMetrics.clock ?? Date.now } = {}) {
+export function createProgressSources({ runeMetrics = {}, platformApi = runeMetrics, pluginSnapshot = () => null,
+  webSource = 'platform-api', officialApi, hiscores,
+  clock = platformApi.clock ?? Date.now } = {}) {
   if (!['runemetrics', 'official-api', 'platform-api'].includes(webSource)) throw new TypeError('Unknown web progress source.');
-  const legacy = createRuneMetricsSource({ ...runeMetrics, clock });
-  const platform = createPlatformApiClient({ ...runeMetrics, clock });
+  // The legacy source/config names remain accepted, but never contact RuneMetrics.
+  const platform = createPlatformApiClient({ ...platformApi, clock });
   const fallback = hiscores ?? createHiscoresSource({ clock });
-  let retired = false;
-  const enabled = () => typeof runeMetricsEnabled === 'function' ? runeMetricsEnabled() : runeMetricsEnabled;
   return {
     async snapshot(member) {
       const plugin = () => mergePluginProgress(member, null, pluginSnapshot(member));
       const overlay = web => mergePluginProgress(member, web, pluginSnapshot(member));
-      let failure, closed = webSource === 'runemetrics' && (retired || !enabled());
-      const unavailable = { available: false, source: 'runemetrics', sourceLabel: 'RuneMetrics',
-        message: RUNE_METRICS_CLOSED_MESSAGE };
-      if (!member.runescapeName) return closed ? overlay(unavailable) : plugin() ?? {
-        available: false, source: webSource, sourceLabel: webSource === 'platform-api' ? 'Platform API' : 'RuneMetrics',
+      const unavailable = { available: false, source: 'platform-api', sourceLabel: 'Platform API',
+        message: PROGRESS_UNAVAILABLE_MESSAGE };
+      if (!member.runescapeName) return plugin() ?? {
+        ...unavailable,
         message: 'Connect the game plugin or save this player’s RuneScape name to sync progress.' };
-      if (webSource === 'official-api') return overlay(await officialApi.snapshot(member));
-      if (webSource === 'platform-api') {
-        try { return overlay({ ...await platform.snapshot(member), sourceLabel: 'Platform API' }); }
-        catch (error) { failure = error; }
-        // Policy B: RuneMetrics stays a full (quests + levels) fallback until it answers 404/410.
-        if (!retired && enabled()) {
-          try {
-            const web = await legacy.snapshot(member);
-            if (enabled()) return overlay(web); // Recheck a switch changed during a fetch.
-          } catch (error) {
-            if (error.code === 'SOURCE_RETIRED') retired = true;
-            // Keep the Platform API error as the reported cause; Hiscores is tried below.
-          }
-        }
-      }
-      if (webSource === 'runemetrics' && !closed) {
-        try {
-          const web = await legacy.snapshot(member);
-          if (enabled()) return overlay(web); // Recheck a switch changed during a fetch.
-          closed = true;
-        } catch (error) {
-          failure = error;
-          closed = ['SOURCE_RETIRED', 'NETWORK_FAILURE'].includes(error.code);
-          if (error.code === 'SOURCE_RETIRED') retired = true;
-        }
-      }
-      if (webSource === 'runemetrics' && closed) {
-        try {
-          const replacement = await officialApi.snapshot(member);
-          if (replacement.available !== false) return overlay(replacement);
-        } catch { /* Keep plugin facts or try levels-only fallback below. */ }
-      }
+      try {
+        const web = await (webSource === 'official-api' ? officialApi ?? platform : platform).snapshot(member);
+        if (web.available !== false) return overlay(web);
+      } catch { /* Preserve plugin/saved progress when the web service is unavailable. */ }
       // Hiscores is levels-only and is used only without any plugin evidence.
-      if (plugin()) return overlay(closed ? unavailable : null);
+      if (plugin()) return overlay(unavailable);
       try {
         const web = await fallback.snapshot(member);
         if (web.available === false) throw new Error('Hiscores unavailable');
-        // A stale fallback must never lower a saved level or XP observation.
-        web.skills = web.skills.filter(row => {
-          const saved = member.skillProgress?.[row.skill];
-          return !progressBelongsToMember(saved, member) || row.level >= saved.level && row.xp >= saved.xp;
-        });
-        return overlay({ ...web, ...(closed ? { message: RUNE_METRICS_CLOSED_MESSAGE } : {}) });
+        // Preview and durable Apply guard every web provider against the latest
+        // saved state, which may differ from the member used for this fetch.
+        return overlay(web);
       } catch {
-        if (plugin()) return overlay(closed ? unavailable : null);
-        if (closed) return unavailable;
-        throw failure;
+        return overlay(unavailable);
       }
     },
-    close() { platform.close(); legacy.close(); officialApi.close?.(); fallback.close?.(); },
+    close() { platform.close(); officialApi?.close?.(); fallback.close?.(); },
   };
 }
 

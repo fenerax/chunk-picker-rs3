@@ -35,6 +35,7 @@ export async function fileProject({ coreRoot, privateRoot, packsDir, textOverrid
     const tree = await hashTree(root);
     for (const file of tree.files) {
       if (file.path.split('/').some(p => ['.git', '.local', 'node_modules', 'var'].includes(p))) continue;
+      if (overlay && file.path === 'scripts/test-selection.mjs' && entries.has('scripts/test-classification.mjs')) continue;
       if (overlay && entries.has(file.path) && !file.path.startsWith('tests/') && !['scripts/test.mjs', 'scripts/test-selection.mjs','scripts/adaptive-test-runner.mjs'].includes(file.path)) throw Error('Private overlay would replace shared code.');
       entries.set(file.path, { path: file.path, sha256: file.sha256, source: path.join(root, file.path) });
     }

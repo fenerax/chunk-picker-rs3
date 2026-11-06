@@ -330,6 +330,17 @@ These stores never supply live ticks or live item facts. Non-live containers
 remain memory-only. Sidecars are outside portable saves, Undo and portable backups;
 whole-directory operational snapshots retain them.
 
+Cached bank coins are historical observations, not authoritative current funds.
+Transport currency counts only the live pouch and backpack, both readable in the
+same items report. A null or omitted pouch, or a null backpack, leaves the saved
+balance unchanged; partial reads never combine with older container counts.
+Readable empty containers count as zero. Worn items and the toolbelt do not
+contribute currency. Bank-only reports cannot publish an older carried total.
+The current protocol cannot reliably distinguish an empty bank from an
+unavailable read; including
+the retained bank count can count a withdrawn stack twice, even with age zero.
+Bank item evidence and its observation time are still retained separately.
+
 Status `items` is null until the first items report, then exactly
 `{snapshot, journal}`: the last snapshot processed and the newest journal event
 processed (`null` before the first readable look). The plugin resends when its
