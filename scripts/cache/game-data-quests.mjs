@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { openGameCache, loadTable, writeDataset, finishManifest, cliOptions } from './game-data-common.mjs';
 import { sha256 } from './cache-reader.mjs';
 
-// Same stat order as core/game-progress.mjs; achievement skill text
+// Same stat order as the retained RuneMetrics adapter; achievement skill text
 // independently corroborates IDs (e.g. skill17 has "Skill: 5 Thieving").
 export const SKILL_NAMES = ['Attack', 'Defence', 'Strength', 'Constitution', 'Ranged', 'Prayer', 'Magic',
   'Cooking', 'Woodcutting', 'Fletching', 'Fishing', 'Firemaking', 'Crafting', 'Smithing', 'Mining',
