@@ -6,7 +6,7 @@ import { withStoreWrite } from './snapshot.mjs';
 import { hasPluginHandled, withPluginHandled, preserveCommittedPluginHandled } from './plugin-handled.mjs';
 import { foldLegacyPluginHandled } from './plugin-handled-sidecars.mjs';
 import { withPluginEvidence } from './plugin-evidence-lock.mjs';
-import { appendOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence, withOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
+import { appendOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence as materializeEvidenceRecords, reconcileOptionalSidecarEvidence as reconcileEvidenceRecords, withOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
 import { withPluginItemEvidenceWrite } from './plugin-item-snapshot.mjs';
 import { warnOptionalPluginData } from '../core/optional-plugin-data.mjs';
 import { dismissPluginItemEvidence, exportPluginItemEvidence, hasPluginItemDecisions, hasLegacyPluginItemDecisions, recoverPluginItemDecisions, samePluginItemDecisions, stagePluginItemDecisions } from '../plugin-items.mjs';
@@ -342,6 +342,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // cloned or changed fields must serialize/hash again, never inherit stale
     // bytes. Gameplay/view caches likewise recompute for a new root.
     return target;
+  }
+  // Evidence adapters may replace the root without changing gameplay. Keep
+  // store-owned Undo cancellation and archive metadata at this shared boundary,
+  // including replacement previews that hydrate the destination's old History.
+  function materializeOptionalSidecarEvidence(state, ...args) {
+    return inheritStateMetadata(state, materializeEvidenceRecords(state, ...args));
+  }
+  function reconcileOptionalSidecarEvidence(state, ...sources) {
+    return inheritStateMetadata(state, reconcileEvidenceRecords(state, ...sources));
   }
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
