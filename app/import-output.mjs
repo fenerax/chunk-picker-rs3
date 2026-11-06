@@ -4,10 +4,12 @@ export const REPORT_BYTES = 256 * 1024;
 export const DISPLAY_CHARACTERS = 512;
 export const displayText = value => boundedOutput(String(value ?? ''));
 // Mapping uses exact IDs: reject unusable keys rather than truncating identity.
+export const validRosterSourceId = id => typeof id === 'string' && Boolean(id.trim()) && id.length <= 80 && !/[\u0000-\u001f\u007f]/u.test(id);
+export const validRosterDestinationId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id);
 export function rosterOutput(members) {
   if (members.length > 32) throw Object.assign(new TypeError('A backup roster must contain at most 32 players.'), { status: 422 });
   return boundedOutput(members.map(({ id, name }) => {
-    if (typeof id !== 'string' || !id.trim() || id.length > 80 || /[\u0000-\u001f\u007f]/u.test(id))
+    if (!validRosterSourceId(id))
       throw Object.assign(new TypeError('Player identifiers must contain 1–80 characters without control characters.'), { status: 422 });
     return { id, name: displayText(name) };
   }));

@@ -29,7 +29,7 @@ export function validateItemRecord(record) {
   return record;
 }
 
-function validate(value) {
+export function validatePluginItemStore(value) {
   if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)) throw new TypeError('Invalid plugin item store.');
   for (const [player, record] of Object.entries(value.players)) {
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(player)) throw new TypeError('Invalid plugin item store.');
@@ -37,6 +37,7 @@ function validate(value) {
   }
   return value;
 }
+const validate = validatePluginItemStore;
 
 /** Sidecar only: the caller owns the save directory's existing lock. */
 export async function openPluginItems({ dataDir, members, clock = Date.now, log = console.warn }) {

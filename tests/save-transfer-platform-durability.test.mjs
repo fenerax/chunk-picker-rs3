@@ -11,11 +11,27 @@ import { createGroupState, applyCommand, exportBackup, importBackup } from '../a
 import { importBackup as loadRollbackBackup, applyCommand as rollbackCommand } from './fixtures/rollback-main/state.mjs';
 import { openStore } from '../app/storage/store.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
+import { withOptionalSidecarEvidence } from '../app/optional-sidecar-evidence.mjs';
 
 const roster = [{ id: 'synthetic-player', name: 'Synthetic player', runescapeName: 'FixtureActor' }];
 const dataset = { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} };
 const world = { chunks: new Map() };
 const now = '2026-11-04T12:05:00.000Z';
+
+for (const sourceId of ['manual.name', 'x'.repeat(65), 'x'.repeat(80)]) test(`worker restore maps roster source IDs with and without evidence (${sourceId.length} characters)`, async t => {
+  const initialState = createGroupState([{ id: 'owner', name: 'Explorer 1' }, { id: 'partner', name: 'Explorer 2' }]);
+  const { store } = await scratch(t, { initialState });
+  const incoming = createGroupState([{ id: 'source', name: 'Source explorer' }, { id: sourceId, name: 'Second explorer' }]);
+  incoming.provenance = { pluginAutoHandled: { source: { achievements: [1], items: ['custom:sample'] } } };
+  for (const evidence of [false, true]) {
+    const backup = evidence ? await withOptionalSidecarEvidence(exportBackup(incoming)) : exportBackup(incoming);
+    const reviewed = await store.prepareTransfer(serialize({ backup, rosterMapping: { source: 'owner', [sourceId]: 'partner' } }),
+      { dataset, world, route: '/api/restore/preview' });
+    assert.equal(store.getInfo().revision, 0, 'Both previews leave the destination untouched');
+    if (evidence) await store.applyTransfer(reviewed.ticket, 0);
+  }
+  assert.deepEqual(store.getState().provenance.pluginAutoHandled, { owner: { achievements: [1], items: ['custom:sample'] } });
+});
 function platformSave() {
   const state = createGroupState(roster);
   state.tasks = [{ id: 'synthetic-quest', category: 'Quest', label: 'Synthetic quest' }];

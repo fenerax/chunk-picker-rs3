@@ -2,9 +2,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { mergePluginHandledRecords, reconcilePluginHandled } from './storage/plugin-handled.mjs';
+import { validRosterSourceId, validRosterDestinationId } from './import-output.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-const validId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id);
+const validEvidenceTypeId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id);
 const invalid = () => { throw new TypeError('Invalid optional sidecar evidence.'); };
 
 // Code-owned registrations only. A type may declare capture-only filenames,
@@ -23,9 +24,9 @@ function validate(evidence) {
   if (!object(evidence) || evidence.schemaVersion !== 1 || !object(evidence.entries)
     || Object.keys(evidence).some(key => !['schemaVersion', 'entries'].includes(key))) invalid();
   for (const [id, entry] of Object.entries(evidence.entries)) {
-    if (!validId(id) || !object(entry) || entry.version !== 1 || !object(entry.players)
+    if (!validEvidenceTypeId(id) || !object(entry) || entry.version !== 1 || !object(entry.players)
       || Object.keys(entry).some(key => !['version', 'players'].includes(key))) invalid();
-    for (const [player, record] of Object.entries(entry.players)) if (!validId(player) || !object(record)) invalid();
+    for (const [player, record] of Object.entries(entry.players)) if (!validRosterSourceId(player) || !object(record)) invalid();
   }
   return evidence;
 }
@@ -89,7 +90,7 @@ export function materializeOptionalSidecarEvidence(state, evidence) {
 
 export function mapOptionalSidecarEvidence(evidence, mapping) {
   if (evidence === undefined) return undefined;
-  if (!object(mapping) || Object.entries(mapping).some(([source, target]) => !validId(source) || !validId(target))
+  if (!object(mapping) || Object.entries(mapping).some(([source, target]) => !validRosterSourceId(source) || !validRosterDestinationId(target))
     || new Set(Object.values(mapping)).size !== Object.values(mapping).length) invalid();
   return { schemaVersion: 1, entries: Object.fromEntries(Object.entries(validate(evidence).entries).map(([id, entry]) => [id,
     { version: 1, players: Object.fromEntries(Object.entries(entry.players).filter(([player]) => Object.hasOwn(mapping, player))

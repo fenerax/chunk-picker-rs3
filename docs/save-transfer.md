@@ -158,6 +158,10 @@ restoring onto 501 destination History entries, and an upload above 32 MiB.
 Roster labels are limited to 512 display characters. Mapping uses exact player
 IDs of 1–80 characters without control characters, with at most 32 players.
 Original names and migration diagnostics remain intact in the saved evidence.
+Optional evidence uses that same source-player contract, including punctuation
+and source IDs longer than 64 characters. Destination IDs still follow the
+roster mapper's safe 1–64-character contract. Evidence-type identifiers have
+their own safe 1–64-character namespace; they are never interpreted as player IDs.
 
 Transfer reports index definitions and completions once. Restore previews also
 index catalogue differences, completion differences and task labels, so a large

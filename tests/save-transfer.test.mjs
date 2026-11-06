@@ -131,6 +131,23 @@ test('the optional evidence mapper scopes future types and refuses colliding or 
   for (const mapping of [{ source: '../synthetic' }, { source: 'owner', owner: 'owner' }]) assert.throws(() => mapOptionalSidecarEvidence(evidence, mapping), /Invalid optional sidecar evidence/);
 });
 
+for (const sourceId of ['manual.name', 'x'.repeat(65), 'x'.repeat(80)]) test(`optional evidence uses the roster source-ID contract (${sourceId.length} characters)`, async () => {
+  const state = createGroupState([{ id: 'source', name: 'Explorer 1' }, { id: sourceId, name: 'Explorer 2' }]);
+  state.provenance = { pluginAutoHandled: { source: { achievements: [1], items: ['custom:sample'] } } };
+  const backup = await withOptionalSidecarEvidence({ state });
+  const mapping = { source: 'owner', [sourceId]: 'partner' };
+  const mapped = mapTransferRoster(backup.state, [{ id: 'owner' }, { id: 'partner' }], mapping);
+  assert.deepEqual(mapped.provenance.pluginAutoHandled, { owner: { achievements: [1], items: ['custom:sample'] } });
+  const evidence = structuredClone(backup.optionalSidecarEvidence);
+  evidence.entries.pluginReplaySuppression.players[sourceId] = { achievements: [2], items: [] };
+  assert.deepEqual(mapOptionalSidecarEvidence(evidence, mapping).entries.pluginReplaySuppression.players.partner, { achievements: [2], items: [] });
+  for (const type of ['manual.name', 'x'.repeat(65)]) assert.throws(() => mapOptionalSidecarEvidence({ schemaVersion: 1,
+    entries: { [type]: evidence.entries.pluginReplaySuppression } }, mapping), /Invalid optional sidecar evidence/);
+  for (const target of ['manual.name', 'x'.repeat(65), '../owner', '__proto__'])
+    assert.throws(() => mapOptionalSidecarEvidence(evidence, { source: 'owner', [sourceId]: target }), /Invalid optional sidecar evidence/);
+  assert.throws(() => mapOptionalSidecarEvidence(evidence, { source: 'owner', ['x'.repeat(81)]: 'partner' }), /Invalid optional sidecar evidence/);
+});
+
 test('review receipts refuse changed uploads, mapping, identity, revision and expiration', () => {
   let now = 0; const reviews = createTransferReviews({ now: () => now });
   const body = { backup: { synthetic: true }, rosterMapping: { first: 'owner' } }, identity = { sessionId: 'synthetic-session' };

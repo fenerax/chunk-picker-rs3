@@ -261,3 +261,13 @@ eligible again after a sidecar failure and restart. The extension stays absent
 on older saves until an automatic tick; existing sidecars continue to supply
 earlier suppression. Backups and whole-picker restores retain the extension,
 and portable roster mapping remaps its member keys.
+
+Writable startup and standby activation durably reconcile committed replay
+decisions into the legacy item and achievement handled sidecars before serving.
+The frozen `06e15939` loader preserves this extension, but its plugin controller
+ignores it. Before starting that runtime, the stopped rollback procedure must
+successfully run the new release's
+[`reconcile-plugin-suppression.mjs`](../scripts/linux/reconcile-plugin-suppression.mjs)
+as described in [the Linux rollback steps](linux-operator.md#plugin-replay-suppression-before-rollback).
+Failed reconciliation keeps startup/rollback refused; successful reconciliation
+does not change gameplay, History or Undo.

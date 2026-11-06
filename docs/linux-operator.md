@@ -244,6 +244,39 @@ save before restoring the old selection. If reverse compatibility or shutdown
 fails, it leaves maintenance evidence and refuses to start another writer.
 It never restores an older gameplay snapshot as an automatic rollback.
 
+### Plugin replay suppression before rollback
+
+Before starting a runtime older than the committed plugin replay policy, keep
+the writer stopped and run the **new release's** reconciliation tool on each
+picker data directory, under the operator lock:
+
+```sh
+/opt/node/bin/node /path/to/new-release/scripts/linux/reconcile-plugin-suppression.mjs /absolute/picker-data-directory
+```
+
+Run it as the service account with access to that directory. Only after this
+command exits successfully may the rollback procedure select and start the old
+runtime. Chain the start with `&&`, or stop the procedure on any nonzero exit;
+never continue after `Rollback refused`. Keep the new release available until
+the rollback is complete. This step also applies to automatic rollback adapters
+before they start a frozen runtime; their load/compatibility probe alone does
+not prove replay suppression.
+
+The tool acquires the ordinary store writer locks, decodes the latest saved
+checkpoint without changing gameplay, and merges committed
+`state.provenance.pluginAutoHandled` decisions into `plugin-items.json` and
+`plugin-achievements.json`. Existing handled decisions and item evidence,
+baseline, bank and journal metadata remain intact. File and directory sync
+must succeed; unreadable evidence, invalid unions, capacity overflow or writer
+ownership refuses the rollback. A partial sidecar publication is safe to retry
+while stopped: the unions are monotonic and idempotent.
+
+The current runtime performs the same reconciliation before serving a writable
+store, including standby activation. This heals an earlier crash window on
+restart. Frozen release `06e15939` retains the provenance field but its plugin
+controller only reads the legacy sidecars, so it requires the stopped reconcile
+step even when a backup loads and Undo succeeds.
+
 The pointer replacement uses expected-byte checks under the shared operator
 lock. Binding and pointer are two writes with a recovery journal, not a single
 filesystem transaction. The kit assumes all selection writers honor that lock.

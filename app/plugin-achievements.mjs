@@ -10,7 +10,7 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length
   && keys.every(key => Object.hasOwn(value, key));
 
-function validate(value) {
+export function validatePluginAchievementStore(value) {
   if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)) {
     throw new TypeError('Invalid plugin achievement store.');
   }
@@ -23,6 +23,7 @@ function validate(value) {
   }
   return value;
 }
+const validate = validatePluginAchievementStore;
 
 async function renameWithRetry(source, destination) {
   for (let attempt = 0; ; attempt++) {

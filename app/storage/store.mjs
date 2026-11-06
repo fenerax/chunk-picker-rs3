@@ -4,6 +4,7 @@ import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfe
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { hasPluginHandled, withPluginHandled } from './plugin-handled.mjs';
+import { reconcilePluginHandledSidecars } from './plugin-handled-sidecars.mjs';
 import { appendOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence, withOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
@@ -1042,6 +1043,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         reportDurability(publication);
       }
     }
+    if (!readOnly) await reconcilePluginHandledSidecars({ dataDir: directory, state: current });
     if (!readOnly && !liveSwapStrict) await maintainRetention();
   } catch (error) { await releaseLock(); throw error; }
 
@@ -1480,6 +1482,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           const ready = await prepareLoadedState(latest);
           if (!isDeepStrictEqual(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
+          await reconcilePluginHandledSidecars({ dataDir: directory, state: latest });
           if (closing) throw new Error('Standby activation was cancelled by shutdown.');
           current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
           receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
@@ -1605,4 +1608,21 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     },
   };
   return store;
+}
+
+// Offline rollback bridge: decode through the current reader under the same
+// writer locks as startup, without migrating or publishing gameplay state.
+export async function reconcileStoppedPluginSuppression({ dataDir }) {
+  const directory = path.resolve(dataDir);
+  const releaseGuard = await acquireProcessGuard(directory);
+  let releaseFileLock, reader;
+  try {
+    releaseFileLock = await acquireLock(directory);
+    reader = await openStore({ dataDir: directory, readOnly: true, retention: false });
+    await reconcilePluginHandledSidecars({ dataDir: directory, state: reader.getState() });
+  } finally {
+    try { await reader?.close(); } finally {
+      try { await releaseFileLock?.(); } finally { await releaseGuard(); }
+    }
+  }
 }

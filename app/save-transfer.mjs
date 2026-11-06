@@ -1,4 +1,4 @@
-import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
+import { boundedOutput, REPORT_RECORDS, validRosterDestinationId } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { mapOptionalSidecarEvidence } from './optional-sidecar-evidence.mjs';
 
@@ -55,7 +55,7 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   if (!entries || Array.isArray(entries) || Object.keys(entries).length !== source.length
     || source.some(id => !Object.hasOwn(entries, id))) fail(400, 'Assign every source member exactly once.');
   const targets = source.map(id => entries[id]), targetIds = new Set(targets);
-  if (targets.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id) || ['__proto__', 'constructor', 'prototype'].includes(id))
+  if (targets.some(id => !validRosterDestinationId(id))
     || targetIds.size !== targets.length || requiredIds.some(id => !targetIds.has(id))) {
     fail(422, 'Map each source member to a different destination member, keeping every assigned destination participant. Use a fresh picker when an assigned roster cannot fit.');
   }
