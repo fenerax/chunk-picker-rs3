@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { noLinks, exists, json, assertReleased } from './files.mjs';
-import { prepareStoppedPluginSuppression } from '../../app/storage/store.mjs';
+import { prepareStoppedPluginSuppression } from '../../app/storage/plugin-replay-checkpoint.mjs';
 import { legacyPluginHandledFiles, publishPluginHandledSidecars } from '../../app/storage/plugin-handled-sidecars.mjs';
 import { registryRecoveryDocument } from '../../app/storage/registry.mjs';
 import { pickerPath } from './service-checkpoint.mjs';

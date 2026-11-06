@@ -19,6 +19,7 @@ import { deployStopped } from '../scripts/linux/operator.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
 import { createHash } from 'node:crypto';
 import { serialize } from 'node:v8';
+import { toolsClosure } from '../scripts/linux/tools-package.mjs';
 
 const execute = promisify(execFile), root = fileURLToPath(new URL('../', import.meta.url));
 const release = '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e';
@@ -50,6 +51,14 @@ async function runStartGate(dataDir) {
   catch (error) { throw error.cause ?? error; }
   finally { await rm(controlDir, { recursive: true, force: true }); }
 }
+
+test('installed tools contain the start gate without runtime dataset loaders', async () => {
+  const closure = await toolsClosure(root);
+  for (const file of ['scripts/linux/plugin-suppression-gate.mjs', 'app/storage/plugin-replay-checkpoint.mjs', 'app/storage/process-guard.mjs', 'app/storage/static-field.mjs']) {
+    assert.ok(closure.files.some(row => row.path === file), file);
+  }
+  assert.ok(!closure.files.some(row => ['app/storage/store.mjs', 'app/dataset-runtime.mjs'].includes(row.path)));
+});
 
 async function failedSidecarWindow(t, kind, { directory, legacy = false, atomic = false } = {}) {
   await mkdir(path.join(root, '.local'), { recursive: true });
@@ -161,6 +170,24 @@ test('ExecStartPre reconciles recovered gameplay without requiring regenerated c
   await rm(path.join(f.dataDir, 'access-token'));
   const before = await inventory(f.dataDir);
   await runStartGate(f.dataDir);
+  assert.deepEqual(await inventory(f.dataDir), before);
+});
+
+test('ExecStartPre reads compact provenance and completion-codec saves and refuses corrupt dependencies unchanged', async t => {
+  const state = suppressed(createGroupState([{ id: 'owner', name: 'Explorer' }]), 'items');
+  state.provenance.syntheticArchive = 'a'.repeat(270000);
+  const f = await emptyStore(t, { initialState: state, completionCodec: true }); await f.store.close();
+  const document = JSON.parse(await readFile(path.join(f.dataDir, 'state.json')));
+  assert.equal(document.schemaVersion, 2);
+  assert.ok(document.storage.fields.provenance);
+  await rm(path.join(f.dataDir, 'plugin-items.json'));
+  await runStartGate(f.dataDir);
+  assert.deepEqual(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'))).players.owner.handled, [itemTask]);
+  await rm(path.join(f.dataDir, 'plugin-items.json'));
+  const file = path.join(f.dataDir, 'static', document.storage.fields.provenance.id);
+  await writeFile(file, 'synthetic-corrupt-dependency');
+  const before = await inventory(f.dataDir);
+  await assert.rejects(runStartGate(f.dataDir));
   assert.deepEqual(await inventory(f.dataDir), before);
 });
 

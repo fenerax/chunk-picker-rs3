@@ -4,7 +4,7 @@ import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfe
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { hasPluginHandled, withPluginHandled } from './plugin-handled.mjs';
-import { reconcilePluginHandledSidecars, preparePluginHandledSidecars, foldLegacyPluginHandled } from './plugin-handled-sidecars.mjs';
+import { reconcilePluginHandledSidecars, foldLegacyPluginHandled } from './plugin-handled-sidecars.mjs';
 import { withPluginEvidence } from './plugin-evidence-lock.mjs';
 import { appendOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence, withOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
@@ -12,7 +12,8 @@ import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } 
 import { publishFile, warnDurability } from './publication.mjs';
 import path from 'node:path';
 import { hostname } from 'node:os';
-import { createServer as createNetServer } from 'node:net';
+import { acquireProcessGuard } from './process-guard.mjs';
+import { readStaticFieldBytes, validateStaticFieldReference } from './static-field.mjs';
 import { execFile } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
@@ -143,32 +144,6 @@ async function createOwnerFile(file, contents) {
   } finally { await unlink(temporary).catch(() => {}); }
 }
 
-async function acquireProcessGuard(directory) {
-  const canonical = await realpath(directory);
-  const digest = createHash('sha256').update(process.platform === 'win32' ? canonical.toLowerCase() : canonical).digest('hex');
-  const listener = createNetServer(socket => socket.destroy());
-  // The kernel releases named-pipe/abstract-socket ownership after interruption.
-  // A full-lifetime mutex serializes stale-file inspection and unlink, which
-  // cannot be made safe with a read-then-unlink comparison alone.
-  const address = process.platform === 'win32' ? { path: `\\\\.\\pipe\\rs3-picker-store-${digest}`, exclusive: true }
-    : process.platform === 'linux' ? { path: `\0rs3-picker-store-${digest}`, exclusive: true }
-      : { host: '127.0.0.1', port: 30_000 + parseInt(digest.slice(0, 8), 16) % 20_000, exclusive: true };
-  try {
-    await new Promise((resolve, reject) => {
-      const failure = error => { listener.removeListener('listening', ready); reject(error); };
-      const ready = () => { listener.removeListener('error', failure); resolve(); };
-      listener.once('error', failure);
-      listener.once('listening', ready);
-      listener.listen(address);
-    });
-  } catch (error) {
-    if (['EADDRINUSE', 'EACCES'].includes(error.code)) throw new Error('Another server already holds or is recovering this data-directory lock.', { cause: error });
-    throw error;
-  }
-  listener.on('error', () => {});
-  return () => new Promise((resolve, reject) => listener.close(error => error ? reject(error) : resolve()));
-}
-
 async function acquireLock(directory, beforeLockRecovery) {
   const file = path.join(directory, 'store.lock');
   await prepareStoreProcessIdentity();
@@ -236,10 +211,9 @@ async function atomicWrite(file, contents, { beforeRename, onPostPublishSyncErro
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, replayEvidenceReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
-  if (replayEvidenceReader && !readOnly) throw new TypeError('Replay evidence readers must be read-only.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
   const encodeCompletions = completionCodec ? createCompletionEncoder() : document => document;
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
@@ -421,25 +395,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') (() => { throw Object.assign(new Error(`This backup is too large. The limit is ${BACKUP_LIMIT_LABEL} after decompression.`), { status: 413 }); })(); throw error; }
   }
   async function readStaticField(key, reference, forImport = false) {
-    const match = STATIC_ID.exec(reference?.id ?? '');
-    if (!match || reference?.sha256 !== match[1] || Object.keys(reference).some(name => !['id', 'sha256'].includes(name))) {
-      throw new TypeError(`Invalid static field reference: ${key}`);
-    }
-    const cacheKey = `${key}:${reference.id}`;
+    validateStaticFieldReference(key, reference);
+    const cacheKey = `${key}:${reference?.id}`;
     if (readOnly && standbyStaticFields.has(cacheKey)) return standbyStaticFields.get(cacheKey);
-    let compressed;
-    try {
-      const base = await realpath(staticDir);
-      const file = await realpath(path.join(staticDir, reference.id));
-      if (path.dirname(file) !== base) throw new TypeError(`Invalid static field location: ${key}`);
-      compressed = await readFile(file);
-    }
-    catch (error) {
-      if (error.code === 'ENOENT') throw new Error(`Missing static field dependency: ${reference.id}`, { cause: error });
-      throw error;
-    }
-    const bytes = await decodeStoredBytes(compressed, forImport);
-    if (createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new TypeError(`Static field checksum mismatch: ${key}`);
+    const bytes = await readStaticFieldBytes(directory, key, reference, { decompress: bytes => decodeStoredBytes(bytes, forImport) });
     const result = { value: forImport ? await importDocument(bytes) : JSON.parse(bytes.toString('utf8')) };
     if (readOnly) {
       if (standbyStaticFields.size >= reusableFields.size) standbyStaticFields.delete(standbyStaticFields.keys().next().value);
@@ -986,15 +945,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         || parseSavedDocument(bytes)?.state?.revision !== expectedCheckpoint.revision) throw new Error('Handover checkpoint changed.');
     }
     if (!readOnly) { await mkdir(backupsDir, { recursive: true }); await mkdir(historyDir, { recursive: true }); }
-    if (!replayEvidenceReader) {
-      const tokenFile = path.join(directory, 'access-token');
-      try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
-        if (error.code !== 'ENOENT' || readOnly) throw error;
-        token = randomBytes(32).toString('base64url');
-        reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
-      }
-      if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
+    const tokenFile = path.join(directory, 'access-token');
+    try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
+      if (error.code !== 'ENOENT' || readOnly) throw error;
+      token = randomBytes(32).toString('base64url');
+      reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
     }
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
     let existing = false;
     try {
       const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
@@ -1682,20 +1639,4 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     },
   };
   return store;
-}
-
-// ExecStartPre bridge: the kernel guard excludes every supported runtime.
-// Do not create a file lock: a refused start must leave the stopped tree intact.
-export async function prepareStoppedPluginSuppression({ dataDir }) {
-  const directory = path.resolve(dataDir);
-  const releaseGuard = await acquireProcessGuard(directory);
-  let reader;
-  try {
-    reader = await openStore({ dataDir: directory, readOnly: true, replayEvidenceReader: true, retention: false });
-    const publications = await preparePluginHandledSidecars({ dataDir: directory, state: reader.getState() });
-    return { publications, release };
-  } catch (error) { await release(); throw error; }
-  async function release() {
-    try { await reader?.close(); } finally { await releaseGuard(); }
-  }
 }
