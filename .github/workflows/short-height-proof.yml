@@ -21,6 +21,10 @@ concurrency:
 
 jobs:
   proof:
+    # The slow comparison is acceptance evidence for this rebuild. Later
+    # changes can request it explicitly without adding the old sleep budget
+    # to every ordinary PR touching phone layout.
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'test/rebuild-short-height'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -35,7 +39,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24.20.0
-      - name: First-attempt mutations and three matched timing pairs
+      - name: First-attempt proof and matched timing pair
         run: node scripts/ci/short-height-proof.mjs "${{ runner.temp }}/short-height-proof" "${{ matrix.pair }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
