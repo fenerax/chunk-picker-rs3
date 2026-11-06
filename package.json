@@ -9,6 +9,7 @@
     "start:f2p": "node scripts/start-public-game.mjs",
     "calc-check": "node tools/calc-check/main.mjs",
     "test:quick": "node scripts/test.mjs quick",
+    "test:affected": "node scripts/test-affected.mjs",
     "screens": "pwsh -NoProfile -File scripts/screens.ps1",
     "test": "node scripts/test.mjs full"
   },

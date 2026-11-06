@@ -195,7 +195,52 @@ validation requires ports in 8900–8999.
 
 For a named test file, inspect `testRunPolicy(name)` in `scripts/test-selection.mjs` and apply its complete environment, including cleared inherited pack variables. Many files use `RS3_DATASET=open-f2p`; a bare `node --test` can pass against a different rule catalogue. The suite CLI accepts suites and `--list`, not a file-selection flag. Use the adaptive runner API or a focused invocation with the matching policy when the task limits checks to named files.
 
-The current Linux workflow runs the full suite directly; the former quick-then-full failure-hiding behavior is obsolete. Published pack profiles control which data overlays CI sees. Source overlays do not update already published packs.
+Before pushing, fetch `origin/main` and run `npm run test:affected -- --list`, then
+`npm run test:affected`. Selection compares the working tree (including staged
+and untracked source) with the merge base of `origin/main`. A missing base is an
+error; use `--base=<ref>` for an explicit alternative. The selector follows
+static imports, reexports, literal dynamic imports and literal file URLs without
+importing test modules. `scripts/test-affected-rules.mjs` adds repository contracts
+such as browser routes, the save surface, data packs and workflows. Changed and
+deleted modules retain their old import edges too. Unscannable code conservatively
+selects every test. Selection cannot guarantee a pass for computed runtime loads;
+the full merge gate remains mandatory.
+
+The affected command lowers its process priority to BelowNormal and defaults to
+one worker; `--test-concurrency=1` makes that cap explicit, including in CI. On the
+shared development PC, acquire the shared `heavy.lock` directory atomically with
+an `owner.txt` before running multi-file tests. Follow the PC rules supplied with
+the task, keep heavy steps sequential, and release the lock within ten minutes;
+split a longer selection into authorized focused checks rather than holding the
+PC for a full suite. Listing does not acquire the lock or run tests.
+
+Linux CI runs affected tests first (up to six memory-admitted workers), stopping
+after the first failing file. Browser graph, route and storage sentinels run
+first, before slower affected files. The stage also warms the existing pack,
+Wiki and independent frozen-checkout caches before four full-suite shards start.
+Gating avoids spending runners on known failures; the green path pays for the
+affected selection twice. Broad foundational changes may select most tests.
+Windows and differential lanes remain independent. Matrix fail-fast is disabled
+to retain complete per-case coverage diagnostics from all shards after a failure.
+The coverage job requires affected, every shard, Windows and differential success,
+checks each shard against its exact assignment, then checks every case still
+passes somewhere using the existing skip allowance rules.
+
+`npm test -- --shard=1/4 --list` inspects the deterministic assignment. Every
+shard computes and audits the complete partition before execution, so an omitted
+or duplicated test is an error. Timings in `scripts/ci/test-timings.json` come from
+two recent public main ledgers (run IDs and SHAs are recorded). Regenerate with
+`node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`. The table uses the
+slowest passing observation per file and its median as the new-file fallback.
+Balancing accounts for solo files, shared concurrency and indivisible long files.
+The latest baseline Linux job took 22m39s. One test alone took 10–13 minutes, so
+eight minutes per shard cannot be guaranteed without splitting that file; four
+15-minute shards aim for roughly 6–13 minutes plus setup on these observations.
+Affected and shard ledgers are uploaded separately; each shard's coverage artifact
+has a unique filename and is combined only after validating its native counts.
+
+Published pack profiles control which data overlays CI sees. Source overlays do
+not update already published packs.
 
 When an extracted screen function adds `c.*` fields, update `app/web/screen-context.mjs` and every `screenFunctionSource` VM context that uses it, including `scripts/compare-cache-access.mjs`. Include `tests/cache-comparison.test.mjs` in the authorized focused checks; adjacent web tests alone can miss undeclared VM globals.
 

@@ -11,6 +11,8 @@ Read `README.md` for the current runtime and `PRODUCT.md` for product decisions.
 
 ## Verification
 
+- Before pushing, fetch `origin/main`, run `npm run test:affected -- --list` to inspect the selection, then `npm run test:affected`. It follows transitive static imports and repository contracts, stops on the first failing file, and defaults to BelowNormal priority and one test worker. Use `docs/testing.md` for the shared-PC lock and limits. A passing affected check still requires the complete CI gate.
+
 - Explore the UI after releases and UI changes on an isolated synthetic server. Treat difficulty finding controls as a usability defect; keep exploratory writes away from live saves.
 - After gallery, response-header or browser-startup loading changes, check real samples both directly and inside the gallery frame; direct previews miss frame-policy and fetch-guard failures.
 - Before removing a worktree, preserve ignored pinned inputs needed to reproduce its committed outputs.
