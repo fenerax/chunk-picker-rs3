@@ -15,8 +15,8 @@ const baseline = option('baseline');
 if (!/^[a-f0-9]{40}$/.test(baseline ?? '')) throw Error('Pass --baseline <full git SHA>.');
 const baselineRoot = path.resolve(option('baseline-root'));
 if (execFileSync('git', ['-C', baselineRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim() !== baseline) throw Error('Baseline worktree does not match --baseline.');
-const runs = Number(option('runs', '7'));
-if (!Number.isSafeInteger(runs) || runs < 1) throw Error('Invalid runs.');
+const runs = Number(option('runs', '20'));
+if (!Number.isSafeInteger(runs) || runs < 20) throw Error('Use at least twenty fixed AB/BA pairs.');
 const output = path.resolve(option('out', '.local/search-perf/typing'));
 await mkdir(output, { recursive: true });
 const scaleRoot = path.resolve(option('scale-dir', '.local/search-perf/scale400'));
@@ -92,6 +92,7 @@ const setup = async variant => {
     const rows=[];
     for(const query of ['a','ab','abc','','é','no-match-zzzz']) {
       measure={indexMs:0,indexBuilds:0,matchMs:0,prepareMs:0,listMs:0,mapMs:0,rowCopyMs:0,renderMs:0};
+      const cpuStart=await globalThis.cpuSnapshot();
       const n=document.querySelector('input[type=search]'), start=performance.now();
       n.value=query; n.dispatchEvent(new Event('input',{bubbles:true})); await wait();
       const pageReadyMs = performance.now() - start;
@@ -101,7 +102,9 @@ const setup = async variant => {
         while (layer.painting) await new Promise(r=>requestAnimationFrame(r));
         await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
       }
-      const timed = {query,...measure,pageReadyMs,pagePaintMs,wallMs:performance.now()-start,longestTaskMs:Math.max(0,...longTasks.filter(t=>t.start>=start).map(t=>t.duration)),
+      const cpuEnd=await globalThis.cpuSnapshot();
+      if(!Number.isFinite(cpuEnd)||cpuEnd<cpuStart)throw Error('Renderer CPU counter unavailable: undecided.');
+      const timed = {query,...measure,cpuMs:(cpuEnd-cpuStart)*1000,pageReadyMs,pagePaintMs,wallMs:performance.now()-start,longestTaskMs:Math.max(0,...longTasks.filter(t=>t.start>=start).map(t=>t.duration)),
         network:performance.getEntriesByType('resource').filter(e=>e.startTime>=start).map(e=>({name:new URL(e.name).pathname,ms:e.duration})),
         rendered:document.querySelectorAll('.search-result').length};
       const validationStart=performance.now(); const completeRows=globalThis.readSearchRows();
@@ -127,11 +130,18 @@ const server = createServer(async (req,res) => {
 });
 await new Promise(r=>server.listen(0,'localhost',r));
 const fixtureSha256=createHash('sha256').update(definitionsBytes).digest('hex');
+const harnessSha=createHash('sha256').update(await readFile(fileURLToPath(import.meta.url))).digest('hex');
+const sourceDigests={};
+for(const name of ['screen-search.mjs','screen-search-data.mjs','map-search-layer.mjs'])for(const [variant,directory]of [['before',baselineRoot],['after',root]])sourceDigests[variant+':'+name]=createHash('sha256').update(await readFile(path.join(directory,'app/web',name))).digest('hex');
 let previous;
 try { previous=JSON.parse(await readFile(path.join(output,'results.json'),'utf8')); }
 catch(error) { if(error.code!=='ENOENT')throw error; }
 if(previous&&(previous.baseline!==baseline||previous.fixtureSha256!==fixtureSha256))throw Error('Resume inputs changed; choose a new output directory.');
+if(previous&&(previous.harnessSha!==harnessSha||JSON.stringify(previous.sourceDigests)!==JSON.stringify(sourceDigests)))throw Error('Preserve earlier source fingerprints; choose a new output directory.');
 const results=previous?.results??[], ordered=new Map(), batchStarted=Date.now();
+const protocol={pairs:runs,order:Array.from({length:runs},(_,pair)=>({pair,order:pair%2?['after','before']:['before','after']})),counter:'Chrome renderer ThreadTime, in milliseconds; row/pixel validation excluded',minimumFasterPairs:18,minimumPairedMedianCpuGainPercent:5,wallTimeIsGate:false};
+if(previous?.protocol&&JSON.stringify(previous.protocol)!==JSON.stringify(protocol))throw Error('Preserve earlier CPU protocol; choose a new output directory.');
+await writeFile(path.join(output,'results.json'),JSON.stringify({baseline,node:process.version,fixtureSha256,harnessSha,sourceDigests,chunks:Object.keys(definitions.chunks).length,protocol,results,decision:'undecided'},null,2));
 for(const result of results)for(const scope of result.scopes)for(const row of scope.rows){
   const key=JSON.stringify([scope.member,scope.group,row.query]);
   ordered.set(key,row.hash);ordered.set(key+':map',row.mapHash);
@@ -161,9 +171,29 @@ try {
     let sampling;
     const sampleRss = () => sampling ??= rssTree(browser.child.pid).then(rss => { peakRss=Math.max(peakRss,rss); }).finally(() => { sampling=undefined; });
     const sample=setInterval(()=>{void sampleRss().catch(()=>{});},250);
+    const cpuListener=message=>{
+      if(message.method!=='Runtime.bindingCalled'||message.params.name!=='__cpuSnapshotBinding')return;
+      const {id}=JSON.parse(message.params.payload);
+      void browser.send('Performance.getMetrics').then(response=>{
+        const value=response.metrics.find(metric=>metric.name==='ThreadTime')?.value;
+        if(!Number.isFinite(value))throw Error('Renderer CPU counter unavailable');
+        return browser.evaluate(`globalThis.resolveCpuSnapshot(${id},${value})`);
+      }).catch(()=>{void browser.evaluate(`globalThis.rejectCpuSnapshot(${id})`).catch(()=>{});});
+    };
     try{
       await browser.send('Page.navigate',{url:`http://localhost:${server.address().port}/`});
       await browser.evaluate(`new Promise(resolve => { if(document.readyState === 'complete')resolve();else addEventListener('load',resolve,{once:true}); })`);
+      await browser.send('Performance.enable',{timeDomain:'threadTicks'});
+      const counters=await browser.send('Performance.getMetrics');
+      if(!counters.metrics.some(metric=>metric.name==='ThreadTime'&&Number.isFinite(metric.value)))throw Error('Renderer CPU counter unavailable: undecided.');
+      browser.listeners.add(cpuListener);
+      await browser.send('Runtime.addBinding',{name:'__cpuSnapshotBinding'});
+      await browser.evaluate(`{
+        let sequence=0;const pending=new Map();
+        globalThis.cpuSnapshot=()=>new Promise((resolve,reject)=>{const id=++sequence;pending.set(id,{resolve,reject});globalThis.__cpuSnapshotBinding(JSON.stringify({id}));});
+        globalThis.resolveCpuSnapshot=(id,value)=>{const entry=pending.get(id);pending.delete(id);entry.resolve(value);};
+        globalThis.rejectCpuSnapshot=id=>{const entry=pending.get(id);pending.delete(id);entry.reject(Error('CPU counter unavailable: undecided.'));};
+      }`);
       await browser.evaluate(`(${setup.toString()})(${JSON.stringify(name)})`);
       const scopes=[];
       for(const member of ['member0','member1'])for(const group of [false,true]){
@@ -180,7 +210,7 @@ try {
       peakRss=Math.max(peakRss,await rssTree(browser.child.pid));
       const result={pair,variant:name,peakBrowserTreeRssMiB:process.platform==='win32'?null:peakRss/1048576,scopes};results.push(result);
       console.log(JSON.stringify({pair,variant:name,peakBrowserTreeRssMiB:result.peakBrowserTreeRssMiB,opening:scopes[0].opening,keys:scopes[0].rows}));
-      await writeFile(path.join(output,'results.json'),JSON.stringify({baseline,node:process.version,fixtureSha256:createHash('sha256').update(definitionsBytes).digest('hex'),chunks:Object.keys(definitions.chunks).length,method:'Real browser; isolated shipped search with generated definitions, synthetic two-member state, cached production index, complete ordered-row hashes; no application server/calculators. 250ms sampled browser process tree RSS; longtask observer >=50ms. Alternating AB/BA pairs.',results},null,2));
-    } finally {clearInterval(sample);await browser.close();await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
+      await writeFile(path.join(output,'results.json'),JSON.stringify({baseline,node:process.version,fixtureSha256:createHash('sha256').update(definitionsBytes).digest('hex'),harnessSha,sourceDigests,chunks:Object.keys(definitions.chunks).length,protocol,decision:'undecided',method:'Real browser; renderer-thread CPU snapshots bracket the action through final highlights, with complete row/pixel hashes outside the measured interval. Wall time is diagnostic only. Fixed alternating AB/BA pairs.',results},null,2));
+    } finally {browser.listeners.delete(cpuListener);clearInterval(sample);await browser.close();await rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
   }}
 } finally {await new Promise(r=>server.close(r));}
