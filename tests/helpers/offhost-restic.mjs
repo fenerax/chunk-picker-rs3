@@ -5,7 +5,7 @@ import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { offhostFixture } from './offhost.mjs';
 import { offhostBackup } from '../../scripts/linux/offhost-backup.mjs';
-import { guardedRestic, verifyRestic } from '../../scripts/linux/restic.mjs';
+import { executeRestic, guardedRestic, verifyRestic } from '../../scripts/linux/restic.mjs';
 
 export const realResticAvailable = process.platform === 'linux' || !!process.env.RS3_TEST_RESTIC_BINARY;
 export async function realOffhostFixture(t) {
@@ -26,7 +26,18 @@ export async function realOffhostFixture(t) {
       args[index] = `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())} ${pad(instant.getHours())}:${pad(instant.getMinutes())}:${pad(instant.getSeconds())}`;
     }
     return guardedRestic({ root: path.join(local, 'temp'), reserve: 0, binary, args, env,
-      cacheDir: path.join(local, 'cache'), ...options });
+      cacheDir: path.join(local, 'cache'), ...options,
+      execute: (binary, input, options) => {
+        const args = [...input], restore = args.indexOf('restore');
+        if (process.platform === 'win32' && restore >= 0) {
+          // Every file is below this staging root. Avoid restoring special
+          // read-only attributes from Windows' synthetic C/Users ancestors;
+          // Linux exercises the ordinary whole-snapshot restore unchanged.
+          const stage = path.join(f.settings.scratchRoot, 'offhost-stage').replace(/^([A-Za-z]):/, '$1').replaceAll('\\', '/');
+          args[restore + 1] += ':/' + stage;
+        }
+        return executeRestic(binary, args, options);
+      } });
   };
   await run(['init']); await offhostBackup({ ...f, run, config: {}, ping: async () => false });
   const packOfType = async type => {

@@ -41,6 +41,14 @@ export async function selectSnapshot(backupDir, now = Date.now()) {
   if (!candidates.length) throw Error('No complete timestamped snapshot.');
   return candidates[0];
 }
+async function reclaimScratch(settings, name) {
+  for (const source of [settings.backupDir, settings.dataDir, settings.controlDir]) outside(source, settings.scratchRoot);
+  await directory(settings.scratchRoot);
+  const target = path.join(settings.scratchRoot, name);
+  for (const source of [settings.backupDir, settings.dataDir, settings.controlDir]) outside(target, source);
+  if (await exists(target)) { await noLinks(target); await rm(target, { recursive: true, force: true }); }
+  return target;
+}
 export async function offhostBackup({ settings, config, run, bundle = recoveryBundle, releaseReader = readRelease,
   ping = deadman, now = () => Date.now(), deadlineMs = 30 * 60000, budgetOptions,
   log = message => process.stderr.write(message + '\n') }) {
@@ -56,7 +64,7 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
   const result = await exclusive(path.join(settings.controlDir, 'offhost.lock'), async () => {
     if (await exists(path.join(settings.controlDir, 'offhost-paused.json'))) return skipped('paused');
     return withStatus(settings.controlDir, 'offhost', async () => {
-      let scratch;
+      let scratch, verification;
       try {
         const selected = await exclusive(path.join(settings.controlDir, 'operation.lock'), async () => {
           if (settings.multiPicker) throw Error('Service snapshot format needs a separate off-site adapter.');
@@ -65,7 +73,11 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
           const selected = await selectSnapshot(settings.backupDir, now());
           const release = await releaseReader(settings.current, settings.dataDir);
           if (selected.manifest.releasePointerSha256 !== sha(release.pointerBytes)) throw Error('Snapshot needs the selected release; take a fresh backup.');
-          return { ...selected, tag: 'restore-point-' + sha(encode(selected.manifest)) };
+          // Both namespaces belong to offhost.lock. Reclaim crash remnants
+          // before any allocation admission, including a previous restore.
+          const stage = await reclaimScratch(settings, 'offhost-stage');
+          const verify = await reclaimScratch(settings, 'offhost-verify');
+          return { ...selected, stage, verify, tag: 'restore-point-' + sha(encode(selected.manifest)) };
         }, { skipBusy: true, maxBusyMs: 1800000 });
         if (selected.skipped) return skipped('operation-lock-busy');
         run ??= await resticRunner(config, { signal, settings });
@@ -83,19 +95,14 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
             if (sha(encode(await verifyBackup(selected.backup))) !== sha(encode(selected.manifest))) throw Error('Snapshot changed before staging.');
             const release = await releaseReader(settings.current, settings.dataDir);
             if (sha(release.pointerBytes) !== selected.manifest.releasePointerSha256) throw Error('Snapshot needs the selected release; take a fresh backup.');
-            for (const source of [settings.backupDir, settings.dataDir, settings.controlDir]) outside(source, settings.scratchRoot);
-            await directory(settings.scratchRoot);
             // Fixed source paths let restic reuse parent trees. The offhost lock
             // owns this namespace, including remnants of an interrupted upload.
-            const target = path.join(settings.scratchRoot, 'offhost-stage');
-            for (const source of [settings.backupDir, settings.dataDir, settings.controlDir]) outside(target, source);
-            if (await exists(target)) { await noLinks(target); await rm(target, { recursive: true, force: true }); }
             // Reclaim crash remnants before admission, and own cleanup before
             // attempting any allocation for this run.
-            scratch = target;
+            scratch = selected.stage;
             const options = { ...budgetOptions, signal }, { budget, copy } = stagingBudget(settings.scratchRoot, settings.minFreeBytes, options);
             await budget(selected.manifest.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0));
-            await directory(target);
+            await directory(scratch);
             const backup = path.join(scratch, 'snapshot'), recovery = path.join(scratch, 'rebuild');
             await copyTree(selected.backup, backup, { copy });
             await verifyBackup(backup);
@@ -118,10 +125,13 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
           || !snapshots[0].tags?.includes(selected.tag)
           || Math.abs(Date.parse(snapshots[0].time) - selected.time) >= 1000) throw Error('Upload snapshot time differs.');
         // A tree listing cannot detect absent data packs behind a stale index.
-        // Stream this exact snapshot's entire archive from the repository;
-        // the executor discards it, retaining neither save bytes nor secrets.
+        // Restore this exact snapshot into an empty private tree, then verify
+        // every restored file. Restic batches data reads by pack. The guard
+        // admits the full restore size against reserve before writing data.
         // No shared cache may substitute for remote tree or data pack reads.
-        await repository(['dump', snapshots[0].id, '/', '--archive', 'tar'], { useCache: false });
+        verification = selected.verify;
+        await directory(verification);
+        await repository(['restore', snapshots[0].id, '--target', verification, '--verify'], { useCache: false });
         if (staged) await verifyBackup(staged.backup);
         await recordStatus(settings.controlDir, 'offhost', { result: 'success', snapshotAt: new Date(selected.time).toISOString() }, now());
         try { await ping('offhost'); } catch {}
@@ -129,6 +139,7 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
       } finally {
         // Only this job's private immutable copy, never a source or remote point.
         if (scratch) await rm(scratch, { recursive: true, force: true });
+        if (verification) await rm(verification, { recursive: true, force: true });
       }
     });
   }, { skipBusy: true, maxBusyMs: 1800000 });

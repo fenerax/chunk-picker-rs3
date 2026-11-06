@@ -15,11 +15,17 @@ import { backupStopped, verifyBackup } from '../scripts/linux/recovery.mjs';
 import { stagingBudget } from '../scripts/linux/staging.mjs';
 test('uploads immutable verified staging without operator lock; freshness remains capture time', async t => {
   const f = await fixture(t); let pinged = false;
-  await offhostBackup({ ...f, config: {}, ping: async () => { pinged = true; throw Error(); } });
+  await offhostBackup({ ...f, config: {}, ping: async () => { pinged = true; throw Error(); }, run: async (args, options) => {
+    if (args[0] === 'restore') {
+      assert.equal(options.useCache, false); assert(args.includes('--verify'));
+      assert.equal(args[args.indexOf('--target') + 1], path.join(f.settings.scratchRoot, 'offhost-verify'));
+    }
+    return f.run(args);
+  } });
   const status = await json(path.join(f.settings.controlDir, 'offhost-status.json'));
   assert.equal(status.result, 'success'); assert.equal(status.snapshotAt, f.snapshotAt); assert(pinged);
   assert(Date.parse(status.lastSuccessAt) - Date.parse(status.snapshotAt) >= 48 * 3600000);
-  assert.deepEqual(f.calls.map(args => args[0]), ['snapshots', 'backup', 'snapshots', 'dump']);
+  assert.deepEqual(f.calls.map(args => args[0]), ['snapshots', 'backup', 'snapshots', 'restore']);
   assert.equal(f.calls[1][f.calls[1].indexOf('--time') + 1], f.snapshotAt.slice(0, 19).replace('T', ' '));
   assert.equal((await readdir(f.settings.scratchRoot)).length, 0);
 });
@@ -27,7 +33,7 @@ test('failed upload or snapshot verification preserves restore points and report
   const f = await fixture(t), remote = ['existing-restore-point'];
   await offhostBackup({ ...f, config: {}, ping: async () => false });
   const success = await json(path.join(f.settings.controlDir, 'offhost-status.json'));
-  for (const fail of ['backup', 'dump']) {
+  for (const fail of ['backup', 'restore']) {
     f.remote.length = 0;
     await assert.rejects(offhostBackup({ ...f, config: {}, run: async args => {
       assert(!['forget', 'prune', 'delete', 'unlock'].includes(args[0])); if (args[0] === fail) throw Error('synthetic'); return f.run(args);
@@ -158,7 +164,7 @@ test('same restore point is reverified without staging or upload, even after sta
   const f = await fixture(t);
   let fail = true;
   const options = { ...f, config: {}, ping: async () => false, run: async args => {
-    if (args[0] === 'dump' && fail) throw Error('synthetic verification failure');
+    if (args[0] === 'restore' && fail) throw Error('synthetic verification failure');
     return f.run(args);
   } };
   await assert.rejects(offhostBackup(options));
@@ -228,13 +234,15 @@ test('full check has its own longer deadline, runs at most daily including failu
 });
 
 test('reclaims abandoned staging before space admission and cleans a newly allocated stage on failure', async t => {
-  const f = await fixture(t), stage = path.join(f.settings.scratchRoot, 'offhost-stage');
+  const f = await fixture(t), stage = path.join(f.settings.scratchRoot, 'offhost-stage'), verification = path.join(f.settings.scratchRoot, 'offhost-verify');
   await mkdir(stage, { recursive: true }); await writeFile(path.join(stage, 'interrupted'), 'synthetic-only');
+  await mkdir(verification); await writeFile(path.join(verification, 'interrupted'), 'synthetic-only');
   let checks = 0;
   const check = async () => {
     checks++;
     // The crash remnant must be gone even for the very first admission.
     await assert.rejects(readFile(path.join(stage, 'interrupted')), { code: 'ENOENT' });
+    await assert.rejects(readFile(path.join(verification, 'interrupted')), { code: 'ENOENT' });
   };
   assert.deepEqual(await offhostBackup({ ...f, config: {}, ping: async () => false, budgetOptions: { check } }), { uploaded: true });
   assert(checks > 0); assert.deepEqual(await readdir(f.settings.scratchRoot), []);

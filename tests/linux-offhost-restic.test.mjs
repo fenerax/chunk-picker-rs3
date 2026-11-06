@@ -263,7 +263,7 @@ test('explicit state cache persists across commands and checks reserve without e
   assert(checks.some(([dir, bytes, reserve]) => dir === cacheDir && bytes === 0 && reserve === 1234));
 });
 
-test('executor bounds and redacts failure diagnostics, enforces its deadline, and discards large listings and archives', async t => {
+test('executor bounds and redacts failure diagnostics, enforces its deadline, and streams large ls listings', async t => {
   const root = await temporary(t), script = path.join(root, 'synthetic-restic.mjs'), messages = [];
   const secret = 'synthetic-private-value', repository = 'b2:synthetic-bucket:chunk-picker', host = 'synthetic-host';
   const raw = `Fatal: ${repository} ${host} ${secret}: connection refused`;
@@ -277,14 +277,13 @@ test('executor bounds and redacts failure diagnostics, enforces its deadline, an
   await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, timeoutMs: 50, log: () => {} }));
   await writeFile(script, "process.stdout.write('synthetic-listing'.repeat(400000));");
   assert.equal(await executeRestic(process.execPath, [script, 'ls'], { env: process.env }), '');
-  assert.equal(await executeRestic(process.execPath, [script, 'dump'], { env: process.env }), '');
   await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, log: () => {} }));
 });
 
 test('integrity commands bypass supplied persistent caches and retain read-only repository access', async t => {
   const root = await temporary(t), cacheDir = path.join(root, 'shared-cache');
-  for (const command of ['check', 'dump']) {
-    await guardedRestic({ root, reserve: 0, args: [command], env: {}, cacheDir,
+  for (const command of ['check', 'stats']) {
+    await guardedRestic({ root, reserve: 0, args: [command], env: {}, cacheDir, useCache: false,
       execute: async (_binary, args, options) => {
         assert(args.includes('--no-cache')); assert(args.includes('--no-lock'));
         assert(!args.includes('--cache-dir')); assert(!args.includes('--with-cache'));
@@ -306,6 +305,7 @@ test('new capture cannot report success when stale indexes reference a missing d
   const snapshots = JSON.parse(await f.run(['snapshots', '--json'])); assert.equal(snapshots.length, 2);
   const status = await json(path.join(f.settings.controlDir, 'offhost-status.json'));
   assert.equal(status.result, 'failed'); assert.equal(status.lastSuccessAt, previous.lastSuccessAt);
+  assert.deepEqual(await readdir(f.settings.scratchRoot), []);
   // Reverification of the failed tagged snapshot must fail without uploading again.
   await assert.rejects(offhostBackup({ ...f, config: {}, ping: async () => false }));
   assert.equal(JSON.parse(await f.run(['snapshots', '--json'])).length, 2);
@@ -321,4 +321,5 @@ test('daily check and snapshot verification detect remote tree corruption despit
   const { json } = await import('../scripts/linux/files.mjs');
   assert.equal((await json(path.join(f.settings.controlDir, 'offhost-check-status.json'))).result, 'failed');
   assert.equal((await json(path.join(f.settings.controlDir, 'offhost-status.json'))).result, 'failed');
+  assert.deepEqual(await readdir(f.settings.scratchRoot), []);
 });

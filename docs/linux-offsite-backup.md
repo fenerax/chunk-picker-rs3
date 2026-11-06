@@ -17,16 +17,22 @@ removed on completion or before a retry. Abandoned staging is reclaimed before
 admitting the next allocation, so a crash cannot consume the space needed for
 its own cleanup.
 
-Before recording delivery success, `restic dump <snapshot-id> / --archive tar`
+Before recording delivery success, `restic restore <snapshot-id> --verify`
 reads the selected snapshot's complete metadata and file data with `--no-cache`
-and `--no-lock`. The archive is drained without buffering, logging or saving
-its contents. This catches missing packs behind stale indexes and corrupt
-remote metadata, even when a shared cache is warm. Restic must retrieve and
-authenticate every file blob needed to reconstruct the selected snapshot;
-success does not rely on a directory listing or on a later daily check.
-Verification downloads one complete snapshot, including the rebuild bundle,
-but does not traverse older snapshots' trees or allocate another restored
-copy. Its data transfer scales with the selected snapshot's size. An actual
+and `--no-lock`, restores into an empty private `offhost-verify` directory,
+and checks restored file contents. Restic batches data reads by pack. This
+catches missing packs behind stale indexes and corrupt remote metadata, even
+when a shared cache is warm. Restic must retrieve and authenticate every file
+blob needed to reconstruct the selected snapshot; success does not rely on a
+directory listing or on a later daily check.
+
+Verification downloads and temporarily writes one complete snapshot, including
+the rebuild bundle, without traversing older snapshots' trees. The existing
+restore guard admits that full size plus its temporary envelope against the
+free-space reserve before writing data. The private restore is removed on
+success or failure; both verification and staging crash remnants are reclaimed
+under the existing locks before the next allocation check. Cost scales with
+the selected snapshot's size. The restored files are never logged. An actual
 application restore rehearsal remains a separate operator procedure.
 
 The full repository check is a **separate daily service**, at 06:00
