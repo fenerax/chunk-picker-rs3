@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { serialize } from 'node:v8';
@@ -21,8 +21,9 @@ test('apply seeds worker fingerprints before subscribers without trusting upload
   t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
   store.getGameplayFingerprint(); void store.getCalculationSnapshot().taskInputKey;
   const incoming = createGroupState(roster);
-  incoming.tasks = [{ id: 'custom:synthetic', category: 'Custom', label: 'Synthetic fingerprint marker' }];
-  incoming.provenance = { syntheticFingerprintMarker: true };
+  incoming.tasks = [{ id: 'custom:synthetic', category: 'Custom', label: 'Synthetic fingerprint marker' },
+    ...Array.from({ length: 3000 }, (_, index) => ({ id: `custom:synthetic-${index}`, category: 'Custom', label: `Synthetic additional objective ${index}` }))];
+  incoming.provenance = { syntheticFingerprintMarker: true, syntheticPadding: 'x'.repeat(512 * 1024) };
   const prepared = await store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: incoming },
     fingerprints: { gameplay: 'Untrusted upload metadata' } }),
   { world, route: '/api/restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} } });
@@ -43,6 +44,9 @@ test('apply seeds worker fingerprints before subscribers without trusting upload
   assert.equal(listenerError, undefined);
   assert.equal(observed.gameplay, createGameplayFingerprint()(applied.state));
   assert.equal(observed.tasks, taskReuseInputKey(store.getCalculationSnapshot().state));
+  const saved = JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8'));
+  for (const key of ['tasks', 'provenance']) assert.equal(saved.storage.fields[key].sha256,
+    createHash('sha256').update(JSON.stringify(applied.state[key])).digest('hex'), 'Prepared sidecar digests cover the exact publication tree');
   const before = observed;
   await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '100', note: 'Synthetic changed note' }, 1);
   assert.notEqual(observed.gameplay, before.gameplay);
