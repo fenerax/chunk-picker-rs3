@@ -42,6 +42,24 @@ export let selectedDataset = await (async () => {
   });
 })();
 
+// Opt-in CI identity only: never persist provider paths, values or player data.
+// Each entrypoint records its first resolved runtime provider. Descendants
+// inherit the destination; exclusive creation avoids repeated I/O for workers.
+if (node && process.env.RS3_TEST_DATASET_RECEIPT) {
+  const start = performance.now();
+  let descriptor, closeSync;
+  try {
+    const fs = await import('node:fs');
+    closeSync = fs.closeSync;
+    const id = ['duo-legacy', 'open-f2p', 'open-starter'].includes(selectedDataset.id) ? selectedDataset.id : null;
+    const digest = typeof selectedDataset.digest === 'string' && /^[a-f0-9]{64}$/.test(selectedDataset.digest) ? selectedDataset.digest : null;
+    descriptor = fs.openSync(process.env.RS3_TEST_DATASET_RECEIPT, 'wx');
+    fs.writeSync(descriptor, JSON.stringify({ id, digest }) + '\n');
+    fs.writeSync(descriptor, JSON.stringify({ overheadMs: performance.now() - start }) + '\n');
+  } catch { /* Diagnostics must not change application or test outcomes. */ }
+  finally { if (descriptor !== undefined) try { closeSync(descriptor); } catch {} }
+}
+
 export const datasetJSON = key => selectedDataset.json(key);
 function freeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {

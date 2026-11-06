@@ -341,13 +341,14 @@ test('an owner can preview and restore a compatible gameplay backup only within 
   assert.equal((await f.note(a, 'Player 1', 0)).status, 200);
   assert.equal((await f.note(b, 'Player 2', 0)).status, 200);
   const backup = (await f.send('/api/backup', a)).json();
-  assert.equal((await f.send('/api/restore/preview', a, { body: { backup } })).status, 200);
+  const transferPreview = await f.send('/api/restore/preview', a, { body: { backup } });
+  assert.equal(transferPreview.status, 200);
   const wrongDataset = structuredClone(backup); wrongDataset.state.provenance.dataset.digest = '0'.repeat(64);
   assert.equal((await f.send('/api/restore/preview', a, { body: { backup: wrongDataset } })).status, 422);
   const binding = JSON.parse(await readFile(path.join(f.multiPicker.pickerRoot, await f.picker('101')) + '.dataset.json'));
   assert.equal(binding.digest, selectedDataset.digest);
   assert.equal((await f.send('/api/restore/preview', a, { body: { backup, pickerId: other } })).status, 403);
-  assert.equal((await f.send('/api/restore', a, { body: { backup, expectedRevision: 1 } })).status, 200);
+  assert.equal((await f.send('/api/restore', a, { body: { backup, expectedRevision: 1, previewToken: transferPreview.json().previewToken } })).status, 200);
   assert.equal((await f.send('/api/state', b)).json().state.members[0].notes['12341'], 'Player 2');
 });
 
@@ -669,8 +670,9 @@ test('one process-wide budget refuses another complete upload with a retry while
   t.after(() => release.resolve());
   const a = await f.login(String(101)), b = await f.login(String(102));
   const backup = (await f.send('/api/backup', a)).json();
+  const transferPreview = await f.send('/api/restore/preview', a, { body: { backup } });
   armed = true;
-  const held = f.send('/api/restore', a, { body: { backup, expectedRevision: 0 } });
+  const held = f.send('/api/restore', a, { body: { backup, expectedRevision: 0, previewToken: transferPreview.json().previewToken } });
   try {
     await started.promise;
     const refused = await directUpload(f, '/api/restore/preview', { cookie: b, input: Readable.from(['{}']) }).done;

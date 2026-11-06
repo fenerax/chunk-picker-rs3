@@ -1,9 +1,12 @@
 [Unit]
+OnFailure=chunk-picker-notify@%n.service
 Description=Chunk Picker foreground writer
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=300
 StartLimitBurst=3
+# Includes ExecStartPre failures. Health must never reset this budget or start
+# an inactive/failed writer; the terminal failure still invokes OnFailure.
 
 [Service]
 Type=exec

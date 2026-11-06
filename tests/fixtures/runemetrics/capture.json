@@ -1,1 +1,158 @@
-[{"name":"exampleGIMab","kind":"profile","url":"https://apps.runescape.com/runemetrics/profile/profile?user=exampleGIMab&activities=0","httpStatus":200,"keys":["magic","questsstarted","totalskill","questscomplete","questsnotstarted","totalxp","ranged","activities","skillvalues","name","rank","melee","combatlevel","loggedIn"],"rows":29,"first":[{"level":77,"xp":14755810,"rank":507230,"id":8},{"level":69,"xp":6680510,"rank":508310,"id":9}],"last":[{"level":1,"xp":0,"rank":524990,"id":25},{"level":1,"xp":0,"rank":520990,"id":21},{"level":1,"xp":0,"rank":519990,"id":20}],"fetchedAt":"2026-10-07T20:30:36.407Z"},{"name":"exampleGIMab","kind":"quests","url":"https://apps.runescape.com/runemetrics/quests?user=exampleGIMab","httpStatus":200,"keys":["quests","loggedIn"],"rows":364,"completed":13,"first":[{"title":"Broken Home","status":"COMPLETED","difficulty":0,"members":false,"questPoints":1,"userEligible":true},{"title":"Demon Slayer","status":"COMPLETED","difficulty":0,"members":false,"questPoints":3,"userEligible":true}],"fetchedAt":"2026-10-07T20:30:37.443Z"},{"name":"twosamplegim","kind":"profile","url":"https://apps.runescape.com/runemetrics/profile/profile?user=twosamplegim&activities=0","httpStatus":200,"keys":["magic","questsstarted","totalskill","questscomplete","questsnotstarted","totalxp","ranged","activities","skillvalues","name","rank","melee","combatlevel","loggedIn"],"rows":29,"first":[{"level":66,"xp":4962540,"rank":513340,"id":14},{"level":66,"xp":4962540,"rank":499340,"id":0}],"last":[{"level":5,"xp":3880,"rank":514950,"id":15},{"level":1,"xp":0,"rank":520990,"id":21},{"level":1,"xp":0,"rank":525990,"id":26}],"fetchedAt":"2026-10-07T20:30:41.494Z"},{"name":"twosamplegim","kind":"quests","url":"https://apps.runescape.com/runemetrics/quests?user=twosamplegim","httpStatus":200,"keys":["quests","loggedIn"],"rows":364,"completed":37,"first":[{"title":"A Shadow over Ashdale","status":"COMPLETED","difficulty":0,"members":false,"questPoints":1,"userEligible":true},{"title":"A Soul's Bane","status":"COMPLETED","difficulty":0,"members":false,"questPoints":1,"userEligible":true}],"fetchedAt":"2026-10-07T20:30:43.744Z"}]
+[
+  {
+    "name": "exampleGIMab",
+    "kind": "profile",
+    "url": "https://apps.runescape.com/runemetrics/profile/profile?user=exampleGIMab&activities=0",
+    "httpStatus": 200,
+    "keys": [
+      "name",
+      "skillvalues"
+    ],
+    "rows": 29,
+    "first": [
+      {
+        "id": 0,
+        "level": 3,
+        "xp": 1000,
+        "rank": 900000
+      },
+      {
+        "id": 1,
+        "level": 4,
+        "xp": 1101,
+        "rank": 900001
+      }
+    ],
+    "fetchedAt": "2001-02-03T00:00:00.000Z",
+    "synthetic": true,
+    "last": [
+      {
+        "id": 26,
+        "level": 5,
+        "xp": 3626,
+        "rank": 900026
+      },
+      {
+        "id": 27,
+        "level": 6,
+        "xp": 3727,
+        "rank": 900027
+      },
+      {
+        "id": 28,
+        "level": 7,
+        "xp": 3828,
+        "rank": 900028
+      }
+    ]
+  },
+  {
+    "name": "exampleGIMab",
+    "kind": "quests",
+    "url": "https://apps.runescape.com/runemetrics/quests?user=exampleGIMab",
+    "httpStatus": 200,
+    "keys": [
+      "quests"
+    ],
+    "rows": 5,
+    "first": [
+      {
+        "title": "Broken Home",
+        "status": "COMPLETED",
+        "difficulty": 1,
+        "members": false,
+        "questPoints": 2,
+        "userEligible": true
+      },
+      {
+        "title": "Necromancy!",
+        "status": "COMPLETED",
+        "difficulty": 2,
+        "members": true,
+        "questPoints": 3,
+        "userEligible": false
+      }
+    ],
+    "fetchedAt": "2001-02-03T00:00:01.000Z",
+    "synthetic": true,
+    "completed": 3
+  },
+  {
+    "name": "twosamplegim",
+    "kind": "profile",
+    "url": "https://apps.runescape.com/runemetrics/profile/profile?user=twosamplegim&activities=0",
+    "httpStatus": 200,
+    "keys": [
+      "name",
+      "skillvalues"
+    ],
+    "rows": 29,
+    "first": [
+      {
+        "id": 0,
+        "level": 3,
+        "xp": 1000,
+        "rank": 900200
+      },
+      {
+        "id": 1,
+        "level": 4,
+        "xp": 1101,
+        "rank": 900201
+      }
+    ],
+    "fetchedAt": "2001-02-03T00:00:02.000Z",
+    "synthetic": true,
+    "last": [
+      {
+        "id": 26,
+        "level": 5,
+        "xp": 3626,
+        "rank": 900226
+      },
+      {
+        "id": 27,
+        "level": 6,
+        "xp": 3727,
+        "rank": 900227
+      },
+      {
+        "id": 28,
+        "level": 7,
+        "xp": 3828,
+        "rank": 900228
+      }
+    ]
+  },
+  {
+    "name": "twosamplegim",
+    "kind": "quests",
+    "url": "https://apps.runescape.com/runemetrics/quests?user=twosamplegim",
+    "httpStatus": 200,
+    "keys": [
+      "quests"
+    ],
+    "rows": 6,
+    "first": [
+      {
+        "title": "Cook's Assistant",
+        "status": "COMPLETED",
+        "difficulty": 1,
+        "members": false,
+        "questPoints": 2,
+        "userEligible": true
+      },
+      {
+        "title": "Broken Home",
+        "status": "COMPLETED",
+        "difficulty": 2,
+        "members": true,
+        "questPoints": 3,
+        "userEligible": false
+      }
+    ],
+    "fetchedAt": "2001-02-03T00:00:03.000Z",
+    "synthetic": true,
+    "completed": 4
+  }
+]

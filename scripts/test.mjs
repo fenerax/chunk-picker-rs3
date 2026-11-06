@@ -19,6 +19,10 @@ if (process.argv.includes('--help')) {
     console.log(files.map(name => `tests/${name}`).join('\n'));
   } else {
     const cwd = fileURLToPath(new URL('../', import.meta.url));
+    const ledgerDestination = process.env.RS3_TEST_FILE_LEDGER;
+    const ledger = ledgerDestination ? (await import('./ci/file-ledger.mjs')).createFileLedger({
+      destination: ledgerDestination, cwd, files: files.map(name => `tests/${name}`),
+      lane: process.env.RS3_COVERAGE_LANE ?? 'test' }) : undefined;
     const coverage = process.env.RS3_COVERAGE_REPORT ? (await import('./ci/coverage-reporter.mjs')).createCoverageReporter({
       lane: process.env.RS3_COVERAGE_LANE ?? (suite === 'differential' ? 'differential' : 'test'), cwd, files: files.map(name => `tests/${name}`) }) : undefined;
     const { testRunEnvironment } = await import('./test-run-environment.mjs');
@@ -28,6 +32,8 @@ if (process.argv.includes('--help')) {
     // inherit the destination or overwrite the full run with a nested run.
     delete environment.env.RS3_COVERAGE_REPORT;
     delete environment.env.RS3_COVERAGE_LANE;
+    delete environment.env.RS3_TEST_FILE_LEDGER;
+    delete environment.env.RS3_TEST_DATASET_RECEIPT;
     const controller = new AbortController();
     const abort = () => controller.abort();
     for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, abort);
@@ -46,6 +52,8 @@ if (process.argv.includes('--help')) {
     try {
       const result = await runAdaptive({ files: files.map(name => `tests/${name}`),
         ...adaptiveOptionsFor(suite), cwd, env: environment.env, signal: controller.signal,
+        datasetRoot: ledger ? path.join(path.dirname(ledgerDestination), '.test-datasets') : undefined,
+        onAdmit: info => ledger?.onAdmit(info), onFileError: result => ledger?.onFile(result),
         onEvent: async event => {
           coverage?.onEvent(event);
           // A case's file can be a shared helper; entryFile names the test file that ran it.
@@ -55,10 +63,11 @@ if (process.argv.includes('--help')) {
           if (!held.has(key)) held.set(key, []);
           held.get(key).push(event);
         },
-        onFile: result => { coverage?.onFile(result); return flush(path.resolve(cwd, result.file).toLowerCase()); } });
+        onFile: result => { ledger?.onFile(result); coverage?.onFile(result); return flush(path.resolve(cwd, result.file).toLowerCase()); } });
       if (coverage) await coverage.write(process.env.RS3_COVERAGE_REPORT, { passed: result.passed });
       process.exitCode = result.exitCode;
     } finally {
+      ledger?.report();
       for (const key of [...held.keys()]) await flush(key).catch(() => {});
       events.end();
       await reporting;

@@ -43,14 +43,26 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Temporary: back to 20 once the Linux suite is sharded (test audit, 2026-11).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          # Rollback tests require the exact frozen commit and fail if absent.
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
+      - name: Identify frozen rollback checkout
+        id: frozen
+        run: node --input-type=module -e "import fs from 'node:fs'; const pin = JSON.parse(fs.readFileSync('docs/save-surface.json')).frozenRelease; if (!/^[a-f0-9]{40}$/.test(pin)) throw new Error('Invalid frozen pin'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'sha=' + pin + '\n');"
+      - name: Restore frozen rollback checkout
+        id: frozencache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/frozen-rollback
+          key: frozen-rollback-${{ runner.os }}-${{ steps.frozen.outputs.sha }}-v1
       # Packs come from the release assets that .github/packs/pack-pin.json names.
       # With no pin, nothing is fetched and the tests that need pack or
       # game-cache files skip.
@@ -87,11 +99,33 @@ jobs:
         with:
           path: .local/gh-coverage/wiki-open-f2p
           key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Install checksum-pinned restic for the local encrypted restore test
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bzip2 util-linux
+          sudo "$(command -v node)" scripts/ops/install-restic.mjs
       # The full suite already runs every quick file, so one run is enough.
       - run: npm test
         env:
+          RS3_FROZEN_CACHE: ${{ runner.temp }}/frozen-rollback
           RS3_COVERAGE_REPORT: ${{ runner.temp }}/test.json
           RS3_COVERAGE_LANE: test
+          RS3_TEST_FILE_LEDGER: ${{ runner.temp }}/test-ledger.jsonl
+      - name: Cache frozen rollback checkout
+        if: steps.frozencache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/frozen-rollback
+          key: frozen-rollback-${{ runner.os }}-${{ steps.frozen.outputs.sha }}-v1
+      - name: Keep file telemetry
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-ledger-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/test-ledger.jsonl
+          retention-days: 35
+          if-no-files-found: warn
       - name: Keep per-test results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -105,8 +139,9 @@ jobs:
   differential:
     # The reusable workflow also checks PR head vs merge base with Q2.
     # A Q2 "not relevant" result succeeds; any comparison failure fails coverage.
-    # Avoid spending a separate runner on detectors/smoke when the main suite fails.
-    needs: test
+    # Run independently so ordinary test failures cannot hide differential evidence.
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     uses: ./.github/workflows/differential.yml
 
   # The test files that skip Windows and PowerShell cases on Linux, run on
@@ -130,6 +165,15 @@ jobs:
       - name: Windows-bound tests
         shell: pwsh
         run: ./.github/windows-slice/run.ps1 -Checkout . -Work "${{ runner.temp }}/ws"
+      - name: Keep file telemetry
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-ledger-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ws/windows-ledger.jsonl
+          retention-days: 35
+          if-no-files-found: warn
       - name: Keep the summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -155,6 +199,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Require successful upstream jobs
+        env:
+          GATE_RESULT: ${{ needs.gate.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+          DIFFERENTIAL_RESULT: ${{ needs.differential.result }}
+        run: |
+          echo "gate=$GATE_RESULT test=$TEST_RESULT windows=$WINDOWS_RESULT differential=$DIFFERENTIAL_RESULT"
+          test "$GATE_RESULT" = success
+          test "$TEST_RESULT" = success
+          test "$WINDOWS_RESULT" = success
+          test "$DIFFERENTIAL_RESULT" = success
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false

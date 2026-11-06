@@ -1,3 +1,4 @@
+// @test quick
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { shortMemberName, memberDisplay, memberSelect, createScreenUi } from '../app/web/screen-ui.mjs';

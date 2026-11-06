@@ -1,0 +1,4 @@
+{
+  "controlDir": "/var/lib/chunk-picker/control",
+  "repository": "b2:chunk-picker-backups:chunk-picker"
+}

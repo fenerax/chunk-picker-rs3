@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildWorld } from '../app/data/world.mjs';
 import { createGroupState } from '../app/core/state.mjs';
-import { evaluateTransportRoutes } from '../app/core/transport-access.mjs';
+import { evaluateTransportRoutes, transportReachabilityPaths } from '../app/core/transport-access.mjs';
 import { personalTeleportRows, ONE_WAY_REASON } from '../app/core/teleport-returns.mjs';
 import { evaluateRollPool, createRuleRegistry, teleportRollCandidates, builtInRules } from '../app/core/rules.mjs';
 import { configureAutomaticTransport } from '../app/core/automatic-transport.mjs';
@@ -102,6 +102,29 @@ test('a return transport from the landing works, but an outward-only boat does n
   assert.equal(f.rows()[0].available, true);
   [boat.from, boat.to] = [boat.to, boat.from];
   assert.equal(f.rows()[0].available, false);
+});
+
+test('an outside home landing budgets both casts without granting outside resources', () => {
+  const f = fixture();
+  f.world.sectionTopology.get(island).set('0', [foot]);
+  f.world.neighbors.set(island, [foot]); f.world.neighbors.set(foot, [island]);
+  const routes = [
+    { id: 'away', kind: 'teleport', global: true, available: true, to: lumbridge, cost: { 'currencies:tokens': 1 } },
+    { id: 'home', kind: 'teleport', global: true, available: true, to: foot, cost: { 'currencies:tokens': 2 } },
+  ];
+  const original = structuredClone(f.state);
+  const journeys = tokens => transportReachabilityPaths(f.world, f.state, 'explorer', new Set([island]), {
+    claimed: new Set([island, lumbridge]), typedRoutes: routes, transportRoutes: f.catalogue,
+    transportBudgetOverride: { 'currencies:tokens': tokens }, lodestones: [], _skipNoop: true,
+  });
+  assert.equal(journeys(2).has(lumbridge), false, 'Each cast fits separately, but the round trip does not');
+  const affordable = journeys(3);
+  assert.equal(affordable.has(lumbridge), true);
+  assert.deepEqual(affordable.returnPaths.get(lumbridge), [{ 'currencies:tokens': 2 }]);
+  assert.equal(affordable.has(foot), false, 'The home landing stays outside outward resource access');
+  assert.deepEqual(f.state, original, 'Return proofs never claim the landing or change saved progress');
+  f.world.sectionTopology.get(island).set('0', []);
+  assert.equal(journeys(3).has(lumbridge), false, 'A landing without a directed walk home cannot anchor a return');
 });
 
 test('a carpet in the owned chunk proves a way home and counts both paid legs', () => {
@@ -224,6 +247,14 @@ test('exact component partner journeys retain the foot-reachable home return in 
     assert.equal(connected.byChunk[lumbridge].connected, true);
     assert.ok(!connected.bases.includes(foot));
   }
+  f.state.members[0].teleportOverrides = { [`stone-${foot}`]: false };
+  const disabled = evaluatePartnerConnections(f.world, f.state, 'explorer', { transportRoutes: f.catalogue, lodestones: [] });
+  assert.equal(disabled.byChunk[lumbridge].connected, false, 'Disabling the only home anchor closes partner access');
+  f.state.members[0].teleportOverrides = {};
+  f.world.cacheWalking.topology.get(island).set('1000001', []);
+  const oneWay = evaluatePartnerConnections(f.world, f.state, 'explorer', { transportRoutes: f.catalogue, lodestones: [] });
+  assert.equal(oneWay.byChunk[lumbridge].connected, false, 'An outward-only walk cannot supply the way home');
+  assert.ok(!oneWay.bases.includes(foot));
 });
 
 test('return decisions survive unrelated commands and invalidate on journey input mutations', () => {

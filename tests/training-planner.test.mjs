@@ -210,9 +210,10 @@ test('method range ending before the target produces an incomplete route', () =>
   assert.ok(plan.plans['best-xp'].xpRemaining > 0);
 });
 
-test('current account RuneMetrics observation is used; capability declarations and partner levels are not', () => {
-  const member = { runescapeName: 'Test', skillProgress: { Smithing: { level: 10, xp: xpForLevel(10) + 10, source: 'runemetrics', runescapeName: 'test', fetchedAt: '2026-10-08T12:00:00Z' } }, passiveLevels: { Mining: 99 } };
+for (const source of ['runemetrics', 'platform-api']) test(`current account RuneMetrics observation is used; capability declarations and partner levels are not (${source})`, () => {
+  const member = { runescapeName: 'Test', skillProgress: { Smithing: { level: 10, xp: xpForLevel(10) + 10, source, runescapeName: 'test', fetchedAt: '2026-10-08T12:00:00Z' } }, passiveLevels: { Mining: 99 } };
   assert.equal(trainingProgress(member, 'Smithing').level, 10);
+  assert.equal(trainingProgress(member, 'Smithing').source, source);
   assert.equal(trainingProgress(member, 'Mining').level, null);
   assert.equal(trainingProgress({ ...member, runescapeName: 'Other' }, 'Smithing').level, null);
   assert.deepEqual(trainingProgress(member, 'Smithing', 2), { level: 2, xp: null, source: 'manual', fetchedAt: null });
@@ -258,10 +259,10 @@ test('future methods unlock as the trained skill reaches its own prerequisite', 
   assert.deepEqual(plan.plans['best-xp'].segments.map(segment => segment.methodId), ['start', 'future']);
 });
 
-test('quest completions from an old named account do not survive through completed task IDs', () => {
+for (const source of ['runemetrics', 'platform-api']) test(`quest completions from an old named account do not survive through completed task IDs (${source})`, () => {
   const state = createGroupState([{ id: 'm', name: 'Fixture' }]);
   state.members[0].runescapeName = 'New';
-  state.members[0].questProgress = { q: { source: 'runemetrics', runescapeName: 'Old', title: 'Quest' } };
+  state.members[0].questProgress = { q: { source, runescapeName: 'Old', title: 'Quest' } };
   const result = { tasks: [{ id: 'q', category: 'Quest', label: 'Quest', personalCompleted: true, record: { BaseQuest: 'Quest', QuestPoints: 1 } }] };
   const available = buildTrainingAvailability(result, { state, memberId: 'm' });
   assert.deepEqual(available.completedQuests, []);

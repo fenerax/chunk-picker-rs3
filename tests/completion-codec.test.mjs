@@ -16,6 +16,16 @@ function seed() {
   state.tasks = Array.from({ length: 32 }, (_, index) => ({ id: `custom:${index}`, label: `Task ${index}`, category: 'custom' }));
   return state;
 }
+
+test('native and browser decoders refuse expansion above an import-specific budget', () => {
+  const state = applyCommand(seed(), complete(0));
+  const compact = createCompletionEncoder()(exportBackup(state));
+  assert.equal(compact.schemaVersion, 2);
+  for (const decode of [decodeCompletionDocument, browserDecode]) {
+    assert.throws(() => decode(compact, { maxExpandedBytes: 1 }), error => error.status === 413 && /safe import work limit/.test(error.message));
+    assert.deepEqual(importBackup(decode(compact)).members, state.members);
+  }
+});
 async function fixture(t, options = {}) {
   const dataDir = await mkdtemp('/tmp/completion-codec-test-');
   let store = await openStore({ dataDir, initialState: seed(), world, now, completionCodec: true, ...options });

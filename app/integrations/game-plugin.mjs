@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { observedSkills as RUNE_METRICS_SKILLS } from '../core/game-progress.mjs';
+import { observedSkills } from '../core/game-progress.mjs';
 import { canonicalTitle as canonicalQuest, normalizeQuestTitle, UNMAPPED_QUEST_REASONS } from './quest-mapping.mjs';
 import { validateRuneMetricsTimestamp, validateObservedSkill } from '../core/game-progress.mjs';
 import { lookupPermanentId } from '../tasks/identity.mjs';
@@ -9,7 +9,7 @@ export function fields(value, allowed, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object.`);
   if (Object.keys(value).some(key => !allowed.includes(key))) fail(`Unknown ${label} field.`);
 }
-const skillNames = new Map(RUNE_METRICS_SKILLS.map(name => [name.toUpperCase(), name]));
+const skillNames = new Map(observedSkills.map(name => [name.toUpperCase(), name]));
 skillNames.set('RUNECRAFT', 'Runecrafting');
 skillNames.set('HITPOINTS', 'Constitution');
 
@@ -47,7 +47,7 @@ export function validatePluginReport(body) {
   const skills = [];
   if (body.skills !== undefined) {
     fields(body.skills, Object.keys(body.skills ?? {}), 'skills');
-    if (Object.keys(body.skills).length > RUNE_METRICS_SKILLS.length) fail('Too many skills.');
+    if (Object.keys(body.skills).length > observedSkills.length) fail('Too many skills.');
     const seen = new Set();
     for (const [name, value] of Object.entries(body.skills)) {
       const skill = skillNames.get(name.toUpperCase());
@@ -189,6 +189,7 @@ export function pluginProposal(state, memberId, report, questMapping) {
     world: report.world ?? null, skills, quests, unmatched, startedQuests: report.quests?.started ?? [],
     achievements: achievements.slice(0, ACHIEVEMENT_REVIEW_LIMIT), achievementsMore: report.achievementsMore ?? 0,
     items: (report.itemReview ?? []).filter(row => !member.completedTasks.includes(row.taskId)), itemsMore: report.itemsMore ?? 0,
-    unmappedItems: report.unmappedItems ?? [], unmappedItemsMore: report.unmappedItemsMore ?? 0 },
+    unmappedItems: report.unmappedItems ?? [], unmappedItemsMore: report.unmappedItemsMore ?? 0,
+    itemRetentionIssue: report.itemRetentionIssue ?? null },
   command: { type: 'apply-game-progress', memberId, fetchedAt: report.sentAt, skills: report.skills ?? [], quests: observedQuests, achievements: [] } };
 }

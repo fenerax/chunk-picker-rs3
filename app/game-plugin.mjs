@@ -2,7 +2,8 @@ import { openPluginKeys } from './plugin-keys.mjs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { openPluginAchievements } from './plugin-achievements.mjs';
-import { openPluginItems } from './plugin-items.mjs';
+import { openPluginItems, openPluginJournalCommits, importPluginItemEvidence } from './plugin-items.mjs';
+import { mergeJournalCommits } from './core/plugin-item-evidence.mjs';
 import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
 import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginDoneLocations, rememberActiveLocations, PLUGIN_DONE_AGE_MS, pluginRollSummary } from './game-plugin-tasks.mjs';
@@ -15,7 +16,7 @@ const LIFETIME = 10 * 60 * 1000;
 const NEARBY_RADIUS = 2;
 const COMPLETED_SNAPSHOT_LIMIT = 8;
 const HANDLED_RETRY_INTERVAL = 60 * 1000;
-const COIN_WRITE_INTERVAL = 60 * 1000;
+const ITEM_RETENTION_NOTICE = 'Some catch-up item evidence could not be retained. The journal remains unacknowledged and queued in the game plugin. Item evidence stores hold at most 500 distinct IDs per world. If a store is full, ask the server operator to export and review retained evidence before clearing space. Live progress continues independently.';
 const positionGameId = latest => latest ? String(latest.position.x * 256 + latest.position.z) : null;
 function selectItems(preview, selections) {
   if (!Array.isArray(selections) || selections.length > preview.items.length) throw fail(400, 'Choose item tasks from this review.');
@@ -39,11 +40,27 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const gameId = id => coordinates.pickerChunkToGameId(id);
   const keys = await openPluginKeys({ dataDir, clock, maxActiveKeysPerPlayer: pickerLimits?.config.pluginKeysPerAccount });
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
-  const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
-  // Beta and unknown-world item evidence stays in memory, apart from live evidence.
-  const itemMemory = new Map(), journalMemory = new Map(), itemAcks = new Map(), itemHandled = new Map();
-  // One unfinished bank set per player, the last complete one, and coin counts by container.
-  const bankAssemblies = new Map(), bankAcks = new Map(), itemCoins = new Map();
+  let importedItems, importedRevision = -1;
+  const importedEvidence = () => {
+    const revision = store.getInfo().revision;
+    if (revision !== importedRevision) {
+      importedItems = importPluginItemEvidence(dataDir, store.getPluginItemEvidence?.() ?? state().provenance?.pluginItemEvidence);
+      importedRevision = revision;
+    }
+    return importedItems;
+  };
+  const inherited = world => player => importedEvidence().players[player]?.records[world];
+  const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log, inherited: inherited('live') });
+  const journalStores = new Map();
+  for (const journalWorld of ['beta', 'unknown']) journalStores.set(journalWorld,
+    await openPluginItems({ dataDir, members: () => state().members, clock, log, journalWorld, inherited: inherited(journalWorld) }));
+  const journalCommits = await openPluginJournalCommits({ dataDir, members: () => state().members, clock, log,
+    inherited: player => importedEvidence().players[player]?.commits });
+  const itemRetentionIssues = new Map();
+  // Non-live containers remain ephemeral; acknowledged journals are durable and separate.
+  const itemMemory = new Map(), itemAcks = new Map(), itemHandled = new Map();
+  // One unfinished bank set per player and the last complete one.
+  const bankAssemblies = new Map(), bankAcks = new Map();
   let itemTasks;
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
@@ -115,7 +132,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const prior = liveReview(player)?.report;
     // Keep other progress waiting for review. Every completed set replaces only
     // its own achievement section and invalidates the old review token.
-    if (!rows.length && prior?.skills === undefined && prior?.quests === undefined && !prior?.itemReview?.length) { pending.delete(player); return; }
+    if (!rows.length && prior?.skills === undefined && prior?.quests === undefined && !prior?.itemReview?.length
+      && !prior?.unmappedItems?.length && !itemRetentionIssues.has(player)) { pending.delete(player); return; }
     const hasProgress = prior?.skills !== undefined || prior?.quests !== undefined;
     pending.set(player, { report: { ...prior, sentAt: report.sentAt, world: hasProgress ? prior.world : report.world,
       achievementReview: rows.slice(0, ACHIEVEMENT_REVIEW_LIMIT), achievementsMore: Math.max(0, rows.length - ACHIEVEMENT_REVIEW_LIMIT) }, proposal: null });
@@ -183,49 +201,58 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   }
   function itemReview(player, report, result) {
     const prior = liveReview(player)?.report;
-    if (!result.rows.length && prior?.skills === undefined && prior?.quests === undefined && !prior?.achievementReview?.length) { pending.delete(player); return; }
+    if (!result.rows.length && !result.unmapped.length && !itemRetentionIssues.has(player) && prior?.skills === undefined && prior?.quests === undefined && !prior?.achievementReview?.length) { pending.delete(player); return; }
     const hasProgress = prior?.skills !== undefined || prior?.quests !== undefined;
     pending.set(player, { report: { ...prior, sentAt: report.sentAt, world: hasProgress ? prior.world : report.world, itemReview: result.rows,
-      itemsMore: result.more, unmappedItems: result.unmapped, unmappedItemsMore: result.unmappedMore }, proposal: null });
+      itemsMore: result.more, unmappedItems: result.unmapped, unmappedItemsMore: result.unmappedMore,
+      itemRetentionIssue: itemRetentionIssues.get(player) ?? null }, proposal: null });
   }
   // itemsBetaAsLive is for a synthetic scratch save only: beta items then tick it as live ones would.
   const itemWorld = report => report.world?.beta === false || itemsBetaAsLive && report.world?.beta === true ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
   // Delivery-world records keep the single-slot lifecycle reports always had: a beta or
-  // unknown report replaces the other's memory. Qualified (four-field) beta and unknown
-  // journal events keep their own records in journalMemory until their rows are handled.
+  // unknown report replaces the other's memory. Journal records have separate durable stores.
   function itemRecord(player, world) {
     const memory = itemMemory.get(player);
     return world === 'live' ? itemStore.get(player) : memory?.world === world ? structuredClone(memory.record) : null;
   }
-  const journalRecords = player => [...journalMemory.get(player) ?? []].map(([world, record]) => ({ record, world }));
+  const journalRecords = player => [...journalStores].map(([world, store]) => ({ record: store.get(player), world })).filter(row => row.record);
   // Live records are saved; beta and unknown ones stay in memory. False when the write failed.
   async function keepItemRecord(player, world, record) {
     if (world !== 'live') { itemMemory.set(player, { world, record }); return true; }
     try { await itemStore.put(player, record); return true; }
     catch { log('Could not save plugin item evidence; the plugin will send it again.'); return false; }
   }
-  // Evidence entries are [id, name or null, worn]. Only reviewed IDs are kept; named others are returned.
-  function addEvidence(record, entries, now, fresh) {
+  // Journal entries also retain unmapped IDs: acknowledgement must not discard their evidence.
+  function addEvidence(record, entries, now, fresh, journal = false) {
     let changed = false;
     const unmapped = new Map();
     for (const [id, name, worn] of entries) {
       const item = GAME_ITEMS.get(id);
-      if (!item) { if (name && !unmapped.has(id)) unmapped.set(id, name); continue; }
+      if (!item) { if (name && !unmapped.has(id)) unmapped.set(id, name); if (!journal) continue; }
       const key = String(id);
       if (!record.items[key]) { record.items[key] = { name: name ?? item.name, ownedAt: now, wornAt: null, first: fresh }; changed = true; }
-      if (worn && !item.noted && !record.items[key].wornAt) { record.items[key].wornAt = now; changed = true; }
+      if (worn && !item?.noted && !record.items[key].wornAt) { record.items[key].wornAt = now; changed = true; }
     }
     return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
   }
-  async function matchItems(player, report, record, world, unmapped, others = []) {
+  function itemMatches(player, record, world, unmapped, others = [], autoTick = true) {
     const owner = member(player), dismissed = itemHandled.get(player);
+    if (unmapped !== null) {
+      const records = [record, ...others.map(row => row.record), ...journalRecords(player).map(row => row.record)];
+      const retainedHandled = new Set(records.flatMap(record => record.handled));
+      const retained = records
+        .flatMap(record => Object.entries(record.items).filter(([id]) => !GAME_ITEMS.has(Number(id)))
+          .map(([id, fact]) => ({ gameItemId: Number(id), name: fact.name })));
+      unmapped = [...new Map([...unmapped, ...retained].map(row => [row.gameItemId, row])).values()]
+        .filter(row => !dismissed?.has(`unmapped:${row.gameItemId}`) && !retainedHandled.has(`unmapped:${row.gameItemId}`));
+    }
     // Prefer live rows when several environments support the same task. Match all
     // records before publishing one review, so queued evidence cannot hide containers.
     // Retained journal records join every review (items and bank) until handled.
     const results = [{ record, world }, ...others, ...journalRecords(player)].sort((a, b) =>
       ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
-        task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: world === 'live',
+        task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live',
         handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: unmapped ?? [] }));
     const ticks = results.flatMap(result => result.ticks), tickIds = new Set(ticks.map(row => row.taskId));
     const unique = new Map();
@@ -235,6 +262,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       more: results.reduce((sum, result) => sum + result.more, 0) + Math.max(0, rows.length - ITEM_REVIEW_LIMIT) };
     // null keeps the unmapped list from the last items report.
     if (unmapped === null) { const prior = liveReview(player)?.report; result.unmapped = prior?.unmappedItems ?? []; result.unmappedMore = prior?.unmappedItemsMore ?? 0; }
+    return result;
+  }
+  async function matchItems(player, report, record, world, unmapped, others = []) {
+    const result = itemMatches(player, record, world, unmapped, others);
     if (result.ticks.length) {
       try {
         // Live owned items tick their BiS goals. Already inside the server's mutation queue: the
@@ -251,30 +282,31 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     itemReview(player, report, result);
   }
   const coinCount = (rows, billions = false) => (rows ?? []).reduce((sum, [, id, count]) => sum + (id === COINS ? count : billions && id === COIN_BILLIONS ? count * 1e9 : 0), 0);
-  // Coins on hand: pouch, backpack and the last bank the plugin saw. Live worlds only, written
-  // only when the total changes and at most once a minute, so History isn't one entry per drop.
-  async function updateCoins(player, world) {
-    const coins = itemCoins.get(player);
-    if (world !== 'live' || !coins || coins.pouch === null || coins.backpack === null) return;
-    const total = Math.min(1e12, coins.pouch + coins.backpack + (coins.bank ?? 0)), owner = member(player);
-    if (owner.transportFacts?.currencies?.coins === total || clock() - (coins.writtenAt ?? -Infinity) < COIN_WRITE_INTERVAL) return;
-    const facts = structuredClone(owner.transportFacts ?? {});
-    facts.currencies = { ...facts.currencies, coins: total };
-    try { await store.command({ type: 'set-transport-facts', memberId: player, facts }, store.getInfo().revision); coins.writtenAt = clock(); }
-    catch { log('Could not save coins from the game plugin; the next report tries again.'); }
-  }
-  function coinParts(player, world, bank) {
-    const coins = itemCoins.get(player);
-    if (coins?.world === world) return coins;
-    const fresh = { world, pouch: null, backpack: null, bank };
-    itemCoins.set(player, fresh); return fresh;
-  }
   async function receiveItems(player, report) {
     const value = report.items, now = new Date(clock()).toISOString(), world = itemWorld(report);
     const saved = itemRecord(player, world);
-    const ack = { snapshot: value.snapshot, journal: itemAcks.get(player)?.journal ?? null };
+    let ledger = journalCommits.get(player);
+    const committed = () => journalCommits.get(player).journals.find(entry => entry.id === value.journal.id)?.committed;
+    const ack = { snapshot: value.snapshot, journal: committed() === undefined ? itemAcks.get(player)?.journal ?? null : { id: value.journal.id, event: committed() } };
     // The first look needs both containers; until then only the snapshot is acknowledged.
     if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
+    // Remember every unresolved event before any processing watermark can advance.
+    // A delayed subset after restart must still cover this durable pending prefix.
+    let intentSaved = false, intentValidated = false;
+    let events = ledger.journals.flatMap(entry => entry.pending);
+    try {
+      const next = mergeJournalCommits(ledger, { journals: [{ id: value.journal.id, committed: 0,
+        pending: value.journal.events.map(event => [event[0], event[1], event[2], itemsBetaAsLive && event[3] === 'beta' ? 'live' : event[3] ?? 'unknown']) }] });
+      intentValidated = true;
+      // A failed write can still retain valid live evidence independently. A
+      // conflicting retry must never replace the original event's provenance.
+      events = next.journals.flatMap(entry => entry.pending);
+      if (JSON.stringify(next) !== JSON.stringify(ledger)) await journalCommits.put(player, next);
+      ledger = next; intentSaved = true;
+    } catch { log('Could not save the pending item journal; its prefix remains unacknowledged.'); }
+    // A full ledger can drain its already durable work before accepting another
+    // event or journal identity. The rejected incoming suffix remains retryable.
+    let retained = intentSaved || !intentValidated;
     const entries = [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])];
     // Toolbelt evidence goes after the delivery world's journal events, as before: the
     // first entry for an item names it, so a reported journal name wins over the tool name.
@@ -283,45 +315,59 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const id = GAME_TOOLBELT.get(`${name}=${level}`);
       if (id !== undefined) tools.push([id, null, false]);
     }
-    // Containers and legacy triples belong to the delivery world, as before. Four-field
-    // events carry their observation environment: live ones join the live record, beta
-    // and unknown ones their own journal record, whatever world delivers them.
+    // Containers describe the delivery world. Legacy journal triples cannot prove
+    // their observation world, so retain them as unknown catch-up evidence. Qualified
+    // events carry their observation environment, whatever world delivers them.
     const slotOf = event => {
-      if (event.length < 4) return 'delivery';
+      if (event.length < 4) return 'unknown';
       const scope = itemsBetaAsLive && event[3] === 'beta' ? 'live' : event[3];
       return scope === 'live' ? world === 'live' ? 'delivery' : 'live' : scope;
     };
-    // The persisted live record goes first, so a failed write changes no memory.
+    // Persist the live record first. Partial writes remain safe for a full-prefix retry.
     const slots = [...new Set([world === 'live' ? 'delivery' : 'live', 'delivery', 'beta', 'unknown'])]
-      .filter(slot => slot === 'delivery' || value.journal.events.some(event => slotOf(event) === slot));
-    const journal = journalMemory.get(player) ?? new Map(), records = new Map(), unmapped = new Map();
+      .filter(slot => slot === 'delivery' || events.some(event => slotOf(event) === slot));
+    const records = new Map(), unmapped = new Map();
     for (const slot of slots) {
       const scope = slot === 'delivery' ? world : slot;
-      const prior = slot === 'delivery' ? saved : slot === 'live' ? itemRecord(player, 'live') : journal.has(slot) ? structuredClone(journal.get(slot)) : null;
+      const prior = slot === 'delivery' ? saved : slot === 'live' ? itemRecord(player, 'live') : journalStores.get(slot).get(player);
       const record = prior ?? { baselineAt: now, items: {}, handled: [], journal: null };
       const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
       const scoped = slot === 'delivery' ? [...entries] : [];
-      for (const event of value.journal.events) if (event[0] > after && slotOf(event) === slot) scoped.push([event[1], event[2], true]);
-      if (slot === 'delivery') scoped.push(...tools);
       const added = addEvidence(record, scoped, now, !prior);
+      const scopedEvents = events.filter(event => slotOf(event) === slot).map(event => [event[1], event[2], true]);
+      const journalAdded = addEvidence(record, scopedEvents, now, !prior, true);
+      const toolsAdded = addEvidence(record, slot === 'delivery' ? tools : [], now, !prior);
+      added.changed ||= journalAdded.changed || toolsAdded.changed;
+      added.unmapped.push(...journalAdded.unmapped);
       for (const row of added.unmapped) if (!unmapped.has(row.gameItemId)) unmapped.set(row.gameItemId, row);
       const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);
       const journalChanged = record.journal?.id !== value.journal.id || last > after;
       record.journal = { id: value.journal.id, event: last };
-      if (slot === 'beta' || slot === 'unknown') { journal.set(slot, record); journalMemory.set(player, journal); }
-      // Save live evidence before acknowledging any of the report's journal events.
-      else if ((!prior || added.changed || journalChanged) && !await keepItemRecord(player, scope, record)) { itemAcks.set(player, ack); return; }
+      if (slot === 'beta' || slot === 'unknown') {
+        if (!prior || added.changed || journalChanged) {
+          try { await journalStores.get(slot).put(player, record); }
+          catch { log('Could not save plugin journal evidence; the plugin will send it again.'); retained = false; continue; }
+        }
+      }
+      // Every affected durable store must succeed before acknowledging the prefix.
+      else if ((!prior || added.changed || journalChanged) && !await keepItemRecord(player, scope, record)) { retained = false; continue; }
       records.set(slot, { record, world: scope });
     }
-    const record = records.get('delivery').record;
-    itemAcks.set(player, { snapshot: value.snapshot, journal: record.journal });
-    // A container the plugin couldn't read keeps its last coin count.
-    const coins = coinParts(player, world, record.bank?.coins ?? null);
-    if (value.pouch) coins.pouch = coinCount(value.pouch, true);
-    if (value.backpack) coins.backpack = coinCount(value.backpack);
+    if (retained) {
+      try {
+        const next = { journals: ledger.journals.map(entry => ({ ...entry,
+          committed: Math.max(entry.committed, entry.pending.at(-1)?.[0] ?? 0), pending: [] })) };
+        if (JSON.stringify(next) !== JSON.stringify(ledger)) await journalCommits.put(player, next);
+      } catch { retained = false; log('Could not commit the item journal acknowledgement; the plugin will retry.'); }
+    }
+    if (retained && intentSaved) itemRetentionIssues.delete(player);
+    else itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
+    itemAcks.set(player, { snapshot: value.snapshot, journal: committed() === undefined ? ack.journal : { id: value.journal.id, event: committed() } });
+    const record = records.get('delivery')?.record ?? saved ?? { items: {}, handled: [], journal: null };
     // Journal records reach the review through journalRecords; only a live record joins here.
-    await matchItems(player, report, record, world, [...unmapped.values()], records.has('live') ? [records.get('live')] : []);
-    await updateCoins(player, world);
+    // Successful live writes are processed even when another scope or the commit fails.
+    const live = world !== 'live' ? itemRecord(player, 'live') : null;
+    await matchItems(player, report, record, world, [...unmapped.values()], live ? [{ record: live, world: 'live' }] : []);
   }
   // Bank parts arrive in order, part 1 first; a new part 1 replaces an unfinished set. Status
   // acknowledges the last complete snapshot only.
@@ -341,13 +387,28 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     record.bank = { snapshot: part.snapshot, seenAt, coins: Math.min(1e12, coinCount(assembly.rows.map(([id, count]) => [0, id, count]))) };
     if (!await keepItemRecord(player, world, record)) return;
     bankAcks.set(player, { snapshot: part.snapshot, world, seenAt });
-    coinParts(player, world, null).bank = record.bank.coins;
     await matchItems(player, report, record, world, null);
-    await updateCoins(player, world);
   }
-  async function rememberItemsHandled(player, rows) {
+  async function rememberItemsHandled(player, rows, unmapped = []) {
+    for (const journal of journalStores.values()) {
+      const record = journal.get(player);
+      if (!record) continue;
+      const retainedTasks = new Set();
+      for (const [id, fact] of Object.entries(record.items)) {
+        const item = GAME_ITEMS.get(Number(id));
+        if (item && fact.ownedAt) retainedTasks.add(item.goalId);
+        if (fact.wornAt) for (const [taskId, ids] of GAME_WORN_TASKS) if (ids.has(Number(id))) retainedTasks.add(taskId);
+      }
+      const ids = rows.filter(row => row.world !== 'live' && retainedTasks.has(row.taskId)).map(row => row.taskId);
+      ids.push(...unmapped.filter(row => record.items[row.gameItemId]).map(row => `unmapped:${row.gameItemId}`));
+      if (!ids.length) continue;
+      record.handled = [...new Set([...record.handled, ...ids])].sort();
+      // A failed or full durable dismissal remains reviewable for retry.
+      await journal.put(player, record);
+    }
     const dismissed = itemHandled.get(player) ?? new Set();
     for (const row of rows) dismissed.add(row.taskId);
+    for (const row of unmapped) dismissed.add(`unmapped:${row.gameItemId}`);
     if (dismissed.size) itemHandled.set(player, dismissed);
     const live = rows.filter(row => row.world === 'live').map(row => row.taskId);
     const record = live.length ? itemStore.get(player) : null;
@@ -477,6 +538,28 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     authorizeKey?.(request, credential.player);
     return credential;
   }
+  // Startup and successful imports use the same synchronous projection. Imported
+  // live evidence is reviewable too, but restoration never issues a tick command.
+  function rebuildRetainedReviews(restoredMemberIds) {
+    const members = new Set(state().members.map(owner => owner.id));
+    for (const id of pending.keys()) if (!members.has(id)) pending.delete(id);
+    // A member restore invalidates only that player's temporary dismissals.
+    // Retained sidecars for the other players still describe the same evidence.
+    const restored = new Set(restoredMemberIds ?? members);
+    for (const id of itemHandled.keys()) if (!members.has(id) || restored.has(id)) itemHandled.delete(id);
+    for (const id of itemRetentionIssues.keys()) if (!members.has(id) || restored.has(id)) itemRetentionIssues.delete(id);
+    for (const player of restored) {
+      if (!members.has(player)) continue;
+      if (journalCommits.get(player).journals.some(entry => entry.pending.length)) itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
+      const live = itemStore.get(player);
+      const result = itemMatches(player, { items: {}, handled: [] }, 'unknown', [], live ? [{ record: live, world: 'live' }] : [], false);
+      itemReview(player, { sentAt: new Date(clock()).toISOString() }, result);
+    }
+  }
+  rebuildRetainedReviews();
+  const unsubscribe = store.subscribe?.(event => {
+    if (!closed && event.restored) { rebuildRetainedReviews(event.restoredMemberIds); notify(); }
+  });
   return {
     authenticate: credentialFor,
     async handle(request, response, { route, security, closed: serverClosed }) {
@@ -512,8 +595,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         credentialFor(request); member(credential.player);
         void flushHandled();
         if (report) {
-          if (report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
-          sequences.set(credential.id, report.seq);
+          const currencyReport = report.items && itemWorld(report) === 'live';
+          if (!currencyReport && report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
+          sequences.set(credential.id, Math.max(sequences.get(credential.id) ?? -1, report.seq));
           const assembly = assemblies.get(credential.player);
           if (report.world?.beta === false && assembly && assembly.received === assembly.parts && !assembly.live) {
             // World is absent from the plugin's snapshot hash. Ordinary live
@@ -533,11 +617,24 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
             for (const row of report.skills ?? []) observations.set(row.skill, row);
             const merged = { ...report, skills: [...observations.values()], quests: report.quests ?? previous?.quests,
               world: report.world ?? previous?.world, achievementReview: previous?.achievementReview, achievementsMore: previous?.achievementsMore,
-              itemReview: previous?.itemReview, itemsMore: previous?.itemsMore, unmappedItems: previous?.unmappedItems, unmappedItemsMore: previous?.unmappedItemsMore };
+              itemReview: previous?.itemReview, itemsMore: previous?.itemsMore, unmappedItems: previous?.unmappedItems, unmappedItemsMore: previous?.unmappedItemsMore,
+              itemRetentionIssue: itemRetentionIssues.get(credential.player) ?? null };
             pending.set(credential.player, { report: merged, proposal: null });
           }
           if (report.achievements) await receiveAchievements(credential.player, report);
-          if (report.items) await receiveItems(credential.player, report);
+          if (report.items) {
+            let currencyRetry = false;
+            if (itemWorld(report) === 'live') {
+              const { pouch, backpack } = report.items;
+              const coins = Array.isArray(pouch) && Array.isArray(backpack) ? Math.min(1e12, coinCount(pouch, true) + coinCount(backpack)) : null;
+              currencyRetry = (await store.observePluginCurrency({ memberId: credential.player, keyId: credential.id, seq: report.seq, sentAt: report.sentAt, coins })).currencyRetry;
+            }
+            await receiveItems(credential.player, report);
+            if (currencyRetry && itemAcks.has(credential.player)) {
+              // Request a fresh snapshot without losing the durable journal ack.
+              itemAcks.set(credential.player, { ...itemAcks.get(credential.player), snapshot: null });
+            }
+          }
           if (report.bank) await receiveBank(credential.player, report);
           notify();
         }
@@ -625,7 +722,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // row shown, including skipped rows. Beta/unknown copies may report live later.
       const ids = (review?.proposal?.preview.achievements ?? []).filter(row => row.world === 'live').map(row => row.achievementId);
       if (ids.length) rememberHandled(memberId, ids);
-      await rememberItemsHandled(memberId, review?.proposal?.preview.items ?? []);
+      await rememberItemsHandled(memberId, review?.proposal?.preview.items ?? [], review?.proposal?.preview.unmappedItems ?? []);
       pending.delete(memberId); notify();
     },
     rememberTasks(memberId, bytes) {
@@ -637,11 +734,13 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     close() {
       if (closePromise) return closePromise;
       closed = true;
+      unsubscribe?.();
       closePromise = (async () => {
         await handledFlush;
         await flushHandled(true);
-        await Promise.all([keys.close(), handled.close(), itemStore.close()]);
-        itemMemory.clear(); journalMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
+        await Promise.all([keys.close(), handled.close(), itemStore.close(), journalCommits.close(), ...[...journalStores.values()].map(store => store.close())]);
+        itemRetentionIssues.clear();
+        itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear();
         progressSource.clear(); itemTasks = undefined;
         sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();
         rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); activeLocations.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();

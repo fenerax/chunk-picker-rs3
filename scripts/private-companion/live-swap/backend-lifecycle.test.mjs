@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { fork } from 'node:child_process';
-import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { createBackendLifecycle } from './backend-lifecycle.mjs';
 import { runtimeCall, createTargetGuard, signMessage, constantEqual } from './managed-runtime.mjs';
@@ -11,15 +10,65 @@ const checkpoint = { revision: 70, schemaVersion: 1, sha256: 'f'.repeat(64) };
 const pipe = () => `\\\\.\\pipe\\picker-bridge-test-${randomUUID()}`;
 async function child(t) {
   const address = pipe(), process = fork(new URL('./backend-control.fixture.mjs', import.meta.url), [address], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
-  const messages = [], exited = once(process, 'exit'); process.on('message', value => messages.push(value));
-  const wait = async event => {
-    const until = Date.now() + 10000;
-    while (Date.now() < until) { const found = messages.find(value => value.event === event); if (found) return found; if (process.exitCode !== null) throw new Error('Fixture exited.'); await new Promise(resolve => setTimeout(resolve, 5)); }
-    throw new Error('Fixture event timeout.');
+  const messages = []; let closed = false, failed = false, stderr = '', childError;
+  process.on('message', value => messages.push(value));
+  process.stderr.setEncoding('utf8'); process.stderr.on('data', value => { stderr += value; });
+  process.on('error', error => { childError = error; });
+  // close follows exit AND drains stderr, so failures retain the child's output.
+  const exited = new Promise(resolve => process.once('close', () => { closed = true; resolve(); }));
+  const failure = (event, reason, cause) => new Error(`child never sent ${event}: ${reason}; pid=${process.pid}, exit code=${process.exitCode}, signal=${process.signalCode}${childError ? `; ${childError.message}` : ''}${stderr ? `; stderr: ${stderr.trim()}` : ''}`, { cause });
+  const exitWithin = ms => closed ? Promise.resolve(true) : new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), ms);
+    exited.then(() => { clearTimeout(timer); resolve(true); });
+  });
+  const terminate = async () => {
+    if (closed) return;
+    // ChildProcess.kill supports both signals on Windows as well as POSIX.
+    process.kill('SIGTERM'); if (await exitWithin(500)) return;
+    process.kill('SIGKILL');
+    if (!await exitWithin(500)) throw failure('exit', 'child survived SIGKILL');
   };
+  const wait = async event => {
+    try {
+      return await new Promise((resolve, reject) => {
+        const finish = (error, value) => {
+          clearTimeout(timer); process.off('message', check); process.off('close', check); process.off('error', onError);
+          error ? reject(error) : resolve(value);
+        };
+        const check = () => {
+          const found = messages.find(value => value.event === event);
+          if (found) finish(null, found);
+          else if (closed || childError) finish(childError ?? new Error('child exited before acknowledgement'));
+        };
+        const onError = error => finish(error);
+        const timer = setTimeout(() => finish(new Error('deadline expired after 10000 ms')), 10000);
+        process.on('message', check); process.on('close', check); process.on('error', onError); check();
+      });
+    } catch (cause) {
+      failed = true;
+      let reason = cause.message;
+      try { await terminate(); } catch (error) { reason += `; ${error.message}`; }
+      throw failure(event, reason, cause);
+    }
+  };
+  t.after(async () => {
+    try {
+      if (!closed && process.connected && !messages.some(message => message.event === 'shutdown')) {
+        process.send({ method: 'release-factory' });
+        if (!messages.some(message => message.event === 'shutdown-started')) process.send({ method: 'shutdown' });
+      }
+      if (!await exitWithin(750)) {
+        await terminate();
+        throw failure('exit', 'teardown deadline expired after 750 ms');
+      }
+      if (!failed && (process.exitCode !== 0 || childError)) throw failure('clean exit', 'fixture failed during teardown');
+    } finally {
+      if (!closed) await terminate();
+    }
+  });
   await wait('ready');
-  t.after(async () => { if (process.exitCode === null && process.connected) process.send({ method: 'shutdown' }); await exited; });
-  return { address, process, messages, wait, call: (method, argument) => runtimeCall(address, token, identity, method, argument, 10000) };
+  const barrier = event => { process.send({ method: 'barrier', event }); return wait(event); };
+  return { address, process, messages, wait, barrier, call: (method, argument) => runtimeCall(address, token, identity, method, argument, 10000) };
 }
 async function raw(address, value) {
   return new Promise((resolve, reject) => {
@@ -81,11 +130,29 @@ test('real child rejects replay and wrong MAC without executing commands', { ski
   assert.equal(wrong.value.error, 'LIVE_SWAP_RUNTIME_AUTH'); assert.equal((await fixture.call('status')).state, 'standby');
 });
 test('real child shutdown queued behind start never opens an orphan application', { skip: process.platform !== 'win32' }, async t => {
-  const fixture = await child(t); fixture.process.send({ method: 'delay', ms: 150 }); await fixture.wait('delay-set');
-  const activation = fixture.call('activate', checkpoint).catch(() => null); await fixture.wait('factory-start');
-  fixture.process.send({ method: 'shutdown' }); const result = await fixture.wait('shutdown'); await activation;
+  const fixture = await child(t); fixture.process.send({ method: 'hold-factory' }); await fixture.wait('factory-held');
+  const activation = assert.rejects(fixture.call('activate', checkpoint)); await fixture.wait('factory-start');
+  // Round trips on both sides prove the child is processing IPC while factory
+  // completion stays blocked. Elapsed time cannot release the application.
+  assert.deepEqual(await fixture.barrier('before-shutdown'), { event: 'before-shutdown', closing: false, active: false, factoryWaiting: true });
+  fixture.process.send({ method: 'shutdown' }); assert.equal((await fixture.wait('shutdown-started')).closing, true);
+  assert.deepEqual(await fixture.barrier('after-shutdown'), { event: 'after-shutdown', closing: true, active: false, factoryWaiting: true });
+  assert.ok(!fixture.messages.some(message => message.event === 'factory-return'));
+  fixture.process.send({ method: 'release-factory' });
+  const result = await fixture.wait('shutdown'); await activation;
   assert.equal(result.active, false); assert.ok(!fixture.messages.some(message => message.event === 'listen'));
   assert.ok(fixture.messages.some(message => message.event === 'closed'));
+  assert.deepEqual(fixture.messages.filter(message => ['factory-return', 'closed', 'shutdown'].includes(message.event)).map(message => message.event), ['factory-return', 'closed', 'shutdown']);
+});
+test('real child factory released before shutdown listens and then closes', { skip: process.platform !== 'win32' }, async t => {
+  const fixture = await child(t); fixture.process.send({ method: 'hold-factory' }); await fixture.wait('factory-held');
+  const activation = fixture.call('activate', checkpoint); await fixture.wait('factory-start');
+  assert.equal((await fixture.barrier('before-release')).factoryWaiting, true);
+  fixture.process.send({ method: 'release-factory' }); assert.equal((await activation).state, 'active');
+  assert.deepEqual(await fixture.barrier('after-release'), { event: 'after-release', closing: false, active: true, factoryWaiting: false });
+  fixture.process.send({ method: 'shutdown' }); assert.equal((await fixture.wait('shutdown-started')).closing, true);
+  assert.equal((await fixture.wait('shutdown')).active, false);
+  assert.deepEqual(fixture.messages.filter(message => ['factory-return', 'listen', 'closed', 'shutdown'].includes(message.event)).map(message => message.event), ['factory-return', 'listen', 'closed', 'shutdown']);
 });
 test('foreign pipe squatter cannot forge a mutually authenticated runtime reply', { skip: process.platform !== 'win32' }, async () => {
   const address = pipe(); let received;

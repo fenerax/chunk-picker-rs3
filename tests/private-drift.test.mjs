@@ -105,6 +105,9 @@ test('private test-selection registrations must resolve to core or private test 
   hasFinding(await f.check(), 'registered-test-missing');
   await put(f.privateRoot, 'tests/registered.private.test.mjs', '// Source-only synthetic registered test.\n');
   clean(await f.check());
+  await rm(path.join(f.privateRoot, 'tests/registered.private.test.mjs'));
+  await put(f.core, 'scripts/test-classification.mjs', '// Core owns automatic test classification.\n');
+  clean(await f.check());
 });
 
 test('public-export allowlist entries have missing and present core twins', async t => {

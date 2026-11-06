@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { copyFile, lstat, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { packRelative } from '../../app/packs.mjs';
+import { capturePluginItemFiles, pluginItemFiles } from '../../app/plugin-items.mjs';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { snapshotPath, snapshotRoot, withDirectoryBarriers } from '../../app/storage/snapshot.mjs';
@@ -8,7 +9,7 @@ import { atomic, copyTree, directory, encode, exists, headroom, inventory, json,
 
 export const serviceFormat = 'picker-service-recovery-v1';
 export const pickerId = id => /^p_[0-9a-f]{32}$/.test(id);
-const gameplayRoots = new Set(['state.json', 'static', 'history', 'backups', 'plugin-achievements.json', 'plugin-items.json']);
+const gameplayRoots = new Set(['state.json', 'static', 'history', 'backups', 'plugin-achievements.json', ...pluginItemFiles]);
 export function pickerPath(settings, picker) {
   if (!pickerId(picker.id) || !['default', 'legacy-shared'].includes(picker.kind)) throw new Error('Invalid picker manifest.');
   return picker.kind === 'legacy-shared' ? settings.dataDir : path.join(settings.multiPicker.pickerRoot, picker.id);
@@ -73,23 +74,28 @@ async function inputBytes(inputs) {
   return bytes;
 }
 async function copyGameplay(source, target, mutate) {
-  const files = await inventory(source, { ignoreRoot: ['warm-store'] });
+  const evidence = await capturePluginItemFiles(source);
+  const files = await inventory(source, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
   await mutate('capture.gameplay', () => mkdir(target, { mode: 0o700 }));
   for (const row of files.filter(row => gameplayRoots.has(row.path.split('/')[0]))) {
+    if (row.path === 'state.json' || pluginItemFiles.includes(row.path)) continue;
     const to = path.join(target, row.path);
     if (row.directory) await mutate('capture.gameplay', () => mkdir(to, { mode: 0o700 }));
     else await mutate('capture.gameplay', () => copyFile(path.join(source, row.path), to, 1));
   }
+  for (const [name, bytes] of Object.entries(evidence)) {
+    await mutate('capture.gameplay', () => writeFile(path.join(target, name), bytes, { flag: 'wx', mode: 0o600 }));
+  }
 }
 export async function copyServiceTree(source, target, step, label) {
-  const before = await inventory(source, { ignoreRoot: ['warm-store'] });
+  const before = await inventory(source, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
   await step(label); await mkdir(target, { mode: 0o700 });
   for (const row of before) {
     await step(label);
     if (row.directory) await mkdir(path.join(target, row.path), { mode: 0o700 });
     else await copyFile(path.join(source, row.path), path.join(target, row.path), 1);
   }
-  if (encode(before) !== encode(await inventory(source, { ignoreRoot: ['warm-store'] })) || encode(before) !== encode(await inventory(target))) throw new Error('Recovery source changed while copying.');
+  if (encode(before) !== encode(await inventory(source, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS })) || encode(before) !== encode(await inventory(target))) throw new Error('Recovery source changed while copying.');
   return before;
 }
 async function checkpointBinding(source) {
@@ -290,3 +296,4 @@ export async function publishServiceBackup({ source, settings, release, assertRe
     return { target, byteSize: size, pickerCount: manifest.pickers.length };
   } finally { await rm(stage, { recursive: true, force: true }); }
 }
+import { STORE_IDENTITY_EXCLUSIONS } from '../../app/storage/store-identity-policy.mjs';

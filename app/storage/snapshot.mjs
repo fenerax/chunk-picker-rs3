@@ -2,6 +2,8 @@ import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { lstat, mkdir, open, readdir, rm, statfs, writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
+import { SNAPSHOT_EXCLUSIONS } from './store-identity-policy.mjs';
+import { capturePluginItemFiles, pluginItemFiles } from './plugin-item-snapshot.mjs';
 
 const barriers = new Map(), context = new AsyncLocalStorage();
 function barrier(dataDir) {
@@ -69,14 +71,27 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
     async function walk(relative = '') {
       for (const name of (await readdir(path.join(dataDir, relative))).sort()) {
         budget();
-        if (!relative && ['store.lock', 'store.lock.recovery', 'warm-store'].includes(name)) continue;
+        if (!relative && (SNAPSHOT_EXCLUSIONS.includes(name) || name === 'state.json' || pluginItemFiles.includes(name))) continue;
         const rel = relative ? relative + '/' + name : name;
         const file = path.join(dataDir, rel), info = await lstat(file);
         if (info.isDirectory()) { directories.push('store/' + rel); await walk(rel); }
         else await pin(file, 'store/' + rel);
       }
     }
-    try { await walk(); await pin(dataDir + '.dataset.json', 'store.dataset.json'); budget(); }
+    try {
+      // Reuse the journal capture's generation check while pinning descriptors,
+      // so large state files are still copied only after releasing the barrier.
+      await capturePluginItemFiles(dataDir, {
+        read: async file => {
+          budget();
+          const handle = await open(file, 'r');
+          handles.push({ handle, relative: 'store/' + path.basename(file) });
+          return handle;
+        },
+        discard: async () => { for (const row of handles.splice(0)) await row.handle.close(); },
+      });
+      await walk(); await pin(dataDir + '.dataset.json', 'store.dataset.json'); budget();
+    }
     finally { if (process.platform !== 'win32') { heldMs = performance.now() - started; unlock(); } }
     await mkdir(snapshotRoot(dataDir), { recursive: true, mode: 0o700 });
     if (!(await lstat(snapshotRoot(dataDir))).isDirectory()) throw new Error('Invalid snapshot spool.');

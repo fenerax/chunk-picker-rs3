@@ -53,7 +53,8 @@ export async function openAccountStore({ dataDir, now = Date.now } = {}) {
     const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       const next = structuredClone(current), result = operation(next);
       validate(next);
-      await atomicWrite(file, next); current = next;
+      // Membership must be durable before a separate invitation can be claimed.
+      await atomicWrite(file, next, { onPostPublishSyncError: 'throw' }); current = next;
       return clone(result);
     }));
     queue = pending.catch(() => {});

@@ -47,8 +47,9 @@ test('real browser entry and optional full-state tools serve every module depend
       } else if (/\.mjs(?:\?|$)/.test(route)) {
         assert.match(response.headers.get('content-type'), /javascript/, route);
         for (const match of source.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)["']([^"']+)["']/g)) {
-          // These dynamic imports execute only in dataset-runtime's Node branch.
-          if (route === '/dataset-runtime.mjs' && ['./datasets.mjs', './dataset-inputs.mjs', 'node:worker_threads'].includes(match[1])) continue;
+          // These dynamic imports execute only in dataset-runtime's Node branches,
+          // including the opt-in CI dataset receipt writer.
+          if (route === '/dataset-runtime.mjs' && ['./datasets.mjs', './dataset-inputs.mjs', 'node:worker_threads', 'node:fs'].includes(match[1])) continue;
           assert.ok(match[1].startsWith('.'), `Browser-safe import in ${route}: ${match[1]}`);
           enqueue(match[1], route);
         }
@@ -65,7 +66,7 @@ test('real browser entry and optional full-state tools serve every module depend
   // import it. The main-only public candidate check cannot exercise this seam.
   queue.push('/core/state.mjs', '/core/planning.mjs');
   await walk();
-  for (const route of ['/core/rules.mjs', '/core/transport-access.mjs', '/core/teleport-returns.mjs', '/core/teleport-return-cache.mjs']) {
+  for (const route of ['/core/rules.mjs', '/core/transport-access.mjs', '/core/teleport-returns.mjs', '/core/teleport-return-cache.mjs', '/core/plugin-item-evidence.mjs']) {
     assert.ok(seen.has(route), `Traversed ${route}`);
     assert.equal((await fetch(new URL(route, origin), { redirect: 'manual' })).status, 401, `Authenticated ${route}`);
   }

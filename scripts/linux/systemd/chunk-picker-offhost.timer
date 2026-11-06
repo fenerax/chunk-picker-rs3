@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry Chunk Picker off-site delivery independently
+
+[Timer]
+OnCalendar=*-*-* *:30:00
+Persistent=yes
+RandomizedDelaySec=5min
+Unit=chunk-picker-offhost.service
+
+[Install]
+WantedBy=timers.target

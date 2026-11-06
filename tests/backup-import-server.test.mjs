@@ -9,6 +9,8 @@ import { Readable } from 'node:stream';
 import { createGunzip, gzipSync } from 'node:zlib';
 import { createServer } from '../app/server.mjs';
 import { createGroupState, exportBackup, applyCommand } from '../app/core/state.mjs';
+import { createRuleRegistry, evaluateRollPool } from '../app/core/rules.mjs';
+import { SURFACE_GRID } from '../app/data/surface-grid.mjs';
 import { createCompletionEncoder } from '../app/storage/completion-codec.mjs';
 import { parseJSONStream } from '../app/storage/json-stream.mjs';
 import { MAX_UPLOAD_BYTES, readBackupRequest } from '../app/backup-transfer.mjs';
@@ -40,13 +42,13 @@ test('versioned completion saves upload through preview and restore, and downloa
   assert.deepEqual(f.application.store.getState().members, incoming.members);
 });
 
-async function fixture(t, initialState = state()) {
+async function fixture(t, initialState = state(), options = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'rs3-backup-import-'));
   const webRoot = path.join(directory, 'web');
   await mkdir(webRoot);
   await writeFile(path.join(webRoot, 'index.html'), '<!doctype html><p>Synthetic backup test</p>');
   const application = await createServer({ dataset: fixtureDataset, dataDir: path.join(directory, 'data'), webRoot, definitions, taskMap: {},
-    initialState, port: 0, predictionPrewarm: false, shutdownDeadlineMs: 500 });
+    initialState, port: 0, predictionPrewarm: false, shutdownDeadlineMs: 500, ...options });
   t.after(async () => { try { await application.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
   await application.listen();
   const origin = `http://127.0.0.1:${application.address().port}`;
@@ -67,6 +69,104 @@ async function fixture(t, initialState = state()) {
   };
   return { application, origin, cookie, request, json, upload, invite };
 }
+
+test('import preparation persists a returned normalized state and keeps the normal hook context', async t => {
+  const operations = [];
+  const f = await fixture(t, state(), { prepareState(input, context) {
+    operations.push(context.operation);
+    assert.ok(context.world.chunks.has('100'));
+    assert.equal(typeof context.registry.get, 'function');
+    if (context.operation !== 'replace') return input;
+    // Return a different object: mutating a discarded summary cannot pass.
+    return { ...input, members: input.members.map(member => ({ ...member, notes: { '100': 'Synthetic normalized note' } })) };
+  } });
+  const file = backupFile(exportBackup(state()));
+  const preview = await f.upload('/api/restore/preview', file);
+  assert.equal(preview.status, 200, await preview.clone().text());
+  assert.equal(f.application.store.getInfo().revision, 0);
+  const applied = await f.upload('/api/restore?view=play-v1', file, { expectedRevision: 0 });
+  assert.equal(applied.status, 200, await applied.clone().text());
+  const downloaded = await (await f.request('/api/backup')).json();
+  assert.equal(downloaded.state.members[0].notes['100'], 'Synthetic normalized note');
+  assert.ok(operations.includes('initialize'));
+  assert.equal(operations.filter(operation => operation === 'replace').length, 2);
+});
+
+test('import preparation reads gameplay fields and mutates its full state input', async t => {
+  const f = await fixture(t, state(), { prepareState(input, context) {
+    assert.ok(input.tasks.every(task => typeof task.id === 'string'));
+    assert.ok(Array.isArray(input.history));
+    assert.ok(input.members[0].unlocked.includes('100'));
+    if (context.operation === 'replace') (input.members[0].notes ??= {})['100'] = 'Synthetic mutated note';
+    // Undefined has always meant use the mutated input.
+  } });
+  const file = backupFile(exportBackup(state()));
+  const preview = await f.upload('/api/restore/preview', file);
+  assert.equal(preview.status, 200, await preview.clone().text());
+  const applied = await f.upload('/api/restore?view=play-v1', file, { expectedRevision: 0 });
+  assert.equal(applied.status, 200, await applied.clone().text());
+  assert.equal((await (await f.request('/api/backup')).json()).state.members[0].notes['100'], 'Synthetic mutated note');
+});
+
+test('import apply streams worker state bytes with exact custom-hook pools', async t => {
+  const registry = createRuleRegistry([{ id: 'house.synthetic', label: 'Synthetic destination', type: 'boolean', default: true,
+    candidates: ({ value }) => value ? [{ id: '102', detail: 'Synthetic custom destination.' }] : [] }]);
+  const incoming = state(); incoming.rules['roll.adjacent'] = false;
+  const f = await fixture(t, incoming, { registry });
+  const file = backupFile(exportBackup(incoming, registry));
+  for (const encoding of ['identity', 'gzip', 'br']) {
+    const init = await createBackupUpload(file, { expectedRevision: f.application.store.getInfo().revision }).toBackupRequest();
+    const applied = await f.request('/api/restore?view=play-v1', { ...init, headers: { ...init.headers, 'Accept-Encoding': encoding } });
+    assert.equal(applied.status, 200, await applied.clone().text());
+    const result = await applied.json();
+    assert.equal(result.state.tasks.length, 0);
+    const { partnerConnections: ignored, ...pool } = result.pools.player1;
+    assert.deepEqual(pool, evaluateRollPool(f.application.world, f.application.store.getState(), 'player1', registry));
+    assert.ok([...pool.eligible, ...pool.excluded].some(row => row.id === '102' && row.reasons.some(reason => reason.ruleId === 'house.synthetic')));
+  }
+});
+
+for (const custom of [false, true]) test(`import apply retains 200 authoritative pool entries (${custom ? 'custom caller' : 'worker'} rules)`, async t => {
+  const ids = Array.from({ length: 200 }, (_, i) => String(SURFACE_GRID.startId + Math.floor(i / 20) * SURFACE_GRID.stride - i % 20));
+  const incoming = state();
+  incoming.members[0].selected = ids;
+  incoming.rules['roll.adjacent'] = false;
+  incoming.rules['roll.teleports'] = false;
+  incoming.rules['roll.selected'] = true;
+  const registry = createRuleRegistry(custom ? [{ id: 'house.synthetic', label: 'Synthetic hook', type: 'boolean', default: true, candidates: () => [] }] : []);
+  const chunks = { ...definitions.chunks, ...Object.fromEntries(ids.map(id => [id, {}])) };
+  const f = await fixture(t, incoming, { registry, definitions: { ...definitions, chunks,
+    walkableChunks: Object.keys(chunks), walkableChunksF2P: Object.keys(chunks) } });
+  const applied = await f.upload('/api/restore?view=play-v1', backupFile(exportBackup(incoming, registry)), { expectedRevision: 0 });
+  assert.equal(applied.status, 200, await applied.clone().text());
+  const result = await applied.json();
+  const { partnerConnections: connections, ...pool } = result.pools.player1;
+  const expected = evaluateRollPool(f.application.world, f.application.store.getState(), 'player1', registry);
+  assert.equal(result.state.members[0].selected.length, 200);
+  assert.equal(pool.eligible.length, 200);
+  assert.deepEqual(pool, expected);
+  assert.deepEqual(pool.eligible.map(row => row.id).sort(), [...ids].sort());
+  assert.ok(connections);
+});
+
+test('portable JSON backup negotiates gzip, Brotli, identity, HEAD and unacceptable encodings', async t => {
+  const f = await fixture(t);
+  for (const encoding of ['gzip', 'br', 'identity']) {
+    const response = await f.request('/api/backup', { headers: { 'Accept-Encoding': encoding } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-encoding'), encoding === 'identity' ? null : encoding);
+    assert.equal(response.headers.get('vary'), 'Accept-Encoding');
+    assert.match(response.headers.get('content-type'), /application\/json/);
+    assert.match(response.headers.get('content-disposition'), /filename="rs3-duo-backup.json"/);
+    assert.equal((await response.json()).format, 'rs3-chunk-picker');
+    const head = await f.request('/api/backup', { method: 'HEAD', headers: { 'Accept-Encoding': encoding } });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get('content-encoding'), encoding === 'identity' ? null : encoding);
+    assert.equal((await head.arrayBuffer()).byteLength, 0);
+  }
+  const refused = await f.request('/api/backup', { headers: { 'Accept-Encoding': '*;q=0, identity;q=0' } });
+  assert.equal(refused.status, 406);
+});
 
 test('browser file upload previews and applies a full backup above 32 MiB, with streamed gzip download', async t => {
   const f = await fixture(t);
@@ -98,7 +198,7 @@ test('browser file upload previews and applies a full backup above 32 MiB, with 
     parsed = await readBackupRequest(input);
     assert.equal(parsed.body.backup.state.provenance.syntheticRows.length, rowCount);
   } finally { JSON.parse = originalParse; parsed = undefined; }
-  assert.ok(largestToken >= evidence.length);
+  assert.equal(largestToken, 0, 'Parsing runs entirely in the import worker.');
 
   const previewResponse = await f.request('/api/restore/preview?view=play-v1', prepared);
   assert.equal(previewResponse.status, 200, await previewResponse.clone().text());
@@ -147,7 +247,10 @@ test('gzip file roundtrip and ordinary gzip JSON restore retain revision conflic
   const before = await f.application.store.backup();
   const stale = await f.request('/api/restore?view=play-v1', await ({ ...upload, expectedRevision: 0 }).toBackupRequest());
   assert.equal(stale.status, 409);
-  assert.equal((await stale.json()).state.revision, 1);
+  const conflict = await stale.json();
+  assert.equal(conflict.revision, 1);
+  assert.equal(conflict.state, undefined);
+  assert.ok(Buffer.byteLength(JSON.stringify(conflict)) < 4096);
   assert.deepEqual(await f.application.store.backup(), before);
   const ordinary = await f.request('/api/restore?view=play-v1', { method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip' },

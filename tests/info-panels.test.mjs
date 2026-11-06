@@ -8,6 +8,7 @@ import { plainLabel } from '../app/tasks/engine.mjs';
 import { createScreenUi } from '../app/web/screen-ui.mjs';
 import { caveFixture } from './fixtures/why-chain.mjs';
 import { buildWhyChain } from '../app/tasks/why-chain.mjs';
+import { whyScaleFixture } from './fixtures/why-scale.mjs';
 
 // Exercise the shipped module with small DOM collaborators. Saves are captured,
 // never sent to a server or live member state.
@@ -85,6 +86,25 @@ test('Activity Info skill methods hide unmatched Wiki delimiters without changin
     assert.deepEqual(h.state, beforeState); assert.deepEqual(h.result, beforeResult);
     assert.deepEqual(h.ui.attempts, []);
   }
+});
+
+test('Slayer disclosure recovers a large saved-evidence refusal through the shipped full loader', async () => {
+  const h = harness(), { result, definitions } = whyScaleFixture();
+  h.result.tasks = result.tasks; h.result.memberId = 'a';
+  h.result.activityInfo.slayer.masters = result.activityInfo.slayer.masters;
+  let requests = 0, fullLoads = 0, loadedDefinitions = { chunks: {} };
+  h.ctx.definitions = () => loadedDefinitions;
+  h.ctx.api = async () => { requests++; throw Object.assign(new Error('Saved evidence exceeds the explanation budget.'), { status: 409, code: 'TASK_WHY_UNAVAILABLE' }); };
+  h.ctx.ensureMemberResult = async id => { assert.equal(id, 'a'); fullLoads++; loadedDefinitions = definitions; return h.result; };
+  Object.assign(h.result.activityInfo.slayer.masters[0], { reachable: false, eligibleCount: 0, totalCount: 1 });
+  Object.assign(h.result.activityInfo.slayer.masters[0].tasks[0], { reachableMonsters: [], weight: 1 });
+  await h.panels.activityInfo('Slayer'); h.openDetails('Example master ·');
+  const why = h.nodes().find(node => node.tag === 'details' && node.children[0]?.textContent === 'Why not?');
+  assert.ok(why); why.open = true; await why.events.toggle();
+  assert.equal(requests, 1); assert.equal(fullLoads, 1);
+  const content = h.nodes().map(node => node.textContent).join(' ');
+  assert.match(content, /Cave quest 2/); assert.match(content, /Either route/);
+  assert.doesNotMatch(content, /Retry Why not/);
 });
 
 test('saved Slayer chains request full server evidence despite partial browser definitions; sandbox stays local', async () => {

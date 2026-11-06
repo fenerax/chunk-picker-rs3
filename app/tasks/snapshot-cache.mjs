@@ -1,21 +1,23 @@
 import { serialize } from 'node:v8';
 import { chunkPlanningIndexBytes, planningStringBytes, planningMapBytes, planningArrayBytes } from './chunk-planning-index.mjs';
 import { createEligibilityBudget, eligibilityResultBytes } from './eligibility-cache.mjs';
+const noCheckpoint = () => {};
 
 // Calculation states are immutable trees; weak keys do not extend their lifetime.
 function releaseMeasurement(bytes) {
   if (bytes.byteLength < 65536 || bytes.byteOffset !== 0 || bytes.byteLength !== bytes.buffer.byteLength) return;
   try { bytes.buffer.transfer(0); } catch { /* Older/untransferable buffers remain ordinary GC-owned temporaries. */ }
 }
-function serializedBytes(value) {
+function serializedBytes(value, checkpoint = noCheckpoint) {
+  checkpoint();
   const bytes = serialize(value), size = bytes.byteLength;
-  releaseMeasurement(bytes); return size;
+  releaseMeasurement(bytes); checkpoint(); return size;
 }
 const stateSizes = new WeakMap();
-const referenceBytes = (bytes, padding = false) => {
+const referenceBytes = (bytes, padding = false, checkpoint = noCheckpoint) => {
   let cost = bytes.byteLength;
-  for (let i = bytes.indexOf(0x5e); i !== -1; i = bytes.indexOf(0x5e, i + 1)) cost += 4;
-  if (padding) for (let i = bytes.indexOf(0x63); i !== -1; i = bytes.indexOf(0x63, i + 1)) cost++;
+  for (let i = bytes.indexOf(0x5e); i !== -1; i = bytes.indexOf(0x5e, i + 1)) { checkpoint(); cost += 4; }
+  if (padding) for (let i = bytes.indexOf(0x63); i !== -1; i = bytes.indexOf(0x63, i + 1)) { checkpoint(); cost++; }
   return cost;
 };
 const stateBytes = (state, force = false) => {
@@ -57,6 +59,14 @@ export function trackPlanningIndex(index, baseline) {
   return index;
 }
 const contextState = (value, context) => () => context(value.baseline)?.state;
+// Ledger callbacks outlive measurement/admission. Keep transient cancellation
+// callbacks and raw request states out of their V8 closure contexts.
+function snapshotDiscard(entry, slots, entries, value) {
+  return () => {
+    entry.active = false;
+    if (slots.get(entry.key) === value) { slots.delete(entry.key); entries.delete(entry.key); }
+  };
+}
 
 // Literal property names are internalized by the producer. Native measurement
 // includes its header plus extra alignment slack, independent of object IDs.
@@ -72,9 +82,11 @@ const referenceEncodingSupported = rowKeyBytes === 22 && evidenceKeyBytes === 24
 // A component's object IDs can be larger when embedded after another graph.
 // Every V8 object reference has tag 0x5e and a uint32 varint (2..6 bytes).
 // Counting all matching bytes also counts some string/data bytes, conservatively.
-function referenceBound(value, padding = false) {
-  const bytes = serialize(value), cost = referenceBytes(bytes, padding);
-  releaseMeasurement(bytes); return cost;
+function referenceBound(value, padding = false, checkpoint = noCheckpoint) {
+  checkpoint();
+  const bytes = serialize(value);
+  try { checkpoint(); return referenceBytes(bytes, padding, checkpoint); }
+  finally { releaseMeasurement(bytes); }
 }
 
 // Internal producer bridge: called immediately after engine.evaluate and before
@@ -90,23 +102,24 @@ export function trackSnapshotCore(result) {
   coreMeasurements.set(result, { bytes, fields, tasks: new WeakSet(result.tasks),
     diagnostics: new WeakRef(result.diagnostics), diagnosticCount: result.diagnostics.length });
 }
-function coreDelta(baseline, playResult) {
+function coreDelta(baseline, playResult, checkpoint = noCheckpoint) {
   const core = coreMeasurements.get(baseline);
   if (!core) return;
   const delta = { ...baseline }, play = playResult && { ...playResult };
   let references = 0;
   for (const [key, original] of core.fields) {
+    checkpoint();
     const value = original instanceof WeakRef ? original.deref() : original;
     if (value !== undefined && value === delta[key]) delete delta[key];
     if (value && typeof value === 'object' && play && play[key] === value) {
       delete play[key]; references += planningStringBytes(key) + 6;
     }
   }
-  delta.tasks = baseline.tasks.filter(row => !core.tasks.has(row));
+  delta.tasks = baseline.tasks.filter(row => { checkpoint(); return !core.tasks.has(row); });
   if (baseline.diagnostics === core.diagnostics.deref() && baseline.diagnostics.length >= core.diagnosticCount)
     delta.diagnostics = baseline.diagnostics.slice(core.diagnosticCount);
   if (Array.isArray(delta.presentation?.tasks)) {
-    const rows = delta.presentation.tasks.filter(row => !core.tasks.has(row));
+    const rows = delta.presentation.tasks.filter(row => { checkpoint(); return !core.tasks.has(row); });
     references += 16 + 6 * (delta.presentation.tasks.length - rows.length);
     delta.presentation = { ...delta.presentation, tasks: rows };
   }
@@ -117,17 +130,19 @@ function coreDelta(baseline, playResult) {
 // Sandbox graphs share one measurement with the baseline so aliases remain
 // deduplicated. Known planning shapes receive a separate conservative bound.
 // Small cross-component aliases can be charged twice. This conservative measure is not a claim about V8 heap size; RSS is measured separately.
-function baseBytes(snapshot, state, context, separatePlanning = false, allowTrusted = false) {
-  const core = allowTrusted && separatePlanning && context === undefined && coreDelta(snapshot.baseline, snapshot.playResult);
+function baseBytes(snapshot, state, context, separatePlanning = false, allowTrusted = false, checkpoint = noCheckpoint) {
+  checkpoint();
+  const core = allowTrusted && separatePlanning && context === undefined && coreDelta(snapshot.baseline, snapshot.playResult, checkpoint);
   if (core) return core.bytes + 32 + referenceBound([
-    core.delta, core.play, snapshot.sandboxDelta], true);
+    core.delta, core.play, snapshot.sandboxDelta], true, checkpoint);
   const { currentBiS, activityInfo, ...baseline } = snapshot.baseline ?? {};
   const data = [baseline, snapshot.baseline?.processing, context?.state === state ? { ...context, state: undefined } : context,
     !separatePlanning && snapshot.planningIndex && [snapshot.planningIndex.byLocation, snapshot.planningIndex.clueLocations],
     snapshot.playResult, snapshot.sandboxDelta];
-  return separatePlanning ? referenceBound(data) : serializedBytes(data);
+  return separatePlanning ? referenceBound(data, false, checkpoint) : serializedBytes(data, checkpoint);
 }
 const componentData = {
+  explanations: value => value.whyIndex,
   views: value => [value.baseline?.currentBiS, value.baseline?.activityInfo],
   estimates: value => value.estimates,
   locations: (_value, locations) => locations,
@@ -135,7 +150,8 @@ const componentData = {
 // Planning rows refer to already charged baseline tasks. Bound their fixed data
 // shape without serializing those tasks or the large evidence graph again.
 // Unknown shapes retain the original joint native measurement and aliasing.
-function planningBytes(snapshot, allowTrusted = false) {
+function planningBytes(snapshot, allowTrusted = false, checkpoint = noCheckpoint) {
+  checkpoint();
   if (!referenceEncodingSupported) return null;
   const index = snapshot.planningIndex;
   if (!index) return 0;
@@ -146,10 +162,10 @@ function planningBytes(snapshot, allowTrusted = false) {
     || trusted.clues.deref() !== index.clueLocations) return null;
   if (allowTrusted) {
     const bytes = chunkPlanningIndexBytes(index, snapshot.baseline);
-    if (bytes !== undefined) return 17 + bytes + referenceBound(index.clueLocations);
+    if (bytes !== undefined) return 17 + bytes + referenceBound(index.clueLocations, false, checkpoint);
   }
   const tasks = new WeakSet();
-  for (const task of snapshot.baseline?.tasks ?? []) if (task && typeof task === 'object') tasks.add(task);
+  for (const task of snapshot.baseline?.tasks ?? []) { checkpoint(); if (task && typeof task === 'object') tasks.add(task); }
   const string = planningStringBytes;
   const plain = (value, a, b) => {
     if (!value) return false;
@@ -166,18 +182,21 @@ function planningBytes(snapshot, allowTrusted = false) {
   // Known objects have two properties. Map counts allow five-byte varints;
   // the producer's dense arrays use their actual length-varint widths.
   const object = 3, array = 17, reference = 6;
-  let cost = array + planningMapBytes(index.byLocation.size) + referenceBound(index.clueLocations);
+  let cost = array + planningMapBytes(index.byLocation.size) + referenceBound(index.clueLocations, false, checkpoint);
   const rowKeys = 16, evidenceKeys = 18;
   try {
     Map.prototype.forEach.call(index.byLocation, (rows, location) => {
+      checkpoint();
       if (Object.getPrototypeOf(rows) !== Map.prototype) throw new TypeError('Unsupported planning rows.');
       cost += string(location) + planningMapBytes(rows.size);
       Map.prototype.forEach.call(rows, (row, id) => {
+        checkpoint();
         if (!plain(row, 'task', 'evidence') || !tasks.has(row.task)
           || !Array.isArray(row.evidence) || Object.getPrototypeOf(row.evidence) !== Array.prototype
           || row.evidence.length > 1000000 || Object.keys(row.evidence).length !== row.evidence.length) throw new TypeError('Unsupported planning row.');
         cost += string(id) + object + rowKeys + reference + planningArrayBytes(row.evidence.length);
         for (let i = 0; i < row.evidence.length; i++) {
+          checkpoint();
           const evidence = row.evidence[i];
           if (!plain(evidence, 'location', 'reason')) throw new TypeError('Unsupported planning evidence.');
           cost += object + evidenceKeys + string(evidence.location) + string(evidence.reason);
@@ -185,7 +204,7 @@ function planningBytes(snapshot, allowTrusted = false) {
       });
     });
     return cost;
-  } catch { return null; }
+  } catch { checkpoint(); return null; }
 }
 export function snapshotBytes(snapshot, state, context, locations, predictionBytes = 0) {
   const planning = planningBytes(snapshot);
@@ -203,6 +222,7 @@ export function createSnapshotCache(entries, budget, { context = () => undefined
   const version = value => ({
     base: [value.baseline, context(value.baseline), value.playResult, value.sandboxDelta],
     planning: [value.planningIndex, value.planningIndex?.byLocation, value.planningIndex?.clueLocations],
+    explanations: [value.whyIndex],
     views: [value.baseline?.currentBiS, value.baseline?.activityInfo],
     estimates: [value.estimates, value.estimates?.size],
     locations: [locations(value.baseline)],
@@ -210,7 +230,8 @@ export function createSnapshotCache(entries, budget, { context = () => undefined
     state: [metadata.get(value)?.state],
   });
   const same = (a, b) => a?.length === b.length && a.every((part, i) => part === b[i]);
-  const refresh = (value, force = false, measureOnly = false) => {
+  const refresh = (value, force = false, measureOnly = false, checkpoint = noCheckpoint) => {
+    checkpoint();
     const entry = metadata.get(value);
     if (!entry?.active && !(measureOnly && entry?.pending)) return;
     if (force && value.baseline) coreMeasurements.delete(value.baseline);
@@ -218,6 +239,7 @@ export function createSnapshotCache(entries, budget, { context = () => undefined
     if (!force && entry.version && Object.keys(next).every(name => same(entry.version[name], next[name])) && (measureOnly || budget.touch(value))) return entry.measuredCost;
     let cost;
     const costs = { ...entry.costs };
+    let separatePlanning = entry.separatePlanning;
     try {
       // Dropping a deferred context cannot grow the stable graph. Keep its old
       // charge without retaining the context itself. A new context or baseline
@@ -227,34 +249,36 @@ export function createSnapshotCache(entries, budget, { context = () => undefined
       const wasSeparate = entry.separatePlanning;
       if (planned) {
         if (force && value.planningIndex) trustedPlans.delete(value.planningIndex);
-        const bytes = planningBytes(value, !force);
-        entry.separatePlanning = bytes !== null; costs.planning = bytes ?? 0;
+        const bytes = planningBytes(value, !force, checkpoint);
+        separatePlanning = bytes !== null; costs.planning = bytes ?? 0;
       }
-      if (force || costs.base === undefined || wasSeparate !== entry.separatePlanning
-        || !entry.separatePlanning && planned
+      if (force || costs.base === undefined || wasSeparate !== separatePlanning
+        || !separatePlanning && planned
         || entry.version.base.some((part, i) => i !== 1 && part !== next.base[i])
         || next.base[1] !== undefined && entry.version.base[1] !== next.base[1]) {
-        costs.base = baseBytes(value, entry.state, next.base[1], entry.separatePlanning, !force);
+        costs.base = baseBytes(value, entry.state, next.base[1], separatePlanning, !force, checkpoint);
       }
       for (const [name, data] of Object.entries(componentData)) {
         if (force || costs[name] === undefined || !same(entry.version[name], next[name])) {
-          costs[name] = serializedBytes(data(value, next.locations[0]));
+          costs[name] = serializedBytes(data(value, next.locations[0]), checkpoint);
         }
       }
       if (force || costs.state === undefined || !same(entry.version.state, next.state)) costs.state = stateBytes(entry.state, force);
       cost = Object.values(costs).reduce((sum, bytes) => sum + bytes, 0) + (entry.predictionBytes ?? 0)
         + Buffer.byteLength(entry.key) + Buffer.byteLength(entry.owner);
     } catch {
+      checkpoint(); // Cancellation is not unsupported data; leave admission intact.
       // Unsupported executable/custom data must bypass reuse, never turn a
       // successful calculation into an admission error.
       if (entry.active) { budget.forget(value); entry.active = false; if (slots.get(entry.key) === value) { slots.delete(entry.key); entries.delete(entry.key); } }
       return;
     }
-    entry.costs = costs;
+    checkpoint();
+    entry.separatePlanning = separatePlanning; entry.costs = costs;
     entry.version = next; entry.measuredCost = cost;
     if (measureOnly || !entry.active) return cost;
     budget.forget(value);
-    const discard = () => { if (entry.active) { entry.active = false; slots.delete(entry.key); entries.delete(entry.key); } };
+    const discard = snapshotDiscard(entry, slots, entries, value);
     if (!budget.admit(value, discard, { cost, owner: 'picker:' + entry.owner })) discard();
   };
   return Object.freeze({
@@ -291,7 +315,7 @@ export function createSnapshotCache(entries, budget, { context = () => undefined
       }
       if (previous && previous !== value) { budget.forget(previous); metadata.get(previous).active = false; }
       budget.forget(value);
-      const discard = () => { entry.active = false; if (slots.get(key) === value) { slots.delete(key); entries.delete(key); } };
+      const discard = snapshotDiscard(entry, slots, entries, value);
       if (!budget.admit(value, discard, { cost, owner: 'picker:' + owner, preserve })) throw new Error('Snapshot admission preflight mismatch.');
       entry.active = true; entry.pending = false;
       slots.set(key, value); if (value.baseline) results.set(value.baseline, value);

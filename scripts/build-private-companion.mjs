@@ -14,6 +14,9 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const privateTestArt = new Set(['First_tower_hat', "Monk's_robe_(bottom)", "Monk's_robe_(top)", 'Priest_gown_(bottom)', 'Priest_gown_(top)', 'Zamorak_robe_(top)']
   .map(name => `resources/equipment_icons/${name}.png`));
 export function privateCompanionSource(name, rules) {
+  // Classification is shared code. Private test bytes carry their own metadata;
+  // a private selector no longer needs to mirror core's registrations.
+  if (name === 'scripts/test-selection.mjs') return false;
   if (privateTestArt.has(name)) return true;
   if ((isAllowed(name, rules) || Object.hasOwn(rules.overrides ?? {}, name)) && !name.startsWith('tests/') && !['scripts/test-selection.mjs', 'scripts/test.mjs'].includes(name)) return false;
   return /^(?:app\/|tests\/|scripts\/|docs\/|reference\/|archive\/|rs3-chunkpicker-chunkinfo-export\.json$|PRODUCT\.md$|README\.md$)/.test(name)

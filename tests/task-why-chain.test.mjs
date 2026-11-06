@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { buildWhyChain } from '../app/tasks/why-chain.mjs';
-import { savedWhyChain, forgetSavedWhyChain } from '../app/task-why-http.mjs';
+import { savedWhyChain, forgetSavedWhyChain, createSavedWhyEvidence } from '../app/task-why-http.mjs';
 import { createWhyChainDisclosure, renderWhyChain } from '../app/web/task-why-chain.mjs';
 import { apiPermission } from '../app/picker-context-http.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
@@ -175,9 +175,10 @@ test('similar names cannot redirect a task or item dependency', () => {
   assert.deepEqual(walk(item.root).filter(node => node.kind === 'item').map(node => node.label), ['Need Rope coil']);
 });
 
-test('saved endpoint is read-only, bounded, and rejects stale or ambiguous selectors', async () => {
+test('saved endpoint is read-only, bounded, and rejects stale or ambiguous selectors', async t => {
+  const evidence = createSavedWhyEvidence(); t.after(() => evidence.close());
   const { result, definitions } = caveFixture(), fullGzip = gzipSync(JSON.stringify(result));
-  const options = { revision: 7, members: new Set(['player']), entry: { revision: 7, fullGzip }, definitions, currentRevision: () => 7 };
+  const options = { revision: 7, members: new Set(['player']), entry: { revision: 7, fullGzip }, definitions, currentRevision: () => 7, evidence };
   const query = text => new URLSearchParams(`memberId=player&revision=7&${text}`);
   assert.equal(apiPermission('GET', '/api/task-why'), 'read');
   assert.equal(apiPermission('POST', '/api/task-why'), undefined);
@@ -193,9 +194,10 @@ test('saved endpoint is read-only, bounded, and rejects stale or ambiguous selec
 });
 
 test('saved parses are shared across clicks and invalidated on revision, replacement, or eviction', async t => {
+  const evidence = createSavedWhyEvidence(); t.after(() => evidence.close());
   const { result, definitions } = caveFixture();
   const entry = { revision: 7, fullGzip: gzipSync(JSON.stringify(result)) };
-  const options = { revision: 7, members: new Set(['player']), entry, definitions, currentRevision: () => options.revision };
+  const options = { revision: 7, members: new Set(['player']), entry, definitions, currentRevision: () => options.revision, evidence };
   const query = () => new URLSearchParams(`memberId=player&revision=${options.revision}&taskId=slay`);
   const parse = t.mock.method(JSON, 'parse');
   await Promise.all([savedWhyChain(query(), options), savedWhyChain(query(), options)]);
@@ -251,7 +253,7 @@ test('stale responses are discarded and errors can be retried', async () => {
   assert.doesNotMatch(walk(node).map(value => value.textContent).join(' '), /All needed/);
   const retryContext = context(async () => { throw new Error('Please retry.'); });
   const retry = createWhyChainDisclosure(retryContext, { taskId: 'slay' }, { memberId: 'player', revision: 7 });
-  retry.open = true; retry.events.toggle(); await Promise.resolve();
+  retry.open = true; await retry.events.toggle();
   assert.ok(walk(retry).some(value => value.textContent === 'Retry Why not?'));
 });
 
@@ -342,11 +344,12 @@ test('nested shared subtrees retain AND/OR boundaries while sibling annotations 
   const text = walk(renderWhyChain(context(), chain)).map(node => node.textContent).join(' ');
   assert.match(text, /All needed:/); assert.match(text, /Either route \/ source:/);
 });
-test('saved serialization and lazy disclosure preserve corrected canonical alternatives', async () => {
+test('saved serialization and lazy disclosure preserve corrected canonical alternatives', async t => {
+  const evidence = createSavedWhyEvidence(); t.after(() => evidence.close());
   const { definitions, state } = alternativeFixture();
   const { result, row } = alternativeRun(definitions, state);
   const chain = await savedWhyChain(new URLSearchParams({ memberId: 'player', revision: '7', taskId: row.id }), {
-    revision: 7, members: new Set(['player']), entry: { revision: 7, fullGzip: gzipSync(JSON.stringify(result)) }, definitions, currentRevision: () => 7,
+    revision: 7, members: new Set(['player']), entry: { revision: 7, fullGzip: gzipSync(JSON.stringify(result)) }, definitions, currentRevision: () => 7, evidence,
   });
   assert.equal(walk(chain.root).filter(node => node.taskId === 'rs3:Quest:A').length, 1);
   for (const preview of [false, true]) {

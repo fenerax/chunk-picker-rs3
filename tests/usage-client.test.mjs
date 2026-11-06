@@ -119,6 +119,7 @@ test('dialog hooks resolve named and dynamic titles to fixed ids without recordi
   assert.equal(dialogUsageId('Settings'), 'settings');
   assert.equal(dialogUsageId('Player’s Teleports'), 'teleports');
   assert.equal(dialogUsageId('Sync Reed from RuneMetrics'), 'runemetrics:standalone');
+  assert.equal(dialogUsageId('Sync Partner from Platform API'), 'runemetrics:standalone');
   assert.equal(dialogUsageId('Personal task text', [{ dataset: { usage: 'tasks:detail' } }]), 'tasks:detail');
   assert.equal(dialogUsageId('A private item', [{ dataset: { usage: 'tasks:item-detail' } }]), 'tasks:item-detail');
   assert.equal(dialogUsageId('Any other private text'), 'dom:tool-dialog');

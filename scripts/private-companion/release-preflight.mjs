@@ -221,17 +221,26 @@ export async function releasePreflight(options, { progress = () => {}, practiceI
       }
       const testMap = new Map([...coreTestBytes].map(([n, value]) => [n, () => value]));
       if (scope === 'private') for (const n of await files(path.join(source, 'tests'))) testMap.set(n, () => bytes(path.join(source, 'tests', n)));
-      const selector = await modules.get(scope, revision, 'scripts/test-selection.mjs');
+      const automatic = names.includes('scripts/test-classification.mjs');
+      const classifier = automatic ? await modules.get('public', revision, 'scripts/test-classification.mjs') : null;
+      const selector = automatic ? classifier.createTestSelection(new Map(await Promise.all([...testMap].filter(([name]) => name.endsWith('.test.mjs'))
+        .map(async ([name, read]) => [name, (await read()).toString('utf8')]))))
+        : await modules.get(scope, revision, 'scripts/test-selection.mjs');
       const ports = await modules.get('public', revision, 'scripts/test-port-check.mjs');
       const discovered = [...testMap.keys()].filter(n => n.endsWith('.test.mjs')).sort();
-      const unclassified = discovered.filter(n => n.includes('/') || !['quick', 'full-only'].includes(selector.classifyTest(n)));
-      if (!Array.isArray(selector.__preflightRegistered)) fail('Selector explicit registration inventory is unavailable.');
-      const { missing, tolerated } = inventoryMissing(selector.__preflightRegistered, [...testMap.keys()], scope === 'private' ? practiceInventory : undefined);
+      const unclassified = discovered.filter(n => n.includes('/') || !['quick', 'full-only', 'differential-only', 'engine-differential-only'].includes(selector.classifyTest(n)));
+      if (!automatic && !Array.isArray(selector.__preflightRegistered)) fail('Selector explicit registration inventory is unavailable.');
+      const { missing, tolerated } = automatic ? { missing: [], tolerated: [] }
+        : inventoryMissing(selector.__preflightRegistered, [...testMap.keys()], scope === 'private' ? practiceInventory : undefined);
       const portViolations = [];
-      for (const name of discovered) for (const row of ports.hardCodedTestPorts((await testMap.get(name)()).toString('utf8'))) portViolations.push({ name, ...row });
+      for (const name of discovered) {
+        if (automatic && classifier.reviewedFixedPortTests.has(name)) continue;
+        for (const row of ports.hardCodedTestPorts((await testMap.get(name)()).toString('utf8'))) portViolations.push({ name, ...row });
+      }
       const inventory = discovered.map(name => ({ name, lane: selector.classifyTest(name) }));
       if (!discovered.length || unclassified.length || missing.length || portViolations.length) fail(`${unclassified.length} unclassified, ${missing.length} missing registrations, ${portViolations.length} port violations.`, { discovered: discovered.length, missing, unclassified, portViolations, inventory, ...(practiceInventory ? { tolerated } : {}) });
-      return { summary: tolerated.length ? `${discovered.length} tests classified; ${tolerated.length} proved practice-only missing registrations.` : `${discovered.length} tests classified; all ${selector.__preflightRegistered.length} explicit registrations exist.`, inventory, ...(practiceInventory ? { tolerated } : {}) };
+      return { summary: automatic ? `${discovered.length} tests classified from file metadata; no registrations required.`
+        : tolerated.length ? `${discovered.length} tests classified; ${tolerated.length} proved practice-only missing registrations.` : `${discovered.length} tests classified; all ${selector.__preflightRegistered.length} explicit registrations exist.`, inventory, ...(practiceInventory ? { tolerated } : {}) };
     });
     await check('pack-manifests', async () => {
       if (!modules) fail('Pack checks require committed core validation modules.');

@@ -138,14 +138,14 @@ test('completion metadata names the owner and recorded date, while recent layout
   await h.click(older.label); assert.equal(h.opened.at(-1)[0].id, older.id);
 });
 
-test('game and imported chips retain provenance and do not invent explicit untick actions', async () => {
+for (const source of ['platform-api', 'runemetrics']) test(`game and imported chips retain ${source} provenance without explicit untick actions`, async () => {
   const observed = task('custom:game', 'Completed quest', 'Quest'), imported = task('custom:imported', 'Imported achievement', 'Combat');
   const h = harness([observed, imported]); h.state.members[0].completedTasks = [observed.id]; h.state.members[0].taskStatus[imported.id] = { challengeCompleted: true };
-  h.state.members[0].questProgress = { [observed.id]: { source: 'runemetrics', fetchedAt: '2026-10-08T12:00:00Z', runescapeName: 'DemoExplorer' } };
+  h.state.members[0].questProgress = { [observed.id]: { source, fetchedAt: '2026-10-08T12:00:00Z', runescapeName: 'DemoExplorer' } };
   h.state.legacy = { gameplayMigration: { taskStatusProvenance: [{ memberId: 'actor1', taskId: imported.id, sources: ['completedChallenges'] }] } };
   await h.panel.open(); await flush();
-  await h.click('Done in-game (RuneMetrics)'); assert.deepEqual(h.rows().map(row => row.dataset.taskId), [observed.id]);
-  assert.match(h.rows()[0].textContent, /Done by Player \(in-game, RuneMetrics\)/);
+  await h.click('Done in-game (account sync)'); assert.deepEqual(h.rows().map(row => row.dataset.taskId), [observed.id]);
+  assert.ok(h.rows()[0].textContent.includes(`Done by Player (in-game, ${source === 'platform-api' ? 'Platform API' : 'RuneMetrics'})`));
   assert.ok(!h.control('Untick Completed quest for Player') && !h.find('button', 'Untick Completed quest for Player'));
   await h.click('Imported from original picker'); assert.deepEqual(h.rows().map(row => row.dataset.taskId), [imported.id]);
   assert.match(h.rows()[0].textContent, /Done by Player \(ticked\)/);

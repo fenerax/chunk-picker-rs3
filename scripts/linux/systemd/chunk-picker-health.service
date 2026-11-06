@@ -1,5 +1,7 @@
 [Unit]
+OnFailure=chunk-picker-notify@%n.service
 Description=Chunk Picker serialized worker-first health recovery
+# No Requires=/Wants= on the writer: a timer tick must not start a failed unit.
 After=chunk-picker.service
 
 [Service]
@@ -8,6 +10,7 @@ User=root
 EnvironmentFile=/etc/chunk-picker/runtime.env
 ExecStart=/usr/bin/node /opt/chunk-picker/tools/scripts/linux/operator.mjs health
 TimeoutStartSec=infinity
+LoadCredential=health-ping:/etc/chunk-picker/secrets/health-ping
 UMask=0077
 NoNewPrivileges=yes
 PrivateTmp=yes

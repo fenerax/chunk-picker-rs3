@@ -1,7 +1,10 @@
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+import { assertWorkerHeapLimit } from './worker-limits.mjs';
+if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
 import { createHowCache } from './how-cache.mjs';
+import { taskWhyDisplay, createTaskWhyIndex } from './task-why-display.mjs';
 import { startupPhase } from '../startup-timing.mjs';
 import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
@@ -23,7 +26,7 @@ import { resolveDeathSettings } from '../core/death-settings.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
 import { projectPlayResult, projectPlayTask } from '../play-view.mjs';
 import { projectDuoSidebarResult } from '../duo-play-view.mjs';
-import { buildChunkPlanningIndex } from './chunk-planning-index.mjs';
+import { buildChunkPlanningIndex, buildChunkPlanningIndexIncremental } from './chunk-planning-index.mjs';
 import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
@@ -200,6 +203,9 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true, pick
     appendViews(snapshot.baseline, timingMs);
     snapshot.includeViews = true;
   }
+  // Input-equivalent saves can reuse the baseline, but resident planning also
+  // requires a snapshot used at this exact captured revision.
+  snapshot.revision = state.revision;
   completeCache.set(key, snapshot, state, pickerId);
   return { snapshot, hit };
 }
@@ -234,13 +240,61 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = st
     return snapshot.predict(memberId, chunkId, { world: rollWorld, engine: planningEngine });
   });
 }
+const noPlanningCheckpoint = () => {};
+function* chunkPlanningRows(index, chunkId, checkpoint = noPlanningCheckpoint) {
+  for (const { task, evidence } of index.byLocation.get(String(chunkId))?.values() ?? []) {
+    checkpoint();
+    const row = { task: { ...projectPlayTask(task, { retainHiddenDisplay: true }),
+      ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence };
+    checkpoint();
+    yield row;
+  }
+}
+function chunkPlanningResult(snapshot, index, chunkId, rows) {
+  return { format: 'chunk-planning-v1', chunkId, rows,
+    clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
+}
 function chunkPlanningFor(snapshot, chunkId) {
   const index = snapshot.planningIndex ??= trackPlanningIndex(
     buildChunkPlanningIndex(definitions, snapshot.baseline, workerData.world), snapshot.baseline);
   completeCache.refresh(snapshot); sandboxCache.refresh(snapshot);
-  return { format: 'chunk-planning-v1', chunkId, rows: [...(index.byLocation.get(String(chunkId))?.values() ?? [])].map(({ task, evidence }) => ({
-    task: { ...projectPlayTask(task, { retainHiddenDisplay: true }), ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence,
-  })), clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
+  return chunkPlanningResult(snapshot, index, chunkId, [...chunkPlanningRows(index, chunkId)]);
+}
+async function residentChunkPlanningFor(state, memberId, chunkId, input, abandoned, pickerId) {
+  const key = JSON.stringify(calculationKey(state, memberId, input)), snapshot = snapshots.get(key);
+  if (!snapshot || snapshot.revision !== state.revision) return;
+  const isCurrent = () => !abandoned() && state.revision >= pickerRevision(pickerId) && snapshots.get(key) === snapshot;
+  const checkpoint = () => {
+    if (abandoned() || state.revision < pickerRevision(pickerId)) throw new Error('Resident planning cancelled.');
+  };
+  let newIndex, charged = false;
+  try {
+    if (!snapshot.planningIndex) {
+      newIndex = await buildChunkPlanningIndexIncremental(definitions, snapshot.baseline, workerData.world, isCurrent, yieldToRequests);
+      if (!isCurrent()) return;
+    }
+    // Charging is transactional and checks atomic cancellation around native
+    // measurement and throughout its byte scans. The scheduler bounds native
+    // segments that cannot cooperate. Yield before projection as well.
+    await yieldToRequests(); checkpoint();
+    if (!isCurrent()) return;
+    if (newIndex) snapshot.planningIndex = trackPlanningIndex(newIndex, snapshot.baseline);
+    completeCache.refresh(snapshot, false, false, checkpoint);
+    charged = true;
+    await yieldToRequests(); checkpoint();
+    const index = snapshot.planningIndex, rows = [];
+    let started = performance.now();
+    for (const row of chunkPlanningRows(index, chunkId, checkpoint)) {
+      rows.push(row);
+      if (performance.now() - started >= 8) { await yieldToRequests(); checkpoint(); started = performance.now(); }
+    }
+    checkpoint();
+    return chunkPlanningResult(snapshot, index, chunkId, rows);
+  } catch (error) {
+    if (newIndex && !charged && snapshot.planningIndex === newIndex) delete snapshot.planningIndex;
+    if (abandoned() || !isCurrent()) return;
+    throw error;
+  }
 }
 const sandboxSnapshots = new Map();
 const sandboxCache = createSnapshotCache(sandboxSnapshots, snapshotBudget, {
@@ -269,7 +323,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
   const detailed = normalized.previewChunkId !== undefined || normalized.planningChunkId !== undefined;
   if (!draftSnapshot || detailed && !draftSnapshot.baseline) {
     const hypothetical = applySandboxChanges(state, memberId, normalized.changes, getSandboxCatalogue(), taskIndex);
-    draftSnapshot = { ...draftSnapshot, state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs, cacheSizing: snapshotBudget.pickerOwners <= 1 }) };
+    draftSnapshot = { ...draftSnapshot, whyIndex: undefined, state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs, cacheSizing: snapshotBudget.pickerOwners <= 1 }) };
   }
   // Build all optional fields off-ledger. A rejected candidate must leave the
   // prior draft and baseline intact, including when a cached draft grows.
@@ -294,7 +348,9 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
     viewContexts.delete(draftSnapshot.baseline); draftSnapshot.state = undefined;
     // Shared workers keep ordinary drafts small so each picker has room for
     // its own prediction cache. A detailed draft still uses final preflight.
-    if (snapshotBudget.pickerOwners > 1 && !detailed && !draftSnapshot.predict && !draftSnapshot.planningIndex) draftSnapshot.baseline = undefined;
+    if (snapshotBudget.pickerOwners > 1 && !detailed && !draftSnapshot.predict && !draftSnapshot.planningIndex) {
+      draftSnapshot.baseline = undefined; draftSnapshot.whyIndex = undefined;
+    }
     if (snapshot && !sandboxCache.fits(draftSnapshot, [snapshot])) {
       const cost = sandboxCache.measure(draftSnapshot), base = completeCache.measure(snapshot);
       const planning = completeCache.planningCharge(snapshot);
@@ -385,7 +441,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false }) => {
   if (type === 'cancel') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), revision)); return; }
   const started = performance.now();
@@ -397,7 +453,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
   requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
-      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
+      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId });
     }
     if (snapshotKey !== undefined) {
@@ -434,6 +490,22 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
     } else if (type === 'roll-pool') result = timed(timingMs, 'rollPoolMs', () => rollPoolFor(state, memberId, draft ?? chunkId));
+    else if (type === 'why-task') {
+      if (typeof chunkId !== 'string' || !chunkId || chunkId.length > 512) throw new TypeError('Invalid Why task subject.');
+      // A miss must not calculate a new full result. Let the caller use its
+      // existing full-detail path. No new worker cache or snapshot is created.
+      const key = JSON.stringify(calculationKey(state, memberId, input)), snapshot = snapshots.get(key);
+      if (snapshot?.baseline && snapshot.whyIndex === undefined) {
+        snapshot.whyIndex = createTaskWhyIndex(snapshot.baseline, { cancelled: abandoned }) ?? false;
+        // The complete native index graph (including conservative duplicate row
+        // charges) joins this picker's existing snapshot owner before reuse.
+        if (!completeCache.set(key, snapshot, state, pickerId)) {
+          snapshot.whyIndex = false;
+          completeCache.set(key, snapshot, state, pickerId);
+        }
+      }
+      result = taskWhyDisplay(snapshot?.baseline, chunkId, memberId, state.revision, { index: snapshot?.whyIndex ?? false }) ?? { unavailable: true };
+    }
     else if (type === 'how-task') {
       if (typeof chunkId !== 'string' || !chunkId || chunkId.length > 512) throw new TypeError('Invalid How task subject.');
       const key = JSON.stringify([pickerId, selectedDataset.digest, input, state.revision, memberId, chunkId, 1]);
@@ -456,6 +528,14 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       }), cache: { baselineHit: !!baselineTaskIds || cached.hit, baselineSource: baselineTaskIds ? 'current-list' : 'worker' } };
     });
     else if (type === 'death-estimates') result = await deathEstimates(state, memberId, chunkIds, timingMs, request, input, pickerId);
+    else if (type === 'chunk-planning' && residentOnly) {
+      result = await residentChunkPlanningFor(state, memberId, chunkId, input, abandoned, pickerId);
+      if (!result) {
+        timingMs.totalMs = performance.now() - started;
+        parentPort.postMessage({ id, residentPlanningMiss: true, evaluationMs: timingMs.totalMs, timingMs });
+        return;
+      }
+    }
     else {
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
       const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
@@ -538,7 +618,7 @@ else parentPort.on('message', handleMessage);
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
-const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'prepare-rules', 'roll-pool'];
+const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'resident-chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'prepare-rules', 'roll-pool'];
 // The generated catalogue is large and shares completion families between rows.
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.

@@ -1,27 +1,30 @@
-import { fixtureDataset } from './helpers/server-dataset.mjs';
-import test from 'node:test';
+import { platformResponse } from './helpers/platform-api-fixtures.mjs';
+import { fixtureDataset as selectedDataset } from './helpers/server-dataset.mjs';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
-import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { taskId } from '../app/tasks/engine.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-const profile = JSON.parse(await readFile(new URL('./fixtures/runemetrics/examplegimab-profile.json', import.meta.url), 'utf8'));
-const quests = JSON.parse(await readFile(new URL('./fixtures/runemetrics/examplegimab-quests.json', import.meta.url), 'utf8'));
+let allowedOrigins;
+beforeEach(t => { allowedOrigins = new Set(); blockUnmockedFetch(t, allowedOrigins); });
+const fixtureDataset = { ...selectedDataset, capabilities: { ...selectedDataset.capabilities,
+  features: { ...selectedDataset.capabilities.features, runeMetrics: true, externalNames: true } } };
 const privateError = JSON.parse(await readFile(new URL('./fixtures/runemetrics/errors.json', import.meta.url), 'utf8')).private;
 const brokenId = taskId('Quest', '~|Broken Home|~ Complete the quest');
 const stepId = taskId('Quest', '~|Broken Home|~ 1');
 const definitions = { chunks: { '12341': {} }, walkableChunks: ['12341'], walkableChunksF2P: ['12341'], challenges: { Quest: {
   '~|Broken Home|~ 1': {BaseQuest:'Broken Home'}, '~|Broken Home|~ Complete the quest': {BaseQuest:'Broken Home',QuestPoints:1}, 'Necromancy!': {QuestPoints:1},
 } } };
-function response(url) { return new Response(JSON.stringify(url.pathname.endsWith('/quests') ? quests : profile), {headers:{'Content-Type':'application/json'}}); }
+const response = platformResponse;
 async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, initialState, progressSources = {}} = {}) {
-  await mkdir(path.join(root,'.local'),{recursive:true});
-  const directory = await mkdtemp(path.join(root,'.local','runemetrics-test-'));
-  assert.ok(!path.relative(root,directory).startsWith('..'));
+  initialState ??= createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
+  for (const [index, member] of initialState.members.entries()) member.runescapeName ??= ['exampleGIMab', 'twosamplegim'][index];
+  const directory = await mkdtemp(path.join(tmpdir(),'runemetrics-test-'));
   const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, predictionPrewarm:false, shutdownDeadlineMs:500, progressSources: { hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...progressSources }, runeMetrics:{clock:()=>Date.parse('2026-10-27T12:00:00Z'),fetchImpl,...(timeoutMs?{timeoutMs}:{})} };
   const applications=[];
   let app;
@@ -31,12 +34,13 @@ async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, in
     } finally {
       applications.length=0;
       app=undefined;
-      try { assert.ok(!path.relative(root,directory).startsWith('..')); }
+      try { assert.equal(path.dirname(directory), tmpdir()); }
       finally { await rm(directory,{recursive:true,force:true}); }
     }
   });
   app=await createServer({ dataset: fixtureDataset,...options,initialState}); applications.push(app); await app.listen();
-  const origin=`http://127.0.0.1:${app.address().port}`;
+  const origin=`http://localhost:${app.address().port}`;
+  allowedOrigins.add(origin);
   const headers={Authorization:`Bearer ${app.store.getAccessToken()}`};
   const api=(route,body,extra={})=>fetch(`${origin}${route}`,{headers:{...headers,...(body===undefined?{}:{'Content-Type':'application/json',Origin:origin}),...extra},...(body===undefined?{}:{method:'POST',body:JSON.stringify(body)})});
   return {app,api,origin,async reopen(){await app.close();app=undefined;app=await createServer({ dataset: fixtureDataset, ...options });applications.push(app);return app;}};
@@ -55,19 +59,20 @@ test('RuneMetrics preview/apply is authenticated, server-bound, personal, durabl
   assert.equal((await api('/api/runemetrics/preview',{memberId:'missing'})).status,400); assert.equal(calls,0);
   const before=(await (await api('/api/state')).json()).state;
   const forged=await api('/api/command',{expectedRevision:before.revision,command:{type:'apply-runemetrics',memberId:'player1',runescapeName:'exampleGIMab',fetchedAt:'2026-10-07T12:00:00Z',skills:[],quests:[{taskId:stepId,title:'Broken Home'}]}});
-  assert.equal(forged.status,400); assert.match((await forged.json()).message,/RuneMetrics sync preview/);
+  assert.equal(forged.status,400); assert.match((await forged.json()).message,/progress sync preview/);
   const previewResponse=await api('/api/runemetrics/preview',{memberId:'player1'}); assert.equal(previewResponse.status,200);
   const preview=await previewResponse.json();
-  assert.equal(preview.skills.length,29); assert.equal(preview.quests.length,2); assert.equal(preview.stateRevision,before.revision);
-  assert.equal(preview.unmatched.quests.length,11); assert.equal(preview.runescapeName,'exampleGIMab');
+  assert.equal(preview.skills.length,4); assert.equal(preview.quests.length,2); assert.equal(preview.stateRevision,before.revision);
+  assert.equal(preview.unmatched.quests.length,1); assert.equal(preview.runescapeName,'exampleGIMab');
   assert.deepEqual((await (await api('/api/state')).json()).state,before);
   assert.equal((await api('/api/runemetrics/apply',{previewId:preview.previewId,expectedRevision:preview.stateRevision,skills:[]})).status,400);
   const appliedResponse=await api('/api/runemetrics/apply',{previewId:preview.previewId,expectedRevision:preview.stateRevision}); assert.equal(appliedResponse.status,200);
   const applied=(await appliedResponse.json()).state, owner=applied.members[0];
   assert.equal(applied.revision,before.revision+1); assert.equal(applied.history.length,before.history.length+1);
-  assert.equal(owner.skillProgress.Necromancy.level,20); assert.equal(owner.skillProgress.Necromancy.xp,4470);
-  assert.equal(owner.skillProgress.Necromancy.source,'runemetrics'); assert.equal(owner.skillProgress.Necromancy.fetchedAt,preview.fetchedAt);
+  assert.equal(owner.skillProgress.Necromancy.level,11); assert.equal(owner.skillProgress.Necromancy.xp,1400);
+  assert.equal(owner.skillProgress.Necromancy.source,'official-api'); assert.equal(owner.skillProgress.Necromancy.fetchedAt,preview.fetchedAt);
   assert.equal(owner.questProgress[brokenId].fetchedAt,preview.fetchedAt);
+  assert.deepEqual(preview.questPoints,{before:null,after:{current:17,max:450}});
   assert.ok(owner.completedTasks.includes(brokenId)); assert.ok(!owner.completedTasks.includes(stepId));
   assert.deepEqual(owner.taskStatus,before.members[0].taskStatus); assert.deepEqual(owner.passiveLevels,before.members[0].passiveLevels); assert.deepEqual(owner.maxLevels,before.members[0].maxLevels);
   assert.deepEqual(applied.members[1],before.members[1]); assert.deepEqual(applied.rules,before.rules);
@@ -115,12 +120,12 @@ test('a binding changed during fetching invalidates the old account result',asyn
   assert.equal((await (await api('/api/state')).json()).state.members[0].skillProgress,undefined);
 });
 
-test('private profile and timeout return actionable API errors without changing state',async t=>{
+test('private profile and timeout return neutral unavailable status without changing state',async t=>{
   for(const scenario of ['private','timeout']) {
     const {api}=await fixture(t,{timeoutMs:20,fetchImpl:scenario==='private'?async()=>new Response(JSON.stringify(privateError.body),{status:privateError.status}):async()=>new Promise(()=>{})});
     const before=(await (await api('/api/state')).json()).state;
-    const error=await api('/api/runemetrics/preview',{memberId:'player1'}); assert.equal(error.status,scenario==='private'?422:504);
-    const body=await error.json(); assert.equal(body.code,scenario==='private'?'PROFILE_PRIVATE':'TIMEOUT'); assert.match(body.message,/private|too long/);
+    const error=await api('/api/runemetrics/preview',{memberId:'player1'}); assert.equal(error.status,200);
+    const body=await error.json(); assert.equal(body.available,false); assert.equal(body.previewId,undefined); assert.match(body.message,/temporarily unavailable.*saved progress is unchanged/);
     assert.deepEqual((await (await api('/api/state')).json()).state,before);
   }
 });
@@ -133,16 +138,27 @@ test('new browser modules are authenticated static assets',async t=>{
   }
 });
 
-test('once RuneMetrics answers Gone the API returns a calm unavailable state without a preview token or state change', async t => {
-  const { api } = await fixture(t, { progressSources: { clock: () => Date.parse('2026-11-10T00:00:00Z') },
-    fetchImpl: async () => new Response('', { status: 410 }) });
-  const before = (await (await api('/api/state')).json()).state;
-  const response = await api('/api/runemetrics/preview', { memberId: 'player1' });
-  assert.equal(response.status, 200);
-  const value = await response.json();
-  assert.equal(value.available, false); assert.equal(value.memberId, 'player1');
-  assert.match(value.message, /RuneMetrics has closed.*game plugin/); assert.equal(value.previewId, undefined);
-  assert.deepEqual((await (await api('/api/state')).json()).state, before);
+test('web outages return HTTP 200 without a review token; ordinary saves continue', async t => {
+  for (const failure of ['404', 'HTML', 'timeout', 'DNS']) {
+    const urls = [];
+    const { api } = await fixture(t, { timeoutMs: 20, progressSources: { webSource: 'runemetrics' },
+      fetchImpl: async url => {
+        urls.push(String(url)); assert.equal(url.origin, 'https://secure.runescape.com');
+        if (failure === 'timeout') return new Promise(() => {});
+        if (failure === 'DNS') throw new Error('Synthetic DNS failure');
+        return new Response('<html>Unavailable</html>', { status: failure === '404' ? 404 : 200 });
+      } });
+    const before = (await (await api('/api/state')).json()).state;
+    const response = await api('/api/runemetrics/preview', { memberId: 'player1' });
+    assert.equal(response.status, 200);
+    const value = await response.json();
+    assert.equal(value.available, false); assert.equal(value.memberId, 'player1');
+    assert.match(value.message, /temporarily unavailable.*saved progress is unchanged/);
+    assert.equal(value.previewId, undefined); assert.equal(urls.length, 2);
+    assert.deepEqual((await (await api('/api/state')).json()).state, before);
+    assert.equal((await api('/api/command', { expectedRevision: before.revision,
+      command: { type: 'set-note', memberId: 'player1', chunkId: '12341', note: 'Still playing' } })).status, 200);
+  }
 });
 
 test('accepted live plugin progress wins the shared preview and applies with plugin provenance, then falls back when stale', async t => {
@@ -156,7 +172,7 @@ test('accepted live plugin progress wins the shared preview and applies with plu
       skills: { ATTACK: { level: 5, xp: 400 } }, quests: { finished: ['Broken_Home'], started: [] } }) });
   assert.equal(report.status, 200);
   const review = await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json();
-  assert.equal(review.source, 'runemetrics'); assert.equal(review.sourceLabel, 'RuneMetrics + game plugin'); assert.equal(calls, 2);
+  assert.equal(review.source, 'platform-api'); assert.equal(review.sourceLabel, 'Platform API + game plugin'); assert.equal(calls, 2);
   assert.equal(review.quests.length, 2);
   assert.ok(review.quests.some(row => row.taskId === brokenId));
   const applied = await api('/api/runemetrics/apply', { previewId: review.previewId, expectedRevision: review.stateRevision });
@@ -166,9 +182,9 @@ test('accepted live plugin progress wins the shared preview and applies with plu
   assert.equal(state.members[0].questProgress[brokenId].source, 'game-plugin');
   const undone = await api('/api/command', { expectedRevision: state.revision, command: { type: 'undo' } });
   assert.equal(undone.status, 200);
-  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).sourceLabel, 'RuneMetrics + game plugin');
+  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).sourceLabel, 'Platform API + game plugin');
   now += 10 * 60 * 1000;
-  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).source, 'runemetrics');
+  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).source, 'platform-api');
   assert.equal(calls, 4);
 });
 
@@ -180,10 +196,10 @@ test('a synthetic hiscores fallback uses the same reviewed durable apply path an
   let calls = 0;
   const { api, reopen } = await fixture(t, { initialState,
     fetchImpl: async () => { calls++; return new Response('', { status: 404 }); },
-    progressSources: { hiscores: { async snapshot() { return { source: 'hiscores', sourceLabel: 'RS3 hiscores',
+    progressSources: { webSource: 'runemetrics', hiscores: { async snapshot() { return { source: 'hiscores', sourceLabel: 'RS3 hiscores',
       fetchedAt: '2026-10-31T00:00:00.000Z', cached: false, skills: [{ skill: 'Attack', level: 5, xp: 450 }], quests: [] }; } } } });
   const review = await (await api('/api/runemetrics/preview', { memberId: 'player-x' })).json();
-  assert.equal(review.source, 'hiscores'); assert.match(review.message, /^RuneMetrics has closed;/);
+  assert.equal(review.source, 'hiscores'); assert.equal(review.message, undefined);
   assert.equal(calls, 2); assert.equal(review.quests.length, 0);
   const response = await api('/api/runemetrics/apply', { previewId: review.previewId, expectedRevision: review.stateRevision });
   assert.equal(response.status, 200);

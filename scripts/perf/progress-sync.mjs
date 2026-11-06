@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { recordedPlatformResponse } from '../../tests/helpers/platform-api-fixtures.mjs';
 
 export async function syncFixture(root, fixture) {
   const load = file => import(pathToFileURL(path.join(root, file)));
@@ -16,8 +17,10 @@ export async function syncFixture(root, fixture) {
     state.tasks = [...mapping.values()].flat().map(row => ({ id: row.taskId, label: row.label, category: 'Quest' }));
     if (saved) state = applyCommand(state, { type: 'apply-runemetrics', memberId: 'player-x', runescapeName: 'Player x',
       fetchedAt: fixture.fetchedAt, skills: [{ skill: 'Attack', level: 6, xp: 600 }], quests: [] }, { now: () => fixture.fetchedAt });
-    const client = createProgressSources({ clock: () => Date.parse(fixture.fetchedAt), runeMetrics: {
-      fetchImpl: async url => new Response(JSON.stringify(url.pathname.endsWith('/quests') ? fixture.quests : fixture.profile)) } });
+    const client = createProgressSources({ webSource: 'platform-api',
+      hiscores: { snapshot() { throw new Error('Synthetic sync fixture must not fall back'); } },
+      clock: () => Date.parse(fixture.fetchedAt), runeMetrics: {
+      fetchImpl: async url => recordedPlatformResponse(url, fixture) } });
     try {
       const proposal = previewProgress(state, 'player-x', await client.snapshot(state.members[0]), mapping);
       const applied = applyCommand(state, proposal.command, { now: () => fixture.fetchedAt });

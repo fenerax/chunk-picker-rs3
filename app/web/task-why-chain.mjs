@@ -1,4 +1,4 @@
-import { replaceView } from './browser-state.mjs';
+import { replaceView, paintExplanationPreview } from './browser-state.mjs';
 // A lazy, read-only disclosure shared by task details and Slayer assignments.
 export function renderWhyChain(c, chain, { advanced = false } = {}) {
   function render(value, root = false) {
@@ -27,33 +27,55 @@ export function renderWhyChain(c, chain, { advanced = false } = {}) {
   return node;
 }
 
-export function createWhyChainDisclosure(c, selector, { memberId, revision, current = () => true, advanced = () => false, result, definitions } = {}) {
+export async function loadWhyChain(c, selector, { memberId, revision, current = () => true, result, definitions, loadFull } = {}) {
+  let chain;
+  if (result) chain = (await import('../tasks/why-chain.mjs')).buildWhyChain(result, definitions ?? {}, selector);
+  else {
+    try {
+      chain = await c.api(`/api/task-why?${new URLSearchParams({ memberId, revision: String(revision), ...selector })}`);
+    } catch (error) {
+      if (!loadFull || !current() || !(error.code === 'TASK_WHY_UNAVAILABLE' || [400, 404, 503].includes(error.status))) throw error;
+      const full = await loadFull();
+      if (!current() || full.result?.memberId !== memberId || full.result?.stateRevision !== revision || full.result?.format === 'play-v1')
+        throw new Error('Saved details changed. Open Why not? again.');
+      chain = { ...(await import('../tasks/why-chain.mjs')).buildWhyChain(full.result, full.definitions ?? {}, selector), memberId, stateRevision: revision };
+    }
+    if (chain.memberId !== memberId || chain.stateRevision !== revision) throw new Error('Saved details changed. Open Why not? again.');
+  }
+  if (!current()) throw new Error('Saved details changed. Open Why not? again.');
+  return chain;
+}
+
+export function createWhyChainDisclosure(c, selector, { memberId, revision, current = () => true, advanced = () => false, result, definitions, loadFull } = {}) {
   const body = c.el('div', undefined, 'why-chain-body');
   const disclosure = c.details('Why not?', body);
-  let pending = false, loaded = false;
+  let pending = false, loaded = false, version = 0;
   const load = async () => {
     if (loaded || pending || !current()) return;
-    pending = true;
+    pending = true; const request = ++version;
     body.setAttribute('aria-busy', 'true');
-    const token = c.viewCache?.token(), key = JSON.stringify([memberId, selector]), cached = !result && c.viewCache?.peek('why-chain', key, revision);
-    const status = c.el('p', cached ? 'Updating… · Last known requirements' : 'Checking all requirements…', 'status-detail');
-    status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-    body.replaceChildren(status);
-    if (cached) body.append(renderWhyChain(c, cached.value, { advanced: advanced() }));
+    const token = c.viewCache?.token(), key = JSON.stringify([memberId, selector]);
+    paintExplanationPreview(body, { cache: result ? undefined : c.viewCache, view: 'why-chain', key, revision,
+      status: c.el('p', undefined, 'status-detail'), checking: 'Checking all requirements…', lastKnown: 'requirements',
+      render: value => renderWhyChain(c, value, { advanced: advanced() }) });
     try {
-      const query = new URLSearchParams({ memberId, revision: String(revision), ...selector });
       // Sandbox evidence belongs to its preview, never to the saved-map endpoint.
-      const chain = result ? (await import('../tasks/why-chain.mjs')).buildWhyChain(result, definitions ?? {}, selector)
-        : await c.api(`/api/task-why?${query}`);
-      if (!current() || c.viewCache && !c.viewCache.current(token)) return;
+      const chain = await loadWhyChain(c, selector, { memberId, revision, current, result, definitions, loadFull });
+      if (request !== version) return;
+      if (!current() || c.viewCache && !c.viewCache.current(token)) { body.replaceChildren(); return; }
       if (!result && (chain.memberId !== memberId || chain.stateRevision !== revision)) throw new Error('Saved details changed. Open Why not? again.');
       if (!result) c.viewCache?.remember('why-chain', key, revision, chain);
       replaceView(body, () => body.replaceChildren(renderWhyChain(c, chain, { advanced: advanced() })));
       loaded = true;
     } catch (error) {
-      if (current()) body.replaceChildren(c.el('p', error.message || 'The explanation could not be loaded.', 'error'), c.button('Retry Why not?', load));
-    } finally { pending = false; body.setAttribute('aria-busy', 'false'); }
+      if (request !== version) return;
+      if (current() && (!c.viewCache || c.viewCache.current(token))) body.replaceChildren(c.el('p', error.message || 'The explanation could not be loaded.', 'error'), c.button('Retry Why not?', load));
+      else body.replaceChildren();
+    } finally { if (request === version) { pending = false; body.setAttribute('aria-busy', 'false'); } }
   };
-  disclosure.addEventListener('toggle', () => { if (disclosure.open) return load(); });
+  disclosure.addEventListener('toggle', () => {
+    if (disclosure.open) return load();
+    version++; pending = loaded = false; body.replaceChildren(); body.setAttribute('aria-busy', 'false');
+  });
   return disclosure;
 }

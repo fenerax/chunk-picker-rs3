@@ -19,7 +19,7 @@ export const textPaths = Object.freeze(['app/data/changelog.json', 'app/data/roa
 export const allowlistPath = 'scripts/private-companion/neutral-allowlist.json';
 // Phase A's Windows slice (.github/windows-slice/run.mjs); a test keeps both equal.
 export const windowsBoundTests = Object.freeze([
-  'backup-status.private.test.mjs', 'cutover-live.test.mjs', 'live-base-compatibility.test.mjs', 'online-snapshot.test.mjs', 'operations-degraded.test.mjs', 'operations-forced.test.mjs',
+  'backup-status.private.test.mjs', 'ci-test-telemetry-failures.test.mjs', 'cutover-live.test.mjs', 'live-base-compatibility.test.mjs', 'online-snapshot.test.mjs', 'operations-degraded.test.mjs', 'operations-forced.test.mjs',
   'operations-graceful.test.mjs', 'operations-owner.test.mjs', 'operations.test.mjs', 'operator-cutover.test.mjs',
   'operator-frozen-bundle.test.mjs', 'owned-child-processes.test.mjs',
   'private-live-swap.test.mjs', 'release-admission-v2.test.mjs', 'release-ci-evidence-workflow-harness.test.mjs', 'release-pack-upgrade-v2.test.mjs', 'release-pipeline-v2.test.mjs',
@@ -62,7 +62,8 @@ export async function openSources({ core, privateSource }) {
   for (const name of privateFiles.keys())
     if (coreFiles.has(name) && !replaceable(name)) throw Error('Private overlay would replace shared code: ' + name);
   const cache = new Map();
-  const resolve = name => privateFiles.get(name) ?? coreFiles.get(name) ?? null;
+  const resolve = name => name === 'scripts/test-selection.mjs' && coreFiles.has('scripts/test-classification.mjs')
+    ? coreFiles.get(name) ?? null : privateFiles.get(name) ?? coreFiles.get(name) ?? null;
   const read = async name => {
     if (!cache.has(name)) { const file = resolve(name); cache.set(name, file ? await readFile(file) : null); }
     return cache.get(name);

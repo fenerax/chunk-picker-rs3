@@ -1,3 +1,4 @@
+import { mapTransferRoster } from '../app/save-transfer.mjs';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
@@ -6,7 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRuleRegistry, createRollPoolCache, evaluateRollPool, partnerConnections, checkedPrecomputedRollPool } from '../app/core/rules.mjs';
-import { createGroupState, applyCommand } from '../app/core/state.mjs';
+import { createGroupState, exportBackup, importBackup, applyCommand } from '../app/core/state.mjs';
 import { captureProgressSnapshot } from '../app/core/progress-timeline.mjs';
 import { createProgressQuestPoints } from '../app/helper-progress.mjs';
 import { buildWorld } from '../app/data/world.mjs';
@@ -121,7 +122,7 @@ test('HTTP pool reuse survives display saves; a roll uses the same draw and stat
   const dataDir = await mkdtemp(path.join(tmpdir(), 'roll-pool-test-'));
   let app;
   t.after(async () => { await app?.close(); await rm(dataDir, { recursive: true, force: true }); });
-  const initialState = fixture(); initialState.members[1].id = '__proto__';
+  const initialState = fixture(); initialState.members[1].id = 'valid_roster-2';
   app = await createServer({ dataset: await emptyMetadataDataset(), dataDir, port: 0, definitions, taskMap: {},
     initialState, registry, random: () => 0.25, now: '2026-01-01T00:00:00.000Z', predictionPrewarm: false });
   await app.listen();
@@ -144,7 +145,7 @@ test('HTTP pool reuse survives display saves; a roll uses the same draw and stat
   await request('/api/command?view=play-v1', { expectedRevision: before.revision, command });
   assert.equal(canonical(app.store.getState()), canonical(expected));
   const restored = await request('/api/restore', { expectedRevision: app.store.getInfo().revision, backup: await app.store.backup() });
-  assert.equal(Object.hasOwn(restored.pools, '__proto__'), true, 'pool dictionaries preserve all valid member IDs');
+  assert.equal(Object.hasOwn(restored.pools, 'valid_roster-2'), true, 'pool dictionaries preserve all valid member IDs');
 });
 
 
@@ -190,4 +191,9 @@ test('mutable command response pools cannot alter a cache reused by a later disp
   first.pools.one.eligible.length = 0;
   const second = await store.commandSerialized({ ...command, note: 'Second' }, 1);
   assert.deepEqual(second.pools.one, expected);
+});
+
+test('unsafe prototype roster IDs are rejected before restore', () => {
+  const state = fixture(); state.members[1].id = '__proto__';
+  assert.throws(() => mapTransferRoster(importBackup(exportBackup(state)), state.members), error => error.status === 422 && /different destination/.test(error.message));
 });

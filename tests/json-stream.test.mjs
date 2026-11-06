@@ -7,6 +7,18 @@ async function* chunks(input, size = 7) {
   for (let offset = 0; offset < bytes.length; offset += size) yield bytes.subarray(offset, offset + size);
 }
 
+test('large source chunks yield to other pickers and value-count admission stops parsing', async () => {
+  const bytes = Buffer.from(JSON.stringify(Array(20_000).fill('synthetic')));
+  let turns = 0, active = true;
+  const tick = () => { if (active) { turns++; setImmediate(tick); } };
+  setImmediate(tick);
+  try {
+    assert.equal((await parseJSONStream([bytes])).length, 20_000);
+    assert.ok(turns >= 2, 'One large incoming chunk must yield between parser slices');
+    await assert.rejects(parseJSONStream([bytes], { maxValues: 1000 }), error => error.status === 413 && /safe import work limit/.test(error.message));
+  } finally { active = false; }
+});
+
 test('matches native JSON values at arbitrary byte boundaries', async () => {
   const document = '{"empty":{},"array":[null,true,false,0,-0,-0.5,1e+23,1E-3,1e400],"text":"é🍁\\n\\t\\b\\f\\r\\\\\\\"\\/\\uD800\\udc00","escaped":"\\\\\\\"end","dup":1,"dup":2}';
   const expected = JSON.parse(document);

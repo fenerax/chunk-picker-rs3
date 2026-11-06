@@ -1,4 +1,6 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
+import { platformResponse } from './helpers/platform-api-fixtures.mjs';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
@@ -10,6 +12,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import crypto, { createHash } from 'node:crypto';
 import { syncBuiltinESMExports } from 'node:module';
+
+beforeEach(t => blockUnmockedFetch(t));
 
 process.env.RS3_DATASET = 'open-f2p';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE']) delete process.env[key];
@@ -70,7 +74,9 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, backupRetenti
     app = await createServer({ dataDir: path.join(root, 'legacy'), dataset, definitions, taskMap: {},
       initialState: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]),
       port: 0, loopbackPort: 0, loopbackRole: 'public', publicOrigin: origin, signIn: 'optional', signInProvider: provider,
-      backupRetentionMs, taskWorkerOptions, runeMetrics, onRequestHandler: value => { handler = value; }, beforeCommit, now: () => Date.parse('2026-10-21T12:00:00.000Z'), multiPicker: multi, predictionPrewarm: false, shutdownDeadlineMs: 500,
+      backupRetentionMs, taskWorkerOptions, runeMetrics,
+      progressSources: { hiscores: { snapshot() { assert.fail('Unexpected Hiscores fallback'); } } },
+      onRequestHandler: value => { handler = value; }, beforeCommit, now: () => Date.parse('2026-10-21T12:00:00.000Z'), multiPicker: multi, predictionPrewarm: false, shutdownDeadlineMs: 500,
       rateLimits: { unauthenticated: unauthenticatedLimit, expensivePerIdentity: 10000 } });
     await app.listen();
   };
@@ -217,17 +223,17 @@ test('P1.3 colliding requests, receipts, revisions, undo and retained backups st
   assert.equal((await command(f, a, 2, { type: 'undo' })).status, 200);
   assert.equal((await stateOf(f, a)).members[0].notes['12341'], 'Player 1');
   assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 4');
-  assert.equal((await f.send('/api/restore', b, { body: { backupId: backups[0], expectedRevision: 2 } })).status, 200);
+  const review = await f.send('/api/restore/preview', b, { body: { backupId: backups[0] } });
+  assert.equal(review.status, 200, review.text);
+  assert.equal((await f.send('/api/restore', b, { body: { backupId: backups[0], expectedRevision: 2, previewToken: review.json().previewToken } })).status, 200);
   assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 2');
   assert.equal((await stateOf(f, a)).members[0].notes['12341'], 'Player 1');
 });
 
 // A token issued in A must not consume a same-revision proposal in B.
 test('P1.3 preview tokens cannot apply or consume another picker proposal', async t => {
-  const profile = JSON.parse(await readFile(new URL('./fixtures/runemetrics/examplegimab-profile.json', import.meta.url)));
-  const quests = JSON.parse(await readFile(new URL('./fixtures/runemetrics/examplegimab-quests.json', import.meta.url)));
   const dataset = { ...selectedDataset, capabilities: { ...selectedDataset.capabilities, features: { ...selectedDataset.capabilities.features, runeMetrics: true, externalNames: true } } };
-  const f = await fixture(t, { dataset, runeMetrics: { fetchImpl: async url => Response.json(url.pathname.endsWith('/quests') ? quests : { ...profile, name: url.searchParams.get('user') }) } });
+  const f = await fixture(t, { dataset, runeMetrics: { fetchImpl: async url => platformResponse(url) } });
   const a = await f.login(A), b = await f.login(B);
   for (const [i, cookie] of [a, b].entries()) {
     const r = await command(f, cookie, 0, { type: 'set-runescape-name', memberId: 'owner', name: `Player ${i + 1}` }); assert.equal(r.status, 200, r.text);
@@ -241,7 +247,9 @@ test('P1.3 preview tokens cannot apply or consume another picker proposal', asyn
       assert.equal(r.json().previewId, previewId); return r.json();
     } finally { crypto.randomUUID = randomUUID; syncBuiltinESMExports(); }
   }
-  await preview(a);
+  const proposal = await preview(a);
+  assert.equal(proposal.skills.length, 4);
+  assert.deepEqual(proposal.questPoints.after, { current: 17, max: 450 });
   assert.equal((await f.send('/api/runemetrics/apply', b, { body: { previewId, expectedRevision: 1 } })).status, 410);
   assert.equal((await stateOf(f, b)).revision, 1);
   await preview(b); // The same ID now denotes a different proposal in B.
@@ -523,8 +531,9 @@ test('P1.9 owner capabilities remain scoped and account/global limits remain sha
   for (const route of ['/api/shutdown', '/api/worker-restart', '/api/operator/snapshot']) assert.equal((await f.send(route, a, { body: {} })).status, 403, route);
   assert.equal((await f.note(a, 'Player 1', 0)).status, 200); assert.equal((await f.note(b, 'Player 2', 0)).status, 200);
   const backup = (await f.send('/api/backup', a)).json();
-  assert.equal((await f.send('/api/restore/preview', a, { body: { backup } })).status, 200);
-  assert.equal((await f.send('/api/restore', a, { body: { backup, expectedRevision: 1 } })).status, 200);
+  const review = await f.send('/api/restore/preview', a, { body: { backup } });
+  assert.equal(review.status, 200, review.text);
+  assert.equal((await f.send('/api/restore', a, { body: { backup, expectedRevision: 1, previewToken: review.json().previewToken } })).status, 200);
   assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 2');
   for (const cookie of [a, a2]) assert.equal((await f.send('/api/tasks?memberId=owner', cookie)).status, 200);
   const accountLimit = await f.send('/api/tasks?memberId=owner', a2); assert.equal(accountLimit.status, 429); assert.ok(accountLimit.headers['retry-after']);

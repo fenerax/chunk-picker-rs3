@@ -189,7 +189,10 @@
       "calculation"
     ]
   },
-  "app/web/screen-dialogs.mjs :: 'Backup & Import'": {
+  "app/web/screen-dialogs.mjs :: 'Export unlocked chunks'": {
+    "reason": "The dataset-specific copy action writes the clipboard, which the read-only gallery does not exercise. Synthetic screen tests cover its selectable-link fallback and stale-dialog guard; offline encoder fixtures cover all grid cells."
+  },
+  "app/web/screen-dialogs.mjs :: 'Export / Import'": {
     "entries": [
       "backup",
       "migration",

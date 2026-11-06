@@ -50,7 +50,7 @@ export function createUsageCounter({ storage, actor, width, now = () => new Date
 }
 
 const fixedDialogIds = new Map([
-  ['Settings', 'settings'], ['Chunk Rules', 'rules'], ['History', 'history'], ['Backup & Import', 'backup'],
+  ['Settings', 'settings'], ['Chunk Rules', 'rules'], ['History', 'history'], ['Export / Import', 'backup'], ['Backup & Import', 'backup'],
   ['Search', 'search'], ['OBS overlays', 'overlays'], ['Feedback', 'feedback'], ['About / Map sources', 'about'],
   ['What’s new', 'news'], ['Roadmap', 'roadmap'], ['Invite links', 'invites'], ['Sync from original picker', 'original-sync'],
   ['Apply rule profile', 'rules:profile-review'], ['Migration report', 'backup:migration-report'],
@@ -68,7 +68,7 @@ export function dialogUsageId(title, nodes = []) {
   if (tagged) return tagged.dataset.usage;
   if (fixedDialogIds.has(title)) return fixedDialogIds.get(title);
   if (/’s Teleports$/.test(title)) return 'teleports';
-  if (/^(?:Sync .+ from RuneMetrics|Sync progress for .+)$/.test(title)) return 'runemetrics:standalone';
+  if (/^(?:Sync .+ from (?:RuneMetrics|Platform API)|Sync progress for .+)$/.test(title)) return 'runemetrics:standalone';
   if (/’s starting chunk$/.test(title)) return 'dialog:starting-marker';
   if (/’s stickers · /.test(title)) return 'stickers:full';
   if (/^Undo .+’s change\?$/.test(title)) return 'dialog:partner-undo';

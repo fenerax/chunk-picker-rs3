@@ -1,7 +1,7 @@
 # Personal progress sources
 
 In **Activity Info → Progress sync**, choose **Sync progress**. The review names
-its source: **Game plugin**, **RuneMetrics**, or **RuneScape API**. Review changes,
+its source: **Game plugin**, **Platform API**, **RS3 hiscores**, or a custom adapter. Review changes,
 then apply or cancel. Raw skill IDs, mapping reasons and save revision appear
 only with **Settings → Advanced**. Viewers have no sync controls.
 
@@ -14,21 +14,13 @@ erase the source observations. Observations live in memory and clear on restart;
 without an active plugin key, they cannot supply a sync preview.
 Plugin progress does not need a saved RuneScape account name.
 
-Otherwise the configured web source supplies progress. Jagex announced that
-RuneMetrics closes on **10 November 2026**, but the picker keeps using it until
-it actually stops answering (decided 31 October 2026): HTTP **404** or **410
-Gone** retires RuneMetrics for this server process, including requests in
-flight. `RUNE_METRICS_SUNSET_AT` in `app/integrations/progress-source-policy.mjs`
-records the announced date for reference only.
-No unpublished JSON error code or text is guessed. Private profiles, missing
-names, rate limits and temporary failures keep their existing meanings.
+The default web source is the published RuneScape Platform API: main Hiscores JSON plus Player Quests. It uses whole XP and shows official quest points in the preview only. See [Account progress sync](runemetrics.md) for endpoint contracts, limits and persistence. Plugin observations continue to win per field; a failed paired web snapshot leaves saved progress alone and preserves the existing levels-only fallback policy.
 
-After retirement, the replacement adapter supplies either progress or a normal
-unavailable result. The placeholder says the new API is not available yet and
-levels sync from the game plugin now. This is HTTP 200, has no Apply token, writes
-nothing and is shown as information. Fresh live plugin observations still work.
+RuneMetrics is never contacted, before or after the announced 10 November closure. Legacy `webSource: 'runemetrics'` and the default `official-api` factory now use Platform API. The old `runeMetrics` fetch/cache options remain an alias for `platformApi`; `runeMetricsEnabled` and `RS3_RUNEMETRICS_ENABLED` cannot re-enable the removed service or disable its replacement. A configured custom `officialApi` adapter remains supported.
 
-## Adding the official web API
+A failed paired Platform snapshot falls back to accepted plugin observations, then to levels-only Hiscores when no plugin facts exist. The fallback cannot lower current-account saved XP or levels, and never removes quests. If no source is available, the preview route returns HTTP 200 with `available: false`, a neutral status and no review token. No save, history entry or retry is created. A later explicit sync can recover when Platform is healthy again.
+
+## Custom adapter contract
 
 The selector is `app/integrations/progress-sources.mjs`. A source implements
 `async snapshot(member)` and optionally `close()`. A successful snapshot is:
@@ -55,10 +47,10 @@ For an unavailable service return:
 
 ```js
 { available: false, source: 'official-api', sourceLabel: 'RuneScape API',
-  message: 'The new RuneScape API is not available yet. Levels sync from the game plugin now.' }
+  message: 'Web progress sync is temporarily unavailable. Your saved progress is unchanged.' }
 ```
 
-Once the contract is published, implement one adapter and configure:
+To configure a custom adapter:
 
 ```js
 createServer({
@@ -72,9 +64,7 @@ account binding checks, skill IDs and XP units, quest status conversion, request
 limits, cache policy, timeout/abort and explicit unavailable errors in that
 adapter. Confirm the reply belongs to the saved account. Keep requests on demand,
 bounded and server-side. Add sanitized contract fixtures and fake-fetch tests;
-do not infer these details from the client/plugin API. If Jagex documents a
-RuneMetrics retirement payload in addition to HTTP Gone, recognize that exact
-payload in its adapter and raise `SOURCE_RETIRED`.
+do not infer these details from the client/plugin API.
 
 `previewProgress` builds the same revision-bound proposal regardless of source.
 The existing `/api/runemetrics/preview` and `/api/runemetrics/apply` names and
@@ -82,29 +72,4 @@ The existing `/api/runemetrics/preview` and `/api/runemetrics/apply` names and
 They do not force a particular source. Authentication, viewer restrictions,
 server-held review tokens and ten-minute expiry are unchanged.
 
-No new save fields or commands are added. Plugin observations use the existing
-`apply-game-progress` command and `game-plugin` provenance. Web observations use
-`apply-runemetrics`; its optional `source: 'official-api'` records the true source
-in the existing skill/quest facts and `runeMetricsSync` fields. Existing commands
-default to `runemetrics`. This additive allowed source value is necessary to
-avoid labelling future API observations as RuneMetrics; older app versions will
-reject saves containing it. Current validation, backups and Undo support both.
-The placeholder creates no such facts.
-
-## Public API check — 27 October 2026
-
-- [Jagex's 26 October news](https://secure.runescape.com/m=news/the-week-ahead-october-patch-week),
-  “RuneMetrics Web-API Changes”, confirms retirement on 10 November. It says the
-  replacement is separate from the client/plugin API and promises more details
-  by the following Monday (2 November), possibly sooner. It does not publish
-  endpoint, authentication or response schemas.
-- [developer.runescape.com](https://developer.runescape.com/rs/) currently presents
-  the RuneScape Client API and plugin documentation. No replacement web profile
-  or quest API contract was found in the portal or targeted public searches.
-- Searches also checked [the Wiki's RuneMetrics page](https://runescape.wiki/w/RuneMetrics)
-  and [upcoming updates](https://runescape.wiki/w/Upcoming_updates); no replacement
-  contract was found. Direct Wiki access was robots-blocked, so this is a search
-  limitation, not proof that no documentation exists anywhere.
-
-The source tests use fake fetches, reports and clocks. They do not establish
-availability or correctness of a live replacement service.
+Web observations use the existing `apply-runemetrics` command. Platform commands use `source: 'platform-api'`, while saved skills, quests and sync metadata use the main-compatible `official-api` value. Older commands default to `runemetrics`. Plugin observations retain `apply-game-progress` and `game-plugin` provenance. Official quest points stay in the preview; no new saved field or extension is added. Existing source values remain supported.

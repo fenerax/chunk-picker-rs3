@@ -1,3 +1,4 @@
+import { displayText, replaceDelimited, trimTaskStars } from '../import-output.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './gameplay-compat.mjs';
 import { projectMemberTaskFacts as projectFacts } from './fact-projection.mjs';
 import { buildIdentityIndex, legacyTaskId, permanentTaskId, isPermanentId, resolveIdentity, resolveTaskAlias, lookupPermanentId, isVerifiedProgressAlias } from './identity.mjs';
@@ -65,12 +66,9 @@ export function stripTaskMarkup(rawTaskLabel) {
   const label = normalized(decodeLegacyText(String(rawTaskLabel)));
   // Worker display labels are already plain. In particular, replacing every
   // ordinary space needlessly copies all potential labels during startup.
-  if (!/[<~|]|\*+$|\s\s|[^\S ]/.test(label)) return label.trim();
-  return label
-    .replace(/<[^>]*>/g, '')
-    .replace(/~\|([\s\S]*?)\|~/g, (_, text) => text.split('#')[0])
-    .replace(/[~|]/g, '')
-    .replace(/\*+$/g, '')
+  if (!label.endsWith('*') && !/[<~|]|\s\s|[^\S ]/.test(label)) return label.trim();
+  const plain = replaceDelimited(replaceDelimited(label, '<', '>'), '~|', '|~', text => text.split('#')[0]);
+  return trimTaskStars(plain.replace(/[~|]/g, ''))
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -143,7 +141,7 @@ function dynamicCatalogueIndex(catalogue) {
     if (!isPermanentId(task.id) && (!rawLabel.trim() || stableTaskId(category, rawLabel) !== task.id)) throw new TypeError('dynamicCatalogue tasks need canonical stable category/raw-label IDs or permanent IDs');
     // A nonempty plain label cannot become empty through display decoding.
     // Still reject invalid markup/encoded labels anywhere in the catalogue.
-    if (/%|<|-_-|_-(?=[0-9a-f]{2})|[~|]|\*+\s*$/i.test(task.label) && !stripTaskMarkup(task.label)) throw new TypeError('dynamicCatalogue tasks need nonempty display labels');
+    if ((task.label.trimEnd().endsWith('*') || /%|<|-_-|_-(?=[0-9a-f]{2})|[~|]/i.test(task.label)) && !stripTaskMarkup(task.label)) throw new TypeError('dynamicCatalogue tasks need nonempty display labels');
     // Keep unselected rows by reference. Only non-NFC categories or legacy IDs
     // without explicit raw labels need a cheap lookup view here.
     const value = category === task.category && (!rawLabel || rawLabel === task.rawLabel)
@@ -366,21 +364,43 @@ function migrateStatuses(member, map, reverse, categoryLabels, catalogue, dynami
 // Retry only previously quarantined, now-reviewed progress. Replaying every
 // legacy status on upgrades would resurrect checks users deliberately cleared.
 function reprojectVerifiedProgress(member, map, reverse, categoryLabels, catalogue, dynamicCatalogue, unresolved, provenance, counts, getIdentityIndex) {
+  const categories = new Map();
+  const categoryRows = source => {
+    if (!categories.has(source)) {
+      const rowsByCategory = new Map();
+      for (const [raw, rows] of Object.entries(map.chunkinfo?.[source] ?? {})) {
+        const category = normalized(decodeKey(raw));
+        if (!rowsByCategory.has(category)) rowsByCategory.set(category, rows);
+      }
+      categories.set(source, rowsByCategory);
+    }
+    return categories.get(source);
+  };
+  const removed = new Set();
   for (let position = unresolved.length - 1; position >= 0; position--) {
     const item = unresolved[position];
-    if (item.memberId !== member.id || item.sourceMapId !== member.sourceMapId || !Object.hasOwn(STATUS_SOURCES, item.source)) continue;
-    const category = normalized(decodeKey(item.category)), key = normalized(decodeKey(item.legacyKey));
-    const labels = key.startsWith('t_') ? reverse.get(key) ?? [] : [key];
-    if (!labels.some(label => isVerifiedProgressAlias(category, label))) continue;
-    const categoryTasks = Object.entries(map.chunkinfo?.[item.source] ?? {}).find(([raw]) => normalized(decodeKey(raw)) === category)?.[1];
-    if (!record(categoryTasks) || !Object.hasOwn(categoryTasks, item.legacyKey)) continue;
-    const resolution = resolveTask(category, item.legacyKey, reverse, categoryLabels, catalogue, dynamicCatalogue, true, getIdentityIndex);
-    if (!resolution.task) continue; // Conflicting decoders remain quarantined.
-    const pending = [];
-    migrateStatuses(member, { chunkinfo: { [item.source]: { [category]: { [item.legacyKey]: categoryTasks[item.legacyKey] } } } },
-      reverse, categoryLabels, catalogue, dynamicCatalogue, pending, provenance, counts, getIdentityIndex);
-    if (!pending.length) unresolved.splice(position, 1);
+    let resolved = false;
+    if (item.memberId === member.id && item.sourceMapId === member.sourceMapId && Object.hasOwn(STATUS_SOURCES, item.source)) {
+      const category = normalized(decodeKey(item.category)), key = normalized(decodeKey(item.legacyKey));
+      const labels = key.startsWith('t_') ? reverse.get(key) ?? [] : [key];
+      if (labels.some(label => isVerifiedProgressAlias(category, label))) {
+        const categoryTasks = categoryRows(item.source).get(category);
+        if (record(categoryTasks) && Object.hasOwn(categoryTasks, item.legacyKey)) {
+          const resolution = resolveTask(category, item.legacyKey, reverse, categoryLabels, catalogue, dynamicCatalogue, true, getIdentityIndex);
+          if (resolution.task) {
+            const pending = [];
+            migrateStatuses(member, { chunkinfo: { [item.source]: { [category]: { [item.legacyKey]: categoryTasks[item.legacyKey] } } } },
+              reverse, categoryLabels, catalogue, dynamicCatalogue, pending, provenance, counts, getIdentityIndex);
+            resolved = !pending.length;
+          }
+        }
+      }
+    }
+    if (resolved) removed.add(position);
   }
+  let retained = 0;
+  for (let position = 0; position < unresolved.length; position++) if (!removed.has(position)) unresolved[retained++] = unresolved[position];
+  unresolved.length = retained;
 }
 
 function migrateNotes(member, map, warnings, counts) {
@@ -523,22 +543,11 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
   for (const member of next.members) for (const id of new Set([...(member.completedTasks ?? []), ...Object.keys(member.taskStatus ?? {})])) {
     if (!taskIndex.has(id) && dynamicIndex.has(id)) taskIndex.set(id, cloneJson(dynamicIndex.get(id)));
   }
+  const memberNames = new Map(next.members.map(member => [member.id, member.name]));
   const previous = next.legacy?.gameplayMigration;
-  const warnings = cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []).map(warning => String(warning)
-    .replace(/Could not migrate ([^ ]+) (.+?) for member ([^:]+): (.+?)\./g, (_, source, task, memberId, reason) => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[source] ?? source} ${task} for ${next.members.find(member => member.id === memberId)?.name ?? memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[reason] ?? reason}.`)
-    .replace(/Unresolved saved task ID ([^ ]+) at (.+); the original record is preserved for review\./g, (_, id, path) => `Saved task ${next.tasks.find(task => task.id === id)?.label ?? id} at ${path} could not be matched; the original record is kept for review.`)
-    .replace(/Map ([^ ]+) has /g, (_, id) => `${next.members.find(member => member.sourceMapId === id)?.name ?? id}’s original map has `)
-    .replace(/Member ([^ ]+) references missing legacy map ([^.]+)\./g, (_, id, mapId) => `${next.members.find(member => member.id === id)?.name ?? id}’s original map ${mapId} is missing from this save.`)
-    .replaceAll('it remains in legacy data.', 'it stays in the saved original-picker copy.')
-    .replaceAll('unsupported chunk key', 'unsupported chunk number')
-    .replaceAll('map-wide chunkNotes document with no base chunk key', 'map-wide note with no whole chunk number')
-    .replaceAll('malformed manual section data', 'invalid section access choices')
-    .replaceAll('malformed manual section', 'invalid section access choice')
-    .replaceAll('malformed manual area', 'invalid area access choice')
-    .replaceAll('non-primitive rule', 'invalid rule value for')
-    .replaceAll('Task identity collisions establish a new undo boundary; the complete preceding history is retained in migration archives.', 'Different saved task records match the same task. Undo now starts after this import; all earlier History is kept in the saved import archive.')
-    .replaceAll('task identity conflict(s) were preserved in migration provenance; explicit canonical fields take precedence.', 'conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.')
-    .replaceAll('task identity conflict(s) remain in migration provenance for review.', 'conflicting saved task records remain in the import details for review.'));
+  // Diagnostics are durable migration evidence. migrationSummary prepares the
+  // readable, bounded display copy without replacing the saved original text.
+  const warnings = cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []);
   const unresolved = cloneJson(previous?.unresolved ?? []);
   const provenance = new Map((previous?.taskStatusProvenance ?? []).map(entry => [`${entry.memberId}\u0000${entry.taskId}`, cloneJson(entry)]));
   const migratedMembers = cloneJson(Array.isArray(previous?.migratedMembers) ? previous.migratedMembers : []).filter(record);
@@ -580,11 +589,17 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
 
   next.tasks = [...taskIndex.values()];
   const retainedUnresolved = new Set(unresolved.map(item => `${item.memberId}\u0000${item.source}\u0000${item.category}\u0000${item.legacyKey}`));
+  const staleWarnings = new Set();
   for (const item of previous?.unresolved ?? []) {
     if (retainedUnresolved.has(`${item.memberId}\u0000${item.source}\u0000${item.category}\u0000${item.legacyKey}`)) continue;
     const stale = `Could not migrate ${item.source} ${item.category}/${item.legacyKey} for member ${item.memberId}: ${item.reason}.`;
-    for (let position = warnings.length - 1; position >= 0; position--) if (warnings[position] === stale || warnings[position] === `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${next.members.find(member => member.id === item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`) warnings.splice(position, 1);
+    staleWarnings.add(stale);
+    staleWarnings.add(`Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${memberNames.get(item.memberId) ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`);
   }
+  let warningCount = 0;
+  for (const warning of warnings) if (!staleWarnings.has(warning)) warnings[warningCount++] = warning;
+  warnings.length = warningCount;
+
   const migrationRecord = {
     ...previous,
     schemaVersion: 2,
@@ -599,7 +614,7 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
     next.legacy ??= {};
     next.legacy.gameplayMigration = migrationRecord;
   }
-  for (const item of unresolved) warnings.push(`Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${next.members.find(member => member.id === item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`);
+  for (const item of unresolved) warnings.push(`Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${memberNames.get(item.memberId) ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`);
   migrationRecord.warnings = [...new Set(warnings)];
 
   const catalogueTasks = next.tasks.length;
@@ -934,10 +949,11 @@ function migrateOwnedTaskIdentities(next, { catalogue = [], taskMap, history, pr
       if (!knownTargets.has(target)) knownTargets.set(target, !!index.lookup(target));
       return !knownTargets.get(target);
     });
+    const missingTargetIds = new Set(missingTargets);
     // Multiple known targets are valid category-qualified decoders. Ambiguity
     // is quarantined when an actual saved fact has insufficient context.
     if (missingTargets.length) unresolved.push({ path: `identityRegistry.aliases[${JSON.stringify(alias)}]`, source: 'identity-registry',
-      originalId: alias, originalTargets: cloneJson(targets), reason: 'unresolved alias target', candidates: targetIds.filter(target => !missingTargets.includes(target)) });
+      originalId: alias, originalTargets: cloneJson(targets), reason: 'unresolved alias target', candidates: targetIds.filter(target => !missingTargetIds.has(target)) });
   }
   next.identityRegistry = { schemaVersion: 1, entries, aliases, unresolved: cloneJson(unresolved) };
   const changed = JSON.stringify(original.tasks.map(({ id, label, category }) => ({ id, label, category }))) !== JSON.stringify(next.tasks)
@@ -962,7 +978,8 @@ function migrateOwnedTaskIdentities(next, { catalogue = [], taskMap, history, pr
       conversions: [...(previous.conversions ?? []), ...conversions], unresolved, conflicts: [...(previous.conflicts ?? []), ...conflicts], archives, legacyAlternativeMembers };
     next.provenance = { ...next.provenance, taskIdentityMigration: report };
   }
-  for (const item of unresolved) warnings.push(`Saved task ${next.tasks.find(task => task.id === item.originalId)?.label ?? item.originalId} at ${item.path} could not be matched; the original record is kept for review.`);
+  const migratedTaskLabels = new Map(next.tasks.map(task => [task.id, task.label]));
+  for (const item of unresolved) warnings.push(`Saved task ${displayText(migratedTaskLabels.get(item.originalId) ?? item.originalId)} at ${displayText(item.path)} could not be matched; the original record is kept for review.`);
   if (conflicts.length) warnings.push(`${conflicts.length} conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.`);
   return { state: next, warnings, report: { ...conservation, conversions, unresolved, conflicts } };
 }

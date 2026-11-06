@@ -14,8 +14,8 @@ const sum = values => values.some(value => value === null) ? null : values.reduc
 
 /** Exactly the Every Drop item family used by collection.mjs; other collection
  * kinds retain their source-specific obligations. Unknown aliases stay distinct. */
-function completionKey(state, id) {
-  id = resolveSavedTaskId(state.identityRegistry, id);
+function completionKey(id, resolve) {
+  id = resolve(id);
   return id.startsWith('rs3:goal:every-drop:') ? `every-drop:${id.split(':').at(-1)}` : id;
 }
 function observedSkills(member) {
@@ -34,10 +34,17 @@ function skillCounts(member, f2p) {
  * quest points or account levels, regardless of the shared satisfaction rule. */
 export function progressCounts(state, { questPoints } = {}) {
   const f2p = state.rules?.['content.f2p'] !== false;
+  // Personal counts, group counts and quest points ask the same saved-ID
+  // questions. Share answers for this observation only, never across saves.
+  const resolved = new Map();
+  const resolve = id => {
+    if (!resolved.has(id)) resolved.set(id, resolveSavedTaskId(state.identityRegistry, id));
+    return resolved.get(id);
+  };
   const completionSets = state.members.map(member => new Set([...member.completedTasks,
-    ...Object.entries(member.taskStatus ?? {}).filter(([, value]) => value.challengeCompleted === true).map(([id]) => id)].map(id => completionKey(state, id))));
+    ...Object.entries(member.taskStatus ?? {}).filter(([, value]) => value.challengeCompleted === true).map(([id]) => id)].map(id => completionKey(id, resolve))));
   const members = state.members.map((member, index) => {
-    const actual = new Set(member.completedTasks.map(id => resolveSavedTaskId(state.identityRegistry, id)));
+    const actual = new Set(member.completedTasks.map(resolve));
     return { memberId: member.id, name: member.name, metrics: { unlockedChunks: new Set(member.unlocked).size,
       completedTasks: completionSets[index].size,
       questPoints: questPoints ? [...actual].reduce((total, id) => total + (questPoints.get(id) ?? 0), 0) : null,

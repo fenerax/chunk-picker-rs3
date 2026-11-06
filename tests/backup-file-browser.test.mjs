@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openChrome, sleep, until } from '../scripts/perf/cdp.mjs';
+import { openChrome, until } from '../scripts/perf/cdp.mjs';
 import { findChrome } from '../scripts/ci/gallery-support.mjs';
 
 const evaluate = (page, fn, ...args) => page.evaluate(`(${fn})(...${JSON.stringify(args)})`);
@@ -22,22 +22,46 @@ async function key(page, key) {
 }
 async function click(page, expression) {
   await until(() => page.evaluate(`(() => { const node = ${expression}; return node && !node.disabled && node.checkVisibility(); })()`), 10000);
-  await page.evaluate(`(${expression}).scrollIntoView({ block: 'center' })`);
-  await sleep(50);
-  const point = await page.evaluate(`(() => {
-    const node = ${expression}, r = node.getBoundingClientRect();
+  const point = await until(() => page.evaluate(`(async () => {
+    const node = ${expression};
+    if (!node || node.disabled || !node.checkVisibility()) return false;
+    node.scrollIntoView({ block: 'center', behavior: 'instant' });
+    // Wait for layout/paint rather than assuming the runner rendered in 50 ms.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const r = node.getBoundingClientRect();
     const x = r.x + r.width / 2, y = r.y + r.height / 2, hit = document.elementFromPoint(x, y);
-    return { x, y, hit: hit === node || node.contains(hit) };
-  })()`);
-  assert.equal(point.hit, true, 'Pointer target owns its centre');
+    return node.isConnected && (hit === node || node.contains(hit)) ? { x, y } : false;
+  })()`), 10000);
   const { x, y } = point;
   await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
   await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
 }
 
+async function navigate(page, url) {
+  let loaded = false;
+  const listener = ({ method }) => { if (method === 'Page.loadEventFired') loaded = true; };
+  page.listeners.add(listener);
+  try {
+    await page.send('Page.navigate', { url });
+    // Join navigation before probing a document whose execution context may
+    // still be replaced. Keep the existing 10-second readiness backstop.
+    await until(() => loaded, 10000);
+  } finally { page.listeners.delete(listener); }
+}
+
+async function diagnose(t, work) {
+  try { await work(); }
+  catch (error) {
+    // The aggregate runner can reduce Error objects to {}. Preserve the actual
+    // failure in TAP diagnostics without logging save/session data.
+    t.diagnostic(`${error.name}: ${error.message}`);
+    throw error;
+  }
+}
+
 for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpose and filename in Chromium (${activation})`, {
   timeout: 60000,
-}, async t => {
+}, async t => diagnose(t, async () => {
   let executable;
   try { executable = await findChrome(); } catch (error) {
     if (error.message !== 'CHROME_UNAVAILABLE') throw error;
@@ -79,14 +103,14 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
   await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
   await mkdir(downloads);
   await page.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
-  await page.send('Page.navigate', { url: handle.inviteUrl });
+  await navigate(page, handle.inviteUrl);
   await click(page, dialogButton('Skip setup'));
   await wait(page, () => !document.getElementById('tool-dialog').open);
   await wait(page, () => document.getElementById('save-status').dataset.status === 'saved');
   // Restart through normal startup: the setup preference and admin session persist.
   await handle.close(); await start();
   const restartedOrigin = `http://127.0.0.1:${handle.address().port}`;
-  await page.send('Page.navigate', { url: restartedOrigin + '/' });
+  await navigate(page, restartedOrigin + '/');
   await wait(page, origin => location.origin === origin && document.readyState === 'complete'
     && document.getElementById('save-status')?.textContent === 'Saved', restartedOrigin);
   assert.equal(await page.evaluate(`!!(${dialogButton('Skip setup')})`), false);
@@ -97,7 +121,7 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
       await click(page, "document.getElementById('backup-open').closest('details').querySelector('summary')");
     }
     await click(page, element('#backup-open'));
-    await wait(page, () => document.getElementById('tool-dialog').open && document.getElementById('dialog-title').textContent === 'Backup & Import');
+    await wait(page, () => document.getElementById('tool-dialog').open && document.getElementById('dialog-title').textContent === 'Export / Import');
   };
   await open();
   const button = element('#tool-dialog .file-picker button'), preview = dialogButton('Preview restore');
@@ -105,7 +129,7 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
     .some(node => node.checkVisibility() && node.textContent.includes(text)), text);
   await click(page, preview);
   await alert('Choose');
-  await click(page, dialogButton('Download full backup'));
+  await click(page, dialogButton('Full picker backup'));
   // Chrome renames its .crdownload only after the actual download completes.
   const downloaded = await until(async () => (await readdir(downloads)).find(name => name.endsWith('.json.gz')), 10000);
   const backup = await readFile(path.join(downloads, downloaded));
@@ -170,4 +194,4 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
   assert.equal(validAX?.description?.value, 'selected-backup.json.gz');
   assert.match(emptyAX?.name?.value || '', /Choose file.*Choose a full backup/);
   assert.equal(emptyAX?.description?.value, 'No file chosen');
-});
+}));

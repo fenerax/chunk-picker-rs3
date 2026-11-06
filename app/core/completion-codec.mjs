@@ -113,7 +113,7 @@ export function createCompletionEncoder({ hashJSON = sha256, byteLength = utf8By
 
 /** Expand before normal state validation, migration, hooks or commands. Never
  * mutate an imported object, including its arrays or historical snapshots. */
-export function decodeCompletionDocument(document, { hashJSON = sha256, byteLength = utf8Bytes } = {}) {
+export function decodeCompletionDocument(document, { hashJSON = sha256, byteLength = utf8Bytes, maxExpandedBytes = MAX_EXPANDED_BYTES } = {}) {
   if (document?.schemaVersion !== COMPLETION_BACKUP_VERSION) {
     if (document?.completionArrays !== undefined) fail();
     return document;
@@ -121,6 +121,11 @@ export function decodeCompletionDocument(document, { hashJSON = sha256, byteLeng
   const codec = document.completionArrays;
   if (!keys(codec, ['version', 'entries']) || codec.version !== 1 || !Array.isArray(codec.entries) || !codec.entries.length) fail();
   if (!record(document.state) || !Array.isArray(document.state.history)) fail();
+  const checkExpansion = size => {
+    if (size <= maxExpandedBytes) return;
+    if (maxExpandedBytes < MAX_EXPANDED_BYTES) throw Object.assign(new Error('This backup exceeds the safe import work limit for this shared server. Export a smaller backup.'), { status: 413 });
+    fail();
+  };
   const arrays = [], sizes = [];
   let allocated = 0;
   for (const entry of codec.entries) {
@@ -140,13 +145,13 @@ export function decodeCompletionDocument(document, { hashJSON = sha256, byteLeng
       // JSON array item bytes are additive after removing brackets/commas.
       const itemBytes = values => values.reduce((sum, id) => sum + byteLength(JSON.stringify(id)) + 1, 0);
       bytes = sizes[entry.base] - (base.length ? 1 : 2) - itemBytes(entry.remove) + itemBytes(entry.insert) + (entry.length ? 1 : 2);
-      if (allocated + bytes > MAX_EXPANDED_BYTES) fail();
+      checkExpansion(allocated + bytes);
       value = [...base.slice(0, entry.at), ...entry.insert, ...base.slice(entry.at + entry.remove.length)];
       if (value.length !== entry.length || !ids(value)) fail();
     }
     if (typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(entry.sha256) || hashJSON(JSON.stringify(value)) !== entry.sha256) fail();
     allocated += bytes;
-    if (allocated > MAX_EXPANDED_BYTES) fail();
+    checkExpansion(allocated);
     arrays.push(value);
     sizes.push(bytes);
   }
@@ -158,7 +163,7 @@ export function decodeCompletionDocument(document, { hashJSON = sha256, byteLeng
       || !Number.isSafeInteger(side.value.completionArray) || side.value.completionArray < 0 || side.value.completionArray >= arrays.length) fail();
     references++;
     expanded += sizes[side.value.completionArray];
-    if (expanded > MAX_EXPANDED_BYTES) fail();
+    checkExpansion(expanded);
     // Keep the public mutable-input boundary independent even when references
     // in the file share an array. The owned store can share decoded arrays.
     return { exists: true, value: arrays[side.value.completionArray] };

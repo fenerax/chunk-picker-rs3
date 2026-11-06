@@ -25,9 +25,9 @@ export function negotiateEncoding(header = '', compress = true) {
   return selected;
 }
 
-export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true } = {}) {
+export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true, identityETag } = {}) {
   const plain = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
-  const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: etag(plain) })]]);
+  const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: identityETag ?? etag(plain) })]]);
   let retainedBytes = plain.byteLength;
   const representation = { bytes: plain, type, cacheControl, compress,
     get byteLength() { return plain.byteLength; },
@@ -186,17 +186,34 @@ export async function sendRepresentation(request, response, representation, { st
 export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 1024 } = {}) {
   const rows = new Map();
   const bytes = () => [...rows.values()].reduce((sum, row) => sum + row.retainedBytes, 0);
-  const remove = key => { const row = rows.get(key); rows.delete(key); if (row) row.onSizeChange = undefined; };
-  const trim = () => { while (rows.size && (rows.size > maxEntries || bytes() > maxBytes)) remove(rows.keys().next().value); };
+  const remove = key => {
+    const row = rows.get(key);
+    // In-flight decoders keep their reservation until their native operation
+    // settles. Invalidation still cancels their reusable result immediately.
+    if (row?.pinned) { row.onEvict?.(); return false; }
+    rows.delete(key);
+    if (row) { row.onSizeChange = undefined; row.onEvict?.(); }
+    return !!row;
+  };
+  const trim = () => {
+    while (rows.size && (rows.size > maxEntries || bytes() > maxBytes)) {
+      const candidate = [...rows].find(([, row]) => !row.pinned);
+      if (!candidate) break;
+      remove(candidate[0]);
+    }
+  };
   return {
     get(key) { const row = rows.get(key); if (row) { rows.delete(key); rows.set(key, row); } return row; },
     set(key, value) {
-      if (rows.has(key)) remove(key);
-      if (value.retainedBytes > maxBytes) return value;
+      if (rows.has(key) && !remove(key)) return value;
+      const pinned = [...rows.values()].filter(row => row.pinned);
+      if (value.retainedBytes > maxBytes || pinned.length >= maxEntries
+        || pinned.reduce((sum, row) => sum + row.retainedBytes, 0) + value.retainedBytes > maxBytes) return value;
       rows.set(key, value); value.onSizeChange = trim; trim();
       return value;
     },
     clear() { for (const key of rows.keys()) remove(key); },
+    delete: remove,
     get size() { return rows.size; },
     get bytes() { return bytes(); },
   };

@@ -66,11 +66,11 @@ test('unknown and unmet personal route requirements fail closed; partner facts a
   assert.equal(evaluateTransportRoutes(world, state, 'player1', { transportRoutes: routes })[0].available, true);
 });
 
-test('levels and quests use personal observations/completions rather than potential tasks or group checkmarks', () => {
+for (const source of ['runemetrics', 'platform-api']) test(`levels and quests use personal observations/completions rather than potential tasks or group checkmarks (${source})`, () => {
   const { state, world, routes } = fixture();
   routes.routes = [route('quest', 'home', 'owned', { requirements: requirement({ levels: { Agility: 10 }, quests: ['Quest A'] }) })];
   state.tasks.push({ id: 'personal-quest', label: 'Quest A', category: 'Quest' });
-  state.members[0].skillProgress = { Agility: { level: 10, xp: 1200, source: 'runemetrics', runescapeName: 'exampleGIMab' } };
+  state.members[0].skillProgress = { Agility: { level: 10, xp: 1200, source, runescapeName: 'exampleGIMab' } };
   state.members[0].taskStatus = { 'personal-quest': { challengeCompleted: true } };
   assert.equal(evaluateTransportRoutes(world, state, 'player1', { transportRoutes: routes })[0].available, false);
   state.members[0].completedTasks.push('personal-quest');

@@ -17,6 +17,22 @@ function fixture() {
   return state;
 }
 const counts = state => progressCounts(state, { questPoints });
+
+test('progress observations share identity answers within a call and read fresh saved aliases on the next call', () => {
+  const state = createGroupState([{ id: 'one', name: 'Synthetic player' }]);
+  const ids = ['rs3:task:synthetic-progress-a', 'rs3:task:synthetic-progress-b'];
+  state.identityRegistry = { entries: Object.fromEntries(ids.map(id => [id, { id, category: 'Quest', aliases: [] }])), aliases: { synthetic: ids[0] } };
+  state.members[0].completedTasks = ['synthetic', ids[0]];
+  state.members[0].taskStatus = { synthetic: { challengeCompleted: true } };
+  const options = { questPoints: new Map([[ids[0], 3], [ids[1], 7]]) };
+  const first = progressCounts(state, options);
+  assert.equal(first.members[0].metrics.completedTasks, 1);
+  assert.equal(first.members[0].metrics.questPoints, 3);
+  state.identityRegistry.aliases.synthetic = ids[1];
+  const second = progressCounts(state, options);
+  assert.equal(second.members[0].metrics.completedTasks, 2);
+  assert.equal(second.members[0].metrics.questPoints, 10);
+});
 function observation(member, level = 30, at = start) {
   member.skillProgress = Object.fromEntries(playerControlSkills.map(skill => [skill, { level, xp: 1000, fetchedAt: at, source: 'runemetrics', runescapeName: member.runescapeName }]));
 }

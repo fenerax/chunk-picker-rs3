@@ -2,6 +2,7 @@
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
+import { realpathSync } from 'node:fs';
 import { readFile, writeFile, mkdir, mkdtemp, cp, rm, lstat, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -11,6 +12,9 @@ const refusalMessage = error => String(error?.message ?? error).replace(/https?:
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = async file => JSON.parse((await readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
 const encode = value => Buffer.from(JSON.stringify(value, null, 2) + '\n');
+// The helper is also copied flat into PC kits. Tests bind this fixed list to
+// the receiver's code-owned durable journal files without a checkout import.
+const itemFiles = ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json'];
 export const bindingBytes = descriptor => encode({ schemaVersion: 1, datasetId: descriptor.datasetId,
   datasetContractVersion: descriptor.datasetContractVersion, digest: descriptor.digest, requiresPack: true });
 async function regular(file) {
@@ -35,7 +39,7 @@ function assertDescriptor(actual, declared) {
     || !/^[a-f0-9]{64}$/.test(declared.digest) || !/^[a-f0-9]{64}$/.test(declared.bindingSha256)
     || Object.keys(actual).some(key => actual[key] !== declared[key])) throw new Error('Explicit pack descriptor differs.');
 }
-async function snapshot(dataDir, target) {
+export async function snapshot(dataDir, target) {
   const before = await saveIdentity(dataDir);
   await mkdir(target);
   await cp(path.join(dataDir, 'state.json'), path.join(target, 'state.json'), { errorOnExist: true, force: false });
@@ -43,11 +47,19 @@ async function snapshot(dataDir, target) {
     try { await cp(path.join(dataDir, name), path.join(target, name), { recursive: true, errorOnExist: true, force: false }); }
     catch (e) { if (e.code !== 'ENOENT') throw e; }
   }
+  for (const name of itemFiles) {
+    try { await cp(await regular(path.join(dataDir, name)), path.join(target, name), { errorOnExist: true, force: false }); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
   if (digestValue(await saveIdentity(target)) !== digestValue(before) || digestValue(await saveIdentity(dataDir)) !== digestValue(before)) throw new Error('Save changed during snapshot.');
   return before;
 }
 export async function saveIdentity(dataDir) {
   const files = [{ path: 'state.json', sha256: sha(await readFile(await regular(path.join(dataDir, 'state.json')))) }];
+  for (const name of itemFiles) {
+    try { files.push({ path: name, sha256: sha(await readFile(await regular(path.join(dataDir, name)))) }); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
   for (const name of ['static', 'history']) {
     try { await lstat(path.join(dataDir,name)); const tree = await hashTree(path.join(dataDir, name)); files.push(...tree.files.map(row => ({ path: name + '/' + row.path, sha256: row.sha256 }))); }
     catch (e) { if (e.code !== 'ENOENT') throw e; }
@@ -113,6 +125,10 @@ function assertDailyProgress(a, b) {
   if (!kept || !added) throw new Error('Saved daily progress history changed during compatibility check.');
 }
 export function assertPreserved(a, b) {
+  if (a.itemEvidenceFiles !== undefined && (!Array.isArray(b.itemEvidenceFiles) || digestValue(a.itemEvidenceFiles) !== digestValue(b.itemEvidenceFiles))) throw new Error('Durable plugin item sidecars changed during compatibility check.');
+  // Old receivers without a recovery adapter still get exact sidecar identity
+  // and portable-provenance checks. New receivers also compare validated unions.
+  if (a.itemEvidenceDigest !== undefined && b.itemEvidenceDigest !== undefined && a.itemEvidenceDigest !== b.itemEvidenceDigest) throw new Error('Recovered plugin item evidence changed during compatibility check.');
   const present = new Set(b.taskIds);
   // Startup may append a catalogue-refresh event and its migration audit archive.
   // Retained history is hydrated by backup() before hashing: representation changes
@@ -223,9 +239,17 @@ export async function probe(core, dataDir, output, { retention } = {}) {
     // Count all authored keys while keeping explicit PickerId proof separate.
     const { datasetAuthored, datasetAuthoredKeys } = datasetAuthoredIdentities(definitions);
     const progress = Object.fromEntries(Object.entries(state).filter(([key]) => !['identityRegistry', 'tasks', 'legacy', 'revision', 'history', 'provenance'].includes(key)));
-    progress.provenance = Object.fromEntries(Object.entries(state.provenance ?? {}).filter(([key]) => !['taskIdentityMigration', 'historyArchive'].includes(key)));
+    progress.provenance = Object.fromEntries(Object.entries(state.provenance ?? {}).filter(([key]) => !['taskIdentityMigration', 'historyArchive', 'pluginItemEvidenceReconciled'].includes(key)));
     // Include retained history in the real storage decoder's compatibility check.
     const backup = await app.store.backup();
+    const itemEvidenceFiles = (await saveIdentity(dataDir)).filter(row => itemFiles.includes(row.path));
+    const adapter = path.join(core, 'app/plugin-items.mjs');
+    let items;
+    try { await regular(adapter); items = await import(pathToFileURL(path.join(core, 'app/plugin-items.mjs'))); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const owners = new Set(state.members.map(member => member.id));
+    const itemEvidenceDigest = typeof items?.exportPluginItemEvidence === 'function'
+      ? digestValue(await items.exportPluginItemEvidence(dataDir, id => owners.has(id) ? id : undefined, backup.state?.provenance?.pluginItemEvidence)) : undefined;
     const completeHistory = backup.state?.history ?? state.history ?? [];
     const migration = state.provenance?.taskIdentityMigration ?? {};
     if (migration.lostRecords !== undefined && migration.lostRecords !== 0) throw new Error('Migration reports lost saved records.');
@@ -234,6 +258,7 @@ export async function probe(core, dataDir, output, { retention } = {}) {
       archiveHistoryCounts: (migration.archives ?? []).map(row => row.history?.length ?? 0) };
     const preserved = { migrationSummary, historyFieldDigests: completeHistory.map(event => Object.fromEntries(Object.entries(event).map(([key, value]) => [key, digestValue(value)]))), historyEvents: completeHistory.map(digestValue), historyTypes: completeHistory.map(event => event.type),
       migrationArchives: (migration.archives ?? []).map(digestValue), migrationConversions: (migration.conversions ?? []).map(digestValue), migrationConflicts: (migration.conflicts ?? []).map(digestValue) };
+    Object.assign(preserved, { itemEvidenceFiles, itemEvidenceDigest });
     const saved = {};
     const visit = value => {
       if (!value || typeof value !== 'object') return;
@@ -249,7 +274,14 @@ export async function probe(core, dataDir, output, { retention } = {}) {
     await writeFile(output, encode({ authored, saved, datasetAuthored, datasetAuthoredKeys, ...preserved, progressFields: Object.fromEntries(Object.entries(progress).map(([key, value]) => [key, digestValue(value)])), registryDigest: digestValue(state.identityRegistry ?? {}), progressDigest: digestValue(progress), progressSnapshotRows: (state.progressSnapshots?.days ?? []).map(row => [row[0], digestValue(row)]), progressSnapshotMeta: state.progressSnapshots ? digestValue(Object.fromEntries(Object.entries(state.progressSnapshots).filter(([key]) => key !== 'days'))) : null, taskIds: state.tasks.map(t => t.id).sort(), tasksServed: true }), { flag: 'wx' });
   } finally { await app.close(); }
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Self-contained: this module is also copied flat into PC kits.
+// Eval imports are never CLI entrypoints, even when eval has positional args.
+function isCliEntry() {
+  if (process.execArgv.some(arg => /^(?:-[a-zA-Z]*[ep]|--(?:eval|print)(?:=|$))/.test(arg))) return false;
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; } // Import callers may pass a non-path argument.
+}
+if (isCliEntry()) {
   try {
     if (process.argv[2] === 'probe') await probe(...process.argv.slice(3));
     else if (process.argv[2] === 'check') await checkPackTransition({ fromConfig: process.argv[3], toConfig: process.argv[4], transition: process.argv[5], output: process.argv[6] });

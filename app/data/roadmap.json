@@ -89,7 +89,7 @@
           "id": "A11",
           "title": "Game companion plugin",
           "what": "An in-game plugin sends quests, levels, location and completed achievements to the picker, shows your chunk and tasks in game, and ticks diary tasks for you.",
-          "why": "Ends manual ticking and fills the gaps RuneMetrics can’t see, like achievements and quest steps.",
+          "why": "Ends manual ticking and fills the gaps web sync can’t see, like achievements and quest steps.",
           "size": "L",
           "status": "working",
           "note": "Works on the beta world now. Not submitted to the Plugin Hub yet; we're working through Jagex's submission checklist first. After that comes a map window in game."
@@ -838,10 +838,11 @@
           "id": "G15",
           "title": "Keep levels and quests syncing after RuneMetrics closes",
           "what": "Move the picker's level and quest sync off RuneMetrics to Jagex's new web API, and use the game plugin as the main source when it's connected.",
-          "why": "Jagex turns RuneMetrics off on 10 November, and the picker reads your levels and quests from it today.",
+          "why": "Jagex turns RuneMetrics off on 10 November. The picker now uses the RuneScape Platform API.",
           "size": "M",
-          "status": "next",
-          "note": "Jagex will publish the new API's details before the shutdown. Until then the picker keeps using RuneMetrics."
+          "status": "done",
+          "done": "2026-11-05",
+          "note": "Platform API supplies levels and quests. The retired RuneMetrics fallback has been removed; plugin observations keep priority and saved progress survives web outages."
         }
       ]
     },

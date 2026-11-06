@@ -13,6 +13,15 @@ const task = (id, level, extra = {}) => ({ id, label: id, category: 'Mining', le
   status: 'available', obligation: true, ...extra });
 const row = (rows, skill) => rows.find(row => row.skill === skill);
 
+test('helper uses Platform API progress for the current account and rejects stale account bindings', () => {
+  const owner = member();
+  owner.skillProgress.Mining.source = 'platform-api';
+  assert.equal(personalSkillProgress(owner).Mining.level, 10);
+  assert.equal(personalSkillProgress(owner).Mining.source, 'platform-api');
+  owner.runescapeName = 'other';
+  assert.deepEqual(personalSkillProgress(owner), {});
+});
+
 test('standard XP boundaries, remaining XP, and level 120 are explicit', () => {
   assert.equal(xpLookup(0).level, 1);
   assert.equal(xpLookup(82).level, 1);

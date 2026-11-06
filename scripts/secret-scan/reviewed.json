@@ -30,6 +30,10 @@
       "reason": "The upstream picker this project derives from."
     },
     {
+      "host": "gitgeddes.github.io",
+      "reason": "Public legacy RS3 picker targeted by the documented chunk URL export format."
+    },
+    {
       "host": "mejrs.github.io",
       "reason": "Public RuneScape map and cache viewer credited as a source."
     },
@@ -108,6 +112,14 @@
     {
       "host": "oauth2.googleapis.com",
       "reason": "Fixed public Google OpenID Connect token endpoint."
+    },
+    {
+      "host": "healthchecks.io",
+      "reason": "Fixed public Healthchecks check-management API for the approved dead-man service."
+    },
+    {
+      "host": "api.backblazeb2.com",
+      "reason": "Fixed public B2 authorization API origin for the approved backup service; bucket and account endpoints remain unreviewed."
     }
   ],
   "placeholders": [

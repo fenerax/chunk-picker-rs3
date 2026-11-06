@@ -75,6 +75,7 @@ const coverage = [
   ['progress', 'set-obtained-equipment', { equipmentName: 'Rune pickaxe', obtained: true }, 'Recorded Rune pickaxe as obtained'],
   ['progress', 'set-runescape-name', {}, 'Set the RuneScape name'],
   ['progress', 'apply-runemetrics', {}, 'Synced skills and quests from RuneMetrics'],
+  ['progress', 'apply-runemetrics', { source: 'platform-api' }, 'Synced skills and quests from Platform API'],
   ['progress', 'apply-game-progress', {}, 'Applied skills and quests from the game plugin'],
   ['progress', 'apply-game-progress', { skills: [], quests: [], achievements: [], items: [{}, {}] }, 'Ticked 2 tasks from items the game plugin saw'],
   ['progress', 'apply-game-progress', { skills: [{}], items: [{}] }, 'Applied skills and quests and item tasks from the game plugin'],

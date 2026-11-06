@@ -1,20 +1,26 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
+import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createProgressSources, createPluginProgressSource, RUNE_METRICS_CLOSED_MESSAGE, previewProgress } from '../app/integrations/progress-sources.mjs';
+import { createProgressSources, createPluginProgressSource, PROGRESS_UNAVAILABLE_MESSAGE, previewProgress } from '../app/integrations/progress-sources.mjs';
 import { createHiscoresSource, parseHiscoresLite } from '../app/integrations/hiscores.mjs';
 import { createQuestMapping } from '../app/integrations/quest-mapping.mjs';
 import { applyCommand, createGroupState, validateState, exportBackup, importBackup } from '../app/core/state.mjs';
 import { progressBelongsToMember } from '../app/core/game-progress.mjs';
+import { recordedPlatformResponse } from './helpers/platform-api-fixtures.mjs';
 import { syncFixture } from '../scripts/perf/progress-sync.mjs';
+import { openStore } from '../app/storage/store.mjs';
 
 const fixture = JSON.parse(await readFile(new URL('./fixtures/progress/player-x.json', import.meta.url)));
 const lite = await readFile(new URL('./fixtures/progress/player-x-hiscores.txt', import.meta.url), 'utf8');
 const clock = () => Date.parse(fixture.fetchedAt);
+beforeEach(t => blockUnmockedFetch(t));
 const pluginAt = '2026-10-30T00:00:00.000Z';
 const provenance = { source: 'game-plugin', fetchedAt: pluginAt, memberId: 'player-x' };
-const webFetch = async url => new Response(JSON.stringify(url.pathname.endsWith('/quests') ? fixture.quests : fixture.profile));
+const webFetch = async url => recordedPlatformResponse(url, fixture);
 const mapping = createQuestMapping(fixture.definitions);
 const questId = [...mapping.values()][0][0].taskId;
 const unavailableHiscores = { async snapshot() { throw new Error('Synthetic outage'); } };
@@ -26,7 +32,7 @@ function group() {
 }
 function apply(state, command) { return applyCommand(state, command, { now: () => fixture.fetchedAt }); }
 function source(t, options = {}) {
-  const client = createProgressSources({ clock, hiscores: unavailableHiscores, ...options });
+  const client = createProgressSources({ webSource: 'platform-api', clock, runeMetrics: { fetchImpl: async () => { throw new Error('Synthetic web outage'); } }, hiscores: unavailableHiscores, ...options });
   t.after(() => client.close()); return client;
 }
 function savedState() {
@@ -34,10 +40,31 @@ function savedState() {
     skills: [{ skill: 'Attack', level: 10, xp: 1500 }], quests: [{ taskId: questId, title: 'Synthetic Quest' }] });
 }
 
-test('healthy web sync preview, command, members and history match START byte for byte on two synthetic cases', async () => {
+test('healthy Platform sync preview, command, members and history match the synthetic trace byte for byte', async () => {
   const expected = await readFile(new URL('./fixtures/progress/sync-start.json', import.meta.url));
   const actual = Buffer.from(await syncFixture(fileURLToPath(new URL('..', import.meta.url)), fixture));
   assert.deepEqual(actual, expected);
+  assert.deepEqual(JSON.parse(actual)[1].members[0].skillProgress.Attack,
+    { level: 6, xp: 600, source: 'runemetrics', fetchedAt: fixture.fetchedAt, runescapeName: 'Player x' });
+});
+
+test('legacy web settings use Platform without lowering a restored RuneMetrics observation', async t => {
+  for (const webSource of ['runemetrics', 'official-api', 'platform-api']) {
+    for (const [level, xp] of [[9, 1000], [7, 700]]) {
+      const response = structuredClone(fixture);
+      response.profile.skillvalues = [{ id: 0, level, xp: xp * 10 }];
+      const state = importBackup(exportBackup(apply(group(), { type: 'apply-runemetrics', memberId: 'player-x',
+        runescapeName: 'Player x', fetchedAt: pluginAt, skills: [{ skill: 'Attack', level: 9, xp: 1000.5 }], quests: [] })));
+      const client = source(t, { webSource, runeMetrics: { fetchImpl: async url => recordedPlatformResponse(url, response) } });
+      const snapshot = await client.snapshot(state.members[0]);
+      assert.equal(snapshot.source, 'platform-api');
+      const proposal = previewProgress(state, 'player-x', snapshot, mapping);
+      assert.deepEqual(proposal.preview.skills, []);
+      const applied = apply(state, proposal.command);
+      assert.equal(applied.members[0].skillProgress.Attack.level, 9);
+      assert.equal(applied.members[0].skillProgress.Attack.xp, 1000.5);
+    }
+  }
 });
 
 test('plugin levels and quest statuses win individually; web fills absent fields and keeps truthful provenance', async t => {
@@ -55,7 +82,7 @@ test('plugin levels and quest statuses win individually; web fills absent fields
   assert.equal(applied.members[0].skillProgress.Attack.source, 'game-plugin');
   assert.equal(applied.members[0].skillProgress.Attack.fetchedAt, pluginAt);
   assert.equal(applied.members[0].skillProgress.Cooking.source, 'game-plugin');
-  assert.equal(applied.members[0].skillProgress.Necromancy.source, 'runemetrics');
+  assert.equal(applied.members[0].skillProgress.Necromancy.source, 'official-api');
   assert.deepEqual(importBackup(exportBackup(applied)).members, applied.members);
   assert.deepEqual(apply(applied, { type: 'undo' }).members, state.members);
 });
@@ -66,7 +93,7 @@ test('stored plugin quests and levels survive restart, disconnection and a web a
   const owner = importBackup(exportBackup(state)).members[0]; owner.runescapeName = 'Player y';
   const client = source(t, { runeMetricsEnabled: false, hiscores: { snapshot() { assert.fail('Plugin observations suppress hiscores'); } } });
   const snapshot = await client.snapshot(owner);
-  assert.equal(snapshot.source, 'game-plugin'); assert.equal(snapshot.message, RUNE_METRICS_CLOSED_MESSAGE);
+  assert.equal(snapshot.source, 'game-plugin'); assert.equal(snapshot.message, PROGRESS_UNAVAILABLE_MESSAGE);
   assert.equal(snapshot.skills[0].level, 8); assert.equal(snapshot.quests[0].status, 'COMPLETED');
 });
 
@@ -76,11 +103,11 @@ for (const [kind, fetchImpl] of [
   ['DNS failure', async () => { throw Object.assign(new Error('Synthetic DNS failure'), { cause: { code: 'ENOTFOUND' } }); }],
   ['closed connection', async () => { throw Object.assign(new Error('Synthetic connection failure'), { cause: { code: 'ECONNREFUSED' } }); }],
 ]) {
-  test(`${kind}: one closure message and byte-identical saved progress when both web sources fail`, async t => {
+  test(`${kind}: one unavailable message and byte-identical saved progress when both web sources fail`, async t => {
     const state = savedState(), before = JSON.stringify(state);
     const client = source(t, { runeMetrics: { fetchImpl } });
     const result = await client.snapshot(state.members[0]);
-    assert.equal(result.available, false); assert.equal(result.message, RUNE_METRICS_CLOSED_MESSAGE);
+    assert.equal(result.available, false); assert.equal(result.message, PROGRESS_UNAVAILABLE_MESSAGE);
     assert.equal(JSON.stringify(state), before);
   });
   test(`${kind}: hiscores supplies only levels and XP without losing saved quests or reducing progress`, async t => {
@@ -88,8 +115,9 @@ for (const [kind, fetchImpl] of [
     const client = source(t, { runeMetrics: { fetchImpl }, hiscores: createHiscoresSource({ clock, fetchImpl: async () => new Response(lite) }) });
     const result = await client.snapshot(owner);
     assert.equal(result.source, 'hiscores'); assert.deepEqual(result.quests, []);
-    assert.equal(result.message, RUNE_METRICS_CLOSED_MESSAGE);
-    assert.ok(!result.skills.some(row => row.skill === 'Attack'));
+    assert.equal(result.message, undefined);
+    // Providers return observations; the shared preview/Apply use latest state.
+    assert.ok(result.skills.some(row => row.skill === 'Attack'));
     const applied = apply(state, previewProgress(state, owner.id, result, mapping).command); validateState(applied);
     assert.deepEqual(applied.members[0].skillProgress.Attack, owner.skillProgress.Attack);
     assert.deepEqual(applied.members[0].questProgress, owner.questProgress);
@@ -101,18 +129,12 @@ for (const [kind, fetchImpl] of [
   });
 }
 
-test('runtime off switch bypasses RuneMetrics cache; environment switch also works without rebuilding', async t => {
-  let enabled = true, calls = 0;
-  const client = source(t, { runeMetricsEnabled: () => enabled, runeMetrics: { fetchImpl: async url => { calls++; return webFetch(url); } } });
-  assert.equal((await client.snapshot(group().members[0])).source, 'runemetrics');
-  enabled = false;
-  assert.equal((await client.snapshot(group().members[0])).available, false); assert.equal(calls, 2);
-  enabled = true;
-  assert.equal((await client.snapshot(group().members[0])).source, 'runemetrics'); assert.equal(calls, 2);
+test('retired runtime switches do not disable Platform sync or restore a legacy fetch', async t => {
   const previous = process.env.RS3_RUNEMETRICS_ENABLED;
   t.after(() => { if (previous === undefined) delete process.env.RS3_RUNEMETRICS_ENABLED; else process.env.RS3_RUNEMETRICS_ENABLED = previous; });
   process.env.RS3_RUNEMETRICS_ENABLED = '0';
-  assert.equal((await source(t, { runeMetrics: { fetchImpl: () => assert.fail('Adapter disabled') } }).snapshot(group().members[0])).available, false);
+  const client = source(t, { runeMetricsEnabled: false, runeMetrics: { fetchImpl: webFetch } });
+  assert.equal((await client.snapshot(group().members[0])).source, 'platform-api');
 });
 
 test('hiscores parses documented RS3 skill ordering, ignores activities, and omits unranked skills', () => {
@@ -123,7 +145,7 @@ test('hiscores parses documented RS3 skill ordering, ignores activities, and omi
     lite.replace('123,5,450', '123,5,200000001'), lite.replace('123,5,450', 'bad')]) assert.throws(() => parseHiscoresLite(value));
 });
 
-test('fallback is never contacted for healthy RuneMetrics, or when any plugin field exists', async t => {
+test('fallback is never contacted for healthy Platform API, or when any plugin field exists', async t => {
   const forbidden = { snapshot() { assert.fail('Unexpected hiscores request'); } };
   await source(t, { runeMetrics: { fetchImpl: webFetch }, hiscores: forbidden }).snapshot(group().members[0]);
   const owner = group().members[0]; owner.skillProgress = { Attack: { level: 5, xp: 450, ...provenance } };
@@ -141,13 +163,13 @@ test('per-row provenance rejects another member, extra keys and a forged web bin
   assert.equal(JSON.stringify(state), before);
 });
 
-test('the off switch changed during a fetch discards its late successful reply', async t => {
+test('legacy switches changed during a Platform fetch do not discard the replacement reply', async t => {
   let enabled = true, release;
   const gate = new Promise(resolve => { release = resolve; });
   const client = source(t, { runeMetricsEnabled: () => enabled,
     runeMetrics: { fetchImpl: async url => { await gate; return webFetch(url); } } });
   const result = client.snapshot(group().members[0]); enabled = false; release();
-  assert.equal((await result).available, false);
+  assert.equal((await result).source, 'platform-api');
 });
 
 test('ordinary service failure can fall back to hiscores; a corrupt fallback preserves the original saved facts', async t => {
@@ -156,7 +178,7 @@ test('ordinary service failure can fall back to hiscores; a corrupt fallback pre
     const client = source(t, { runeMetrics: { fetchImpl: async () => new Response('', { status: 503 }) },
       hiscores: createHiscoresSource({ clock, fetchImpl: async () => new Response(body) }) });
     if (body === lite) assert.equal((await client.snapshot(state.members[0])).source, 'hiscores');
-    else await assert.rejects(client.snapshot(state.members[0]), { code: 'UPSTREAM_ERROR' });
+    else assert.equal((await client.snapshot(state.members[0])).available, false);
     assert.equal(JSON.stringify(state), before);
   }
 });
@@ -193,7 +215,7 @@ test('a fallback fetched before another progress save cannot lower the latest pr
 
 test('replacing the official adapter alone connects the new source after RuneMetrics closes', async t => {
   let calls = 0;
-  const client = source(t, { runeMetrics: { fetchImpl: async () => new Response('', { status: 410 }) },
+  const client = source(t, { webSource: 'official-api',
     officialApi: { async snapshot(member) { calls++; assert.equal(member.runescapeName, 'Player x');
       return { source: 'official-api', sourceLabel: 'RuneScape API', fetchedAt: fixture.fetchedAt, cached: false,
         skills: [{ skill: 'Cooking', level: 5, xp: 450 }], quests: [] }; } },
@@ -203,12 +225,12 @@ test('replacing the official adapter alone connects the new source after RuneMet
   assert.equal(apply(state, previewProgress(state, 'player-x', snapshot, mapping).command).members[0].skillProgress.Cooking.source, 'official-api');
 });
 
-test('a plugin-only player without a web name still sees the closure message', async t => {
+test('a plugin-only player without a web name still sees plugin progress', async t => {
   const owner = group().members[0]; delete owner.runescapeName;
   owner.skillProgress = { Attack: { level: 5, xp: 450, ...provenance } };
   const client = source(t, { runeMetricsEnabled: false });
   const snapshot = await client.snapshot(owner);
-  assert.equal(snapshot.source, 'game-plugin'); assert.equal(snapshot.message, RUNE_METRICS_CLOSED_MESSAGE);
+  assert.equal(snapshot.source, 'game-plugin'); assert.equal(snapshot.message, undefined);
 });
 
 
@@ -273,3 +295,90 @@ test('older live plugin skills and quest statuses cannot overwrite newer saved o
   assert.deepEqual(member.skillProgress.Attack, state.members[0].skillProgress.Attack);
   assert.deepEqual(member.questProgress[questId], state.members[0].questProgress[questId]);
 });
+
+for (const provider of ['platform-api', 'hiscores', 'official-api', 'runemetrics']) {
+  const snapshot = (level, xp, extra = {}) => ({ source: provider, sourceLabel: provider,
+    fetchedAt: fixture.fetchedAt, cached: false,
+    skills: [{ skill: 'Attack', level, xp }], quests: [], ...extra });
+  const legacyState = () => importBackup(exportBackup(apply(group(), {
+    type: 'apply-runemetrics', memberId: 'player-x', runescapeName: 'Player x', fetchedAt: pluginAt,
+    skills: [{ skill: 'Attack', level: 9, xp: 1000.5 }], quests: [{ taskId: questId, title: 'Synthetic Quest' }],
+  })));
+
+  test(`${provider}: preview and durable Apply preserve restored XP precision and reject stale progress through backup/reload`, async t => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'web-progress-preservation-'));
+    let store;
+    t.after(async () => { await store?.close(); await rm(dataDir, { recursive: true, force: true }); });
+    const restored = legacyState();
+    store = await openStore({ dataDir, initialState: restored, retention: false, now: () => fixture.fetchedAt });
+    // A command prepared before the restore models an unguarded caller or a
+    // newer save landing between preview and Apply. Durable Apply must recheck.
+    for (const [level, xp] of [[9, 1000], [7, 700], [8, 1100], [10, 900], [9, 1000]]) {
+      const current = store.getState();
+      const proposal = previewProgress(current, 'player-x', snapshot(level, xp), mapping);
+      assert.deepEqual(proposal.preview.skills, []);
+      if (level === 9 && xp === 1000) assert.equal(proposal.command.skills[0].xp, 1000.5);
+      else assert.deepEqual(proposal.command.skills, []);
+      assert.equal(apply(current, proposal.command).members[0].skillProgress.Attack.xp, 1000.5);
+      for (const command of [proposal.command, previewProgress(group(), 'player-x', snapshot(level, xp), mapping).command]) {
+        const before = store.getState().members[0];
+        await store.command(command, store.getState().revision);
+        const saved = store.getState().members[0];
+        assert.equal(saved.skillProgress.Attack.level, 9);
+        assert.equal(saved.skillProgress.Attack.xp, 1000.5);
+        if (level !== 9) assert.deepEqual(saved.skillProgress.Attack, before.skillProgress.Attack, 'stale rows retain original provenance too');
+        assert.deepEqual(saved.questProgress, restored.members[0].questProgress);
+        assert.deepEqual(saved.completedTasks, restored.members[0].completedTasks);
+        assert.deepEqual(importBackup(await store.backup()).members, store.getState().members);
+      }
+    }
+    const expected = store.getState();
+    await store.close();
+    store = await openStore({ dataDir, retention: false });
+    assert.deepEqual(store.getState().members, expected.members);
+  });
+
+  test(`${provider}: account binding, genuine increases, fractional regressions and plugin authority use the same rule`, () => {
+    const state = legacyState();
+    for (const row of [[9, 1001], [10, 1100]]) {
+      const proposal = previewProgress(state, 'player-x', snapshot(...row), mapping);
+      assert.deepEqual(proposal.preview.skills[0].after, { level: row[0], xp: row[1] });
+      assert.equal(apply(state, proposal.command).members[0].skillProgress.Attack.xp, row[1]);
+    }
+    for (const status of ['STARTED', 'NOT_STARTED']) {
+      const proposal = previewProgress(state, 'player-x', snapshot(7, 700, {
+        quests: [{ title: 'Synthetic Quest', status }] }), mapping);
+      assert.deepEqual(proposal.command.quests, []);
+      const member = apply(state, proposal.command).members[0];
+      assert.deepEqual(member.completedTasks, state.members[0].completedTasks);
+      assert.deepEqual(member.questProgress, state.members[0].questProgress);
+    }
+    if (provider !== 'platform-api') {
+      const proposal = previewProgress(state, 'player-x', snapshot(9, 1000.4), mapping);
+      assert.deepEqual(proposal.command.skills, [], 'fractional decreases are not rounding');
+    }
+    const renamed = structuredClone(state); renamed.members[0].runescapeName = 'Player y';
+    const renamedProposal = previewProgress(renamed, 'player-x', snapshot(7, 700), mapping);
+    assert.equal(renamedProposal.preview.skills[0].after.level, 7);
+    assert.equal(apply(renamed, renamedProposal.command).members[0].skillProgress.Attack.level, 7);
+    const equivalent = structuredClone(state); equivalent.members[0].runescapeName = 'player_x';
+    assert.deepEqual(previewProgress(equivalent, 'player-x', snapshot(7, 700), mapping).command.skills, []);
+
+    // Mixed snapshots and standalone plugin commands may intentionally lower
+    // values. A web row must not displace plugin evidence saved after preview.
+    const pluginRow = snapshot(7, 700, { skills: [{ skill: 'Attack', level: 7, xp: 700.5, provenance }] });
+    const proposal = previewProgress(state, 'player-x', pluginRow, mapping);
+    assert.equal(proposal.preview.skills[0].after.xp, 700.5);
+    const pluginState = apply(state, proposal.command);
+    assert.equal(pluginState.members[0].skillProgress.Attack.source, 'game-plugin');
+    assert.equal(pluginState.members[0].skillProgress.Attack.xp, 700.5);
+    const pluginOnly = apply(state, { type: 'apply-game-progress', memberId: 'player-x', fetchedAt: fixture.fetchedAt,
+      skills: [{ skill: 'Attack', level: 7, xp: 700.5 }], quests: [{ taskId: questId, title: 'Synthetic Quest' }] });
+    const webCommand = previewProgress(group(), 'player-x', snapshot(10, 1100, {
+      quests: [{ title: 'Synthetic Quest', status: 'COMPLETED' }] }), mapping).command;
+    assert.deepEqual(previewProgress(pluginOnly, 'player-x', snapshot(10, 1100), mapping).command.skills, []);
+    const applied = apply(pluginOnly, webCommand);
+    assert.deepEqual(applied.members[0].skillProgress, pluginOnly.members[0].skillProgress);
+    assert.deepEqual(applied.members[0].questProgress, pluginOnly.members[0].questProgress);
+  });
+}
