@@ -90,6 +90,12 @@ Roll/Controls clipping checks. It fails against the old layout even when a
 particular native focus scroll happens to land clear of the tabs. Modals use
 the browser top layer and correctly escape clipping by body/html.
 
+The adjacent phone-control browser test keeps all six existing case identities,
+native touch/mouse flows and assertions. Its bounds probe stops ancestor clipping
+at the fixed tab bar: the bar escapes body overflow. It still checks the bar's
+own clipping and native center/edge hit ownership. This is the fixed-position
+equivalent of the modal top-layer correction, with no removed target check.
+
 The screen-bar observer also reveals the focused target during banner-resize
 delivery, before paint, rather than scheduling a later animation frame.
 Native focus scrolling can finish before a later banner moves the target down;
