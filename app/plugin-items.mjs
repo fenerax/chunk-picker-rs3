@@ -37,13 +37,32 @@ async function capturedInheritedEvidence(dataDir, files) {
   return portablePluginItemEvidence({ ...document.state, provenance: JSON.parse(bytes) });
 }
 
-function validate(value, validateRecord = validateItemRecord) {
-  if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)) throw new TypeError('Invalid plugin item store.');
+function validate(value, validateRecord = validateReviewRecord) {
+  if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)
+    || Object.keys(value.players).length > 256) throw new TypeError('Invalid plugin item store.');
   for (const [player, record] of Object.entries(value.players)) {
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(player)) throw new TypeError('Invalid plugin item store.');
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(player) || ['__proto__', 'constructor', 'prototype'].includes(player)) throw new TypeError('Invalid plugin item store.');
     validateRecord(record);
   }
   return value;
+}
+
+function validateReviewRecord(record) {
+  validateItemRecord(record);
+  decisionIds(record);
+  return record;
+}
+
+// Validate each optional source completely before it enters any merge. Keep
+// authoritative provenance and cross-source union validation outside this catch.
+// Readers never overwrite corrupt bytes; the existing writer archives them.
+function optionalDocument(contents, validateRecord = validateReviewRecord, log = console.warn) {
+  try { return validate(JSON.parse(contents), validateRecord); }
+  catch (error) {
+    if (!(error instanceof SyntaxError) && !(error instanceof TypeError)) throw error;
+    log('Invalid plugin item store; ignoring corrupt optional evidence until the next write.');
+    return null;
+  }
 }
 
 const journalWorlds = ['beta', 'unknown'];
@@ -56,8 +75,8 @@ export const hasPluginItemDecisions = evidence => Object.values(evidence?.player
   Object.values(player.records).some(record => record.handled.some(id => id.startsWith(REVIEW))));
 export async function hasLegacyPluginItemDecisions(dataDir) {
   let document;
-  try { document = JSON.parse(await readFile(path.join(dataDir, 'plugin-items.json'))); }
-  catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
+  try { document = optionalDocument(await readFile(path.join(dataDir, 'plugin-items.json'))); }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
   return Object.values(document?.players ?? {}).some(record => Array.isArray(record?.handled)
     && record.handled.some(id => typeof id === 'string' && id.startsWith(REVIEW)));
 }
@@ -113,15 +132,8 @@ export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, 
     const contents = files[file];
     if (contents === undefined) continue;
     const commits = file === commitFile;
-    let document;
-    try { document = validate(JSON.parse(contents), commits ? validateJournalCommits : validateItemRecord); }
-    catch (error) {
-      // Startup may recover authoritative decisions before the plugin readers
-      // open. Leave corrupt optional bytes untouched for their existing
-      // log-and-archive repair; ordinary exports still require valid evidence.
-      if (captureOptions?.recoverReview && (error instanceof SyntaxError || error instanceof TypeError)) continue;
-      throw error;
-    }
+    const document = optionalDocument(contents, commits ? validateJournalCommits : validateReviewRecord, captureOptions?.log);
+    if (!document) continue;
     const world = file === pluginItemFile() ? 'live' : file === pluginItemFile('beta') ? 'beta' : 'unknown';
     for (const [id, value] of Object.entries(document.players)) {
       const record = players.get(id) ?? { records: {}, commits: { journals: [] } };
@@ -193,7 +205,8 @@ export async function stagePluginItemDecisions(dataDir, evidence, { checkOnly = 
   if (!hasPluginItemDecisions(evidence)) return;
   const file = path.join(dataDir, 'plugin-items.json');
   const before = await readFile(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
-  const previous = before === undefined ? { v: 1, players: {} } : validate(JSON.parse(before));
+  const previous = before === undefined ? { v: 1, players: {} } : optionalDocument(before);
+  if (!previous) return; // Leave the original for the sidecar writer's archival repair.
   // Provenance may predate a sibling's first report. Only an explicit roster
   // boundary may prune a previous owner; lowering owns decisions, not that
   // sibling's independently retained facts or acknowledgement watermarks.
@@ -240,7 +253,7 @@ export function openPluginJournalCommits(options) {
 /** Sidecar only: the caller owns the save directory's existing lock. */
 export async function openPluginItems({ journalWorld, ...options }) {
   if (journalWorld !== undefined && !journalWorlds.includes(journalWorld)) throw new TypeError('Invalid journal world.');
-  return openPluginRecords({ ...options, filename: pluginItemFile(journalWorld), validateRecord: validateItemRecord, merge: mergeItemRecords });
+  return openPluginRecords({ ...options, filename: pluginItemFile(journalWorld), validateRecord: validateReviewRecord, merge: mergeItemRecords });
 }
 
 async function openPluginRecords({ dataDir, members, clock = Date.now, log = console.warn, filename, validateRecord, merge, inherited = () => null }) {
@@ -249,11 +262,9 @@ async function openPluginRecords({ dataDir, members, clock = Date.now, log = con
   try { contents = await readFile(file, 'utf8'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (contents !== undefined) {
-    try { current = validate(JSON.parse(contents), validateRecord); }
-    catch {
-      corrupt = true;
-      log('Invalid plugin item store; starting with no item evidence until the next write.');
-    }
+    const document = optionalDocument(contents, validateRecord, log);
+    if (document) current = document;
+    else corrupt = true;
   }
   return {
     get(player) { return merge(inherited(player), Object.hasOwn(current.players, player) ? current.players[player] : null); },
@@ -265,10 +276,13 @@ async function openPluginRecords({ dataDir, members, clock = Date.now, log = con
       const pending = queue.then(() => withStoreWrite(dataDir, () => withPluginItemEvidenceWrite(dataDir, async () => {
         // A review publication may have lowered newer decisions since this
         // reader opened. Another player's write must retain those exact bytes.
-        try { current = validate(JSON.parse(await readFile(file)), validateRecord); corrupt = false; }
+        try {
+          const document = optionalDocument(await readFile(file), validateRecord, log);
+          if (document) { current = document; corrupt = false; }
+          else corrupt = true;
+        }
         catch (error) {
-          if (error.code !== 'ENOENT' && !(error instanceof SyntaxError) && !(error instanceof TypeError)) throw error;
-          if (error.code !== 'ENOENT') corrupt = true;
+          if (error.code !== 'ENOENT') throw error;
         }
         const live = new Set(members().map(member => member.id));
         const players = Object.fromEntries(Object.entries(current.players).filter(([id]) => live.has(id)));

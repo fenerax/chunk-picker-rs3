@@ -69,9 +69,13 @@ handled IDs in the matching world, even when optional rollback markers cannot fi
 Recovery carries private claim coordination and the unsealed-archive guard to
 replacement state objects. Immutable field references remain attached to their
 unchanged field objects; changed fields are serialized and hashed again.
-Malformed optional item sidecars do not prevent decision recovery from state.
-Their bytes remain untouched until the existing sidecar reader logs the problem
-and archives the original on a successful write. Ordinary exports remain strict.
+Every optional item sidecar reader validates record shape and semantic fields,
+including reserved review markers, player ownership and journal scopes. A corrupt
+optional source is logged and excluded before merging, including during startup,
+reports, backups and exports. Its bytes remain untouched until the existing writer
+archives the original on a successful write. Authoritative provenance and combined
+evidence unions remain strictly validated. Unknown literal task IDs and unmapped
+item IDs within the declared bounds remain valid evidence.
 Frozen operations can discard carriers or re-offer decided rows; see the
 accepted rollback limit alongside currency limits below. Automatic live completion
 keeps its existing retention behavior.

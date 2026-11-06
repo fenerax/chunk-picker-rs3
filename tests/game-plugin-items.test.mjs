@@ -305,6 +305,107 @@ for (const world of ['beta', 'unknown']) for (const failure of ['full live scope
   assert.deepEqual(f.review(), { preview: null });
 });
 
+const BOGUS_MARKER = '{"v":1,"players":{"a":{"baselineAt":"2026-10-22T12:00:00.000Z","items":{},"handled":["~plugin-review:bogus"],"journal":null}}}';
+test('optional item readers validate source semantics before merging authoritative evidence', async t => {
+  const record = { baselineAt: '2026-10-22T12:00:00.000Z', items: {}, handled: [WEAR_TASK, `~plugin-review:${WEAR_TASK}`].sort(), journal: null };
+  const inherited = { v: 1, players: { a: { records: { live: record }, commits: { journals: [] } } } };
+  const mutations = [
+    ['review marker', value => { value.handled = ['~plugin-review:bogus']; }],
+    ['item identity', value => { value.items.invalid = { name: 'Synthetic invalid identity', ownedAt: value.baselineAt, wornAt: null, first: true }; }],
+    ['scope field', value => { value.world = 'unrecognized'; }],
+    ['journal watermark', value => { value.journal = { id: journalId, event: -1 }; }],
+    ['bank field', value => { value.bank = { snapshot: journalId, seenAt: value.baselineAt, coins: -1 }; }],
+  ];
+  const cases = ['live', 'beta', 'unknown'].flatMap(world => mutations.map(([label, mutate]) => {
+    const value = structuredClone(record); mutate(value);
+    return { label: `${world}: ${label}`, world, document: { v: 1, players: { a: value } } };
+  }));
+  cases.push(...cases.filter(entry => entry.label.endsWith('review marker')).map(entry => ({
+    ...entry, label: `${entry.label} after reader open`, late: true })));
+  for (const [label, journals] of [
+    ['pending scope', [{ id: journalId, committed: 0, pending: [[1, UNKNOWN, 'Synthetic pending', 'unrecognized']] }]],
+    ['pending item', [{ id: journalId, committed: 0, pending: [[1, 1000001, 'Synthetic pending', 'unknown']] }]],
+    ['pending ordering', [{ id: journalId, committed: 1, pending: [[1, UNKNOWN, 'Synthetic pending', 'unknown']] }]],
+    ['duplicate journal', Array.from({ length: 2 }, () => ({ id: journalId, committed: 0, pending: [] }))],
+  ]) cases.push({ label, commits: true, document: { v: 1, players: { a: { journals } } } });
+  for (const commits of [false, true]) for (const owner of ['constructor', 'too many players']) cases.push({
+    label: `${commits ? 'ledger' : 'items'}: ${owner}`, commits, world: 'live', document: { v: 1, players: Object.fromEntries(
+      (owner === 'constructor' ? ['constructor'] : Array.from({ length: 257 }, (_, i) => `synthetic-${i}`))
+        .map(id => [id, commits ? { journals: [] } : structuredClone(record)])) } });
+  for (const entry of cases) await t.test(entry.label, async t => {
+    const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
+    t.after(() => rm(dataDir, { recursive: true, force: true }));
+    const name = entry.commits ? 'plugin-item-journal-commits.json' : entry.world === 'live' ? 'plugin-items.json' : `plugin-item-journal-${entry.world}.json`;
+    const file = path.join(dataDir, name), bytes = JSON.stringify(entry.document), warnings = [];
+    await writeFile(file, bytes);
+    const exported = await exportPluginItemEvidence(dataDir, id => id, inherited, { log: message => warnings.push(message) });
+    assert.deepEqual(exported, inherited);
+    if (entry.late) await writeFile(file, JSON.stringify({ v: 1, players: { a: record } }));
+    const reader = await (entry.commits ? openPluginJournalCommits : openPluginItems)({ dataDir, members: () => [{ id: 'a' }],
+      ...(entry.world && entry.world !== 'live' ? { journalWorld: entry.world } : {}),
+      inherited: () => entry.commits ? inherited.players.a.commits : record, log: message => warnings.push(message) });
+    try {
+      if (entry.late) {
+        await writeFile(file, bytes);
+        assert.deepEqual(await exportPluginItemEvidence(dataDir, id => id, inherited, { log: message => warnings.push(message) }), inherited);
+      }
+      const healthy = entry.commits ? inherited.players.a.commits : record;
+      assert.deepEqual(reader.get('a'), healthy);
+      assert.equal(await readFile(file, 'utf8'), bytes);
+      await reader.put('a', healthy);
+      const archive = (await readdir(dataDir)).find(name => name.startsWith(`${path.basename(file)}.corrupt-`));
+      assert.ok(archive); assert.equal(await readFile(path.join(dataDir, archive), 'utf8'), bytes);
+      assert.ok(warnings.length >= 2);
+    } finally { await reader.close(); }
+  });
+});
+
+test('unknown literal task and item IDs remain valid retained evidence while authoritative markers stay strict', async t => {
+  const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const record = { baselineAt: '2026-10-22T12:00:00.000Z', handled: ['synthetic-future-task', `unmapped:${UNKNOWN}`].sort(),
+    items: { [UNKNOWN]: { name: 'Synthetic unmapped item', ownedAt: '2026-10-22T12:00:00.000Z', wornAt: null, first: true } }, journal: null };
+  await writeFile(path.join(dataDir, 'plugin-items.json'), JSON.stringify({ v: 1, players: { a: record } }));
+  assert.deepEqual((await exportPluginItemEvidence(dataDir)).players.a.records.live, record);
+  const invalid = { v: 1, players: { a: { records: { live: { ...record, handled: ['~plugin-review:bogus'] } }, commits: { journals: [] } } } };
+  await assert.rejects(exportPluginItemEvidence(dataDir, id => id, invalid), /Invalid plugin item review marker/);
+  const store = await openStore({ dataDir, initialState: createGroupState([{ id: 'a', name: 'Synthetic player' }]), retention: false });
+  await store.close();
+  const file = path.join(dataDir, 'state.json'), document = JSON.parse(await readFile(file));
+  document.state.provenance = { pluginItemEvidence: invalid, pluginItemEvidenceReconciled: 1 };
+  const bytes = JSON.stringify(document); await writeFile(file, bytes);
+  await assert.rejects(openStore({ dataDir, retention: false }), /Invalid plugin item review marker/);
+  assert.equal(await readFile(file, 'utf8'), bytes);
+});
+
+for (const name of ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json']) test(`decision recovery tolerates an unknown review marker in optional ${name}`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic retained live item']], events: [
+    [1, BRONZE_DAGGER, 'Synthetic beta evidence', 'beta'], [2, CHAINBODY, 'Synthetic legacy evidence']] }));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  await f.controller.close(); await f.store.close();
+  await writeFile(path.join(f.dataDir, name), BOGUS_MARKER);
+  await f.restart();
+  assert.equal(await readFile(path.join(f.dataDir, name), 'utf8'), BOGUS_MARKER);
+  assert.ok(f.warnings.some(message => /Invalid plugin item store/.test(message)));
+  assert.ok(f.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
+  assert.deepEqual(f.review(), { preview: null });
+  const backup = await f.backup(), portable = await f.portable();
+  assert.ok(backup.state.provenance.pluginItemEvidence.players.a.records.live.handled.includes(WEAR_TASK));
+  assert.ok(portable.optionalSidecarEvidence.entries.pluginItems.players.a.records.live.handled.includes(WEAR_TASK));
+  await f.store.previewReplacement(backup);
+  assert.equal(await readFile(path.join(f.dataDir, name), 'utf8'), BOGUS_MARKER, 'All readers leave the corrupt source for archival repair');
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic live retry']], events: [
+    [3, BRONZE_DAGGER, 'Synthetic beta retry', 'beta'], [4, CHAINBODY, 'Synthetic legacy retry']] }));
+  const archive = (await readdir(f.dataDir)).find(file => file.startsWith(`${name}.corrupt-`));
+  assert.ok(archive);
+  assert.equal(await readFile(path.join(f.dataDir, archive), 'utf8'), BOGUS_MARKER);
+  await f.restart(); await f.backup();
+  assert.ok(f.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
+  assert.deepEqual(f.review(), { preview: null });
+});
+
 for (const name of ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json']) for (const bytes of ['{broken', '{"v":1,"players":{"a":{}}}']) test(`decision recovery preserves corrupt ${name} (${bytes === '{broken' ? 'syntax' : 'record'}) for archival repair`, async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic retained live item']], events: [

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -246,6 +246,34 @@ test('plugin GET and POST share a four-request-per-second key bucket and report 
   assert.equal(f.app.store.getInfo().revision, 0);
   await delay(1050);
   assert.equal((await f.plugin('/api/plugin/v1/status', first.key)).status, 200);
+});
+
+test('HTTP backup, report and review recover corrupt optional item semantics without losing decisions', async t => {
+  const wear = 'rs3:task:000b41', at = '2026-10-22T12:00:00.000Z';
+  const initialState = createGroupState([{ id: 'actor1', name: 'Synthetic player' }]);
+  const record = { baselineAt: at, items: {}, handled: [wear, `~plugin-review:${wear}`].sort(), journal: null };
+  initialState.provenance = { pluginItemEvidenceReconciled: 1, pluginItemEvidence: { v: 1, players: { actor1: {
+    records: { live: record }, commits: { journals: [] } } } } };
+  const f = await fixture(t, { initialState }), created = await f.create();
+  const name = 'plugin-item-journal-beta.json', file = path.join(f.dataDir, name);
+  const corrupt = JSON.stringify({ v: 1, players: { actor1: { ...record, handled: ['~plugin-review:bogus'] } } });
+  await writeFile(file, corrupt);
+  await f.restart();
+  const backup = await f.admin('/api/backup'); assert.equal(backup.status, 200);
+  assert.ok((await backup.json()).state.provenance.pluginItemEvidence.players.actor1.records.live.handled.includes(wear));
+  assert.equal(await readFile(file, 'utf8'), corrupt);
+  const reply = await f.plugin('/api/plugin/v1/report', created.key, report(1, { world: { id: 204, beta: true },
+    items: { snapshot: '0123456789abcdef', worn: [], backpack: [],
+      journal: { id: 'aaaaaaaaaaaaaaaa', events: [[1, 999999, 'Synthetic unmapped item', 'beta']] } } }));
+  assert.equal(reply.status, 200); assert.equal((await reply.json()).items.journal.event, 1);
+  const preview = await (await f.admin('/api/game-plugin/review?memberId=actor1')).json();
+  assert.ok(preview.unmappedItems.some(row => row.gameItemId === 999999));
+  assert.equal((await f.admin('/api/game-plugin/dismiss', { previewId: preview.previewId })).status, 200);
+  const archive = (await readdir(f.dataDir)).find(entry => entry.startsWith(`${name}.corrupt-`));
+  assert.ok(archive); assert.equal(await readFile(path.join(f.dataDir, archive), 'utf8'), corrupt);
+  await f.restart();
+  assert.deepEqual(await (await f.admin('/api/game-plugin/review?memberId=actor1')).json(), { preview: null });
+  assert.ok(f.app.store.getPluginItemEvidence().players.actor1.records.live.handled.includes(wear));
 });
 
 test('invalid plugin key sidecars fail startup and release the gameplay directory lock for recovery', async t => {

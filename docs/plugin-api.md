@@ -338,6 +338,14 @@ archive. Per player it keeps `baselineAt`, `items` facts
 2,000) and a processed `journal` `{id, event}` watermark. Containers retain only
 reviewed IDs; journals also retain unmapped IDs so acknowledgement does not discard
 their evidence. Each record holds at most 500 distinct item IDs.
+
+All item-sidecar readers, including backup/export readers, log and ignore syntax,
+record or semantic corruption before merging it with authoritative provenance.
+This includes invalid reserved review markers and journal scopes. The original
+bytes stay available for the next successful writer's `.corrupt-` archive.
+Authoritative provenance stays strict; bounded unmapped item IDs and unknown
+literal handled task IDs remain valid evidence.
+
 Beta and unknown-world **journal** evidence uses separate
 `plugin-item-journal-beta.json` and `plugin-item-journal-unknown.json` sidecars
 with the same version 1 shape and bounds. Legacy triples join the unknown store.
