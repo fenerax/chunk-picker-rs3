@@ -39,15 +39,23 @@ export async function offhostFixture(t) {
   await writeFile(path.join(backup, 'portable.json'), encode({ format: 'rs3-chunk-picker', state: { members: [{}] } }));
   const manifest = { format: 'picker-recovery-v1', snapshotAt, createdAt: new Date().toISOString(), releasePointerSha256: sha(pointerBytes), files: await inventory(backup) };
   await writeFile(path.join(backup, 'manifest.json'), encode(manifest));
-  const calls = [], id = 'a'.repeat(64);
+  const calls = [], remote = [];
   const run = async args => {
     assert.equal(await exists(path.join(settings.controlDir, 'operation.lock')), false);
     assert.equal((await json(path.join(settings.controlDir, 'offhost.lock'))).pid, process.pid);
     calls.push(args);
-    if (args[0] === 'backup') return JSON.stringify({ message_type: 'summary', snapshot_id: id }) + '\n';
-    if (args[0] === 'snapshots') return encode([{ id, time: snapshotAt }]); return '';
+    if (args[0] === 'backup') {
+      const id = (remote.length + 1).toString(16).padStart(64, 'a');
+      const tags = args.flatMap((arg, index) => arg === '--tag' ? [args[index + 1]] : []);
+      const manifest = await json(path.join(args.at(-2), 'manifest.json'));
+      remote.push({ id, time: manifest.snapshotAt, tags });
+      return JSON.stringify({ message_type: 'summary', snapshot_id: id }) + '\n';
+    }
+    if (args[0] === 'snapshots') return encode(args.includes('--tag')
+      ? remote.filter(row => args[args.indexOf('--tag') + 1].split(',').every(tag => row.tags.includes(tag)))
+      : remote.filter(row => row.id.startsWith(args.at(-1)))); return '';
   };
-  return { dir, settings, roots, backup, manifest, snapshotAt, calls, run,
+  return { dir, settings, roots, backup, manifest, snapshotAt, calls, run, remote,
     bundle: options => recoveryBundle({ ...options, roots }) };
 }
 export async function assertPayloadClosure(rebuild) {

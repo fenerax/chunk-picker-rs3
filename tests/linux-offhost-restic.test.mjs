@@ -4,13 +4,14 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
-import { mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
+import { chmod, mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { offhostFixture, assertPayloadClosure } from './helpers/offhost.mjs';
-import { offhostBackup } from '../scripts/linux/offhost-backup.mjs';
+import { offhostBackup, offhostCheck } from '../scripts/linux/offhost-backup.mjs';
+import { realOffhostFixture, realResticAvailable } from './helpers/offhost-restic.mjs';
 import { verifyBackup } from '../scripts/linux/recovery.mjs';
 import { retentionArgs, verifyRestic, resticArgs, guardedRestic, resticTempBound, resticPackLimit, executeRestic,
-  resticTempBudget, windowsRepackBudget } from '../scripts/linux/restic.mjs';
+  resticTempBudget, windowsRepackBudget, redactedResticTail } from '../scripts/linux/restic.mjs';
 const execute = promisify(execFile);
 
 async function temporary(t) {
@@ -103,7 +104,7 @@ test('only pack-producing commands request the kernel file limit', async t => {
   const root = await temporary(t);
   for (const [args, limited] of [[['backup'], true], [['prune'], true], [['init'], true], [['check'], true],
     [['forget', '--prune'], true], [['forget'], false], [['snapshots'], false], [['stats'], false]]) {
-    await guardedRestic({ root, reserve: 0, args, env: {}, execute: async (_binary, _args, options) => {
+    await guardedRestic({ root, reserve: 0, args, env: {}, platform: 'linux', execute: async (_binary, _args, options) => {
       assert.equal(options.packProducing, limited);
     } });
   }
@@ -240,4 +241,86 @@ test('real guarded prune repacks shared packs after forget removes a snapshot an
   const result = await run(['prune', '--max-unused', '0', '--repack-small']);
   assert.match(result, /repacking packs/); assert(await packed() < before - 1024 ** 2);
   await run(['check', '--read-data']);
+});
+
+test('explicit state cache persists across commands and checks reserve without entering the temporary pack budget', async t => {
+  const root = await temporary(t), cacheDir = path.join(root, 'state', 'cache'), temp = path.join(root, 'temp');
+  const checks = [];
+  for (const command of ['snapshots', 'ls']) {
+    await guardedRestic({ root: temp, reserve: 1234, args: [command], env: { RESTIC_CACHE_DIR: 'untrusted' }, cacheDir,
+      timeoutMs: 120 * 60000, check: async (...args) => { checks.push(args); },
+      execute: async (_binary, args, options) => {
+        assert.equal(options.env.RESTIC_CACHE_DIR, cacheDir);
+        assert.equal(args[args.indexOf('--cache-dir') + 1], cacheDir);
+        assert(!args.includes('--no-cache')); assert(args.includes('--no-lock'));
+        assert.equal(options.timeoutMs, 120 * 60000);
+        await writeFile(path.join(cacheDir, 'cached-tree'), 'synthetic cached metadata');
+        return '';
+      } });
+    assert.deepEqual(await readdir(temp), []);
+    assert.equal(await readFile(path.join(cacheDir, 'cached-tree'), 'utf8'), 'synthetic cached metadata');
+  }
+  assert(checks.some(([dir, bytes, reserve]) => dir === cacheDir && bytes === 0 && reserve === 1234));
+});
+
+test('executor bounds and redacts failure diagnostics, enforces its deadline, and streams large ls listings', async t => {
+  const root = await temporary(t), script = path.join(root, 'synthetic-restic.mjs'), messages = [];
+  const secret = 'synthetic-private-value', repository = 'b2:synthetic-bucket:chunk-picker', host = 'synthetic-host';
+  const raw = `Fatal: ${repository} ${host} ${secret}: connection refused`;
+  await writeFile(script, `process.stderr.write(${JSON.stringify(raw)}); process.exitCode = 1;`);
+  await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, log: value => messages.push(value) }));
+  const log = messages.join('\n'); assert.match(log, /Fatal.*connection refused/i);
+  for (const privateValue of [secret, repository, host]) assert(!log.includes(privateValue));
+  assert(redactedResticTail((raw + '\n').repeat(10000)).length <= 1536);
+  assert(redactedResticTail((raw + '\n').repeat(10000)).split('\n').length <= 8);
+  await writeFile(script, 'setInterval(() => {}, 1000);');
+  await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, timeoutMs: 50, log: () => {} }));
+  await writeFile(script, "process.stdout.write('synthetic-listing'.repeat(400000));");
+  assert.equal(await executeRestic(process.execPath, [script, 'ls'], { env: process.env }), '');
+  await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, log: () => {} }));
+});
+
+test('integrity commands bypass supplied persistent caches and retain read-only repository access', async t => {
+  const root = await temporary(t), cacheDir = path.join(root, 'shared-cache');
+  for (const command of ['check', 'stats']) {
+    await guardedRestic({ root, reserve: 0, args: [command], env: {}, cacheDir, useCache: false,
+      execute: async (_binary, args, options) => {
+        assert(args.includes('--no-cache')); assert(args.includes('--no-lock'));
+        assert(!args.includes('--cache-dir')); assert(!args.includes('--with-cache'));
+        assert.notEqual(options.env.RESTIC_CACHE_DIR, cacheDir);
+        return '';
+      } });
+  }
+});
+
+test('new capture cannot report success when stale indexes reference a missing data pack', { skip: !realResticAvailable }, async t => {
+  const f = await realOffhostFixture(t);
+  await rm(await f.packOfType('data'));
+  const manifestFile = path.join(f.backup, 'manifest.json');
+  const { encode, json } = await import('../scripts/linux/files.mjs');
+  await writeFile(manifestFile, encode({ ...await json(manifestFile), snapshotAt: new Date().toISOString(), createdAt: new Date().toISOString() }));
+  const previous = await json(path.join(f.settings.controlDir, 'offhost-status.json'));
+  await assert.rejects(offhostBackup({ ...f, config: {}, ping: async () => assert.fail('must not ping success') }));
+  // backup itself succeeded using stale indexes; verification must catch it.
+  const snapshots = JSON.parse(await f.run(['snapshots', '--json'])); assert.equal(snapshots.length, 2);
+  const status = await json(path.join(f.settings.controlDir, 'offhost-status.json'));
+  assert.equal(status.result, 'failed'); assert.equal(status.lastSuccessAt, previous.lastSuccessAt);
+  assert.deepEqual(await readdir(f.settings.scratchRoot), []);
+  // Reverification of the failed tagged snapshot must fail without uploading again.
+  await assert.rejects(offhostBackup({ ...f, config: {}, ping: async () => false }));
+  assert.equal(JSON.parse(await f.run(['snapshots', '--json'])).length, 2);
+});
+
+test('daily check and snapshot verification detect remote tree corruption despite a warm shared cache', { skip: !realResticAvailable }, async t => {
+  const f = await realOffhostFixture(t), snapshots = JSON.parse(await f.run(['snapshots', '--json']));
+  await f.run(['ls', snapshots[0].id, '--recursive']); // Warm the shared metadata cache.
+  const { file, offset } = await f.rootTreeBlob(snapshots[0].id), bytes = await readFile(file);
+  // Restic stores packs read-only on Linux; make this one writable to corrupt it.
+  bytes[offset] ^= 1; await chmod(file, 0o600); await writeFile(file, bytes);
+  await assert.rejects(offhostBackup({ ...f, config: {}, ping: async () => false }));
+  await assert.rejects(offhostCheck({ ...f, config: {} }));
+  const { json } = await import('../scripts/linux/files.mjs');
+  assert.equal((await json(path.join(f.settings.controlDir, 'offhost-check-status.json'))).result, 'failed');
+  assert.equal((await json(path.join(f.settings.controlDir, 'offhost-status.json'))).result, 'failed');
+  assert.deepEqual(await readdir(f.settings.scratchRoot), []);
 });
