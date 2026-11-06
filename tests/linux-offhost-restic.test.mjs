@@ -10,7 +10,7 @@ import { offhostFixture, assertPayloadClosure } from './helpers/offhost.mjs';
 import { offhostBackup } from '../scripts/linux/offhost-backup.mjs';
 import { verifyBackup } from '../scripts/linux/recovery.mjs';
 import { retentionArgs, verifyRestic, resticArgs, guardedRestic, resticTempBound, resticPackLimit, executeRestic,
-  resticTempBudget, windowsRepackBudget } from '../scripts/linux/restic.mjs';
+  resticTempBudget, windowsRepackBudget, redactedResticTail } from '../scripts/linux/restic.mjs';
 const execute = promisify(execFile);
 
 async function temporary(t) {
@@ -103,7 +103,7 @@ test('only pack-producing commands request the kernel file limit', async t => {
   const root = await temporary(t);
   for (const [args, limited] of [[['backup'], true], [['prune'], true], [['init'], true], [['check'], true],
     [['forget', '--prune'], true], [['forget'], false], [['snapshots'], false], [['stats'], false]]) {
-    await guardedRestic({ root, reserve: 0, args, env: {}, execute: async (_binary, _args, options) => {
+    await guardedRestic({ root, reserve: 0, args, env: {}, platform: 'linux', execute: async (_binary, _args, options) => {
       assert.equal(options.packProducing, limited);
     } });
   }
@@ -240,4 +240,41 @@ test('real guarded prune repacks shared packs after forget removes a snapshot an
   const result = await run(['prune', '--max-unused', '0', '--repack-small']);
   assert.match(result, /repacking packs/); assert(await packed() < before - 1024 ** 2);
   await run(['check', '--read-data']);
+});
+
+test('explicit state cache persists across commands and checks reserve without entering the temporary pack budget', async t => {
+  const root = await temporary(t), cacheDir = path.join(root, 'state', 'cache'), temp = path.join(root, 'temp');
+  const checks = [];
+  for (const command of ['snapshots', 'ls', 'check']) {
+    await guardedRestic({ root: temp, reserve: 1234, args: [command], env: { RESTIC_CACHE_DIR: 'untrusted' }, cacheDir,
+      timeoutMs: 120 * 60000, check: async (...args) => { checks.push(args); },
+      execute: async (_binary, args, options) => {
+        assert.equal(options.env.RESTIC_CACHE_DIR, cacheDir);
+        assert.equal(args[args.indexOf('--cache-dir') + 1], cacheDir);
+        assert(!args.includes('--no-cache')); assert(args.includes('--no-lock'));
+        assert.equal(options.timeoutMs, 120 * 60000);
+        await writeFile(path.join(cacheDir, 'cached-tree'), 'synthetic cached metadata');
+        return '';
+      } });
+    assert.deepEqual(await readdir(temp), []);
+    assert.equal(await readFile(path.join(cacheDir, 'cached-tree'), 'utf8'), 'synthetic cached metadata');
+  }
+  assert(checks.some(([dir, bytes, reserve]) => dir === cacheDir && bytes === 0 && reserve === 1234));
+});
+
+test('executor bounds and redacts failure diagnostics, enforces its deadline, and streams large ls listings', async t => {
+  const root = await temporary(t), script = path.join(root, 'synthetic-restic.mjs'), messages = [];
+  const secret = 'synthetic-private-value', repository = 'b2:synthetic-bucket:chunk-picker', host = 'synthetic-host';
+  const raw = `Fatal: ${repository} ${host} ${secret}: connection refused`;
+  await writeFile(script, `process.stderr.write(${JSON.stringify(raw)}); process.exitCode = 1;`);
+  await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, log: value => messages.push(value) }));
+  const log = messages.join('\n'); assert.match(log, /Fatal.*connection refused/i);
+  for (const privateValue of [secret, repository, host]) assert(!log.includes(privateValue));
+  assert(redactedResticTail((raw + '\n').repeat(10000)).length <= 1536);
+  assert(redactedResticTail((raw + '\n').repeat(10000)).split('\n').length <= 8);
+  await writeFile(script, 'setInterval(() => {}, 1000);');
+  await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, timeoutMs: 50, log: () => {} }));
+  await writeFile(script, "process.stdout.write('synthetic-listing'.repeat(400000));");
+  assert.equal(await executeRestic(process.execPath, [script, 'ls'], { env: process.env }), '');
+  await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, log: () => {} }));
 });
