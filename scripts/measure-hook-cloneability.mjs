@@ -19,4 +19,3 @@ for (const indexed of [true,false]) {
   if(Object.hasOwn(result,'entry-0')||result.added!=='Synthetic'||result.defined!==42)throw new Error('Lost hook edit');
   console.log(JSON.stringify({indexed,cloneable,encodeMs:encoded.ms,gapMs:encoded.gap}));
 }
-
