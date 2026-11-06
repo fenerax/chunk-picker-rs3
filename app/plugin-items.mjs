@@ -3,10 +3,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { replaceSidecar } from './plugin-achievements.mjs';
 
-// Live-world item evidence per player: reviewed item IDs seen owned or worn,
+// Live-world item evidence per player: item IDs seen owned or worn,
 // the first snapshot's time, item tasks the player already handled, and the
-// newest acknowledged plugin journal event, and when the bank was last seen with its
-// coins. Beta evidence is never stored.
+// newest processed plugin journal event, and when the bank was last seen with its
+// coins. Non-live journals use separate files with the same bounded record shape.
 const ITEM_LIMIT = 500, HANDLED_LIMIT = 2000;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -39,8 +39,9 @@ function validate(value) {
 }
 
 /** Sidecar only: the caller owns the save directory's existing lock. */
-export async function openPluginItems({ dataDir, members, clock = Date.now, log = console.warn }) {
-  const file = path.join(dataDir, 'plugin-items.json');
+export async function openPluginItems({ dataDir, members, clock = Date.now, log = console.warn, journalWorld }) {
+  if (journalWorld !== undefined && !['beta', 'unknown'].includes(journalWorld)) throw new TypeError('Invalid journal world.');
+  const file = path.join(dataDir, journalWorld ? `plugin-item-journal-${journalWorld}.json` : 'plugin-items.json');
   let current = { v: 1, players: {} }, corrupt = false, queue = Promise.resolve(), closed = false, contents;
   try { contents = await readFile(file, 'utf8'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }

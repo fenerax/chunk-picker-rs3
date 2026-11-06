@@ -40,8 +40,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const keys = await openPluginKeys({ dataDir, clock, maxActiveKeysPerPlayer: pickerLimits?.config.pluginKeysPerAccount });
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
-  // Beta and unknown-world item evidence stays in memory, apart from live evidence.
-  const itemMemory = new Map(), journalMemory = new Map(), itemAcks = new Map(), itemHandled = new Map();
+  const journalStores = new Map();
+  for (const journalWorld of ['beta', 'unknown']) journalStores.set(journalWorld,
+    await openPluginItems({ dataDir, members: () => state().members, clock, log, journalWorld }));
+  // Non-live containers remain ephemeral; acknowledged journals are durable and separate.
+  const itemMemory = new Map(), itemAcks = new Map(), itemHandled = new Map();
   // One unfinished bank set per player, the last complete one, and coin counts by container.
   const bankAssemblies = new Map(), bankAcks = new Map(), itemCoins = new Map();
   let itemTasks;
@@ -191,34 +194,39 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   // itemsBetaAsLive is for a synthetic scratch save only: beta items then tick it as live ones would.
   const itemWorld = report => report.world?.beta === false || itemsBetaAsLive && report.world?.beta === true ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
   // Delivery-world records keep the single-slot lifecycle reports always had: a beta or
-  // unknown report replaces the other's memory. Qualified (four-field) beta and unknown
-  // journal events keep their own records in journalMemory until their rows are handled.
+  // unknown report replaces the other's memory. Journal records have separate durable stores.
   function itemRecord(player, world) {
     const memory = itemMemory.get(player);
     return world === 'live' ? itemStore.get(player) : memory?.world === world ? structuredClone(memory.record) : null;
   }
-  const journalRecords = player => [...journalMemory.get(player) ?? []].map(([world, record]) => ({ record, world }));
+  const journalRecords = player => [...journalStores].map(([world, store]) => ({ record: store.get(player), world })).filter(row => row.record);
   // Live records are saved; beta and unknown ones stay in memory. False when the write failed.
   async function keepItemRecord(player, world, record) {
     if (world !== 'live') { itemMemory.set(player, { world, record }); return true; }
     try { await itemStore.put(player, record); return true; }
     catch { log('Could not save plugin item evidence; the plugin will send it again.'); return false; }
   }
-  // Evidence entries are [id, name or null, worn]. Only reviewed IDs are kept; named others are returned.
-  function addEvidence(record, entries, now, fresh) {
+  // Journal entries also retain unmapped IDs: acknowledgement must not discard their evidence.
+  function addEvidence(record, entries, now, fresh, journal = false) {
     let changed = false;
     const unmapped = new Map();
     for (const [id, name, worn] of entries) {
       const item = GAME_ITEMS.get(id);
-      if (!item) { if (name && !unmapped.has(id)) unmapped.set(id, name); continue; }
+      if (!item) { if (name && !unmapped.has(id)) unmapped.set(id, name); if (!journal) continue; }
       const key = String(id);
       if (!record.items[key]) { record.items[key] = { name: name ?? item.name, ownedAt: now, wornAt: null, first: fresh }; changed = true; }
-      if (worn && !item.noted && !record.items[key].wornAt) { record.items[key].wornAt = now; changed = true; }
+      if (worn && !item?.noted && !record.items[key].wornAt) { record.items[key].wornAt = now; changed = true; }
     }
     return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
   }
   async function matchItems(player, report, record, world, unmapped, others = []) {
     const owner = member(player), dismissed = itemHandled.get(player);
+    if (unmapped !== null) {
+      const retained = [record, ...others.map(row => row.record), ...journalRecords(player).map(row => row.record)]
+        .flatMap(record => Object.entries(record.items).filter(([id]) => !GAME_ITEMS.has(Number(id)))
+          .map(([id, fact]) => ({ gameItemId: Number(id), name: fact.name })));
+      unmapped = [...new Map([...unmapped, ...retained].map(row => [row.gameItemId, row])).values()];
+    }
     // Prefer live rows when several environments support the same task. Match all
     // records before publishing one review, so queued evidence cannot hide containers.
     // Retained journal records join every review (items and bank) until handled.
@@ -291,25 +299,33 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const scope = itemsBetaAsLive && event[3] === 'beta' ? 'live' : event[3];
       return scope === 'live' ? world === 'live' ? 'delivery' : 'live' : scope;
     };
-    // The persisted live record goes first, so a failed write changes no memory.
+    // Persist the live record first. Partial writes remain safe for a full-prefix retry.
     const slots = [...new Set([world === 'live' ? 'delivery' : 'live', 'delivery', 'beta', 'unknown'])]
       .filter(slot => slot === 'delivery' || value.journal.events.some(event => slotOf(event) === slot));
-    const journal = journalMemory.get(player) ?? new Map(), records = new Map(), unmapped = new Map();
+    const records = new Map(), unmapped = new Map();
     for (const slot of slots) {
       const scope = slot === 'delivery' ? world : slot;
-      const prior = slot === 'delivery' ? saved : slot === 'live' ? itemRecord(player, 'live') : journal.has(slot) ? structuredClone(journal.get(slot)) : null;
+      const prior = slot === 'delivery' ? saved : slot === 'live' ? itemRecord(player, 'live') : journalStores.get(slot).get(player);
       const record = prior ?? { baselineAt: now, items: {}, handled: [], journal: null };
       const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
       const scoped = slot === 'delivery' ? [...entries] : [];
-      for (const event of value.journal.events) if (event[0] > after && slotOf(event) === slot) scoped.push([event[1], event[2], true]);
-      if (slot === 'delivery') scoped.push(...tools);
       const added = addEvidence(record, scoped, now, !prior);
+      const events = value.journal.events.filter(event => event[0] > after && slotOf(event) === slot).map(event => [event[1], event[2], true]);
+      const journalAdded = addEvidence(record, events, now, !prior, true);
+      const toolsAdded = addEvidence(record, slot === 'delivery' ? tools : [], now, !prior);
+      added.changed ||= journalAdded.changed || toolsAdded.changed;
+      added.unmapped.push(...journalAdded.unmapped);
       for (const row of added.unmapped) if (!unmapped.has(row.gameItemId)) unmapped.set(row.gameItemId, row);
       const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);
       const journalChanged = record.journal?.id !== value.journal.id || last > after;
       record.journal = { id: value.journal.id, event: last };
-      if (slot === 'beta' || slot === 'unknown') { journal.set(slot, record); journalMemory.set(player, journal); }
-      // Save live evidence before acknowledging any of the report's journal events.
+      if (slot === 'beta' || slot === 'unknown') {
+        if (!prior || added.changed || journalChanged) {
+          try { await journalStores.get(slot).put(player, record); }
+          catch { log('Could not save plugin journal evidence; the plugin will send it again.'); itemAcks.set(player, ack); return; }
+        }
+      }
+      // Every affected durable store must succeed before acknowledging the prefix.
       else if ((!prior || added.changed || journalChanged) && !await keepItemRecord(player, scope, record)) { itemAcks.set(player, ack); return; }
       records.set(slot, { record, world: scope });
     }
@@ -477,6 +493,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     authorizeKey?.(request, credential.player);
     return credential;
   }
+  // Restore reviewable journals without a sender retransmission or any live ticks.
+  for (const owner of state().members) if (journalRecords(owner.id).length) {
+    await matchItems(owner.id, { sentAt: new Date(clock()).toISOString() }, { items: {}, handled: [] }, 'unknown', []);
+  }
   return {
     authenticate: credentialFor,
     async handle(request, response, { route, security, closed: serverClosed }) {
@@ -640,8 +660,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       closePromise = (async () => {
         await handledFlush;
         await flushHandled(true);
-        await Promise.all([keys.close(), handled.close(), itemStore.close()]);
-        itemMemory.clear(); journalMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
+        await Promise.all([keys.close(), handled.close(), itemStore.close(), ...[...journalStores.values()].map(store => store.close())]);
+        itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
         progressSource.clear(); itemTasks = undefined;
         sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();
         rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); activeLocations.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();

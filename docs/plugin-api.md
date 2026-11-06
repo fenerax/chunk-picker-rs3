@@ -318,11 +318,17 @@ Dismiss mark every shown row handled so it is not offered again.
 Live-world evidence (current live containers or explicitly live journal events)
 is saved in `plugin-items.json`
 beside `plugin-achievements.json`, with the same atomic writes and corrupt-file
-archive. Per player it keeps `baselineAt`, reviewed `items` facts
+archive. Per player it keeps `baselineAt`, `items` facts
 (`name`, `ownedAt`, `wornAt`, `first`), sorted `handled` task IDs (at most
-2,000) and the last acknowledged `journal` `{id, event}`. Beta and
-unknown-world evidence stays in memory only and never mixes with live evidence.
-The sidecar is outside the save, Undo and backups.
+2,000) and a processed `journal` `{id, event}` watermark. Containers retain only
+reviewed IDs; journals also retain unmapped IDs so acknowledgement does not discard
+their evidence. Each record holds at most 500 distinct item IDs.
+Beta and unknown-world **journal** evidence uses separate
+`plugin-item-journal-beta.json` and `plugin-item-journal-unknown.json` sidecars
+with the same version 1 shape and bounds. Legacy triples join the unknown store.
+These stores never supply live ticks or live item facts. Non-live containers
+remain memory-only. Sidecars are outside portable saves, Undo and portable backups;
+whole-directory operational snapshots retain them.
 
 Status `items` is null until the first items report, then exactly
 `{snapshot, journal}`: the last snapshot processed and the newest journal event
@@ -331,18 +337,27 @@ snapshot differs or journal events remain unacknowledged, even if the containers
 have not changed. It drops journal events at or below the acknowledged event
 for the same journal ID. An acknowledgement covers all environments in the
 received journal prefix; it does not certify live provenance or a task tick.
-Any live evidence and its watermark must reach the sidecar before that prefix is
-acknowledged. If the write fails, the prior journal acknowledgement is retained
-for retry. Beta and unknown evidence stays in memory and does not survive a
-receiver restart without a retransmission. A beta or unknown-world report's own
+All journal evidence and its watermarks must reach their respective sidecars
+before that prefix is acknowledged. If any write fails, including a record
+exceeding its bound, the prior journal acknowledgement is retained for retry;
+no retained evidence is evicted to make room. Earlier successful writes remain
+durable and the sender can re-deliver the entire prefix, including after restart.
+A per-store processed watermark alone is not an acknowledgement of the prefix.
+A beta or unknown-world report's own
 containers share one memory slot: the next beta or unknown report replaces it.
 Legacy triples and four-field beta and unknown events keep their own
 record per environment, and their rows stay in every later review (items or
-bank) until handled, even after the sender drops the acknowledged events. Legacy
+bank), including immediately after receiver startup without retransmission,
+even after the sender drops the acknowledged events. Non-live dismissal still
+lasts for the receiver run; it does not suppress later live evidence. Legacy
 triples receive the same delivery acknowledgement while retaining unknown provenance.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;
 actual sender exposure would need separate verification before any migration.
+This is an additive receiver change with no plugin wire-format or portable-save
+schema change. Older receivers ignore the two new files and still load the save
+and unchanged live sidecar. Preserve the files during rollback: older receivers
+cannot display their retained review rows; upgrading again restores them.
 
 ## GET /api/plugin/v1/status
 

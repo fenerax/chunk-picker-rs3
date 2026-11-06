@@ -7,6 +7,34 @@ replacement. Portable exports and History/Undo exclude this metadata. Importing
 or restoring gameplay preserves the current storage receipt ledger; imported
 receipts never replace it.
 
+## Plugin item journal retention
+
+The portable schema and `state.json` format are unchanged. Live item evidence
+still uses the version 1 `plugin-items.json` sidecar. Two optional additive
+sidecars, `plugin-item-journal-beta.json` and
+`plugin-item-journal-unknown.json`, retain acknowledged non-live worn journals;
+legacy three-field events belong to unknown. Each file is
+`{v: 1, players: {[memberId]: record}}`, using the existing item record shape:
+`{baselineAt, items, handled, journal}`. Item facts contain
+`{name, ownedAt, wornAt, first}`; `journal` is a processed `{id, event}` watermark.
+Each player has at most 500 distinct item IDs and 2,000 handled task IDs per
+file; names have at most 80 characters. Journal facts include unmapped IDs.
+Member records are pruned against current save membership on writes. A full
+record refuses the write and journal acknowledgement, preserving existing facts.
+
+Files use the existing queued, synced atomic sidecar replacement and corrupt-file
+archive. An acknowledgement is issued only after every affected scope has been
+saved; a partial write leaves the prefix unacknowledged for idempotent retry.
+Non-live journal records rebuild labelled review rows at startup and never
+become live facts or automatic completions. Non-live containers remain ephemeral.
+
+These sidecars are outside portable backups and Undo, and included in
+whole-directory operational snapshots. Previously live receivers still load the
+save and unchanged live record shape, and ignore the new sidecar filenames.
+Retain those files during rollback so a later upgrade can restore the non-live
+review evidence. The old receiver cannot display it or provide this durability
+guarantee for new non-live journal acknowledgements.
+
 ## Action receipts, format 2
 
 `actionReceipts` is optional. Its current shape is:

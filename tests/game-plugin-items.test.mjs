@@ -402,6 +402,9 @@ for (const delivery of [false, true, null]) test(`legacy catch-up journal keeps 
   await f.send(items());
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'), 'Acknowledged catch-up rows retain their provenance');
   await f.restart();
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'), 'Restart restores acknowledged evidence without retransmission');
+  await f.send(items());
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'unknown'), 'An empty sender queue cannot erase retained evidence');
   await f.send(items({ events: [[1, CHAINBODY, 'Synthetic worn item']] }));
   assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), false, 'A replay after restart cannot promote the event to live');
 });
@@ -437,7 +440,11 @@ test('acknowledged qualified journal rows stay in review on later reports', asyn
   assert.deepEqual(beta(), expected, 'A bank report keeps them too');
   assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), false);
   const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
-  assert.equal(record.items[CHAINBODY], undefined, 'Beta evidence never reaches disk');
+  assert.equal(record.items[CHAINBODY], undefined, 'Beta evidence never reaches the live sidecar');
+  await f.restart();
+  assert.deepEqual(beta(), expected, 'Acknowledged beta evidence survives restart without replay');
+  await f.send(items());
+  assert.deepEqual(beta(), expected);
 });
 
 // Codex review r1, finding 2: container reports keep main's single memory slot, so an
@@ -487,7 +494,7 @@ for (const delivery of [false, true, null]) test(`qualified live journal survive
   await inspect();
 });
 
-test('mixed-world journal queues keep both memory scopes and only live facts reach disk', async t => {
+test('mixed-world journal queues keep separate durable scopes and only live facts reach the live sidecar', async t => {
   const f = await fixture(t, { durable: true });
   const events = [[1, CHAINBODY, 'Synthetic beta item', 'beta'], [2, YEW_SHORTBOW, 'Synthetic live item', 'live'],
     [3, BRONZE_DAGGER, 'Synthetic unknown item', 'unknown']];
@@ -501,7 +508,9 @@ test('mixed-world journal queues keep both memory scopes and only live facts rea
       [goal('000597'), 'beta'], [WEAR_TASK, 'beta'], [goal('0002ae'), 'unknown']]);
   }
   await f.restart();
-  await f.send(items({ events }));
+  assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), [
+    [goal('000597'), 'beta'], [WEAR_TASK, 'beta'], [goal('0002ae'), 'unknown']]);
+  await f.send(items());
   assert.deepEqual(f.state.history.filter(row => row.command?.items?.length).map(row => row.source), ['game-plugin']);
 });
 
@@ -529,4 +538,65 @@ test('a failed live sidecar write leaves journal evidence unacknowledged for ret
   assert.equal(retried.items.journal.event, 1);
   assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), true);
   assert.equal(f.warnings.length, 1);
+});
+
+for (const origin of ['legacy', 'beta', 'unknown']) test(`failed durable ${origin} journal write leaves the whole prefix re-deliverable`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items());
+  const scope = origin === 'legacy' ? 'unknown' : origin;
+  const file = path.join(f.dataDir, `plugin-item-journal-${scope}.json`);
+  await mkdir(file); // Atomic replacement cannot replace a directory.
+  const tail = origin === 'legacy' ? [] : [origin];
+  const value = items({ events: [[1, YEW_SHORTBOW, 'Synthetic live bow', 'live'], [2, CHAINBODY, 'Synthetic queued item', ...tail]] });
+  const failed = await f.send(value);
+  assert.deepEqual(failed.items.journal, { id: journalId, event: 0 }, 'No part of a mixed prefix is acknowledged on failure');
+  assert.deepEqual(f.state.members[0].completedTasks, []);
+  await rm(file, { recursive: true });
+  await f.restart();
+  const retried = await f.send(value);
+  assert.equal(retried.items.journal.event, 2);
+  assert.deepEqual(f.state.members[0].completedTasks, [goal('000dc1')], 'Qualified live evidence still ticks exactly once');
+  await f.restart();
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === scope));
+  await f.send(items());
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === scope));
+  assert.equal(f.state.history.filter(row => row.command?.items?.length).length, 1);
+  assert.equal(f.warnings.length, 1);
+});
+
+test('a later scope write failure retains earlier durable scopes and retries the complete prefix', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items());
+  const file = path.join(f.dataDir, 'plugin-item-journal-unknown.json');
+  await mkdir(file);
+  const value = items({ events: [[1, CHAINBODY, 'Synthetic beta item', 'beta'], [2, YEW_SHORTBOW, 'Synthetic live item', 'live'],
+    [3, BRONZE_DAGGER, 'Synthetic unknown item', 'unknown']] });
+  assert.equal((await f.send(value)).items.journal.event, 0);
+  await rm(file, { recursive: true });
+  await f.restart();
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'beta'));
+  assert.equal((await f.send(value)).items.journal.event, 3);
+  await f.restart();
+  assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), [
+    [goal('000597'), 'beta'], [WEAR_TASK, 'beta'], [goal('0002ae'), 'unknown']]);
+});
+
+test('unmapped journal evidence is durable and a full sidecar refuses acknowledgement without eviction', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ events: [[1, CHAINBODY, 'Synthetic known item'], [2, UNKNOWN, 'Synthetic unmapped item']] }));
+  const file = path.join(f.dataDir, 'plugin-item-journal-unknown.json');
+  const saved = JSON.parse(await readFile(file, 'utf8'));
+  const record = saved.players.a;
+  assert.ok(record.items[UNKNOWN].wornAt);
+  await f.restart();
+  assert.deepEqual(f.review().unmappedItems, [{ gameItemId: UNKNOWN, name: 'Synthetic unmapped item' }]);
+  // Seed the bound directly rather than sending hundreds of reports.
+  for (let id = 900000; Object.keys(record.items).length < 500; id++) record.items[id] = { ...record.items[UNKNOWN] };
+  await writeFile(file, `${JSON.stringify(saved)}\n`);
+  await f.restart();
+  await f.send(items());
+  const value = items({ events: [[3, YEW_SHORTBOW, 'Synthetic overflow item']] });
+  assert.equal((await f.send(value)).items.journal.event, 2);
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), saved, 'Failure preserves all existing evidence and its watermark');
+  assert.equal((await f.send(value)).items.journal.event, 2, 'Sender can retry the same unacknowledged event');
 });
