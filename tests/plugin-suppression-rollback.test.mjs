@@ -467,11 +467,14 @@ for (const kind of ['items', 'achievements']) test(`owner Undo keeps ${kind} sup
   await restored.store.replace(portable, 0);
   portable = await restored.store.backup();
   const initialState = createGroupState([{ id: 'partner', name: 'Explorer' }]); initialState.tasks = tasks;
+  initialState.members[0].notes = { '12341': 'Synthetic destination note' };
   const destination = await emptyStore(t, { initialState });
   const preview = await destination.store.prepareTransfer(serialize({ backup: portable, memberId: 'partner', sourceMemberId: 'owner' }),
     { ...transferOptions, route: '/api/member-restore/preview' });
   await destination.store.applyTransfer(preview.ticket, 0);
+  assert.deepEqual(destination.store.getState().members[0].notes, {});
   await destination.store.command({ type: 'undo' }, destination.store.getInfo().revision); // Undo the member restore too.
+  assert.deepEqual(destination.store.getState().members[0].notes, initialState.members[0].notes);
   await destination.store.close();
   await runStartGate(destination.dataDir);
   await f.replayFrozen({ target: destination.dataDir, memberId: 'partner', undo: false });
