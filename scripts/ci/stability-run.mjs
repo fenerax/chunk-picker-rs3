@@ -7,6 +7,8 @@ import { testRunEnvironment } from '../test-run-environment.mjs';
 import { laneEnvironment } from '../private-companion/release-evidence.mjs';
 import { errorRedactor } from './file-ledger.mjs';
 import { redact } from '../test-timing-reporter.mjs';
+import { requireSupportedLane } from './stability-plan.mjs';
+import { caseCounter, caseCountFailure, countFailureMessage } from './stability-counts.mjs';
 
 // Keep original assertion/error details in the job log, but never publish machine
 // paths or credentials. Receipts use the stricter existing finite-vocabulary redactor.
@@ -20,17 +22,21 @@ export function diagnostic(error, cwd = process.cwd()) {
 export async function executeShard(task, { run, save, log = console.log }) {
   const rows = [], redactError = errorRedactor();
   for (const attempt of task.attempts) {
+    requireSupportedLane(attempt.file);
     log(`${attempt.file} ${task.os}: repetition ${attempt.repetition}/${attempt.total} (first attempt)`);
     const started = performance.now();
+    const counter = caseCounter();
     let result, failure;
-    try { result = await run(attempt.file); } catch (error) { failure = error; log(diagnostic(error)); }
+    try { result = await run(attempt.file, counter.onEvent); } catch (error) { failure = error; log(diagnostic(error)); }
     const file = result?.files?.[0];
-    const passed = !failure && result?.passed === true && result.files.length === 1 && file.passed === true;
-    rows.push({ ...attempt, os: task.os, passed, durationMs: Math.round(performance.now() - started),
+    const counts = counter.result(file?.summary?.counts);
+    const reason = caseCountFailure(counts) ?? (!failure && result?.passed === true && result.files.length === 1 && file.passed === true ? null : 'native-failure');
+    const passed = reason === null;
+    rows.push({ ...attempt, os: task.os, passed, counts, reason, durationMs: Math.round(performance.now() - started),
       errors: (failure ? [failure] : file?.errors ?? []).map(redactError) });
     // Persist every outcome immediately. Never overwrite a failed first attempt.
     await save(rows);
-    if (!passed) { log(`FAILED ${attempt.file} repetition ${attempt.repetition}/${attempt.total}; stopping without retry`); return { passed: false, rows }; }
+    if (!passed) { log(`FAILED ${attempt.file} repetition ${attempt.repetition}/${attempt.total}: ${countFailureMessage[reason]} (executed ${counts?.executed ?? '?'}, skipped ${counts?.skipped ?? '?'}, todo ${counts?.todo ?? '?'}); stopping without retry`); return { passed: false, rows }; }
   }
   return { passed: true, rows };
 }
@@ -52,13 +58,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   } else environment = await testRunEnvironment();
   for (const key of ['RS3_COVERAGE_REPORT', 'RS3_COVERAGE_LANE', 'RS3_TEST_FILE_LEDGER', 'RS3_TEST_DATASET_RECEIPT']) delete environment.env[key];
   environment.env.RS3_TEST_RETRY_ONCE_IN_ISOLATION = '0';
-  const receipt = { schema: 'rs3-stability-shard-v1', id: task.id, sha: process.env.GITHUB_SHA,
+  const receipt = { schema: 'rs3-stability-shard-v2', id: task.id, sha: process.env.GITHUB_SHA,
     runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT, rows: [] };
   const destination = `stability-${task.id}.json`;
   const save = async rows => { receipt.rows = rows; await writeFile(destination, JSON.stringify(receipt, null, 2) + '\n'); };
   await save([]);
   try {
-    const result = await executeShard(task, { save, run: async file => {
+    const result = await executeShard(task, { save, run: async (file, onCaseEvent) => {
       const controller = new AbortController();
       const abort = () => controller.abort();
       for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, abort);
@@ -75,6 +81,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
             else if (Date.now() - idleSince > 120000) { console.error('Memory admission starved for 120s'); controller.abort(); }
           },
           onEvent: event => {
+            onCaseEvent(event);
             if (['test:stdout', 'test:stderr'].includes(event.type)) output = (output + event.data.message).slice(-32768);
             if (event.type === 'test:fail') console.error(diagnostic(event.data.details?.error));
             if (event.type === 'test:diagnostic' && /deadline/.test(event.data.message)) console.error(event.data.message);

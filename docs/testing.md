@@ -162,6 +162,15 @@ missing attempts, median/p90 durations and failed repetition numbers; the small
 Original sanitized errors remain in shard logs. Missing or failed attempts fail
 the run; sibling shards finish to preserve evidence.
 
+Each repetition must execute at least one case, with every executed case passing
+and no todos. Receipts retain executed, passed, failed, cancelled, skipped and todo
+case counts. Partial skips are visible; an empty or all-skipped file fails even
+if another OS passes. Dispatch Windows-only files on Windows to obtain their
+proof. Detector/differential and other dedicated lanes are explicitly refused
+(`loop not supported for this lane`) until their CI environments are supported.
+Discovery shares the suite's entry filename rule; an entry the loop cannot
+represent safely fails planning with its filename instead of disappearing.
+
 To prove an existing file on a branch, choose **Actions → Stability → Run workflow**,
 select the branch, supply comma/whitespace-separated entry paths, repetitions
 `50`, and `linux`, `windows` or `both`. Equivalently:
