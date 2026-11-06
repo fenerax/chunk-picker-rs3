@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
-import { mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
+import { chmod, mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { offhostFixture, assertPayloadClosure } from './helpers/offhost.mjs';
 import { offhostBackup, offhostCheck } from '../scripts/linux/offhost-backup.mjs';
@@ -315,7 +315,8 @@ test('daily check and snapshot verification detect remote tree corruption despit
   const f = await realOffhostFixture(t), snapshots = JSON.parse(await f.run(['snapshots', '--json']));
   await f.run(['ls', snapshots[0].id, '--recursive']); // Warm the shared metadata cache.
   const { file, offset } = await f.rootTreeBlob(snapshots[0].id), bytes = await readFile(file);
-  bytes[offset] ^= 1; await writeFile(file, bytes);
+  // Restic stores packs read-only on Linux; make this one writable to corrupt it.
+  bytes[offset] ^= 1; await chmod(file, 0o600); await writeFile(file, bytes);
   await assert.rejects(offhostBackup({ ...f, config: {}, ping: async () => false }));
   await assert.rejects(offhostCheck({ ...f, config: {} }));
   const { json } = await import('../scripts/linux/files.mjs');
