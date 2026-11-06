@@ -1269,6 +1269,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
       const summary = boundedOutput({ revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } });
       return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
+        fingerprints: { gameplay: fingerprint.exportStatic(state, serializedFields), tasks: taskReuseFingerprint.exportStatic(state, serializedFields) },
         coordination: coordination.get(state), receipts,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
         choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
@@ -1536,6 +1537,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           if (json !== undefined) serializedFields.set(current[key], json);
           if (reference) staticReferences.set(current[key], reference);
         }
+        // These digests came from this ticket's exact worker-owned publication,
+        // never from upload metadata. Seed before synchronous save subscribers.
+        fingerprint.seedStatic(current, publication.fingerprints.gameplay);
+        taskReuseFingerprint.seedStatic(current, publication.fingerprints.tasks);
         reportDurability(published);
         for (const listener of listeners) {
           try { listener({ revision: current.revision, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }

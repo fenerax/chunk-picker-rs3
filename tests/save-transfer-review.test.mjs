@@ -10,6 +10,44 @@ import { openStore } from '../app/storage/store.mjs';
 import { runImportJob } from '../app/import-jobs.mjs';
 import { transferDigest } from '../app/save-transfer.mjs';
 import { createScreenDialogs } from '../app/web/screen-dialogs.mjs';
+import { createGameplayFingerprint } from '../app/storage/gameplay-fingerprint.mjs';
+import { taskReuseInputKey } from '../app/tasks/unlock-reuse.mjs';
+
+test('apply seeds worker fingerprints before subscribers without trusting uploaded digest metadata', async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'synthetic-import-fingerprint-'));
+  const roster = [{ id: 'one', name: 'Synthetic player' }];
+  const world = { chunks: new Map([['100', { id: '100' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) };
+  const store = await openStore({ dataDir, initialState: createGroupState(roster), world, retention: false });
+  t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  store.getGameplayFingerprint(); void store.getCalculationSnapshot().taskInputKey;
+  const incoming = createGroupState(roster);
+  incoming.tasks = [{ id: 'custom:synthetic', category: 'Custom', label: 'Synthetic fingerprint marker' }];
+  incoming.provenance = { syntheticFingerprintMarker: true };
+  const prepared = await store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: incoming },
+    fingerprints: { gameplay: 'Untrusted upload metadata' } }),
+  { world, route: '/api/restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} } });
+  let observed, listenerError;
+  store.subscribe(() => {
+    try { observed = { gameplay: store.getGameplayFingerprint(), tasks: store.getCalculationSnapshot().taskInputKey }; }
+    catch (error) { listenerError = error; }
+  });
+  const stringify = JSON.stringify;
+  JSON.stringify = (value, ...args) => {
+    if (value?.restore?.incomingProvenance?.syntheticFingerprintMarker
+      || Array.isArray(value) && value[0]?.label === 'Synthetic fingerprint marker') throw new Error('Static tree walked on writer');
+    return stringify(value, ...args);
+  };
+  let applied;
+  try { applied = await store.applyTransfer(prepared.ticket, 0); }
+  finally { JSON.stringify = stringify; }
+  assert.equal(listenerError, undefined);
+  assert.equal(observed.gameplay, createGameplayFingerprint()(applied.state));
+  assert.equal(observed.tasks, taskReuseInputKey(store.getCalculationSnapshot().state));
+  const before = observed;
+  await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '100', note: 'Synthetic changed note' }, 1);
+  assert.notEqual(observed.gameplay, before.gameplay);
+  assert.equal(observed.tasks, before.tasks);
+});
 
 test('queue wait has its own busy deadline and does not consume active checking time', async () => {
   const wedge = runImportJob({}, { workerURL: new URL('data:text/javascript,while(true){}'), timeoutMs: 500 });

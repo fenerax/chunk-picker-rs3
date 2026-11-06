@@ -13,6 +13,52 @@ function fixture() {
   history: [{ revision: 3, type: 'synthetic-history' }] };
 }
 
+test('worker digests reuse prepared JSON without including retained History references', () => {
+  const source = fixture();
+  delete source.provenance.historyArchive;
+  const fields = ['tasks', 'identityRegistry', 'legacy', 'provenance'];
+  const serialized = new WeakMap(fields.map(key => [source[key], JSON.stringify(source[key])]));
+  const expected = createGameplayFingerprint().exportStatic(source);
+  const stringify = JSON.stringify;
+  let exported;
+  JSON.stringify = () => { throw new Error('Prepared JSON was serialized again'); };
+  try { exported = createGameplayFingerprint().exportStatic(source, serialized); }
+  finally { JSON.stringify = stringify; }
+  assert.deepEqual(exported, expected);
+  const archived = fixture();
+  const raw = new WeakMap(fields.map(key => [archived[key], JSON.stringify(archived[key])]));
+  assert.deepEqual(createGameplayFingerprint().exportStatic(archived, raw), createGameplayFingerprint().exportStatic(archived));
+  assert.equal(createGameplayFingerprint().exportStatic({ provenance: { historyArchive: ['synthetic'] } },
+    new WeakMap()).provenance, undefined);
+});
+
+test('worker static digests seed only the exact imported trees and keep later edits fresh', () => {
+  const source = fixture(), imported = structuredClone(source);
+  const worker = createGameplayFingerprint(), writer = createGameplayFingerprint();
+  const expected = worker(source);
+  writer.seedStatic(imported, structuredClone(worker.exportStatic(source)));
+  const stringify = JSON.stringify;
+  let largeWalks = 0;
+  JSON.stringify = (value, ...args) => {
+    if ([imported.tasks, imported.identityRegistry, imported.legacy].includes(value)
+      || value?.exactArchive === imported.provenance.exactArchive) largeWalks++;
+    return stringify(value, ...args);
+  };
+  try {
+    assert.equal(writer(imported), expected);
+    assert.equal(largeWalks, 0, 'The writer must not serialize imported static fields again');
+  } finally { JSON.stringify = stringify; }
+  const changed = { ...imported, tasks: [{ ...imported.tasks[0], label: 'Changed task' }] };
+  assert.notEqual(writer(changed), expected);
+  assert.equal(writer(changed), createGameplayFingerprint()(changed));
+  const evidence = { ...imported, provenance: { ...imported.provenance, exactArchive: { original: false } } };
+  assert.equal(writer(evidence), createGameplayFingerprint()(evidence));
+  assert.notEqual(writer(evidence), expected);
+  const empty = { members: [], provenance: { historyArchive: [] } };
+  writer.seedStatic(empty, worker.exportStatic(empty));
+  assert.equal(writer(empty), createGameplayFingerprint()(empty));
+});
+
 test('fingerprints omit revision, history, progress snapshots, personal preferences, map journals and history retention references', () => {
   const fingerprint = createGameplayFingerprint(), original = fixture(), expected = fingerprint(original);
   const displayed = structuredClone(original);
