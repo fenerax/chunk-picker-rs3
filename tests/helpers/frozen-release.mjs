@@ -7,7 +7,15 @@ import { root } from './save-surface-corpus.mjs';
 
 const execute = promisify(execFile);
 export const manifest = JSON.parse(await readFile(new URL('../../docs/save-surface.json', import.meta.url), 'utf8'));
-const git = (cwd, args) => execute('git', args, { cwd, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+const git = (cwd, args) => {
+  // Windows-created worktree pointers are not readable by Linux Git. WSL
+  // rehearsals use the same Windows Git that owns the public checkout.
+  const windows = process.platform === 'linux' && process.env.RS3_TEST_WINDOWS_GIT === '1';
+  const winPath = value => value.replace(/^\/mnt\/([a-z])\//, (_, drive) => `${drive.toUpperCase()}:/`);
+  return execute(windows ? '/mnt/c/Program Files/Git/cmd/git.exe' : 'git',
+    windows ? ['-C', winPath(cwd), ...args.map(winPath)] : args,
+    { cwd, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+};
 
 export async function requireFrozenCommit(repository = root, release = manifest.frozenRelease) {
   try { await git(repository, ['cat-file', '-e', `${release}^{commit}`]); }

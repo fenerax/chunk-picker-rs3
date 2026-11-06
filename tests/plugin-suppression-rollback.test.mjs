@@ -1,8 +1,6 @@
 // @test full solo dataset=default
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
@@ -20,24 +18,14 @@ import { readRelease } from '../scripts/linux/runtime.mjs';
 import { createHash } from 'node:crypto';
 import { serialize } from 'node:v8';
 import { toolsClosure } from '../scripts/linux/tools-package.mjs';
+import { frozenRuntime } from './helpers/frozen-release.mjs';
 
-const execute = promisify(execFile), root = fileURLToPath(new URL('../', import.meta.url));
-const release = '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e';
+const root = fileURLToPath(new URL('../', import.meta.url));
 let checkout, frozenStore, frozenPlugin;
 before(async () => {
-  if (process.env.RS3_FROZEN_ROLLBACK_ROOT) {
-    checkout = path.resolve(process.env.RS3_FROZEN_ROLLBACK_ROOT);
-  } else {
-  await execute('git', ['cat-file', '-e', `${release}^{commit}`], { cwd: root });
-  await mkdir(path.join(root, '.local'), { recursive: true });
-  checkout = path.join(root, '.local', `frozen-plugin-runtime-${randomUUID()}`);
-  await execute('git', ['worktree', 'add', '--detach', checkout, release], { cwd: root });
-  }
-  ({ openStore: frozenStore } = await import(pathToFileURL(path.join(checkout, 'app/storage/store.mjs'))));
+  const frozen = await frozenRuntime({ after });
+  checkout = frozen.checkout; frozenStore = frozen.openStore;
   ({ openGamePlugin: frozenPlugin } = await import(pathToFileURL(path.join(checkout, 'app/game-plugin.mjs'))));
-});
-after(async () => {
-  if (checkout && !process.env.RS3_FROZEN_ROLLBACK_ROOT) await execute('git', ['worktree', 'remove', checkout], { cwd: root });
 });
 
 const itemTask = 'rs3:goal:equipment:000dc1', achievementTask = 'diary:synthetic';
@@ -472,7 +460,7 @@ for (const kind of ['items', 'achievements']) test(`owner Undo keeps ${kind} sup
   const preview = await destination.store.prepareTransfer(serialize({ backup: portable, memberId: 'partner', sourceMemberId: 'owner' }),
     { ...transferOptions, route: '/api/member-restore/preview' });
   await destination.store.applyTransfer(preview.ticket, 0);
-  assert.deepEqual(destination.store.getState().members[0].notes, {});
+  assert.deepEqual(destination.store.getState().members[0].notes ?? {}, {});
   await destination.store.command({ type: 'undo' }, destination.store.getInfo().revision); // Undo the member restore too.
   assert.deepEqual(destination.store.getState().members[0].notes, initialState.members[0].notes);
   await destination.store.close();

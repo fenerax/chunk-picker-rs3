@@ -34,6 +34,16 @@ copied, or used to derive this document.
 
 ## Shared guarantees and ownership
 
+Current replay-suppression reconciliation extends the SC1 inventory with
+`plugin-items.json.reconcile-<uuid>.<stage>` and
+`plugin-achievements.json.reconcile-<uuid>.<stage>` staging files (`new` and
+`previous`). These are disposable preimages and staged output, never checkpoints.
+The stopped-start gate validates every destination before publication and restores
+the original picker bytes if publication fails. Its refusal record,
+`plugin-reconciliation-refused.json` (and atomic temporary file), belongs to the
+external operator control directory, not a picker save. The exact save and
+operator-control declarations are in `docs/save-surface.json`.
+
 * **R**: `app/storage/registry-lock.mjs:28` writes an exclusive random temporary
   file (0600), fsyncs it, renames it over the destination, then fsyncs the parent.
   Windows retries replacement and tolerates only specified unsupported directory

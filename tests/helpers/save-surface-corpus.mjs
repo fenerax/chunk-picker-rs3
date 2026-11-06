@@ -23,8 +23,11 @@ import { createDeepProfiles } from '../../app/deep-profiles.mjs';
 import { createWarmStore, warmHash } from '../../app/tasks/warm-store.mjs';
 import { migrateTaskIdentities } from '../../app/tasks/migration.mjs';
 import { preserveGameIdentity } from '../../app/game-profile.mjs';
+import { checkStart } from '../../scripts/linux/start-check.mjs';
+import { inventory } from '../../scripts/linux/files.mjs';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
+export const controlRoot = path.join(root, '.local', 'save-surface-control-tests');
 export const at = '2026-11-01T12:00:00.000Z';
 export const roster = [{ id: 'synthetic-one', name: 'Explorer 1', runescapeName: 'FixtureActor' },
   { id: 'synthetic-two', name: 'Explorer 2' }];
@@ -107,11 +110,17 @@ export async function diskSnapshot(dataDir) {
 
 export async function buildSaveCorpus(t) {
   const dataDir = await scratch(t), snapshots = [], features = new Set();
+  const controlDocuments = [];
   let store = await openStore({ ...storeOptions, dataDir, initialState: seed() });
   t.after(() => store?.close());
-  const capture = async feature => { features.add(feature); snapshots.push({ feature, ...await diskSnapshot(dataDir), state: store.getState() }); };
-  const command = async (payload, feature = 'commands') => {
-    await store.command(payload, store.getInfo().revision); await capture(feature);
+  const capture = async (feature, portable = false) => {
+    features.add(feature);
+    const snapshot = { feature, ...await diskSnapshot(dataDir), state: store.getState() };
+    if (portable) snapshot.documents.push(await store.backup());
+    snapshots.push(snapshot);
+  };
+  const command = async (payload, feature = 'commands', options) => {
+    await store.command(payload, store.getInfo().revision, options); await capture(feature);
   };
   await capture('initialize-static');
   await command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 'rules');
@@ -120,7 +129,9 @@ export async function buildSaveCorpus(t) {
     skills: [{ skill: 'Attack', level: 7, xp: 700 }], quests: [{ taskId: tasks[1].id, title: tasks[1].label }] }, 'platform-progress');
   await command({ type: 'apply-game-progress', memberId: roster[0].id, fetchedAt: at, skills: [{ skill: 'Mining', level: 8, xp: 900 }], quests: [],
     achievements: [{ taskId: tasks[2].id, title: tasks[2].label, achievementId: 1 }],
-    items: [{ taskId: tasks[3].id, title: 'Synthetic item', gameItemId: 857, evidence: 'worn', seen: 'Synthetic observation' }] }, 'plugin-progress');
+    items: [{ taskId: tasks[3].id, title: 'Synthetic item', gameItemId: 857, evidence: 'worn', seen: 'Synthetic observation' }] }, 'plugin-progress',
+  { pluginHandled: { achievements: [1], items: [tasks[3].id] } });
+  await capture('plugin-suppression', true);
   await command({ type: 'apply-game-progress', memberId: roster[1].id, fetchedAt: at, skills: [],
     quests: [{ taskId: tasks[1].id, title: tasks[1].label }] }, 'plugin-progress');
   await store.observePluginCurrency({ memberId: roster[0].id, keyId: randomUUID(), seq: 1, sentAt: at, coins: 150 });
@@ -295,7 +306,36 @@ export async function buildSaveCorpus(t) {
       { actor, requestId: `v3.${session.scope}.${session.slot}.${session.generation}.1`, requestAck: 0 });
     features.add('roll-receipt'); snapshots.push({ feature: 'roll-receipt', ...await diskSnapshot(rollDir), state: rollStore.getState() });
   } finally { await rollStore.close(); }
-  return { dataDir, snapshots, features: [...features], before,
+  // The real start gate writes both staged preimages and its external refusal
+  // marker. Corrupt only this synthetic sidecar to exercise a refused start.
+  const gateDir = await scratch(t, 'start-gate');
+  await mkdir(controlRoot, { recursive: true });
+  const controlDir = await mkdtemp(path.join(controlRoot, 'run-'));
+  t.after(() => rm(controlDir, { recursive: true, force: true }));
+  const gateSeed = createGroupState(roster); gateSeed.tasks = structuredClone(tasks);
+  const gate = await openStore({ ...storeOptions, dataDir: gateDir, initialState: gateSeed, retention: false });
+  try {
+    const members = () => gate.getState().members;
+    const items = await openPluginItems({ dataDir: gateDir, members }), achievements = await openPluginAchievements({ dataDir: gateDir, members });
+    try {
+      await items.put(roster[0].id, { baselineAt: at, items: {}, handled: ['custom:retained'], journal: null });
+      await achievements.add(roster[0].id, [99]);
+    } finally { await items.close(); await achievements.close(); }
+    await gate.command({ type: 'apply-game-progress', memberId: roster[0].id, fetchedAt: at, skills: [], quests: [], achievements: [{ taskId: tasks[2].id, title: tasks[2].label, achievementId: 1 }],
+      items: [{ taskId: tasks[3].id, title: 'Synthetic item', gameItemId: 857, evidence: 'worn', seen: 'Synthetic observation' }] },
+    gate.getInfo().revision, { pluginHandled: { achievements: [1], items: [tasks[3].id] } });
+  } finally { await gate.close(); }
+  const itemFile = path.join(gateDir, 'plugin-items.json'), retained = await readFile(itemFile);
+  await writeFile(itemFile, '{}');
+  const unchanged = await inventory(gateDir);
+  await assert.rejects(checkStart({ dataDir: gateDir, controlDir }), { code: 'PLUGIN_RECONCILIATION_FAILED' });
+  assert.deepEqual(await inventory(gateDir), unchanged);
+  controlDocuments.push(JSON.parse(await readFile(path.join(controlDir, 'plugin-reconciliation-refused.json'))));
+  await writeFile(itemFile, retained);
+  await checkStart({ dataDir: gateDir, controlDir });
+  features.add('plugin-start-gate');
+  snapshots.push({ feature: 'plugin-start-gate', ...await diskSnapshot(gateDir), state: gate.getState() });
+  return { dataDir, snapshots, features: [...features], before, controlDocuments,
     cases: [{ name: 'full-feature-save', dataDir }, { name: 'restore-transfer', dataDir: replacementDir },
       { name: 'mapped-transfer', dataDir: transferDir },
       { name: 'codec-quarantine', dataDir: recoveryDir, options: { completionCodec: true } }, { name: 'identity-quarantine', dataDir: migrationDir },

@@ -13,6 +13,13 @@ archived source histories/provenance and historical command/inverse values.
 Live envelope, member and provenance roots are never opaque. Adding a new live
 field or sidecar requires a declaration and a synthetic writer scenario.
 
+The optional `operatorControl` declaration covers the replay-reconciliation
+refusal marker outside picker data. Its `schemaVersion`, `at` and `code` fields
+and atomic temporary file are exercised separately from per-picker files.
+Suppression's atomic provenance, registered portable capsule, legacy handled
+sidecars and reconciliation staging files are declared explicitly. The corpus
+uses the real progress command and start gate, including byte-identical refusal.
+
 The frozen policy is one of:
 
 - `preserved`: natively supported, or retained without interpretation. This does
@@ -48,8 +55,8 @@ publishes the save, updates retained plugin sidecars and exports with its own
 exporter. Current code reopens the frozen-written directory and exported state.
 History, progress, permanent task IDs and portable plugin evidence are compared
 by identity and value, rather than by counts. Plugin sidecar evidence is checked
-in the retained directory. Sidecars are not portable in this main-era format;
-the test does not claim that a standalone export includes them. Undo deliberately
+in the retained directory. Registered replay decisions also travel in provenance
+and portable envelopes; raw sidecar files remain separately retained. Undo deliberately
 targets a note so no expected removal of progress can mask evidence loss.
 
 Missing git history fails, including on cache hits. CI fetches full history and

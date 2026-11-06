@@ -21,6 +21,14 @@ test('the actual frozen release opens, Undoes, writes and exports the current fe
     try {
       await store.command({ type: 'set-note', memberId, chunkId: '100', note: 'Synthetic frozen sentinel' }, store.getInfo().revision);
       before = (await store.backup()).state;
+      // Portable capture adds a redundant registered capsule. Compare the
+      // provenance actually committed for the frozen runtime to read; the
+      // portable round trip below separately checks exported carriers.
+      const committedCapsule = store.getState().provenance?.optionalSidecarEvidence;
+      if (before.provenance) {
+        if (committedCapsule === undefined) delete before.provenance.optionalSidecarEvidence;
+        else before.provenance.optionalSidecarEvidence = committedCapsule;
+      }
     } finally { await store.close(); }
     let checkpoint = preservationDigest(before, await pluginEvidenceFiles(dataDir));
     const verify = async (state, label) => {
