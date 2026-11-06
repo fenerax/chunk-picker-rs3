@@ -31,29 +31,41 @@ async function ready(page, expression) {
     throw new Error(`Readiness failed: ${expression}; ${JSON.stringify(await page.evaluate("({ search: document.querySelector('#task-filter')?.value, tasks: document.querySelector('#active-tasks')?.textContent, status: document.querySelector('#task-engine-status')?.textContent })"))}`, { cause: error });
   }
 }
-const settle = page => page.evaluate(`window.shortHeightReadiness.settled().then(readiness => ({ readiness, geometry: (${focusedGeometry})() }))`);
-async function observe(page, row, name, settled) {
-  const { readiness, geometry } = settled ?? await settle(page);
+const settle = (page, selector) => page.evaluate(`window.shortHeightReadiness.settled().then(readiness => ({ readiness, geometry: (${focusedGeometry})(), matches: ${selector ? `document.activeElement.matches(${JSON.stringify(selector)})` : 'true'} }))`);
+async function observe(page, row, name, selector) {
+  const { readiness, geometry, matches } = await settle(page, selector);
+  assert.ok(matches, `${name}: native focus changed during geometry settlement`);
   assert.ok(!row.observations.some(o => o.name === name), `Duplicate observation: ${name}`);
   row.observations.push({ name, readiness, geometry });
   return geometry;
 }
-async function press(page, key, modifiers = 0) {
+async function press(page, key, modifiers = 0, selector) {
   const keys = { Tab: ['Tab', 9], Enter: ['Enter', 13], Escape: ['Escape', 27], ArrowRight: ['ArrowRight', 39], Home: ['Home', 36], a: ['KeyA', 65] };
   const [code, windowsVirtualKeyCode] = keys[key];
   const event = { key, code, windowsVirtualKeyCode, modifiers };
   if (key === 'Tab') await page.evaluate('window.shortHeightFocusBefore = window.shortHeightReadiness.armFocus()');
   // Tab and Shift+Tab must run Chromium's real focus traversal and scrolling.
-  await page.send('Input.dispatchKeyEvent', { type: key === 'Enter' ? 'keyDown' : 'rawKeyDown', ...event,
-    ...(key === 'Enter' ? { text: '\r', unmodifiedText: '\r' } : {}) });
-  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', ...event });
+  // CDP messages and the renderer's native keyboard queue preserve this order.
+  // Queue both real events before waiting; acknowledge both before probing
+  // focus. Waiting for each protocol roundtrip separately adds no input signal.
+  await Promise.all([
+    page.send('Input.dispatchKeyEvent', { type: key === 'Enter' ? 'keyDown' : 'rawKeyDown', ...event,
+      ...(key === 'Enter' ? { text: '\r', unmodifiedText: '\r' } : {}) }),
+    page.send('Input.dispatchKeyEvent', { type: 'keyUp', ...event }),
+  ]);
   if (key === 'Tab') {
-    const landed = await page.evaluate('window.shortHeightReadiness.focusLanded(window.shortHeightFocusBefore)');
+    page.nativeTabs = (page.nativeTabs ?? 0) + 1;
+    const landed = await evaluate(page, selector => {
+      const reached = selector ? document.activeElement.matches(selector) : false;
+      return { ...window.shortHeightReadiness.focusLanded(window.shortHeightFocusBefore), reached,
+        identity: selector && !reached ? window.shortHeightReadiness.traversalState() : null };
+    }, selector);
     assert.ok(landed.events > 0,
       `Native Tab changed focus without a focus event: ${JSON.stringify(landed)}`);
-    // Join scrolling from intermediate traversal stops too. Sending the next
-    // Tab while a prior stop is still scrolling creates competing native scrolls.
-    return settle(page);
+    // The browser has acknowledged this native input and its focus event.
+    // Geometry settlement belongs to the named observation, not every
+    // unmeasured intermediate stop on the way to that control.
+    return landed;
   }
 }
 function check(row, name, pass, detail) {
@@ -69,15 +81,14 @@ const focused = page => evaluate(page, focusedGeometry);
 async function tabTo(page, selector, row, name, backwards = false) {
   const seen = new Set();
   for (let i = 0; i < 100; i++) {
-    const settled = await press(page, 'Tab', backwards ? 8 : 0);
-    if (await evaluate(page, s => document.activeElement.matches(s), selector)) {
-      const geometry = await observe(page, row, name, settled);
+    const { reached, identity } = await press(page, 'Tab', backwards ? 8 : 0, selector);
+    if (reached) {
+      const geometry = await observe(page, row, name, selector);
       check(row, name, geometry.height >= 44 && geometry.visible >= geometry.height - 1 && geometry.hit, geometry);
       return geometry;
     }
     // DOM positions are not identities, and a late-painted control can change
     // the native order. A cycle requires the same node AND same tabbable order.
-    const identity = await page.evaluate('window.shortHeightReadiness.traversalState()');
     if (identity === null) continue;
     if (seen.has(identity)) break;
     seen.add(identity);
@@ -93,8 +104,8 @@ async function tabTo(page, selector, row, name, backwards = false) {
 async function dialogWalk(page, row, name) {
   // Inspect every settled native Tab stop, including reverse traversal. No script scroll.
   for (const backwards of [false, true]) for (let i = 0; i < 7; i++) {
-    const settled = await press(page, 'Tab', backwards ? 8 : 0);
-    const g = await observe(page, row, `${name}:${backwards ? 'reverse' : 'forward'}:${i}`, settled);
+    await press(page, 'Tab', backwards ? 8 : 0);
+    const g = await observe(page, row, `${name}:${backwards ? 'reverse' : 'forward'}:${i}`);
     if (!g.control) continue; // Chromium has a body stop when the modal Tab cycle wraps.
     check(row, `${name}:${backwards ? 'reverse' : 'forward'}:${i}`, g.visible >= g.height - 1 && g.hit, g);
   }
@@ -111,18 +122,23 @@ try {
     try {
       for (let pair = 0; pair < Number(option('pairs') || (baseline ? 3 : 1)); pair++) for (const variant of baseline ? pair % 2 ? ['after', 'before'] : ['before', 'after'] : ['after']) {
         for (const height of option('height') ? [Number(option('height'))] : [240, 256, 844]) for (const notice of [true, false]) {
+          const serverStarted = performance.now();
           const { data: definitions, state } = duoFixture();
           state.members.forEach((member, i) => { member.name = `P${i + 1}`; member.preferences = { roll2: true, unpick: true }; });
           state.members[0].selected = ['12851', '12852'];
           const fixtureDigest = createHash('sha256').update(JSON.stringify({ definitions, state, taskMap: {} })).digest('hex');
           app = await createServer({ dataset: selectedDataset, dataDir: path.join(directory, `game-${rows.length}`), initialState: state, definitions, taskMap: {}, host: '127.0.0.1', port: 0, predictionPrewarm: false, random: () => .25 });
           await app.listen();
+          const serverMs = performance.now() - serverStarted, pageStarted = performance.now();
           console.error('flow', font, height, notice, variant);
           page = await freshPage(browser);
           await page.send('Emulation.setDeviceMetricsOverride', { width: 320, height, deviceScaleFactor: 1, mobile: false });
+          const pageMs = performance.now() - pageStarted, startupStarted = performance.now();
           const row = { font, height, notice, fixtureDigest, dataset: { id: selectedDataset.id, digest: selectedDataset.digest },
-            pair: pair + 1, variant, checks: 0, failures: 0, errors: [], observations: [] }; rows.push(row);
+            pair: pair + 1, variant, phases: { serverMs, pageMs }, checks: 0, failures: 0, errors: [], observations: [] }; rows.push(row);
+          let streamRevision = false;
           const onEvent = ({ method, params }) => {
+            if (method === 'Network.eventSourceMessageReceived' && params.eventName === 'revision') streamRevision = true;
             if (method === 'Runtime.exceptionThrown') row.errors.push(params.exceptionDetails.exception?.description ?? params.exceptionDetails.text);
             if (method !== 'Fetch.requestPaused') return;
             const file = new URL(params.request.url).pathname;
@@ -138,6 +154,11 @@ try {
           await page.send('Page.navigate', { url: app.inviteUrl });
           await ready(page, "document.querySelector('#save-status')?.textContent === 'Saved'");
           row.savedAt = await page.evaluate('performance.now()');
+          // Saved precedes opening the initial live stream. Join its revision
+          // and subsequent UI turn before accepting startup task readiness.
+          await until(() => streamRevision, 10000);
+          await settle(page);
+          await ready(page, "document.querySelector('#save-status')?.textContent === 'Saved'");
           await ready(page, "window.__rs3Perf.events.some(event => event.name === 'tasks-shown')");
           await ready(page, "[...document.querySelectorAll('link[rel=stylesheet]')].every(link => link.sheet)");
           row.startupEvents = await page.evaluate('window.__rs3Perf.events');
@@ -148,6 +169,8 @@ try {
           check(row, 'fresh backup warning present', await page.evaluate("document.querySelector('#backup-status-notice').checkVisibility()"));
           if (!notice) await page.evaluate("document.querySelector('#backup-status-notice').hidden = true");
           await observe(page, row, 'initial layout');
+          row.phases.startupMs = performance.now() - startupStarted;
+          const bodyStarted = performance.now();
           row.scrollport = await evaluate(page, () => ({
             height: document.body.clientHeight,
             bottom: document.body.getBoundingClientRect().bottom,
@@ -184,7 +207,7 @@ try {
           // Partner sword row. Own sword is an actual task in this fixture.
           await page.evaluate('window.shortHeightReadiness.armTaskSearch()');
           await page.send('Input.insertText', { text: 'Own sword' });
-          await ready(page, 'window.shortHeightTaskChanged');
+          await ready(page, "window.shortHeightReadiness.taskSearchRendered('own sword')");
           await ready(page, "[...document.querySelectorAll('#active-tasks .task-label-button')].some(e => e.textContent.includes('Own sword'))");
           await observe(page, row, 'short task search');
           await tabTo(page, '#active-tasks .task-label-button', row, 'task visible');
@@ -202,7 +225,7 @@ try {
           await press(page, 'a', 2);
           await page.evaluate('window.shortHeightReadiness.armTaskSearch()');
           await page.send('Input.insertText', { text: 'Partner sword' });
-          await ready(page, 'window.shortHeightTaskChanged');
+          await ready(page, "window.shortHeightReadiness.taskSearchRendered('partner sword')");
           await ready(page, "[...document.querySelectorAll('#active-tasks .task-label-button')].some(e => e.textContent.includes('Partner sword'))");
           await observe(page, row, 'long task search');
           let reached = false;
@@ -235,6 +258,8 @@ try {
           await press(page, 'Enter'); await ready(page, "document.querySelector('#pending-panel .primary-action')");
           await tabTo(page, '#pending-panel .primary-action', row, 'result visible');
           check(row, 'no page errors', row.errors.length === 0, row.errors);
+          row.phases.bodyMs = performance.now() - bodyStarted;
+          row.nativeTabs = page.nativeTabs;
           assert.deepEqual(row.observations.map(o => o.name), observationNames,
             'all original settlement observations retained in order');
           console.log(JSON.stringify(row)); if (option('output')) await writeFile(option('output'), JSON.stringify({rows, failures}, null, 2));
@@ -252,5 +277,11 @@ try {
 } finally { await app?.close(); await rm(directory, { recursive: true, force: true, maxRetries: 5 }); }
 const result = { node: process.version, baseline, rows, failures };
 if (option('output')) await writeFile(option('output'), JSON.stringify(result, null, 2) + '\n');
-console.log(JSON.stringify({ cases: rows.length, observations: rows.reduce((n, r) => n + r.observations.length, 0), checks: rows.reduce((n, r) => n + r.checks, 0), failures: failures.length, candidateFailures: failures.filter(f => f.variant === 'after').length }));
+console.log(JSON.stringify({ cases: rows.length, observations: rows.reduce((n, r) => n + r.observations.length, 0), checks: rows.reduce((n, r) => n + r.checks, 0), failures: failures.length, candidateFailures: failures.filter(f => f.variant === 'after').length,
+  timing: rows.map(row => ({ font: row.font, height: row.height, notice: row.notice,
+    ...row.phases, nativeTabs: row.nativeTabs,
+    readinessMs: row.observations.reduce((sum, o) => sum + (o.readiness.elapsedMs ?? 0), 0),
+    frames: row.observations.reduce((sum, o) => sum + o.readiness.frames, 0),
+    visibility: [...new Set(row.observations.map(o => o.readiness.visibility))],
+  })) }));
 if (!measureOnly) assert.equal(failures.filter(f => f.variant === 'after').length, 0, JSON.stringify(failures.filter(f => f.variant === 'after').slice(0, 5)));

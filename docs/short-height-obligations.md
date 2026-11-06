@@ -59,9 +59,15 @@ recorded explicitly instead of silently disappearing from the observation count.
 The short-task query is `Own sword`, an actual task in the same fixture.
 The old `OwnItem` query does not name a rendered task label: its "any row"
 readiness predicate could inspect the stale Partner sword row before the
-100 ms search debounce, or leave no Tab target after it. The replacement waits
-for query-specific rendered content, preserving the intended distinct short
-and long dialog witnesses.
+100 ms search debounce, or leave no Tab target after it. Search also starts a
+separate group inspection load: matching labels can already exist while the
+application deliberately disables inspection until both results arrive.
+The replacement joins `duo-tasks-shown` for the exact query after input, which
+acknowledges calculation, inspection reads, sliced row painting and focus
+restoration. The existing perf event now records its filter and generation.
+No target visibility, disabled state or tabIndex is a readiness condition.
+Startup separately joins the initial EventSource revision and Saved UI turn.
+This preserves the intended distinct short and long dialog witnesses.
 
 Readiness must be independent of those assertions: fonts complete, expected
 viewport and phone media applied, native focus event acknowledged, and equal
@@ -71,6 +77,10 @@ Samples are taken in a task after rendering and ResizeObserver delivery, then
 geometry is captured atomically with settlement. Each receipt includes its
 settled geometry and focus-event count. Target
 searches stop after one complete native focus cycle when the target is absent.
+Intermediate, unmeasured Tab stops acknowledge native input and focus events;
+the full font/layout/scroll readiness check runs at every named observation.
+This preserves all 708 original settlement points without adding frame waits
+to each key used to reach them.
 
 ## Product regression
 

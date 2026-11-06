@@ -525,7 +525,7 @@ export function createScreenTasks(c) {
     c.taskRenderDone = c.paintTaskJobs(jobs, generation).then(async painted => {
       if (painted && generation === c.taskRenderGeneration) c.taskFocus?.finish();
       if (painted && typeof requestAnimationFrame === 'function') await new Promise(resolve => requestAnimationFrame(resolve));
-      if (painted && duoReady && generation === c.taskRenderGeneration && c.duoEnabled()) c.perfMark('duo-tasks-shown', { revision: c.state.revision, memberId: c.memberId });
+      if (painted && duoReady && generation === c.taskRenderGeneration && c.duoEnabled()) c.perfMark('duo-tasks-shown', { revision: c.state.revision, memberId: c.memberId, filter, generation });
       if (painted && generation === c.taskRenderGeneration && c.foregroundSettled?.()) { c.deathChunks?.refresh(); c.syncPredictionIntents?.(); }
       return painted;
     });

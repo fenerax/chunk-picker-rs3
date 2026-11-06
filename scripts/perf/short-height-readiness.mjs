@@ -67,9 +67,14 @@ export function installReadiness() {
         document.querySelector('#tool-dialog').addEventListener('close', resolve, { once: true }));
     },
     armTaskSearch() {
-      window.shortHeightTaskChanged = false;
-      const observer = new MutationObserver(() => { window.shortHeightTaskChanged = true; observer.disconnect(); });
-      observer.observe(document.querySelector('#active-tasks'), { childList: true, subtree: true });
+      window.shortHeightSearchStart = window.__rs3Perf.events.length;
+    },
+    taskSearchRendered(filter) {
+      // This signal joins calculation, inspection reads, sliced row painting,
+      // and focus restoration for this exact search generation. It does not
+      // inspect target visibility, tabIndex, disabled state, or hit ownership.
+      return window.__rs3Perf.events.slice(window.shortHeightSearchStart)
+        .some(event => event.name === 'duo-tasks-shown' && event.filter === filter);
     },
     armFocus() { return { events: focusEvents, element: document.activeElement }; },
     focusLanded(before) {
@@ -77,6 +82,7 @@ export function installReadiness() {
         body: document.activeElement === document.body };
     },
     async settled() {
+      const started = performance.now();
       await document.fonts.ready;
       const snapshot = () => {
         const nodes = new Set(document.querySelectorAll(
@@ -114,7 +120,8 @@ export function installReadiness() {
         if (performance.now() > deadline) throw new Error('Layout/scroll did not settle');
       }
       channel.port1.close(); channel.port2.close();
-      return { frames, focusEvents, scrollX, scrollY, scrollSamples };
+      return { frames, elapsedMs: performance.now() - started, visibility: document.visibilityState,
+        hasFocus: document.hasFocus(), focusEvents, scrollX, scrollY, scrollSamples };
     },
   };
 }
