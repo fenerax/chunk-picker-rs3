@@ -77,6 +77,15 @@ export function mergeJournalCommits(...inputs) {
   return validateJournalCommits({ journals: [...journals.values()] });
 }
 
+export function mergeItemHandled(...inputs) {
+  const handled = new Set(inputs.flat());
+  // Review markers are an optional rollback aid; their paired literal IDs are
+  // the current decisions. Never refuse a valid union merely for marker space.
+  for (const id of [...handled].sort()) if (handled.size > HANDLED_LIMIT
+    && id.startsWith('~plugin-review:') && handled.has(id.slice('~plugin-review:'.length))) handled.delete(id);
+  return [...handled].sort();
+}
+
 export function mergeItemRecords(...inputs) {
   let result = null;
   for (const input of inputs.filter(Boolean)) {
@@ -87,7 +96,7 @@ export function mergeItemRecords(...inputs) {
       result.items[id] = prior ? { ...prior, ownedAt: prior.ownedAt < fact.ownedAt ? prior.ownedAt : fact.ownedAt,
         wornAt: prior.wornAt ?? fact.wornAt } : structuredClone(fact);
     }
-    result.handled = [...new Set([...result.handled, ...input.handled])].sort();
+    result.handled = mergeItemHandled(result.handled, input.handled);
     if (input.bank && (!result.bank || input.bank.seenAt > result.bank.seenAt)) result.bank = structuredClone(input.bank);
     if (!result.journal || input.journal?.id === result.journal.id && input.journal.event > result.journal.event) result.journal = structuredClone(input.journal);
   }

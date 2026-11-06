@@ -1681,8 +1681,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if (route === '/api/game-plugin/apply' || route === '/api/game-plugin/dismiss') {
               const applying = route.endsWith('/apply'), review = gamePlugin.findReview(identity, body, applying);
               if (applying) {
-                const state = await store.command(review.command, body.expectedRevision, { actor: identity.actor });
-                await gamePlugin.finish(review.command.memberId);
+                const state = await gamePlugin.finish(review.command.memberId,
+                  { command: review.command, expectedRevision: body.expectedRevision, actor: identity.actor });
                 await json(request, response, 200, await viewEnvelope(state, viewFor(request)));
               } else { await gamePlugin.finish(review.command.memberId); await json(request, response, 200, { dismissed: true }); }
               return;

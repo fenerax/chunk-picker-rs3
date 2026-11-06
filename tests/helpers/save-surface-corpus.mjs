@@ -177,16 +177,19 @@ export async function buildSaveCorpus(t) {
   for (const [journalWorld, itemId, event] of [['unknown', 34830, 1], ['beta', 1205, 2]]) {
     const journal = await openPluginItems({ dataDir, members, journalWorld });
     try { await journal.put(roster[0].id, { baselineAt: at,
-      items: { [itemId]: { name: `Synthetic ${journalWorld} journal item`, ownedAt: at, wornAt: at, first: false } },
+      items: { [itemId]: { name: `Synthetic ${journalWorld} journal item`, ownedAt: at, wornAt: at, first: false },
+        ...(journalWorld === 'unknown' ? { 900000: { name: 'Synthetic unmapped journal item', ownedAt: at, wornAt: at, first: false } } : {}) },
       handled: [], journal: { id: 'aaaaaaaaaaaaaaaa', event } }); }
     finally { await journal.close(); }
   }
   const commits = await openPluginJournalCommits({ dataDir, members });
   try { await commits.put(roster[0].id, { journals: [{ id: 'aaaaaaaaaaaaaaaa', committed: 3,
-    pending: [[4, 999999, 'Synthetic pending journal item', 'unknown']] }] }); }
+    pending: [[4, 857, 'Synthetic pending journal item', 'unknown']] }] }); }
   finally { await commits.close(); }
   const portable = await store.backup();
   await store.replace(portable, store.getInfo().revision);
+  // Exercise decisions backed by both materialized facts and a durable intent.
+  await store.commitPluginReview({ memberId: roster[0].id, taskIds: ['rs3:goal:equipment:000dc1'], unmappedIds: [] }, store.getInfo().revision);
   await capture('plugin-item-journals');
   snapshots.at(-1).documents.push(portable);
   const overlays = await openOverlays({ dataDir, store, world, authenticateAdmin: () => ({ admin: true }),
