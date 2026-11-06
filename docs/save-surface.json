@@ -1,0 +1,1511 @@
+{
+  "version": 1,
+  "frozenRelease": "06e15939dbf73ecd1a0e7bc9c29088e0281ca11e",
+  "scope": "Per-picker state.json (including hydrated static fields), envelope and files below dataDir. Sibling dataset bindings, registry/tombstone roots, operator control roots and external snapshot roots are inventoried separately in storage-contract.md.",
+  "features": [
+    "initialize-static",
+    "platform-progress",
+    "plugin-progress",
+    "plugin-item-journals",
+    "plugin-currency",
+    "claim",
+    "claim-cleanup",
+    "finish-line",
+    "group-goals",
+    "rule-reviews",
+    "sparse-undo",
+    "undo",
+    "action-session",
+    "action-receipt",
+    "action-ack",
+    "sidecars",
+    "restore-transfer",
+    "rollback-sentinel",
+    "retention-archive",
+    "rules",
+    "task-edits",
+    "diagnostics-cache",
+    "completion-codec",
+    "quarantine-corrupt",
+    "identity-migration",
+    "legacy-forms",
+    "members-pinned-backup",
+    "roll-receipt"
+  ],
+  "json": [
+    {
+      "path": "/actionReceipts/format",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/legacy",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Immutable prototype receipts remain replay-only."
+    },
+    {
+      "path": "/actionReceipts/slots/[]/acknowledged",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/clientId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/generation",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/lastUsed",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/principal",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/receipt/fingerprint",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/receipt/outcome/revision",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/receipt/outcome/rolled/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/receipt/outcome/type",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/receipt/requestId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/receipt/revision",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/retired",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "The bridge release preserves the optional retirement certificate."
+    },
+    {
+      "path": "/actionReceipts/slots/[]/scope",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/actionReceipts/slots/[]/sequence",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/entries/[]/at",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/entries/[]/base",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/entries/[]/insert/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/entries/[]/length",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/entries/[]/remove/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/entries/[]/sha256",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/entries/[]/value/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/completionArrays/version",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/coordination/invalidatedUndo/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/coordination/lastNonClaimRevision",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/coordination/schemaVersion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/format",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/commits/journals/[]/committed",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/commits/journals/[]/id",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/commits/journals/[]/pending/[]/[]",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/bank/coins",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/bank/seenAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/bank/snapshot",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/baselineAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/handled/[]",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/first",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/name",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/ownedAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/wornAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/journal/event",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/journal/id",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/version",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/schemaVersion",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/pluginCurrency/facts/*/coins",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/facts/*/source",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/format",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/keys/*/epoch",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/keys/*/generation",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/keys/*/highSeq",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/keys/*/receivedAt",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/keys/*/sentAt",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/keys/*/seq",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/origins/[]/after/coins",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/origins/[]/after/source",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/origins/[]/before/coins",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/origins/[]/before/source",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/origins/[]/memberId",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/origins/[]/revision",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/players/*/historyAt",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/players/*/historyRevision",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/players/*/keyId",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/players/*/receivedAt",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/pluginCurrency/players/*/recoverAfter",
+      "frozen": "private-droppable",
+      "rollForward": "Private runtime ordering may be lost on a frozen write. On roll-forward resolve ownership from portable pluginCurrencyFacts and History currencyOrigins; missing fences quarantine ambiguous streams and require fresh observations."
+    },
+    {
+      "path": "/retentionLabel",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/retentionPinned",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/schemaVersion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/finishLine/customItems/[]/completedBy/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/finishLine/customItems/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/finishLine/customItems/[]/text",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/finishLine/items/*/enabled",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/finishLine/items/*/target",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/groupGoals/[]/completedBy",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/groupGoals/[]/completedBy/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/groupGoals/[]/completion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/groupGoals/[]/done",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/groupGoals/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/groupGoals/[]/text",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/actor/inviteId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/actor/kind",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/actor/label",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/actor/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/at",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/command",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Historical command payload is retained verbatim; Undo uses its separately validated inverse."
+    },
+    {
+      "path": "/state/history/[]/currencyOrigins/*/after/coins",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/currencyOrigins/*/after/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/currencyOrigins/*/before/coins",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/currencyOrigins/*/before/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/revision",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/type",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/after/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/after/value/customItems/[]/completedBy/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/after/value/customItems/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/after/value/customItems/[]/text",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/after/value/items/*/enabled",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/after/value/items/*/target",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/before/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/before/value/customItems/[]/completedBy",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/before/value/customItems/[]/completedBy/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/before/value/customItems/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/before/value/customItems/[]/text",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/before/value/items/*/enabled",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/finishLineChange/before/value/items/*/target",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/after/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/after/value/[]/completedBy",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/after/value/[]/completedBy/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/after/value/[]/completion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/after/value/[]/done",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/after/value/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/after/value/[]/text",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/before/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/before/value/[]/completedBy/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/before/value/[]/completion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/before/value/[]/done",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/before/value/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/groupGoalChanges/before/value/[]/text",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/memberChanges/[]/changes/[]/after/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/memberChanges/[]/changes/[]/after/value",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Sparse inverse after-value can be any validated member-field value."
+    },
+    {
+      "path": "/state/history/[]/undo/memberChanges/[]/changes/[]/before/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/memberChanges/[]/changes/[]/before/value",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Sparse inverse before-value can be any validated member-field value."
+    },
+    {
+      "path": "/state/history/[]/undo/memberChanges/[]/changes/[]/kind",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/memberChanges/[]/changes/[]/path/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/memberChanges/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/members",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Legacy full-member inverses are validated and preserved."
+    },
+    {
+      "path": "/state/history/[]/undo/ruleReviewChange/after/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/ruleReviewChange/after/value/*/note",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/ruleReviewChange/after/value/*/reviewed",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/ruleReviewChange/before/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/ruleReviewChange/before/value/*/note",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/ruleReviewChange/before/value/*/reviewed",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/rules",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Rule snapshots retain dataset-specific rule IDs."
+    },
+    {
+      "path": "/state/history/[]/undo/taskChanges",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Task edit inverses retain complete task rows."
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/afterExists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/beforeExists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/changes/[]/after/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/changes/[]/after/value/at",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/changes/[]/after/value/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/changes/[]/before/exists",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/changes/[]/before/value/at",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/changes/[]/before/value/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/taskClaimChanges/changes/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/history/[]/undo/tasks",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Legacy full-task inverses are validated and preserved."
+    },
+    {
+      "path": "/state/history/[]/undoneRevision",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/identityRegistry/aliases/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/identityRegistry/aliases/*/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/identityRegistry/entries/*",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Identity catalogue rows retain dataset-specific source metadata verbatim."
+    },
+    {
+      "path": "/state/identityRegistry/schemaVersion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/identityRegistry/unresolved",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Archived unresolved source records are opaque original input."
+    },
+    {
+      "path": "/state/legacy",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Exact retained legacy input; arbitrary source JSON is preserved without interpretation."
+    },
+    {
+      "path": "/state/members/[]/achievementProgress/*/achievementId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/achievementProgress/*/fetchedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/achievementProgress/*/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/achievementProgress/*/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/achievementProgress/*/title",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/areaOverrides/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/blacklisted/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/bossUnlocks/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/chunkColourNames/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/chunkColours/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/completedTasks/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/f2pMap/at",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/f2pMap/unlocked/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/itemProgress/*/evidence",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/itemProgress/*/fetchedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/itemProgress/*/gameItemId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/itemProgress/*/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/itemProgress/*/seen",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/itemProgress/*/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/itemProgress/*/title",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/journal",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/maxLevels/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/name",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/notes/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/obtainedEquipment/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/originalPickerSync/appliedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/originalPickerSync/capturedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/originalPickerSync/groups/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/originalPickerSync/sourceHash",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/originalPickerSync/sourceMapId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/passiveLevels/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/pendingRoll/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/preferences/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/preferences/topBarHidden/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/primaryOverrides/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/questProgress/*/fetchedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/questProgress/*/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/questProgress/*/runescapeName",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/questProgress/*/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/questProgress/*/title",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/runeMetricsSync/fetchedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/runeMetricsSync/runescapeName",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/runeMetricsSync/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/runescapeName",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sectionOverrides/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/selected/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/skillProgress/*/fetchedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/skillProgress/*/level",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/skillProgress/*/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/skillProgress/*/runescapeName",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/skillProgress/*/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/skillProgress/*/xp",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/slayerLock/boss",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/slayerLock/level",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/slayerLock/monster",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sourceBacklogs/items/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sourceBacklogs/monsters/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sourceBacklogs/npcs/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sourceBacklogs/objects/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sourceBacklogs/shops/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sourceBacklogs/spawns/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/sourceMapId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/stickers/*/[]/color",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/stickers/*/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/stickers/*/[]/text",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/stickers/*/[]/type",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/taskAlternatives/*/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/taskRules/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/taskStatus/*/backlogged",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/taskStatus/*/backlogReason",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/taskStatus/*/challengeCompleted",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/taskStatus/*/favorite",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/taskStatus/*/note",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/teleportOverrides/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/teleports/[]/available",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/teleports/[]/consumable",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/teleports/[]/destination",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/teleports/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/teleports/[]/label",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/transportFacts/conditions/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/transportFacts/confirmations/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/transportFacts/currencies/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/transportFacts/items/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/transportFacts/levels/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/transportFacts/quests/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/unlocked/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/members/[]/xpChoices/*/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/progressSnapshots/days/[]/[]/[]/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/progressSnapshots/memberIds/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/progressSnapshots/schemaVersion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/progressSnapshots/truncated",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/capturedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/dataset",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Dataset identity metadata is retained verbatim."
+    },
+    {
+      "path": "/state/provenance/historyArchive/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginCurrencyFacts/*/coins",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginCurrencyFacts/*/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/commits/journals/[]/committed",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/commits/journals/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/commits/journals/[]/pending/[]/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/bank/coins",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/bank/seenAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/bank/snapshot",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/baselineAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/handled/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/first",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/name",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/ownedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/wornAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/journal/event",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/journal/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/v",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidenceReconciled",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/restore",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Restore retains complete incoming provenance and both histories as an opaque archive."
+    },
+    {
+      "path": "/state/provenance/source",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/taskIdentityMigration",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Identity migration diagnostic/source archive is retained verbatim."
+    },
+    {
+      "path": "/state/provenance/taskRuleDiagnostics",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Preserved diagnostics retain unknown or invalid original rule values for review."
+    },
+    {
+      "path": "/state/provenance/transferQuarantine",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Unmapped transfer records and their original histories are retained verbatim."
+    },
+    {
+      "path": "/state/provenance/transferRoster",
+      "frozen": "preserved",
+      "opaque": true,
+      "reason": "Transfer retains original roster, mapping and source History verbatim."
+    },
+    {
+      "path": "/state/revision",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/ruleReviews/*/note",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/ruleReviews/*/reviewed",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/rules/*",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/schemaVersion",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/taskClaims/*/at",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/taskClaims/*/memberId",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/tasks/[]/category",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/tasks/[]/completionIds/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/tasks/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/tasks/[]/label",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/tasks/[]/level",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/tasks/[]/memberIds/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/tasks/[]/skill",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/storage/fields/*/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/storage/fields/*/sha256",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/storage/schemaVersion",
+      "frozen": "preserved"
+    }
+  ],
+  "files": [
+    {
+      "path": "state.json",
+      "pattern": "^state\\.json$",
+      "root": "state.json",
+      "checkpoint": true,
+      "frozen": "preserved"
+    },
+    {
+      "path": "static/static-<sha256>.json.gz",
+      "pattern": "^static/static-[a-f0-9]{64}\\.json\\.gz$",
+      "root": "static",
+      "checkpoint": true,
+      "frozen": "preserved"
+    },
+    {
+      "path": "history/history-<range>-<nonce>.json.gz",
+      "pattern": "^history/history-\\d{16}-\\d{16}-[a-f0-9]{16}\\.json\\.gz$",
+      "root": "history",
+      "checkpoint": true,
+      "frozen": "preserved"
+    },
+    {
+      "path": "backups/<revision>-<nonce>.json[.gz]",
+      "pattern": "^backups/\\d{16}-[a-f0-9]{16}\\.json(?:\\.gz)?$",
+      "root": "backups",
+      "checkpoint": true,
+      "frozen": "preserved"
+    },
+    {
+      "path": "backups/<revision>-<nonce>.json[.gz].meta.json",
+      "pattern": "^backups/\\d{16}-[a-f0-9]{16}\\.json(?:\\.gz)?\\.meta\\.json$",
+      "root": "backups",
+      "checkpoint": true,
+      "frozen": "preserved"
+    },
+    {
+      "path": "backups/archives/archive-<nonce>.json.gz",
+      "pattern": "^backups/archives/archive-[a-f0-9]{16}\\.json\\.gz$",
+      "root": "backups",
+      "checkpoint": true,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-achievements.json",
+      "pattern": "^plugin-achievements\\.json$",
+      "root": "plugin-achievements.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-items.json",
+      "pattern": "^plugin-items\\.json$",
+      "root": "plugin-items.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-item-journal-beta.json",
+      "pattern": "^plugin-item-journal-beta\\.json$",
+      "root": "plugin-item-journal-beta.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-item-journal-beta.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-item-journal-beta\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-item-journal-beta.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-item-journal-unknown.json",
+      "pattern": "^plugin-item-journal-unknown\\.json$",
+      "root": "plugin-item-journal-unknown.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-item-journal-unknown.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-item-journal-unknown\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-item-journal-unknown.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-item-journal-commits.json",
+      "pattern": "^plugin-item-journal-commits\\.json$",
+      "root": "plugin-item-journal-commits.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-item-journal-commits.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-item-journal-commits\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-item-journal-commits.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "accounts.json",
+      "pattern": "^accounts\\.json$",
+      "root": "accounts.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "invites.json",
+      "pattern": "^invites\\.json$",
+      "root": "invites.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "feedback.json",
+      "pattern": "^feedback\\.json$",
+      "root": "feedback.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "usage.json",
+      "pattern": "^usage\\.json$",
+      "root": "usage.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-keys.json",
+      "pattern": "^plugin-keys\\.json$",
+      "root": "plugin-keys.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "overlays.json",
+      "pattern": "^overlays\\.json$",
+      "root": "overlays.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "access-token",
+      "pattern": "^access-token$",
+      "root": "access-token",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "action-acknowledgements.json",
+      "pattern": "^action-acknowledgements\\.json$",
+      "root": "action-acknowledgements.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "receipt-quarantine/<sha256>.json",
+      "pattern": "^receipt-quarantine/[a-f0-9]{64}\\.json$",
+      "root": "receipt-quarantine",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-achievements.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-achievements\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-achievements.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-items.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-items\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-items.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "store.lock",
+      "pattern": "^store\\.lock$",
+      "root": "store.lock",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "A process-lifetime owner is never portable. A provably dead local writer can be reclaimed through the normal guarded lock acquisition; foreign, live or uncertain owners are refused."
+    },
+    {
+      "path": "store.lock.recovery",
+      "pattern": "^store\\.lock\\.recovery$",
+      "root": "store.lock.recovery",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "A process-lifetime owner is never portable. A provably dead local writer can be reclaimed through the normal guarded lock acquisition; foreign, live or uncertain owners are refused."
+    },
+    {
+      "path": "<destination>.<nonce>.tmp",
+      "pattern": "^(?:state\\.json|access-token|action-acknowledgements\\.json|store\\.lock(?:\\.recovery)?|(?:accounts|invites|feedback|usage|overlays|plugin-keys|plugin-items|plugin-achievements|plugin-item-journal-(?:beta|unknown|commits))\\.json|static/static-[a-f0-9]{64}\\.json\\.gz|history/history-\\d{16}-\\d{16}-[a-f0-9]{16}\\.json\\.gz|backups/\\d{16}-[a-f0-9]{16}\\.json(?:\\.gz)?(?:\\.meta\\.json)?|backups/archives/archive-[a-f0-9]{16}\\.json\\.gz|receipt-quarantine/[a-f0-9]{64}\\.json)(?:\\.(?:\\d+\\.[a-f0-9]{16}|[a-f0-9-]{36})\\.tmp){1,2}$",
+      "root": "",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "Unpublished atomic-write scratch is not authoritative. Reopen reads the published destination only; do not promote scratch files."
+    },
+    {
+      "path": "live-timings.json",
+      "pattern": "^live-timings\\.json$",
+      "root": "live-timings.json",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "Disposable derived output: a missing, stale or unreadable cache is a miss. Recompute it from the current dataset and gameplay; it never supplies progress or replay authority."
+    },
+    {
+      "path": "live-timings.json.tmp",
+      "pattern": "^live-timings\\.json\\.tmp$",
+      "root": "live-timings.json",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "Disposable derived output: a missing, stale or unreadable cache is a miss. Recompute it from the current dataset and gameplay; it never supplies progress or replay authority."
+    },
+    {
+      "path": "cpu-profiles/profile-<time>-<sequence>-<role>.cpuprofile[.tmp]",
+      "pattern": "^cpu-profiles/profile-\\d+-\\d+-(?:picker|calculator|relay)\\.cpuprofile(?:\\.tmp)?$",
+      "root": "cpu-profiles",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "Disposable derived output: a missing, stale or unreadable cache is a miss. Recompute it from the current dataset and gameplay; it never supplies progress or replay authority."
+    },
+    {
+      "path": "warm-store/<partition>/<sha256>.warm",
+      "pattern": "^warm-store/(?:results|collections)/[a-f0-9]{64}\\.warm$",
+      "root": "warm-store",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "Disposable derived output: a missing, stale or unreadable cache is a miss. Recompute it from the current dataset and gameplay; it never supplies progress or replay authority."
+    },
+    {
+      "path": "warm-store/<partition>/.write-lock[-nonce]/owner[-uuid]",
+      "pattern": "^warm-store/(?:results|collections)/\\.write-lock(?:-[^/]+)?/owner(?:-[a-f0-9-]{36})?$",
+      "root": "warm-store",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "Disposable derived output: a missing, stale or unreadable cache is a miss. Recompute it from the current dataset and gameplay; it never supplies progress or replay authority."
+    },
+    {
+      "path": "warm-store/<partition>/<uuid>.tmp",
+      "pattern": "^warm-store/(?:results|collections)/[a-f0-9-]{36}\\.tmp$",
+      "root": "warm-store",
+      "checkpoint": false,
+      "frozen": "private-droppable",
+      "rollForward": "Disposable derived output: a missing, stale or unreadable cache is a miss. Recompute it from the current dataset and gameplay; it never supplies progress or replay authority."
+    }
+  ]
+}

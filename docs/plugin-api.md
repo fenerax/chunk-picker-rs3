@@ -427,8 +427,9 @@ containers share one memory slot: the next beta or unknown report replaces it.
 Legacy triples and four-field beta and unknown events keep their own
 record per environment, and their rows stay in every later review (items or
 bank), including immediately after receiver startup without retransmission,
-even after the sender drops the acknowledged events. Non-live dismissal still
-lasts for the receiver run; it does not suppress later live evidence. Legacy
+even after the sender drops the acknowledged events. Retained journal dismissals
+persist in their scope's bounded handled list; they do not suppress later live
+task evidence. Non-live container dismissals last for the receiver run. Legacy
 triples receive the same delivery acknowledgement while retaining unknown provenance.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;
@@ -442,6 +443,10 @@ export. On upgrade, validated records are recovered from nested
 `restore.incomingProvenance` archives as well as the root, with transfer member
 mapping preserved. Recovered unions use the same limits and refuse publication
 unchanged if too large. The `{schemaVersion, entries}` envelope remains intact.
+The validated `provenance.pluginItemEvidenceReconciled: 1` marker makes each
+recovered boundary historical: later capacity recovery cannot be refilled from
+older archived copies. Keep this marker when clearing reviewed active facts,
+and follow the stopped-receiver procedure in `docs/save-schema.md`.
 Preserve the files during rollback: older receivers
 cannot display their retained review rows; upgrading again restores them.
 

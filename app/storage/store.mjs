@@ -360,7 +360,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // The frozen release drops optional envelopes but preserves portable
     // provenance through edits/Undo and archives it on whole-save restore.
     return Object.keys(pluginItems.players).length ? { ...document,
-      state: { ...document.state, provenance: { ...document.state.provenance, pluginItemEvidence: pluginItems } },
+      state: { ...document.state, provenance: { ...document.state.provenance, pluginItemEvidence: pluginItems, pluginItemEvidenceReconciled: 1 } },
       optionalSidecarEvidence: { schemaVersion: 1, entries: { ...document.optionalSidecarEvidence?.entries,
         pluginItems: { version: 1, players: pluginItems.players } } } } : document;
   }
@@ -470,10 +470,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     return { ...document, state };
   }
+  const journalRecovery = new WeakSet();
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
+    const reconciledJournals = document.state.provenance?.pluginItemEvidenceReconciled === 1;
     const state = importSavedState(document, registry);
+    if (state.provenance?.pluginItemEvidenceReconciled === 1 && !reconciledJournals) journalRecovery.add(state);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
       const value = state[key];
@@ -1019,6 +1022,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     currentDiskSerialized ??= await serializedDiskState(current);
     if (existing) {
+      const sealJournals = journalRecovery.has(current);
+      if (sealJournals && liveSwapStrict) throw Object.assign(new Error('Live swap refuses an unreconciled journal archive; reopen it offline first.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
       let ready = await prepareLoadedState(current);
       // Compare validated data directly: key ordering has no gameplay meaning,
       // and a changed projection should not stringify its large archive twice.
@@ -1040,6 +1045,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = ready;
         currentDiskSerialized = diskDocument;
         reportDurability(publication);
+      }
+      // This is retention metadata, not gameplay. Persist the archive boundary
+      // before accepting reports or exposing a copy an operator may later clear.
+      if (sealJournals && !readOnly) {
+        const diskDocument = await serializedDiskState(current);
+        reportDurability(await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
+          beforeRename: beforeCommit ? () => beforeCommit({ operation: 'plugin-item-evidence', state: structuredClone(current) }) : undefined }));
+        currentDiskSerialized = diskDocument;
       }
     }
     // Existing saves were checked by prepareLoadedState before publication.

@@ -118,6 +118,12 @@ export function portablePluginItemEvidence(state) {
   for (let node = state.provenance; object(node); node = node.restore?.incomingProvenance) {
     if (seen.has(node)) throw new TypeError('Cyclic plugin item provenance.');
     seen.add(node); nodes.push(node);
+    if (node.pluginItemEvidenceReconciled !== undefined) {
+      if (node.pluginItemEvidenceReconciled !== 1) throw new TypeError('Invalid plugin item archive generation.');
+      // Generation 1 makes this node's active copy authoritative. Its incoming
+      // archive was already consumed, including facts deliberately removed later.
+      break;
+    }
   }
   let evidence;
   for (const node of nodes.reverse()) {
@@ -144,11 +150,15 @@ export function portablePluginItemEvidence(state) {
   return evidence;
 }
 
+export function retainPluginItemEvidence(state, evidence) {
+  if (state.provenance?.pluginItemEvidenceReconciled === 1 && JSON.stringify(evidence) === JSON.stringify(state.provenance?.pluginItemEvidence)) return state;
+  return { ...state, provenance: { ...state.provenance, pluginItemEvidence: evidence, pluginItemEvidenceReconciled: 1 } };
+}
+
 export function reconcilePluginItemEvidence(state, ...sources) {
   const inputs = [state, ...sources].map(source => portablePluginItemEvidence({ members: state.members, ...source })).filter(Boolean);
   if (!inputs.length) return state;
   const evidence = mergePluginItemEvidence(...inputs);
   evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => state.members.some(member => member.id === id)));
-  if (JSON.stringify(evidence) === JSON.stringify(state.provenance?.pluginItemEvidence)) return state;
-  return { ...state, provenance: { ...state.provenance, pluginItemEvidence: evidence } };
+  return retainPluginItemEvidence(state, evidence);
 }

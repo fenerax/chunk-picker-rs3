@@ -1241,11 +1241,13 @@ test('a full non-live store keeps its queued evidence and never stalls live comp
   const file = path.join(f.dataDir, 'plugin-item-journal-unknown.json');
   const saved = JSON.parse(await readFile(file)), record = saved.players.a;
   for (let id = 900000; Object.keys(record.items).length < 500; id++) record.items[id] = { ...record.items[CHAINBODY], name: 'Synthetic unmapped item' };
+  record.handled = Array.from({ length: 2000 }, (_, index) => `synthetic-dismissed-${String(index).padStart(4, '0')}`);
   await writeFile(file, `${JSON.stringify(saved)}\n`); await f.restart();
   const value = items({ events: [[2, BRONZE_DAGGER, 'Synthetic queued legacy item'], [3, YEW_SHORTBOW, 'Synthetic live bow', 'live']] });
   for (let attempt = 0; attempt < 2; attempt++) {
     assert.equal((await f.send(value)).items.journal.event, 1);
     assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')));
+    assert.ok(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'))).players.a.handled.includes(goal('000dc1')), 'Non-live dismissal capacity cannot block live handled retention');
     assert.match(f.review().itemRetentionIssue, /500 distinct IDs/);
   }
   await f.send({}, false, 'skills');
@@ -1420,7 +1422,80 @@ test('dismissing unmapped retained journals hides their identities on later repo
   const retained = await exportPluginItemEvidence(target.dataDir);
   assert.ok(retained.players.a.records.unknown.items[UNKNOWN]);
   await target.restart();
-  assert.ok(target.review().unmappedItems.some(row => row.gameItemId === UNKNOWN), 'Dismissals are temporary; acknowledged facts remain durable');
+  assert.equal(target.review().unmappedItems.some(row => row.gameItemId === UNKNOWN), false, 'Retained journal dismissals survive restart without deleting facts');
+  assert.ok(target.review().unmappedItems.some(row => row.gameItemId === UNKNOWN - 1));
+});
+
+for (const world of ['unknown', 'beta']) for (const boundary of ['restart', 'restore', 'transfer', 'member']) test(`reviewed ${world} capacity recovery survives ${boundary} without refilling archives`, async t => {
+  const target = await fixture(t, { durable: true });
+  await target.restore(fullJournalBackup(world));
+  await target.controller.close(); await target.store.close();
+  const file = path.join(target.dataDir, 'state.json'), saved = JSON.parse(await readFile(file));
+  assert.equal(saved.state.provenance.pluginItemEvidenceReconciled, 1);
+  assert.ok(saved.state.provenance.restore.incomingProvenance.pluginItemEvidence.players.a.records[world].items[900000]);
+  delete saved.state.provenance.pluginItemEvidence.players.a.records[world].items[900000];
+  await writeFile(file, JSON.stringify(saved));
+  await target.restart();
+  if (boundary === 'restore') await target.restore(await target.backup());
+  if (boundary === 'transfer') await target.transfer(await target.backup());
+  if (boundary === 'member') await target.restoreMember(await target.backup());
+  await target.restart();
+  const retained = await exportPluginItemEvidence(target.dataDir);
+  assert.equal(retained.players.a.records[world].items[900000], undefined);
+  assert.equal(Object.keys(retained.players.a.records[world].items).length, 499);
+  const event = [501, UNKNOWN, 'Synthetic freed-capacity item'];
+  if (world === 'beta') event.push('beta');
+  assert.equal((await target.send(items({ id: 'bbbbbbbbbbbbbbbb', events: [event] }))).items.journal.event, 501);
+});
+
+test('opening an unsealed imported archive durably seals it before later operator cleanup', async t => {
+  const target = await fixture(t, { durable: true });
+  await target.restore(fullJournalBackup('unknown'));
+  await target.controller.close(); await target.store.close();
+  const file = path.join(target.dataDir, 'state.json'), saved = JSON.parse(await readFile(file));
+  delete saved.state.provenance.pluginItemEvidenceReconciled;
+  await writeFile(file, JSON.stringify(saved));
+  const revision = saved.state.revision;
+  await target.restart();
+  assert.equal(target.state.revision, revision, 'Archive retention is independent of gameplay');
+  const sealed = JSON.parse(await readFile(file));
+  assert.equal(sealed.state.provenance.pluginItemEvidenceReconciled, 1);
+  await target.controller.close(); await target.store.close();
+  delete sealed.state.provenance.pluginItemEvidence.players.a.records.unknown.items[900000];
+  await writeFile(file, JSON.stringify(sealed));
+  await target.restart();
+  assert.equal((await exportPluginItemEvidence(target.dataDir)).players.a.records.unknown.items[900000], undefined);
+});
+
+for (const world of ['unknown', 'beta']) for (const boundary of ['restart', 'restore', 'transfer', 'member']) test(`retained ${world} journal dismissals survive ${boundary}`, async t => {
+  const source = await fixture(t, { durable: true });
+  const events = [[1, CHAINBODY, 'Synthetic dismissed journal'], [2, UNKNOWN, 'Synthetic dismissed unmapped journal']];
+  if (world === 'beta') for (const event of events) event.push('beta');
+  await source.send(items({ events }));
+  assert.ok(source.review().items.length, 'Open the review before dismissing its shown rows');
+  await source.controller.finish('a');
+  const target = boundary === 'restart' ? source : await fixture(t, { durable: true });
+  if (boundary === 'restore') await target.restore(await source.backup());
+  if (boundary === 'transfer') await target.transfer(await source.backup());
+  if (boundary === 'member') await target.restoreMember(await source.backup());
+  await target.restart();
+  assert.deepEqual(target.review(), { preview: null });
+  const retained = await exportPluginItemEvidence(target.dataDir);
+  assert.ok(retained.players.a.records[world].items[CHAINBODY]);
+  assert.ok(retained.players.a.records[world].handled.includes(`unmapped:${UNKNOWN}`));
+});
+
+test('dismissing container-only rows does not persist them into an unrelated retained journal', async t => {
+  const source = await fixture(t, { durable: true });
+  await source.send(items({ events: [[1, BRONZE_DAGGER, 'Synthetic retained dagger']] }));
+  const containers = items({ worn: [[4, CHAINBODY, 1, 'Synthetic container-only item']] });
+  await source.send(containers, true);
+  assert.ok(source.review().items.some(row => row.taskId === WEAR_TASK));
+  await source.controller.finish('a');
+  await source.restart();
+  await source.send(containers, true);
+  assert.ok(source.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'beta'), 'Container dismissal remains session-only');
+  assert.equal((await exportPluginItemEvidence(source.dataDir)).players.a.records.unknown.handled.includes(WEAR_TASK), false);
 });
 
 for (const entrypoint of ['portable-restore', 'portable-transfer', 'source-member', 'retained-member']) test(`acknowledged journals survive ${entrypoint} with destination ownership`, async t => {

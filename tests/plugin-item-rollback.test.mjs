@@ -60,6 +60,11 @@ test('portable journals survive real frozen storage import, restore, transfer an
         datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} } })).bytes.toString()) : await source.backup();
       assert.ok(portable.state.provenance.pluginItemEvidence.players.a.records[world].items[34830]);
       assert.deepEqual(portable.state.provenance.pluginItemEvidence.players, portable.optionalSidecarEvidence.entries.pluginItems.players);
+      const prior = structuredClone(portable.state.provenance.pluginItemEvidence);
+      prior.players.a.records[world].items[1205] = fact;
+      portable.state.provenance.restore = { incomingProvenance: { pluginItemEvidence: prior } };
+      portable.state.provenance.pluginItemEvidence.players.a.records[world].handled = ['synthetic-dismissed', 'unmapped:1205'];
+      portable.optionalSidecarEvidence.entries.pluginItems.players.a.records[world].handled = ['synthetic-dismissed', 'unmapped:1205'];
     } finally { await source.close(); }
     if (boundary === 'member transfer') portable = document(mapTransferRoster(importBackup(portable),
       [{ id: 'x', name: 'Explorer X' }, { id: 'y', name: 'Explorer Y' }], { a: 'x', b: 'y' }));
@@ -99,6 +104,8 @@ test('portable journals survive real frozen storage import, restore, transfer an
       resumed = await openStore({ dataDir: destination, retention: false });
       const recovered = await exportPluginItemEvidence(destination), owner = boundary === 'member transfer' ? 'b' : 'a';
       assert.ok(recovered.players[owner].records[world].items[34830].wornAt);
+      assert.equal(recovered.players[owner].records[world].items[1205], undefined, 'Frozen boundaries cannot refill deliberately cleared archive facts');
+      assert.ok(recovered.players[owner].records[world].handled.includes('synthetic-dismissed'), 'Frozen boundaries preserve durable journal dismissals');
       assert.equal(recovered.players[owner].commits.journals[0].committed, 1);
       if (owner === 'b') assert.equal(recovered.players.a, undefined, 'Member remap does not assign evidence to the other player');
       assert.equal(resumed.getState().history.filter(row => row.command?.type === 'sync-game-plugin').length, 0);

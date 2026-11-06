@@ -87,7 +87,7 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   if (itemEvidence) {
     const evidence = mergePluginItemEvidence(itemEvidence);
     evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => Object.hasOwn(entries, id)).map(([id, record]) => [mapped(id), record]));
-    next.provenance.pluginItemEvidence = evidence;
+    next.provenance = { ...next.provenance, pluginItemEvidence: evidence, pluginItemEvidenceReconciled: 1 };
   }
   // These records drive readiness and live compatibility projection. The exact
   // source attribution remains in transferRoster above, alongside source History.

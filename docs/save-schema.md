@@ -7,6 +7,12 @@ replacement. Portable exports and History/Undo exclude this metadata. Importing
 or restoring gameplay preserves the current storage receipt ledger; imported
 receipts never replace it.
 
+The checked-in [save-surface manifest](save-surface.json) and
+[frozen save contract](save-surface.md) enumerate per-picker paths and their
+rollback policies. CI runs the actual `06e15939` dependency graph. The retained
+`tests/fixtures/rollback-main/` fixture is a fast hybrid check: five of its 22
+live app imports changed after the pin, so it is not a frozen runtime.
+
 ## Plugin item journal retention
 
 The portable schema and `state.json` format are unchanged. Live item evidence
@@ -29,9 +35,11 @@ Retained journal records rebuild labelled review rows at startup and after every
 successful whole-picker or member import, without a report or restart. Rebuilding
 does not issue completion commands, including for live evidence. Non-live records never
 become live facts or automatic completions. Non-live containers remain ephemeral.
-Member imports preserve other players' temporary item dismissals and container-only
+Member imports preserve other players' item dismissals and container-only
 reviews while refreshing only the imported player's review. Dismissing unmapped
-items hides their item IDs for the running session without removing retained facts.
+items records `unmapped:<itemId>` in the scope's bounded `handled` list without
+removing retained facts. Retained beta/unknown journal dismissals persist through
+restart and portable recovery; ephemeral container dismissals remain session-only.
 
 `plugin-item-journal-commits.json` is a separate version 1 sidecar containing
 `{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.
@@ -64,6 +72,14 @@ changing member IDs. Historical archives remain unchanged; unrelated provenance
 and History are never searched for journal records. Copies are deduplicated,
 and the same bounds apply to the recovered union before publication. A union
 that exceeds a bound refuses the load or import without changing the save.
+`provenance.pluginItemEvidenceReconciled: 1` seals the current provenance node's
+incoming archive as historical. Once sealed, only its active compatibility copy
+contributes evidence; older archive copies cannot refill facts removed later.
+A frozen restore wraps this sealed node in a new unsealed boundary, so current
+loaders recover its active copy and seal the new boundary. Normal writable
+startup durably publishes any newly recovered copy and marker before accepting
+reports, without a gameplay revision. Read-only readers never write; a strict
+live swap refuses an unsealed archive until an ordinary offline reopen seals it.
 Each player contains `records` keyed by `live`, `beta`, or `unknown`, and
 `commits` with the ledger shape above. The fixed-file adapters
 `exportPluginItemEvidence` and `importPluginItemEvidence` in `app/plugin-items.mjs`
@@ -107,9 +123,16 @@ acknowledgement. Live tasks continue to complete. The progress review displays
 the failure, the 500-ID limit, and the recovery instruction. An operator can
 export the complete evidence, obtain the player's review of retained facts, stop
 the receiver, and remove only those reviewed facts from that scope's sidecar
-and any imported `provenance.pluginItemEvidence` copy. Preserve the commit ledger
+and the active `provenance.pluginItemEvidence` copy. First reopen the save with
+the current receiver so its archive boundary is durably sealed, then stop it
+again before editing. Preserve `pluginItemEvidenceReconciled: 1`, all historical
+archives, the commit ledger
 and its pending events. Restarting and retrying drains the durable pending
 prefix once space is available; no sender retransmission is required.
+When editing a portable export instead of the stored save, remove the same fact
+from both its active provenance copy and optional envelope. Keep the marker;
+never clear historical archives to make room. Dismissal hides review rows but
+retains their evidence, so it does not itself free an item-ID slot.
 
 ## Game plugin current currency
 
