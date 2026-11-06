@@ -1,4 +1,4 @@
-import { memberSelect } from './screen-ui.mjs';
+import { memberSelect, refreshMemberSelect } from './screen-ui.mjs';
 // Generated overlay URLs stay in this closure; the DOM only receives metadata.
 export function createOverlayPanel({ api, el, button, openDialog, dialogCurrent, dialog, members = () => [], clipboard = globalThis.navigator?.clipboard }) {
   let secret, secretSection, lifetime = 0, panelEpoch = 0;
@@ -105,6 +105,8 @@ export function createOverlayPanel({ api, el, button, openDialog, dialogCurrent,
       if (nextGroupOnly) player.value = 'duo';
       else if (groupOnly) player.value = personalPlayer;
       player.disabled = groupOnly = nextGroupOnly;
+      // A direct value change fires no event, so re-sync the selected name's title and label.
+      refreshMemberSelect(player);
     };
     widget.addEventListener('change', updateGoals); goals.addEventListener('change', updateGoals); updateGoals();
     const updateSizing = () => { sizing.textContent = `Recommended OBS source size: ${sourceSizes[widget.value]} pixels. Adjust the source size to fit your scene.`; };
