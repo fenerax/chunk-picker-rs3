@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { acquireProcessGuard } from './process-guard.mjs';
+import { acquireStoreOwnership } from './store-lock.mjs';
 import { readStaticFieldBytes, validateStaticFieldReference } from './static-field.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
@@ -48,7 +48,8 @@ async function hasLegacyReplay(dataDir) {
 // dataset initialization, credentials, migrations and gameplay writes out of
 // the privileged operator package. Runtime loading validates gameplay normally.
 export async function prepareStoppedPluginSuppression({ dataDir }) {
-  const directory = path.resolve(dataDir), release = await acquireProcessGuard(directory);
+  const directory = path.resolve(dataDir);
+  const { release, ensureFileLock } = await acquireStoreOwnership(directory, { existingOnly: true });
   try {
     let document;
     try { document = JSON.parse(await readFile(path.join(directory, 'state.json'), 'utf8')); }
@@ -64,6 +65,8 @@ export async function prepareStoppedPluginSuppression({ dataDir }) {
     }
     if (!legacy && !hasReplayProvenance(provenance) && !hasReplayEnvelope(document?.optionalSidecarEvidence))
       return { publications: [], release };
+    // Reconciliation also excludes older runtimes that know only store.lock.
+    await ensureFileLock();
     document = decodeCompletionDocument(document);
     const state = document?.state;
     if (document?.format !== 'rs3-chunk-picker' || document.schemaVersion !== 1 || !object(state)

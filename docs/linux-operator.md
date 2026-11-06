@@ -254,7 +254,14 @@ manual reconciliation step. Load/compatibility probes on disposable copies
 cannot substitute for this gate.
 
 The gate checks every materialized active picker, including quarantined stores
-and the legacy store, under the shared kernel writer guard. It validates every union
+and the legacy store, under the shared kernel writer guard. Existing lock and
+recovery markers use the runtime's own stale-owner recovery; dead owners can be
+reclaimed, while live, foreign and unverifiable owners still refuse. The gate
+holds the runtime's file lock while reconciling evidence and releases it before
+runtime startup. Automatic operator stopped checks use the same recovery before
+reaching ExecStartPre; snapshot/recovery release checks remain strict. A clean
+store without lock markers or replay evidence performs no owner lookup or lock
+publication. It validates every union
 and stages all writes and exact preimages before publishing any sidecar. It
 decodes the saved checkpoint without changing gameplay and merges committed
 `state.provenance.pluginAutoHandled` decisions into `plugin-items.json` and
@@ -262,7 +269,9 @@ decodes the saved checkpoint without changing gameplay and merges committed
 baseline, bank and journal metadata remain intact. File and directory sync
 must succeed. Unreadable evidence, invalid unions, capacity overflow or writer
 ownership refuse the start. A publication failure restores exact preimages and
-removes staging files. Refusal leaves picker data byte-identical, records only
+removes staging files. Refusal leaves gameplay and sidecar data byte-identical;
+stale ownership markers may be reclaimed only by the runtime's lock protocol.
+The gate records only
 control-directory refusal evidence, and keeps the site down. There is no start
 with plugin intake disabled. The unit's existing three-start limit and OnFailure
 notification remain responsible for bounded failures and alerts; the operator

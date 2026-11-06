@@ -1,9 +1,23 @@
 import path from 'node:path';
-import { noLinks, exists, json, assertReleased } from './files.mjs';
+import { noLinks, exists, json } from './files.mjs';
+import { acquireStoreOwnership } from '../../app/storage/store-lock.mjs';
 import { prepareStoppedPluginSuppression } from '../../app/storage/plugin-replay-checkpoint.mjs';
 import { publishPluginHandledSidecars } from '../../app/storage/plugin-handled-sidecars.mjs';
 import { registryRecoveryDocument } from '../../app/storage/registry.mjs';
 import { pickerPath } from './service-checkpoint.mjs';
+
+// Automatic operator starts can precede ExecStartPre with a stopped check.
+// Recover only ownership the runtime itself can prove stale, under its guard.
+export async function assertStartOwnershipReleased(dataDir) {
+  await noLinks(await exists(dataDir) ? dataDir : path.dirname(dataDir));
+  // Preserve the ordinary operator check's two cheap presence checks. Only an
+  // existing marker needs runtime ownership/recovery before ExecStartPre.
+  for (const name of ['store.lock', 'store.lock.recovery']) if (await exists(path.join(dataDir, name))) {
+    const { release } = await acquireStoreOwnership(dataDir, { existingOnly: true });
+    await release();
+    return;
+  }
+}
 
 export async function reconcileBeforeStart(settings) {
   const prepared = [];
@@ -25,7 +39,6 @@ export async function reconcileBeforeStart(settings) {
     for (const dataDir of directories) {
       if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) throw new TypeError('An absolute stopped-store directory is required.');
       await noLinks(await exists(dataDir) ? dataDir : path.dirname(dataDir));
-      await assertReleased(dataDir);
       // Fresh stores need no checkpoint. The replay-specific reader also
       // accepts unrelated/empty checkpoint shapes, while refusing real orphaned
       // decisions or evidence that cannot be reconciled with its roster.
