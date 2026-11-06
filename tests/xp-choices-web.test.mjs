@@ -7,7 +7,7 @@ import { describeHistoryEvent, historyChangeType } from '../app/web/history-text
 function node(tag, textContent = '', className = '') {
   return { tag, textContent, className, children: [], value: '', attributes: {}, listeners: {},
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
-    setAttribute(name, value) { this.attributes[name] = value; }, addEventListener(name, action) { this.listeners[name] = action; } };
+    setAttribute(name, value) { this.attributes[name] = value; }, getAttribute(name) { return this.attributes[name] ?? null; }, addEventListener(name, action) { this.listeners[name] = action; } };
 }
 const all = root => [root, ...root.children.flatMap(all)];
 const base = { el: node, plain: String, button: (label, action, cls) => ({ ...node('button', label, cls), action }) };

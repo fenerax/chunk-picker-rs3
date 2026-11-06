@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 import { backlogSearchText } from './screen-backlog.mjs';
 import { matchesDuoOwner, scopeDuoRow } from './duo-task-lists.mjs';
 
@@ -48,7 +49,7 @@ export function createDuoBacklogView({ document, getState, getMemberId, getOwner
         if (ids.length <= 10) return submit();
         host.replaceChildren(el('span', `Restore ${ids.length} tasks for ${getState().members.find(member => member.id === memberId)?.name ?? memberId}?`, 'task-meta'), button('Restore', submit), button('Cancel', idle));
       });
-      control.disabled = pending; host.replaceChildren(control);
+      memberDisplay(control, getState().members); control.disabled = pending; host.replaceChildren(control);
     };
     idle();
   }

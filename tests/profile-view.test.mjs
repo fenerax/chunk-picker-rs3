@@ -9,6 +9,7 @@ function node(tag, text = '', className = '') {
   return { tag, textContent: text, className, children: [], attributes: {}, listeners: {}, value: '',
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
     setAttribute(name, value) { this.attributes[name] = String(value); },
+    getAttribute(name) { return this.attributes[name] ?? null; },
     addEventListener(name, action) { this.listeners[name] = action; },
     focus() { this.focused = true; }, select() { this.selected = true; } };
 }

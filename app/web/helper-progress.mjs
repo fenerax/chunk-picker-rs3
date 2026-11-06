@@ -1,3 +1,4 @@
+import { memberSelect } from './screen-ui.mjs';
 import { replaceView } from './browser-state.mjs';
 import { dataTable, progressChart } from './helper-charts.mjs';
 import { progressMetrics, progressDate, progressSeries, progressRecap } from './helper-progress-model.mjs';
@@ -19,7 +20,7 @@ export function renderProgress(host, { viewCache, document, api, member, stateRe
     el('p', 'Duo chunks and tasks count each shared one once. Quest points and levels add both accounts. A task tick does not grant quest points or levels. “Not recorded” means the picker has no complete saved account count.', 'helper-note'));
     const controls = el('div', undefined, 'helper-progress-controls'), label = el('label', 'Show graphs for'), selector = el('select'); selector.id = 'helper-progress-scope'; label.htmlFor = selector.id;
     for (const row of [...members.map(row => ({ id: row.memberId, name: row.name })), { id: 'duo', name: 'Duo' }]) { const option = el('option', row.name); option.value = row.id; selector.append(option); }
-    selector.value = scope; label.append(selector); controls.append(label); content.append(controls);
+    selector.value = scope; memberSelect(selector, members.map(row => ({name:row.name}))); label.append(selector); controls.append(label); content.append(controls);
     selector.addEventListener('change', () => { scope = selector.value; display(model); });
     const series = progressSeries(model, scope), name = scope === 'duo' ? 'Duo' : members.find(row => row.memberId === scope)?.name;
     content.append(el('h3', `${name} over time`), el('p', progressRecap(series.thisWeek, series.lastWeek), 'helper-answer helper-progress-recap'));

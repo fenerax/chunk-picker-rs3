@@ -17,9 +17,10 @@ function dom() {
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; this.textContent = ''; }
     setAttribute(key, value) { this.attributes[key] = String(value); }
-    addEventListener(key, callback) { this.events[key] = callback; }
-    removeEventListener(key, callback) { if (this.events[key] === callback) delete this.events[key]; }
-    dispatchEvent(event) { return this.events[event.type]?.(event); }
+    getAttribute(key) { return this.attributes[key] ?? null; }
+    addEventListener(key, callback) { (this.events[key] ??= []).push(callback); }
+    removeEventListener(key, callback) { this.events[key] = (this.events[key] ?? []).filter(listener => listener !== callback); }
+    dispatchEvent(event) { let result; for (const callback of this.events[event.type] ?? []) result = callback(event); return result; }
     focus() { this.focused = true; }
     after(node) { roots.push(node); }
     checkValidity() {

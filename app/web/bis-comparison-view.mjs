@@ -1,3 +1,4 @@
+import { memberSelect } from './screen-ui.mjs';
 import { renderBiSComparison } from './bis-compare.mjs';
 
 // Partner details share the duo list loader and its current-revision cache.
@@ -9,7 +10,7 @@ export function createBiSComparisonView(context, { memberId, result, isCurrent }
   if (chooser) {
     chooser.setAttribute('aria-label', 'Compare gear with player');
     for (const member of partners) { const option = el('option', member.name); option.value = member.id; chooser.append(option); }
-    chooser.value = partners[0].id;
+    chooser.value = partners[0].id; memberSelect(chooser, partners);
     root.append(chooser);
   }
   const body = el('div'); root.append(body);

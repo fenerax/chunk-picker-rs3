@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 import { resolveSavedTaskId } from '../tasks/fact-projection.mjs';
 
 export function taskClaim(state, taskId, category) {
@@ -57,12 +58,15 @@ export function appendTaskClaim({ document, host, task, taskId = task.id, getSta
   const claimLabel = explicitMember ? `Claim for ${actor?.name ?? 'this player'}` : 'I’m doing this';
   const line = el('div', undefined, 'task-claim-line'), action = el('button', claim ? claim.memberId === memberId ? 'Stop doing this' : takeoverLabel : claimLabel, 'task-claim-action');
   action.type = 'button'; action.disabled = !canAct();
-  action.setAttribute('aria-label', `${action.textContent}: ${task.label}`);
+  const fullAction = action.textContent;
+  memberDisplay(action, state.members);
+  action.setAttribute('aria-label', `${fullAction}: ${task.label}`);
   action.dataset.owned = String(claim?.memberId === memberId);
   // An unclaimed task keeps the action quiet so long lists stay easy to scan.
   action.dataset.claimed = String(!!claim);
   if (owner) {
     const name = el('span', `${owner.name} is doing this`, 'task-claim-name');
+    memberDisplay(name, state.members);
     const when = el('time', claimAge(claim.at, now()), 'task-claim-time');
     when.dateTime = claim.at; when.title = new Date(claim.at).toLocaleString();
     line.append(name, when);

@@ -1,3 +1,4 @@
+import { memberSelect } from './screen-ui.mjs';
 import { buildProfileModel } from './profile-model.mjs';
 import { createProfileCopy } from './profile-copy.mjs';
 import { loadBiSMemberResult } from './bis-results.mjs';
@@ -127,7 +128,7 @@ export function createProfileView(c) {
     const root = c.el('div', undefined, 'profile-panel'), toolbar = c.el('div', undefined, 'profile-toolbar');
     const chooser = c.el('select'); chooser.setAttribute('aria-label', 'Profile player');
     for (const member of c.state.members) { const option = c.el('option', member.name); option.value = member.id; chooser.append(option); }
-    chooser.value = selectedId;
+    chooser.value = selectedId; memberSelect(chooser, c.state.members);
     const label = c.el('label', undefined, 'profile-player-choice'); label.append(c.el('span', 'Player'), chooser); toolbar.append(label);
     const content = c.el('div'); root.append(toolbar, content);
     const generation = c.openDialog('Profile', root);
