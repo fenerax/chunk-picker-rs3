@@ -195,7 +195,49 @@ validation requires ports in 8900–8999.
 
 For a named test file, inspect `testRunPolicy(name)` in `scripts/test-selection.mjs` and apply its complete environment, including cleared inherited pack variables. Many files use `RS3_DATASET=open-f2p`; a bare `node --test` can pass against a different rule catalogue. The suite CLI accepts suites and `--list`, not a file-selection flag. Use the adaptive runner API or a focused invocation with the matching policy when the task limits checks to named files.
 
-The current Linux workflow runs the full suite directly; the former quick-then-full failure-hiding behavior is obsolete. Published pack profiles control which data overlays CI sees. Source overlays do not update already published packs.
+Before pushing, fetch `origin/main` and run targeted tests for the changed
+behavior, respecting any task-specific test limits. When adding a browser module
+or static route, include `tests/server.test.mjs` and
+`tests/browser-module-graph.test.mjs`. Targeted local checks still require the
+complete CI gate.
+
+On the shared PC, acquire the shared `heavy.lock` directory atomically with an
+`owner.txt` before multi-file tests. Keep heavy steps sequential at BelowNormal
+priority, pass `--test-concurrency=1`, and release the lock within ten minutes.
+Use the complete `testRunPolicy` environment described above for focused checks.
+
+## Linux CI shards
+
+CI runs the complete Linux suite in four deterministic, time-balanced shards.
+`npm test -- --shard=1/4 --list` inspects a partition. Each shard computes and
+audits the complete partition before execution, rejecting omissions and duplicate
+assignments. Timings supply weights, never inventory: every discovered full-suite
+file remains assigned exactly once, including files absent from the timing table.
+There is no preceding test stage or selective ordering.
+
+A short `inputs` job populates pack, Wiki and frozen-checkout caches once before
+fan-out. Shards restore the same keys, retain 15-minute timeouts, and stop on the
+first failing file. Matrix fail-fast cancels sibling shards. Each shard retains
+its own ledger and native coverage artifact. The coverage job requires successful
+input preparation, all shards, Windows and differential jobs; it validates each
+report against its exact assignment before applying the existing
+every-case-passes-somewhere rule. Cancelled, missing or incomplete shards cannot
+make coverage green. The Windows slice is unchanged.
+
+Timings in `scripts/ci/test-timings.json` come from the complete Linux measurements
+in public run `42294078968`. Regenerate from one recent complete Linux run with
+`node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`. The slowest passing
+measurement per file supplies its weight and the median supplies new files.
+Avoid retaining inflated maxima from older execution environments.
+
+The original unsharded Linux job took about 25 minutes (22m39s in the recorded
+baseline). Fresh weights predict about 6m14s execution per shard plus setup.
+Actual wall time varies with memory admission and contention; hosted ledgers
+validate the estimates. Static test selection is deferred to a separate follow-up
+based on runtime traces of files each test actually loads and reads.
+
+Published pack profiles control which data overlays CI sees. Source overlays do
+not update already published packs.
 
 When an extracted screen function adds `c.*` fields, update `app/web/screen-context.mjs` and every `screenFunctionSource` VM context that uses it, including `scripts/compare-cache-access.mjs`. Include `tests/cache-comparison.test.mjs` in the authorized focused checks; adjacent web tests alone can miss undeclared VM globals.
 

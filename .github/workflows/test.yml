@@ -39,12 +39,91 @@ jobs:
           fi
           echo "run=$run" | tee -a "$GITHUB_OUTPUT"
 
-  test:
+  inputs:
+    # One cache producer avoids four concurrent pack/Wiki/frozen downloads.
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
-    # Temporary: back to 20 once the Linux suite is sharded (test audit, 2026-11).
-    timeout-minutes: 30
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Identify frozen rollback checkout
+        id: frozen
+        run: node --input-type=module -e "import fs from 'node:fs'; const pin = JSON.parse(fs.readFileSync('docs/save-surface.json')).frozenRelease; if (!/^[a-f0-9]{40}$/.test(pin)) throw new Error('Invalid frozen pin'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'sha=' + pin + '\n');"
+      - name: Restore frozen rollback checkout
+        id: frozencache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/frozen-rollback
+          key: frozen-rollback-${{ runner.os }}-${{ steps.frozen.outputs.sha }}-v1
+      # Packs come from the release assets that .github/packs/pack-pin.json names.
+      # With no pin, nothing is fetched and the tests that need pack or
+      # game-cache files skip.
+      - name: Restore packs
+        id: packcache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      - name: Fetch and place packs
+        id: packs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/packs/fetch-packs.mjs . "${{ runner.temp }}/packs"
+      - name: Save packs
+        if: steps.packs.outputs.fetched == 'true' && steps.packcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      # The pinned Wiki revisions never change for a given batch.json, so fetch
+      # them once and reuse them; the client only asks for pages it lacks.
+      - name: Restore Wiki pages
+        id: wikicache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .local/gh-coverage/wiki-open-f2p
+          key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Configure public test inputs
+        run: node scripts/ci/coverage-inputs.mjs . "${{ runner.temp }}/packs/tree"
+      - name: Save Wiki pages
+        if: steps.wikicache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .local/gh-coverage/wiki-open-f2p
+          key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Prepare frozen rollback cache
+        if: steps.frozencache.outputs.cache-hit != 'true'
+        run: |
+          repository="${{ runner.temp }}/frozen-rollback/${{ steps.frozen.outputs.sha }}"
+          mkdir -p "$repository"
+          git -C "$repository" init
+          git -C "$repository" -c protocol.file.allow=always fetch --depth=1 "$GITHUB_WORKSPACE" "${{ steps.frozen.outputs.sha }}"
+          git -C "$repository" checkout --detach FETCH_HEAD
+      - name: Cache frozen rollback checkout
+        if: steps.frozencache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/frozen-rollback
+          key: frozen-rollback-${{ runner.os }}-${{ steps.frozen.outputs.sha }}-v1
+
+  test:
+    needs: [gate, inputs]
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    name: test (shard ${{ matrix.shard }}/4)
+    # Cancel sibling shards on failure; coverage rejects cancelled/incomplete evidence.
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2, 3, 4]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -104,11 +183,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y bzip2 util-linux
           sudo "$(command -v node)" scripts/ops/install-restic.mjs
-      # The full suite already runs every quick file, so one run is enough.
-      - run: npm test
+      # Each full-suite file belongs to exactly one partition.
+      - name: Full shard
+        run: npm test -- --shard=${{ matrix.shard }}/4
         env:
           RS3_FROZEN_CACHE: ${{ runner.temp }}/frozen-rollback
-          RS3_COVERAGE_REPORT: ${{ runner.temp }}/test.json
+          RS3_COVERAGE_REPORT: ${{ runner.temp }}/test-shard-${{ matrix.shard }}.json
           RS3_COVERAGE_LANE: test
           RS3_TEST_FILE_LEDGER: ${{ runner.temp }}/test-ledger.jsonl
       - name: Cache frozen rollback checkout
@@ -122,7 +202,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: test-ledger-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: test-ledger-shard-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/test-ledger.jsonl
           retention-days: 35
           if-no-files-found: warn
@@ -130,9 +210,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: test-coverage
+          name: test-shard-${{ matrix.shard }}-coverage
           overwrite: true
-          path: ${{ runner.temp }}/test.json
+          path: ${{ runner.temp }}/test-shard-${{ matrix.shard }}.json
           retention-days: 14
           if-no-files-found: error
 
@@ -194,19 +274,21 @@ jobs:
           if-no-files-found: error
 
   coverage:
-    needs: [gate, test, windows, differential]
+    needs: [gate, inputs, test, windows, differential]
     if: always() && needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require successful upstream jobs
         env:
+          INPUTS_RESULT: ${{ needs.inputs.result }}
           GATE_RESULT: ${{ needs.gate.result }}
           TEST_RESULT: ${{ needs.test.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
           DIFFERENTIAL_RESULT: ${{ needs.differential.result }}
         run: |
           echo "gate=$GATE_RESULT test=$TEST_RESULT windows=$WINDOWS_RESULT differential=$DIFFERENTIAL_RESULT"
+          test "$INPUTS_RESULT" = success
           test "$GATE_RESULT" = success
           test "$TEST_RESULT" = success
           test "$WINDOWS_RESULT" = success
@@ -224,6 +306,7 @@ jobs:
           merge-multiple: true
       - name: Every test passes somewhere
         env:
+          RS3_COVERAGE_SHARDS: 4
           RS3_COVERAGE_TEST_RESULT: ${{ needs.test.result }}
           RS3_COVERAGE_WINDOWS_RESULT: ${{ needs.windows.result }}
           RS3_COVERAGE_DIFFERENTIAL_RESULT: ${{ needs.differential.result }}
