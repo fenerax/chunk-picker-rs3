@@ -52,6 +52,18 @@ Portable exports include the optional envelope
 The common envelope contains code-owned evidence types; journals occupy one entry,
 using the same envelope contract as replay suppression. The adapters' internal
 plain-data shape remains `{v: 1, players: ...}`.
+Exports also put the same validated evidence in
+`state.provenance.pluginItemEvidence`. This compatibility copy is required:
+release `06e15939` preserves free-form provenance through portable import,
+edits, Undo, and export, but discards the optional envelope. Its whole-save
+restore moves provenance into `restore.incomingProvenance`. Current loaders
+recover evidence through every such nested restore boundary, applying archived
+`transferRoster.mapping` chains to incoming evidence before combining it with
+the current owner's root evidence. Transfers resolve these archives before
+changing member IDs. Historical archives remain unchanged; unrelated provenance
+and History are never searched for journal records. Copies are deduplicated,
+and the same bounds apply to the recovered union before publication. A union
+that exceeds a bound refuses the load or import without changing the save.
 Each player contains `records` keyed by `live`, `beta`, or `unknown`, and
 `commits` with the ledger shape above. The fixed-file adapters
 `exportPluginItemEvidence` and `importPluginItemEvidence` in `app/plugin-items.mjs`
@@ -84,7 +96,9 @@ exported with an older scope or inherited-evidence snapshot.
 These records remain outside gameplay Undo and are included in operational
 snapshots and service-recovery backups. Older releases ignore the optional
 top-level envelope and free-form provenance extension, and still load the
-unchanged live record shape. Retain the fixed sidecars during rollback; the old
+unchanged live record shape. Portable round-trips through the old release retain
+the compatibility provenance copy, including when its restore archives it.
+Retain the fixed sidecars during rollback; the old
 receiver cannot display non-live review rows or provide this durability guarantee
 for new acknowledgements.
 

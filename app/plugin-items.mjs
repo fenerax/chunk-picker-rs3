@@ -12,7 +12,7 @@ export { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-s
 // the first snapshot's time, item tasks the player already handled, and the
 // newest processed plugin journal event, and when the bank was last seen with its
 // coins. Non-live journals use separate files with the same bounded record shape.
-import { validateItemRecord, validateJournalCommits, mergeItemRecords, mergeJournalCommits, mergePluginItemEvidence } from './core/plugin-item-evidence.mjs';
+import { validateItemRecord, validateJournalCommits, mergeItemRecords, mergeJournalCommits, mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 export { validateItemRecord } from './core/plugin-item-evidence.mjs';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -22,7 +22,7 @@ async function capturedInheritedEvidence(dataDir, files) {
   if (!files['state.json']) return;
   const document = JSON.parse(files['state.json']);
   const reference = document.storage?.fields?.provenance;
-  if (!reference) return document.state?.provenance?.pluginItemEvidence;
+  if (!reference) return portablePluginItemEvidence(document.state);
   // Static fields are immutable and content addressed. Resolve the exact field
   // pinned by the captured state, never a later worker or in-memory state.
   if (!exactKeys(reference, ['id', 'sha256']) || !/^[a-f0-9]{64}$/.test(reference.sha256)
@@ -32,7 +32,7 @@ async function capturedInheritedEvidence(dataDir, files) {
   if (path.dirname(file) !== base) throw new TypeError('Invalid static provenance location.');
   const bytes = await gunzipAsync(await readFile(file));
   if (createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new TypeError('Static provenance checksum mismatch.');
-  return JSON.parse(bytes).pluginItemEvidence;
+  return portablePluginItemEvidence({ ...document.state, provenance: JSON.parse(bytes) });
 }
 
 function validate(value, validateRecord = validateItemRecord) {

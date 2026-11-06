@@ -1,6 +1,6 @@
 import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
-import { mergePluginItemEvidence } from './core/plugin-item-evidence.mjs';
+import { mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 import { portableCurrencyFacts } from './storage/plugin-currency.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
@@ -61,6 +61,8 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
     fail(422, 'Map each source member to a different destination member, keeping every assigned destination participant. Use a fresh picker when an assigned roster cannot fit.');
   }
   const next = owned ? state : structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
+  // Resolve frozen restore archives while source IDs still describe their owners.
+  const itemEvidence = portablePluginItemEvidence(next);
   const changed = source.some(id => entries[id] !== id);
   if (changed) {
     // A rollback release can Undo the amount without updating the portable map.
@@ -82,8 +84,8 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
       for (const row of Object.values(member[field] ?? {})) if (row.memberId !== undefined) row.memberId = mapped(row.memberId);
     }
   }
-  if (next.provenance?.pluginItemEvidence) {
-    const evidence = mergePluginItemEvidence(next.provenance.pluginItemEvidence);
+  if (itemEvidence) {
+    const evidence = mergePluginItemEvidence(itemEvidence);
     evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => Object.hasOwn(entries, id)).map(([id, record]) => [mapped(id), record]));
     next.provenance.pluginItemEvidence = evidence;
   }

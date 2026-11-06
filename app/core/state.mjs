@@ -1,5 +1,5 @@
 import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
-import { mergePluginItemEvidence, pluginItemEvidenceFromEnvelope } from './plugin-item-evidence.mjs';
+import { mergePluginItemEvidence, pluginItemEvidenceFromEnvelope, portablePluginItemEvidence } from './plugin-item-evidence.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
@@ -931,9 +931,10 @@ function validateStateCopy(copy, registry) {
       }
     }
   }
-  if (copy.provenance?.pluginItemEvidence !== undefined) {
-    const evidence = mergePluginItemEvidence(copy.provenance.pluginItemEvidence);
+  const evidence = portablePluginItemEvidence(copy);
+  if (evidence !== undefined) {
     if (Object.keys(evidence.players).some(id => !copy.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
+    if (JSON.stringify(evidence) !== JSON.stringify(copy.provenance?.pluginItemEvidence)) copy.provenance = { ...copy.provenance, pluginItemEvidence: evidence };
   }
   return copy;
 }

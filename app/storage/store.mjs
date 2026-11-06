@@ -357,7 +357,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function itemEvidenceEnvelope(document) {
     const members = new Set(document.state.members.map(member => member.id));
     const pluginItems = await exportPluginItemEvidence(directory, id => members.has(id) ? id : undefined, document.state.provenance?.pluginItemEvidence);
+    // The frozen release drops optional envelopes but preserves portable
+    // provenance through edits/Undo and archives it on whole-save restore.
     return Object.keys(pluginItems.players).length ? { ...document,
+      state: { ...document.state, provenance: { ...document.state.provenance, pluginItemEvidence: pluginItems } },
       optionalSidecarEvidence: { schemaVersion: 1, entries: { ...document.optionalSidecarEvidence?.entries,
         pluginItems: { version: 1, players: pluginItems.players } } } } : document;
   }

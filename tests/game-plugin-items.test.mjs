@@ -32,6 +32,34 @@ const catalogue = [
 ];
 const items = ({ snapshot = '0123456789abcdef', worn = [], backpack = [], events = [], id = journalId } = {}) => ({ snapshot, worn, backpack, journal: { id, events } });
 
+test('acknowledged journals survive frozen portable import, edit, Undo, and export without sidecars', async t => {
+  const source = await fixture(t, { durable: true });
+  assert.equal((await source.send(items({ events: [[1, CHAINBODY, 'Synthetic rollback journal']] }))).items.journal.event, 1);
+  const portable = await source.backup();
+  assert.deepEqual(portable.state.provenance.pluginItemEvidence.players, portable.optionalSidecarEvidence.entries.pluginItems.players);
+  let frozen = loadLiveBackup(portable);
+  frozen = applyLiveCommand(frozen, { type: 'set-journal', memberId: 'a', note: 'Synthetic frozen edit' });
+  frozen = applyLiveCommand(frozen, { type: 'undo' });
+  const resumed = await fixture(t, { durable: true });
+  await resumed.restore(exportLiveBackup(frozen));
+  await resumed.restart();
+  assert.ok(resumed.review().items.some(row => row.taskId === WEAR_TASK));
+  assert.equal((await resumed.send(items())).items.journal.event, 1);
+});
+
+test('frozen whole-save provenance archives rebuild imported journal reviews without a report', async t => {
+  const source = await fixture(t, { durable: true });
+  await source.send(items({ events: [[1, CHAINBODY, 'Synthetic archived journal']] }));
+  const frozen = loadLiveBackup(await source.backup());
+  frozen.provenance = { restore: { incomingProvenance: frozen.provenance } };
+  const resumed = await fixture(t, { durable: true });
+  await resumed.restore(exportLiveBackup(frozen));
+  assert.ok(resumed.review().items.some(row => row.taskId === WEAR_TASK));
+  await resumed.restart();
+  assert.ok(resumed.review().items.some(row => row.taskId === WEAR_TASK));
+  assert.equal((await resumed.send(items())).items.journal.event, 1);
+});
+
 async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, externalLegacy = false } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   let at = Date.parse('2026-10-22T12:00:00Z'), input, output, seq = 0, controller;

@@ -109,10 +109,46 @@ export function mergePluginItemEvidence(...inputs) {
   return { v: 1, players: Object.fromEntries(players) };
 }
 
+// Frozen restores archive incoming provenance; subsequent transfers archive their
+// ID mappings. Interpret only these schema-owned boundaries, never arbitrary
+// History or user objects. A node's root evidence is already in that node's IDs;
+// its transfer mappings apply only to evidence recovered from its incoming node.
+export function portablePluginItemEvidence(state) {
+  const nodes = [], seen = new Set();
+  for (let node = state.provenance; object(node); node = node.restore?.incomingProvenance) {
+    if (seen.has(node)) throw new TypeError('Cyclic plugin item provenance.');
+    seen.add(node); nodes.push(node);
+  }
+  let evidence;
+  for (const node of nodes.reverse()) {
+    if (evidence) {
+      const mappings = [], visited = new Set();
+      for (let transfer = node.transferRoster; object(transfer); transfer = transfer.previous) {
+        if (visited.has(transfer)) throw new TypeError('Cyclic plugin item ownership.');
+        visited.add(transfer);
+        const mapping = transfer.mapping;
+        const validId = id => /^[A-Za-z0-9_-]{1,64}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id);
+        if (!object(mapping) || Object.entries(mapping).some(([id, target]) => !validId(id) || typeof target !== 'string' || !validId(target))
+          || new Set(Object.values(mapping)).size !== Object.keys(mapping).length) throw new TypeError('Invalid plugin item ownership.');
+        mappings.push(mapping);
+      }
+      for (const mapping of mappings.reverse()) evidence = mergePluginItemEvidence({ v: 1, players: Object.fromEntries(
+        Object.entries(evidence.players).filter(([id]) => Object.hasOwn(mapping, id)).map(([id, record]) => [mapping[id], record])) });
+    }
+    // Archived members no longer in this roster are historical evidence only.
+    // Root evidence is checked strictly by the state validator below.
+    if (node === state.provenance && evidence) evidence.players = Object.fromEntries(Object.entries(evidence.players)
+      .filter(([id]) => state.members.some(member => member.id === id)));
+    if (node.pluginItemEvidence !== undefined || evidence) evidence = mergePluginItemEvidence(node.pluginItemEvidence, evidence);
+  }
+  return evidence;
+}
+
 export function reconcilePluginItemEvidence(state, ...sources) {
-  const inputs = [state, ...sources].map(source => source.provenance?.pluginItemEvidence).filter(Boolean);
+  const inputs = [state, ...sources].map(source => portablePluginItemEvidence({ members: state.members, ...source })).filter(Boolean);
   if (!inputs.length) return state;
   const evidence = mergePluginItemEvidence(...inputs);
   evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => state.members.some(member => member.id === id)));
+  if (JSON.stringify(evidence) === JSON.stringify(state.provenance?.pluginItemEvidence)) return state;
   return { ...state, provenance: { ...state.provenance, pluginItemEvidence: evidence } };
 }

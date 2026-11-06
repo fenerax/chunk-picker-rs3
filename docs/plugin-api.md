@@ -435,7 +435,14 @@ world transition. No existing evidence or saves are reclassified by this change;
 actual sender exposure would need separate verification before any migration.
 This is an additive receiver change with no plugin wire-format or portable-save
 schema-version change. Older receivers ignore the optional envelope, provenance extension
-and new files, and still load the save and unchanged live sidecar. Preserve the files during rollback: older receivers
+and new files, and still load the save and unchanged live sidecar. Portable
+exports include a compatibility copy in `state.provenance.pluginItemEvidence`,
+which the frozen release preserves through import, edits, Undo, restore, and
+export. On upgrade, validated records are recovered from nested
+`restore.incomingProvenance` archives as well as the root, with transfer member
+mapping preserved. Recovered unions use the same limits and refuse publication
+unchanged if too large. The `{schemaVersion, entries}` envelope remains intact.
+Preserve the files during rollback: older receivers
 cannot display their retained review rows; upgrading again restores them.
 
 ## GET /api/plugin/v1/status
