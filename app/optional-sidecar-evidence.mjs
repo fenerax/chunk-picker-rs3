@@ -6,6 +6,7 @@ import { validRosterSourceId, validRosterDestinationId } from './import-output.m
 import { legacyPluginHandledFiles, decodeLegacyPluginHandled } from './storage/plugin-handled-sidecars.mjs';
 import { pluginItemFiles, capturePluginItemFiles, exportCapturedPluginItemEvidence } from './plugin-items.mjs';
 import { mergePluginItemEvidence, portablePluginItemEvidence, reconcilePluginItemEvidence } from './core/plugin-item-evidence.mjs';
+import { optionalPluginData, warnOptionalPluginData } from './core/optional-plugin-data.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const validEvidenceTypeId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id);
@@ -52,13 +53,13 @@ export const optionalSidecarEvidenceTypes = Object.freeze({
       return true;
     },
     mergePlayer: (...records) => mergePluginItemEvidence(...records.map(record => ({ v: 1, players: { evidence: record } }))).players.evidence,
-    // Ordinary state writes validate all readable file evidence, but retain
+    // Ordinary state writes capture usable file evidence, but retain
     // facts in their existing sidecars. Import/export materializes the full
     // portable carrier; only live replay decisions fold back on ordinary writes.
     materializePublication: (state, players) => materializeLiveDecisions(state, players),
     materialize: (state, players) => {
       const next = reconcilePluginItemEvidence(state, { provenance: { pluginItemEvidence: { v: 1, players } } });
-      // Live handled decisions also bind frozen controllers. Beta/unknown
+      // Live handled decisions bind current controllers. Beta/unknown
       // decisions keep their own world scope and cannot suppress live progress.
       return materializeLiveDecisions(next, next.provenance.pluginItemEvidence.players);
     },
@@ -175,38 +176,61 @@ function install(state, evidence, { publication = false } = {}) {
 }
 
 export function reconcileOptionalSidecarEvidence(state, ...sources) {
-  return install(state, merge(state.members, ...[state, ...sources].map(source => recoverProvenanceEvidence({ members: state.members, ...source }))));
+  let next = atomicOnly(state);
+  for (const source of [state, ...sources]) {
+    next = optionalPluginData('archive materialization', () => install(next, merge(state.members,
+      atomicEvidence(next), recoverProvenanceEvidence({ members: state.members, ...source }))), next);
+  }
+  return isDeepStrictEqual(next, state) ? state : next;
 }
 
 export function materializeOptionalSidecarEvidence(state, evidence, options) {
-  return evidence === undefined ? state : install(state, merge(state.members,
-    recoverProvenanceEvidence(state), evidence), options);
+  const next = reconcileOptionalSidecarEvidence(state);
+  return evidence === undefined ? next : optionalPluginData('portable materialization', () => install(next, merge(state.members,
+    recoverProvenanceEvidence(next), evidence), options), next);
+}
+
+// Valid current atomic replay policy survives an unusable optional archive or
+// capsule. Never catch gameplay validation, command execution or tick writes.
+function atomicOnly(state) {
+  const provenance = state.provenance;
+  if (!provenance || !['pluginAutoHandled', 'optionalSidecarEvidence', 'pluginItemEvidence'].some(key => Object.hasOwn(provenance, key))) return state;
+  const { pluginAutoHandled, optionalSidecarEvidence, pluginItemEvidence, ...rest } = provenance;
+  const base = { ...state, provenance: rest };
+  return pluginAutoHandled === undefined ? base : optionalPluginData('atomic evidence recovery',
+    () => reconcilePluginHandled(base, { provenance: { pluginAutoHandled } }), base);
+}
+function atomicEvidence(state) {
+  return { schemaVersion: 1, entries: state.provenance?.pluginAutoHandled === undefined ? {} : {
+    pluginReplaySuppression: { version: 1, players: state.provenance.pluginAutoHandled } } };
 }
 
 export function mapOptionalSidecarEvidence(evidence, mapping) {
   if (evidence === undefined) return undefined;
   if (!object(mapping) || Object.entries(mapping).some(([source, target]) => !validRosterSourceId(source) || !validRosterDestinationId(target))
     || new Set(Object.values(mapping)).size !== Object.values(mapping).length) invalid();
-  return { schemaVersion: 1, entries: Object.fromEntries(Object.entries(validate(evidence).entries).map(([id, entry]) => [id,
+  return optionalPluginData('roster evidence mapping', () => ({ schemaVersion: 1, entries: Object.fromEntries(Object.entries(validate(evidence).entries).map(([id, entry]) => [id,
     { version: 1, players: Object.fromEntries(Object.entries(entry.players).filter(([player]) => Object.hasOwn(mapping, player))
-      .map(([player, record]) => [mapping[player], structuredClone(record)])) }])) };
+      .map(([player, record]) => [mapping[player], structuredClone(record)])) }])) }), undefined);
 }
 
 export async function captureOptionalSidecarEvidence(state, { dataDir, retainCommittedReplay = false, storeOwned = false } = {}) {
-  const inputs = [recoverProvenanceEvidence(state)];
+  let evidence = atomicEvidence(atomicOnly(state));
+  evidence = optionalPluginData('portable archive capture', () => merge(state.members, evidence, recoverProvenanceEvidence(state)), evidence);
   for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
     if (!type.capture || dataDir === undefined && type.files?.length) continue;
-    const context = { state, dataDir, retainCommittedReplay, storeOwned };
-    const files = type.captureFiles ? await type.captureFiles(context) : new Map(), unavailable = new Map();
-    for (const name of type.captureFiles ? [] : type.files ?? []) {
-      if (typeof name !== 'string' || !/^plugin-[a-z0-9-]+\.json$/.test(name)) invalid();
-      try { files.set(name, await readFile(path.join(dataDir, name))); }
-      catch (error) { if (error.code !== 'ENOENT') unavailable.set(name, error.code ?? 'READ_FAILED'); }
-    }
-    const players = await type.capture({ ...context, files, unavailable });
-    if (players !== undefined) inputs.push({ schemaVersion: 1, entries: { [id]: { version: 1, players } } });
+    try {
+      const context = { state, dataDir, retainCommittedReplay, storeOwned };
+      const files = type.captureFiles ? await type.captureFiles(context) : new Map(), unavailable = new Map();
+      for (const name of type.captureFiles ? [] : type.files ?? []) {
+        if (typeof name !== 'string' || !/^plugin-[a-z0-9-]+\.json$/.test(name)) invalid();
+        try { files.set(name, await readFile(path.join(dataDir, name))); }
+        catch (error) { if (error.code !== 'ENOENT') unavailable.set(name, error.code ?? 'READ_FAILED'); }
+      }
+      const players = await type.capture({ ...context, files, unavailable });
+      if (players !== undefined) evidence = merge(state.members, evidence, { schemaVersion: 1, entries: { [id]: { version: 1, players } } });
+    } catch { warnOptionalPluginData(`${id} capture`); }
   }
-  const evidence = merge(state.members, ...inputs);
   return Object.keys(evidence.entries).length ? evidence : undefined;
 }
 

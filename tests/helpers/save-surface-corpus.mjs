@@ -353,8 +353,7 @@ export async function buildSaveCorpus(t) {
       { actor, requestId: `v3.${session.scope}.${session.slot}.${session.generation}.1`, requestAck: 0 });
     features.add('roll-receipt'); snapshots.push({ feature: 'roll-receipt', ...await diskSnapshot(rollDir), state: rollStore.getState() });
   } finally { await rollStore.close(); }
-  // The real start gate writes both staged preimages and its external refusal
-  // marker. Corrupt only this synthetic sidecar to exercise a refused start.
+  // Optional plugin corruption never changes transaction/access startup checks.
   const gateDir = await scratch(t, 'start-gate');
   await mkdir(controlRoot, { recursive: true });
   const controlDir = await mkdtemp(path.join(controlRoot, 'run-'));
@@ -375,9 +374,8 @@ export async function buildSaveCorpus(t) {
   const itemFile = path.join(gateDir, 'plugin-items.json'), retained = await readFile(itemFile);
   await writeFile(itemFile, '{}');
   const unchanged = await inventory(gateDir);
-  await assert.rejects(checkStart({ dataDir: gateDir, controlDir }), { code: 'PLUGIN_RECONCILIATION_FAILED' });
+  await checkStart({ dataDir: gateDir, controlDir });
   assert.deepEqual(await inventory(gateDir), unchanged);
-  controlDocuments.push(JSON.parse(await readFile(path.join(controlDir, 'plugin-reconciliation-refused.json'))));
   await writeFile(itemFile, retained);
   await checkStart({ dataDir: gateDir, controlDir });
   features.add('plugin-start-gate');

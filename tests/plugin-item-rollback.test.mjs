@@ -106,7 +106,7 @@ test('archived evidence follows repeated roster mappings without resurrecting ol
   assert.deepEqual(portablePluginItemEvidence(source), evidence([34830]));
 });
 
-for (const limit of ['handled tasks', 'pending events', 'unfinished journals']) test(`frozen recovery validates the combined ${limit} bound even with a root compatibility copy`, () => {
+for (const limit of ['handled tasks', 'pending events', 'unfinished journals']) test(`frozen recovery omits overflowing optional ${limit} without vetoing gameplay`, () => {
   const state = archived([34830]).state;
   state.provenance.pluginItemEvidence = evidence([34830]);
   const root = state.provenance.pluginItemEvidence.players.a;
@@ -122,14 +122,15 @@ for (const limit of ['handled tasks', 'pending events', 'unfinished journals']) 
     root.commits.journals = Array.from({ length: 5 }, (_, i) => unfinished(i));
     incoming.commits.journals = Array.from({ length: 4 }, (_, i) => unfinished(i + 5));
   }
-  assert.throws(() => validateState(state), /Invalid plugin item record|Too many pending journal events|Too many unfinished journals/);
+  assert.deepEqual(validateState(state).members, state.members);
+  assert.equal(portablePluginItemEvidence(state), undefined);
 });
 
-for (const world of ['unknown', 'beta']) for (const entrypoint of ['load', 'replace', 'preview', 'transfer', 'member']) test(`${world}: ${entrypoint} refuses an oversized frozen provenance union unchanged`, async t => {
+for (const world of ['unknown', 'beta']) for (const entrypoint of ['load', 'replace', 'preview', 'transfer', 'member']) test(`${world}: ${entrypoint} remains available with an oversized optional frozen provenance union`, async t => {
   const full = Array.from({ length: 500 }, (_, index) => 10000 + index), incoming = archived(full, world);
   if (entrypoint === 'load') {
     incoming.state.provenance.pluginItemEvidence = evidence([34830], world);
-    assert.throws(() => importBackup(incoming), /Invalid plugin item record/);
+    assert.deepEqual(importBackup(incoming).members, incoming.state.members);
     return;
   }
   const dir = await directory(t), initialState = createGroupState(roster);
@@ -142,8 +143,10 @@ for (const world of ['unknown', 'beta']) for (const entrypoint of ['load', 'repl
     const operation = entrypoint === 'replace' ? () => store.replace(incoming, state.revision)
       : entrypoint === 'preview' ? () => store.previewReplacement(incoming)
         : () => store.prepareTransfer(serialize({ backup: incoming, ...(entrypoint === 'member' ? { memberId: 'a', sourceMemberId: 'a' } : {}) }), options);
-    await assert.rejects(operation(), /Invalid plugin item record/);
-    assert.deepEqual(await readFile(path.join(dir, 'state.json')), before);
-    assert.deepEqual(store.getState(), state);
+    const result = await operation();
+    if (['transfer', 'member'].includes(entrypoint)) await store.applyTransfer(result.ticket, state.revision);
+    if (entrypoint === 'preview') assert.deepEqual(await readFile(path.join(dir, 'state.json')), before);
+    else assert.equal(store.getInfo().revision, state.revision + 1);
+    assert.ok((await store.backup()).state);
   } finally { await store.close(); }
 });

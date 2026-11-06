@@ -67,6 +67,7 @@ test('writes serialize and two clients cannot save the same expected revision', 
 test('state and private invite token persist across restart with a released exclusive lock', async t => {
   const dataDir = await directory(t);
   const first = await openStore({ dataDir });
+  t.after(() => first.close());
   const token = first.getAccessToken();
   await assert.rejects(() => openStore({ dataDir }), /already holds/);
   await first.command(command, 0);
@@ -81,6 +82,7 @@ test('state and private invite token persist across restart with a released excl
 test('failed persistence keeps the old state, does not broadcast, cleans temp files and recovers on restart', async t => {
   const dataDir = await directory(t);
   const store = await openStore({ dataDir, beforeCommit: () => { throw new Error('Injected pre-rename failure'); } });
+  t.after(() => store.close());
   let notifications = 0;
   store.subscribe(() => notifications++);
   await assert.rejects(() => store.command(command, 0), /Injected/);
@@ -229,6 +231,7 @@ test('a dead-process lock is recoverable, but malformed saved data is never sile
   const dataDir = await directory(t);
   await writeFile(path.join(dataDir, 'store.lock'), JSON.stringify({ pid: 2147483647, nonce: 'old' }));
   const store = await openStore({ dataDir });
+  t.after(() => store.close());
   await store.close();
   await writeFile(path.join(dataDir, 'state.json'), '{broken');
   await assert.rejects(() => openStore({ dataDir }), /Cannot load/);
@@ -267,6 +270,7 @@ test('a first-party current-state predicate avoids repeated migration and keeps 
   const migrateState = () => { throw new Error('Already-current state must not be migrated'); };
   migrateState.isCurrent = state => state.members[0].id === 'actor1';
   const first = await openStore({ dataDir, migrateState });
+  t.after(() => first.close());
   await first.command(command, 0);
   const saved = first.getState();
   await first.close();
@@ -303,6 +307,7 @@ test('caller preparation hooks invalidate cached evidence bytes and cannot retai
 test('changed catalogue preparation on restart commits a backed-up refresh revision and is idempotent', async t => {
   const dataDir = await directory(t);
   const original = await openStore({ dataDir });
+  t.after(() => original.close());
   await original.command(command, 0);
   await original.close();
   const prepareState = async state => {
@@ -310,6 +315,7 @@ test('changed catalogue preparation on restart commits a backed-up refresh revis
     return state;
   };
   const refreshed = await openStore({ dataDir, prepareState });
+  t.after(() => refreshed.close());
   assert.equal(refreshed.getState().revision, 2);
   assert.deepEqual(refreshed.getState().history.map(event => [event.id, event.type]), [['revision-1', 'set-rule'], ['revision-2', 'catalogue-refresh']]);
   assert.equal((await readdir(path.join(dataDir, 'backups'))).length, 2);

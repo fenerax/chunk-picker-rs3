@@ -4,9 +4,8 @@ import { isMain } from '../release/vps/entrypoint.mjs';
 import path from 'node:path';
 import { readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { exists, json, sha, atomic, encode } from './files.mjs';
+import { exists, json, sha } from './files.mjs';
 import { operatorSettings, readRelease, serviceIdentity, assertServiceAccess } from './runtime.mjs';
-import { reconcileBeforeStart } from './plugin-suppression-gate.mjs';
 
 export async function processIdentity(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('Invalid operator owner.');
@@ -19,15 +18,6 @@ export async function processIdentity(pid) {
 export async function checkStart(settings, { identity = processIdentity, now = Date.now(), access = async () => {} } = {}) {
   await checkStartPermit(settings, { identity, now });
   await access();
-  const refusal = path.join(settings.controlDir, 'plugin-reconciliation-refused.json');
-  await rm(refusal, { force: true });
-  try { await reconcileBeforeStart(settings); }
-  catch (error) {
-    // Control evidence is outside picker data. It prevents the operator from
-    // spending another start on rollback after ExecStartPre already refused.
-    await atomic(refusal, encode({ schemaVersion: 1, at: new Date().toISOString(), code: 'PLUGIN_RECONCILIATION_FAILED' }));
-    throw error;
-  }
 }
 async function checkStartPermit(settings, { identity, now }) {
   if (settings.multiPicker) {

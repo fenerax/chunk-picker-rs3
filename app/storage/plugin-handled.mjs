@@ -1,5 +1,6 @@
 // Replay policy belongs to the same published state as automatic completion.
 // This provenance extension is intentionally outside gameplay Undo deltas.
+import { warnOptionalPluginData } from '../core/optional-plugin-data.mjs';
 const limits = { achievements: 20000, items: 2000 };
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const indexes = new WeakMap();
@@ -54,6 +55,16 @@ export function reconcilePluginHandled(state, ...sources) {
     }
   }
   return present ? { ...state, provenance: { ...state.provenance, pluginAutoHandled: Object.fromEntries(records) } } : state;
+}
+
+// The current writer's decisions are authoritative, even when an optional
+// restore/archive/legacy source is invalid or cannot fit alongside them.
+export function preserveCommittedPluginHandled(state, current) {
+  if (current.provenance?.pluginAutoHandled === undefined) return state;
+  const base = reconcilePluginHandled({ ...state, provenance: { ...state.provenance,
+    pluginAutoHandled: current.provenance.pluginAutoHandled } });
+  try { return reconcilePluginHandled(base, state); }
+  catch { warnOptionalPluginData('incoming suppression'); return base; }
 }
 
 export function withPluginHandled(state, command, input) {

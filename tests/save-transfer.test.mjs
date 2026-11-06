@@ -141,8 +141,8 @@ for (const sourceId of ['manual.name', 'x'.repeat(65), 'x'.repeat(80)]) test(`op
   const evidence = structuredClone(backup.optionalSidecarEvidence);
   evidence.entries.pluginReplaySuppression.players[sourceId] = { achievements: [2], items: [] };
   assert.deepEqual(mapOptionalSidecarEvidence(evidence, mapping).entries.pluginReplaySuppression.players.partner, { achievements: [2], items: [] });
-  for (const type of ['manual.name', 'x'.repeat(65)]) assert.throws(() => mapOptionalSidecarEvidence({ schemaVersion: 1,
-    entries: { [type]: evidence.entries.pluginReplaySuppression } }, mapping), /Invalid optional sidecar evidence/);
+  for (const type of ['manual.name', 'x'.repeat(65)]) assert.equal(mapOptionalSidecarEvidence({ schemaVersion: 1,
+    entries: { [type]: evidence.entries.pluginReplaySuppression } }, mapping), undefined, 'Unusable optional entries are omitted');
   for (const target of ['manual.name', 'x'.repeat(65), '../owner', '__proto__'])
     assert.throws(() => mapOptionalSidecarEvidence(evidence, { source: 'owner', [sourceId]: target }), /Invalid optional sidecar evidence/);
   assert.throws(() => mapOptionalSidecarEvidence(evidence, { source: 'owner', ['x'.repeat(81)]: 'partner' }), /Invalid optional sidecar evidence/);

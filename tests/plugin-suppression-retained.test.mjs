@@ -50,12 +50,13 @@ for (const kind of ['items', 'achievements']) for (const archived of [false, tru
     assert.deepEqual(raw.optionalSidecarEvidence.entries.pluginReplaySuppression.players.owner[kind], full(kind));
     const portable = await f.store.readBackup(row.id);
     assert.deepEqual(portable.state.provenance.pluginAutoHandled.owner[kind], full(kind));
-    // Strict portable recapture must refuse an overflowing union, never trim it.
+    // Optional overflow cannot veto a retained download or discard its committed policy.
     const extra = kind === 'items' ? 'custom:extra' : 2;
     const changed = [...full(kind).slice(1), extra].sort(kind === 'items' ? undefined : (a, b) => a - b);
     await sidecar(f.dataDir, kind, changed);
     const before = await inventory(f.dataDir);
-    await assert.rejects(f.store.readBackup(row.id), /Invalid plugin/);
+    const downloaded = await f.store.readBackup(row.id);
+    assert.deepEqual(downloaded.state.provenance.pluginAutoHandled.owner[kind], full(kind));
     assert.deepEqual(await inventory(f.dataDir), before);
   });
 

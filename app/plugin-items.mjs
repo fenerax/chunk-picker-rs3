@@ -1,5 +1,6 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
 import { readFile, realpath } from 'node:fs/promises';
+import { optionalPluginData } from './core/optional-plugin-data.mjs';
 import { gunzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
@@ -103,7 +104,7 @@ async function openPluginRecords({ dataDir, members, clock = Date.now, log = con
   const file = path.join(dataDir, filename);
   let current = { v: 1, players: {} }, corrupt = false, queue = Promise.resolve(), closed = false, contents;
   try { contents = await readFile(file, 'utf8'); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  catch (error) { if (error.code !== 'ENOENT') log('Optional plugin item evidence unavailable; observations may be offered again.'); }
   if (contents !== undefined) {
     try { current = validate(JSON.parse(contents), validateRecord); }
     catch {
@@ -112,7 +113,11 @@ async function openPluginRecords({ dataDir, members, clock = Date.now, log = con
     }
   }
   return {
-    get(player) { return merge(inherited(player), Object.hasOwn(current.players, player) ? current.players[player] : null); },
+    get(player) {
+      const retained = optionalPluginData('inherited item record', () => inherited(player), null);
+      const observed = Object.hasOwn(current.players, player) ? current.players[player] : null;
+      return optionalPluginData('item record union', () => merge(retained, observed), retained ?? observed);
+    },
     /** Writes one player's record; members removed from the save are dropped. */
     put(player, record) {
       if (closed) return Promise.reject(Object.assign(new Error('The picker is stopping.'), { status: 503 }));

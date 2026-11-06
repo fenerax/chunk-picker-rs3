@@ -1,13 +1,10 @@
-import { readFile, lstat, open, rename, rm } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { replaceSidecar, validatePluginAchievementStore } from '../plugin-achievements.mjs';
+import { validatePluginAchievementStore } from '../plugin-achievements.mjs';
 import { validatePluginItemStore } from '../plugin-items.mjs';
 import { reconcilePluginHandled } from './plugin-handled.mjs';
-import { syncDirectory } from './publication.mjs';
-import { withStoreWrite } from './snapshot.mjs';
-import { withPluginEvidence } from './plugin-evidence-lock.mjs';
+import { warnOptionalPluginData } from '../core/optional-plugin-data.mjs';
 
 export const legacyPluginHandledFiles = ['plugin-achievements.json', 'plugin-items.json'];
 const stores = [validatePluginAchievementStore, validatePluginItemStore];
@@ -28,127 +25,17 @@ export function decodeLegacyPluginHandled(state, files, unavailable = new Map())
   return players.size ? reconcilePluginHandled(state, { provenance: { pluginAutoHandled: Object.fromEntries(players) } }) : reconcilePluginHandled(state);
 }
 
-async function readLegacyPluginHandled(dataDir, unchanged = false) {
-  const files = new Map();
+// Legacy decisions are optional input. Never lower current atomic decisions
+// into rollback sidecars or allow an unreadable/overflowing legacy union to
+// prevent gameplay. Existing valid atomic decisions always take precedence.
+export async function foldLegacyPluginHandled({ dataDir, state }) {
+  let next = state;
   for (const name of legacyPluginHandledFiles) {
-    try { files.set(name, await readFile(path.join(dataDir, name))); }
-    catch (error) {
-      if (error.code !== 'ENOENT' && !(unchanged && ['EACCES', 'EPERM', 'EISDIR', 'EBUSY'].includes(error.code))) throw error;
-    }
-  }
-  return files;
-}
-
-export async function foldLegacyPluginHandled({ dataDir, state, previous }) {
-  // Keep gameplay (including owner Undo) available while a handled write is
-  // failing. Only already-committed decisions for the identical roster may
-  // pass this bridge; new ticks, restores, exports and startup fail closed.
-  // Still read and validate the other sidecar if one is unavailable.
-  const unchanged = previous && isDeepStrictEqual(state.members.map(m => m.id), previous.members.map(m => m.id))
-    && isDeepStrictEqual(state.provenance?.pluginAutoHandled, previous.provenance?.pluginAutoHandled);
-  const files = await readLegacyPluginHandled(dataDir, unchanged);
-  const next = decodeLegacyPluginHandled(state, files);
-  // Check the actual rollback-sidecar schema as well as the portable limits.
-  // This preparation is read-only and happens before any state dependencies.
-  prepareFromFiles(dataDir, next, files);
-  return isDeepStrictEqual(next.provenance, state.provenance) ? state : next;
-}
-
-// The caller holds the store's exclusive writer ownership. These monotonic
-// writes bridge committed replay policy to releases that only read sidecars.
-// Validate both unions before publishing either; a partial I/O failure must
-// prevent serving/rollback, and retrying completes the same union.
-export async function preparePluginHandledSidecars({ dataDir, state }) {
-  const files = await readLegacyPluginHandled(dataDir);
-  state = decodeLegacyPluginHandled(state, files);
-  return prepareFromFiles(dataDir, state, files);
-}
-
-function prepareFromFiles(dataDir, state, files) {
-  const players = state.provenance?.pluginAutoHandled;
-  if (!players) return [];
-  const publications = [];
-  for (const [kind, name, validate] of [
-    ['achievements', 'plugin-achievements.json', validatePluginAchievementStore],
-    ['items', 'plugin-items.json', validatePluginItemStore],
-  ]) {
-    const committed = Object.entries(players).filter(([, record]) => record[kind].length);
-    if (!committed.length) continue;
-    const file = path.join(dataDir, name);
-    const previous = files.get(name) ?? null;
-    const original = previous === null ? { v: 1, players: {} } : validate(JSON.parse(previous.toString('utf8')));
-    const next = structuredClone(original);
-    for (const [player, record] of committed) {
-      const previous = Object.hasOwn(next.players, player) ? next.players[player] : kind === 'items'
-        ? { baselineAt: '1970-01-01T00:00:00.000Z', items: {}, handled: [], journal: null } : { handled: [] };
-      const handled = [...new Set([...previous.handled, ...record[kind]])].sort(kind === 'achievements' ? (a, b) => a - b : undefined);
-      Object.defineProperty(next.players, player, { value: { ...previous, handled }, enumerable: true, configurable: true, writable: true });
-    }
-    validate(next); // Includes the legacy limits: never truncate either source.
-    publications.push({ file, dataDir, previous, next, changed: !isDeepStrictEqual(original, next) });
-  }
-  return publications;
-}
-
-// Stage every write and its exact preimage before publishing any store. On a
-// refused start, restore published preimages and remove our staging files.
-// Gameplay is never rewritten by this bridge.
-export async function publishPluginHandledSidecars(publications) {
-  const staged = [], installed = [], parents = [...new Set(publications.map(row => row.dataDir))];
-  async function stage(file, bytes, metadata) {
-    const handle = await open(file, 'wx', metadata.mode & 0o777);
     try {
-      await handle.writeFile(bytes);
-      if (process.platform !== 'win32') { await handle.chmod(metadata.mode & 0o777); await handle.chown(metadata.uid, metadata.gid); }
-      await handle.sync();
-    } finally { await handle.close(); }
+      const files = new Map([[name, await readFile(path.join(dataDir, name))]]);
+      const folded = decodeLegacyPluginHandled(next, files);
+      if (!isDeepStrictEqual(folded.provenance, next.provenance)) next = folded;
+    } catch (error) { if (error.code !== 'ENOENT') warnOptionalPluginData('legacy handled capture'); }
   }
-  try {
-    for (const row of publications.filter(row => row.changed)) {
-      const id = randomUUID(), temporary = row.file + `.reconcile-${id}.new`, preimage = row.file + `.reconcile-${id}.previous`;
-      const metadata = await lstat(row.previous === null ? row.dataDir : row.file);
-      if (row.previous !== null && (!metadata.isFile() || metadata.nlink !== 1)) throw new Error('Linked plugin evidence is refused.');
-      const entry = { ...row, temporary, preimage, metadata }; staged.push(entry);
-      await stage(temporary, Buffer.from(`${JSON.stringify(row.next)}\n`), row.previous === null ? { ...metadata, mode: 0o600 } : metadata);
-      if (row.previous !== null) await stage(preimage, row.previous, metadata);
-    }
-    for (const parent of parents) await syncDirectory(parent);
-    for (const entry of staged) { await rename(entry.temporary, entry.file); installed.push(entry); }
-    for (const parent of parents) await syncDirectory(parent);
-    await cleanStaging();
-  } catch (cause) {
-    const failures = [];
-    for (const entry of installed.reverse()) {
-      try {
-        if (entry.previous === null) await rm(entry.file);
-        else {
-          // Cleanup may already have removed an earlier preimage. Retain its
-          // bytes until the entire transaction, including cleanup, succeeds.
-          try { await lstat(entry.preimage); }
-          catch (error) { if (error.code !== 'ENOENT') throw error; await stage(entry.preimage, entry.previous, entry.metadata); }
-          await rename(entry.preimage, entry.file);
-        }
-      } catch (error) { failures.push(error); }
-    }
-    try { await cleanStaging(); } catch (error) { failures.push(error); }
-    for (const parent of parents) try { await syncDirectory(parent); } catch (error) { failures.push(error); }
-    if (failures.length) cause.rollbackErrors = failures;
-    throw cause;
-  }
-  async function cleanStaging() {
-    for (const entry of staged) { await rm(entry.temporary, { force: true }); await rm(entry.preimage, { force: true }); }
-  }
-}
-
-export async function reconcilePluginHandledSidecars({ dataDir, state }) {
-  await withStoreWrite(dataDir, () => withPluginEvidence(dataDir, async () => {
-    const publications = await preparePluginHandledSidecars({ dataDir, state });
-    if (!publications.length) return;
-    for (const { file, next, changed } of publications) {
-      if (changed) await replaceSidecar(file, `${JSON.stringify(next)}\n`, false, Date.now);
-    }
-    // replaceSidecar syncs file contents. Also sync unchanged entries' parent:
-    // an earlier attempt may have renamed successfully then failed this sync.
-    await syncDirectory(dataDir);
-  }));
+  return next;
 }

@@ -1387,18 +1387,16 @@ for (const world of ['beta', 'unknown']) for (const entrypoint of ['restore', 't
     const acknowledged = (await target.send(items({ events: [event] }), true)).items.journal.event;
     assert.equal(target.state.revision, revision, 'Non-live journals do not invalidate gameplay revisions');
     const before = await readFile(path.join(target.dataDir, 'state.json'));
-    if (entrypoint === 'replacement-preview') await assert.rejects(target.store.previewReplacement(backup), /Invalid plugin item record/);
-    else if (entrypoint === 'replacement-commit') await assert.rejects(target.store.replace(backup, revision), /Invalid plugin item record/);
-    else {
-      await assert.rejects(target.store.applyTransfer(prepared.ticket, revision), error => error.importConflict === true && /Revision conflict/.test(error.message));
-      if (entrypoint !== 'import') await assert.rejects(target.store.prepareTransfer(serialize(body), options), /Invalid plugin item record/);
-    }
-    assert.deepEqual(await readFile(path.join(target.dataDir, 'state.json')), before, 'Rejected publication leaves the destination unchanged');
+    if (entrypoint === 'replacement-preview') {
+      await target.store.previewReplacement(backup);
+      assert.deepEqual(await readFile(path.join(target.dataDir, 'state.json')), before);
+    } else if (entrypoint === 'replacement-commit') await target.store.replace(backup, revision);
+    else await target.store.applyTransfer(prepared.ticket, revision);
     await target.restart();
-    assert.equal((await target.send(items(), true)).items.journal.event, acknowledged, 'Restart and later reports remain usable');
-    const retained = await exportPluginItemEvidence(target.dataDir);
-    assert.ok(entrypoint === 'import' ? retained.players.a.commits.journals.some(row => row.pending.length === 1)
-      : retained.players.a.records[world].items[UNKNOWN]);
+    const result = await target.send(items(), true);
+    assert.ok(result.items, 'Optional capacity conflicts cannot prevent later reports');
+    assert.ok((await target.store.backup()).state, 'Optional late evidence cannot veto export');
+
   });
 }
 
@@ -1644,20 +1642,21 @@ test('portable recovery carries an unresolved prefix and drains it without retra
   assert.equal(target.review().itemRetentionIssue, null);
 });
 
-test('invalid evidence and a failed import publication leave the destination unchanged', async t => {
+test('invalid optional evidence permits preview while a failed gameplay publication leaves the destination unchanged', async t => {
   const source = await fixture(t, { durable: true }), target = await fixture(t, { durable: true });
   await source.send(items({ events: [[1, CHAINBODY, 'Synthetic journal item']] }));
   const backup = await source.store.backup(), before = await readFile(path.join(target.dataDir, 'state.json'));
   const invalid = structuredClone(backup);
   invalid.optionalSidecarEvidence.entries.pluginItems.players.a.records.unknown.items[CHAINBODY].wornAt = 'invalid';
-  await assert.rejects(target.store.prepareTransfer(serialize({ backup: invalid }), transferOptions), /Invalid plugin item fact/);
+  assert.ok((await target.store.prepareTransfer(serialize({ backup: invalid }), transferOptions)).ticket);
   for (const field of ['records', 'commits', 'pluginItems']) {
     const malformed = structuredClone(backup);
     if (field === 'pluginItems') malformed.optionalSidecarEvidence.entries.pluginItems = null;
     else if (field === 'records') malformed.optionalSidecarEvidence.entries.pluginItems.players.a.records.unknown = null;
     else malformed.optionalSidecarEvidence.entries.pluginItems.players.a.commits = null;
     const evidence = malformed.optionalSidecarEvidence.entries.pluginItems;
-    assert.throws(() => validateState({ ...source.state, provenance: { pluginItemEvidence: evidence && { v: 1, players: evidence.players } } }), /Invalid/);
+    const state = validateState({ ...source.state, provenance: { pluginItemEvidence: evidence && { v: 1, players: evidence.players } } });
+    assert.deepEqual(state.members, source.state.members, 'Optional corruption must not invalidate gameplay');
   }
   const prepared = await target.store.prepareTransfer(serialize({ backup }), transferOptions);
   target.failing.publication = true;

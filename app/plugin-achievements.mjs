@@ -75,7 +75,7 @@ export async function openPluginAchievements({ dataDir, members, clock = Date.no
   let current = { v: 1, players: {} }, corrupt = false, queue = Promise.resolve(), closed = false;
   let contents;
   try { contents = await readFile(file, 'utf8'); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  catch (error) { if (error.code !== 'ENOENT') log('Optional plugin achievement evidence unavailable; observations may be offered again.'); }
   if (contents !== undefined) {
     try { current = validate(JSON.parse(contents)); }
     catch {

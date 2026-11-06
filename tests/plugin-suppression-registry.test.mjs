@@ -8,13 +8,28 @@ import { serialize } from 'node:v8';
 import { frozenRuntime } from './helpers/frozen-release.mjs';
 import { openStore } from '../app/storage/store.mjs';
 import { createGroupState } from '../app/core/state.mjs';
-import { reconcileOptionalSidecarEvidence, captureOptionalSidecarEvidence } from '../app/optional-sidecar-evidence.mjs';
+import { reconcileOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence } from '../app/optional-sidecar-evidence.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
 
 const at = '2026-11-01T12:00:00.000Z';
 const roster = [{ id: 'source', name: 'Explorer 1' }, { id: 'second', name: 'Explorer 2' }];
 const record = world => ({ baselineAt: at, items: { 857: { name: 'Synthetic bow', ownedAt: at, wornAt: null, first: true } },
   handled: [`custom:${world}`], journal: null });
+
+for (const carrier of ['capsule', 'archive', 'item-field']) test(`invalid optional ${carrier} logs and preserves current atomic decisions`, async t => {
+  const messages = [];
+  t.mock.method(console, 'warn', message => messages.push(message));
+  const state = createGroupState([{ id: 'owner', name: 'Explorer' }]);
+  state.provenance = { pluginAutoHandled: { owner: { items: ['custom:committed'], achievements: [1] } },
+    ...(carrier === 'capsule' ? { optionalSidecarEvidence: { schemaVersion: 99 } }
+      : carrier === 'archive' ? { restore: { incomingProvenance: { pluginAutoHandled: 'invalid' } } }
+        : { pluginItemEvidence: { v: 99 } }) };
+  const ready = materializeOptionalSidecarEvidence(state, { schemaVersion: 99 });
+  assert.deepEqual(ready.provenance.pluginAutoHandled, state.provenance.pluginAutoHandled);
+  const portable = await captureOptionalSidecarEvidence(ready);
+  assert.deepEqual(portable.entries.pluginReplaySuppression.players, state.provenance.pluginAutoHandled);
+  assert.ok(messages.some(message => /offered again/.test(message)));
+});
 
 for (const carrier of ['atomic', 'capsule', 'items-capsule']) for (const nested of [false, true]) test(`archived ${carrier} ownership follows repeated roster maps${nested ? ' across restore boundaries' : ''} without remapping root decisions`, async () => {
   const source = 'manual.name', decision = { items: ['custom:archive'], achievements: [123] };

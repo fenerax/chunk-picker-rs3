@@ -188,8 +188,6 @@ async function deployStoppedImpl({ settings, current, candidate, controller, can
     // A failed final probe takes this path without writing the store or pointer.
     // After candidate startup, use its LATEST save: never restore an old backup.
     await controller.stop(); await stopped();
-    if (error.code === 'PLUGIN_RECONCILIATION_FAILED'
-      || await exists(path.join(settings.controlDir, 'plugin-reconciliation-refused.json'))) throw error;
     if (swapped || rebound) {
       // Re-prove reverse compatibility against any candidate-startup writes.
       const selected = await readRelease(settings.current, settings.dataDir);

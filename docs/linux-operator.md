@@ -244,55 +244,25 @@ save before restoring the old selection. If reverse compatibility or shutdown
 fails, it leaves maintenance evidence and refuses to start another writer.
 It never restores an older gameplay snapshot as an automatic rollback.
 
-### Plugin replay suppression before rollback
+### Optional plugin evidence during rollback
 
-The installed `scripts/linux/start-check.mjs` **ExecStartPre** is the single
-reconciliation gate. Boot, manual start, health recovery, deploy start and
-automatic rollback all reach it through the service unit. Keep these current
-operator tools installed when selecting an older runtime; there is no separate
-manual reconciliation step. Load/compatibility probes on disposable copies
-cannot substitute for this gate.
+The installed `scripts/linux/start-check.mjs` ExecStartPre enforces transaction
+permits and service access. It does not read picker checkpoints or reconcile
+plugin evidence. Plugin failures never veto service startup, restore or export.
+There is no plugin reconciliation refusal marker or manual lowering step.
 
-The gate checks every materialized active picker, including quarantined stores
-and the legacy store, under the shared kernel writer guard. Existing lock and
-recovery markers use the runtime's own stale-owner recovery; dead owners can be
-reclaimed, while live, foreign and unverifiable owners still refuse. The gate
-holds the runtime's file lock while reconciling evidence and releases it before
-runtime startup. Automatic operator stopped checks use the same recovery before
-reaching ExecStartPre; snapshot/recovery release checks remain strict. A clean
-store without lock markers or replay evidence performs no owner lookup or lock
-publication. It validates every union
-and stages all writes and exact preimages before publishing any sidecar. It
-decodes the saved checkpoint without changing gameplay and merges committed
-`state.provenance.pluginAutoHandled` decisions into `plugin-items.json` and
-`plugin-achievements.json`. Existing handled decisions and item evidence,
-baseline, bank and journal metadata remain intact. File and directory sync
-must succeed. Unreadable evidence, invalid unions, capacity overflow or writer
-ownership refuse the start. A publication failure restores exact preimages and
-removes staging files. Refusal leaves gameplay and sidecar data byte-identical;
-stale ownership markers may be reclaimed only by the runtime's lock protocol.
-The gate records only
-control-directory refusal evidence, and keeps the site down. There is no start
-with plugin intake disabled. The unit's existing three-start limit and OnFailure
-notification remain responsible for bounded failures and alerts; the operator
-does not start another runtime after a gate refusal or add a retry loop.
+The runtime and automatic operator stopped checks share the same owner protocol.
+They recover only provably stale lock/recovery markers under kernel ownership;
+live, foreign and unverifiable owners remain refused. Snapshot/recovery release
+checks remain strict. These ownership rules are independent of plugin evidence.
 
-Registered live item decisions in portable provenance, including frozen restore
-archives, join that same union. Beta and unknown records keep their world scope.
-Fresh, empty or unrelated checkpoint shapes without replay decisions remain the
-selected runtime's responsibility and do not require a replay checkpoint.
-
-The current runtime also strictly reads both legacy handled sidecars and folds
-their decisions into saved provenance before serving a writable store, without
-changing gameplay revision, History or Undo. This preserves decisions written
-by a frozen runtime when a later export moves the save elsewhere. Both union
-limits are checked before any checkpoint or sidecar is published. Writable
-startup then reconciles the sidecars; standby activation refuses new evidence
-that requires a restart to fold it durably. This heals an earlier crash window
-on restart. Frozen release `06e15939` retains the provenance field but its plugin
-controller only reads the legacy sidecars, so its starts must pass ExecStartPre
-even when a backup loads and Undo succeeds. An owner Undo deliberately keeps
-automatic replay suppression through restore, transfer and rollback.
+The accepted emergency rollback limit is documented in
+[save-schema.md](save-schema.md#game-plugin-item-provenance): chunks, task ticks,
+History and Undo survive frozen release `06e15939`. Optional plugin decisions,
+handled lists and review rows may return and require dismissing or undoing again.
+The current runtime logs and omits unusable optional evidence, while keeping
+valid atomic replay decisions outside gameplay Undo. It does not require
+sidecar reconciliation or a plugin-specific recovery gate before serving.
 
 The pointer replacement uses expected-byte checks under the shared operator
 lock. Binding and pointer are two writes with a recovery journal, not a single

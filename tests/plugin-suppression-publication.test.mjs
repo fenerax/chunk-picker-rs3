@@ -41,165 +41,58 @@ function tick(kind) {
       : { achievements: [{ taskId: achievementTask, achievementId: 1, title: 'Synthetic achievement' }] }) };
 }
 
-for (const kind of ['items', 'achievements']) for (const publication of ['replace', 'automatic-tick', 'note', 'action-session']) {
-  test(`${publication} refuses the ${kind} legacy union overflow without publishing any files`, async t => {
-    // Force in-process replacement while retaining the built-in note path in
-    // the note cases, including its cached play projection from #145.
-    const f = await fixture(t, publication === 'replace' ? { prepareState: state => state } : {});
-    if (['note', 'action-session'].includes(publication)) await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
-    await sidecar(f.dataDir, kind);
-    const before = await inventory(f.dataDir), state = f.store.getState();
-    if (publication === 'note') f.store.getStateSnapshot({ view: 'play-v1' });
-    const publish = publication === 'replace' ? () => f.store.replace(suppressed(f.initialState, kind), state.revision)
-      : publication === 'automatic-tick' ? () => f.store.command(tick(kind), state.revision, { pluginHandled: suppression(kind) })
-        : publication === 'note' ? () => f.store.commandSerialized({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic note' }, state.revision, { view: 'play-v1' })
-          : () => f.store.openActionSession(randomUUID());
-    await assert.rejects(publish(), /Invalid plugin|replay evidence/i);
-    assert.deepEqual(f.store.getState(), state);
-    assert.deepEqual(await inventory(f.dataDir), before, 'Refusal must not create retained backups, static fields, archives or receipts');
-    if (publication === 'replace' || publication === 'automatic-tick') {
+for (const kind of ['items', 'achievements']) for (const fault of ['unreadable', 'invalid', 'overflow']) {
+  for (const publication of ['replace', 'automatic-tick', 'note', 'action-session', 'transfer']) {
+    test(`${publication} keeps gameplay available with ${fault} optional ${kind} evidence`, async t => {
+      const f = await fixture(t, publication === 'replace' ? { prepareState: state => state } : {});
+      if (['note', 'action-session'].includes(publication)) await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
+      const file = path.join(f.dataDir, `plugin-${kind}.json`);
+      if (fault === 'unreadable') await mkdir(file);
+      else if (fault === 'invalid') await writeFile(file, '{}');
+      else await sidecar(f.dataDir, kind);
+      const revision = f.store.getInfo().revision;
+      if (publication === 'replace') await f.store.replace(suppressed(f.initialState, kind), revision);
+      else if (publication === 'automatic-tick') await f.store.command(tick(kind), revision, { pluginHandled: suppression(kind) });
+      else if (publication === 'note') {
+        f.store.getStateSnapshot({ view: 'play-v1' });
+        await f.store.commandSerialized({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic note' }, revision, { view: 'play-v1' });
+      } else if (publication === 'action-session') await f.store.openActionSession(randomUUID());
+      else {
+        const result = await f.store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: suppressed(f.initialState, kind) } }),
+          { dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() }, route: '/api/restore/preview' });
+        await f.store.applyTransfer(result.ticket, revision);
+      }
+      assert.ok(f.store.isPluginHandled('owner', kind, marker(kind)), 'Valid atomic decisions survive optional capture failure');
+      assert.ok((await f.store.backup()).state);
       await f.store.close();
       const reopened = await openStore({ dataDir: f.dataDir, world, retention: false });
-      await reopened.close();
-    } else assert.ok(f.store.isPluginHandled('owner', kind, marker(kind)));
-  });
+      try { assert.ok(reopened.isPluginHandled('owner', kind, marker(kind))); } finally { await reopened.close(); }
+    });
+  }
 }
 
 for (const kind of ['items', 'achievements']) {
-  for (const carrier of kind === 'items' ? ['atomic', 'capsule', 'items-capsule'] : ['atomic', 'capsule']) for (const publication of ['replace', 'note']) {
-    test(`${publication} validates archived ${carrier} ${kind} decisions against the legacy limit`, async t => {
-      let inject = false;
-      const incomingProvenance = carrier === 'atomic' ? { pluginAutoHandled: { owner: suppression(kind) } }
-        : { optionalSidecarEvidence: { schemaVersion: 1, entries: carrier === 'capsule'
-          ? { pluginReplaySuppression: { version: 1, players: { owner: suppression(kind) } } }
-          : { pluginItems: { version: 1, players: { owner: { records: { live: { baselineAt: now, items: {}, handled: [itemTask], journal: null } }, commits: { journals: [] } } } } } } };
-      const archive = state => ({ ...state, provenance: { ...state.provenance, restore: { incomingProvenance } } });
-      const f = await fixture(t, { prepareState: state => inject ? archive(state) : state });
-      await sidecar(f.dataDir, kind);
-      const before = await inventory(f.dataDir), state = f.store.getState();
-      inject = publication === 'note';
-      await assert.rejects(publication === 'replace' ? f.store.replace(archive(f.initialState), 0)
-        : f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic archive note' }, 0), /Invalid plugin/);
-      assert.deepEqual(f.store.getState(), state);
-      assert.deepEqual(await inventory(f.dataDir), before);
-    });
-  }
-
-  test(`a preparation hook cannot discard committed ${kind} decisions before the legacy bridge catches up`, async t => {
+  test(`owner Undo and preparation hooks preserve committed ${kind} with unusable optional archives`, async t => {
     let discard = false;
-    const f = await fixture(t, { prepareState: state => {
-      if (!discard) return state;
-      const { provenance, ...rebuilt } = state; return rebuilt;
-    } });
+    const f = await fixture(t, { prepareState: state => discard ? { ...state, provenance: {
+      optionalSidecarEvidence: { schemaVersion: 99 }, restore: { incomingProvenance: 'invalid optional archive' } } } : state });
     await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
+    await mkdir(path.join(f.dataDir, `plugin-${kind}.json`));
     discard = true;
-    await f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic hook edit' }, 1);
-    assert.ok(f.store.isPluginHandled('owner', kind, marker(kind)));
-    const exported = await f.store.backup();
-    assert.deepEqual(exported.state.provenance.pluginAutoHandled.owner[kind], [marker(kind)]);
-  });
-
-  test(`initialization validates nested ${kind} registry evidence against legacy limits`, async t => {
-    const f = await fixture(t); await f.store.close();
-    await rm(path.join(f.dataDir, 'state.json'));
-    await sidecar(f.dataDir, kind);
-    const initialState = { ...f.initialState, provenance: { optionalSidecarEvidence: { schemaVersion: 1,
-      entries: { pluginReplaySuppression: { version: 1, players: { owner: suppression(kind) } } } } } };
-    const before = await inventory(f.dataDir);
-    await assert.rejects(openStore({ dataDir: f.dataDir, initialState, retention: false }), /Invalid plugin/);
-    assert.deepEqual(await inventory(f.dataDir), before);
-  });
-
-  test(`new automatic ${kind} suppression refuses unavailable legacy evidence`, async t => {
-    const f = await fixture(t);
-    await mkdir(path.join(f.dataDir, `plugin-${kind}.json`));
-    const before = await inventory(f.dataDir);
-    await assert.rejects(f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) }), /unavailable|directory|EISDIR/i);
-    assert.equal(f.store.getInfo().revision, 0);
-    assert.deepEqual(await inventory(f.dataDir), before);
-  });
-
-  test(`a final transfer ${kind} refusal publishes no dependencies`, async t => {
-    const f = await fixture(t, { beforeCommit: () => sidecar(f.dataDir, kind) });
-    const preview = await f.store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: suppressed(f.initialState, kind) } }),
-      { dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() }, route: '/api/restore/preview' });
-    const before = await inventory(f.dataDir);
-    await assert.rejects(f.store.applyTransfer(preview.ticket, 0), /Invalid plugin/);
-    assert.equal(f.store.getInfo().revision, 0);
-    assert.deepEqual((await inventory(f.dataDir)).filter(row => row.path !== `plugin-${kind}.json`), before);
-  });
-
-  test(`a ${kind} union exactly at capacity remains writable and restartable`, async t => {
-    const f = await fixture(t);
-    await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
-    const handled = [...full(kind).slice(1), marker(kind)].sort(kind === 'items' ? undefined : (a, b) => a - b);
-    await sidecar(f.dataDir, kind, handled);
-    await f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic note' }, 1);
-    assert.deepEqual(f.store.getState().provenance.pluginAutoHandled.owner[kind], handled);
-    await f.store.close();
-    const reopened = await openStore({ dataDir: f.dataDir, world, retention: false });
-    assert.ok(reopened.isPluginHandled('owner', kind, marker(kind)));
-    await reopened.close();
-  });
-
-  test(`owner Undo preserves committed ${kind} suppression while the sidecar is unavailable`, async t => {
-    const f = await fixture(t);
-    await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
-    await mkdir(path.join(f.dataDir, `plugin-${kind}.json`));
     await f.store.command({ type: 'undo' }, 1);
     assert.deepEqual(f.store.getState().members[0].completedTasks, []);
     assert.ok(f.store.isPluginHandled('owner', kind, marker(kind)));
+    await f.store.replace({ ...f.initialState, provenance: { optionalSidecarEvidence: { schemaVersion: 99 } } }, 2);
+    assert.ok(f.store.isPluginHandled('owner', kind, marker(kind)));
+    assert.ok((await f.store.backup()).state);
   });
 
-  test(`a final ${kind} union refusal leaves no prepared dependencies behind`, async t => {
-    let inject = false, target;
-    const f = await fixture(t, { beforeCommit: async () => { if (inject) await sidecar(target, kind); } });
-    target = f.dataDir;
-    await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
-    const before = await inventory(f.dataDir);
-    inject = true;
-    await assert.rejects(f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic note' }, 1), /Invalid plugin/);
-    assert.equal(f.store.getInfo().revision, 1);
-    assert.deepEqual((await inventory(f.dataDir)).filter(row => row.path !== `plugin-${kind}.json`), before,
-      'Only the independently injected sidecar may differ after refusal');
-  });
-
-  test(`startup preparation refuses new ${kind} suppression before retaining a backup`, async t => {
-    const f = await fixture(t);
-    await sidecar(f.dataDir, kind);
-    await f.store.close();
-    const before = await inventory(f.dataDir);
-    await assert.rejects(openStore({ dataDir: f.dataDir, world, retention: false,
-      prepareState: state => suppressed(state, kind) }), /Invalid plugin/);
-    assert.deepEqual(await inventory(f.dataDir), before);
-  });
-
-  test(`an unavailable other sidecar cannot hide a readable ${kind} overflow`, async t => {
-    const f = await fixture(t);
-    await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
-    await sidecar(f.dataDir, kind);
-    const unavailable = path.join(f.dataDir, `plugin-${kind === 'items' ? 'achievements' : 'items'}.json`);
-    await mkdir(unavailable);
-    const before = await inventory(f.dataDir);
-    await assert.rejects(f.store.command({ type: 'undo' }, 1), /Invalid plugin/);
-    assert.deepEqual(await inventory(f.dataDir), before);
-  });
-}
-
-for (const publication of ['replace', 'automatic-tick', 'note']) {
-  test(`${publication} validates registered live item evidence together with atomic suppression`, async t => {
-    const f = await fixture(t, publication === 'replace' ? { prepareState: state => state } : {});
-    if (publication === 'note') await f.store.command(tick('items'), 0, { pluginHandled: suppression('items') });
-    const proposed = suppressed(f.initialState, 'items');
-    proposed.provenance.optionalSidecarEvidence = { schemaVersion: 1, entries: { pluginItems: { version: 1,
-      players: { owner: { records: { live: { baselineAt: now, items: {}, handled: full('items'), journal: null } }, commits: { journals: [] } } } } } };
-    // File-backed evidence enters the very same registry as portable evidence.
-    if (publication !== 'replace') await sidecar(f.dataDir, 'items');
-    const before = await inventory(f.dataDir), state = f.store.getState();
-    await assert.rejects(publication === 'replace' ? f.store.replace(proposed, 0)
-      : publication === 'automatic-tick' ? f.store.command(tick('items'), 0, { pluginHandled: suppression('items') })
-        : f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic note' }, 1), /Invalid plugin/);
-    assert.deepEqual(f.store.getState(), state);
-    assert.deepEqual(await inventory(f.dataDir), before);
+  test(`committed ${kind} at capacity survives an overflowing imported union`, async t => {
+    const f = await fixture(t, { prepareState: state => state });
+    const state = f.initialState;
+    state.provenance = { pluginAutoHandled: { owner: { items: kind === 'items' ? full(kind) : [], achievements: kind === 'achievements' ? full(kind) : [] } } };
+    await f.store.replace(state, 0);
+    await f.store.replace(suppressed(f.initialState, kind), 1);
+    assert.deepEqual(f.store.getState().provenance.pluginAutoHandled.owner[kind], full(kind));
   });
 }

@@ -1,5 +1,6 @@
 import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
 import { mergePluginItemEvidence, pluginItemEvidenceFromEnvelope, portablePluginItemEvidence, retainPluginItemEvidence } from './plugin-item-evidence.mjs';
+import { optionalPluginData } from './optional-plugin-data.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
@@ -933,7 +934,7 @@ function validateStateCopy(copy, registry) {
   }
   const evidence = portablePluginItemEvidence(copy);
   if (evidence !== undefined) {
-    if (Object.keys(evidence.players).some(id => !copy.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
+    evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => copy.members.some(member => member.id === id)));
     copy.provenance = retainPluginItemEvidence(copy, evidence).provenance;
   }
   return copy;
@@ -957,8 +958,11 @@ export function importBackup(document, registry, { owned = false } = {}) {
   let state = owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
   const pluginItems = pluginItemEvidenceFromEnvelope(backup.optionalSidecarEvidence);
   if (pluginItems !== undefined) {
-    state = retainPluginItemEvidence(state, mergePluginItemEvidence(state.provenance?.pluginItemEvidence, pluginItems));
-    if (Object.keys(state.provenance.pluginItemEvidence.players).some(id => !state.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
+    state = optionalPluginData('imported item evidence', () => {
+      const evidence = mergePluginItemEvidence(state.provenance?.pluginItemEvidence, pluginItems);
+      evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => state.members.some(member => member.id === id)));
+      return retainPluginItemEvidence(state, evidence);
+    }, state);
   }
   return state;
 }

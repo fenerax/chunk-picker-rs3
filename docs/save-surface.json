@@ -1158,7 +1158,7 @@
       "path": "/state/provenance/restore",
       "frozen": "preserved",
       "opaque": true,
-      "reason": "Restore retains complete incoming provenance and both histories. Replay recovery interprets only schema-owned incomingProvenance and transferRoster boundaries: atomic suppression and registered capsules are recovered with member mappings before validation, portable export or startup. Other archived contents remain opaque."
+      "reason": "Restore retains incoming provenance and both histories. Best-effort optional recovery interprets schema-owned incomingProvenance and transferRoster boundaries with roster mappings. Unusable plugin evidence is omitted; gameplay and Undo remain authoritative."
     },
     {
       "path": "/state/provenance/source",
@@ -1258,26 +1258,28 @@
     },
     {
       "path": "/state/provenance/pluginAutoHandled/*/items/[]",
-      "frozen": "preserved"
+      "frozen": "private-droppable",
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     },
     {
       "path": "/state/provenance/pluginAutoHandled/*/achievements/[]",
-      "frozen": "preserved"
+      "frozen": "private-droppable",
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     },
     {
       "path": "/optionalSidecarEvidence/entries/pluginReplaySuppression/version",
       "frozen": "private-droppable",
-      "rollForward": "The frozen exporter may omit the optional envelope. Atomic suppression and the registered capsule remain in state provenance; current capture reconstructs the envelope and unions legacy handled decisions."
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     },
     {
       "path": "/optionalSidecarEvidence/entries/pluginReplaySuppression/players/*/items/[]",
       "frozen": "private-droppable",
-      "rollForward": "The frozen exporter may omit the optional envelope. Atomic suppression and the registered capsule remain in state provenance; current capture reconstructs the envelope and unions legacy handled decisions."
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     },
     {
       "path": "/optionalSidecarEvidence/entries/pluginReplaySuppression/players/*/achievements/[]",
       "frozen": "private-droppable",
-      "rollForward": "The frozen exporter may omit the optional envelope. Atomic suppression and the registered capsule remain in state provenance; current capture reconstructs the envelope and unions legacy handled decisions."
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     },
     {
       "path": "/state/provenance/optionalSidecarEvidence/schemaVersion",
@@ -1285,15 +1287,18 @@
     },
     {
       "path": "/state/provenance/optionalSidecarEvidence/entries/pluginReplaySuppression/version",
-      "frozen": "preserved"
+      "frozen": "private-droppable",
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     },
     {
       "path": "/state/provenance/optionalSidecarEvidence/entries/pluginReplaySuppression/players/*/items/[]",
-      "frozen": "preserved"
+      "frozen": "private-droppable",
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     },
     {
       "path": "/state/provenance/optionalSidecarEvidence/entries/pluginReplaySuppression/players/*/achievements/[]",
-      "frozen": "preserved"
+      "frozen": "private-droppable",
+      "rollForward": "Current atomic suppression survives owner Undo. Frozen rollback preserves gameplay, History and Undo but may reoffer optional plugin decisions. Current import/export recovers valid evidence when available; unusable optional sources are logged and omitted without vetoing gameplay."
     }
   ],
   "files": [
@@ -1548,41 +1553,10 @@
       "checkpoint": false,
       "frozen": "private-droppable",
       "rollForward": "Disposable derived output: a missing, stale or unreadable cache is a miss. Recompute it from the current dataset and gameplay; it never supplies progress or replay authority."
-    },
-    {
-      "path": "plugin-<kind>.json.reconcile-<uuid>.<stage>",
-      "pattern": "^plugin-(?:items|achievements)\\.json\\.reconcile-[a-f0-9-]{36}\\.(?:new|previous)$",
-      "root": "",
-      "checkpoint": false,
-      "frozen": "private-droppable",
-      "rollForward": "Reconciliation scratch is not replay authority. The required start gate rebuilds the union from committed provenance and published legacy sidecars before frozen startup; never promote leftover scratch."
     }
   ],
   "operatorControl": {
-    "json": [
-      {
-        "path": "/schemaVersion",
-        "frozen": "private-droppable",
-        "rollForward": "This operator-control refusal marker blocks extra operator starts. The next authorized ExecStartPre validates every real store, removes stale refusal evidence and either reconciles successfully or records a new refusal. It is never stored in a picker or portable export."
-      },
-      {
-        "path": "/at",
-        "frozen": "private-droppable",
-        "rollForward": "This operator-control refusal marker blocks extra operator starts. The next authorized ExecStartPre validates every real store, removes stale refusal evidence and either reconciles successfully or records a new refusal. It is never stored in a picker or portable export."
-      },
-      {
-        "path": "/code",
-        "frozen": "private-droppable",
-        "rollForward": "This operator-control refusal marker blocks extra operator starts. The next authorized ExecStartPre validates every real store, removes stale refusal evidence and either reconciles successfully or records a new refusal. It is never stored in a picker or portable export."
-      }
-    ],
-    "files": [
-      {
-        "path": "plugin-reconciliation-refused.json",
-        "pattern": "^plugin-reconciliation-refused\\.json(?:\\.[a-f0-9-]{36}\\.tmp)?$",
-        "frozen": "private-droppable",
-        "rollForward": "This operator-control refusal marker blocks extra operator starts. The next authorized ExecStartPre validates every real store, removes stale refusal evidence and either reconciles successfully or records a new refusal. It is never stored in a picker or portable export."
-      }
-    ]
+    "json": [],
+    "files": []
   }
 }
