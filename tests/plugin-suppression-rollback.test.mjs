@@ -414,6 +414,16 @@ test('service start reconciliation gates every active picker, including quaranti
   await checkStart(settings);
   assert.deepEqual(JSON.parse(await readFile(path.join(target, 'plugin-items.json'))).players.owner.handled, [itemTask]);
   assert.deepEqual(JSON.parse(await readFile(path.join(first.dataDir, 'plugin-achievements.json'))).players.owner.handled, [1]);
+  document.pickers[0].provisioning = 'reserved';
+  await writeFile(path.join(registryDir, 'registry.json'), JSON.stringify(document));
+  for (const directory of [target, first.dataDir]) {
+    const file = path.join(directory, 'state.json'), checkpoint = await readFile(file);
+    await rm(file);
+    const orphaned = await inventory(first.dataDir);
+    await assert.rejects(checkStart(settings), { code: 'PLUGIN_RECONCILIATION_FAILED' });
+    assert.deepEqual(await inventory(first.dataDir), orphaned, 'Neither reserved pickers nor legacy stores may bypass orphaned decisions');
+    await writeFile(file, checkpoint);
+  }
 });
 
 for (const kind of ['items', 'achievements']) test(`owner Undo keeps ${kind} suppressed through restore, member transfer and frozen rollback`, async t => {

@@ -14,10 +14,9 @@ export async function reconcileBeforeStart(settings) {
       const file = path.join(settings.multiPicker.registryDir, 'registry.json');
       await noLinks(file);
       const document = registryRecoveryDocument(await json(file));
-      if (await exists(path.join(settings.dataDir, 'state.json'))) directories.add(settings.dataDir);
+      directories.add(settings.dataDir);
       for (const picker of document.pickers.filter(p => p.lifecycle === 'active')) {
         const dataDir = pickerPath(settings, picker);
-        if (picker.provisioning === 'reserved' && !await exists(path.join(dataDir, 'state.json'))) continue;
         directories.add(dataDir);
       }
     }
