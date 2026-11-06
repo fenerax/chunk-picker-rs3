@@ -175,8 +175,11 @@ test('ExecStartPre reconciles recovered gameplay without requiring regenerated c
 
 test('ExecStartPre reads compact provenance and completion-codec saves and refuses corrupt dependencies unchanged', async t => {
   const state = suppressed(createGroupState([{ id: 'owner', name: 'Explorer' }]), 'items');
+  state.tasks = tasks;
   state.provenance.syntheticArchive = 'a'.repeat(270000);
-  const f = await emptyStore(t, { initialState: state, completionCodec: true }); await f.store.close();
+  const f = await emptyStore(t, { initialState: state, completionCodec: true });
+  await f.store.command({ type: 'complete-task', memberId: 'owner', taskId: itemTask, completed: true }, 0);
+  await f.store.close();
   const document = JSON.parse(await readFile(path.join(f.dataDir, 'state.json')));
   assert.equal(document.schemaVersion, 2);
   assert.ok(document.storage.fields.provenance);
