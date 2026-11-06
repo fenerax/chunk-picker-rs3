@@ -7,7 +7,8 @@ import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { validatePluginReport } from '../app/integrations/game-plugin.mjs';
 import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
-import { applyCommand, createGroupState, validateState } from '../app/core/state.mjs';
+import { applyCommand, createGroupState, importBackup, validateState } from '../app/core/state.mjs';
+import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
 
 const identity = { admin: true };
@@ -337,9 +338,88 @@ test('coins on hand count pouch and backpack on live worlds, only when the total
   assert.equal(coins(), 2000082194, 'At most one write a minute');
   f.advance(60000);
   await f.send(value('2223456789abcdef', 100, null));
-  assert.equal(coins(), 2000082194, 'An unreadable pouch keeps its last count; cached bank funds are excluded');
+  assert.equal(coins(), 2000082194, 'An unreadable pouch leaves the saved balance unchanged');
   assert.equal(writes(), 1);
   assert.doesNotThrow(() => validateState(f.state));
+});
+
+for (const unreadable of ['pouch', 'backpack']) test(`moving carried coins never mixes a fresh container with an unreadable ${unreadable}`, async t => {
+  const f = await fixture(t, { durable: true });
+  const coins = () => f.state.members[0].transportFacts?.currencies?.coins;
+  const stack = [[0, 995, 100, 'Coins']];
+  const other = unreadable === 'pouch' ? 'backpack' : 'pouch';
+  await f.send({ ...items(), [unreadable]: stack, [other]: [] });
+  assert.equal(coins(), 100);
+  f.advance(60000);
+  await f.send({ ...items({ snapshot: '1123456789abcdef' }), [unreadable]: null, [other]: stack });
+  assert.equal(coins(), 100, 'A move cannot count the same coins twice');
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).state;
+  assert.equal(saved.members[0].transportFacts.currencies.coins, 100);
+  assert.equal(saved.history.filter(row => row.command?.type === 'set-transport-facts').length, 1);
+  await f.restart();
+  await f.send({ ...items({ snapshot: '2223456789abcdef' }), [unreadable]: null, [other]: stack });
+  assert.equal(coins(), 100, 'Restart does not turn an unreadable observation into a current one');
+  await f.send({ ...items({ snapshot: '3323456789abcdef' }), pouch: [], backpack: [] });
+  assert.equal(coins(), 0, 'A coherent empty report clears the balance');
+});
+
+test('current coins require both carried containers in the same report', async t => {
+  const f = await fixture(t);
+  const coins = () => f.state.members[0].transportFacts?.currencies?.coins;
+  const stack = [[0, 995, 100, 'Coins']];
+  await f.send({ ...items(), pouch: stack, backpack: null });
+  await f.send({ ...items(), pouch: null, backpack: stack });
+  assert.equal(coins(), undefined, 'Two complementary partial reads cannot establish a balance');
+  await f.send({ ...items(), pouch: [], backpack: [] });
+  assert.equal(coins(), 0);
+  f.advance(60000);
+  await f.send({ ...items(), pouch: stack, backpack: null });
+  await f.send({ ...items(), pouch: null, backpack: stack });
+  assert.equal(coins(), 0, 'Partial reads cannot be assembled after a baseline either');
+  await f.send({ ...items(), pouch: null, backpack: null });
+  await f.send(items({ backpack: stack }));
+  assert.equal(coins(), 0, 'Null and omitted pouch observations are unreadable');
+  await f.send({ ...items({ worn: null, backpack: stack }), pouch: [], toolbelt: null });
+  assert.equal(coins(), 100, 'Worn items and toolbelt do not contribute currency');
+  f.advance(60000);
+  await f.send(items({ backpack: [[0, 995, 200, 'Coins']] }));
+  assert.equal(coins(), 100, 'An omitted pouch cannot borrow its previously readable count');
+});
+
+test('coherent currency saves load and undo on the frozen live release', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  f.advance(60000);
+  await f.send({ ...items({ backpack: [[0, 995, 25, 'Coins']] }), pouch: [[0, 995, 50, 'Coins']] });
+  const document = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+  const loaded = loadLiveBackup(document);
+  assert.deepEqual(loaded, f.state);
+  assert.equal(loaded.members[0].transportFacts.currencies.coins, 75);
+  const undone = applyLiveCommand(loaded, { type: 'undo' }, { now: () => new Date(f.at).toISOString() });
+  assert.equal(undone.members[0].transportFacts.currencies.coins, 100);
+  assert.deepEqual(importBackup(exportLiveBackup(undone)), undone, 'Rollback output still loads on this branch');
+  const original = applyLiveCommand(undone, { type: 'undo' }, { now: () => new Date(f.at).toISOString() });
+  assert.equal(original.members[0].transportFacts?.currencies?.coins, undefined, 'Old Undo also removes the first currency facts');
+});
+
+test('bank-only reports never publish cached carried coins after the write interval', async t => {
+  const f = await fixture(t, { durable: true });
+  const coins = () => f.state.members[0].transportFacts?.currencies?.coins;
+  await f.send({ ...items(), pouch: [], backpack: [] });
+  await f.send({ ...items({ backpack: [[0, 995, 100, 'Coins']] }), pouch: [] });
+  assert.equal(coins(), 0, 'The changed carried total is throttled');
+  f.advance(60000);
+  for (const rows of [[[995, 5000]], []]) {
+    await f.sendBank(bank(1, 1, rows));
+    assert.equal(coins(), 0, 'Readable or empty bank reports cannot refresh an older carried observation');
+  }
+  await f.restart();
+  await f.sendBank(bank(1, 1, [[995, 5000]]));
+  await f.send({ ...items({ backpack: null }), pouch: [[0, 995, 200, 'Coins']] });
+  await f.send({ ...items({ backpack: [[0, 995, 100, 'Coins']] }), pouch: null });
+  assert.equal(coins(), 0, 'Persisted bank evidence and partial reads cannot establish current currency');
+  await f.send({ ...items({ backpack: [[0, 995, 100, 'Coins']] }), pouch: [] });
+  assert.equal(coins(), 100, 'A new coherent report can publish after restart');
 });
 
 for (const age of [0, 3600]) test(`withdrawing the last bank coins never counts the cached stack twice (age ${age})`, async t => {
