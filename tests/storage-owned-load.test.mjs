@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { openStore } from '../app/storage/store.mjs';
@@ -95,17 +97,112 @@ test('proven current load preserves archived state, both owners and group/person
   const backups = await first.listBackups();
   await first.close();
   const migrateState = () => { throw new Error('proven current migration ran'); };
-  migrateState.isCurrent = () => true;
   const prepareState = () => { throw new Error('proven current preparation ran'); };
-  prepareState.isCurrent = () => true;
+  const predicates = [];
+  for (const hook of [migrateState, prepareState]) hook.isCurrent = state => {
+    predicates.push(hook);
+    assert.deepEqual(state.history, portable.state.history);
+    assert.equal(state.provenance.historyArchive, undefined);
+    return true;
+  };
+  const read = fs.promises.readFile, archiveReads = [];
+  t.mock.method(fs.promises, 'readFile', async (file, ...args) => {
+    if (path.dirname(file) === path.join(dataDir, 'history')) archiveReads.push(path.basename(file));
+    return read(file, ...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   const reopened = await openStore({ dataDir, world: startupWorld, migrateState, prepareState });
   t.after(() => reopened.close());
+  assert.deepEqual(new Set(predicates), new Set([migrateState, prepareState]));
+  assert.deepEqual(archiveReads.sort(), saved.provenance.historyArchive.map(reference => reference.id).sort(), 'Startup hydrates each archive exactly once');
   assert.equal(digest(reopened.getState()), digest(saved));
   assert.equal(digest(await reopened.backup()), digest(portable));
   assert.deepEqual(fullSnapshot(reopened), play);
   assert.deepEqual(ownerRows(reopened.getState()), rows);
   assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), bytes);
   assert.deepEqual(await reopened.listBackups(), backups);
+});
+
+async function archivedLegacyEvent(t) {
+  const dataDir = await directory(t);
+  const state = createGroupState([{ id: 'synthetic-a', name: 'Synthetic A' }]);
+  state.revision = 3;
+  state.history = [1, 2, 3].map(revision => ({ id: `revision-${revision}`, revision,
+    type: 'catalogue-refresh', at: '2026-01-01T00:00:00.000Z',
+    ...(revision === 1 ? { command: { type: 'complete-task', memberId: 'synthetic-a', taskId: 'legacy-task', completed: true } } : {}) }));
+  const first = await openStore({ dataDir, initialState: state, retention: { historyEntries: 1 } });
+  t.after(() => first.close());
+  await first.command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 3);
+  assert.deepEqual(first.getState().history.map(event => event.revision), [4]);
+  await first.close();
+  return dataDir;
+}
+
+test('a legacy task ID only in archived History triggers migration and stays migrated after restart', async t => {
+  const dataDir = await archivedLegacyEvent(t);
+  let calls = 0;
+  const migrateState = state => {
+    calls++;
+    assert.deepEqual(state.history.map(event => event.revision), [1, 2, 3, 4]);
+    for (const event of state.history) if (event.command?.taskId === 'legacy-task') event.command.taskId = 'current-task';
+    return state;
+  };
+  migrateState.isCurrent = state => state.history.every(event => event.command?.taskId !== 'legacy-task');
+  const reopened = await openStore({ dataDir, migrateState });
+  t.after(() => reopened.close());
+  assert.equal(calls, 1);
+  assert.equal(reopened.getState().revision, 5);
+  const portable = await reopened.backup();
+  assert.equal(portable.state.history[0].command.taskId, 'current-task');
+  await reopened.close();
+  const restarted = await openStore({ dataDir, migrateState });
+  t.after(() => restarted.close());
+  assert.equal(calls, 1);
+  assert.deepEqual(await restarted.backup(), portable);
+});
+
+test('a preparation predicate without a migration hook sees archived History', async t => {
+  const dataDir = await archivedLegacyEvent(t);
+  let calls = 0;
+  const prepareState = state => {
+    calls++;
+    state.members[0].journal = 'Synthetic archived-event repair';
+    return state;
+  };
+  prepareState.isCurrent = state => {
+    assert.deepEqual(state.history.map(event => event.revision), [1, 2, 3, 4]);
+    return state.history.every(event => event.command?.taskId !== 'legacy-task');
+  };
+  const reopened = await openStore({ dataDir, prepareState });
+  t.after(() => reopened.close());
+  assert.equal(calls, 1);
+  assert.equal(reopened.getState().members[0].journal, 'Synthetic archived-event repair');
+  assert.equal((await reopened.backup()).state.history[0].command.taskId, 'legacy-task');
+});
+
+for (const hookName of ['migrateState', 'prepareState']) test(`standby activation checks ${hookName} currency against newly archived History`, async t => {
+  const dataDir = await directory(t);
+  const writer = await openStore({ dataDir, initialState: createGroupState([{ id: 'synthetic-a', name: 'Synthetic A' }]), retention: { historyEntries: 1 } });
+  t.after(() => writer.close());
+  let calls = 0;
+  const hook = state => {
+    calls++;
+    state.members[0].journal = 'Synthetic archived-event repair';
+    return state;
+  };
+  hook.isCurrent = state => !state.history.some(event => event.revision === 1);
+  const standby = await openStore({ dataDir, readOnly: true, [hookName]: hook });
+  t.after(() => standby.close());
+  for (let i = 0; i < 4; i++) await writer.command({ type: 'set-rule', ruleId: 'access.shared', value: Boolean(i % 2) }, i);
+  assert.deepEqual(writer.getState().history.map(event => event.revision), [3, 4]);
+  const checkpoint = await writer.freeze();
+  await writer.close();
+  const bytes = await readFile(path.join(dataDir, 'state.json'));
+  await assert.rejects(standby.activate(checkpoint), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
+  assert.equal(calls, 1);
+  assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), bytes);
+  assert(!(await readdir(dataDir)).includes('store.lock'));
 });
 
 for (const corruption of ['missing', 'malformed', 'invalid-event']) test(`proven current load still rejects ${corruption} committed history before ready`, async t => {
