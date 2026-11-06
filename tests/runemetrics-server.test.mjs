@@ -120,12 +120,12 @@ test('a binding changed during fetching invalidates the old account result',asyn
   assert.equal((await (await api('/api/state')).json()).state.members[0].skillProgress,undefined);
 });
 
-test('private profile and timeout return actionable API errors without changing state',async t=>{
+test('private profile and timeout return neutral unavailable status without changing state',async t=>{
   for(const scenario of ['private','timeout']) {
     const {api}=await fixture(t,{timeoutMs:20,fetchImpl:scenario==='private'?async()=>new Response(JSON.stringify(privateError.body),{status:privateError.status}):async()=>new Promise(()=>{})});
     const before=(await (await api('/api/state')).json()).state;
-    const error=await api('/api/runemetrics/preview',{memberId:'player1'}); assert.equal(error.status,scenario==='private'?422:504);
-    const body=await error.json(); assert.equal(body.code,scenario==='private'?'PROFILE_PRIVATE':'TIMEOUT'); assert.match(body.message,/visibility|too long/);
+    const error=await api('/api/runemetrics/preview',{memberId:'player1'}); assert.equal(error.status,200);
+    const body=await error.json(); assert.equal(body.available,false); assert.equal(body.previewId,undefined); assert.match(body.message,/temporarily unavailable.*saved progress is unchanged/);
     assert.deepEqual((await (await api('/api/state')).json()).state,before);
   }
 });
@@ -138,16 +138,27 @@ test('new browser modules are authenticated static assets',async t=>{
   }
 });
 
-test('once RuneMetrics answers Gone the API returns a calm unavailable state without a preview token or state change', async t => {
-  const { api } = await fixture(t, { progressSources: { webSource: 'runemetrics', clock: () => Date.parse('2026-11-10T00:00:00Z') },
-    fetchImpl: async () => new Response('', { status: 410 }) });
-  const before = (await (await api('/api/state')).json()).state;
-  const response = await api('/api/runemetrics/preview', { memberId: 'player1' });
-  assert.equal(response.status, 200);
-  const value = await response.json();
-  assert.equal(value.available, false); assert.equal(value.memberId, 'player1');
-  assert.match(value.message, /RuneMetrics has closed.*game plugin/); assert.equal(value.previewId, undefined);
-  assert.deepEqual((await (await api('/api/state')).json()).state, before);
+test('web outages return HTTP 200 without a review token; ordinary saves continue', async t => {
+  for (const failure of ['404', 'HTML', 'timeout', 'DNS']) {
+    const urls = [];
+    const { api } = await fixture(t, { timeoutMs: 20, progressSources: { webSource: 'runemetrics' },
+      fetchImpl: async url => {
+        urls.push(String(url)); assert.equal(url.origin, 'https://secure.runescape.com');
+        if (failure === 'timeout') return new Promise(() => {});
+        if (failure === 'DNS') throw new Error('Synthetic DNS failure');
+        return new Response('<html>Unavailable</html>', { status: failure === '404' ? 404 : 200 });
+      } });
+    const before = (await (await api('/api/state')).json()).state;
+    const response = await api('/api/runemetrics/preview', { memberId: 'player1' });
+    assert.equal(response.status, 200);
+    const value = await response.json();
+    assert.equal(value.available, false); assert.equal(value.memberId, 'player1');
+    assert.match(value.message, /temporarily unavailable.*saved progress is unchanged/);
+    assert.equal(value.previewId, undefined); assert.equal(urls.length, 2);
+    assert.deepEqual((await (await api('/api/state')).json()).state, before);
+    assert.equal((await api('/api/command', { expectedRevision: before.revision,
+      command: { type: 'set-note', memberId: 'player1', chunkId: '12341', note: 'Still playing' } })).status, 200);
+  }
 });
 
 test('accepted live plugin progress wins the shared preview and applies with plugin provenance, then falls back when stale', async t => {
@@ -188,7 +199,7 @@ test('a synthetic hiscores fallback uses the same reviewed durable apply path an
     progressSources: { webSource: 'runemetrics', hiscores: { async snapshot() { return { source: 'hiscores', sourceLabel: 'RS3 hiscores',
       fetchedAt: '2026-10-31T00:00:00.000Z', cached: false, skills: [{ skill: 'Attack', level: 5, xp: 450 }], quests: [] }; } } } });
   const review = await (await api('/api/runemetrics/preview', { memberId: 'player-x' })).json();
-  assert.equal(review.source, 'hiscores'); assert.match(review.message, /^RuneMetrics has closed;/);
+  assert.equal(review.source, 'hiscores'); assert.equal(review.message, undefined);
   assert.equal(calls, 2); assert.equal(review.quests.length, 0);
   const response = await api('/api/runemetrics/apply', { previewId: review.previewId, expectedRevision: review.stateRevision });
   assert.equal(response.status, 200);

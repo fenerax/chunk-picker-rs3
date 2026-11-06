@@ -64,8 +64,24 @@ function currentFact(state, ledger, player) {
     if (row.command?.type === 'set-transport-facts' && row.command.memberId === player) break;
   }
   if (saved?.coins === coins) return saved;
+  const portable = portableFacts(state)[player];
+  if (portable?.coins === coins) return portable;
   const last = state.history.findLast(row => row.command?.type === 'set-transport-facts' && row.command.memberId === player && row.undoneRevision === undefined);
   return { coins, source: saved || last?.actor || coins === null ? 'manual' : 'legacy' };
+}
+
+function portableFacts(state) {
+  const rows = state.provenance?.pluginCurrencyFacts;
+  if (rows === undefined) return {};
+  if (!object(rows) || Object.keys(rows).length > LIMIT
+    || Object.entries(rows).some(([player, row]) => !memberId(player) || !fact(row))) throw new TypeError('Invalid portable currency provenance.');
+  return rows;
+}
+
+function withPortableFact(state, player, after) {
+  const rows = portableFacts(state), prior = rows[player];
+  if (prior && sameFact(prior, after) || !prior && after.coins === null) return state;
+  return { ...state, provenance: { ...state.provenance, pluginCurrencyFacts: { ...rows, [player]: after } } };
 }
 
 function withOrigin(ledger, player, before, after, revision, replaced) {
@@ -77,6 +93,8 @@ function withOrigin(ledger, player, before, after, revision, replaced) {
 function annotateOrigin(state, player, before, after) {
   const index = state.history.length - 1, event = state.history[index];
   state.history[index] = { ...event, currencyOrigins: { ...event.currencyOrigins, [player]: { before, after } } };
+  const portable = withPortableFact(state, player, after);
+  if (portable !== state) state.provenance = portable.provenance;
 }
 
 /** Ownership follows restored facts. Ordering fences are never undone. */
@@ -107,7 +125,8 @@ export function currencyAfterCommand(metadata, command, before, after, currencyS
 
 export function currencyAfterRestore(metadata, state) {
   const ledger = loadPluginCurrency(metadata);
-  const incoming = { ...state, history: state.provenance?.restore?.incomingHistory ?? state.history };
+  const incoming = { ...state, history: state.provenance?.restore?.incomingHistory ?? state.history,
+    provenance: state.provenance?.restore?.incomingProvenance ?? state.provenance };
   const facts = Object.fromEntries(state.members.map(row => {
     const restored = currentFact(incoming, { ...ledger, facts: {} }, row.id);
     // Old portable backups have no ownership annotation. A deliberate import
@@ -195,6 +214,9 @@ export function observePluginCurrency(state, metadata, report, options = {}) {
   } else if (ordered.trusted && coins !== null && origin.source === 'legacy') {
     after = { coins, source: 'plugin' };
   }
+  // Portable ownership must also survive an unchanged legacy adoption. This
+  // metadata-only snapshot changes neither gameplay revision nor History.
+  next = withPortableFact(next, player, after);
   ledger = { ...ledger, facts: { ...ledger.facts, [player]: after } };
   if (prior) ledger = { ...ledger, players: { ...ledger.players, [player]: { ...prior, historyAt, historyRevision } } };
   return { state: next, metadata: loadPluginCurrency(ledger), retry: !ordered.trusted };

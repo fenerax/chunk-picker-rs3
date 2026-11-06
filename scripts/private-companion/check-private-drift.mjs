@@ -336,7 +336,7 @@ export async function checkPrivateDrift({ core = 'HEAD', privateRoot, coreRepo, 
       }
     }
     const selector = 'scripts/test-selection.mjs';
-    if (privateFiles.has(selector)) {
+    if (privateFiles.has(selector) && !coreFiles.has('scripts/test-classification.mjs')) {
       const ts = parsed(selector);
       for (let i = 0; i < ts.length; i++) if (['quickTests', 'fullOnlyTests'].includes(value(ts, i)) && value(ts, i + 1) === '=') {
         const start = ts.findIndex((t, j) => j > i && t.value === '[');

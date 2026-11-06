@@ -144,6 +144,8 @@ try {
     console.log(JSON.stringify({ practiceLivePayload: { identity: liveProof.digest, tolerated: review.tolerated } }));
   } else assertReviewedCoreOverlays(overlayInputs);
   const copiedPrivate = new Set();
+  const automaticSelection = await lstat(path.join(scratch, 'scripts/test-classification.mjs'))
+    .then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; });
   async function overlay(directory, relative = '') {
     for (const entry of await readdir(path.join(directory, relative), { withFileTypes: true })) {
       if (entry.isSymbolicLink()) throw new Error('Private source link refused.');
@@ -159,6 +161,9 @@ try {
         }
         const bytes = await readFile(path.join(directory, name));
         if (options['--receipt'] && sha(bytes) !== expected.get(name.split(path.sep).join('/'))) throw new Error('Private source changed during assembly.');
+        // Retained kits can still contain the old selector. Verify its receipt
+        // above, but use core's automatic classifier for the assembled files.
+        if (automaticSelection && portableName === 'scripts/test-selection.mjs') continue;
         await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes);
       }
     }

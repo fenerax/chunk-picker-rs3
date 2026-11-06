@@ -60,6 +60,9 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   }
   const next = owned ? state : structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
   const changed = source.some(id => entries[id] !== id);
+  if (next.provenance?.pluginCurrencyFacts) next.provenance = { ...next.provenance,
+    pluginCurrencyFacts: Object.fromEntries(Object.entries(next.provenance.pluginCurrencyFacts)
+      .filter(([id]) => Object.hasOwn(entries, id)).map(([id, fact]) => [mapped(id), fact])) };
   // Foreign inverses must never become live at another roster. Keep the exact
   // original history in provenance, as the normal restore boundary does.
   if (changed) {

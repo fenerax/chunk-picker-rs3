@@ -349,7 +349,9 @@ and optional History grouping. Manual provenance survives Undo and restore;
 invalidation cannot remove a manual fact. Member restores retain the selected
 source member's ownership, even for an unchanged amount, and their Undo
 restores the destination's previous ownership. An unchanged legacy plugin balance
-still acquires provenance. Replay fences remain durable and are never undone.
+still acquires portable provenance without a gameplay revision. Portable export,
+import and member-ID remapping preserve ownership alongside History/Undo;
+replay fences remain private, durable and are never undone.
 
 For live item reports, a reset sequence, changed key, replay or ambiguous clock
 invalidates plugin currency instead of retaining unsupported funds or blocking

@@ -12,6 +12,7 @@ import { applyCommand, createGroupState, importBackup, validateState } from '../
 import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
 import { currencyAfterCommand, loadPluginCurrency, observePluginCurrency } from '../app/storage/plugin-currency.mjs';
+import { mapTransferRoster } from '../app/save-transfer.mjs';
 
 const identity = { admin: true };
 const journalId = 'aaaaaaaaaaaaaaaa';
@@ -29,12 +30,13 @@ const catalogue = [
 ];
 const items = ({ snapshot = '0123456789abcdef', worn = [], backpack = [], events = [], id = journalId } = {}) => ({ snapshot, worn, backpack, journal: { id, events } });
 
-async function fixture(t, { betaAsLive = false, durable = false, legacyCoins } = {}) {
+async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, externalLegacy = false } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   let at = Date.parse('2026-10-22T12:00:00Z'), input, output, seq = 0, controller;
   const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false };
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]), currencyMetadata;
   if (legacyCoins !== undefined) state = applyCommand(state, { type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: legacyCoins } } });
+  if (externalLegacy) state.legacy = { syntheticPadding: 'x'.repeat(300000) };
   let store = {
     getInfo: () => ({ revision: state.revision }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => null,
     command: async (command, expectedRevision) => {
@@ -47,7 +49,7 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins } =
     observePluginCurrency: async observation => {
       const result = observePluginCurrency(state, currencyMetadata, observation, { now: () => new Date(at).toISOString() });
       if (failing.command && result.state !== state) throw new Error('Synthetic write failure');
-      if (result.state !== state) commands.push(structuredClone(result.state.history.at(-1).command));
+      if (result.state.revision !== state.revision) commands.push(structuredClone(result.state.history.at(-1).command));
       state = result.state; currencyMetadata = result.metadata; return { currencyRetry: result.retry };
     },
   };
@@ -82,6 +84,15 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins } =
     createKey: () => controller.create(identity, { memberId: 'a', label: 'Synthetic second plugin' }),
     command: command => store.command(command, store.getInfo().revision),
     backup: () => store.backup(),
+    portable: async () => JSON.parse((await store.exportBackup({ dataset: {
+      datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {},
+    } })).bytes.toString()),
+    transfer: async backup => {
+      const preview = await store.prepareTransfer(serialize({ backup }), {
+        dataset: { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} },
+        world: { chunks: new Map() }, route: '/api/restore/preview' });
+      await store.applyTransfer(preview.ticket, store.getInfo().revision);
+    },
     restore: async document => store.replace(document ?? await store.backup(), store.getInfo().revision),
     restoreMember: async backup => {
       const preview = await store.prepareTransfer(serialize({ backup, memberId: 'a', sourceMemberId: 'a' }), {
@@ -632,6 +643,64 @@ test('an unchanged legacy plugin balance acquires provenance without a History r
   await f.send({ ...items({ backpack: null }), pouch: null });
   await f.restart();
   assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+});
+
+for (const route of ['replace', 'transfer', 'member', 'import', 'mapped']) test(`unchanged legacy ownership survives portable export and ${route}`, async t => {
+  const f = await fixture(t, { durable: true, legacyCoins: 100 });
+  const revision = f.state.revision, history = structuredClone(f.state.history);
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  assert.equal(f.state.revision, revision, 'Adoption needs no gameplay revision');
+  assert.deepEqual(f.state.history, history, 'Adoption needs no fabricated History command');
+  const portable = await f.portable();
+  assert.deepEqual(portable.state.provenance.pluginCurrencyFacts.a, { coins: 100, source: 'plugin' });
+  assert.equal(portable.pluginCurrency, undefined, 'Replay fences stay private');
+  assert.deepEqual(loadLiveBackup(portable), importBackup(portable));
+  if (route === 'import' || route === 'mapped') {
+    const state = route === 'import' ? importBackup(portable) : mapTransferRoster(importBackup(portable),
+      [{ id: 'x', name: 'Synthetic destination' }, { id: 'y', name: 'Synthetic partner' }], { a: 'x', b: 'y' });
+    const memberId = route === 'import' ? 'a' : 'x', at = new Date(f.at + 1000).toISOString();
+    const result = observePluginCurrency(state, undefined, { memberId, keyId: '11111111-1111-4111-8111-111111111111', seq: 1, sentAt: at, coins: null }, { now: () => at });
+    assert.equal(result.state.members.find(row => row.id === memberId).transportFacts?.currencies?.coins, undefined);
+    assert.deepEqual(loadLiveBackup({ format: 'rs3-chunk-picker', schemaVersion: 1, state: result.state }), result.state);
+  } else {
+    if (route === 'replace') await f.restore(portable);
+    else if (route === 'transfer') await f.transfer(portable);
+    else await f.restoreMember(portable);
+    await f.restart();
+    await f.send({ ...items({ backpack: null }), pouch: null });
+    await f.restart();
+    assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+  }
+});
+
+test('Undo retains adopted legacy provenance in a portable round trip', async t => {
+  const f = await fixture(t, { durable: true, legacyCoins: 100 });
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 0 } } });
+  const at = new Date(f.at).toISOString();
+  const undone = applyLiveCommand(loadLiveBackup(await f.portable()), { type: 'undo' }, { expectedRevision: f.state.revision, now: () => at });
+  await f.command({ type: 'undo' });
+  for (const portable of [await f.portable(), exportLiveBackup(undone)]) {
+    const result = observePluginCurrency(importBackup(portable), undefined, { memberId: 'a', keyId: '11111111-1111-4111-8111-111111111111', seq: 1, sentAt: at, coins: null }, { now: () => at });
+    assert.equal(result.state.members[0].transportFacts?.currencies?.coins, undefined);
+  }
+});
+
+test('currency provenance and fences coexist with main storage sidecar serialization', async t => {
+  const f = await fixture(t, { durable: true, legacyCoins: 100, externalLegacy: true });
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  const disk = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+  assert.ok(disk.storage.fields.legacy, 'The merged fast serializer retains storage references');
+  assert.equal(disk.pluginCurrency.facts.a.source, 'plugin', 'The same envelope retains currency metadata');
+  assert.equal(f.state.legacy.syntheticPadding.length, 300000);
+  const portable = await f.portable();
+  assert.deepEqual(loadLiveBackup(portable), importBackup(portable));
+  assert.deepEqual(loadLiveBackup(portable).members, f.state.members);
+  await f.restart();
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  await f.restart();
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+  assert.equal(f.state.legacy.syntheticPadding.length, 300000);
 });
 
 test('manual zero followed by Undo restores plugin provenance independently of History grouping', async t => {

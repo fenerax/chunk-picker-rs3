@@ -9,7 +9,8 @@ test('companion source never shadows shared files or public templates and retain
     overrides: { 'README.md': 'scripts/public-export/templates/README.md', 'scripts/test.mjs': 'scripts/public-export/templates/test.mjs', 'scripts/test-selection.mjs': 'scripts/public-export/templates/test-selection.mjs' } };
   assert.equal(privateCompanionSource('README.md', rules), false);
   assert.equal(privateCompanionSource('app/shared.mjs', rules), false);
-  for (const name of ['app/private.mjs', 'tests/shared.test.mjs', 'tests/private.test.mjs', 'scripts/test-selection.mjs', 'scripts/test.mjs']) assert.equal(privateCompanionSource(name, rules), true);
+  for (const name of ['app/private.mjs', 'tests/shared.test.mjs', 'tests/private.test.mjs', 'scripts/test.mjs']) assert.equal(privateCompanionSource(name, rules), true);
+  assert.equal(privateCompanionSource('scripts/test-selection.mjs', rules), false, 'classification is no longer mirrored');
   assert.equal(privateCompanionSource('reference/picture.png', rules), false);
 });
 

@@ -33,6 +33,15 @@ is written atomically with every current correction or invalidation.
   These annotations survive archival and portable restores, so eviction from
   the bounded cache cannot change Undo ownership. They contain no replay fence.
 
+Portable `state.provenance.pluginCurrencyFacts` holds at most 1,000 member-ID
+entries with the same `{coins, source}` facts. Ownership updates copy this map;
+unchanged legacy adoption writes it without changing the gameplay revision or
+adding a History entry. Export, import and roster transfer retain it (remapping
+only member IDs). Restore reads the selected source's map; Undo's per-entry
+annotations take precedence over an older map preserved by a rollback release.
+The map carries ownership only, never sequence or timestamp fences. Previous
+releases accept and preserve it as additive provenance.
+
 Manual travel edits establish manual provenance, even for an unchanged amount.
 Undo restores the target fact's provenance, including manual amounts and plugin
 amounts restored after a manual zero. Currency invalidation removes only a

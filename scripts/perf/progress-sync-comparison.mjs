@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { syncFixture } from './progress-sync.mjs';
+import { recordedPlatformResponse } from '../../tests/helpers/platform-api-fixtures.mjs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -40,7 +41,7 @@ async function corpus(api, root) {
     .map((trace, index) => ({ name: index ? 'saved observation decrease' : 'empty observations', ...trace }));
   for (const [index, recorded] of cases.entries()) {
     const client = api.createProgressSources({ clock, runeMetrics: { fetchImpl: async url =>
-      new Response(JSON.stringify(url.pathname.endsWith('/quests') ? recorded.quests : recorded.profile)) } });
+      recordedPlatformResponse(url, recorded) } });
     try {
       const snapshot = await client.snapshot(initial.members[0]);
       const proposal = api.previewProgress(initial, 'player', snapshot, api.createQuestMapping(definitions));
