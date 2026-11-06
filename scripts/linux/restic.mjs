@@ -26,7 +26,7 @@ const prunes = args => args[0] === 'prune' || args[0] === 'forget' && args.inclu
 export const resticConnections = args => prunes(args) || args[0] === 'check' ? 2 : 1;
 export const resticArgs = (args, cacheDir) => [...(cacheDir ? ['--cache-dir', cacheDir] : ['--no-cache']), '--pack-size', '16', '-o', `b2.connections=${resticConnections(args)}`,
   '-o', `local.connections=${resticConnections(args)}`,
-  ...(['check', 'snapshots', 'stats', 'restore', 'ls'].includes(args[0]) ? ['--no-lock'] : []),
+  ...(['check', 'snapshots', 'stats', 'restore', 'ls', 'dump'].includes(args[0]) ? ['--no-lock'] : []),
   ...args, ...(args[0] === 'backup' ? ['--read-concurrency', '1'] : [])];
 // 0.18.1: two data + two tree packers, one blocked QueuePacker and one
 // uploader per backend connection (unbuffered queue). GOMAXPROCS=1 pins the
@@ -73,8 +73,9 @@ export function executeRestic(binary, args, { env, signal, packProducing = false
     const abort = () => child.kill('SIGKILL');
     const timer = setTimeout(() => { fault = true; abort(); }, timeoutMs);
     child.stdout.on('data', chunk => {
-      // ls walks all trees, but its potentially huge listing is not a receipt.
-      if (args.includes('ls')) return;
+      // Listings and verification archives can be huge and contain secrets.
+      // Drain them without buffering or writing their bytes anywhere.
+      if (args.includes('ls') || args.includes('dump')) return;
       bytes += chunk.length;
       if (bytes > 4 * 1024 ** 2) { fault = true; abort(); } else stdout += chunk;
     });
@@ -83,7 +84,7 @@ export function executeRestic(binary, args, { env, signal, packProducing = false
     child.on('close', code => {
       clearTimeout(timer); signal?.removeEventListener('abort', abort);
       if (fault || code !== 0 || signal?.aborted) {
-        const phase = args.find(arg => ['backup', 'check', 'snapshots', 'ls', 'init', 'restore', 'stats', 'prune', 'forget'].includes(arg)) ?? 'command';
+        const phase = args.find(arg => ['backup', 'check', 'snapshots', 'ls', 'dump', 'init', 'restore', 'stats', 'prune', 'forget'].includes(arg)) ?? 'command';
         log(`Restic ${phase} failed${fault ? ' (limit or process failure)' : ''}; stderr tail:\n${redactedResticTail(stderr) || '[empty]'}`);
         reject(Error('Encrypted repository operation failed.'));
       } else resolve(stdout);
@@ -108,7 +109,10 @@ async function tempBudget(root, packLimit, totalLimit) {
   await walk(root);
 }
 export async function guardedRestic({ root, reserve, binary, args, env, signal,
-  check = headroom, execute = executeRestic, intervalMs = 250, platform = process.platform, cacheDir, timeoutMs }) {
+  check = headroom, execute = executeRestic, intervalMs = 250, platform = process.platform, cacheDir, timeoutMs, useCache = true }) {
+  // Integrity verification must fetch remote metadata, even when callers
+  // supply a warm cache. check uses its default isolated temporary cache.
+  if (!useCache || args[0] === 'check' || args[0] === 'dump') cacheDir = undefined;
   await directory(root);
   if (cacheDir) { if (!path.isAbsolute(cacheDir)) throw Error('Absolute cache path required.'); await directory(cacheDir); }
   const temporary = await mkdtemp(path.join(root, 'restic-'));
@@ -180,10 +184,10 @@ export async function resticRunner(config, { signal, settings } = {}) {
     RESTIC_PASSWORD_FILE: path.join(credentials ?? '', 'restic-password'),
     B2_ACCOUNT_ID: await credential('b2-account'), B2_ACCOUNT_KEY: await credential('b2-key') };
   await credential('restic-password');
-  return async (args, { timeoutMs } = {}) => {
+  return async (args, { timeoutMs, useCache } = {}) => {
     // No inherited RESTIC/B2 endpoints, hooks, proxy credentials or debug logs.
     try { return await guardedRestic({ root: path.join(settings.scratchRoot, 'restic-tmp'), reserve: settings.minFreeBytes,
-      binary, args, env, signal, timeoutMs, cacheDir: path.join(settings.controlDir, 'restic-cache') }); }
+      binary, args, env, signal, timeoutMs, useCache, cacheDir: path.join(settings.controlDir, 'restic-cache') }); }
     catch { throw Error('Encrypted repository operation failed.'); }
   };
 }

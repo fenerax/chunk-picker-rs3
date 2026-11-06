@@ -13,17 +13,32 @@ staging, delivery searches that tag in the repository. An existing point is
 verified again without another upload, including when the previous process
 finished backup but failed verification. New points use the fixed private
 `offhost-stage` directory beneath `scratchRoot`, owned by `offhost.lock` and
-removed on completion or before a retry. Only the uploaded snapshot's metadata
-and recursive tree listing are verified. File payloads remain encrypted; this
-verification is not a full data restore drill.
+removed on completion or before a retry. Abandoned staging is reclaimed before
+admitting the next allocation, so a crash cannot consume the space needed for
+its own cleanup.
+
+Before recording delivery success, `restic dump <snapshot-id> / --archive tar`
+reads the selected snapshot's complete metadata and file data with `--no-cache`
+and `--no-lock`. The archive is drained without buffering, logging or saving
+its contents. This catches missing packs behind stale indexes and corrupt
+remote metadata, even when a shared cache is warm. Restic must retrieve and
+authenticate every file blob needed to reconstruct the selected snapshot;
+success does not rely on a directory listing or on a later daily check.
+Verification downloads one complete snapshot, including the rebuild bundle,
+but does not traverse older snapshots' trees or allocate another restored
+copy. Its data transfer scales with the selected snapshot's size. An actual
+application restore rehearsal remains a separate operator procedure.
 
 The full repository check is a **separate daily service**, at 06:00
 America/Moncton, with a two-hour command deadline and its own lock and status.
 An attempt is recorded before launch; retries cannot run it more than once per
 UTC date. It holds neither the upload lock nor the operator lock and cannot
-fail the release freshness gate. Both jobs use a private persistent cache at
-`controlDir/restic-cache`, with free-space checks. Standalone PC restic calls
-retain their existing temporary/no-cache policy.
+fail the release freshness gate. It runs without `--with-cache` and with
+`--no-cache`, so repository metadata must be fetched afresh rather than trusted
+from the persistent cache. Upload and ordinary metadata operations retain the
+private cache at `controlDir/restic-cache`, with free-space checks; integrity
+commands bypass it. Standalone PC restic calls retain their existing
+temporary/no-cache policy.
 
 Both services use Nice 10, CPUWeight 20, IOWeight 20 and MemoryMax 2G. The cap
 allows the observed 350–750 MiB working memory plus reclaimable page cache.

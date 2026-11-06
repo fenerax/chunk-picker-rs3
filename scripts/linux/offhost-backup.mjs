@@ -69,7 +69,7 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
         }, { skipBusy: true, maxBusyMs: 1800000 });
         if (selected.skipped) return skipped('operation-lock-busy');
         run ??= await resticRunner(config, { signal, settings });
-        const repository = async args => { signal.throwIfAborted(); const result = await run(args, { signal }); signal.throwIfAborted(); return result; };
+        const repository = async (args, options = {}) => { signal.throwIfAborted(); const result = await run(args, { ...options, signal }); signal.throwIfAborted(); return result; };
         const matching = JSON.parse(await repository(['snapshots', '--json', '--tag', `chunk-picker,${selected.tag}`]));
         if (!Array.isArray(matching)) throw Error('Invalid repository inventory.');
         const delivered = matching.find(row => /^[a-f0-9]{64}$/.test(row.id ?? '') && row.tags?.includes(selected.tag)
@@ -85,14 +85,17 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
             if (sha(release.pointerBytes) !== selected.manifest.releasePointerSha256) throw Error('Snapshot needs the selected release; take a fresh backup.');
             for (const source of [settings.backupDir, settings.dataDir, settings.controlDir]) outside(source, settings.scratchRoot);
             await directory(settings.scratchRoot);
-            const options = { ...budgetOptions, signal }, { budget, copy } = stagingBudget(settings.scratchRoot, settings.minFreeBytes, options);
-            await budget(selected.manifest.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0));
             // Fixed source paths let restic reuse parent trees. The offhost lock
             // owns this namespace, including remnants of an interrupted upload.
             const target = path.join(settings.scratchRoot, 'offhost-stage');
             for (const source of [settings.backupDir, settings.dataDir, settings.controlDir]) outside(target, source);
             if (await exists(target)) { await noLinks(target); await rm(target, { recursive: true, force: true }); }
-            await directory(target); scratch = target;
+            // Reclaim crash remnants before admission, and own cleanup before
+            // attempting any allocation for this run.
+            scratch = target;
+            const options = { ...budgetOptions, signal }, { budget, copy } = stagingBudget(settings.scratchRoot, settings.minFreeBytes, options);
+            await budget(selected.manifest.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0));
+            await directory(target);
             const backup = path.join(scratch, 'snapshot'), recovery = path.join(scratch, 'rebuild');
             await copyTree(selected.backup, backup, { copy });
             await verifyBackup(backup);
@@ -114,7 +117,11 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
           || !Number.isFinite(Date.parse(snapshots[0].time))
           || !snapshots[0].tags?.includes(selected.tag)
           || Math.abs(Date.parse(snapshots[0].time) - selected.time) >= 1000) throw Error('Upload snapshot time differs.');
-        await repository(['ls', snapshots[0].id, '--recursive']);
+        // A tree listing cannot detect absent data packs behind a stale index.
+        // Stream this exact snapshot's entire archive from the repository;
+        // the executor discards it, retaining neither save bytes nor secrets.
+        // No shared cache may substitute for remote tree or data pack reads.
+        await repository(['dump', snapshots[0].id, '/', '--archive', 'tar'], { useCache: false });
         if (staged) await verifyBackup(staged.backup);
         await recordStatus(settings.controlDir, 'offhost', { result: 'success', snapshotAt: new Date(selected.time).toISOString() }, now());
         try { await ping('offhost'); } catch {}
@@ -144,7 +151,7 @@ export async function offhostCheck({ settings, config, run, now = () => Date.now
     try {
       const signal = AbortSignal.timeout(deadlineMs);
       run ??= await resticRunner(config, { signal, settings });
-      await run(['check', '--with-cache'], { signal, timeoutMs: deadlineMs });
+      await run(['check'], { signal, timeoutMs: deadlineMs, useCache: false });
       signal.throwIfAborted(); await status('success'); return { checked: true };
     } catch (error) { await status('failed'); throw error; }
   }, { skipBusy: true });
