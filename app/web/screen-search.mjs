@@ -27,7 +27,7 @@ export function createSearchDialog(c) {
     search.placeholder = c.sandbox.active ? 'Name, chunk ID, note or task…' : 'Name, chunk ID, note, item or task…';
     const revision = c.state.revision, requestedMember = c.memberId;
     const notes = chunkNotesForSearch(c.state.members);
-    let requestId = 0, timer, closed = false, entries = [], page = 0, matchIds = [], query = '', requestedMode = 'Chunks';
+    let requestId = 0, timer, closed = false, entries = [], page = 0, matchIds = [], query = '', requestedMode = 'Chunks', chunkEntries = false;
     const iconPainter = createTaskIconPainter({ resolveIcon: task => taskIcon(task, { itemIcon, skillIcon }),
       createImage: () => c.el('img'), refreshOnSettle: true });
     void loadIcons().then(loaded => iconPainter.settle(loaded));
@@ -68,13 +68,27 @@ export function createSearchDialog(c) {
       }
     }
 
+    // Keep the ordered matches for paging and highlights; row copy and actions
+    // are needed only for the visible page. Ownership scans can be expensive on
+    // large maps, so never repeat them for every offscreen match while typing.
+    function chunkEntry({ id, name }) {
+      const surface = c.world.surface?.has(id) ?? c.world.chunks.has(id);
+      const renderedQuery = query;
+      const owners = c.state.members.filter(owner => owner.unlocked.includes(id)).map(owner => owner.name);
+      const matchedNotes = renderedQuery ? (notes.get(id) ?? []).filter(note => note.search.includes(renderedQuery)) : [];
+      return { label: (c.advanced() && surface || !surface && !c.world.areas.has(id)) ? `${id} · ${name}` : name,
+        subtitle: !surface ? `${c.world.areas.has(id) ? 'Interior or connected area' : 'Off-map record'} · ${id}` : `Surface chunk · ${owners.length ? `Unlocked by ${owners.join(' and ')}` : c.member().selected.includes(id) ? 'Saved hand selection' : c.member().blacklisted?.includes(id) ? 'Never roll' : c.pool?.eligible?.some(item => item.id === id) ? 'In roll pool' : 'Locked'}`,
+        locations: [id], notes: notes.get(id) ?? [], action: () => openChunk(id, matchedNotes, renderedQuery) };
+    }
+
     function paintPage() {
       if (!current()) return;
       const entryRequest = requestId;
       const value = searchPage(entries, page); page = value.page;
       count.textContent = `${entries.length.toLocaleString()} ${entries.length === 1 ? 'result' : 'results'}${value.pages > 1 ? ` · ${value.first.toLocaleString()}–${value.last.toLocaleString()}` : ''}`;
       rows.replaceChildren();
-      for (const entry of value.entries) {
+      for (const match of value.entries) {
+        const entry = chunkEntries ? chunkEntry(match) : match;
         const row = c.el('div', undefined, 'search-result'), text = c.el('div', undefined, 'search-result-copy');
         const title = c.el('span', undefined, 'search-result-title');
         if (entry.task || entry.item) iconPainter.append(title, entry.task ?? { item: entry.item });
@@ -116,15 +130,9 @@ export function createSearchDialog(c) {
         if (['Items & drops', 'Equipment', 'Training methods'].includes(renderedMode) || !c.sandbox.active && renderedMode === 'Quests') sourceResult = await c.ensureFullResult();
         if (renderedMode === 'Chunks') await c.ensureChunkSearch();
         if (!ready()) return;
-        if (renderedMode === 'Chunks') {
-          entries = matchingSearchChunks(c.chunkSearch, notes, query, c.world.areas, c.world.surface).map(({ id, name }) => {
-            const surface = c.world.surface?.has(id) ?? c.world.chunks.has(id);
-            const owners = c.state.members.filter(owner => owner.unlocked.includes(id)).map(owner => owner.name);
-            const matchedNotes = renderedQuery ? (notes.get(id) ?? []).filter(note => note.search.includes(renderedQuery)) : [];
-            return { label: (c.advanced() && surface || !surface && !c.world.areas.has(id)) ? `${id} · ${name}` : name,
-              subtitle: !surface ? `${c.world.areas.has(id) ? 'Interior or connected area' : 'Off-map record'} · ${id}` : `Surface chunk · ${owners.length ? `Unlocked by ${owners.join(' and ')}` : c.member().selected.includes(id) ? 'Saved hand selection' : c.member().blacklisted?.includes(id) ? 'Never roll' : c.pool?.eligible?.some(item => item.id === id) ? 'In roll pool' : 'Locked'}`,
-              locations: [id], notes: notes.get(id) ?? [], action: () => openChunk(id, matchedNotes, renderedQuery) };
-          });
+        chunkEntries = renderedMode === 'Chunks';
+        if (chunkEntries) {
+          entries = matchingSearchChunks(c.chunkSearch, notes, query, c.world.areas, c.world.surface);
         } else if (['Tasks', 'Quests'].includes(renderedMode)) {
           needsTaskLocations = sourceResult?.format === 'play-v1';
           // Quests mode loads Activity Info so quest filters apply; Tasks keeps the compact result.
@@ -148,9 +156,16 @@ export function createSearchDialog(c) {
             });
         }
         // All matching locations, independent of the currently displayed page.
-        matchIds = [...new Set(entries.flatMap(entry => entry.locations))];
+        matchIds = [...new Set(chunkEntries ? entries.map(entry => entry.id) : entries.flatMap(entry => entry.locations))];
         page = 0; results.replaceChildren(count, rows, paging); results.removeAttribute?.('aria-busy');
-        paintPage(); setMatches();
+        paintPage();
+        // Highlight geometry can be substantial for broad matches. Give the
+        // result page a painted frame before doing that independent map work.
+        if (query && highlight.checked && matchIds.length && typeof requestAnimationFrame === 'function') {
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          if (!ready()) return;
+        }
+        setMatches();
         void enrichTaskMatches(request, entries);
       } catch (error) {
         if (ready()) { matchIds = []; setMatches(); results.removeAttribute?.('aria-busy'); results.replaceChildren(c.el('p', error.message, 'error'), c.button('Retry search', render)); }
