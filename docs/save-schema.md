@@ -29,6 +29,8 @@ Retained journal records rebuild labelled review rows at startup and after every
 successful whole-picker or member import, without a report or restart. Rebuilding
 does not issue completion commands, including for live evidence. Non-live records never
 become live facts or automatic completions. Non-live containers remain ephemeral.
+Member imports preserve other players' temporary item dismissals while refreshing
+the imported player's review.
 
 `plugin-item-journal-commits.json` is a separate version 1 sidecar containing
 `{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.
@@ -82,6 +84,89 @@ the receiver, and remove only those reviewed facts from that scope's sidecar
 and any imported `provenance.pluginItemEvidence` copy. Preserve the commit ledger
 and its pending events. Restarting and retrying drains the durable pending
 prefix once space is available; no sender retransmission is required.
+
+## Game plugin current currency
+
+The optional private envelope field `pluginCurrency` uses format 2. Its `keys`,
+`players` and `facts` maps each hold at most 1,000 entries; `origins` caches at
+most 1,000 ownership transitions. This ledger is outside portable gameplay and
+is written atomically with every current correction or invalidation.
+
+- Each credential UUID in `keys` holds `highSeq`, `seq`, `generation`, `sentAt`,
+  `receivedAt` and `epoch`. Sequences and generations are nonnegative safe
+  integers. `highSeq` never decreases, even when a sequence resets. `epoch` is
+  a server-generated 32-character hex runtime ID or null. Times are ISO UTC or
+  null. Client `sentAt` is only a plausibility filter, never a server-time fence.
+- Each member in `players` holds `keyId`, `receivedAt`, `recoverAfter`,
+  `historyAt` and `historyRevision`. Recovery uses only server receive time;
+  History fields identify an optional coalescing group and confer no ownership.
+- `facts` identifies current provenance with `{coins, source}`. Coins are null
+  or a safe integer from zero to one trillion; source is `manual`, `plugin` or
+  `legacy`. An unchanged readable legacy observation establishes plugin
+  provenance without inventing a History revision. A matching manual amount
+  remains manual.
+- `origins` entries contain `revision`, `memberId`, `before` and `after` facts.
+  Ordinary History entries also carry an additive `currencyOrigins` dictionary
+  for affected members, each with the same fixed-size `before`/`after` facts.
+  These annotations survive archival and portable restores, so eviction from
+  the bounded cache cannot change Undo ownership. They contain no replay fence.
+
+Portable `state.provenance.pluginCurrencyFacts` holds at most 1,000 member-ID
+entries with the same `{coins, source}` facts. Ownership updates copy this map;
+unchanged legacy adoption writes it without changing the gameplay revision or
+adding a History entry. Export, import and roster transfer retain it (remapping
+only member IDs). Before a mapped transfer archives History or changes member
+IDs, it resolves each source member's current ownership from History and the
+portable map. This also recovers Undo performed by the frozen rollback release,
+whose portable map can still describe the amount before Undo.
+Restore reads the selected source's map; Undo's per-entry
+annotations take precedence over an older map preserved by a rollback release.
+The map carries ownership only, never sequence or timestamp fences. Previous
+releases accept and preserve it as additive provenance.
+
+Manual travel edits establish manual provenance, even for an unchanged amount.
+Undo restores the target fact's provenance, including manual amounts and plugin
+amounts restored after a manual zero. Currency invalidation removes only a
+plugin or legacy coin fact and preserves other currencies and travel facts.
+History coalescing requires an inverse; optional reconstruction failures start
+an ordinary new group. Public inverse patches retain their existing format.
+
+Sequences that reset, key changes, replay and clock ambiguity make plugin
+currency unknown and request a fresh snapshot. A stable stream can recover
+after a 60-second server-time quarantine. Rejected timestamps do not advance
+sequence/time fences or extend that quarantine. Future timestamps and reports
+over 30 seconds old cannot publish current currency. Increasing sequence and
+nondecreasing plausible time are required within a stream; client time alone
+never orders different keys. Format-1 ledgers migrate without adopting their
+untrusted client timestamps as server fences.
+
+Known limitations accepted for plugin 1.0.0: a retired stream can re-enter with
+a plausible clock-skewed timestamp, and a delayed report generated before a
+manual correction or restore can overwrite that correction. Receive ordering,
+sequence checks and client timestamp filters cannot prove when a report was
+generated relative to those boundaries. These cases can leave an incorrect
+known balance across restart. Closing them requires a plugin-side freshness
+challenge, planned for plugin 1.1 after store moderation; this release does not
+change the plugin wire format or add a manual confirmation mode.
+
+Keys are never evicted to admit old traffic. Invalid metadata fails closed on
+load. Undo and restore retain active replay fences; imported private metadata
+cannot replace them. Restore uses preserved fact provenance; an older portable
+backup without ownership annotations establishes manual facts. Standby
+activation and import publication carry the ledger atomically.
+Member restores derive ownership from the selected source member's preserved
+History annotations, even if its coin count equals the destination. Their
+ordinary Undo restores the destination's previous ownership; source ordering
+metadata is never imported.
+
+The public backup remains schema 1. Current facts use the existing
+`transportFacts.currencies.coins` field; unknown removes only the plugin-owned
+coin entry. History uses ordinary `set-transport-facts` commands and inverse
+patches, including coalesced updates. The frozen previous-release loader can
+load these saves and undo the currency changes. Older releases ignore private
+envelope metadata and can drop it when writing, while preserving the additive
+History annotations; retain the original save to preserve freshness fences
+when rolling forward after such a rollback.
 
 ## Action receipts, format 2
 

@@ -119,7 +119,7 @@ async function run(job) {
     const destinationRoster = rosterOutput(current.members);
     const knownRules = new Set(taskRuleDefinitions.map(rule => rule.id));
     const reportOptions = { world, taskIds: new Set(current.tasks.map(task => task.id)), knownRule: id => knownRules.has(id) };
-    let state, operation = 'replace', preview, report, warnings = imported?.warnings ?? [];
+    let state, operation = 'replace', preview, report, currencySource, warnings = imported?.warnings ?? [];
     if (route.startsWith('/api/member-restore')) {
       const owner = current.members.find(member => member.id === body.memberId);
       if (!owner) fail(400, 'Choose a known player.');
@@ -128,6 +128,7 @@ async function run(job) {
         return { response: { mappingRequired: true, sourceRoster, destinationRoster: destinationRoster.filter(member => member.id === owner.id) } };
       }
       const sourceMemberId = body.sourceMemberId ?? owner.id;
+      currencySource = { state: incoming, memberId: sourceMemberId };
       const source = incoming.members.find(member => member.id === sourceMemberId);
       if (!source) fail(400, `This backup has no map for ${displayText(owner.name)}.`);
       const mappedMember = mapTransferRoster({ ...incoming, members: [source], history: [], tasks: incoming.tasks.map(({ memberIds, ...task }) => task), taskClaims: undefined, groupGoals: undefined, finishLine: undefined, progressSnapshots: undefined }, [owner], { [sourceMemberId]: owner.id });
@@ -208,6 +209,7 @@ async function run(job) {
     // Include the destination's retained evidence and the exact portable
     // manifest before accepting: metadata must never strand an accepted save.
     const publication = await store.prepareImportPublication(state, operation, {
+      currencySource,
       validateBackup: backup => { portableBackupBytes(backup, dataset); },
     });
     if (options.responseView !== undefined) {

@@ -28,7 +28,8 @@ Use `Content-Type: application/json`. Maximum body: **16,384 bytes**, including
 unknown fields (which are rejected). Four requests per second per key, shared
 with status reads. Errors use `{ "message": "…" }`; rate limits return 429 and
 `Retry-After: 1`. Invalid payloads return 400, credentials 401, stale sequence
-409, oversized bodies 413. Successful reports return status, below.
+409 (except live item reports, described below), oversized bodies 413.
+Successful reports return status, below.
 
 ```json
 {
@@ -49,9 +50,9 @@ with status reads. Errors use `{ "message": "…" }`; rate limits return 429 and
 ```
 
 `v`, `seq`, `sentAt`, and `position` are required. `seq` is a nonnegative safe
-integer, increasing per key during a server session. Use Unix milliseconds to
-start a new plugin session without reusing sequence numbers. Retries with an
-old sequence return 409 without changing anything. `sentAt` is a valid ISO UTC
+integer, increasing per key. Currency stream metadata survives server restarts;
+sequence resets use fail-safe recovery rather than preserving an old balance.
+Other report types reject reused sequences with 409. `sentAt` is a valid ISO UTC
 timestamp with seconds and optional 1–3 fractional digits.
 
 `x`/`z` are **game map squares**, integers 0–199, not tile coordinates. `floor` is an
@@ -344,8 +345,10 @@ refresh never automatically completes tasks.
 
 Cached bank coins are historical observations, not authoritative current funds.
 Transport currency counts only the live pouch and backpack, both readable in the
-same items report. A null or omitted pouch, or a null backpack, leaves the saved
-balance unchanged; partial reads never combine with older container counts.
+same items report. A null or omitted pouch, or a null backpack, immediately
+removes the plugin-derived coin fact: the balance is unknown, not zero. Manual
+currency facts and other travel facts are retained. Partial reads never combine
+with older container counts.
 Readable empty containers count as zero. Worn items and the toolbelt do not
 contribute currency. Bank-only reports cannot publish an older carried total.
 The current protocol cannot reliably distinguish an empty bank from an
@@ -353,9 +356,47 @@ unavailable read; including
 the retained bank count can count a withdrawn stack twice, even with age zero.
 Bank item evidence and its observation time are still retained separately.
 
+Current currency corrections and invalidations are synced before the report is
+acknowledged, independently of History throttling. Consecutive plugin currency
+changes within one minute coalesce into one ordinary `set-transport-facts`
+History entry; an intervening command starts another entry. Undo reverses the
+whole coalesced group. The existing History/Undo format is unchanged.
+
+Private `pluginCurrency` metadata separates current ownership, stream ordering
+and optional History grouping. Manual provenance survives Undo and restore;
+invalidation cannot remove a manual fact. Member restores retain the selected
+source member's ownership, even for an unchanged amount, and their Undo
+restores the destination's previous ownership. An unchanged legacy plugin balance
+still acquires portable provenance without a gameplay revision. Portable export,
+import and member-ID remapping preserve ownership alongside History/Undo;
+replay fences remain private, durable and are never undone.
+
+For live item reports, a reset sequence, changed key, replay or ambiguous clock
+invalidates plugin currency instead of retaining unsupported funds or blocking
+item processing. Status clears `items.snapshot` to null to request another
+reading while retaining the acknowledged `items.journal`; currency ambiguity
+must not discard durable item-journal acknowledgements. A stable stream recovers
+after a 60-second server-time quarantine. Client timestamps cannot order different
+keys: future timestamps
+and observations over 30 seconds old cannot publish current currency, and
+rejected timestamps cannot create a durable fence or extend recovery. Within a
+stream, sequence must increase and plausible timestamps must not decrease.
+Unchanged and unreadable accepted observations advance ordering too. A failed
+save acknowledges nothing and commits neither the balance nor its fence.
+
+Plugin 1.0.0 still cannot prove report generation after a restart, stream reset,
+manual correction or restore. A retired stream under clock skew, or a delayed
+report generated before a manual correction or restore, can publish an incorrect
+known balance that persists across restart. These accepted limitations require
+a plugin-side freshness challenge, planned for plugin 1.1 after moderation.
+The metadata is bounded; portable exports retain fact-provenance annotations
+but exclude private ordering fences. See
+[save metadata](save-schema.md#game-plugin-current-currency).
+
 Status `items` is null until the first items report, then exactly
-`{snapshot, journal}`: the last snapshot processed and the newest journal event
-processed (`null` before the first readable look). The plugin resends when its
+`{snapshot, journal}`: the last snapshot processed (null when another reading
+is requested) and the newest journal event processed (`null` before the first
+readable look). The plugin resends when its
 snapshot differs or journal events remain unacknowledged, even if the containers
 have not changed. It drops journal events at or below the acknowledged event
 for the same journal ID. An acknowledgement covers all environments in the
