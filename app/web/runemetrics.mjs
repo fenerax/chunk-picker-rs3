@@ -48,8 +48,8 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   function renderPreview(value) {
     preview = value;
     const content = el('section', undefined, 'form-stack runemetrics-preview');
-    content.append(el('h4', `Review ${value.sourceLabel ?? 'RuneMetrics'} for ${owner.name} · ${value.runescapeName}`),
-      el('p', `Source: ${value.sourceLabel ?? 'RuneMetrics'}`, 'info-meta'),
+    content.append(el('h4', `Review ${value.sourceLabel ?? 'Platform API'} for ${owner.name} · ${value.runescapeName}`),
+      el('p', `Source: ${value.sourceLabel ?? 'Platform API'}`, 'info-meta'),
       el('p', `Fetched ${time(value.fetchedAt)}${value.cached ? ' · recent saved result' : ''}${advanced() ? ` · Saved revision ${value.stateRevision}` : ''}`, 'info-meta'),
       el('p', `${value.counts.completedQuests} completed quests returned · ${value.counts.matchedQuests} matched · ${value.counts.unmatchedQuests} unmatched`, 'info-meta'));
     if (value.questPoints) {

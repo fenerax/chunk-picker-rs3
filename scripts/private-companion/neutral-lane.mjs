@@ -62,7 +62,8 @@ export async function openSources({ core, privateSource }) {
   for (const name of privateFiles.keys())
     if (coreFiles.has(name) && !replaceable(name)) throw Error('Private overlay would replace shared code: ' + name);
   const cache = new Map();
-  const resolve = name => privateFiles.get(name) ?? coreFiles.get(name) ?? null;
+  const resolve = name => name === 'scripts/test-selection.mjs' && coreFiles.has('scripts/test-classification.mjs')
+    ? coreFiles.get(name) ?? null : privateFiles.get(name) ?? coreFiles.get(name) ?? null;
   const read = async name => {
     if (!cache.has(name)) { const file = resolve(name); cache.set(name, file ? await readFile(file) : null); }
     return cache.get(name);

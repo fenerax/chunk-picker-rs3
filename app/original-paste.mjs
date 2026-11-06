@@ -43,7 +43,7 @@ export function readOriginalPaste(document) {
 
 export function originalChunkList(text) {
   let source = text.trim();
-  const url = /^(?:https:\/\/)?gitgeddes\.github\.io\/ChunkPicker\/\?([^#\s]+)$/.exec(source);
+  const url = /^(?:https:\/\/)?gitgeddes\.github\.io\/ChunkPicker\/\?([^#\s]*)$/.exec(source);
   if (url) {
     const sets = url[1].split(';');
     if (sets.length > 2) fail('Invalid original chunk URL.');

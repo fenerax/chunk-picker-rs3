@@ -40,3 +40,19 @@ test('actual assembly still refuses a stale review and cleans its failed prepare
   const result = f.run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /changed since its private replacement was reviewed/);
   await assert.rejects(access(f.output), { code: 'ENOENT' });
 });
+
+test('automatic core classification replaces a retained private selector without mirrored edits', async t => {
+  const f = await fixture(t);
+  await writeFile(f.manifest, JSON.stringify({ schemaVersion: 1, files: { 'tests/shared.test.mjs': { coreSha256: coreOverlaySha256(f.bytes) } } }));
+  await mkdir(path.join(f.core, 'scripts'));
+  await mkdir(path.join(f.privateRoot, 'scripts'));
+  await writeFile(path.join(f.core, 'scripts/test-classification.mjs'), '// Synthetic automatic-classifier marker.\n');
+  const selector = '// Shared automatic selector, retained in the assembly.\n';
+  await writeFile(path.join(f.core, 'scripts/test-selection.mjs'), selector);
+  await writeFile(path.join(f.privateRoot, 'scripts/test-selection.mjs'), 'throw new Error("obsolete mirrored registry");\n');
+  await writeFile(path.join(f.privateRoot, 'tests/new.private.test.mjs'), '// Untagged private scenario.\n');
+  const result = f.run();
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(await readFile(path.join(f.output, 'scripts/test-selection.mjs'), 'utf8'), selector);
+  assert.equal(await readFile(path.join(f.output, 'tests/new.private.test.mjs'), 'utf8'), '// Untagged private scenario.\n');
+});

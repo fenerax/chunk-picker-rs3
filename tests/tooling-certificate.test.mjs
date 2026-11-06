@@ -250,11 +250,9 @@ test('registry recognition is exact, literal, unique and top-level, with uncerta
     assert.notDeepEqual(executableToolingBytes(path, Buffer.from(mandatory)), executableToolingBytes(path, Buffer.from(mandatory.replace('required.test.mjs', 'changed.test.mjs'))));
   }
   const actual = await readFile(new URL('../scripts/test-selection.mjs', import.meta.url));
-  assert.notDeepEqual(executableToolingBytes(owner, actual), actual, 'actual private selector must qualify');
-  const actualExtended = Buffer.from(actual.toString('utf8').replace('new Set([', "new Set(['certificate-registry-extension.test.mjs',"));
-  assert.deepEqual(executableToolingBytes(owner, actualExtended), executableToolingBytes(owner, actual), 'an actual private registration addition preserves capability bytes');
+  assert.deepEqual(executableToolingBytes(owner, actual), actual, 'automatic selector has no assertion registry to omit');
   const publicOwner = 'committed-core-tooling/scripts/test-selection.mjs';
-  assert.notDeepEqual(executableToolingBytes(publicOwner, actual), actual, 'same executable selector grammar qualifies for committed core');
+  assert.deepEqual(executableToolingBytes(publicOwner, actual), actual, 'automatic core selector is wholly executable policy');
   const actualCatalog = await readFile(new URL('../scripts/private-companion/tooling-contract-catalog.mjs', import.meta.url));
   assert.notDeepEqual(executableToolingBytes('tools/tooling-contract-catalog.mjs', actualCatalog), actualCatalog, 'actual optional catalog must qualify');
   const catalogExtended = Buffer.from(actualCatalog.toString('utf8').replace('Object.freeze([])', "Object.freeze(['certificate-registry-extension.test.mjs'])"));
