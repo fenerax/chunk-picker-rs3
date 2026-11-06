@@ -110,7 +110,7 @@ test('per-picker checkpoints capture complete real writes while other stores kee
 
 test('service recovery round-trips every durable plugin evidence sidecar', async t => {
   const f = await fixture(t), picker = f.pickers[1], names = ['plugin-achievements.json', ...pluginItemFiles];
-  assert.deepEqual(pluginItemFiles, ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json']);
+  assert.deepEqual(pluginItemFiles, ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json']);
   for (const [index, name] of names.entries()) await writeFile(path.join(f.dir(picker), name), encode({ v: 1, players: {}, synthetic: index }));
   const backup = await f.capture(); await verifyServiceBackup(backup);
   const target = await f.target();

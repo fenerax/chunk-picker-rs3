@@ -28,12 +28,50 @@ saved; a partial write leaves the prefix unacknowledged for idempotent retry.
 Non-live journal records rebuild labelled review rows at startup and never
 become live facts or automatic completions. Non-live containers remain ephemeral.
 
-These sidecars are outside portable backups and Undo, and included in
-whole-directory operational snapshots. Previously live receivers still load the
-save and unchanged live record shape, and ignore the new sidecar filenames.
-Retain those files during rollback so a later upgrade can restore the non-live
-review evidence. The old receiver cannot display it or provide this durability
-guarantee for new non-live journal acknowledgements.
+`plugin-item-journal-commits.json` is a separate version 1 sidecar containing
+`{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.
+Each player has at most eight journal identities and 256 pending events across
+them. Pending events retain the original `[eventId, itemId, name, world]` evidence
+before any scope's processing watermark advances. Only resolved identities may
+age out. `committed` advances only after every pending event has reached its
+own durable scope, followed by a successful commit-ledger write. A delayed
+subset after restart must still satisfy the retained pending prefix. Per-scope
+processing watermarks never produce acknowledgements. Successfully saved live
+evidence can complete tasks independently of another scope's failure.
+When the pending-event or journal-identity ledger bound is full, the receiver
+drains its existing durable pending work first. The rejected incoming suffix
+stays unacknowledged and can be accepted on the next retry.
+
+Portable exports include the optional envelope
+`optionalSidecarEvidence: {version: 1, pluginItems: {v: 1, players: ...}}`.
+Each player contains `records` keyed by `live`, `beta`, or `unknown`, and
+`commits` with the ledger shape above. The fixed-file adapters
+`exportPluginItemEvidence` and `importPluginItemEvidence` in `app/plugin-items.mjs`
+return plain validated data and accept one player-ID mapper. They never write
+filenames supplied by an import. Restores publish the mapped evidence in
+`state.provenance.pluginItemEvidence` atomically with gameplay. Active readers
+combine that imported state with the fixed sidecars. Source-member mapping
+filters other source players before remapping. Whole-picker replacement merges
+retained destination evidence rather than revoking previous acknowledgements.
+Portable backup, backup-ID/member restore, transfer, and direct replacement all
+use this path. Invalid records, conflicting pending identities, or oversized
+unions refuse publication without changing the destination.
+
+These records remain outside gameplay Undo and are included in operational
+snapshots and service-recovery backups. Older releases ignore the optional
+top-level envelope and free-form provenance extension, and still load the
+unchanged live record shape. Retain the fixed sidecars during rollback; the old
+receiver cannot display non-live review rows or provide this durability guarantee
+for new acknowledgements.
+
+A full scope refuses new facts without evicting evidence or advancing its
+acknowledgement. Live tasks continue to complete. The progress review displays
+the failure, the 500-ID limit, and the recovery instruction. An operator can
+export the complete evidence, obtain the player's review of retained facts, stop
+the receiver, and remove only those reviewed facts from that scope's sidecar
+and any imported `provenance.pluginItemEvidence` copy. Preserve the commit ledger
+and its pending events. Restarting and retrying drains the durable pending
+prefix once space is available; no sender retransmission is required.
 
 ## Action receipts, format 2
 

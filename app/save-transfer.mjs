@@ -1,5 +1,6 @@
 import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { mergePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 export function transferDigest(value) {
@@ -16,8 +17,8 @@ export function transferDigest(value) {
   }
   return hash.digest('hex');
 }
-export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives'],
-  excluded: ['Unaccepted plugin evidence and review sidecars', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
+export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives', 'Validated item journal evidence and acknowledgements'],
+  excluded: ['Ephemeral plugin observations', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
 
 export function transferManifest(dataset, members) {
   return { version: 1, app: 'rs3-chunk-picker', schemaVersion: 1,
@@ -72,6 +73,11 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
     for (const field of ['skillProgress', 'questProgress', 'achievementProgress', 'itemProgress']) {
       for (const row of Object.values(member[field] ?? {})) if (row.memberId !== undefined) row.memberId = mapped(row.memberId);
     }
+  }
+  if (next.provenance?.pluginItemEvidence) {
+    const evidence = mergePluginItemEvidence(next.provenance.pluginItemEvidence);
+    evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => Object.hasOwn(entries, id)).map(([id, record]) => [mapped(id), record]));
+    next.provenance.pluginItemEvidence = evidence;
   }
   // These records drive readiness and live compatibility projection. The exact
   // source attribution remains in transferRoster above, alongside source History.

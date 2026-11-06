@@ -3,6 +3,8 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
+import { exportPluginItemEvidence } from '../plugin-items.mjs';
+import { reconcilePluginItemEvidence } from '../core/plugin-item-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
@@ -53,7 +55,7 @@ function importSavedState(bytes, registry) {
   if (!backup || typeof backup !== 'object' || Array.isArray(backup)) throw new TypeError('backup must be an object');
   if (backup.format !== BACKUP_FORMAT) throw new TypeError('Unsupported backup format');
   if (backup.schemaVersion !== SCHEMA_VERSION) throw new TypeError(`Unsupported backup schema version: ${backup.schemaVersion}`);
-  return validateOwnedState(backup.state, registry);
+  return importBackup(backup, registry, { owned: true });
 }
 const BACKUP_ID = /^(\d{16})-[a-f0-9]{16}\.json(?:\.gz)?$/;
 const HISTORY_ID = /^history-\d{16}-\d{16}-[a-f0-9]{16}\.json\.gz$/;
@@ -349,6 +351,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   let archiveIndex;
   const listeners = new Set();
   const envelope = state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state });
+  async function itemEvidenceEnvelope(document) {
+    const members = new Set(document.state.members.map(member => member.id));
+    const pluginItems = await exportPluginItemEvidence(directory, id => members.has(id) ? id : undefined, document.state.provenance?.pluginItemEvidence);
+    return Object.keys(pluginItems.players).length ? { ...document,
+      optionalSidecarEvidence: { version: 1, ...document.optionalSidecarEvidence, pluginItems } } : document;
+  }
   const envelopePrefix = `${JSON.stringify({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION }).slice(0, -1)},"state":`;
   let serializedFields = new WeakMap();
   const staticReferences = new WeakMap();
@@ -1151,6 +1159,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Keep separate bounded validation/migration phases off the same event-loop turn.
     await new Promise(resolve => setImmediate(resolve));
     const ready = await prepared(incoming, 'replace');
+    const incomingItems = ready.provenance?.pluginItemEvidence;
     await new Promise(resolve => setImmediate(resolve));
     const revision = base.revision + 1;
     if (!Number.isSafeInteger(revision)) throw new RangeError('State revision limit reached.');
@@ -1168,6 +1177,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A replacement establishes a new undo boundary. Earlier snapshots may
     // describe another roster and must never rewrite the restored gameplay.
     ready.history = [{ id: `revision-${revision}`, revision, type: 'restore', at: timestamp(), ...(actor ? { actor } : {}) }];
+    const destinationItems = (await itemEvidenceEnvelope(envelope(base))).optionalSidecarEvidence?.pluginItems;
+    const pluginItemEvidence = reconcilePluginItemEvidence(ready, base, { provenance: { pluginItemEvidence: incomingItems } },
+      { provenance: { pluginItemEvidence: destinationItems } }).provenance?.pluginItemEvidence;
+    if (pluginItemEvidence) ready.provenance.pluginItemEvidence = pluginItemEvidence;
     return importReader ? validateOwnedState(ready, registry) : validateState(ready, registry);
   }
   function historyRecord(event) {
@@ -1306,6 +1319,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
     },
     getState: cloneCurrent,
+    getPluginItemEvidence: () => structuredClone(current.provenance?.pluginItemEvidence),
     getTaskClaimState() {
       const { schemaVersion, revision, rules, members, tasks, identityRegistry, taskClaims } = playProjection(current).state;
       // Select before cloning: History and private retained evidence can be large.
@@ -1358,7 +1372,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     prepareSnapshot: () => enqueueMaintenance(maintainRetention),
     backup: () => isMainThread ? enqueueMaintenance(() => runImportJob({ kind: 'backup', dataDir: directory,
       rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true })
-      : hydrateHistory(current).then(({ state }) => envelope(state)),
+      : hydrateHistory(current).then(({ state }) => itemEvidenceEnvelope(envelope(state))),
     exportBackup: ({ dataset, gzip = false, encoding } = {}) => enqueueMaintenance(() => runImportJob({ kind: 'export', dataDir: directory,
       exportDataset: dataset, gzip, encoding, rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true }),
     async listBackups() {
@@ -1389,7 +1403,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
             if (!snapshot) throw new TypeError('Retained backup archive is missing its snapshot.');
             const state = await importStoredBackup(snapshot.document, false, forImport);
             if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-            return envelope((await hydrateHistory(state, undefined, forImport)).state);
+            return itemEvidenceEnvelope(envelope((await hydrateHistory(state, undefined, forImport)).state));
           }
           throw error;
         }
@@ -1398,7 +1412,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const document = forImport ? await importDocument(decoded) : decoded.toString('utf8');
         const state = await importStoredBackup(document, false, forImport);
         if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-        return envelope((await hydrateHistory(state, undefined, forImport)).state);
+        return itemEvidenceEnvelope(envelope((await hydrateHistory(state, undefined, forImport)).state));
       }, { backupRead: true });
     },
     getAccessToken: () => token,

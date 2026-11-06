@@ -327,8 +327,14 @@ Beta and unknown-world **journal** evidence uses separate
 `plugin-item-journal-beta.json` and `plugin-item-journal-unknown.json` sidecars
 with the same version 1 shape and bounds. Legacy triples join the unknown store.
 These stores never supply live ticks or live item facts. Non-live containers
-remain memory-only. Sidecars are outside portable saves, Undo and portable backups;
-whole-directory operational snapshots retain them.
+remain memory-only. The separate `plugin-item-journal-commits.json` ledger holds
+at most eight journal identities and 256 unresolved events per player. It saves
+the pending event payloads before scope writes and records fully committed
+acknowledgements separately from processing watermarks. Portable exports carry
+validated records and the ledger in the optional version 1
+`optionalSidecarEvidence.pluginItems` envelope; imports map player IDs into
+`state.provenance.pluginItemEvidence` before publishing. Whole-directory and
+service-recovery snapshots include every file in `pluginItemFiles`.
 
 Cached bank coins are historical observations, not authoritative current funds.
 Transport currency counts only the live pouch and backpack, both readable in the
@@ -354,6 +360,13 @@ exceeding its bound, the prior journal acknowledgement is retained for retry;
 no retained evidence is evicted to make room. Earlier successful writes remain
 durable and the sender can re-deliver the entire prefix, including after restart.
 A per-store processed watermark alone is not an acknowledgement of the prefix.
+The durable pending ledger is also retried on a later subset or empty report;
+the receiver cannot forget which other scopes the failed prefix touched.
+Successfully retained live evidence still completes tasks during a non-live
+write failure. Full stores leave a visible `itemRetentionIssue` in the progress
+review, including the capacity and operator recovery instruction. No evidence
+is evicted automatically. See `docs/save-schema.md` for the reviewed recovery
+procedure; the sender's unacknowledged prefix remains retryable throughout.
 A beta or unknown-world report's own
 containers share one memory slot: the next beta or unknown report replaces it.
 Legacy triples and four-field beta and unknown events keep their own
@@ -366,8 +379,8 @@ A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;
 actual sender exposure would need separate verification before any migration.
 This is an additive receiver change with no plugin wire-format or portable-save
-schema change. Older receivers ignore the two new files and still load the save
-and unchanged live sidecar. Preserve the files during rollback: older receivers
+schema-version change. Older receivers ignore the optional envelope, provenance extension
+and new files, and still load the save and unchanged live sidecar. Preserve the files during rollback: older receivers
 cannot display their retained review rows; upgrading again restores them.
 
 ## GET /api/plugin/v1/status

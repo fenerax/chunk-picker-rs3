@@ -189,6 +189,7 @@ export function pluginProposal(state, memberId, report, questMapping) {
     world: report.world ?? null, skills, quests, unmatched, startedQuests: report.quests?.started ?? [],
     achievements: achievements.slice(0, ACHIEVEMENT_REVIEW_LIMIT), achievementsMore: report.achievementsMore ?? 0,
     items: (report.itemReview ?? []).filter(row => !member.completedTasks.includes(row.taskId)), itemsMore: report.itemsMore ?? 0,
-    unmappedItems: report.unmappedItems ?? [], unmappedItemsMore: report.unmappedItemsMore ?? 0 },
+    unmappedItems: report.unmappedItems ?? [], unmappedItemsMore: report.unmappedItemsMore ?? 0,
+    itemRetentionIssue: report.itemRetentionIssue ?? null },
   command: { type: 'apply-game-progress', memberId, fetchedAt: report.sentAt, skills: report.skills ?? [], quests: observedQuests, achievements: [] } };
 }

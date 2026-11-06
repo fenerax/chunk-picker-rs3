@@ -1,4 +1,5 @@
 import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
+import { mergePluginItemEvidence } from './plugin-item-evidence.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
@@ -930,6 +931,10 @@ function validateStateCopy(copy, registry) {
       }
     }
   }
+  if (copy.provenance?.pluginItemEvidence !== undefined) {
+    const evidence = mergePluginItemEvidence(copy.provenance.pluginItemEvidence);
+    if (Object.keys(evidence.players).some(id => !copy.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
+  }
   return copy;
 }
 
@@ -948,7 +953,14 @@ export function importBackup(document, registry, { owned = false } = {}) {
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
   backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
-  return owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
+  let state = owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
+  if (backup.optionalSidecarEvidence?.pluginItems !== undefined) {
+    if (backup.optionalSidecarEvidence.version !== 1) fail('Unsupported optional evidence version');
+    state = { ...state, provenance: { ...state.provenance, pluginItemEvidence: mergePluginItemEvidence(
+      state.provenance?.pluginItemEvidence, backup.optionalSidecarEvidence.pluginItems) } };
+    if (Object.keys(state.provenance.pluginItemEvidence.players).some(id => !state.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
+  }
+  return state;
 }
 
 function difference(before, after) {
