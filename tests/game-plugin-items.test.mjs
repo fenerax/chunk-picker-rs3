@@ -260,6 +260,94 @@ for (const action of ['dismiss', 'apply', 'skip']) for (const world of ['live', 
   await f.backup();
 });
 
+for (const world of ['beta', 'unknown']) for (const source of ['containers', 'journal', 'bank']) test(`authoritative ${world} decisions at capacity suppress ${source} without optional markers`, async t => {
+  const f = await fixture(t, { durable: true }), beta = world === 'beta' ? true : null;
+  const retained = await openPluginItems({ dataDir: f.dataDir, members: () => f.state.members, journalWorld: world });
+  try { await retained.put('a', { baselineAt: new Date(f.at).toISOString(), items: {}, journal: null,
+    handled: Array.from({ length: 1998 }, (_, i) => `synthetic-${String(i).padStart(4, '0')}`) }); }
+  finally { await retained.close(); }
+  await f.restart();
+  const observation = items({ worn: [[4, CHAINBODY, 1, 'Synthetic capacity wearable']] });
+  await f.send(observation, beta);
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  const handled = f.store.getPluginItemEvidence().players.a.records[world].handled;
+  assert.equal(handled.length, 2000);
+  assert.ok([WEAR_TASK, goal('000597')].every(id => handled.includes(id)));
+  assert.equal(handled.some(id => id.startsWith('~plugin-review:')), false);
+  await f.restart();
+  if (source === 'containers') await f.send(observation, beta);
+  else if (source === 'bank') await f.sendBank(bank(1, 1, [[CHAINBODY, 1]]), beta);
+  else await f.send(items({ events: [[1, CHAINBODY, 'Synthetic later journal', world]] }), beta);
+  assert.deepEqual(f.review(), { preview: null });
+  await f.restart();
+  assert.deepEqual(f.review(), { preview: null });
+});
+
+for (const world of ['beta', 'unknown']) for (const failure of ['full live scope', 'failed lowering']) test(`authoritative ${world} decisions survive ${failure} across writable recovery`, async t => {
+  const f = await fixture(t, { durable: true }), beta = world === 'beta' ? true : null;
+  if (failure === 'full live scope') {
+    const live = await openPluginItems({ dataDir: f.dataDir, members: () => f.state.members });
+    try { await live.put('a', { baselineAt: new Date(f.at).toISOString(), items: {}, journal: null,
+      handled: Array.from({ length: 2000 }, (_, i) => `synthetic-${String(i).padStart(4, '0')}`) }); }
+    finally { await live.close(); }
+    await f.restart();
+  } else f.failing.onCommit = async () => {
+    for (const name of (await readdir(f.dataDir)).filter(name => /^plugin-items\.json\..*\.tmp$/.test(name))) await unlink(path.join(f.dataDir, name));
+  };
+  const observation = items({ worn: [[4, CHAINBODY, 1, 'Synthetic optional lowering wearable']] });
+  await f.send(observation, beta);
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  assert.ok(f.store.getPluginItemEvidence().players.a.records[world].handled.includes(WEAR_TASK));
+  await f.restart();
+  await f.send(observation, beta);
+  assert.deepEqual(f.review(), { preview: null });
+});
+
+for (const name of ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json']) for (const bytes of ['{broken', '{"v":1,"players":{"a":{}}}']) test(`decision recovery preserves corrupt ${name} (${bytes === '{broken' ? 'syntax' : 'record'}) for archival repair`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic retained live item']], events: [
+    [1, BRONZE_DAGGER, 'Synthetic beta evidence', 'beta'], [2, CHAINBODY, 'Synthetic legacy evidence']] }));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  await f.controller.close(); await f.store.close();
+  await writeFile(path.join(f.dataDir, name), bytes);
+  await f.restart();
+  assert.equal(await readFile(path.join(f.dataDir, name), 'utf8'), bytes, 'Opening never replaces corrupt optional evidence');
+  assert.ok(f.warnings.some(message => /Invalid plugin item store/.test(message)));
+  assert.ok(f.store.getPluginItemEvidence().players.a.records.live.handled.includes(WEAR_TASK));
+  assert.deepEqual(f.review(), { preview: null });
+  const reply = await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic live retry']], events: [
+    [3, BRONZE_DAGGER, 'Synthetic beta retry', 'beta'], [4, CHAINBODY, 'Synthetic legacy retry']] }));
+  assert.equal(reply.items.journal.event, 4);
+  const archive = (await readdir(f.dataDir)).find(file => file.startsWith(`${name}.corrupt-`));
+  assert.ok(archive);
+  assert.equal(await readFile(path.join(f.dataDir, archive), 'utf8'), bytes);
+  await f.restart(); await f.backup();
+  assert.deepEqual(f.review(), { preview: null });
+});
+
+test('decision recovery retains the unsealed journal archive guard on a strict read-only open', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic sealed decision']] }));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  await f.send(items({ events: [[1, UNKNOWN, 'Synthetic newer journal']] }));
+  await f.controller.close(); await f.store.close();
+  const file = path.join(f.dataDir, 'state.json'), document = JSON.parse(await readFile(file));
+  delete document.state.provenance.pluginItemEvidenceReconciled;
+  document.state.provenance.restore = { incomingProvenance: { pluginItemEvidence: structuredClone(document.state.provenance.pluginItemEvidence) } };
+  const bytes = JSON.stringify(document); await writeFile(file, bytes);
+  let standby;
+  try { await assert.rejects(async () => { standby = await openStore({ dataDir: f.dataDir, readOnly: true, liveSwapStrict: true, retention: false }); },
+    error => error.code === 'LIVE_SWAP_MIGRATION_REQUIRED' && /unreconciled journal archive/.test(error.message)); }
+  finally { await standby?.close(); }
+  assert.equal(await readFile(file, 'utf8'), bytes);
+  await f.restart();
+  assert.equal(JSON.parse(await readFile(file)).state.provenance.pluginItemEvidenceReconciled, 1);
+});
+
 test('missing optional legacy projection never blocks export and is repaired on writable open', async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic repair item']] }));

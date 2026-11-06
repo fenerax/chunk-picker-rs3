@@ -471,12 +471,24 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return { ...document, state };
   }
   const journalRecovery = new WeakSet();
+  function inheritStateMetadata(source, target) {
+    if (source !== target) {
+      if (coordination.has(source) && !coordination.has(target)) coordination.set(target, coordination.get(source));
+      if (journalRecovery.has(source)) journalRecovery.add(target);
+    }
+    // serializedFields/staticReferences belong to immutable field objects,
+    // not the root state. Shared fields already keep those verified caches;
+    // cloned or changed fields must serialize/hash again, never inherit stale
+    // bytes. Gameplay/view caches likewise recompute for a new root.
+    return target;
+  }
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
     const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
     let state = importSavedState(document, registry);
-    if (state.provenance?.pluginItemEvidence) state = retainPluginItemEvidence(state, recoverPluginItemDecisions(state.provenance.pluginItemEvidence));
+    if (state.provenance?.pluginItemEvidence) state = inheritStateMetadata(state,
+      retainPluginItemEvidence(state, recoverPluginItemDecisions(state.provenance.pluginItemEvidence)));
     if (state.provenance?.pluginItemEvidenceReconciled === 1 && !reconciledJournals) journalRecovery.add(state);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
@@ -508,7 +520,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Preserve rejected metadata before ANY replacement can drop it. Evidence
     // remains private, content addressed, and outside ordinary backup pruning.
     await retainReceiptQuarantine();
-    const compact = { ...state }, fields = {};
+    const compact = inheritStateMetadata(state, { ...state }), fields = {};
     for (const key of reusableFields) {
       const value = state[key];
       if (value === null || typeof value !== 'object') continue;
@@ -524,7 +536,6 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     if (!Object.keys(fields).length && !completionCodec) return serialized(state, ledger, currency);
     if (!completionCodec) {
-      if (coordination.has(state)) coordination.set(compact, coordinationOf(state));
       return serialized(compact, ledger, currency, fields);
     }
     return `${JSON.stringify(encodeCompletions({ ...envelope(compact), ...(coordination.has(state) ? { coordination: coordinationOf(state) } : {}),
@@ -731,8 +742,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function observeStartupProgress(state) {
     if (readOnly || liveSwapStrict || progressQuestPoints === undefined) return state;
     const observed = captureProgressSnapshot(state, { questPoints: progressQuestPoints, at: timestamp() });
-    if (observed !== state && coordination.has(state)) coordination.set(observed, coordinationOf(state));
-    return observed;
+    return inheritStateMetadata(state, observed);
   }
   function loadPreparationIsCurrent(state) {
     return (!prepareState || prepareState.isCurrent?.(state) === true)
@@ -760,14 +770,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       input = validateOwnedState(input, registry);
       if (input.revision !== state.revision) throw new TypeError('Migration must preserve the authoritative revision.');
     }
-    if (!prepareState) return input;
+    if (!prepareState) return inheritStateMetadata(state, input);
     const history = operation === 'load' ? JSON.stringify(input.history) : undefined;
     const output = await prepareState(input, context);
     const ready = importReader ? validateOwnedState(output ?? input, registry) : validateState(output ?? input, registry);
     if (operation === 'load' && (ready.revision !== state.revision || JSON.stringify(ready.history) !== history)) {
       throw new TypeError('Load preparation must preserve the authoritative revision and history.');
     }
-    return ready;
+    return inheritStateMetadata(state, ready);
   }
   async function hydrateHistory(state, cache, forImport = false) {
     const archived = new Map();
@@ -808,7 +818,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     if (forImport) await new Promise(resolve => setImmediate(resolve));
     const validated = importReader ? validateOwnedState(complete, registry) : validateState(complete, registry);
-    coordination.set(validated, coordinationOf(state));
+    inheritStateMetadata(state, validated);
     return { state: validated, archived };
   }
   async function compactHistory(state, archived) {
@@ -847,7 +857,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // and undo-marker dependencies; the only other change is authored durable
     // archive references. Keep untouched trees shared instead of cloning and
     // revalidating the complete catalogue/evidence at this retention boundary.
-    return trimmed;
+    return inheritStateMetadata(state, trimmed);
   }
   async function prepareLoadedState(state) {
     // Currency predicates have the same complete History contract as hooks.
@@ -865,7 +875,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // A hook introduced dependencies outside the validated baseline.
       await hydrateHistory(ready);
     }
-    return ready;
+    return inheritStateMetadata(state, ready);
   }
   async function standaloneBackups() {
     const entries = await readdir(backupsDir, { withFileTypes: true });
@@ -1028,8 +1038,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const recoveredItems = await exportPluginItemEvidence(directory,
         id => current.members.some(member => member.id === id) ? id : undefined,
         current.provenance?.pluginItemEvidence, { recoverReview: true });
-      const recoveredState = hasPluginItemDecisions(recoveredItems) ? retainPluginItemEvidence(current, recoveredItems) : current;
-      const lowering = await stagePluginItemDecisions(directory, recoveredItems, { checkOnly: true, memberIds: current.members.map(member => member.id) });
+      const recoveredState = inheritStateMetadata(current, hasPluginItemDecisions(recoveredItems) ? retainPluginItemEvidence(current, recoveredItems) : current);
+      const lowering = await stagePluginItemDecisions(directory, recoveredItems,
+        { checkOnly: true, memberIds: current.members.map(member => member.id) }).catch(() => undefined);
       const recoveryNeeded = lowering || !samePluginItemDecisions(recoveredItems, current.provenance?.pluginItemEvidence);
       if (recoveryNeeded && !readOnly && !liveSwapStrict) {
         const bytes = await serializedDiskState(recoveredState);
@@ -1125,7 +1136,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency } = {}) {
     if (operation === 'replace') currency = currencyAfterRestore(currency, next);
-    const observed = cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
+    const observed = inheritStateMetadata(next, cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() }));
     const validated = cleanup ? observed : await compactHistory(observed, archived);
     const previousCoordination = operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} }
       : coordination.get(next) ?? coordinationOf(current);
@@ -1177,7 +1188,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const reviewedItems = itemReview && dismissPluginItemEvidence(await exportPluginItemEvidence(directory,
         id => current.members.some(member => member.id === id) ? id : undefined, current.provenance?.pluginItemEvidence),
       itemReview.memberId, itemReview.taskIds, itemReview.unmappedIds, timestamp(), itemReview.taskWorlds);
-      if (itemReview && !command) return persist(retainPluginItemEvidence(current, reviewedItems), 'plugin-item-review', undefined,
+      if (itemReview && !command) return persist(inheritStateMetadata(current, retainPluginItemEvidence(current, reviewedItems)), 'plugin-item-review', undefined,
         false, baseline, false, undefined, { cleanup: true });
       const sparseUndo = hasRetainedSparseUndo(current, command) && !current.provenance?.historyArchive?.length;
       const input = command.type === 'undo' && !sparseUndo ? await hydrateHistory(current) : { state: current };
@@ -1199,12 +1210,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const next = applyValidatedCommand(input.state, command, { expectedRevision, world, registry, precomputedPool,
         random: ['go-members', 'setup-start'].includes(command.type) ? random ?? (() => randomBytes(6).readUIntBE(0, 6) / 2 ** 48) : random,
         now, taskCatalogue, actor: attribution, membersStartBanks, xpChoiceCatalogue });
+      inheritStateMetadata(input.state, next);
       // Undo validates a saved inverse, runs preparation and observes progress.
       // Separate those stages so they cannot share one long HTTP-thread turn.
       if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
       let ready = await prepared(next, 'command');
       if (ready.revision !== next.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
-      if (reviewedItems) ready = retainPluginItemEvidence(ready, mergePluginItemEvidence(ready.provenance?.pluginItemEvidence, reviewedItems));
+      if (reviewedItems) ready = inheritStateMetadata(ready, retainPluginItemEvidence(ready, mergePluginItemEvidence(ready.provenance?.pluginItemEvidence, reviewedItems)));
       if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
       // Caller hooks can change more than the command requested. Only exact
       // authored coordination output keeps the conservative conflict proof.
@@ -1257,7 +1269,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Prepare the same additive ownership annotations that publication retains.
     // Preview must describe the exact replacement, including portable metadata.
     currencyAfterRestore(undefined, ready);
-    return importReader ? validateOwnedState(ready, registry) : validateState(ready, registry);
+    return inheritStateMetadata(ready, importReader ? validateOwnedState(ready, registry) : validateState(ready, registry));
   }
   function historyRecord(event) {
     if (!event) return undefined;
@@ -1380,7 +1392,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const command = next.history.at(-1)?.command;
       const restoredMemberIds = operation === 'command' && command?.type === 'replace-member' ? [command.memberId] : undefined;
       importDependencies = [];
-      const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
+      const observed = inheritStateMetadata(next, progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() }));
       // Export observes snapshots and hydrated History, not the compact disk
       // representation. Validate that complete envelope before preparing writes.
       if (validateBackup) await validateBackup(envelope(observed.provenance?.historyArchive?.length
@@ -1523,7 +1535,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return enqueue(async () => {
         const result = observePluginCurrency(current, pluginCurrency, observation,
           { now: timestamp, epoch: currencyEpoch, world, registry, taskCatalogue, membersStartBanks, xpChoiceCatalogue });
-        const ready = result.state === current ? current : await prepared(result.state, 'command');
+        const ready = result.state === current ? current : await prepared(inheritStateMetadata(current, result.state), 'command');
         if (ready.revision !== result.state.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
         await persist(ready, 'plugin-currency', undefined, false, current, false, undefined,
           { cleanup: ready === current, currency: result.metadata });
@@ -1634,7 +1646,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         if (!taskIds.length) return null;
         // Cancel active inverses now and retain a small watermark for archived
         // ones. Archive replay belongs to actual Undo/export, never cleanup.
-        const next = { ...current, revision: current.revision + 1, taskClaims: { ...current.taskClaims } };
+        const next = inheritStateMetadata(current, { ...current, revision: current.revision + 1, taskClaims: { ...current.taskClaims } });
         for (const id of taskIds) delete next.taskClaims[id];
         cancelTaskClaimUndo(next, taskIds);
         const previous = coordinationOf(current), invalidatedUndo = { ...previous.invalidatedUndo };
@@ -1704,13 +1716,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
       return enqueue(() => withPluginItemEvidenceWrite(directory, async () => {
         checkRevision(expectedRevision);
-        const ready = await replacementState(document, cloneCurrent(), attribution);
+        const ready = await replacementState(document, inheritStateMetadata(current, cloneCurrent()), attribution);
         return persist(ready, 'replace');
       }));
     },
     async previewReplacement(document, { actor } = {}) {
       const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
-      const base = cloneCurrent();
+      const base = inheritStateMetadata(current, cloneCurrent());
       return withPluginItemEvidenceWrite(directory, async () => ({ current: base, state: await replacementState(document, base, attribution) }));
     },
     close({ beforeUnlock } = {}) {

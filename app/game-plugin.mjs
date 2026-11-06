@@ -236,25 +236,31 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
   }
   function itemMatches(player, record, world, unmapped, others = [], autoTick = true) {
-    const owner = member(player), dismissed = itemHandled.get(player), explicit = new Set(itemStore.get(player)?.handled ?? []);
+    const owner = member(player), dismissed = itemHandled.get(player), live = itemStore.get(player);
+    const retained = [...(live ? [{ record: live, world: 'live' }] : []), ...journalRecords(player)];
+    const handledByWorld = new Map(retained.map(({ record, world }) => [world, new Set(record.handled)]));
+    const explicit = handledByWorld.get('live');
     if (unmapped !== null) {
-      const records = [record, ...others.map(row => row.record), ...journalRecords(player).map(row => row.record)];
+      const records = [record, ...others.map(row => row.record), ...retained.map(row => row.record)];
       const retainedHandled = new Set(records.flatMap(record => record.handled));
-      const retained = records
+      const retainedUnmapped = records
         .flatMap(record => Object.entries(record.items).filter(([id]) => !GAME_ITEMS.has(Number(id)))
           .map(([id, fact]) => ({ gameItemId: Number(id), name: fact.name })));
-      unmapped = [...new Map([...unmapped, ...retained].map(row => [row.gameItemId, row])).values()]
+      unmapped = [...new Map([...unmapped, ...retainedUnmapped].map(row => [row.gameItemId, row])).values()]
         .filter(row => !dismissed?.has(`unmapped:${row.gameItemId}`) && !retainedHandled.has(`unmapped:${row.gameItemId}`));
     }
     // Prefer live rows when several environments support the same task. Match all
     // records before publishing one review, so queued evidence cannot hide containers.
     // Retained journal records join every review (items and bank) until handled.
-    const results = [{ record, world }, ...others, ...journalRecords(player)].sort((a, b) =>
+    const results = [{ record, world }, ...others, ...retained.filter(row => row.world !== 'live')].sort((a, b) =>
       ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
         task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live',
-        handled: id => record.handled.includes(id) || !!dismissed?.has(id)
-          || explicit.has(`~plugin-review:${id}`), unmapped: unmapped ?? [] }));
+        // Fresh container and bank records do not carry retained decisions.
+        // Literal handled IDs in their own scope are authoritative; rollback
+        // markers remain optional and cannot determine current suppression.
+        handled: id => record.handled.includes(id) || !!handledByWorld.get(world)?.has(id) || !!dismissed?.has(id)
+          || !!explicit?.has(`~plugin-review:${id}`), unmapped: unmapped ?? [] }));
     const ticks = results.flatMap(result => result.ticks), tickIds = new Set(ticks.map(row => row.taskId));
     const unique = new Map();
     for (const row of results.flatMap(result => result.rows)) if (!tickIds.has(row.taskId) && !unique.has(row.taskId)) unique.set(row.taskId, row);

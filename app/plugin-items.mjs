@@ -113,7 +113,15 @@ export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, 
     const contents = files[file];
     if (contents === undefined) continue;
     const commits = file === commitFile;
-    const document = validate(JSON.parse(contents), commits ? validateJournalCommits : validateItemRecord);
+    let document;
+    try { document = validate(JSON.parse(contents), commits ? validateJournalCommits : validateItemRecord); }
+    catch (error) {
+      // Startup may recover authoritative decisions before the plugin readers
+      // open. Leave corrupt optional bytes untouched for their existing
+      // log-and-archive repair; ordinary exports still require valid evidence.
+      if (captureOptions?.recoverReview && (error instanceof SyntaxError || error instanceof TypeError)) continue;
+      throw error;
+    }
     const world = file === pluginItemFile() ? 'live' : file === pluginItemFile('beta') ? 'beta' : 'unknown';
     for (const [id, value] of Object.entries(document.players)) {
       const record = players.get(id) ?? { records: {}, commits: { journals: [] } };

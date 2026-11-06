@@ -64,6 +64,14 @@ An actual current-scope capacity refusal leaves the save, evidence and review un
 and identifies the scope and 2,000-ID bound. Dismissal alone does not increment the
 gameplay revision. Retained decisions persist through restart and portable
 recovery; surviving portable decisions are never removed on roll-forward.
+Every container, bank and journal matcher consults that player's retained literal
+handled IDs in the matching world, even when optional rollback markers cannot fit.
+Recovery carries private claim coordination and the unsealed-archive guard to
+replacement state objects. Immutable field references remain attached to their
+unchanged field objects; changed fields are serialized and hashed again.
+Malformed optional item sidecars do not prevent decision recovery from state.
+Their bytes remain untouched until the existing sidecar reader logs the problem
+and archives the original on a successful write. Ordinary exports remain strict.
 Frozen operations can discard carriers or re-offer decided rows; see the
 accepted rollback limit alongside currency limits below. Automatic live completion
 keeps its existing retention behavior.
