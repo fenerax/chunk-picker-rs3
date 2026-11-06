@@ -1,11 +1,14 @@
 // Hosted, isolated first-attempt mutations and matched file-wall measurements.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const root = process.cwd(), output = path.resolve(process.argv[2] ?? '.local/short-height-proof');
+const selectedPair = process.argv[3] === undefined ? undefined : Number(process.argv[3]);
+assert.ok(selectedPair === undefined || Number.isInteger(selectedPair) && selectedPair >= 1 && selectedPair <= 3);
 mkdirSync(output, { recursive: true });
 const scratch = mkdtempSync(path.join(tmpdir(), 'short-height-proof-'));
 const git = (...args) => {
@@ -33,28 +36,45 @@ function run(directory, name, args) {
   return { status: result.status, wallMs, stdout: result.stdout, stderr: result.stderr };
 }
 try {
-  for (const mutation of ['original-layout', 'clipping', 'tab-stop']) {
+  for (const mutation of selectedPair && selectedPair !== 1 ? [] : ['original-layout', 'focus-layout', 'clipping', 'tab-stop']) {
     const directory = checkout(mutation, head);
-    const file = path.join(directory, mutation === 'tab-stop' ? 'app/web/index.html' : 'app/web/phone-layout.css');
+    const file = path.join(directory, mutation === 'tab-stop' ? 'app/web/index.html'
+      : mutation === 'focus-layout' ? 'app/web/phone-layout.mjs' : 'app/web/phone-layout.css');
     const original = readFileSync(file, 'utf8');
-    if (mutation === 'original-layout') writeFileSync(file, git('show', `${baseline}:app/web/phone-layout.css`) + '\n');
+    if (mutation === 'original-layout' || mutation === 'focus-layout')
+      writeFileSync(file, git('show', `${baseline}:${path.relative(directory, file).split(path.sep).join('/')}`) + '\n');
     else if (mutation === 'clipping') writeFileSync(file, original + '\n.phone-layout #phone-roll-host { height:20px; overflow:hidden; }\n');
     else {
       assert.ok(original.includes('id="pick"'), 'Roll button mutation anchor');
       writeFileSync(file, original.replace('id="pick"', 'id="pick" tabindex="-1"'));
     }
-    const result = run(directory, mutation, ['scripts/perf/short-height-browser.mjs', '--font', '16', '--height', '240']);
+    const result = run(directory, mutation, mutation === 'focus-layout'
+      ? ['--test', '--test-concurrency=1', 'tests/phone-layout.test.mjs']
+      : ['scripts/perf/short-height-browser.mjs', '--font', '16', '--height', '240']);
     const expected = mutation === 'original-layout' ? /native scrollport excludes fixed tabs/
+      : mutation === 'focus-layout' ? /the original 39.25\/44 clipping geometry is corrected/
       : mutation === 'clipping' ? /"name":"Roll visible"/ : /Roll visible: #pick unreachable/;
     assert.equal(result.status, 1, `${mutation} must fail on its first attempt`);
-    assert.match(result.stderr, expected, `${mutation} must fail for the intended obligation`);
+    assert.match(result.stdout + result.stderr, expected, `${mutation} must fail for the intended obligation`);
     proof.mutations.push({ name: mutation, attempts: 1, caught: true, wallMs: result.wallMs }); save();
     git('worktree', 'remove', '--force', directory); worktrees.splice(worktrees.indexOf(directory), 1);
   }
-  const before = checkout('before', baseline), after = checkout('after', head);
+  const before = checkout('before', head), after = checkout('after', head);
+  // Hold the product fixed. Repair the old witness's stale query and its
+  // top-layer clipping calculation, preserving every old 180 ms sleep.
+  const oldDriver = git('show', `${baseline}:scripts/perf/short-height-browser.mjs`)
+    .replace("text: 'OwnItem'", "text: 'Own sword'")
+    .replace('bottom = Math.min(bottom, edge + parent.clientHeight);',
+      'bottom = Math.min(bottom, edge + parent.clientHeight); if (parent === dialog) break;');
+  assert.equal((oldDriver.match(/await settle\(page\)/g) ?? []).length > 0, true);
+  writeFileSync(path.join(before, 'scripts/perf/short-height-browser.mjs'), oldDriver + '\n');
+  writeFileSync(path.join(before, 'tests/short-height-browser.test.mjs'), git('show', `${baseline}:tests/short-height-browser.test.mjs`) + '\n');
+  proof.timingBaseline = { product: head, harness: baseline,
+    corrections: ['query Own sword', 'modal top-layer ancestor boundary'],
+    driverSha256: createHash('sha256').update(oldDriver + '\n').digest('hex') }; save();
   // Alternate order to avoid attributing runner warmup to the replacement.
   let baselineFailed = false;
-  for (let pair = 1; pair <= 3; pair++) for (const variant of pair % 2 ? ['before', 'after'] : ['after', 'before']) {
+  for (const pair of selectedPair ? [selectedPair] : [1, 2, 3]) for (const variant of pair % 2 ? ['before', 'after'] : ['after', 'before']) {
     if (variant === 'before' && baselineFailed) continue;
     const result = run(variant === 'before' ? before : after, `${variant}-${pair}`,
       ['--test', '--test-concurrency=1', 'tests/short-height-browser.test.mjs']);

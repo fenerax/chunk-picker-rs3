@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { findChrome } from '../ci/gallery-support.mjs';
 import { openChrome, until } from './cdp.mjs';
-import { freshPage, observationNames } from './short-height-readiness.mjs';
+import { freshPage, observationNames, focusedGeometry } from './short-height-readiness.mjs';
 const option = name => { const i = process.argv.indexOf(`--${name}`); return i < 0 ? undefined : process.argv[i + 1]; };
 const baseline = option('baseline'), measureOnly = process.argv.includes('--measure-only');
 const baselineFiles = baseline && new Map(['style.css', 'phone-layout.css', 'screen-dialogs.mjs'].map(file => ['/' + file, execFileSync('git', ['show', `${baseline}:app/web/${file}`], { encoding: 'utf8' })]));
@@ -31,10 +31,9 @@ async function ready(page, expression) {
     throw new Error(`Readiness failed: ${expression}; ${JSON.stringify(await page.evaluate("({ search: document.querySelector('#task-filter')?.value, tasks: document.querySelector('#active-tasks')?.textContent, status: document.querySelector('#task-engine-status')?.textContent })"))}`, { cause: error });
   }
 }
-const settle = page => page.evaluate('window.shortHeightReadiness.settled()');
+const settle = page => page.evaluate(`window.shortHeightReadiness.settled().then(readiness => ({ readiness, geometry: (${focusedGeometry})() }))`);
 async function observe(page, row, name, settled) {
-  const readiness = settled ?? await settle(page);
-  const geometry = await focused(page);
+  const { readiness, geometry } = settled ?? await settle(page);
   assert.ok(!row.observations.some(o => o.name === name), `Duplicate observation: ${name}`);
   row.observations.push({ name, readiness, geometry });
   return geometry;
@@ -66,24 +65,7 @@ function check(row, name, pass, detail) {
     if (row.variant === 'after' && !measureOnly) assert.fail(JSON.stringify({ ...failure, readiness: row.observations.at(-1)?.readiness }));
   }
 }
-async function focused(page) {
-  return evaluate(page, () => {
-    const e = document.activeElement, r = e.getBoundingClientRect(), dialog = e.closest('dialog');
-    const header = dialog?.querySelector('.dialog-header').getBoundingClientRect();
-    const content = dialog?.querySelector('#dialog-content'), cr = content?.getBoundingClientRect();
-    let top = content?.contains(e) ? Math.max(0, header.bottom, cr.top) : 0;
-    let bottom = dialog ? Math.min(innerHeight, dialog.getBoundingClientRect().bottom, content?.contains(e) ? cr.bottom : Infinity) : document.querySelector('#phone-tabs').getBoundingClientRect().top;
-    for (let parent = e.parentElement; parent; parent = parent.parentElement) {
-      if (getComputedStyle(parent).overflowY === 'visible') continue;
-      const clip = parent.getBoundingClientRect(), edge = clip.top + parent.clientTop;
-      top = Math.max(top, edge); bottom = Math.min(bottom, edge + parent.clientHeight);
-      // A modal is in the top layer and escapes clipping by body/html.
-      if (parent === dialog) break;
-    }
-    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-    return { left: r.left, right: r.right, width: r.width, top: r.top, bottom: r.bottom, dialogScroll: dialog?.scrollTop, contentScroll: content?.scrollTop, contentTop: cr?.top, contentBottom: cr?.bottom, headerBottom: header?.bottom, control: e !== document.body, id: e.id, text: e === document.body ? '' : e.textContent?.slice(0, 100), height: r.height, visible: Math.max(0, Math.min(bottom, r.bottom) - Math.max(top, r.top)), hit: e === hit || e.contains(hit), owner: hit?.tagName };
-  });
-}
+const focused = page => evaluate(page, focusedGeometry);
 async function tabTo(page, selector, row, name, backwards = false) {
   const seen = new Set();
   for (let i = 0; i < 100; i++) {
@@ -93,12 +75,9 @@ async function tabTo(page, selector, row, name, backwards = false) {
       check(row, name, geometry.height >= 44 && geometry.visible >= geometry.height - 1 && geometry.hit, geometry);
       return geometry;
     }
-    const identity = await evaluate(page, () => {
-      const e = document.activeElement;
-      // Chromium can expose more than one body stop while crossing its browser
-      // focus boundary. Only revisiting a concrete control closes a DOM cycle.
-      return e === document.body ? null : e.id || [...document.querySelectorAll('*')].indexOf(e);
-    });
+    // DOM positions are not identities, and a late-painted control can change
+    // the native order. A cycle requires the same node AND same tabbable order.
+    const identity = await page.evaluate('window.shortHeightReadiness.traversalState()');
     if (identity === null) continue;
     if (seen.has(identity)) break;
     seen.add(identity);
@@ -107,6 +86,7 @@ async function tabTo(page, selector, row, name, backwards = false) {
     focus: await focused(page), target: await evaluate(page, s => ({
       count: document.querySelectorAll(s).length, hasFocus: document.hasFocus(),
       tab: document.documentElement.dataset.phoneTab, hidden: document.querySelector(s)?.hidden,
+      focusHistory: window.shortHeightReadiness.focusHistory,
     }), selector),
   })}`);
 }
@@ -159,6 +139,7 @@ try {
           await ready(page, "document.querySelector('#save-status')?.textContent === 'Saved'");
           row.savedAt = await page.evaluate('performance.now()');
           await ready(page, "window.__rs3Perf.events.some(event => event.name === 'tasks-shown')");
+          await ready(page, "[...document.querySelectorAll('link[rel=stylesheet]')].every(link => link.sheet)");
           row.startupEvents = await page.evaluate('window.__rs3Perf.events');
           // Backup polling is independent of state hydration. Wait for its
           // status to settle, then keep the visibility assertion below.

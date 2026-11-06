@@ -12,6 +12,12 @@ the serialized synthetic definitions/state/task-map digest is
 `ee6d0b77617425a07c66be75d38bc805cb7b63995c5f70bb557302885e4f6a44`.
 Each row retains these identities in its receipt.
 
+Manifest identity: occurrence **1**, kind **test**, **0 suites**, ordinary full
+CI lane on the existing supported platforms. Expected status is pass; the cited
+failed CI attempt remains a first failure, and the sole permitted skip remains
+`Chrome not found`. No old native case is deleted, renamed, split or replaced
+with a new skip. The new phone-layout unit witness is an additional case.
+
 The original native case identity, dataset policy, and missing-Chrome skip
 reason are unchanged. This document and the ordered `observationNames` export
 are the old-to-new assertion map; the wrapper checks the exact matrix and every
@@ -61,7 +67,9 @@ Readiness must be independent of those assertions: fonts complete, expected
 viewport and phone media applied, native focus event acknowledged, and equal
 layout/scroll snapshots across consecutive animation frames. A stable clipped
 box must fail immediately; no visibility predicate is a readiness condition.
-Each receipt includes its settled geometry and traversal identity. Target
+Samples are taken in a task after rendering and ResizeObserver delivery, then
+geometry is captured atomically with settlement. Each receipt includes its
+settled geometry and focus-event count. Target
 searches stop after one complete native focus cycle when the target is absent.
 
 ## Product regression
@@ -81,3 +89,16 @@ this geometric invariant once per combination, independently of the original
 Roll/Controls clipping checks. It fails against the old layout even when a
 particular native focus scroll happens to land clear of the tabs. Modals use
 the browser top layer and correctly escape clipping by body/html.
+
+The screen-bar observer also reveals the focused target during banner-resize
+delivery, before paint, rather than scheduling a later animation frame.
+Native focus scrolling can finish before a later banner moves the target down;
+the observer corrects that displacement without changing focus or reacting to
+ordinary user scrolling. A deterministic unit witness preserves the historical
+39.25/44 geometry and a subsequent 44 px banner growth. The hosted proof restores
+the old observer in an isolated checkout and requires this witness to fail once.
+
+Timing holds the fixed product constant and compares the old sleep-based harness
+against the replacement. Its old harness receives only the actual Own sword query
+and the top-layer ancestor boundary correction, retaining all 708 mandatory
+180 ms sleeps. The receipt records that harness's exact hash and all first outcomes.

@@ -38,6 +38,36 @@ test('showing and hiding the update banner reserves its height above the fixed p
   assert.equal(values.get('--topbar-height'), '130px');
 });
 
+test('native phone focus stays wholly visible after a banner shifts its target', () => {
+  const frames = [], listeners = {}, portHeight = 184;
+  let targetTop = 144.75, phone = true, modal = false;
+  const body = { scrollTop: 0, clientTop: 0, clientHeight: portHeight,
+    contains: () => true, getBoundingClientRect: () => ({ top: 0 }) };
+  const active = { closest: () => modal ? {} : null, getBoundingClientRect: () => ({
+    top: targetTop - body.scrollTop, bottom: targetTop + 44 - body.scrollTop, height: 44,
+  }) };
+  class Observer { constructor(callback) { this.refresh = callback; } observe() {} }
+  const document = { body, activeElement: active, querySelector: () => null, getElementById: () => null,
+    defaultView: { requestAnimationFrame: callback => frames.push(callback) },
+    documentElement: { style: { setProperty() {} }, classList: { contains: () => phone } },
+    addEventListener: (type, callback) => { listeners[type] = callback; } };
+  const observer = observeScreenBars(document, Observer);
+  listeners.focusin?.(); observer.refresh();
+  const scheduled = frames.length;
+  while (frames.length) frames.shift()();
+  assert.equal(body.scrollTop, 4.75, 'the original 39.25/44 clipping geometry is corrected');
+  assert.equal(scheduled, 1, 'native focus and layout share one frame');
+  targetTop += 44;
+  observer.refresh();
+  assert.equal(active.getBoundingClientRect().bottom, portHeight, 'later banner growth also reveals the whole box');
+  assert.deepEqual(Object.keys(listeners), ['focusin'], 'ordinary user scrolling is left alone');
+  const before = body.scrollTop;
+  modal = true; targetTop += 44; observer.refresh();
+  assert.equal(body.scrollTop, before, 'top-layer dialogs own their scrolling');
+  modal = false; phone = false; observer.refresh();
+  assert.equal(body.scrollTop, before, 'desktop layout keeps its existing scrolling');
+});
+
 function fixture({ phone = true, saved, blocked = false } = {}) {
   const root = new Node(), tabBar = new Node(), buttons = Object.fromEntries(['map', 'tasks', 'more'].map(tab => [tab, new Node()]));
   const panels = Object.fromEntries(['map', 'tasks', 'more'].map(tab => [tab, new Node()]));
