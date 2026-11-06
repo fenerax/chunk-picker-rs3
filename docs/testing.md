@@ -195,76 +195,46 @@ validation requires ports in 8900–8999.
 
 For a named test file, inspect `testRunPolicy(name)` in `scripts/test-selection.mjs` and apply its complete environment, including cleared inherited pack variables. Many files use `RS3_DATASET=open-f2p`; a bare `node --test` can pass against a different rule catalogue. The suite CLI accepts suites and `--list`, not a file-selection flag. Use the adaptive runner API or a focused invocation with the matching policy when the task limits checks to named files.
 
-Before pushing, fetch `origin/main`, inspect `npm run test:affected -- --list`,
-then run `npm run test:affected`. The command runs only the selection, defaults
-to BelowNormal priority and one worker, and stops on the first failing file.
-Respect any task-specific focused-test limits. On the shared PC acquire the
-shared `heavy.lock` directory atomically with an `owner.txt`, keep heavy steps
-sequential and release the lock within ten minutes. Split broad selections into
-authorized focused checks when the lease or task requires it.
+Before pushing, fetch `origin/main` and run targeted tests for the changed
+behavior, respecting any task-specific test limits. When adding a browser module
+or static route, include `tests/server.test.mjs` and
+`tests/browser-module-graph.test.mjs`. Targeted local checks still require the
+complete CI gate.
 
-Selection compares staged, unstaged and untracked paths against the merge base
-with `origin/main`; a missing base is an error. `--base=<ref>` overrides the base.
-For synthetic inspection, `npm run test:affected -- --list --changed=README.md`
-replaces the changed-path list without modifying the checkout. `--changed` is
-accepted only with `--list`, so it cannot narrow an executing pre-push check.
+On the shared PC, acquire the shared `heavy.lock` directory atomically with an
+`owner.txt` before multi-file tests. Keep heavy steps sequential at BelowNormal
+priority, pass `--test-concurrency=1`, and release the lock within ten minutes.
+Use the complete `testRunPolicy` environment described above for focused checks.
 
-The graph follows static imports, reexports, parenthesized literal dynamic
-imports, literal file URLs, dataset keys and filesystem reads. Import specifiers
-and explicit URLs use URL decoding; filesystem strings preserve percent signs
-and hash characters. Directory operations establish prefix edges regardless of
-trailing slash. Old edges remain for changed/deleted modules. Explicit rules in
-`scripts/test-affected-rules.mjs` cover browser/static routes, save surfaces and
-docs/menu scans. An inert filename is ignored only when no graph edge targets it.
+## Linux CI shards
 
-Unresolved references mark their own source module uncertain. Every test that
-transitively reaches such a module stays selected for any non-inert change;
-unrelated uncertainty no longer expands the whole inventory. Known edges survive
-other unresolved references in the same file. Unrecognized fs aliases, computed
-members, parenthesized callees and escaping namespaces remain conservative.
-Global workflow/package/lockfile, runner, test-environment and dataset inputs
-return every feedback test before filtering. Uncovered changes also select all.
-If the index or merge base contains any tracked symlink, all changes select all;
-this intentionally covers link chains and absolute/external targets. The current
-repository has no tracked symlinks.
+CI runs the complete Linux suite in four deterministic, time-balanced shards.
+`npm test -- --shard=1/4 --list` inspects a partition. Each shard computes and
+audits the complete partition before execution, rejecting omissions and duplicate
+assignments. Timings supply weights, never inventory: every discovered full-suite
+file remains assigned exactly once, including files absent from the timing table.
+There is no preceding test stage or selective ordering.
 
-Two finite bundled loaders have explicit input scopes in
-`scripts/test-affected-contracts.mjs`. Their complete normalized source is guarded
-by an audited fingerprint: editing a read, its literal source-name array, aliases
-or any other argument provenance invalidates the contract. The selector restores
-ordinary uncertainty, and the focused contract test fails until it is re-audited.
-General pack/profile loaders accept arbitrary caller-supplied roots and have no
-such narrow scope. Many tests still reach their computed reads; selection can
-remain broad. This policy favors complete feedback over an artificial size cap.
+A short `inputs` job populates pack, Wiki and frozen-checkout caches once before
+fan-out. Shards restore the same keys, retain 15-minute timeouts, and stop on the
+first failing file. Matrix fail-fast cancels sibling shards. Each shard retains
+its own ledger and native coverage artifact. The coverage job requires successful
+input preparation, all shards, Windows and differential jobs; it validates each
+report against its exact assignment before applying the existing
+every-case-passes-somewhere rule. Cancelled, missing or incomplete shards cannot
+make coverage green. The Windows slice is unchanged.
 
-CI has no separate affected test job. A short `inputs` job populates the pack,
-Wiki and frozen-checkout caches once before fan-out. Every Linux shard computes
-the affected set, runs its own affected prefix first, waits for that prefix to
-succeed, then runs the rest of its partition. Each file runs exactly once, with
-one ledger and coverage inventory covering both phases. A prefix failure stops
-the shard immediately. Matrix fail-fast cancels siblings; missing/cancelled or
-incomplete reports and unsuccessful upstream results fail the coverage gate.
-Windows and differential lanes remain independent. Every shard retains its
-15-minute timeout; there is no preceding 35-minute affected suite.
-
-`npm test -- --shard=1/4 --affected-first --list` inspects the ordered partition.
-All shards audit the complete full-suite partition, rejecting omissions and
-duplicates. Timings in `scripts/ci/test-timings.json` come from all 772 passing
-Linux files in public run `42294078968`. Regenerate from one complete recent run
-with `node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`. The slowest
-passing measurement per file supplies its weight; the median supplies new files.
+Timings in `scripts/ci/test-timings.json` come from the complete Linux measurements
+in public run `42294078968`. Regenerate from one recent complete Linux run with
+`node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`. The slowest passing
+measurement per file supplies its weight and the median supplies new files.
 Avoid retaining inflated maxima from older execution environments.
 
-The original Linux job took 22m39s. The first sharded workflow took 13m53s with a
-2m34s affected stage and shard jobs of 3m27s, 5m06s, 10m52s and 6m48s. Stale weights
-overestimated linux-multi-picker (13m05s versus 2m59s observed) and
-linux-tools-install (9m19s versus 4m01s); shard 3 combined a 3m58s solo prefix with
-the 6m14s game-plugin-items file. Fresh weights and prefix ordering predict about
-6m14s, 6m17s, 6m37s and 6m14s execution plus setup, with counts 127, 417, 139 and 89.
-Solo work is grouped within each prefix to avoid repeated drains. Prefix barriers can
-reduce overlap, so the execution model is an estimate, not a seven-minute promise.
-Hosted runs validate actual ordering, contention and admission. Distinct shard
-artifacts preserve the existing every-case-passes-somewhere coverage rule.
+The original unsharded Linux job took about 25 minutes (22m39s in the recorded
+baseline). Fresh weights predict about 6m14s execution per shard plus setup.
+Actual wall time varies with memory admission and contention; hosted ledgers
+validate the estimates. Static test selection is deferred to a separate follow-up
+based on runtime traces of files each test actually loads and reads.
 
 Published pack profiles control which data overlays CI sees. Source overlays do
 not update already published packs.

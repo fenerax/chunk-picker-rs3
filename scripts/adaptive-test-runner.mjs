@@ -272,12 +272,12 @@ export async function runAdaptive({ files, cwd = process.cwd(), env = process.en
   memory = freemem, floorBytes = 4 * GiB, reserveBytes = GiB,
   minConcurrency = 2, maxConcurrency = 6, pollMs = 250, rampMs = 1000,
   onEvent = async () => {}, onFile = async () => {}, onSchedule = async () => {}, onAdmit = async () => {}, onFileError = async () => {},
-  signal, runFile = nativeFile, policy, fileDeadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot, soloFirst = true } = {}) {
+  signal, runFile = nativeFile, policy, fileDeadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot } = {}) {
   if (!Array.isArray(files) || files.some(file => typeof file !== 'string' || !file)) throw new TypeError('files must be an array of nonempty paths');
   if (new Set(files.map(file => path.resolve(cwd, file))).size !== files.length) throw new Error('Duplicate test files');
   policy ??= await loadTestPolicy(cwd);
   const policies = new Map(files.map(file => [file, policy(path.basename(file)) ?? {}]));
-  if (soloFirst) files = [...files.filter(file => policies.get(file).solo), ...files.filter(file => !policies.get(file).solo)];
+  files = [...files.filter(file => policies.get(file).solo), ...files.filter(file => !policies.get(file).solo)];
   let soloActive = false;
   if (!Number.isFinite(floorBytes) || floorBytes < 4 * GiB) throw new Error('Memory floor must be at least 4 GiB');
   if (!Number.isFinite(reserveBytes) || reserveBytes < GiB) throw new Error('Worker reserve must be at least 1 GiB');

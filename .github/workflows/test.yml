@@ -183,14 +183,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y bzip2 util-linux
           sudo "$(command -v node)" scripts/ops/install-restic.mjs
-      # Every partition runs once, with its affected files before the remainder.
-      - name: Full shard, affected first
-        run: |
-          base="$AFFECTED_BASE"
-          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base=origin/main; fi
-          AFFECTED_BASE="$base" npm test -- --shard=${{ matrix.shard }}/4 --affected-first
+      # Each full-suite file belongs to exactly one partition.
+      - name: Full shard
+        run: npm test -- --shard=${{ matrix.shard }}/4
         env:
-          AFFECTED_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           RS3_FROZEN_CACHE: ${{ runner.temp }}/frozen-rollback
           RS3_COVERAGE_REPORT: ${{ runner.temp }}/test-shard-${{ matrix.shard }}.json
           RS3_COVERAGE_LANE: test

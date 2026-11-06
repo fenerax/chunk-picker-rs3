@@ -9,11 +9,11 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain && process.argv.includes('--help')) {
   console.log('Usage: node scripts/test.mjs [quick|full|differential|engine-differential] [--list] [--shard=N/M]\nFull starts at 2 files and adapts up to 6; quick caps at 2; differential suites default to 1. RS3_TEST_CONCURRENCY (1-6) sets the cap. Every admission reserves 1 GiB per active worker above a 4 GiB free-memory floor.');
 } else if (isMain) {
-  const { discoverTests, adaptiveOptionsFor, testRunPolicy } = await import('./test-selection.mjs');
+  const { discoverTests, adaptiveOptionsFor } = await import('./test-selection.mjs');
   const suite = process.argv[2] ?? 'full';
   const options = process.argv.slice(3);
   if (process.env.RS3_COVERAGE_REPORT && (!['full', 'differential'].includes(suite) || options.includes('--list'))) throw new Error('Coverage reports require a full or differential test run');
-  if (options.some(option => !['--list', '--affected-first'].includes(option) && !/^--shard=\d+\/\d+$/.test(option))) throw new Error('Only --list, --affected-first and --shard=N/M are supported');
+  if (options.some(option => option !== '--list' && !/^--shard=\d+\/\d+$/.test(option))) throw new Error('Only --list and --shard=N/M are supported');
   let files = await discoverTests(undefined, suite);
   const shards = options.filter(option => option.startsWith('--shard='));
   if (shards.length > 1 || shards.length && suite !== 'full') throw new Error('Sharding requires one full-suite shard');
@@ -25,37 +25,16 @@ if (isMain && process.argv.includes('--help')) {
     files = plan[index - 1].files;
     console.log(`Shard ${index}/${count}: estimated ${(plan[index - 1].estimatedMs / 60000).toFixed(1)} minutes (${(plan[index - 1].wallMs / 60000).toFixed(1)} serial)`);
   }
-  let prefix = [];
-  if (options.includes('--affected-first')) {
-    if (!shards.length) throw Error('--affected-first requires a full-suite shard');
-    const { affectedSelection } = await import('./test-affected.mjs');
-    const { orderShardPrefix } = await import('./ci/test-shards.mjs');
-    const selection = await affectedSelection({ base: process.env.AFFECTED_BASE || 'origin/main' });
-    prefix = orderShardPrefix(files, selection.files, testRunPolicy);
-    console.log(`Affected prefix: ${prefix.length}/${files.length} files; ${selection.uncertain.length} uncertain nodes`);
-  }
   console.log(`${suite}: ${files.length} test files`);
   if (options.includes('--list')) {
-    console.log([...prefix, ...files.filter(file => !prefix.includes(file))].map(name => `tests/${name}`).join('\n'));
+    console.log(files.map(name => `tests/${name}`).join('\n'));
   } else {
-    await runSelectedTests(files, { suite, prefix, failFast: options.includes('--affected-first'), options: adaptiveOptionsFor(suite) });
+    await runSelectedTests(files, { suite, failFast: shards.length > 0, options: adaptiveOptionsFor(suite) });
   }
 }
 
-// Shared execution keeps affected checks on the same dataset, telemetry and
-// native reporting path as the merge gate. Selection never imports test code.
-export async function runTestPhases(files, prefix, run) {
-  if (new Set(prefix).size !== prefix.length || prefix.some(file => !files.includes(file))) throw Error('Invalid affected prefix');
-  const groups = prefix.length ? [prefix, files.filter(file => !prefix.includes(file))] : [files];
-  for (const [index, group] of groups.entries()) {
-    if (!group.length) continue;
-    const result = await run(group, prefix.length > 0 && index === 0);
-    if (!result.passed) return result;
-  }
-  return { passed: true, exitCode: 0 };
-}
-export async function runSelectedTests(files, { suite = 'full', options = {}, failFast = false, prefix = [] } = {}) {
-  if (new Set(prefix).size !== prefix.length || prefix.some(file => !files.includes(file))) throw Error('Invalid affected prefix');
+// Full shards share one execution, telemetry and native coverage inventory.
+export async function runSelectedTests(files, { suite = 'full', options = {}, failFast = false } = {}) {
   if (!files.length) return;
   const cwd = fileURLToPath(new URL('../', import.meta.url));
   const ledgerDestination = process.env.RS3_TEST_FILE_LEDGER;
@@ -89,8 +68,8 @@ export async function runSelectedTests(files, { suite = 'full', options = {}, fa
   const held = new Map();
   const flush = async key => { const queue = held.get(key) ?? []; held.delete(key); for (const event of queue) await write(event); };
   try {
-    const result = await runTestPhases(files, prefix, (group, affected) => runAdaptive({ files: group.map(name => `tests/${name}`),
-      ...options, ...(affected ? { soloFirst: false } : {}), cwd, env: environment.env, signal: controller.signal,
+    const result = await runAdaptive({ files: files.map(name => `tests/${name}`),
+      ...options, cwd, env: environment.env, signal: controller.signal,
       datasetRoot: ledger ? path.join(path.dirname(ledgerDestination), '.test-datasets') : undefined,
       onAdmit: info => ledger?.onAdmit(info), onFileError: result => ledger?.onFile(result),
       onEvent: async event => {
@@ -106,9 +85,9 @@ export async function runSelectedTests(files, { suite = 'full', options = {}, fa
         ledger?.onFile(result); coverage?.onFile(result);
         if (failFast && !result.passed) controller.abort();
         return flush(path.resolve(cwd, result.file).toLowerCase());
-      } }));
-    if (coverage) await coverage.write(process.env.RS3_COVERAGE_REPORT, { passed: result.passed && !controller.signal.aborted });
-    process.exitCode = result.exitCode || (controller.signal.aborted ? 1 : 0);
+      } });
+    if (coverage) await coverage.write(process.env.RS3_COVERAGE_REPORT, { passed: result.passed });
+    process.exitCode = result.exitCode;
   } finally {
     ledger?.report();
     for (const key of [...held.keys()]) await flush(key).catch(() => {});

@@ -730,7 +730,6 @@
     "tests/teleports-web.test.mjs": 289,
     "tests/terrain-assets-server.test.mjs": 2540,
     "tests/terrain-viewport.test.mjs": 888,
-    "tests/test-affected.test.mjs": 2855,
     "tests/test-run-policy.test.mjs": 997,
     "tests/test-selection-contract.test.mjs": 1349,
     "tests/test-selection.test.mjs": 707,
