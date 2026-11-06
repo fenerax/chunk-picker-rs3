@@ -66,6 +66,20 @@ for (const kind of ['items', 'achievements']) for (const publication of ['replac
 }
 
 for (const kind of ['items', 'achievements']) {
+  test(`a preparation hook cannot discard committed ${kind} decisions before the legacy bridge catches up`, async t => {
+    let discard = false;
+    const f = await fixture(t, { prepareState: state => {
+      if (!discard) return state;
+      const { provenance, ...rebuilt } = state; return rebuilt;
+    } });
+    await f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) });
+    discard = true;
+    await f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic hook edit' }, 1);
+    assert.ok(f.store.isPluginHandled('owner', kind, marker(kind)));
+    const exported = await f.store.backup();
+    assert.deepEqual(exported.state.provenance.pluginAutoHandled.owner[kind], [marker(kind)]);
+  });
+
   test(`initialization validates nested ${kind} registry evidence against legacy limits`, async t => {
     const f = await fixture(t); await f.store.close();
     await rm(path.join(f.dataDir, 'state.json'));

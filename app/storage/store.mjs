@@ -3,7 +3,7 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
-import { hasPluginHandled, withPluginHandled } from './plugin-handled.mjs';
+import { hasPluginHandled, withPluginHandled, reconcilePluginHandled } from './plugin-handled.mjs';
 import { reconcilePluginHandledSidecars, foldLegacyPluginHandled } from './plugin-handled-sidecars.mjs';
 import { withPluginEvidence } from './plugin-evidence-lock.mjs';
 import { appendOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence, withOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
@@ -261,6 +261,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   let current;
   async function publicationState(state, previous) {
     const original = state;
+    // A preparation hook may rebuild provenance. Already committed replay
+    // decisions remain authoritative even before the legacy bridge catches up.
+    if (current) state = reconcilePluginHandled(state, current);
     state = materializeOptionalSidecarEvidence(state, state.provenance?.optionalSidecarEvidence);
     const retainCommittedReplay = previous && isDeepStrictEqual(state.members.map(m => m.id), previous.members.map(m => m.id))
       && isDeepStrictEqual(state.provenance?.pluginAutoHandled, previous.provenance?.pluginAutoHandled)
