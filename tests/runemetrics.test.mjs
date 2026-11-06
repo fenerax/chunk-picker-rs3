@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createGroupState } from '../app/core/state.mjs';
 import { createPlatformApiClient } from '../app/integrations/platform-api.mjs';
-import { platformProfile, platformQuests, platformResponse } from './helpers/platform-api-fixtures.mjs';
+import { platformProfile, platformQuests, platformResponse, recordedPlatformResponse } from './helpers/platform-api-fixtures.mjs';
 import { taskId } from '../app/tasks/engine.mjs';
-import { RUNE_METRICS_SKILLS, createQuestMapping, normalizeQuestTitle, previewRuneMetrics, createRuneMetricsClient as createClient } from '../app/integrations/runemetrics.mjs';
+import { RUNE_METRICS_SKILLS, createQuestMapping, normalizeQuestTitle, previewRuneMetrics } from './helpers/legacy-runemetrics.mjs';
 
-const createRuneMetricsClient = options => createClient({ clock: () => Date.parse('2026-10-27T12:00:00Z'), ...options });
+const createTestPlatformClient = options => createPlatformApiClient({ clock: () => Date.parse('2026-10-27T12:00:00Z'), ...options });
 beforeEach(t => blockUnmockedFetch(t));
 const fixture = name => readFile(new URL(`./fixtures/runemetrics/${name}.json`, import.meta.url), 'utf8').then(JSON.parse);
 // Invented compatibility fixtures; no real account data.
@@ -16,8 +16,13 @@ const [player1Profile, player2Profile, player1Quests, player2Quests] = await Pro
   fixture('examplegimab-profile'), fixture('twosamplegim-profile'),
   fixture('examplegimab-quests'), fixture('twosamplegim-quests'),
 ]);
-const [errors, definitions] = await Promise.all([fixture('errors'),
-  readFile(new URL('../rs3-chunkpicker-chunkinfo-export.json', import.meta.url), 'utf8').then(JSON.parse)]);
+const errors = await fixture('errors');
+// Small authored catalogue: no private dataset or real save is needed.
+const syntheticTitles = ['Garden of Tranquillity', 'Curse of the Empty Lord (miniquest)', 'Father and Son', 'Helping Laniakea',
+  'Foreshadowing', 'Flashback', 'Fortunes', 'Finale', 'My One and Only Lute', 'Skelly By Everlight', 'Flesh and Bone', 'Hermy and Bass',
+  ...player1Quests.quests.map(row => row.title), ...player2Quests.quests.map(row => row.title)];
+const definitions = { challenges: { Quest: Object.fromEntries(syntheticTitles.filter(title => title !== 'Unstable Foundations')
+  .map(title => [`~|${title}|~ Complete the quest`, { BaseQuest: title, QuestPoints: 1 }])) } };
 const questMapping = createQuestMapping(definitions), fetchedAt = '2001-02-03T00:00:03.000Z';
 function group(mapping = questMapping) {
   const state = createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
@@ -29,8 +34,10 @@ function group(mapping = questMapping) {
 const snapshot = (profile = player1Profile, quests = player1Quests) => ({profile,quests,fetchedAt,cached:false});
 const json = (body, status = 200) => new Response(JSON.stringify(body), {status,headers:{'Content-Type':'application/json'}});
 function fetchFixtures(url) {
-  const name = url.searchParams.get('user').toLowerCase();
-  return Promise.resolve(json(url.pathname.endsWith('/quests') ? name === 'twosamplegim' ? player2Quests : player1Quests : name === 'twosamplegim' ? player2Profile : player1Profile));
+  const name = url.searchParams.get('player') ?? decodeURIComponent(url.pathname.split('/').at(-1));
+  const second = name.toLowerCase() === player2Profile.name.toLowerCase();
+  return Promise.resolve(recordedPlatformResponse(url, { profile: second ? player2Profile : player1Profile,
+    quests: second ? player2Quests : player1Quests }));
 }
 
 test('synthetic legacy skill IDs cover all 29 skills including Archaeology 27 and Necromancy 28, with XP in tenths', () => {
@@ -93,16 +100,17 @@ test('ambiguous whole titles and absent catalogue identities remain unmatched', 
   assert.match(preview.unmatched.quests[0].reason,/Several/); assert.match(preview.unmatched.quests[1].reason,/absent/);
 });
 
-test('preview shows level decreases and XP-only changes, skips already-completed additions and leaves planning inputs intact', () => {
+test('preview rejects level decreases, shows XP increases, skips already-completed additions and leaves planning inputs intact', () => {
   const state=group(), owner=state.members[0];
-  const necromancy = player1Profile.skillvalues.find(row=>row.id===28), attack=player1Profile.skillvalues.find(row=>row.id===0);
+  const attack=player1Profile.skillvalues.find(row=>row.id===0);
   const provenance={source:'runemetrics',fetchedAt,runescapeName:owner.runescapeName};
   owner.skillProgress={Necromancy:{level:21,xp:5000,...provenance},Attack:{level:attack.level,xp:0,...provenance}};
   owner.passiveLevels={Necromancy:5}; owner.maxLevels={Necromancy:10};
   const first=previewRuneMetrics(state,'player1',snapshot(),questMapping).preview.quests[0];
   owner.completedTasks.push(first.taskId);
   const {preview,command}=previewRuneMetrics(state,'player1',snapshot(),questMapping);
-  assert.deepEqual(preview.skills.find(row=>row.skill==='Necromancy'),{skill:'Necromancy',before:{level:21,xp:5000},after:{level:necromancy.level,xp:necromancy.xp/10}});
+  assert.equal(preview.skills.find(row=>row.skill==='Necromancy'),undefined);
+  assert.equal(command.skills.find(row=>row.skill==='Necromancy'),undefined);
   assert.equal(preview.skills.find(row=>row.skill==='Attack').after.level,attack.level);
   assert.equal(preview.quests.length,1); assert.equal(command.quests.length,2);
   assert.deepEqual(owner.passiveLevels,{Necromancy:5}); assert.deepEqual(owner.maxLevels,{Necromancy:10});
@@ -118,14 +126,14 @@ test('unknown/missing/invalid skill rows are reported and duplicate observations
 
 test('paired requests use saved binding, descriptive User-Agent and short per-member single-flight cache', async () => {
   let now=Date.parse(fetchedAt), calls=[];
-  const client=createRuneMetricsClient({clock:()=>now,cacheMs:100,fetchImpl:async(url,options)=>{calls.push({url:String(url),options}); return fetchFixtures(url);}});
+  const client=createTestPlatformClient({clock:()=>now,cacheMs:100,fetchImpl:async(url,options)=>{calls.push({url:String(url),options}); return fetchFixtures(url);}});
   const owner=group().members[0];
   const [first,shared]=await Promise.all([client.snapshot(owner),client.snapshot(owner)]);
   assert.equal(calls.length,2); assert.equal(first.cached,false); assert.equal(shared.cached,true);
-  assert.ok(calls.every(call=>/private duo; on-demand/.test(call.options.headers['User-Agent'])));
-  assert.ok(calls[0].url.includes('user=exampleGIMab&activities=0'));
-  first.profile.skillvalues[0].level=1;
-  const cached=await client.snapshot(owner); assert.equal(cached.cached,true); assert.equal(calls.length,2); assert.equal(cached.profile.skillvalues[0].level,3);
+  assert.ok(calls.every(call=>/on-demand/.test(call.options.headers['User-Agent'])));
+  assert.ok(calls[0].url.includes('player=exampleGIMab'));
+  first.skills[0].level=1;
+  const cached=await client.snapshot(owner); assert.equal(cached.cached,true); assert.equal(calls.length,2); assert.equal(cached.skills[0].level,3);
   now+=101; assert.equal((await client.snapshot(owner)).cached,false); assert.equal(calls.length,4);
   await client.snapshot(group().members[1]); assert.equal(calls.length,6);
   await client.snapshot({...owner,runescapeName:'twosamplegim'}); assert.equal(calls.length,8);
@@ -135,15 +143,15 @@ test('paired requests use saved binding, descriptive User-Agent and short per-me
 for (const [name,code,status] of [['private','PROFILE_PRIVATE',422],['unknown','UNKNOWN_NAME',404],['rateLimit','RATE_LIMITED',429],['upstream','UPSTREAM_ERROR',502]]) {
   test(`fixture ${name} returns a clear error and never caches a partial snapshot`,async()=>{
     let fail=true,calls=0;
-    const client=createRuneMetricsClient({fetchImpl:async url=>{calls++; return fail&&url.pathname.endsWith('/profile') ? json(errors[name].body,errors[name].status) : fetchFixtures(url);}});
+    const client=createTestPlatformClient({fetchImpl:async url=>{calls++; return fail&&url.pathname.endsWith('index_lite.json') ? json(errors[name].body,errors[name].status) : fetchFixtures(url);}});
     await assert.rejects(client.snapshot(group().members[0]),error=>error.code===code&&error.status===status);
     fail=false; assert.equal((await client.snapshot(group().members[0])).cached,false); assert.equal(calls,4); client.close();
   });
 }
 
 test('network failure, malformed response and wrong returned account never become snapshots',async()=>{
-  for(const [fetchImpl,code] of [[async()=>{throw new Error('offline');},'NETWORK_FAILURE'],[async()=>new Response('<html>down</html>'),'BAD_RESPONSE'],[async()=>json({}),'BAD_RESPONSE'],[async url=>url.pathname.endsWith('/profile')?json({...player1Profile,name:'Someone'}):fetchFixtures(url),'ACCOUNT_MISMATCH']]){
-    const client=createRuneMetricsClient({fetchImpl});
+  for(const [fetchImpl,code] of [[async()=>{throw new Error('offline');},'NETWORK_FAILURE'],[async()=>new Response('<html>down</html>'),'BAD_RESPONSE'],[async()=>json({}),'BAD_RESPONSE'],[async url=>url.pathname.endsWith('index_lite.json')?json({...platformProfile(),name:'Someone'}):fetchFixtures(url),'ACCOUNT_MISMATCH']]){
+    const client=createTestPlatformClient({fetchImpl});
     await assert.rejects(client.snapshot(group().members[0]),error=>error.code===code); client.close();
   }
 });
@@ -153,7 +161,7 @@ test('invalid title or status anywhere in the quest payload fails before caching
     const corrupt={quests:[row]};
     assert.throws(()=>previewRuneMetrics(group(),'player1',snapshot(player1Profile,corrupt),questMapping),error=>error.code==='BAD_RESPONSE');
     let bad=true;
-    const client=createRuneMetricsClient({fetchImpl:async url=>url.pathname.endsWith('/quests')&&bad?json(corrupt):fetchFixtures(url)});
+    const client=createTestPlatformClient({fetchImpl:async url=>url.pathname.includes('/playerQuests/')&&bad?json({name:player1Profile.name,qp:1,qp_max:450,quests:{'1':row}}):fetchFixtures(url)});
     await assert.rejects(client.snapshot(group().members[0]),error=>error.code==='BAD_RESPONSE');
     bad=false; assert.equal((await client.snapshot(group().members[0])).cached,false); client.close();
   }
@@ -162,8 +170,8 @@ test('invalid title or status anywhere in the quest payload fails before caching
 test('duplicate skill or quest observations are rejected before caching and recover on a later request',async()=>{
   for(const endpoint of ['profile','quests']) {
     let bad=true;
-    const client=createRuneMetricsClient({fetchImpl:async url=>{
-      if(bad&&url.pathname.endsWith(`/${endpoint}`)) return json(endpoint==='profile'?{...player1Profile,skillvalues:[...player1Profile.skillvalues,player1Profile.skillvalues[0]]}:{quests:[...player1Quests.quests,player1Quests.quests[0]]});
+    const client=createTestPlatformClient({fetchImpl:async url=>{
+      if(bad&&(endpoint==='profile' ? url.pathname.endsWith('index_lite.json') : url.pathname.includes('/playerQuests/'))) return json(endpoint==='profile'?{...platformProfile(),skills:[...platformProfile().skills,platformProfile().skills[1]]}:{...platformQuests(),quests:{...platformQuests().quests,'99':platformQuests().quests['11']}});
       return fetchFixtures(url);
     }});
     await assert.rejects(client.snapshot(group().members[0]),error=>error.code==='BAD_RESPONSE');
@@ -173,7 +181,7 @@ test('duplicate skill or quest observations are rejected before caching and reco
 
 test('timeout bounds a hung upstream request and aborts both endpoint signals',async()=>{
   const signals=[];
-  const client=createRuneMetricsClient({timeoutMs:20,fetchImpl:async(url,{signal})=>{signals.push(signal); return new Promise(()=>{});}});
+  const client=createTestPlatformClient({timeoutMs:20,fetchImpl:async(url,{signal})=>{signals.push(signal); return new Promise(()=>{});}});
   await assert.rejects(client.snapshot(group().members[0]),error=>error.code==='TIMEOUT'&&error.status===504);
   assert.equal(signals.length,2); assert.ok(signals.every(signal=>signal.aborted)); client.close();
 });

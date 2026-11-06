@@ -407,8 +407,8 @@
       "reason": "Authored shared application implementation; independently selected provider."
     },
     {
-      "path": "app/integrations/runemetrics.mjs",
-      "reason": "Authored shared application implementation; independently selected provider."
+      "path": "tests/helpers/legacy-runemetrics.mjs",
+      "reason": "Offline synthetic snapshot compatibility helper; no network client."
     },
     {
       "path": "app/map-layer-data.mjs",

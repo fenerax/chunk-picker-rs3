@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { applyMetadataCorrections, metadataCorrections } from '../app/data/metadata-corrections.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
-import { createQuestMapping } from '../app/integrations/runemetrics.mjs';
+import { createQuestMapping } from '../app/integrations/quest-mapping.mjs';
 
 const definitions = challenges => ({ challenges, chunks: { '12850': {} }, sections: {}, walkableChunks: ['12850'], walkableChunksF2P: ['12850'] });
 const correction = (category, label, field, before, after) => ({ category, label, changes: [{ field, before, after }] });

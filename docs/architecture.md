@@ -37,7 +37,7 @@ existing limits. Register new browser modules in the server's static allow-list.
 | `screen-context.mjs` | Shared screen values, initial defaults and bounded caches |
 | `screen-ui.mjs` | DOM helpers, notices, save status and opt-in performance marks |
 | `screen-settings.mjs` | Selected player, preference lookup and applying appearance |
-| `screen-commands.mjs` | API calls, queued saves, optimistic chunk changes, RuneMetrics apply and adopting state |
+| `screen-commands.mjs` | API calls, queued saves, optimistic chunk changes, progress sync apply and adopting state |
 | `screen-roll.mjs` | Roll buttons, offered choices, confirmation and new-task popup |
 | `screen-map.mjs` | Saved-screen rendering, map counts, legend and membership overlay |
 | `screen-loading.mjs` | Task requests, freshness guards, planning/detail loads and worker readiness |

@@ -235,7 +235,7 @@ async function render(entry) {
     c.$('helper-open').click(); await waitFrame();
     const button = document.querySelector(`[data-section="${entry.section}"]`); if (!button) throw new Error('Missing Helper section'); button.click(); return;
   }
-  if (type === 'runemetrics') { const { createRuneMetricsControls } = await import('./runemetrics.mjs'); let generation; const controls = createRuneMetricsControls(c.panelContext, { memberId: c.memberId, isCurrent: () => c.dialogCurrent(generation), onApplied: safety.save }); generation = c.openDialog('Sync Player 1 from RuneMetrics', controls); return; }
+  if (type === 'runemetrics') { const { createRuneMetricsControls } = await import('./runemetrics.mjs'); let generation; const controls = createRuneMetricsControls(c.panelContext, { memberId: c.memberId, isCurrent: () => c.dialogCurrent(generation), onApplied: safety.save }); generation = c.openDialog('Sync Player 1 progress', controls); return; }
   if (['overlays', 'invites', 'feedback', 'news', 'roadmap'].includes(type)) {
     const options = { ...c, dialog: c.$('tool-dialog'), members: () => c.state.members, streamSafe: c.streamSafe, storage: null, isAdmin: () => true, isReadOnly: () => false, banner: c.$('update-banner') };
     if (type === 'overlays') { const { createOverlayPanel } = await import('./overlay-panel.mjs'); return createOverlayPanel(options).open(); }

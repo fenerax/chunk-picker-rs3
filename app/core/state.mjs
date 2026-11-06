@@ -9,7 +9,7 @@ import { validateProgressSnapshots } from './progress-snapshots.mjs';
 import { preferenceDefinitions, validatePreference } from './preferences.mjs';
 import { validateControlSkill, validateControlLevel, validateSlayerLock } from './player-controls.mjs';
 import { defaultRuneScapeNames, validateRuneScapeName, sameRuneScapeName, validateRuneMetricsTimestamp,
-  isGameProgressSource, validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance, validateGamePluginProvenance } from './game-progress.mjs';
+  isGameProgressSource, preserveWebSkillProgress, progressBelongsToMember, validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance, validateGamePluginProvenance } from './game-progress.mjs';
 import { applyChunkColourCommand, validateChunkColour, validateChunkColourName } from './chunk-colours.mjs';
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
 import { validateTransportFacts } from './transport-access.mjs';
@@ -1960,9 +1960,16 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       }
       // The entire trusted snapshot validates before any personal fact is applied.
       if (!plugin) payload.runescapeName = member.runescapeName;
-      if (payload.skills.length) member.skillProgress = { ...(member.skillProgress ?? {}), ...Object.fromEntries(payload.skills.map(({ skill, level, xp, provenance: rowProvenance }) => [skill, { level, xp, ...(rowProvenance ?? provenance) }])) };
+      const skills = payload.skills.flatMap(row => {
+        const accepted = plugin || row.provenance?.source === 'game-plugin' ? row : preserveWebSkillProgress(row, member);
+        return accepted ? [accepted] : [];
+      });
+      if (skills.length) member.skillProgress = { ...(member.skillProgress ?? {}), ...Object.fromEntries(skills.map(({ skill, level, xp, provenance: rowProvenance }) => [skill, { level, xp, ...(rowProvenance ?? provenance) }])) };
       if (payload.quests.length) {
-        member.questProgress = { ...(member.questProgress ?? {}), ...Object.fromEntries(payload.quests.map(({ taskId, title, provenance: rowProvenance }) => [taskId, { title, ...(rowProvenance ?? provenance) }])) };
+        const quests = payload.quests.filter(row => plugin || row.provenance?.source === 'game-plugin'
+          || member.questProgress?.[row.taskId]?.source !== 'game-plugin'
+          || !progressBelongsToMember(member.questProgress[row.taskId], member));
+        member.questProgress = { ...(member.questProgress ?? {}), ...Object.fromEntries(quests.map(({ taskId, title, provenance: rowProvenance }) => [taskId, { title, ...(rowProvenance ?? provenance) }])) };
         member.completedTasks = [...new Set([...member.completedTasks, ...observedQuests])];
       }
       const newAchievements = achievements.filter(({ taskId }) => !member.completedTasks.includes(taskId));
