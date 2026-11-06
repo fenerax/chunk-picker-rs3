@@ -34,11 +34,12 @@ function transport(endpoint = 'ws://127.0.0.1:8947/devtools/page/synthetic') {
   const child = new EventEmitter(); child.exitCode = null; child.signalCode = null;
   let closeChild = stoppedChild => { stoppedChild.exitCode = 0; stoppedChild.emit('exit', 0); };
   child.kill = () => { child.exitCode = 0; child.emit('exit', 0); };
-  const observed = { requests: [], launches: [], sockets: [], activePortReads: 0 };
+  const observed = { requests: [], commands: [], launches: [], sockets: [], activePortReads: 0 };
   class Socket extends EventTarget {
     constructor(url) { super(); observed.sockets.push(url); queueMicrotask(() => this.dispatchEvent(new Event('open'))); }
     send(value) {
       const request = JSON.parse(value);
+      observed.commands.push(request);
       if (request.method === 'Browser.close' && closeChild(child) === false) return;
       queueMicrotask(() => this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ id: request.id, result: {} }) })));
     }
@@ -61,6 +62,23 @@ test('fixed-port CDP connects directly without an active-port file or a real bro
   assert.deepEqual(fixture.observed.sockets, ['ws://127.0.0.1:8947/devtools/page/synthetic']);
   assert.equal(fixture.observed.activePortReads, 0);
   await browser.close();
+});
+
+test('browser CDP endpoint routes commands to isolated target sessions', async () => {
+  const fixture = transport();
+  fixture.dependencies.fetch = async url => {
+    fixture.observed.requests.push(url);
+    return { json: async () => ({ webSocketDebuggerUrl: 'ws://127.0.0.1:8947/devtools/browser/synthetic' }) };
+  };
+  const browser = await openChrome('synthetic-chrome', profile, { port: Number('8947'), browser: true }, fixture.dependencies);
+  try {
+    assert.deepEqual(fixture.observed.requests, ['http://127.0.0.1:8947/json/version']);
+    assert.deepEqual(fixture.observed.commands, [], 'page domains belong to the attached page, not the browser');
+    await browser.send('Page.enable', {}, 'synthetic-session');
+    assert.equal(fixture.observed.commands.at(-1).sessionId, 'synthetic-session');
+    await browser.send('Target.createBrowserContext');
+    assert.equal(fixture.observed.commands.at(-1).sessionId, undefined);
+  } finally { await browser.close(); }
 });
 
 test('CDP refuses a debugger target outside the selected loopback listener', async () => {

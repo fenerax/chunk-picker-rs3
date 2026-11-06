@@ -66,7 +66,10 @@ export async function openChrome(executable, profile, options = {}, dependencies
     if (!Number.isInteger(port) || port < 1024 || port > 65535 || [8788, 8789, 8790, 8791].includes(port)) throw new Error('Unsafe Chrome port.');
     const target = await until(async () => {
       if (child.exitCode !== null) throw new Error('Chrome exited during startup.');
-      try { return (await (await request(`http://127.0.0.1:${port}/json`)).json()).find(item => item.type === 'page'); } catch { return false; }
+      try {
+        if (options.browser) return await (await request(`http://127.0.0.1:${port}/json/version`)).json();
+        return (await (await request(`http://127.0.0.1:${port}/json`)).json()).find(item => item.type === 'page');
+      } catch { return false; }
     });
     const endpoint = new URL(target.webSocketDebuggerUrl);
     if (endpoint.protocol !== 'ws:' || endpoint.hostname !== '127.0.0.1' || Number(endpoint.port) !== port
@@ -83,19 +86,21 @@ export async function openChrome(executable, profile, options = {}, dependencies
       } else for (const listener of listeners) listener(message);
     });
     socket.addEventListener('close', () => { for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('CDP closed.')); } pending.clear(); });
-    const send = (method, params = {}) => new Promise((resolve, reject) => {
+    const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
       const id = ++sequence;
       const timer = setTimeout(() => { pending.delete(id); reject(new Error(`CDP ${method} timed out.`)); }, 30000);
       pending.set(id, { resolve, reject, timer, method });
-      socket.send(JSON.stringify({ id, method, params }));
+      socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
     const evaluate = async expression => {
       const response = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
       if (response.exceptionDetails) throw new Error('Benchmark browser probe failed.');
       return response.result?.value;
     };
-    await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
-    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    if (!options.browser) {
+      await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
+      await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    }
     return { child, send, evaluate, listeners, async close() {
       const exited = waitForChromeExit(child);
       // Some Chrome builds exit without acknowledging this CDP request.
