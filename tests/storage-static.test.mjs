@@ -87,7 +87,7 @@ test('an interrupted static-state commit keeps the old compact state and reusabl
   fail = false;
   await store.command(command, 0);
   const snapshots = await store.listBackups();
-  assert.equal(snapshots.length, 2);
+  assert.equal(snapshots.length, 1, 'A refused publication leaves no retained backup behind');
   for (const snapshot of snapshots) assert.deepEqual(await store.readBackup(snapshot.id), before);
 });
 

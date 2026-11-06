@@ -5,16 +5,53 @@ import { readStaticFieldBytes, validateStaticFieldReference } from './static-fie
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { materializeOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
 import { validRosterSourceId } from '../import-output.mjs';
-import { preparePluginHandledSidecars } from './plugin-handled-sidecars.mjs';
+import { legacyPluginHandledFiles, preparePluginHandledSidecars } from './plugin-handled-sidecars.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const hasReplayPlayers = players => players !== undefined && (!object(players) || Object.values(players).some(record => !object(record)
+  || !Array.isArray(record.items) || !Array.isArray(record.achievements) || record.items.length || record.achievements.length));
+const hasReplayEnvelope = evidence => {
+  const entry = evidence?.entries?.pluginReplaySuppression;
+  return entry !== undefined && (!object(entry) || entry.version !== 1 || !Object.hasOwn(entry, 'players') || hasReplayPlayers(entry.players));
+};
+const hasReplayProvenance = provenance => hasReplayPlayers(provenance?.pluginAutoHandled) || hasReplayEnvelope(provenance?.optionalSidecarEvidence);
+
+async function hasLegacyReplay(dataDir) {
+  let present = false;
+  for (const name of legacyPluginHandledFiles) {
+    let document;
+    try { document = JSON.parse(await readFile(path.join(dataDir, name), 'utf8')); }
+    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    // The gate owns replay decisions, not item baselines/bank/journal data.
+    // Unreadable decision carriers still fail closed; an explicit empty set
+    // does not require a gameplay checkpoint or a particular gameplay schema.
+    if (!object(document?.players) || Object.values(document.players).some(record => !object(record) || !Array.isArray(record.handled)))
+      throw new TypeError('Invalid legacy replay evidence.');
+    present ||= Object.values(document.players).some(record => record.handled.length);
+  }
+  return present;
+}
 // Only the roster and provenance are needed to bridge replay decisions. Keep
 // dataset initialization, credentials, migrations and gameplay writes out of
 // the privileged operator package. Runtime loading validates gameplay normally.
 export async function prepareStoppedPluginSuppression({ dataDir }) {
   const directory = path.resolve(dataDir), release = await acquireProcessGuard(directory);
   try {
-    const document = decodeCompletionDocument(JSON.parse(await readFile(path.join(directory, 'state.json'), 'utf8')));
+    let document;
+    try { document = JSON.parse(await readFile(path.join(directory, 'state.json'), 'utf8')); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const legacy = await hasLegacyReplay(directory);
+    // Only native provenance references are ours to resolve. Other checkpoint
+    // shapes without replay evidence belong to the selected runtime's loader.
+    const provenanceReference = document?.format === 'rs3-chunk-picker' ? document.storage?.fields?.provenance : undefined;
+    let provenance = document?.state?.provenance;
+    if (provenanceReference !== undefined) {
+      validateStaticFieldReference('provenance', provenanceReference);
+      provenance = JSON.parse(await readStaticFieldBytes(directory, 'provenance', provenanceReference));
+    }
+    if (!legacy && !hasReplayProvenance(provenance) && !hasReplayEnvelope(document?.optionalSidecarEvidence))
+      return { publications: [], release };
+    document = decodeCompletionDocument(document);
     const state = document?.state;
     if (document?.format !== 'rs3-chunk-picker' || document.schemaVersion !== 1 || !object(state)
       || state.schemaVersion !== 1 || !Number.isSafeInteger(state.revision) || state.revision < 0
@@ -29,11 +66,11 @@ export async function prepareStoppedPluginSuppression({ dataDir }) {
         if (!['tasks', 'identityRegistry', 'legacy', 'provenance'].includes(key) || Object.hasOwn(state, key)
           || !object(reference)) throw new TypeError('Invalid static field reference.');
         validateStaticFieldReference(key, reference);
-        if (key === 'provenance') state.provenance = JSON.parse(await readStaticFieldBytes(directory, key, reference));
+        if (key === 'provenance') state.provenance = provenance;
       }
     }
     if (state.provenance !== undefined && !object(state.provenance)) throw new TypeError('Invalid replay provenance.');
-    const ready = materializeOptionalSidecarEvidence(state, document.optionalSidecarEvidence);
+    const ready = materializeOptionalSidecarEvidence(state, document.optionalSidecarEvidence ?? state.provenance?.optionalSidecarEvidence);
     return { publications: await preparePluginHandledSidecars({ dataDir: directory, state: ready }), release };
   } catch (error) { await release(); throw error; }
 }

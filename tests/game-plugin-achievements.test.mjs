@@ -342,7 +342,12 @@ for (const restore of ['restart', 'older-backup', 'member']) test(`automatic ach
   const f = await fixture(t, undefined, undefined, { durable: true });
   const older = f.state;
   const file = path.join(f.dataDir, 'plugin-achievements.json');
-  await mkdir(file);
+  const command = f.store.command;
+  f.store.command = async (...args) => {
+    const result = await command(...args);
+    if (args[0].type === 'apply-game-progress') await mkdir(file);
+    return result;
+  };
   const complete = [[1, 'First Task', 0, 0], [2, 'First_Task', 0, 0]];
   await f.send(part(1, 1, complete));
   assert.deepEqual(f.state.members[0].completedTasks, ['diary:one']);

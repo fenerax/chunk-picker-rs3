@@ -235,9 +235,19 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const archivesDir = path.join(backupsDir, 'archives');
   const staticDir = path.join(directory, 'static');
   let importDependencies;
-  async function writeDependency(file, bytes) {
+  let pendingPublication;
+  async function writeDependency(file, bytes, at) {
     if (importDependencies) { importDependencies.push({ file: path.relative(directory, file), bytes: Buffer.from(bytes) }); return; }
+    if (pendingPublication) { pendingPublication.dependencies.push({ file, bytes, at }); return; }
     reportDurability(await atomicWrite(file, bytes));
+    if (at) await utimes(file, at, at);
+  }
+  async function publishDependencies(dependencies) {
+    for (const { file, bytes, at } of dependencies) {
+      await mkdir(path.dirname(file), { recursive: true });
+      reportDurability(await atomicWrite(file, bytes));
+      if (at) await utimes(file, at, at);
+    }
   }
   const acknowledgementsFile = path.join(directory, 'action-acknowledgements.json');
   let durabilityWarnings = 0, lastDurabilityWarningAt;
@@ -248,6 +258,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     warnDurability(publication, 'gameplay store');
   }
   let current;
+  async function publicationState(state, previous) {
+    const materialized = materializeOptionalSidecarEvidence(state, state.provenance?.optionalSidecarEvidence);
+    const folded = await foldLegacyPluginHandled({ dataDir: directory, state: materialized, previous });
+    const ready = isDeepStrictEqual(folded, state) ? state : folded;
+    if (ready !== state && coordination.has(state)) coordination.set(ready, coordination.get(state));
+    return ready;
+  }
   const importTickets = new WeakMap();
   // Receipts are private storage metadata, committed in the SAME replacement
   // as gameplay. Never evict IDs: an arbitrarily delayed retry must fail closed.
@@ -307,7 +324,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const bytes = receiptQuarantine;
     const quarantineDirectory = path.join(directory, 'receipt-quarantine');
     const file = path.join(quarantineDirectory, `${createHash('sha256').update(bytes).digest('hex')}.json`);
-    await mkdir(quarantineDirectory, { recursive: true });
+    if (!pendingPublication) await mkdir(quarantineDirectory, { recursive: true });
     let existing;
     try { existing = await readFile(file); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -424,7 +441,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
-    const state = materializeOptionalSidecarEvidence(importSavedState(document, registry), document.optionalSidecarEvidence);
+    const state = materializeOptionalSidecarEvidence(importSavedState(document, registry), document.optionalSidecarEvidence ?? document.state?.provenance?.optionalSidecarEvidence);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
       const value = state[key];
@@ -442,13 +459,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (staticReferences.has(value)) return staticReferences.get(value);
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const reference = { id: `static-${sha256}.json.gz`, sha256 };
-    await mkdir(staticDir, { recursive: true });
+    if (!pendingPublication) await mkdir(staticDir, { recursive: true });
     try { await readStaticField(key, reference); }
     catch (error) {
       if (error.cause?.code !== 'ENOENT') throw error;
       await writeDependency(path.join(staticDir, reference.id), await gzipAsync(bytes, { level: constants.Z_BEST_SPEED }));
     }
     staticReferences.set(value, reference);
+    pendingPublication?.references.push(value);
     return reference;
   }
   async function serializedDiskState(state, ledger = receipts, currency = pluginCurrency) {
@@ -662,15 +680,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const document = label ? JSON.stringify({ ...envelope((await hydrateHistory(state)).state), retentionPinned: true, retentionLabel: label })
       : ['replace', 'catalogue-refresh'].includes(operation)
       ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized;
-    // A pre-command checkpoint records the committed state. Optional file I/O
-    // must not block Undo while a controller is retrying a failed sidecar.
-    // Portable reads/exports separately capture and validate legacy files.
-    const bytes = await gzipAsync(appendOptionalSidecarEvidence(document, await captureOptionalSidecarEvidence(state)), { level: constants.Z_BEST_SPEED });
+    // Retained checkpoints capture every registered file-backed source. A
+    // publication already validated the union; retain known replay policy if a
+    // handled write is unavailable during owner Undo. Portable downloads below
+    // always recapture strictly and materialize into their destination state.
+    const bytes = await gzipAsync(appendOptionalSidecarEvidence(document, await captureOptionalSidecarEvidence(state,
+      { dataDir: directory, retainCommittedReplay: true })), { level: constants.Z_BEST_SPEED });
     const file = path.join(backupsDir, name);
-    reportDurability(await atomicWrite(file, bytes));
-    if (label) reportDurability(await atomicWrite(`${file}.meta.json`, JSON.stringify({ label })));
     const at = new Date(timestamp());
-    await utimes(file, at, at);
+    await writeDependency(file, bytes, at);
+    if (label) await writeDependency(`${file}.meta.json`, JSON.stringify({ label }));
   }
   const timestamp = () => {
     const value = typeof now === 'function' ? now() : now ?? new Date();
@@ -936,7 +955,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     maintenanceQueue = result.catch(() => {});
     return result;
   }
-  try {
+  try { await withStoreWrite(directory, () => withPluginEvidence(directory, async () => {
     // Check the exact final document before ANY startup mutation. Hash includes
     // receipt/coordination metadata, not just the public revision number.
     if (expectedCheckpoint) {
@@ -967,18 +986,19 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const seed = initialState === undefined
         ? createGroupState((await loadGameDefaults()).members.map(({ id, name }) => ({ id, name })), registry)
         : validateState(initialState, registry);
-      current = await foldLegacyPluginHandled({ dataDir: directory, state: observeStartupProgress(await prepared(seed, 'initialize')) });
+      current = await publicationState(observeStartupProgress(await prepared(seed, 'initialize')));
       currentDiskSerialized = await serializedDiskState(current);
       reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
     currentDiskSerialized ??= await serializedDiskState(current);
+    let pluginFoldPending = false;
     if (!readOnly && existing) {
-      const folded = await foldLegacyPluginHandled({ dataDir: directory, state: current });
+      const folded = await publicationState(current);
       if (folded !== current) {
         if (coordination.has(current)) coordination.set(folded, coordination.get(current));
-        const bytes = await serializedDiskState(folded);
-        await atomicWrite(stateFile, bytes);
-        current = folded; currentDiskSerialized = bytes;
+        // Preparation may still refuse a prospective suppression union. Keep
+        // fold-back in memory until that validation has succeeded.
+        current = folded; pluginFoldPending = true;
       }
     }
     if (existing) {
@@ -993,16 +1013,22 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         ready.history.push({ id: `revision-${ready.revision}`, revision: ready.revision, type: 'catalogue-refresh', at: timestamp() });
         // prepared() validated the complete private state. The only changes
         // here are a checked revision increment and this authored history event.
-        await retainBackup(current, 'catalogue-refresh');
         if (coordination.has(current)) coordination.set(ready, { ...coordinationOf(current), lastNonClaimRevision: ready.revision });
         // Include today's observation in this already-backed-up startup write.
-        ready = observeStartupProgress(ready);
-        const diskDocument = await serializedDiskState(ready);
-        const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
-          beforeRename: beforeCommit ? () => beforeCommit({ operation: 'catalogue-refresh', state: structuredClone(ready) }) : undefined });
-        current = ready;
-        currentDiskSerialized = diskDocument;
-        reportDurability(publication);
+        ready = await publicationState(observeStartupProgress(ready));
+        await withPublicationPreparation(async pending => {
+          await retainBackup(current, 'catalogue-refresh');
+          const diskDocument = await serializedDiskState(ready);
+          const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn', beforeRename: async () => {
+            await beforeCommit?.({ operation: 'catalogue-refresh', state: structuredClone(ready) });
+            if (beforeCommit && await publicationState(ready) !== ready)
+              throw Object.assign(new Error('Plugin replay evidence changed. Restart to reconcile it.'), { status: 409 });
+            await publishDependencies(pending.dependencies);
+          } });
+          pending.published = true;
+          current = ready; currentDiskSerialized = diskDocument; pluginFoldPending = false;
+          reportDurability(publication);
+        });
       }
     }
     // Existing saves were checked by prepareLoadedState before publication.
@@ -1010,19 +1036,20 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Daily observation metadata is independent of commands/catalogue changes.
     // Startup records today's counts without incrementing revision or History.
     if (!readOnly && !liveSwapStrict && progressQuestPoints !== undefined) {
-      const observed = observeStartupProgress(current);
+      const observed = await publicationState(observeStartupProgress(current));
       if (observed !== current) {
         const diskDocument = await serializedDiskState(observed);
         // Observations keep the same revision, but still replace the durable save.
         await retainBackup(current, 'progress-snapshot');
         const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn' });
         current = observed; currentDiskSerialized = diskDocument;
+        pluginFoldPending = false;
         reportDurability(publication);
       }
     }
     if (!readOnly) {
-      const folded = await foldLegacyPluginHandled({ dataDir: directory, state: current });
-      if (folded !== current) {
+      const folded = await publicationState(current);
+      if (folded !== current || pluginFoldPending) {
         if (coordination.has(current)) coordination.set(folded, coordination.get(current));
         const bytes = await serializedDiskState(folded);
         await atomicWrite(stateFile, bytes);
@@ -1031,9 +1058,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       await reconcilePluginHandledSidecars({ dataDir: directory, state: current });
     }
     if (!readOnly && !liveSwapStrict) await maintainRetention();
+  }));
   } catch (error) { await releaseLock(); throw error; }
 
   const cloneCurrent = () => structuredClone(current);
+  const portableRetainedBackup = (state, forImport) => forImport ? envelope(state)
+    // Internal imports map source identity before merging destination evidence.
+    // Downloads instead enrich the historical checkpoint for portable replay.
+    : withOptionalSidecarEvidence(envelope(reconcileOptionalSidecarEvidence(state, current)), { dataDir: directory });
   function checkRevision(expectedRevision) {
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new TypeError('expectedRevision must be a nonnegative safe integer.');
     if (expectedRevision !== current.revision) {
@@ -1046,12 +1078,33 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function enqueue(work) {
     if (closing) return Promise.reject(new Error('The store is closed.'));
     if (frozen) return Promise.reject(Object.assign(new Error('The picker is updating.'), { status: 503, code: 'PICKER_UPDATING' }));
-    const result = queue.then(() => withStoreWrite(directory, work));
+    const result = queue.then(() => withStoreWrite(directory, () => withPluginEvidence(directory, work)));
     queue = result.catch(() => {});
     return result;
   }
-  async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency } = {}) {
-    if (operation === 'replace') next = await foldLegacyPluginHandled({ dataDir: directory, state: next });
+  async function persist(...args) {
+    return withPublicationPreparation(() => persistState(...args));
+  }
+  async function withPublicationPreparation(work) {
+    // Prepare dependencies in memory until the final replay-policy check. The
+    // synced state temporary still precedes beforeCommit, preserving its crash
+    // seam; refused publication leaves no backup/archive/static artifacts.
+    const pending = { dependencies: [], references: [], quarantine: receiptQuarantine, published: false };
+    pendingPublication = pending;
+    try { return await work(pending); }
+    finally {
+      pendingPublication = undefined;
+      if (!pending.published) {
+        for (const value of pending.references) staticReferences.delete(value);
+        receiptQuarantine = pending.quarantine;
+      }
+    }
+  }
+  async function persistState(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency } = {}) {
+    // Every gameplay publication, including built-in notes and cleanup, checks
+    // both legacy unions before writing backups, archives, static fields or
+    // receipts. enqueue holds the same mutex as the legacy sidecar writers.
+    next = await publicationState(next, operation === 'replace' ? undefined : current);
     if (operation === 'replace') currency = currencyAfterRestore(currency, next);
     const observed = cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
     const validated = cleanup ? observed : await compactHistory(observed, archived);
@@ -1064,11 +1117,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const { ledger: nextReceipts, result: receiptResult } = commitActionReceipt(receipts, receipt, validated);
     const diskDocument = await serializedDiskState(validated, nextReceipts, currency);
     const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
-      beforeRename: beforeCommit || operation === 'replace' ? async () => {
+      beforeRename: async () => {
         await beforeCommit?.({ operation, state: structuredClone(validated) });
-        if (operation === 'replace' && await foldLegacyPluginHandled({ dataDir: directory, state: validated }) !== validated)
+        if (beforeCommit && await publicationState(validated, operation === 'replace' ? undefined : current) !== validated)
           throw Object.assign(new Error('Plugin replay evidence changed. Preview the backup again.'), { status: 409 });
-      } : undefined });
+        await publishDependencies(pendingPublication.dependencies);
+      } });
+    pendingPublication.published = true;
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     const choicesChanged = JSON.stringify(current.members.map(member => [member.id, member.selected, member.pendingRoll]))
@@ -1309,6 +1364,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // checkpoint. applyTransfer rejects a ticket if that checkpoint changes.
       const captured = await captureOptionalSidecarEvidence(current, { dataDir: directory });
       next = reconcileOptionalSidecarEvidence(next, materializeOptionalSidecarEvidence(current, captured));
+      next = await publicationState(next);
       importDependencies = [];
       const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
       // Export observes snapshots and hydrated History, not the compact disk
@@ -1421,7 +1477,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
             if (!snapshot) throw new TypeError('Retained backup archive is missing its snapshot.');
             const state = await importStoredBackup(snapshot.document, false, forImport);
             if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-            return envelope((await hydrateHistory(state, undefined, forImport)).state);
+            return portableRetainedBackup((await hydrateHistory(state, undefined, forImport)).state, forImport);
           }
           throw error;
         }
@@ -1430,7 +1486,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const document = forImport ? await importDocument(decoded) : decoded.toString('utf8');
         const state = await importStoredBackup(document, false, forImport);
         if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-        return envelope((await hydrateHistory(state, undefined, forImport)).state);
+        return portableRetainedBackup((await hydrateHistory(state, undefined, forImport)).state, forImport);
       }, { backupRead: true });
     },
     getAccessToken: () => token,
@@ -1459,9 +1515,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return enqueue(async () => {
         const result = openActionSession(receipts, clientId, actor);
         if (result.ledger !== receipts) {
-          const bytes = await serializedDiskState(current, result.ledger);
+          const next = await publicationState(current, current);
+          const bytes = await serializedDiskState(next, result.ledger);
           const publication = await atomicWrite(stateFile, bytes, { onPostPublishSyncError: 'warn' });
-          receipts = result.ledger; currentDiskSerialized = bytes;
+          current = next; receipts = result.ledger; currentDiskSerialized = bytes;
           reportDurability(publication);
         }
         return result.session;
@@ -1509,7 +1566,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           const ready = await prepareLoadedState(latest);
           if (!isDeepStrictEqual(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
-          const folded = await foldLegacyPluginHandled({ dataDir: directory, state: latest });
+          const folded = await publicationState(latest);
           if (folded !== latest) throw Object.assign(new Error('Plugin replay evidence changed; restart the candidate to reconcile it.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
           await reconcilePluginHandledSidecars({ dataDir: directory, state: latest });
           if (closing) throw new Error('Standby activation was cancelled by shutdown.');
@@ -1588,24 +1645,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         }
         const start = performance.now();
         const publication = prepared.publication;
-        const folded = await foldLegacyPluginHandled({ dataDir: directory, state: publication.state });
+        const folded = await publicationState(publication.state);
         if (folded !== publication.state) throw Object.assign(new Error('Plugin replay evidence changed. Preview the backup again.'), { status: 409 });
-        // Dependencies and the preceding checkpoint must be durable before the
-        // authoritative rename. A post-rename sync warning adopts the new state.
-        for (const dependency of publication.dependencies) {
+        const dependencies = publication.dependencies.map(dependency => {
           const target = path.resolve(directory, dependency.file);
           if (!target.startsWith(directory + path.sep)) throw new TypeError('Invalid import dependency.');
-          await mkdir(path.dirname(target), { recursive: true });
-          reportDurability(await atomicWrite(target, dependency.bytes));
-        }
+          return { file: target, bytes: dependency.bytes };
+        });
         const backupFile = path.join(backupsDir, `${String(current.revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`);
-        reportDurability(await atomicWrite(backupFile, publication.backup));
-        const at = new Date(timestamp()); await utimes(backupFile, at, at);
+        dependencies.push({ file: backupFile, bytes: publication.backup, at: new Date(timestamp()) });
         const published = await atomicWrite(stateFile, publication.disk, { onPostPublishSyncError: 'warn',
           beforeRename: async () => {
             await beforeCommit?.({ operation: prepared.operation, state: publication.summary, digest: publication.digest });
-            if (await foldLegacyPluginHandled({ dataDir: directory, state: publication.state }) !== publication.state)
+            if (await publicationState(publication.state) !== publication.state)
               throw Object.assign(new Error('Plugin replay evidence changed. Preview the backup again.'), { status: 409 });
+            // Only a successful final union check may publish dependencies.
+            // They must all be durable before the authoritative rename.
+            await publishDependencies(dependencies);
           } });
         current = publication.state;
         currentDiskSerialized = publication.disk;

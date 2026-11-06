@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { noLinks, exists, json, assertReleased } from './files.mjs';
 import { prepareStoppedPluginSuppression } from '../../app/storage/plugin-replay-checkpoint.mjs';
-import { legacyPluginHandledFiles, publishPluginHandledSidecars } from '../../app/storage/plugin-handled-sidecars.mjs';
+import { publishPluginHandledSidecars } from '../../app/storage/plugin-handled-sidecars.mjs';
 import { registryRecoveryDocument } from '../../app/storage/registry.mjs';
 import { pickerPath } from './service-checkpoint.mjs';
 
@@ -26,12 +26,10 @@ export async function reconcileBeforeStart(settings) {
       if (typeof dataDir !== 'string' || !path.isAbsolute(dataDir)) throw new TypeError('An absolute stopped-store directory is required.');
       await noLinks(await exists(dataDir) ? dataDir : path.dirname(dataDir));
       await assertReleased(dataDir);
-      // Fresh/reserved stores and quarantined placeholders have no gameplay
-      // checkpoint yet. Never bypass orphaned handled decisions, though.
-      if (!await exists(path.join(dataDir, 'state.json'))) {
-        for (const name of legacyPluginHandledFiles) if (await exists(path.join(dataDir, name))) throw new Error('Plugin evidence has no owning checkpoint.');
-        continue;
-      }
+      // Fresh stores need no checkpoint. The replay-specific reader also
+      // accepts unrelated/empty checkpoint shapes, while refusing real orphaned
+      // decisions or evidence that cannot be reconciled with its roster.
+      if (!await exists(dataDir)) continue;
       prepared.push(await prepareStoppedPluginSuppression({ dataDir }));
     }
     await publishPluginHandledSidecars(prepared.flatMap(entry => entry.publications));

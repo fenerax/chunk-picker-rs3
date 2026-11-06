@@ -28,13 +28,29 @@ export function decodeLegacyPluginHandled(state, files, unavailable = new Map())
   return players.size ? reconcilePluginHandled(state, { provenance: { pluginAutoHandled: Object.fromEntries(players) } }) : reconcilePluginHandled(state);
 }
 
-export async function foldLegacyPluginHandled({ dataDir, state }) {
+async function readLegacyPluginHandled(dataDir, unchanged = false) {
   const files = new Map();
   for (const name of legacyPluginHandledFiles) {
     try { files.set(name, await readFile(path.join(dataDir, name))); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    catch (error) {
+      if (error.code !== 'ENOENT' && !(unchanged && ['EACCES', 'EPERM', 'EISDIR', 'EBUSY'].includes(error.code))) throw error;
+    }
   }
+  return files;
+}
+
+export async function foldLegacyPluginHandled({ dataDir, state, previous }) {
+  // Keep gameplay (including owner Undo) available while a handled write is
+  // failing. Only already-committed decisions for the identical roster may
+  // pass this bridge; new ticks, restores, exports and startup fail closed.
+  // Still read and validate the other sidecar if one is unavailable.
+  const unchanged = previous && isDeepStrictEqual(state.members.map(m => m.id), previous.members.map(m => m.id))
+    && isDeepStrictEqual(state.provenance?.pluginAutoHandled, previous.provenance?.pluginAutoHandled);
+  const files = await readLegacyPluginHandled(dataDir, unchanged);
   const next = decodeLegacyPluginHandled(state, files);
+  // Check the actual rollback-sidecar schema as well as the portable limits.
+  // This preparation is read-only and happens before any state dependencies.
+  prepareFromFiles(dataDir, next, files);
   return isDeepStrictEqual(next.provenance, state.provenance) ? state : next;
 }
 
@@ -43,7 +59,12 @@ export async function foldLegacyPluginHandled({ dataDir, state }) {
 // Validate both unions before publishing either; a partial I/O failure must
 // prevent serving/rollback, and retrying completes the same union.
 export async function preparePluginHandledSidecars({ dataDir, state }) {
-  state = await foldLegacyPluginHandled({ dataDir, state });
+  const files = await readLegacyPluginHandled(dataDir);
+  state = decodeLegacyPluginHandled(state, files);
+  return prepareFromFiles(dataDir, state, files);
+}
+
+function prepareFromFiles(dataDir, state, files) {
   const players = state.provenance?.pluginAutoHandled;
   if (!players) return [];
   const publications = [];
@@ -54,9 +75,8 @@ export async function preparePluginHandledSidecars({ dataDir, state }) {
     const committed = Object.entries(players).filter(([, record]) => record[kind].length);
     if (!committed.length) continue;
     const file = path.join(dataDir, name);
-    let original = { v: 1, players: {} }, previous = null;
-    try { previous = await readFile(file); original = validate(JSON.parse(previous.toString('utf8'))); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const previous = files.get(name) ?? null;
+    const original = previous === null ? { v: 1, players: {} } : validate(JSON.parse(previous.toString('utf8')));
     const next = structuredClone(original);
     for (const [player, record] of committed) {
       const previous = Object.hasOwn(next.players, player) ? next.players[player] : kind === 'items'
@@ -121,9 +141,9 @@ export async function publishPluginHandledSidecars(publications) {
 }
 
 export async function reconcilePluginHandledSidecars({ dataDir, state }) {
-  const publications = await preparePluginHandledSidecars({ dataDir, state });
-  if (!publications.length) return;
   await withStoreWrite(dataDir, () => withPluginEvidence(dataDir, async () => {
+    const publications = await preparePluginHandledSidecars({ dataDir, state });
+    if (!publications.length) return;
     for (const { file, next, changed } of publications) {
       if (changed) await replaceSidecar(file, `${JSON.stringify(next)}\n`, false, Date.now);
     }

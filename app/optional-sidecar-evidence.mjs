@@ -15,7 +15,8 @@ const invalid = () => { throw new TypeError('Invalid optional sidecar evidence.'
 export const optionalSidecarEvidenceTypes = Object.freeze({
   pluginReplaySuppression: {
     files: legacyPluginHandledFiles,
-    capture: ({ state, files, unavailable }) => decodeLegacyPluginHandled(state, files, unavailable).provenance?.pluginAutoHandled,
+    capture: ({ state, files, unavailable, retainCommittedReplay }) => decodeLegacyPluginHandled(state, files,
+      retainCommittedReplay ? new Map([...unavailable].filter(([, code]) => !['EACCES', 'EPERM', 'EISDIR', 'EBUSY'].includes(code))) : unavailable).provenance?.pluginAutoHandled,
     fromState: state => state.provenance?.pluginAutoHandled,
     mergePlayer: (...records) => mergePluginHandledRecords(...records),
     materialize: (state, players) => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: players } }),
@@ -99,7 +100,7 @@ export function mapOptionalSidecarEvidence(evidence, mapping) {
       .map(([player, record]) => [mapping[player], structuredClone(record)])) }])) };
 }
 
-export async function captureOptionalSidecarEvidence(state, { dataDir } = {}) {
+export async function captureOptionalSidecarEvidence(state, { dataDir, retainCommittedReplay = false } = {}) {
   const inputs = [state.provenance?.optionalSidecarEvidence, fromState(state)];
   for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
     if (!type.capture || dataDir === undefined && type.files?.length) continue;
@@ -109,7 +110,7 @@ export async function captureOptionalSidecarEvidence(state, { dataDir } = {}) {
       try { files.set(name, await readFile(path.join(dataDir, name))); }
       catch (error) { if (error.code !== 'ENOENT') unavailable.set(name, error.code ?? 'READ_FAILED'); }
     }
-    const players = await type.capture({ state, files, unavailable });
+    const players = await type.capture({ state, files, unavailable, retainCommittedReplay });
     if (players !== undefined) inputs.push({ schemaVersion: 1, entries: { [id]: { version: 1, players } } });
   }
   const evidence = merge(state.members, ...inputs);
