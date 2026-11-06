@@ -1,5 +1,5 @@
-// Frozen from live release 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e.
-// Only import paths are relocated; validation behavior must remain unchanged.
+// Fast hybrid check: source pinned to 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e; imports use live app modules.
+// Five of 22 live imports changed after the pin; this is not a frozen runtime.
 import { startingSectionLocations } from '../../../app/core/cache-surface.mjs';
 import { decodeCompletionDocument } from '../../../app/core/completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from '../../../app/core/xp-choices.mjs';

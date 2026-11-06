@@ -131,8 +131,8 @@ test('the shipped screen loader uses per-task evidence for selected and peer row
   }
 });
 
-test('Why paints only an exact revision from the shared display cache', async () => {
-  for (const cachedRevision of [6, 7]) {
+test('Why labels cached revisions as updating until the live answer replaces them', async () => {
+  for (const cachedRevision of [6, 7, 8]) {
   const make = tag => ({ tag, children: [], events: {}, append(...children) { this.children.push(...children); },
     replaceChildren(...children) { this.children = children; }, setAttribute() {}, addEventListener(name, action) { this.events[name] = action; } });
   const doc = { createElement: make }, row = make('div'); let resolve;
@@ -142,7 +142,8 @@ test('Why paints only an exact revision from the shared display cache', async ()
     button: (text, action) => { const node = make('button'); node.events.click = action; return node; }, icon: () => make('span'),
     load: () => new Promise(done => { resolve = done; }), scope: () => 'one:7' });
   const pending = toggle.events.click();
-  assert.equal(JSON.stringify(row).includes('Cached answer'), cachedRevision === 7);
+  assert.equal(JSON.stringify(row).includes('Cached answer'), cachedRevision <= 7);
+  assert.equal(JSON.stringify(row).includes('Updating…'), cachedRevision <= 7);
   resolve({ task: { id: 'missing', label: 'Current goal' }, result: { tasks: [] } }); await pending;
   assert.ok(!JSON.stringify(row).includes('Cached answer'));
   }

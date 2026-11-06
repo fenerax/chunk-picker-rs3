@@ -253,7 +253,7 @@ test('stale responses are discarded and errors can be retried', async () => {
   assert.doesNotMatch(walk(node).map(value => value.textContent).join(' '), /All needed/);
   const retryContext = context(async () => { throw new Error('Please retry.'); });
   const retry = createWhyChainDisclosure(retryContext, { taskId: 'slay' }, { memberId: 'player', revision: 7 });
-  retry.open = true; retry.events.toggle(); await Promise.resolve();
+  retry.open = true; await retry.events.toggle();
   assert.ok(walk(retry).some(value => value.textContent === 'Retry Why not?'));
 });
 

@@ -108,7 +108,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) return;
       const complete = !['progress', 'prediction-prepared'].includes(message.type);
       const response = { ...message, id: slot.originalId };
-      if (complete) { slot.owner = undefined; owner.slot = undefined; idle(slot); }
+      if (complete) { owner.lastSlot = new WeakRef(slot); slot.owner = undefined; owner.slot = undefined; idle(slot); }
       if (complete) enforceMemory();
       owner.emit('message', response);
       if (complete && slot.worker.profileRetiring) void retire(slot);
@@ -200,15 +200,23 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     // A snapshot probe never joins the allocator or the wake queue. Other
     // admitted pickers keep their turn; a busy/retired pool is an immediate miss.
     tryReadSnapshot(pickerId, run) {
-      if (closed || this.stopped || this.slot || waiting.size) return false;
       const slot = [...slots].find(value => value.ready && !value.stopping && !value.worker.profileRetiring
         && !value.owner && (limit === 1 || value.group === this.group));
-      if (!slot) return false;
+      return this.tryResident(pickerId, run, slot);
+    }
+    // Optional resident work never waits, allocates, or jumps a queued job.
+    // A weak hint cannot keep a retired calculator or its graphs alive.
+    tryIdle(pickerId, run) {
+      return this.tryResident(pickerId, run, this.lastSlot?.deref());
+    }
+    tryResident(pickerId, run, slot) {
+      if (closed || this.stopped || this.slot || waiting.size || optimizationsSuspended || !slot || !slots.has(slot)
+        || !slot.ready || slot.stopping || slot.worker.profileRetiring || slot.owner
+        || sessions && (sessions.memoryBytes === 0 || reserved() > sessions.memoryBytes)) return false;
       clock.clearTimeout(slot.timer);
       slot.owner = this; slot.pickerId = pickerId; this.slot = slot;
       this.startedCalculator = false;
-      run();
-      return true;
+      run(); return true;
     }
     schedule(peek, run, yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting) {
       Object.assign(this, { yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting }); waiting.set(this, { peek, run }); pump();

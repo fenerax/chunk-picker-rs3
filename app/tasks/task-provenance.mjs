@@ -38,10 +38,13 @@ function dependentIndex(result) {
 }
 
 /** Shortest "needed for X → required by Y" chains, preferring doable rows. */
-export function neededForChains(task, result, { limit = 3, depth = 3 } = {}) {
-  const index = dependentIndex(result), rank = row => row.status === 'available' ? 0 : 1;
-  const next = (row, seen) => (index.get(key(row.category, row.rawLabel ?? row.label)) ?? [])
-    .filter(item => !seen.has(item.id)).sort((a, b) => rank(a) - rank(b));
+export function neededForChains(task, result, { limit = 3, depth = 3, index = dependentIndex(result), visit = () => {} } = {}) {
+  const rank = row => row.status === 'available' ? 0 : 1;
+  const next = (row, seen) => {
+    const rows = index.get(key(row.category, row.rawLabel ?? row.label)) ?? [];
+    visit(rows, true);
+    return rows.filter(item => !seen.has(item.id)).sort((a, b) => rank(a) - rank(b));
+  };
   return next(task, new Set([task.id])).slice(0, limit).map(first => {
     const chain = [first], seen = new Set([task.id, first.id]);
     while (chain.length < depth) {
@@ -49,6 +52,7 @@ export function neededForChains(task, result, { limit = 3, depth = 3 } = {}) {
       if (!step) break;
       chain.push(step); seen.add(step.id);
     }
+    visit(chain, false);
     return chain.map(row => plain(row.label));
   });
 }

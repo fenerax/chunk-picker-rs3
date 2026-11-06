@@ -3,6 +3,7 @@ import { taskWhyDisplay, WRITER_WHY_BUDGET } from './tasks/task-why-display.mjs'
 export { createSavedWhyEvidence, forgetSavedWhyChain } from './saved-why-evidence.mjs';
 
 const failure = (status, message) => Object.assign(new Error(message), { status });
+const unavailable = message => Object.assign(failure(409, message), { code: 'TASK_WHY_UNAVAILABLE' });
 
 export function validateWhyDisplay(query, { revision, members }) {
   const allowed = new Set(['view', 'memberId', 'revision', 'taskId']);
@@ -30,9 +31,9 @@ export async function savedWhyChain(query, { revision, members, entry, definitio
   if (query.get('revision') !== String(revision)) throw failure(409, 'The saved map changed. Open Why not? again.');
   const taskId = query.get('taskId'), master = query.get('master'), assignment = query.get('assignment');
   if (taskId ? master !== null || assignment !== null : !master || !assignment) throw failure(400, 'Choose one task or assignment to explain.');
-  if (entry?.revision !== revision || !entry.fullGzip) throw failure(409, 'Saved task details are still loading. Retry after opening task details.');
+  if (entry?.revision !== revision || !entry.fullGzip) throw unavailable('Saved task details are still loading.');
   const result = await evidence?.read(entry, revision);
   if (currentRevision() !== revision) throw failure(409, 'The saved map changed. Open Why not? again.');
-  if (!result || result.tasks?.length > 2048) throw failure(409, 'Saved evidence exceeds the explanation budget.');
+  if (!result || result.tasks?.length > 2048) throw unavailable('Saved evidence exceeds the explanation budget.');
   return { ...buildWhyChain(result, definitions, { taskId, master, assignment }), memberId, stateRevision: revision };
 }

@@ -18,8 +18,8 @@ const button = (text, action, cls) => { const node = document.createElement('but
 const text = node => [node.textContent ?? '', ...node.children.map(text)].join(' ');
 const proof = { proofStatus: 'partial', root: 'a', nodes: { a: { kind: 'task', label: 'Do the task.', subjectId: 'private:technical-id', rule: 'task-requirements', allOf: ['b'] }, b: { kind: 'gap', label: 'The picker cannot show the source yet.', allOf: [] } } };
 const task = { id: 'task:x', label: 'Test task', status: 'available' };
-test('How paints only an exact revision from the shared display cache', async () => {
-  for (const cachedRevision of [6, 7]) {
+test('How labels cached revisions as updating until the live answer replaces them', async () => {
+  for (const cachedRevision of [6, 7, 8]) {
     const cache = createViewCache({ storage: undefined }); cache.configure({ picker: 'fixture' });
     const old = structuredClone(proof); old.nodes.a.label = 'Cached answer';
     cache.remember('how', task.id, cachedRevision, old);
@@ -27,7 +27,8 @@ test('How paints only an exact revision from the shared display cache', async ()
     const toggle = appendTaskHow(row, task, { document, button, cache, revision: () => 7,
       scope: () => 'one:7', load: () => new Promise(done => { resolve = done; }) });
     const pending = toggle.events.click();
-    assert.equal(text(row).includes('Cached answer'), cachedRevision === 7);
+    assert.equal(text(row).includes('Cached answer'), cachedRevision <= 7);
+    assert.equal(text(row).includes('Updating…'), cachedRevision <= 7);
     resolve(proof); await pending;
     assert.doesNotMatch(text(row), /Cached answer/); assert.match(text(row), /Do the task/);
   }

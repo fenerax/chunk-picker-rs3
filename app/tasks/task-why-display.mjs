@@ -2,7 +2,9 @@ import { neededForChains, setStanding, taskWarnings, taskBossGates } from './tas
 
 export const TASK_WHY_DISPLAY_LIMIT = 64 * 1024;
 export const WRITER_WHY_BUDGET = Object.freeze({ rows: 128, work: 32_768, allocation: 512 * 1024 });
-const WORKER_WHY_BUDGET = Object.freeze({ rows: 20_000, work: 400_000, allocation: 8 * 1024 * 1024 });
+const WORKER_WHY_BUDGET = Object.freeze({ work: 400_000, allocation: 8 * 1024 * 1024 });
+export const WHY_INDEX_BUDGET = Object.freeze({ rows: 100_000, work: 16_000_000, allocation: 32 * 1024 * 1024 });
+const identityKey = (category, label) => `${category}\u0000${label}`;
 
 // Admission precedes index construction, Set scans, sorting and JSON allocation.
 // Strings count UTF-8/JSON escapes without allocating an encoded copy, so no serialization is needed
@@ -15,6 +17,31 @@ function budget(limits, stats) {
   };
 }
 const exhausted = Symbol('explanation budget exhausted');
+// Worker-only producer. Its maps reference immutable snapshot rows. The worker
+// attaches the index only through snapshot-cache admission; no global weak cache.
+export function createTaskWhyIndex(result, { stats = {}, cancelled = () => false } = {}) {
+  const spend = budget(WHY_INDEX_BUDGET, stats), tasks = result?.tasks;
+  try {
+    if (!Array.isArray(tasks) || tasks.length > WHY_INDEX_BUDGET.rows) throw exhausted;
+    spend(tasks.length, tasks.length * 96);
+    const byId = new Map(), dependents = new Map(), sets = new Map();
+    const text = value => { const length = String(value ?? '').length; if (length > 4096) throw exhausted; spend(length + 1, length * 2 + 32); };
+    const append = (map, key, row) => { spend(1, 96); let rows = map.get(key); if (!rows) map.set(key, rows = []); rows.push(row); };
+    let steps = 0;
+    const checkpoint = () => { if ((steps++ & 255) === 0 && cancelled()) throw exhausted; };
+    for (const row of tasks) {
+      checkpoint();
+      text(row.id); byId.set(row.id, row);
+      if (row.record?.Set) { text(row.category); text(row.record.Set); append(sets, identityKey(row.category, row.record.Set), row); }
+      for (const label in row.record?.Tasks ?? {}) if (Object.hasOwn(row.record.Tasks, label)) {
+        checkpoint();
+        const category = row.record.Tasks[label]; text(label); text(category);
+        append(dependents, identityKey(category, label), row);
+      }
+    }
+    return Object.freeze({ tasks, byId, dependents, sets });
+  } catch (error) { if (error === exhausted) return undefined; throw error; }
+}
 function jsonBound(value, spend, remaining = TASK_WHY_DISPLAY_LIMIT, depth = 0) {
   spend();
   if (remaining < 0 || depth > 24) throw exhausted;
@@ -49,7 +76,7 @@ function jsonBound(value, spend, remaining = TASK_WHY_DISPLAY_LIMIT, depth = 0) 
 }
 
 function admitGraph(tasks, limits, spend) {
-  if (!Array.isArray(tasks) || tasks.length > limits.rows) throw exhausted;
+  if (!Array.isArray(tasks) || tasks.length > (limits.rows ?? Infinity)) throw exhausted;
   spend(tasks.length, tasks.length * 96);
   let edges = 0;
   for (const row of tasks) {
@@ -85,15 +112,38 @@ function admitRelated(task, tasks, spend) {
 }
 
 // Project only inputs consumed by explainTask. Keep the same set/dependency
-// algorithms and order as a full result. The bounded dependency index is request
-// local; no reusable index is retained on the ledger-owned worker snapshot.
-export function taskWhyDisplay(result, taskId, memberId, stateRevision, { limits = WORKER_WHY_BUDGET, stats = {} } = {}) {
+// algorithms and order as a full result. Worker reads reuse the dependency
+// index admitted with their ledger-owned snapshot; writer reads stay bounded.
+export function taskWhyDisplay(result, taskId, memberId, stateRevision, { limits = WORKER_WHY_BUDGET, stats = {}, index } = {}) {
   const spend = budget(limits, stats);
   try {
-    admitGraph(result?.tasks, limits, spend);
-    const task = result?.tasks?.find(row => row.id === taskId);
+    if (index === false || index && index.tasks !== result?.tasks) return undefined;
+    if (!index) admitGraph(result?.tasks, limits, spend);
+    const task = index ? index.byId.get(taskId) : result?.tasks?.find(row => row.id === taskId);
     if (!task) return undefined;
-    admitRelated(task, result.tasks, spend);
+    const setMembers = index ? index.sets.get(identityKey(task.category, task.record?.Set)) ?? [] : result.tasks;
+    let chainBytes = 0;
+    const visit = (rows, sorting = false) => {
+      spend(rows.length * (sorting ? 1 + Math.ceil(Math.log2(rows.length + 1)) : 1), rows.length * 128);
+      for (const row of rows) {
+        for (const value of [row.id, row.category, row.rawLabel, row.label, row.record?.Set]) jsonBound(value, spend);
+      }
+    };
+    const chainVisit = (rows, sorting) => {
+      visit(rows, sorting);
+      if (!sorting) for (const row of rows) {
+        chainBytes += 3 + String(row.label ?? '').length * 6;
+        if (chainBytes > TASK_WHY_DISPLAY_LIMIT) throw exhausted;
+      }
+    };
+    if (index) {
+      visit([task]); visit(setMembers);
+      for (const row of new Set([task, ...setMembers])) {
+        spend(row.blockers?.length ?? 0);
+        for (const blocker of row.blockers ?? []) { spend(); jsonBound(blocker.kind, spend); }
+      }
+    }
+    admitRelated(task, setMembers, spend);
     const pick = (value, keys) => Object.fromEntries(keys.filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));
     // Inspect selected inputs before allocating a projection or derived arrays.
     // Arrays/strings that cannot fit are rejected by length before walking them.
@@ -114,7 +164,8 @@ export function taskWhyDisplay(result, taskId, memberId, stateRevision, { limits
       result: { bossGates: relevantGates.map(gate => pick(gate, ['boss', 'monsters', 'open', 'reason'])), presentation: {
         suppressed: { [taskId]: result.presentation?.suppressed?.[taskId] ?? [] }, diagnostics: taskWarnings(task, result),
       } },
-      related: { set: setStanding(task, result), neededFor: neededForChains(task, { tasks: result.tasks }) },
+      related: { set: setStanding(task, index ? { tasks: setMembers } : result),
+        neededFor: neededForChains(task, { tasks: result.tasks }, index ? { index: index.dependents, visit: chainVisit } : undefined) },
     };
     // Never truncate an explanation. Oversized evidence uses the full-path fallback.
     jsonBound(display, spend);

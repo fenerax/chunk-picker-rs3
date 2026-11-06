@@ -1,4 +1,4 @@
-import { replaceView, exactExplanationEntry } from './browser-state.mjs';
+import { replaceView, paintExplanationPreview } from './browser-state.mjs';
 import { explainTask } from '../tasks/task-provenance.mjs';
 
 let sequence = 0;
@@ -98,7 +98,7 @@ export function appendTaskWhy(row, task, { document, button, icon, load, openRul
   toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-controls', panel.id); toggle.append(icon('why'));
   let version = 0;
   async function open() {
-    if (!panel.hidden) { panel.hidden = true; toggle.setAttribute('aria-expanded', 'false'); version++; return; }
+    if (!panel.hidden) { panel.hidden = true; panel.replaceChildren(); panel.setAttribute('aria-busy', 'false'); toggle.setAttribute('aria-expanded', 'false'); version++; return; }
     panel.hidden = false; toggle.setAttribute('aria-expanded', 'true');
     return refresh();
   }
@@ -108,22 +108,22 @@ export function appendTaskWhy(row, task, { document, button, icon, load, openRul
     const restoreFocus = focused && (focused === panel || panel.contains?.(focused));
     panel.setAttribute('aria-busy', 'true');
     panel.tabIndex = -1;
-    const cached = exactExplanationEntry(cache, 'why', cacheKey, savedRevision);
-    const status = Object.assign(document.createElement('p'), { textContent: cached ? 'Updating… · Last known explanation' : 'Checking…', className: 'task-why-loading' });
-    status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-    panel.replaceChildren(status);
-    if (cached) panel.append(renderTaskWhy(cached.value, { document, openRule, readOnly }));
+    paintExplanationPreview(panel, { cache, view: 'why', key: cacheKey, revision: savedRevision,
+      status: Object.assign(document.createElement('p'), { className: 'task-why-loading' }), checking: 'Checking…', lastKnown: 'explanation',
+      render: value => renderTaskWhy(value, { document, openRule, readOnly }) });
     if (restoreFocus) panel.focus?.();
     try {
       const { task: detailed, result, describeRule, locationName, related } = await load(task);
-      if (current !== version || cache && !cache.current(token)) return;
-      if (captured !== scope()) throw new Error('The selected map or saved state changed. Open Why again.');
+      if (current !== version) return;
+      if (cache && !cache.current(token)) { panel.replaceChildren(); return; }
+      if (captured !== scope() || savedRevision !== revision()) throw new Error('The selected map or saved state changed. Open Why again.');
       const why = explainTask(detailed, { result, describeRule, locationName, related });
       cache?.remember('why', cacheKey, savedRevision, why);
       replaceView(panel, () => panel.replaceChildren(renderTaskWhy(why, { document, actions: actions(task), openRule, readOnly })), document);
       if (result.explanationNotice) panel.append(Object.assign(document.createElement('p'), { textContent: result.explanationNotice, className: 'status-detail' }));
     } catch (error) {
-      if (current !== version || cache && !cache.current(token)) return;
+      if (current !== version) return;
+      if (cache && !cache.current(token)) { panel.replaceChildren(); return; }
       const retry = button('Retry explanation', () => refresh(), 'task-why-retry');
       retry.setAttribute('aria-label', `Retry explanation for ${label}`);
       panel.replaceChildren(Object.assign(document.createElement('p'), { textContent: error?.message || 'This explanation is unavailable. Try again.', className: 'task-why-loading' }), retry);
