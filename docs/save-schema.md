@@ -66,15 +66,16 @@ gameplay revision. Retained decisions persist through restart and portable
 recovery; surviving portable decisions are never removed on roll-forward.
 Every container, bank and journal matcher consults that player's retained literal
 handled IDs in the matching world, even when optional rollback markers cannot fit.
-Recovery carries private claim coordination and the unsealed-archive guard to
+Recovery carries private claim coordination and archive tracking to
 replacement state objects. Immutable field references remain attached to their
 unchanged field objects; changed fields are serialized and hashed again.
 Every optional item sidecar reader validates record shape and semantic fields,
 including reserved review markers, player ownership and journal scopes. A corrupt
 optional source is logged and excluded before merging, including during startup,
 reports, backups and exports. Its bytes remain untouched until the existing writer
-archives the original on a successful write. Authoritative provenance and combined
-evidence unions remain strictly validated. Unknown literal task IDs and unmapped
+archives the original on a successful write. Current review actions validate
+their complete decision before publication; unusable optional recovery input
+is omitted without blocking gameplay. Unknown literal task IDs and unmapped
 item IDs within the declared bounds remain valid evidence.
 Frozen operations can discard carriers or re-offer decided rows; see the
 accepted rollback limit alongside currency limits below. Automatic live completion
@@ -114,16 +115,19 @@ recover evidence through every such nested restore boundary, applying archived
 the current owner's root evidence. Transfers resolve these archives before
 changing member IDs. Historical archives remain unchanged; unrelated provenance
 and History are never searched for journal records. Copies are deduplicated,
-and the same bounds apply to the recovered union before publication. A union
-that exceeds a bound refuses the load or import without changing the save.
+and the same bounds determine whether the recovered optional union is usable.
+Invalid, conflicting or oversized optional input is logged and omitted; it
+cannot prevent a gameplay load, import or portable export.
 `provenance.pluginItemEvidenceReconciled: 1` seals the current provenance node's
 incoming archive as historical. Once sealed, only its active compatibility copy
 contributes evidence; older archive copies cannot refill facts removed later.
+Live handled decisions remain replay authority across that fence, including
+decisions recovered from archived registered capsules; this does not refill facts.
 A frozen restore wraps this sealed node in a new unsealed boundary, so current
 loaders recover its active copy and seal the new boundary. Normal writable
-startup durably publishes any newly recovered copy and marker before accepting
-reports, without a gameplay revision. Read-only readers never write; a strict
-live swap refuses an unsealed archive until an ordinary offline reopen seals it.
+startup attempts to publish a newly recovered copy and marker without a gameplay
+revision. Failure is logged and does not prevent serving. Read-only readers and
+strict live swaps do not write optional recovery metadata.
 Each player contains `records` keyed by `live`, `beta`, or `unknown`, and
 `commits` with the ledger shape above. The fixed-file adapters
 `exportPluginItemEvidence` and `importPluginItemEvidence` in `app/plugin-items.mjs`
@@ -134,33 +138,34 @@ combine that imported state with the fixed sidecars. Source-member mapping
 filters other source players before remapping. Whole-picker replacement merges
 retained destination evidence rather than revoking previous acknowledgements.
 Portable backup, backup-ID/member restore, transfer, and direct replacement all
-use this path. Invalid records, conflicting pending identities, or oversized
-unions refuse publication without changing the destination.
-Prepared import, restore, and transfer tickets also bind to the fixed sidecar
-generations captured before preparation. A sidecar change requires a new preview,
-even when the gameplay revision is unchanged. Publication checks that binding
-inside the mutation queue while excluding sidecar replacements. Direct replacement
-previews and commits validate the latest unions under the same gate. A report
-prepared before publication must validate its record against the newly imported
-evidence before writing. Item, handled-task, player, journal, and pending-event
-bounds therefore apply to the active combined view, not just individual files.
+use this path. Unusable optional input is omitted while existing valid current
+atomic replay decisions remain authoritative.
+Prepared import, restore, and transfer tickets bind to the exact gameplay
+checkpoint and revision. Optional sidecar changes alone do not invalidate a
+ticket. A report prepared before publication validates its record against the
+newly imported evidence before writing. Item, handled-task, player, journal, and
+pending-event bounds apply to usable combined records, not just individual files;
+an unusable optional union cannot veto gameplay publication.
 
-All portable exports, transfer exports, directory snapshots, and service backups
-use one generation-checked capture of the fixed scope files, commit ledger, and
+The fixed-file adapter uses one generation-checked capture of scope files, the
+commit ledger, and
 `state.json` (including inherited evidence). Atomic file identities and timestamps
 must remain unchanged before and after the complete capture; a concurrent write
-retries the capture, up to eight attempts, then returns a retryable export error.
-This also covers writes from other worker isolates. No acknowledgement can be
-exported with an older scope or inherited-evidence snapshot.
+retries the capture, up to eight attempts. Portable exports and transfer exports
+use it through the optional registry, which logs capture failure and omits
+unusable optional input. Directory snapshots and service backups use the same
+adapter to capture exact files. This also covers writes from other worker
+isolates. A successfully captured acknowledgement never uses an older scope or
+inherited-evidence snapshot.
 
 These records remain outside gameplay Undo and are included in operational
 snapshots and service-recovery backups. Older releases ignore the optional
 top-level envelope and free-form provenance extension, and still load the
 unchanged live record shape. Portable round-trips through the old release retain
 the compatibility provenance copy, including when its restore archives it.
-Retain the fixed sidecars during rollback; the old
-receiver cannot display non-live review rows or provide this durability guarantee
-for new acknowledgements.
+Retain readable fixed sidecars during rollback when possible. Under the accepted
+emergency rollback limit below, plugin decisions and review rows may return;
+the old receiver cannot provide these durability guarantees for new observations.
 
 A full scope refuses new facts without evicting evidence or advancing its
 acknowledgement. Live tasks continue to complete. The progress review displays
@@ -516,3 +521,41 @@ does; payloads cannot supply task metadata. New item ticks join
 `completedTasks` in the same History/Undo batch. Manual unticks, Undo, task
 deletion and restore previews treat `itemProgress` like `achievementProgress`.
 The field stays absent until an item tick is applied.
+
+Automatic plugin ticks also store `provenance.pluginAutoHandled`, keyed by member
+ID, with sorted `achievements` (up to 20,000 numeric IDs) and `items` (up to 2,000
+task IDs). The store publishes this replay policy with the tick, outside gameplay
+Undo deltas. Unticking or Undo therefore cannot make an automatic observation
+eligible again after a sidecar failure and restart. The extension stays absent
+on older saves until an automatic tick or startup folds in earlier decisions
+from the legacy handled sidecars. Backups and whole-picker restores retain the extension,
+and portable roster mapping remaps its member keys.
+
+The optional-sidecar registry recovers readable records from the root field,
+registered capsules and schema-owned `restore.incomingProvenance` archives.
+Roster mappings apply before member filtering. Valid current atomic decisions
+take precedence over imported, archived or legacy records. Capture, mapping,
+folding and materialization validate optional records; unavailable, invalid,
+conflicting or overflowing input is logged and omitted. It cannot veto startup,
+ordinary commands, restore, member transfer or portable export. Core gameplay
+validation and atomic tick publication still fail normally on their own errors.
+
+Accepted rollback limit for plugin 1.0.0: after an emergency rollback to frozen
+release `06e15939`, chunks, task ticks, History and Undo remain intact. Plugin
+decisions may be offered again and require dismissing or undoing again; this
+includes automatic-tick suppression, handled lists and review rows. The frozen
+controller does not consult the atomic suppression extension. Optional plugin
+evidence is not lowered as a startup requirement and must never prevent the
+picker from starting, restoring or exporting. Its failure degrades to “offer
+again”. On the current release, an owner-undone automatic tick remains
+suppressed: its committed atomic decision stays outside gameplay Undo and
+survives ordinary writes, restores and transfers even if sidecars fail. Explicit
+item review decisions retain their own authoritative carrier. A best-effort
+fold between that carrier and automatic replay policy cannot discard either
+valid record merely because their combined IDs exceed the other carrier's limit.
+
+ExecStartPre enforces operator transactions and service access only. It does
+not read or hash picker/plugin data. Runtime ownership and operator stopped
+checks retain the shared stale-owner recovery protocol; snapshot/recovery
+release checks remain strict. No plugin reconciliation refusal or separate
+manual reconciliation step is required before rollback.

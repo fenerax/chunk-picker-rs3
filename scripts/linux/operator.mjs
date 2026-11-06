@@ -13,6 +13,7 @@ import { assertReleased, atomic, directory, encode, exclusive, exists, headroom,
 import { assertSameRelease, operatorSettings, readRelease, assertOperatorService, serviceIdentity } from './runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
+import { assertStartOwnershipReleased } from './plugin-suppression-gate.mjs';
 import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
 import { deadman, recordStatus, withStatus } from './ops-status.mjs';
 import { phaseReceipt, inPhase } from './phases.mjs';
@@ -57,7 +58,7 @@ export function systemd(settings, { executeCommand = execute } = {}) {
 }
 export async function assertStopped(controller, dataDir) {
   if (!(await controller.state()).stopped) throw new Error('The writer is still active or its ownership is uncertain.');
-  await assertReleased(dataDir);
+  await assertStartOwnershipReleased(dataDir);
 }
 export async function privateRequest(release, route, method = 'GET', body = {}) {
   const tokenFile = path.join(release.config.dataDir, 'access-token');

@@ -1,4 +1,5 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
+import { withPluginEvidence } from './storage/plugin-evidence-lock.mjs';
 import { lstat, open, readFile, rename, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -10,7 +11,7 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length
   && keys.every(key => Object.hasOwn(value, key));
 
-function validate(value) {
+export function validatePluginAchievementStore(value) {
   if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)) {
     throw new TypeError('Invalid plugin achievement store.');
   }
@@ -23,6 +24,7 @@ function validate(value) {
   }
   return value;
 }
+const validate = validatePluginAchievementStore;
 
 async function renameWithRetry(source, destination) {
   for (let attempt = 0; ; attempt++) {
@@ -73,7 +75,7 @@ export async function openPluginAchievements({ dataDir, members, clock = Date.no
   let current = { v: 1, players: {} }, corrupt = false, queue = Promise.resolve(), closed = false;
   let contents;
   try { contents = await readFile(file, 'utf8'); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  catch (error) { if (error.code !== 'ENOENT') log('Optional plugin achievement evidence unavailable; observations may be offered again.'); }
   if (contents !== undefined) {
     try { current = validate(JSON.parse(contents)); }
     catch {
@@ -98,7 +100,7 @@ export async function openPluginAchievements({ dataDir, members, clock = Date.no
       const incoming = [...new Set(ids)];
       if (incoming.some(id => !validId(id))) return Promise.reject(new TypeError('Invalid handled achievement IDs.'));
       incoming.sort((a, b) => a - b);
-      const pending = queue.then(() => withStoreWrite(dataDir, async () => {
+      const pending = queue.then(() => withStoreWrite(dataDir, () => withPluginEvidence(dataDir, async () => {
         const live = new Set(members().map(member => member.id));
         const next = { v: 1, players: Object.fromEntries(Object.entries(current.players).filter(([id]) => live.has(id))) };
         let changed = Object.keys(next.players).length !== Object.keys(current.players).length;
@@ -118,7 +120,7 @@ export async function openPluginAchievements({ dataDir, members, clock = Date.no
           await replaceSidecar(file, `${JSON.stringify(validate(next))}\n`, corrupt, clock);
           current = next; corrupt = false;
         }
-      }));
+      })));
       queue = pending.catch(() => {}); return pending;
     },
     async close() { closed = true; await queue; },

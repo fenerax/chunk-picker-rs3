@@ -13,6 +13,11 @@ archived source histories/provenance and historical command/inverse values.
 Live envelope, member and provenance roots are never opaque. Adding a new live
 field or sidecar requires a declaration and a synthetic writer scenario.
 
+Suppression's atomic provenance, registered portable capsule, legacy handled
+sidecars and ownership files are declared explicitly. The corpus uses the real
+progress command. Optional plugin evidence cannot veto startup, restore or
+export; there is no replay-reconciliation refusal marker or staging protocol.
+
 The frozen policy is one of:
 
 - `preserved`: natively supported, or retained without interpretation. This does
@@ -23,10 +28,10 @@ The frozen policy is one of:
 - `needs-lower`: requires an explicitly tested projection before old startup.
 - `refused`: old startup cannot safely admit the representation.
 
-Today's manifest has no `needs-lower` or `refused` feature. Unmerged plugin
-evidence changes are not declared as if they had shipped. This PR implements
-only rollback-contract steps 1 and 2; feature markers, admission gates and
-lower/raise adapters remain separate work.
+Today's manifest has no `needs-lower` or `refused` feature. The accepted plugin
+rollback limit preserves chunks, task ticks, History and Undo. Plugin decisions
+may be offered again by the frozen release; usable evidence is recovered when
+returning to the current release. See [the save schema](save-schema.md).
 
 `save-surface.test.mjs` builds synthetic feature saves using the actual store and
 sidecar writers. It walks `state.json`, which comes from `serializedDiskState`,
@@ -48,8 +53,8 @@ publishes the save, updates retained plugin sidecars and exports with its own
 exporter. Current code reopens the frozen-written directory and exported state.
 History, progress, permanent task IDs and portable plugin evidence are compared
 by identity and value, rather than by counts. Plugin sidecar evidence is checked
-in the retained directory. Sidecars are not portable in this main-era format;
-the test does not claim that a standalone export includes them. Undo deliberately
+in the retained directory. Registered replay decisions also travel in provenance
+and portable envelopes; raw sidecar files remain separately retained. Undo deliberately
 targets a note so no expected removal of progress can mask evidence loss.
 
 Missing git history fails, including on cache hits. CI fetches full history and

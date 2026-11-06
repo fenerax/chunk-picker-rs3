@@ -5,11 +5,12 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { MEMBER_KEYS } from '../app/core/state.mjs';
 import { pluginItemFiles } from '../app/storage/plugin-item-snapshot.mjs';
-import { buildSaveCorpus, root } from './helpers/save-surface-corpus.mjs';
-import { surface, assertDeclared, assertCorpusCoverage, observeSaveWrites, preservationDigest, assertNeverShrinks } from './helpers/save-surface.mjs';
+import { buildSaveCorpus, root, controlRoot } from './helpers/save-surface-corpus.mjs';
+import { surface, assertDeclared, assertCorpusCoverage, observeSaveWrites, preservationDigest, assertNeverShrinks, jsonPaths, matchingEntry } from './helpers/save-surface.mjs';
 
 test('every synthetic feature writes only declared save paths, envelope keys and data-dir files', async t => {
   const writes = observeSaveWrites(t, path.join(root, '.local', 'save-surface-tests'));
+  const controlWrites = observeSaveWrites(t, controlRoot);
   const corpus = await buildSaveCorpus(t);
   const documents = [];
   for (const snapshot of corpus.snapshots) {
@@ -21,6 +22,11 @@ test('every synthetic feature writes only declared save paths, envelope keys and
   const files = [...new Set([...writes, ...corpus.snapshots.flatMap(snapshot => snapshot.files)])];
   assertDeclared({}, files);
   assertCorpusCoverage(documents, files);
+  const controlPaths = corpus.controlDocuments.flatMap(document => [...jsonPaths(document)]);
+  for (const actual of controlPaths) assert.ok(matchingEntry(actual, surface.operatorControl.json), `Undeclared operator-control path: /${actual.join('/')}`);
+  for (const file of controlWrites) assert.ok(surface.operatorControl.files.some(entry => new RegExp(entry.pattern).test(file)), `Undeclared operator-control file: ${file}`);
+  for (const entry of surface.operatorControl.json) assert.ok(controlPaths.some(actual => '/' + actual.join('/') === entry.path), entry.path);
+  for (const entry of surface.operatorControl.files) assert.ok([...controlWrites].some(file => new RegExp(entry.pattern).test(file)), entry.path);
   assert.deepEqual(new Set(corpus.features), new Set(surface.features), 'Every declared feature has a real writer scenario');
   const observedMemberKeys = new Set(corpus.snapshots.flatMap(row => row.state.members.flatMap(member => Object.keys(member))));
   assert.deepEqual(observedMemberKeys, MEMBER_KEYS, 'Adding a member field requires synthetic save coverage');
@@ -42,7 +48,7 @@ test('save declaration refuses new envelope, member, provenance and sidecar surf
 
 test('every manifest entry has a frozen policy and private drops have a roll-forward rule', () => {
   assert.match(surface.frozenRelease, /^[a-f0-9]{40}$/);
-  for (const entry of [...surface.json, ...surface.files]) {
+  for (const entry of [...surface.json, ...surface.files, ...surface.operatorControl.json, ...surface.operatorControl.files]) {
     assert.ok(['preserved', 'private-droppable', 'needs-lower', 'refused'].includes(entry.frozen), entry.path);
     if (entry.frozen === 'private-droppable') assert.ok(entry.rollForward?.trim(), entry.path);
     if (entry.opaque) assert.ok(entry.reason?.trim(), `Explain opaque boundary ${entry.path}`);

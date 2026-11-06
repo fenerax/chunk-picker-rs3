@@ -1,10 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { frozenRuntime } from './helpers/frozen-release.mjs';
 import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { createGroupState, importBackup, validateState } from '../app/core/state.mjs';
@@ -12,8 +11,6 @@ import { portablePluginItemEvidence } from '../app/core/plugin-item-evidence.mjs
 import { exportPluginItemEvidence, openPluginItems, openPluginJournalCommits } from '../app/plugin-items.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
 
-const release = '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e';
-const root = fileURLToPath(new URL('../', import.meta.url));
 const at = '2026-11-01T12:00:00.000Z', journal = 'aaaaaaaaaaaaaaaa';
 const roster = [{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }];
 const fact = { name: 'Synthetic retained item', ownedAt: at, wornAt: at, first: true };
@@ -31,22 +28,7 @@ async function directory(t) {
 }
 
 test('portable journals survive real frozen storage import, restore, transfer and Undo', async t => {
-  try { execFileSync('git', ['cat-file', '-e', `${release}^{commit}`], { cwd: root, stdio: 'ignore', windowsHide: true }); }
-  catch {
-    if (process.env.CI) throw new Error('Fetch the pinned frozen rollback release before running compatibility tests.');
-    t.skip('Pinned frozen release is absent in this shallow checkout; frozen-loader fixture regressions still run.'); return;
-  }
-  const scratch = await mkdtemp(path.join(tmpdir(), 'rs3-frozen-journal-')), frozen = path.join(scratch, 'release');
-  execFileSync('git', ['worktree', 'add', '--detach', frozen, release], { cwd: root, stdio: 'pipe', windowsHide: true });
-  // No source rewriting or module hooks: execute the actual release from disk.
-  t.after(async () => {
-    assert.equal(path.dirname(path.resolve(frozen)), path.resolve(scratch));
-    assert.equal(execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: frozen, encoding: 'utf8', windowsHide: true }), '');
-    execFileSync('git', ['worktree', 'remove', frozen], { cwd: root, stdio: 'pipe', windowsHide: true });
-    await rm(scratch, { recursive: true, force: true });
-  });
-  const old = await import(pathToFileURL(path.join(frozen, 'app/storage/store.mjs')).href);
-  const oldCore = await import(pathToFileURL(path.join(frozen, 'app/core/state.mjs')).href);
+  const old = await frozenRuntime(t), oldCore = old.core;
   for (const world of ['unknown', 'beta']) for (const boundary of ['import', 'whole-save restore', 'member transfer', 'Undo']) await t.test(`${world}: ${boundary}`, async t => {
     const sourceDir = await directory(t), oldDir = await directory(t), destination = await directory(t);
     const source = await openStore({ dataDir: sourceDir, initialState: createGroupState(roster), retention: false });
@@ -124,7 +106,7 @@ test('archived evidence follows repeated roster mappings without resurrecting ol
   assert.deepEqual(portablePluginItemEvidence(source), evidence([34830]));
 });
 
-for (const limit of ['handled tasks', 'pending events', 'unfinished journals']) test(`frozen recovery validates the combined ${limit} bound even with a root compatibility copy`, () => {
+for (const limit of ['handled tasks', 'pending events', 'unfinished journals']) test(`frozen recovery omits overflowing optional ${limit} without vetoing gameplay`, () => {
   const state = archived([34830]).state;
   state.provenance.pluginItemEvidence = evidence([34830]);
   const root = state.provenance.pluginItemEvidence.players.a;
@@ -140,14 +122,15 @@ for (const limit of ['handled tasks', 'pending events', 'unfinished journals']) 
     root.commits.journals = Array.from({ length: 5 }, (_, i) => unfinished(i));
     incoming.commits.journals = Array.from({ length: 4 }, (_, i) => unfinished(i + 5));
   }
-  assert.throws(() => validateState(state), /Invalid plugin item record|Too many pending journal events|Too many unfinished journals/);
+  assert.deepEqual(validateState(state).members, state.members);
+  assert.equal(portablePluginItemEvidence(state), undefined);
 });
 
-for (const world of ['unknown', 'beta']) for (const entrypoint of ['load', 'replace', 'preview', 'transfer', 'member']) test(`${world}: ${entrypoint} refuses an oversized frozen provenance union unchanged`, async t => {
+for (const world of ['unknown', 'beta']) for (const entrypoint of ['load', 'replace', 'preview', 'transfer', 'member']) test(`${world}: ${entrypoint} remains available with an oversized optional frozen provenance union`, async t => {
   const full = Array.from({ length: 500 }, (_, index) => 10000 + index), incoming = archived(full, world);
   if (entrypoint === 'load') {
     incoming.state.provenance.pluginItemEvidence = evidence([34830], world);
-    assert.throws(() => importBackup(incoming), /Invalid plugin item record/);
+    assert.deepEqual(importBackup(incoming).members, incoming.state.members);
     return;
   }
   const dir = await directory(t), initialState = createGroupState(roster);
@@ -160,8 +143,10 @@ for (const world of ['unknown', 'beta']) for (const entrypoint of ['load', 'repl
     const operation = entrypoint === 'replace' ? () => store.replace(incoming, state.revision)
       : entrypoint === 'preview' ? () => store.previewReplacement(incoming)
         : () => store.prepareTransfer(serialize({ backup: incoming, ...(entrypoint === 'member' ? { memberId: 'a', sourceMemberId: 'a' } : {}) }), options);
-    await assert.rejects(operation(), /Invalid plugin item record/);
-    assert.deepEqual(await readFile(path.join(dir, 'state.json')), before);
-    assert.deepEqual(store.getState(), state);
+    const result = await operation();
+    if (['transfer', 'member'].includes(entrypoint)) await store.applyTransfer(result.ticket, state.revision);
+    if (entrypoint === 'preview') assert.deepEqual(await readFile(path.join(dir, 'state.json')), before);
+    else assert.equal(store.getInfo().revision, state.revision + 1);
+    assert.ok((await store.backup()).state);
   } finally { await store.close(); }
 });

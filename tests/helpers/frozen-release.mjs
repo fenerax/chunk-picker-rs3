@@ -7,7 +7,15 @@ import { root } from './save-surface-corpus.mjs';
 
 const execute = promisify(execFile);
 export const manifest = JSON.parse(await readFile(new URL('../../docs/save-surface.json', import.meta.url), 'utf8'));
-const git = (cwd, args) => execute('git', args, { cwd, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+const git = (cwd, args) => {
+  // Windows-created worktree pointers are not readable by Linux Git. WSL
+  // rehearsals use the same Windows Git that owns the public checkout.
+  const windows = process.platform === 'linux' && process.env.RS3_TEST_WINDOWS_GIT === '1';
+  const winPath = value => value.replace(/^\/mnt\/([a-z])\//, (_, drive) => `${drive.toUpperCase()}:/`);
+  return execute(windows ? '/mnt/c/Program Files/Git/cmd/git.exe' : 'git',
+    windows ? ['-C', winPath(cwd), ...args.map(winPath)] : args,
+    { cwd, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
+};
 
 export async function requireFrozenCommit(repository = root, release = manifest.frozenRelease) {
   try { await git(repository, ['cat-file', '-e', `${release}^{commit}`]); }
@@ -17,18 +25,18 @@ export async function requireFrozenCommit(repository = root, release = manifest.
 /** Cache an independent exact-SHA repository, never a runner-specific .git
  * worktree pointer. Each test run still executes a temporary real git worktree.
  * CI caches this directory by OS and SHA; no live app modules are imported. */
-export async function frozenRuntime(t) {
+export async function frozenRuntime(t, { release = manifest.frozenRelease } = {}) {
   // Even a cache hit must not conceal a shallow/missing source pin.
-  await requireFrozenCommit();
+  await requireFrozenCommit(root, release);
   const cacheRoot = path.resolve(process.env.RS3_FROZEN_CACHE ?? path.join(root, '.local', 'frozen-release-cache'));
   await mkdir(cacheRoot, { recursive: true });
-  const repository = path.join(cacheRoot, manifest.frozenRelease);
+  const repository = path.join(cacheRoot, release);
   await mkdir(repository, { recursive: true });
   let cached = false;
-  try { cached = (await git(repository, ['rev-parse', 'HEAD'])).stdout.trim() === manifest.frozenRelease; } catch { /* cache miss */ }
+  try { cached = (await git(repository, ['rev-parse', 'HEAD'])).stdout.trim() === release; } catch { /* cache miss */ }
   if (!cached) {
     await git(repository, ['init']);
-    await git(repository, ['-c', 'protocol.file.allow=always', 'fetch', '--depth=1', root, manifest.frozenRelease]);
+    await git(repository, ['-c', 'protocol.file.allow=always', 'fetch', '--depth=1', root, release]);
     await git(repository, ['checkout', '--detach', 'FETCH_HEAD']);
   }
   // Refuse edited cached source instead of accidentally testing a hybrid.
@@ -38,7 +46,7 @@ export async function frozenRuntime(t) {
   await mkdir(parent, { recursive: true });
   const temporary = await mkdtemp(path.join(parent, 'frozen-'));
   const checkout = path.join(temporary, 'checkout');
-  try { await git(repository, ['worktree', 'add', '--detach', checkout, manifest.frozenRelease]); }
+  try { await git(repository, ['worktree', 'add', '--detach', checkout, release]); }
   catch (error) { await rm(temporary, { recursive: true, force: true }); throw error; }
   t.after(async () => {
     await git(repository, ['worktree', 'remove', checkout]);

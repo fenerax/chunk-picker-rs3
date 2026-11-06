@@ -244,6 +244,26 @@ save before restoring the old selection. If reverse compatibility or shutdown
 fails, it leaves maintenance evidence and refuses to start another writer.
 It never restores an older gameplay snapshot as an automatic rollback.
 
+### Optional plugin evidence during rollback
+
+The installed `scripts/linux/start-check.mjs` ExecStartPre enforces transaction
+permits and service access. It does not read picker checkpoints or reconcile
+plugin evidence. Plugin failures never veto service startup, restore or export.
+There is no plugin reconciliation refusal marker or manual lowering step.
+
+The runtime and automatic operator stopped checks share the same owner protocol.
+They recover only provably stale lock/recovery markers under kernel ownership;
+live, foreign and unverifiable owners remain refused. Snapshot/recovery release
+checks remain strict. These ownership rules are independent of plugin evidence.
+
+The accepted emergency rollback limit is documented in
+[save-schema.md](save-schema.md#game-plugin-item-provenance): chunks, task ticks,
+History and Undo survive frozen release `06e15939`. Optional plugin decisions,
+handled lists and review rows may return and require dismissing or undoing again.
+The current runtime logs and omits unusable optional evidence, while keeping
+valid atomic replay decisions outside gameplay Undo. It does not require
+sidecar reconciliation or a plugin-specific recovery gate before serving.
+
 The pointer replacement uses expected-byte checks under the shared operator
 lock. Binding and pointer are two writes with a recovery journal, not a single
 filesystem transaction. The kit assumes all selection writers honor that lock.

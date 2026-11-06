@@ -217,11 +217,10 @@ Successful automatic batches handle all matched IDs whose tasks were ticked
 (including several IDs that map to the same single task); failed
 automatic commands leave `retry` rows and do not handle their IDs. Unmatched
 IDs and matches whose tasks are already complete are not handled, so later task
-list changes can still use them. This sidecar is **outside the save, Undo and
-save backups**. Undo removes ticks and `achievementProgress`, but keeps handled
-IDs. Deleting the sidecar re-enables automatic ticks for completions the picker
-sees again. Keep it alongside the save when moving the picker to preserve these
-choices.
+list changes can still use them. Undo removes ticks and `achievementProgress`,
+but deliberately keeps handled IDs. Portable exports capture these decisions,
+and restores, transfers and rollback preserve them. Removing the sidecar does
+not clear automatic suppression already committed in saved provenance.
 
 IDs accepted for handling count as handled in memory while their sidecar write
 is pending, preventing repeats or reoffers. Sidecar writes and retries run in
@@ -235,6 +234,15 @@ can also leave handled IDs unpersisted at exit.
 The Game plugin dialog shows each player's current part count, last complete
 achievement count, matched task count and last automatic batch's count and time.
 These summaries are in memory only and visible with that player's keys.
+
+Automatic achievement and item ticks commit their replay suppression in the same
+gameplay-store publication, in `provenance.pluginAutoHandled`, keyed by player.
+Each record contains sorted `achievements` (numeric observation IDs, including
+aliases sharing a task) and `items` (task IDs). These bounded records survive
+Undo and unticking; a failed gameplay publication saves neither the tick nor
+its suppression. Existing handled sidecars remain additional evidence and keep
+their retry behavior, but a sidecar failure cannot lose a new automatic tick's
+replay policy. This additive save metadata does not change the plugin wire format.
 
 ### Worn and backpack items
 

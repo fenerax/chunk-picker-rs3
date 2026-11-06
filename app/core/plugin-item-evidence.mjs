@@ -1,3 +1,4 @@
+import { optionalPluginData } from './optional-plugin-data.mjs';
 const ITEM_LIMIT = 500, HANDLED_LIMIT = 2000;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -7,6 +8,9 @@ const text = (value, max) => typeof value === 'string' && value.length >= 1 && v
 // Shared envelope contract with the optional-sidecar registry. Only this
 // code-owned entry is interpreted here; other evidence types remain opaque.
 export function pluginItemEvidenceFromEnvelope(envelope) {
+  return optionalPluginData('item envelope', () => itemEvidenceFromEnvelope(envelope), undefined);
+}
+function itemEvidenceFromEnvelope(envelope) {
   if (envelope === undefined) return;
   if (!exactKeys(envelope, ['schemaVersion', 'entries']) || envelope.schemaVersion !== 1 || !object(envelope.entries)) throw new TypeError('Invalid optional sidecar evidence.');
   for (const [id, entry] of Object.entries(envelope.entries)) {
@@ -123,6 +127,9 @@ export function mergePluginItemEvidence(...inputs) {
 // History or user objects. A node's root evidence is already in that node's IDs;
 // its transfer mappings apply only to evidence recovered from its incoming node.
 export function portablePluginItemEvidence(state) {
+  return optionalPluginData('item archive', () => recoverPortablePluginItemEvidence(state), undefined);
+}
+function recoverPortablePluginItemEvidence(state) {
   const nodes = [], seen = new Set();
   for (let node = state.provenance; object(node); node = node.restore?.incomingProvenance) {
     if (seen.has(node)) throw new TypeError('Cyclic plugin item provenance.');
@@ -167,7 +174,8 @@ export function retainPluginItemEvidence(state, evidence) {
 export function reconcilePluginItemEvidence(state, ...sources) {
   const inputs = [state, ...sources].map(source => portablePluginItemEvidence({ members: state.members, ...source })).filter(Boolean);
   if (!inputs.length) return state;
-  const evidence = mergePluginItemEvidence(...inputs);
+  let evidence = { v: 1, players: {} };
+  for (const input of inputs) evidence = optionalPluginData('item union', () => mergePluginItemEvidence(evidence, input), evidence);
   evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => state.members.some(member => member.id === id)));
   return retainPluginItemEvidence(state, evidence);
 }

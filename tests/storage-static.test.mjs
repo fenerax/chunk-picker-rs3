@@ -74,21 +74,51 @@ test('large static fields are durable once, ordinary writes stay compact, and al
   assert.deepEqual(importBackup(JSON.stringify(await restored.backup())), restored.getState());
 });
 
-test('an interrupted static-state commit keeps the old compact state and reusable backup cache', async t => {
+for (const elapsed of [0, 86_401_000]) test(`an interrupted static-state commit keeps the old compact state and reusable backup cache (${elapsed ? 'advancing' : 'fixed'} clock)`, async t => {
   const dataDir = await directory(t);
   let fail = true;
-  const store = await openStore({ dataDir, initialState: initialState(), beforeCommit: () => { if (fail) throw new Error('Interrupted sidecar commit'); } });
+  const startedAt = '2026-11-01T12:00:00.000Z';
+  let at = Date.parse(startedAt);
+  const now = () => new Date(at);
+  const store = await openStore({ dataDir, initialState: initialState(), now,
+    beforeCommit: () => { if (fail) throw new Error('Interrupted sidecar commit'); } });
   t.after(() => store.close());
+  let notifications = 0;
+  store.subscribe(() => notifications++);
   const before = await store.backup();
   const bytes = await readFile(path.join(dataDir, 'state.json'));
   await assert.rejects(() => store.command(command, 0), /Interrupted sidecar/);
+  assert.equal(notifications, 0);
+  assert.equal(store.getInfo().revision, 0);
   assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), bytes);
   assert.deepEqual(await store.backup(), before);
+  const refused = await store.listBackups();
+  assert.equal(refused.length, 1, 'A refused publication durably preserves its pre-command snapshot');
+  assert.deepEqual(gunzipSync(await readFile(path.join(dataDir, 'backups', refused[0].id))), bytes);
+  assert.ok((await readdir(dataDir)).every(name => !name.endsWith('.tmp')));
+  at += elapsed;
   fail = false;
   await store.command(command, 0);
+  assert.equal(notifications, 1);
   const snapshots = await store.listBackups();
-  assert.equal(snapshots.length, 2);
-  for (const snapshot of snapshots) assert.deepEqual(await store.readBackup(snapshot.id), before);
+  assert.equal(snapshots.length, 2, 'Both the refused attempt and its retry retain the pre-command state');
+  assert.equal(new Set(snapshots.map(snapshot => snapshot.id)).size, snapshots.length);
+  assert.deepEqual(snapshots.map(snapshot => snapshot.at).sort(), [startedAt, now().toISOString()].sort());
+  assert.ok(snapshots.some(snapshot => snapshot.id === refused[0].id), 'Retry retains the refused attempt preimage');
+  for (const snapshot of snapshots) {
+    assert.deepEqual(gunzipSync(await readFile(path.join(dataDir, 'backups', snapshot.id))), bytes);
+    assert.deepEqual(await store.readBackup(snapshot.id), before);
+  }
+  await store.close();
+  const closed = (await readdir(dataDir)).sort();
+  assert.ok(closed.every(name => !name.endsWith('.tmp')));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual((await readdir(dataDir)).sort(), closed, 'Close drains pending writes');
+  const reopened = await openStore({ dataDir, now });
+  t.after(() => reopened.close());
+  assert.equal(reopened.getInfo().revision, 1, 'Close releases ownership for the next store');
+  assert.equal((await reopened.listBackups()).length, 2);
+  await reopened.close();
 });
 
 test('opt-in command deltas omit only unchanged sidecar trees and retain their acknowledged baseline and lazy snapshot', async t => {

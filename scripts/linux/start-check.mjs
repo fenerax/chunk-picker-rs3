@@ -15,7 +15,11 @@ export async function processIdentity(pid) {
   if (!/^\d+$/.test(start ?? '')) throw new Error('Unverifiable operator owner.');
   return (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() + ':' + start;
 }
-export async function checkStart(settings, { identity = processIdentity, now = Date.now() } = {}) {
+export async function checkStart(settings, { identity = processIdentity, now = Date.now(), access = async () => {} } = {}) {
+  await checkStartPermit(settings, { identity, now });
+  await access();
+}
+async function checkStartPermit(settings, { identity, now }) {
   if (settings.multiPicker) {
     const progress = path.join(settings.controlDir, 'service-restore', 'progress.json');
     if (await exists(progress) && (await json(progress)).phase !== 'complete') throw new Error('Service recovery is incomplete.');
@@ -40,6 +44,6 @@ export async function checkStartAccess(settings, { identity = serviceIdentity, r
   await access(release.config.coreRoot, account, ['app/server.mjs']);
 }
 if (isMain(import.meta.url)) {
-  try { const settings = await operatorSettings(); await checkStart(settings); await checkStartAccess(settings); }
+  try { const settings = await operatorSettings(); await checkStart(settings, { access: () => checkStartAccess(settings) }); }
   catch { process.stderr.write('Service start blocked; reconcile maintenance evidence privately.\n'); process.exitCode = 1; }
 }

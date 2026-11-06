@@ -1,5 +1,6 @@
-import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
+import { boundedOutput, REPORT_RECORDS, validRosterDestinationId } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { mapOptionalSidecarEvidence } from './optional-sidecar-evidence.mjs';
 import { mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 import { portableCurrencyFacts } from './storage/plugin-currency.mjs';
 
@@ -18,8 +19,8 @@ export function transferDigest(value) {
   }
   return hash.digest('hex');
 }
-export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives', 'Validated item journal evidence and acknowledgements'],
-  excluded: ['Ephemeral plugin observations', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
+export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives', 'Registered optional sidecar evidence'],
+  excluded: ['Unregistered plugin evidence and transient review state', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
 
 export function transferManifest(dataset, members) {
   return { version: 1, app: 'rs3-chunk-picker', schemaVersion: 1,
@@ -56,7 +57,7 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   if (!entries || Array.isArray(entries) || Object.keys(entries).length !== source.length
     || source.some(id => !Object.hasOwn(entries, id))) fail(400, 'Assign every source member exactly once.');
   const targets = source.map(id => entries[id]), targetIds = new Set(targets);
-  if (targets.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id) || ['__proto__', 'constructor', 'prototype'].includes(id))
+  if (targets.some(id => !validRosterDestinationId(id))
     || targetIds.size !== targets.length || requiredIds.some(id => !targetIds.has(id))) {
     fail(422, 'Map each source member to a different destination member, keeping every assigned destination participant. Use a fresh picker when an assigned roster cannot fit.');
   }
@@ -96,6 +97,9 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
     for (const row of migration?.[field] ?? []) if (row.memberId !== undefined) row.memberId = mapped(row.memberId);
   }
   for (const row of next.provenance?.taskIdentityMigration?.legacyAlternativeMembers ?? []) row.memberId = mapped(row.memberId);
+  if (next.provenance?.pluginAutoHandled) next.provenance.pluginAutoHandled = Object.fromEntries(
+    Object.entries(next.provenance.pluginAutoHandled).filter(([id]) => Object.hasOwn(entries, id)).map(([id, record]) => [mapped(id), record]));
+  if (next.provenance?.optionalSidecarEvidence) next.provenance.optionalSidecarEvidence = mapOptionalSidecarEvidence(next.provenance.optionalSidecarEvidence, entries);
   for (const task of next.tasks) if (task.memberIds) task.memberIds = task.memberIds.map(mapped);
   for (const claim of Object.values(next.taskClaims ?? {})) claim.memberId = mapped(claim.memberId);
   for (const goal of next.groupGoals ?? []) goal.completedBy = goal.completedBy.map(mapped);

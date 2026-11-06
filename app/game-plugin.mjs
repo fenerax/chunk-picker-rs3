@@ -94,7 +94,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const assembly = assemblies.get(player);
     return assembly ? { snapshot: assembly.snapshot, received: assembly.received, parts: assembly.parts } : null;
   }
-  function isHandled(player, id) { return handled.has(player, id) || pendingHandled.get(player)?.has(id); }
+  function isHandled(player, id) { return handled.has(player, id) || pendingHandled.get(player)?.has(id) || store.isPluginHandled?.(player, 'achievements', id); }
   function flushHandled(force = false) {
     if (handledFlush) return handledFlush;
     if (!pendingHandled.size || !force && (closed || clock() < handledRetryAt)) return Promise.resolve();
@@ -176,7 +176,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       try {
         // Already inside the server's mutation queue. This is the same checked
         // command path as review Apply, one History/Undo entry for the batch.
-        await store.command({ type: 'apply-game-progress', memberId: player, fetchedAt: report.sentAt, skills: [], quests: [], achievements }, store.getInfo().revision);
+        await store.command({ type: 'apply-game-progress', memberId: player, fetchedAt: report.sentAt, skills: [], quests: [], achievements }, store.getInfo().revision,
+          { pluginHandled: { achievements: candidates.map(row => row.achievementId), items: [] } });
         appliedIds = candidates.map(row => row.achievementId);
         summary.lastTickedCount = achievements.length; summary.lastTickedAt = new Date(clock()).toISOString();
       } catch {
@@ -257,10 +258,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
         task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live',
         // Fresh container and bank records do not carry retained decisions.
-        // Literal handled IDs in their own scope are authoritative; rollback
-        // markers remain optional and cannot determine current suppression.
+        // Literal handled IDs and committed automatic decisions remain authoritative.
         handled: id => record.handled.includes(id) || !!handledByWorld.get(world)?.has(id) || !!dismissed?.has(id)
-          || !!explicit?.has(`~plugin-review:${id}`), unmapped: unmapped ?? [] }));
+          || !!explicit?.has(`~plugin-review:${id}`) || !!store.isPluginHandled?.(player, 'items', id), unmapped: unmapped ?? [] }));
     const ticks = results.flatMap(result => result.ticks), tickIds = new Set(ticks.map(row => row.taskId));
     const unique = new Map();
     for (const row of results.flatMap(result => result.rows)) if (!tickIds.has(row.taskId) && !unique.has(row.taskId)) unique.set(row.taskId, row);
@@ -278,7 +278,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         // Live owned items tick their BiS goals. Already inside the server's mutation queue: the
         // same checked command as review Apply, one History/Undo entry for the batch.
         await store.command({ type: 'apply-game-progress', memberId: player, fetchedAt: report.sentAt, skills: [], quests: [], achievements: [],
-          items: result.ticks.map(itemCommand) }, store.getInfo().revision);
+          items: result.ticks.map(itemCommand) }, store.getInfo().revision,
+          { pluginHandled: { achievements: [], items: result.ticks.map(row => row.taskId) } });
         // Handled, so a later Undo or untick isn't ticked again by the next report.
         await rememberItemsHandled(player, result.ticks);
       } catch {

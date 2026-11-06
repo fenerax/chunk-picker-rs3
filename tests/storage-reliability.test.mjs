@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -200,11 +202,21 @@ test('archived history exports portable backups and supports undo beyond the liv
 
 test('an interrupted archival commit ignores uncommitted history files and preserves durable undo', async t => {
   const dataDir = await directory(t);
+  let interrupt = false;
   const store = await trackedStore(t, { dataDir, retention: { historyEntries: 2 }, beforeCommit: ({ state }) => {
-    if (state.revision === 5) throw new Error('Interrupted archive commit');
+    if (state.revision === 5) interrupt = true;
   } });
   for (let revision = 0; revision < 4; revision++) await store.command(setRule(Boolean(revision % 2)), revision);
-  await assert.rejects(() => store.command(setRule(false), 4), /Interrupted archive/);
+  // Dependency staging keeps beforeCommit refusals byte-identical. Interrupt
+  // the authoritative rename instead, after its history dependency is durable.
+  const rename = fs.promises.rename;
+  t.mock.method(fs.promises, 'rename', async (from, to) => {
+    if (interrupt && to === path.join(dataDir, 'state.json')) throw new Error('Interrupted archive commit');
+    return rename(from, to);
+  });
+  syncBuiltinESMExports();
+  try { await assert.rejects(() => store.command(setRule(false), 4), /Interrupted archive/); }
+  finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
   assert.equal(store.getState().revision, 4);
   assert.ok((await readdir(path.join(dataDir, 'history'))).length > 0);
   await store.close();

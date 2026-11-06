@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { originalChunkURL, legacyChunkIndex } from '../app/original-chunk-url.mjs';
 import { mapTransferRoster, requireTransferDataset, transferManifest, transferReport, createTransferReviews } from '../app/save-transfer.mjs';
 import { createGroupState, validateState, applyCommand } from '../app/core/state.mjs';
+import { reconcilePluginHandled } from '../app/storage/plugin-handled.mjs';
+import { withOptionalSidecarEvidence, mapOptionalSidecarEvidence, materializeOptionalSidecarEvidence, appendOptionalSidecarEvidence } from '../app/optional-sidecar-evidence.mjs';
+import { importBackup as loadRollbackBackup } from './fixtures/rollback-main/state.mjs';
 
 const dataset = { datasetId: 'duo-legacy', datasetContractVersion: 1, coordinateSystem: 'surface-grid-v1', identityNamespace: 'rs3', digest: 'a'.repeat(64) };
 const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -52,6 +55,7 @@ test('roster mapping remaps active references and preserves historical text and 
   state.members[0].skillProgress = { Mining: { source: 'game-plugin', memberId: 'first', fetchedAt: '2026-01-01T00:00:00.000Z', level: 1, xp: 0 } };
   state.groupGoals = [{ id: 'group-goal:test', text: 'first', completion: 'players', completedBy: ['first'], done: false }];
   state.finishLine = { items: {}, customItems: [{ id: 'finish:test', text: 'first', completedBy: ['second'] }] };
+  state.provenance = { ...state.provenance, pluginAutoHandled: { first: { achievements: [1], items: ['custom:sample'] } } };
   assert.equal(mapTransferRoster(state, [{ id: 'owner' }]), null);
   const next = mapTransferRoster(state, [{ id: 'owner' }], { first: 'owner', second: 'partner' });
   assert.equal(next.members[0].notes['100'], 'first');
@@ -60,6 +64,7 @@ test('roster mapping remaps active references and preserves historical text and 
   assert.deepEqual(next.progressSnapshots.memberIds, ['owner', 'partner']);
   assert.equal(next.taskClaims['custom:sample'].memberId, 'owner');
   assert.equal(next.members[0].skillProgress.Mining.memberId, 'owner');
+  assert.deepEqual(next.provenance.pluginAutoHandled, { owner: { achievements: [1], items: ['custom:sample'] } });
   assert.deepEqual(next.finishLine.customItems[0].completedBy, ['partner']);
   assert.deepEqual(next.provenance.transferRoster.history, state.history);
   assert.deepEqual(next.history, []);
@@ -76,6 +81,71 @@ test('transfer reports retain raw unknown chunk, task, rule and warning records'
   assert.equal(report.records[1].rawValue.status.backlogReason, '');
   assert.equal(report.counts.dropped, 0);
   assert.equal(report.counts.preservedForReview, 4);
+});
+
+test('partial roster mapping excludes unselected suppression even when its ID collides with the destination', () => {
+  const state = createGroupState([{ id: 'source', name: 'Source explorer' }]);
+  state.provenance = { pluginAutoHandled: {
+    source: { achievements: [1], items: ['custom:selected'] },
+    owner: { achievements: [2], items: ['custom:other'] },
+    absent: { achievements: [3], items: ['custom:absent'] },
+  } };
+  const mapped = mapTransferRoster(state, [{ id: 'owner' }], { source: 'owner' });
+  assert.deepEqual(mapped.provenance.pluginAutoHandled, { owner: { achievements: [1], items: ['custom:selected'] } });
+  assert.deepEqual(state.provenance.pluginAutoHandled.owner.achievements, [2], 'The source backup stays untouched');
+});
+
+test('suppression reconciliation rejects invalid or overflowing unions without dropping committed decisions', () => {
+  const state = createGroupState([{ id: 'owner', name: 'Explorer' }]);
+  state.provenance = { pluginAutoHandled: { owner: { achievements: [], items: Array.from({ length: 2000 }, (_, i) => `custom:${i}`) } } };
+  const before = structuredClone(state);
+  for (const record of [{ achievements: [], items: ['custom:overflow'] }, { achievements: [-1], items: [] }]) {
+    assert.throws(() => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: { owner: record } } }), /Invalid plugin suppression IDs/);
+    assert.deepEqual(state, before);
+  }
+});
+
+test('registered optional evidence exports, maps and materializes without changing the atomic source field', async () => {
+  const state = createGroupState([{ id: 'source', name: 'Source explorer' }]);
+  const record = { achievements: [1], items: ['custom:sample'] };
+  state.provenance = { pluginAutoHandled: { source: record } };
+  const backup = await withOptionalSidecarEvidence({ format: 'rs3-chunk-picker', schemaVersion: 1, state });
+  assert.deepEqual(backup.optionalSidecarEvidence, { schemaVersion: 1, entries: { pluginReplaySuppression: { version: 1, players: { source: record } } } });
+  assert.equal(state.provenance.optionalSidecarEvidence, undefined, 'Export leaves the live state unchanged');
+  assert.deepEqual(loadRollbackBackup(backup), backup.state, 'The old loader retains the state carrier while ignoring the optional envelope');
+  const mapped = mapOptionalSidecarEvidence(backup.optionalSidecarEvidence, { source: 'owner' });
+  const next = materializeOptionalSidecarEvidence(createGroupState([{ id: 'owner', name: 'Explorer' }]), mapped);
+  assert.deepEqual(next.provenance.pluginAutoHandled, { owner: record });
+  const retained = JSON.parse(appendOptionalSidecarEvidence(JSON.stringify({ format: 'rs3-chunk-picker', schemaVersion: 1, state }), backup.optionalSidecarEvidence));
+  assert.deepEqual(retained.optionalSidecarEvidence, backup.optionalSidecarEvidence);
+});
+
+test('the optional evidence mapper scopes future types and refuses colliding or path-like mappings', () => {
+  const evidence = { schemaVersion: 1, entries: { syntheticEvidence: { version: 1, players: {
+    source: { labels: ['Synthetic source'] }, owner: { labels: ['Unselected source'] },
+  } } } };
+  const mapped = mapOptionalSidecarEvidence(evidence, { source: 'owner' });
+  assert.deepEqual(mapped.entries.syntheticEvidence.players, { owner: { labels: ['Synthetic source'] } });
+  const state = materializeOptionalSidecarEvidence(createGroupState([{ id: 'owner', name: 'Explorer' }]), mapped);
+  assert.deepEqual(state.provenance.optionalSidecarEvidence, mapped, 'Unknown types remain opaque provenance');
+  for (const mapping of [{ source: '../synthetic' }, { source: 'owner', owner: 'owner' }]) assert.throws(() => mapOptionalSidecarEvidence(evidence, mapping), /Invalid optional sidecar evidence/);
+});
+
+for (const sourceId of ['manual.name', 'x'.repeat(65), 'x'.repeat(80)]) test(`optional evidence uses the roster source-ID contract (${sourceId.length} characters)`, async () => {
+  const state = createGroupState([{ id: 'source', name: 'Explorer 1' }, { id: sourceId, name: 'Explorer 2' }]);
+  state.provenance = { pluginAutoHandled: { source: { achievements: [1], items: ['custom:sample'] } } };
+  const backup = await withOptionalSidecarEvidence({ state });
+  const mapping = { source: 'owner', [sourceId]: 'partner' };
+  const mapped = mapTransferRoster(backup.state, [{ id: 'owner' }, { id: 'partner' }], mapping);
+  assert.deepEqual(mapped.provenance.pluginAutoHandled, { owner: { achievements: [1], items: ['custom:sample'] } });
+  const evidence = structuredClone(backup.optionalSidecarEvidence);
+  evidence.entries.pluginReplaySuppression.players[sourceId] = { achievements: [2], items: [] };
+  assert.deepEqual(mapOptionalSidecarEvidence(evidence, mapping).entries.pluginReplaySuppression.players.partner, { achievements: [2], items: [] });
+  for (const type of ['manual.name', 'x'.repeat(65)]) assert.equal(mapOptionalSidecarEvidence({ schemaVersion: 1,
+    entries: { [type]: evidence.entries.pluginReplaySuppression } }, mapping), undefined, 'Unusable optional entries are omitted');
+  for (const target of ['manual.name', 'x'.repeat(65), '../owner', '__proto__'])
+    assert.throws(() => mapOptionalSidecarEvidence(evidence, { source: 'owner', [sourceId]: target }), /Invalid optional sidecar evidence/);
+  assert.throws(() => mapOptionalSidecarEvidence(evidence, { source: 'owner', ['x'.repeat(81)]: 'partner' }), /Invalid optional sidecar evidence/);
 });
 
 test('review receipts refuse changed uploads, mapping, identity, revision and expiration', () => {

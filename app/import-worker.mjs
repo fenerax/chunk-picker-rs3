@@ -5,8 +5,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { deserialize } from 'node:v8';
 import { backupPreviewState, MAX_PORTABLE_BACKUP_BYTES } from './backup-transfer.mjs';
 import { openStore } from './storage/store.mjs';
-import { exportPluginItemEvidence, importPluginItemEvidence } from './plugin-items.mjs';
-import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope } from './core/plugin-item-evidence.mjs';
+import { captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence } from './optional-sidecar-evidence.mjs';
 import { createRuleRegistryFromDefinitions } from './core/rule-registry.mjs';
 import { importBackup, previewRestore, applyValidatedCommand, validateState } from './core/state.mjs';
 import { decodeCompletionDocument } from './storage/completion-codec.mjs';
@@ -83,10 +82,8 @@ async function run(job) {
       return { bytes: job.gzip ? gzipSync(bytes, { level: 1 }) : job.encoding === 'br'
         ? brotliCompressSync(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } }) : bytes, plainBytes: bytes.length };
     }
-    let current = store.getState();
-    const destinations = new Set(current.members.map(member => member.id));
-    const retainedItems = await exportPluginItemEvidence(job.dataDir, id => destinations.has(id) ? id : undefined, current.provenance?.pluginItemEvidence);
-    if (Object.keys(retainedItems.players).length) current = reconcilePluginItemEvidence(current, { provenance: { pluginItemEvidence: retainedItems } });
+    const baseline = store.getState();
+    const current = materializeOptionalSidecarEvidence(baseline, await captureOptionalSidecarEvidence(baseline, { dataDir: job.dataDir }));
     if (current.revision !== job.baseRevision) fail(409, 'The destination changed. Preview the backup again.');
     if (job.kind === 'replacement') return (await store.previewReplacement(job.document, { actor: job.actor })).state;
     const body = deserialize(Buffer.from(job.input)), { dataset, world, route, actor } = options;
@@ -105,16 +102,11 @@ async function run(job) {
     }
     if (backup) {
       requireTransferDataset(dataset, backup);
-      const pluginItems = pluginItemEvidenceFromEnvelope(backup.optionalSidecarEvidence);
-      if (pluginItems !== undefined) {
-        backup = { ...backup, optionalSidecarEvidence: { ...backup.optionalSidecarEvidence, entries: { ...backup.optionalSidecarEvidence.entries,
-          pluginItems: { version: 1, players: importPluginItemEvidence(job.dataDir, pluginItems).players } } } };
-      }
     }
     const legacy = !backup && !pasted;
     if (legacy && dataset.capabilities?.features?.originalSync === false) fail(422, 'Choose a backup from this starter game dataset.');
     const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry }) : null;
-    const incoming = pasted?.state ?? (legacy ? imported.state : importBackup(backup, registry, { owned: true }));
+    const incoming = materializeOptionalSidecarEvidence(pasted?.state ?? (legacy ? imported.state : importBackup(backup, registry, { owned: true })), backup?.optionalSidecarEvidence);
     const sourceRoster = rosterOutput(incoming.members);
     const destinationRoster = rosterOutput(current.members);
     const knownRules = new Set(taskRuleDefinitions.map(rule => rule.id));
@@ -160,8 +152,8 @@ async function run(job) {
       // Guards describe the imported member's already-migrated fields. Install
       // them before preparing the command, so migration cannot resurrect cleared
       // values and make the newly authored Undo stale. Other members keep theirs.
-      const guarded = { ...current };
-      if (pasted) guarded.provenance = { ...current.provenance, originalPasteImports: [
+      const guarded = reconcileOptionalSidecarEvidence({ ...current }, mappedMember);
+      if (pasted) guarded.provenance = { ...guarded.provenance, originalPasteImports: [
         ...(current.provenance?.originalPasteImports ?? []), { ...pasted.archive, memberId: owner.id } ] };
       for (const field of ['migratedMembers', 'journalMigratedMembers', 'taskStatusProvenance']) {
         const rows = mappedMember.legacy?.gameplayMigration?.[field]?.filter(row => row.memberId === owner.id);
@@ -176,8 +168,6 @@ async function run(job) {
         guarded.provenance = { ...guarded.provenance, taskIdentityMigration: { ...guarded.provenance?.taskIdentityMigration,
           legacyAlternativeMembers: mergeGuards(previous, alternatives) } };
       }
-      const itemEvidence = reconcilePluginItemEvidence(guarded, mappedMember).provenance?.pluginItemEvidence;
-      if (itemEvidence) guarded.provenance = { ...guarded.provenance, pluginItemEvidence: itemEvidence };
       state = applyValidatedCommand(guarded, command, { expectedRevision: current.revision, world, registry, actor, now: options.now });
       // Member commands preserve the complete guarded Undo chain.
       const revision = state.revision;

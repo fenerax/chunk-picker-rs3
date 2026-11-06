@@ -65,7 +65,7 @@ test('frozen whole-save provenance archives rebuild imported journal reviews wit
 async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, externalLegacy = false } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   let at = Date.parse('2026-10-22T12:00:00Z'), input, output, seq = 0, controller;
-  const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false, publication: false };
+  const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false, tickPublication: false, publication: false };
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]), currencyMetadata;
   if (legacyCoins !== undefined) state = applyCommand(state, { type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: legacyCoins } } });
   if (externalLegacy) state.legacy = { syntheticPadding: 'x'.repeat(300000) };
@@ -95,7 +95,7 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
   let queue = Promise.resolve();
   async function start(runtime = { openStore, openGamePlugin }) {
     if (durable) store = await runtime.openStore({ dataDir, initialState: state, taskCatalogue, retention: false, now: () => new Date(at).toISOString(),
-      beforeCommit: async context => { if (failing.command) throw new Error('Synthetic write failure'); if (failing.publication) throw new Error('Synthetic publication failure'); await failing.onCommit?.(context); } });
+      beforeCommit: async context => { if (failing.command || failing.tickPublication && context.operation === 'command') throw new Error('Synthetic write failure'); if (failing.publication) throw new Error('Synthetic publication failure'); await failing.onCommit?.(context); } });
     controller = await runtime.openGamePlugin({ dataDir, store, clock: () => at, world: { chunks: new Map() }, registry: { resolve: () => ({}) }, questMapping: new Map(),
       serializeMutation: operation => { const next = queue.then(operation); queue = next.catch(() => {}); return next; },
       bodyJSON: async () => input, json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; },
@@ -118,7 +118,7 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
     await controller.finish('a', { command: review.command, expectedRevision: preview.stateRevision });
     return review.command;
   }
-  return { get controller() { return controller; }, get store() { return store; }, get state() { return durable ? store.getState() : state; }, get at() { return at; }, get lastReport() { return structuredClone(input); }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
+  return { get store() { return store; }, get controller() { return controller; }, get state() { return durable ? store.getState() : state; }, get at() { return at; }, get lastReport() { return structuredClone(input); }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
     replay: async (report, bearer) => { input = structuredClone(report); return dispatch(bearer); },
     createKey: () => controller.create(identity, { memberId: 'a', label: 'Synthetic second plugin' }),
     command: command => store.command(command, store.getInfo().revision),
@@ -360,7 +360,7 @@ test('optional item readers validate source semantics before merging authoritati
   });
 });
 
-test('unknown literal task and item IDs remain valid retained evidence while authoritative markers stay strict', async t => {
+test('unknown literal IDs remain valid and invalid optional markers cannot veto startup', async t => {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   t.after(() => rm(dataDir, { recursive: true, force: true }));
   const record = { baselineAt: '2026-10-22T12:00:00.000Z', handled: ['synthetic-future-task', `unmapped:${UNKNOWN}`].sort(),
@@ -370,12 +370,16 @@ test('unknown literal task and item IDs remain valid retained evidence while aut
   const invalid = { v: 1, players: { a: { records: { live: { ...record, handled: ['~plugin-review:bogus'] } }, commits: { journals: [] } } } };
   await assert.rejects(exportPluginItemEvidence(dataDir, id => id, invalid), /Invalid plugin item review marker/);
   const store = await openStore({ dataDir, initialState: createGroupState([{ id: 'a', name: 'Synthetic player' }]), retention: false });
+  t.after(() => store.close());
   await store.close();
   const file = path.join(dataDir, 'state.json'), document = JSON.parse(await readFile(file));
   document.state.provenance = { pluginItemEvidence: invalid, pluginItemEvidenceReconciled: 1 };
   const bytes = JSON.stringify(document); await writeFile(file, bytes);
-  await assert.rejects(openStore({ dataDir, retention: false }), /Invalid plugin item review marker/);
-  assert.equal(await readFile(file, 'utf8'), bytes);
+  const reopened = await openStore({ dataDir, retention: false });
+  t.after(() => reopened.close());
+  assert.deepEqual(reopened.getState().members, document.state.members);
+  assert.ok((await reopened.backup()).state);
+  assert.equal(reopened.getPluginItemEvidence()?.players.a.records.live.handled.includes('~plugin-review:bogus') ?? false, false);
 });
 
 test('a well-formed review marker for a later-retired task stays healthy evidence', async t => {
@@ -458,7 +462,7 @@ for (const name of ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugi
   assert.deepEqual(f.review(), { preview: null });
 });
 
-test('decision recovery retains the unsealed journal archive guard on a strict read-only open', async t => {
+test('optional unsealed journal recovery cannot veto a strict read-only open or change its checkpoint', async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic sealed decision']] }));
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
@@ -470,8 +474,10 @@ test('decision recovery retains the unsealed journal archive guard on a strict r
   document.state.provenance.restore = { incomingProvenance: { pluginItemEvidence: structuredClone(document.state.provenance.pluginItemEvidence) } };
   const bytes = JSON.stringify(document); await writeFile(file, bytes);
   let standby;
-  try { await assert.rejects(async () => { standby = await openStore({ dataDir: f.dataDir, readOnly: true, liveSwapStrict: true, retention: false }); },
-    error => error.code === 'LIVE_SWAP_MIGRATION_REQUIRED' && /unreconciled journal archive/.test(error.message)); }
+  try {
+    standby = await openStore({ dataDir: f.dataDir, readOnly: true, liveSwapStrict: true, retention: false });
+    assert.deepEqual(standby.getState().members, document.state.members);
+  }
   finally { await standby?.close(); }
   assert.equal(await readFile(file, 'utf8'), bytes);
   await f.restart();
@@ -741,6 +747,66 @@ test('an undone item tick is not ticked again, and a failed tick waits in review
   await f.restart();
   await f.send(items({ snapshot: '2223456789abcdef', backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
   assert.equal(f.commands.length, 1, 'Handled across restart');
+});
+
+for (const restore of ['checkpoint', 'older-backup', 'member']) test(`an automatic item tick keeps suppression through sidecar failure, Undo and ${restore} restore`, async t => {
+  const f = await fixture(t, { durable: true });
+  const older = f.state;
+  const file = path.join(f.dataDir, 'plugin-items.json'), backup = path.join(f.dataDir, 'synthetic-held-items.json');
+  const command = f.store.command;
+  f.store.command = async (...args) => {
+    const result = await command(...args);
+    if (args[0].type === 'apply-game-progress') { await rename(file, backup); await mkdir(file); }
+    return result;
+  };
+  const value = items({ backpack: [[0, YEW_SHORTBOW, 1, 'Synthetic bow']] });
+  await f.send(value);
+  assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')));
+  assert.ok(f.warnings.some(message => /handled plugin item/.test(message)));
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+  const rolledBack = applyLiveCommand(loadLiveBackup(saved), { type: 'undo' });
+  assert.deepEqual(rolledBack.members[0].completedTasks, []);
+  assert.deepEqual(rolledBack.provenance.pluginAutoHandled, saved.state.provenance.pluginAutoHandled, 'The legacy loader and Undo retain the additive replay policy');
+  assert.doesNotThrow(() => validateState(rolledBack));
+  await f.store.command({ type: 'undo' }, f.state.revision);
+  await rm(file, { recursive: true }); await rename(backup, file);
+  await f.restart();
+  const revision = f.state.revision;
+  await f.send(value);
+  assert.deepEqual(f.state.members[0].completedTasks, [], 'The failed sidecar cannot undo a committed suppression decision');
+  assert.equal(f.state.revision, revision, 'Replay adds no tick or History entry');
+  assert.equal(f.store.isPluginHandled('b', 'items', goal('000dc1')), false, 'Suppression belongs to the observed player');
+  const destination = restore === 'member' ? await fixture(t, { durable: true }) : f;
+  if (restore === 'member') {
+    // A fresh picker has no handled sidecar to hide a lost transfer marker.
+    await f.store.command({ type: 'set-runescape-name', memberId: 'a', name: 'FixtureActor' }, f.state.revision);
+    const review = await destination.store.prepareTransfer(serialize({ backup: await f.store.backup(), memberId: 'a', sourceMemberId: 'a' }),
+      { dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() }, route: '/api/member-restore/preview' });
+    await destination.store.applyTransfer(review.ticket, destination.state.revision);
+    // Undo the restore too: imported replay decisions remain committed policy.
+    await destination.store.command({ type: 'undo' }, destination.state.revision);
+  } else await destination.store.replace(restore === 'checkpoint' ? f.state : older, f.state.revision);
+  await destination.restart();
+  const restoredRevision = destination.state.revision;
+  await destination.send(value);
+  assert.deepEqual(destination.state.members[0].completedTasks, [], 'Restore retains the committed replay policy');
+  assert.equal(destination.state.revision, restoredRevision, 'Restored observations cannot tick again');
+});
+
+test('a failed gameplay publication commits neither the item tick nor its suppression', async t => {
+  const f = await fixture(t, { durable: true });
+  f.failing.tickPublication = true;
+  const value = items({ backpack: [[0, YEW_SHORTBOW, 1, 'Synthetic bow']] });
+  const revision = f.state.revision;
+  await f.send(value);
+  assert.equal(f.state.revision, revision);
+  assert.equal(f.store.isPluginHandled('a', 'items', goal('000dc1')), false);
+  assert.ok(f.review().items.some(row => row.taskId === goal('000dc1')), 'The failed tick stays available for retry');
+  f.failing.tickPublication = false;
+  await f.restart();
+  await f.send(value);
+  assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')));
+  assert.equal(f.store.isPluginHandled('a', 'items', goal('000dc1')), true);
 });
 
 test('Apply ticks only chosen review rows; shown live rows stay handled across restart', async t => {
@@ -1831,18 +1897,16 @@ for (const world of ['beta', 'unknown']) for (const entrypoint of ['restore', 't
     const acknowledged = (await target.send(items({ events: [event] }), true)).items.journal.event;
     assert.equal(target.state.revision, revision, 'Non-live journals do not invalidate gameplay revisions');
     const before = await readFile(path.join(target.dataDir, 'state.json'));
-    if (entrypoint === 'replacement-preview') await assert.rejects(target.store.previewReplacement(backup), /Invalid plugin item record/);
-    else if (entrypoint === 'replacement-commit') await assert.rejects(target.store.replace(backup, revision), /Invalid plugin item record/);
-    else {
-      await assert.rejects(target.store.applyTransfer(prepared.ticket, revision), error => error.importConflict === true && /Revision conflict/.test(error.message));
-      if (entrypoint !== 'import') await assert.rejects(target.store.prepareTransfer(serialize(body), options), /Invalid plugin item record/);
-    }
-    assert.deepEqual(await readFile(path.join(target.dataDir, 'state.json')), before, 'Rejected publication leaves the destination unchanged');
+    if (entrypoint === 'replacement-preview') {
+      await target.store.previewReplacement(backup);
+      assert.deepEqual(await readFile(path.join(target.dataDir, 'state.json')), before);
+    } else if (entrypoint === 'replacement-commit') await target.store.replace(backup, revision);
+    else await target.store.applyTransfer(prepared.ticket, revision);
     await target.restart();
-    assert.equal((await target.send(items(), true)).items.journal.event, acknowledged, 'Restart and later reports remain usable');
-    const retained = await exportPluginItemEvidence(target.dataDir);
-    assert.ok(entrypoint === 'import' ? retained.players.a.commits.journals.some(row => row.pending.length === 1)
-      : retained.players.a.records[world].items[UNKNOWN]);
+    const result = await target.send(items(), true);
+    assert.ok(result.items, 'Optional capacity conflicts cannot prevent later reports');
+    assert.ok((await target.store.backup()).state, 'Optional late evidence cannot veto export');
+
   });
 }
 
@@ -2213,20 +2277,21 @@ test('portable recovery carries an unresolved prefix and drains it without retra
   assert.equal(target.review().itemRetentionIssue, null);
 });
 
-test('invalid evidence and a failed import publication leave the destination unchanged', async t => {
+test('invalid optional evidence permits preview while a failed gameplay publication leaves the destination unchanged', async t => {
   const source = await fixture(t, { durable: true }), target = await fixture(t, { durable: true });
   await source.send(items({ events: [[1, CHAINBODY, 'Synthetic journal item']] }));
   const backup = await source.store.backup(), before = await readFile(path.join(target.dataDir, 'state.json'));
   const invalid = structuredClone(backup);
   invalid.optionalSidecarEvidence.entries.pluginItems.players.a.records.unknown.items[CHAINBODY].wornAt = 'invalid';
-  await assert.rejects(target.store.prepareTransfer(serialize({ backup: invalid }), transferOptions), /Invalid plugin item fact/);
+  assert.ok((await target.store.prepareTransfer(serialize({ backup: invalid }), transferOptions)).ticket);
   for (const field of ['records', 'commits', 'pluginItems']) {
     const malformed = structuredClone(backup);
     if (field === 'pluginItems') malformed.optionalSidecarEvidence.entries.pluginItems = null;
     else if (field === 'records') malformed.optionalSidecarEvidence.entries.pluginItems.players.a.records.unknown = null;
     else malformed.optionalSidecarEvidence.entries.pluginItems.players.a.commits = null;
     const evidence = malformed.optionalSidecarEvidence.entries.pluginItems;
-    assert.throws(() => validateState({ ...source.state, provenance: { pluginItemEvidence: evidence && { v: 1, players: evidence.players } } }), /Invalid/);
+    const state = validateState({ ...source.state, provenance: { pluginItemEvidence: evidence && { v: 1, players: evidence.players } } });
+    assert.deepEqual(state.members, source.state.members, 'Optional corruption must not invalidate gameplay');
   }
   const prepared = await target.store.prepareTransfer(serialize({ backup }), transferOptions);
   target.failing.publication = true;

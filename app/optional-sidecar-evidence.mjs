@@ -1,0 +1,270 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { mergePluginHandledRecords, reconcilePluginHandled } from './storage/plugin-handled.mjs';
+import { validRosterSourceId, validRosterDestinationId } from './import-output.mjs';
+import { legacyPluginHandledFiles, decodeLegacyPluginHandled } from './storage/plugin-handled-sidecars.mjs';
+import { pluginItemFiles, capturePluginItemFiles, exportCapturedPluginItemEvidence, recoverPluginItemDecisions } from './plugin-items.mjs';
+import { mergePluginItemEvidence, portablePluginItemEvidence, reconcilePluginItemEvidence, retainPluginItemEvidence } from './core/plugin-item-evidence.mjs';
+import { optionalPluginData, warnOptionalPluginData } from './core/optional-plugin-data.mjs';
+
+const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const validEvidenceTypeId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id);
+const invalid = () => { throw new TypeError('Invalid optional sidecar evidence.'); };
+
+// Code-owned registrations only. A type may declare capture-only filenames,
+// validate/merge a player's records, and materialize them into gameplay state.
+// Imported payloads never select a filesystem path or cause a sidecar write.
+export const optionalSidecarEvidenceTypes = Object.freeze({
+  pluginReplaySuppression: {
+    files: legacyPluginHandledFiles,
+    capture: ({ state, files, unavailable, retainCommittedReplay }) => decodeLegacyPluginHandled(state, files,
+      retainCommittedReplay ? new Map([...unavailable].filter(([, code]) => !['EACCES', 'EPERM', 'EISDIR', 'EBUSY'].includes(code))) : unavailable).provenance?.pluginAutoHandled,
+    fromProvenance: node => node.pluginAutoHandled,
+    mergePlayer: (...records) => mergePluginHandledRecords(...records),
+    materialize: (state, players) => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: players } }),
+  },
+  pluginItems: {
+    files: pluginItemFiles,
+    // The dedicated generation-marked carrier is authoritative, including
+    // reviewed fact removal. Do not keep a second stale fact copy in the capsule.
+    capsule: false,
+    // Preserve #133's generation-coherent capture, including the exact pinned
+    // inherited state for worker exports. A store-owned publication already
+    // supplies that authoritative state and holds the shared evidence mutex.
+    captureFiles: async ({ dataDir, storeOwned, retainCommittedReplay }) => new Map(Object.entries(
+      await capturePluginItemFiles(dataDir, { includeState: !storeOwned, retainCommittedReplay, allowUnavailableJournals: storeOwned }))),
+    capture: async ({ state, dataDir, files }) => {
+      const members = new Set(state.members.map(member => member.id));
+      const evidence = await exportCapturedPluginItemEvidence(dataDir, Object.fromEntries(files),
+        id => members.has(id) ? id : undefined, portablePluginItemEvidence(state));
+      return Object.keys(evidence.players).length ? evidence.players : undefined;
+    },
+    fromProvenance: node => node.pluginItemEvidence === undefined ? undefined : mergePluginItemEvidence(node.pluginItemEvidence).players,
+    relatedEvidence: players => {
+      if (!object(players)) invalid();
+      const checked = Object.fromEntries(Object.entries(players).map(([id, record]) => [id,
+        recoverPluginItemDecisions({ v: 1, players: { evidence: record } }).players.evidence]));
+      return { schemaVersion: 1, entries: { pluginReplaySuppression: { version: 1, players: liveDecisions(checked) } } };
+    },
+    archiveConsumed: node => {
+      if (node.pluginItemEvidenceReconciled === undefined) return false;
+      if (node.pluginItemEvidenceReconciled !== 1) throw new TypeError('Invalid plugin item archive generation.');
+      return true;
+    },
+    mergePlayer: (...records) => recoverPluginItemDecisions(mergePluginItemEvidence(...records.map(record => ({ v: 1, players: { evidence: record } })))).players.evidence,
+    // Ordinary state writes capture usable file evidence, but retain
+    // facts in their existing sidecars. Import/export materializes the full
+    // portable carrier; only live replay decisions fold back on ordinary writes.
+    materializePublication: (state, players) => materializeLiveDecisions(state, players),
+    materialize: (state, players) => {
+      const next = reconcilePluginItemEvidence(state, { provenance: { pluginItemEvidence: { v: 1, players } } });
+      // Live handled decisions bind current controllers. Beta/unknown
+      // decisions keep their own world scope and cannot suppress live progress.
+      return materializeLiveDecisions(next, next.provenance.pluginItemEvidence.players);
+    },
+  },
+});
+
+function liveDecisions(players) {
+  return Object.fromEntries(Object.entries(players)
+    .filter(([, record]) => record.records.live?.handled.length)
+    .map(([id, record]) => [id, { items: record.records.live.handled, achievements: [] }]));
+}
+function materializeLiveDecisions(state, players) {
+  const live = liveDecisions(players);
+  return Object.keys(live).length ? optionalPluginData('live item replay fold',
+    () => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: live } }), state) : state;
+}
+
+function validate(evidence) {
+  if (!object(evidence) || evidence.schemaVersion !== 1 || !object(evidence.entries)
+    || Object.keys(evidence).some(key => !['schemaVersion', 'entries'].includes(key))) invalid();
+  for (const [id, entry] of Object.entries(evidence.entries)) {
+    if (!validEvidenceTypeId(id) || !object(entry) || entry.version !== 1 || !object(entry.players)
+      || Object.keys(entry).some(key => !['version', 'players'].includes(key))) invalid();
+    for (const [player, record] of Object.entries(entry.players)) if (!validRosterSourceId(player) || !object(record)) invalid();
+  }
+  return evidence;
+}
+
+function recoverProvenanceEvidence(state) {
+  const nodes = [], seen = new Set(), consumed = new Set();
+  // Frozen replacement archives incoming provenance. Interpret only that
+  // schema-owned chain; mappings at a node belong to its incoming evidence,
+  // while its own carriers already use that node's roster identities.
+  for (let node = state.provenance; object(node); node = node.restore?.incomingProvenance) {
+    if (seen.has(node)) throw new TypeError('Cyclic optional sidecar provenance.');
+    seen.add(node);
+    const capsule = node.optionalSidecarEvidence === undefined ? {} : validate(node.optionalSidecarEvidence).entries;
+    const entries = Object.fromEntries(Object.entries(capsule).filter(([id]) => !consumed.has(id)));
+    const inputs = [{ schemaVersion: 1, entries }], related = [];
+    for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
+      const players = type.fromProvenance?.(node);
+      // A fact generation fence never revokes live replay authority. Recover
+      // related decisions even from consumed item fields/capsules, without
+      // materializing their deliberately removed journal facts again.
+      if (type.relatedEvidence) for (const source of [players, capsule[id]?.players]) {
+        if (source !== undefined) related.push(type.relatedEvidence(source));
+      }
+      if (consumed.has(id)) continue;
+      if (players !== undefined) inputs.push({ schemaVersion: 1, entries: { [id]: { version: 1, players } } });
+      // Item facts can be deliberately reviewed/removed. Its generation fence
+      // consumes only item archives, never independent replay authority.
+      if (type.archiveConsumed?.(node)) consumed.add(id);
+    }
+    nodes.push({ node, inputs, related });
+    const incoming = node.restore?.incomingProvenance;
+    if (incoming !== undefined && incoming !== null && !object(incoming)) throw new TypeError('Invalid optional sidecar provenance archive.');
+  }
+  let evidence;
+  for (const { node, inputs, related } of nodes.reverse()) {
+    if (evidence && Object.keys(evidence.entries).length) {
+      const mappings = [], visited = new Set();
+      for (let transfer = node.transferRoster; transfer !== undefined && transfer !== null; transfer = transfer.previous) {
+        if (!object(transfer) || visited.has(transfer)) throw new TypeError('Invalid optional sidecar ownership.');
+        visited.add(transfer); mappings.push(transfer.mapping);
+      }
+      for (const mapping of mappings.reverse()) evidence = mapOptionalSidecarEvidence(evidence, mapping);
+    }
+    evidence = merge(node === state.provenance ? state.members : undefined, evidence, ...inputs);
+    // The item carrier is independently authoritative. A derived replay bridge
+    // cannot discard a valid review decision merely because its other list is full.
+    for (const input of related) evidence = optionalPluginData('archived item replay fold',
+      () => merge(node === state.provenance ? state.members : undefined, evidence, input), evidence);
+  }
+  return evidence ?? { schemaVersion: 1, entries: {} };
+}
+
+function merge(members, ...inputs) {
+  const live = members && new Set(members.map(member => member.id)), entries = new Map();
+  for (const input of inputs) {
+    if (input === undefined) continue;
+    for (const [id, entry] of Object.entries(validate(input).entries)) {
+      const players = entries.get(id) ?? new Map(), type = Object.hasOwn(optionalSidecarEvidenceTypes, id) ? optionalSidecarEvidenceTypes[id] : undefined;
+      for (const [player, record] of Object.entries(entry.players)) {
+        if (live && !live.has(player)) continue;
+        const prior = players.get(player);
+        if (type) {
+          const merged = type.mergePlayer(...(prior === undefined ? [record] : [prior, record]));
+          if (!object(merged)) invalid();
+          players.set(player, merged);
+        }
+        else {
+          // Preserve opaque future evidence, never guess how to combine two
+          // conflicting records of an unregistered type.
+          if (prior !== undefined && !isDeepStrictEqual(prior, record)) throw new TypeError('Cannot merge conflicting unregistered sidecar evidence.');
+          players.set(player, structuredClone(record));
+        }
+      }
+      entries.set(id, players);
+    }
+  }
+  return { schemaVersion: 1, entries: Object.fromEntries([...entries].map(([id, players]) => [id, { version: 1, players: Object.fromEntries(players) }])) };
+}
+
+function install(state, evidence, { publication = false } = {}) {
+  if (!Object.keys(evidence.entries).length) return state;
+  const retained = Object.fromEntries(Object.entries(evidence.entries).filter(([id]) => optionalSidecarEvidenceTypes[id]?.capsule !== false));
+  let next = Object.keys(retained).length ? { ...state, provenance: { ...state.provenance,
+    optionalSidecarEvidence: { schemaVersion: 1, entries: retained } } } : state;
+  if (!Object.keys(retained).length && state.provenance?.optionalSidecarEvidence) {
+    const { optionalSidecarEvidence: discarded, ...provenance } = state.provenance;
+    next = { ...state, provenance };
+  }
+  for (const [id, entry] of Object.entries(evidence.entries)) {
+    const type = Object.hasOwn(optionalSidecarEvidenceTypes, id) ? optionalSidecarEvidenceTypes[id] : undefined;
+    const materialize = publication && type?.materializePublication || type?.materialize;
+    if (materialize) next = materialize(next, entry.players);
+  }
+  return next;
+}
+
+export function reconcileOptionalSidecarEvidence(state, ...sources) {
+  let next = retainedRootState(state);
+  for (const source of [state, ...sources]) {
+    next = optionalPluginData('archive materialization', () => install(next, merge(state.members,
+      rootEvidence(next), recoverProvenanceEvidence({ members: state.members, ...source }))), next);
+  }
+  return isDeepStrictEqual(next, state) ? state : next;
+}
+
+export function materializeOptionalSidecarEvidence(state, evidence, options) {
+  const next = reconcileOptionalSidecarEvidence(state);
+  return evidence === undefined ? next : optionalPluginData('portable materialization', () => install(next, merge(state.members,
+    rootEvidence(next), evidence), options), next);
+}
+
+// Valid current atomic replay policy survives an unusable optional archive or
+// capsule. Never catch gameplay validation, command execution or tick writes.
+function retainedRootState(state) {
+  const provenance = state.provenance;
+  if (!provenance || !['pluginAutoHandled', 'optionalSidecarEvidence', 'pluginItemEvidence'].some(key => Object.hasOwn(provenance, key))) return state;
+  const { pluginAutoHandled, optionalSidecarEvidence, pluginItemEvidence, ...rest } = provenance;
+  let next = { ...state, provenance: rest };
+  if (pluginAutoHandled !== undefined) next = optionalPluginData('atomic evidence recovery',
+    () => reconcilePluginHandled(next, { provenance: { pluginAutoHandled } }), next);
+  if (pluginItemEvidence !== undefined) next = optionalPluginData('root item evidence recovery', () => {
+    const checked = recoverPluginItemDecisions(pluginItemEvidence);
+    checked.players = Object.fromEntries(Object.entries(checked.players).filter(([id]) => state.members.some(member => member.id === id)));
+    return retainPluginItemEvidence(next, checked);
+  }, next);
+  return next;
+}
+function rootEvidence(state) {
+  return merge(state.members, state.provenance?.optionalSidecarEvidence, { schemaVersion: 1, entries: {
+    ...(state.provenance?.pluginAutoHandled === undefined ? {} : {
+      pluginReplaySuppression: { version: 1, players: state.provenance.pluginAutoHandled } }),
+    ...(state.provenance?.pluginItemEvidence === undefined ? {} : {
+      pluginItems: { version: 1, players: state.provenance.pluginItemEvidence.players } }),
+  } });
+}
+
+export function mapOptionalSidecarEvidence(evidence, mapping) {
+  if (evidence === undefined) return undefined;
+  if (!object(mapping) || Object.entries(mapping).some(([source, target]) => !validRosterSourceId(source) || !validRosterDestinationId(target))
+    || new Set(Object.values(mapping)).size !== Object.values(mapping).length) invalid();
+  return optionalPluginData('roster evidence mapping', () => ({ schemaVersion: 1, entries: Object.fromEntries(Object.entries(validate(evidence).entries).map(([id, entry]) => [id,
+    { version: 1, players: Object.fromEntries(Object.entries(entry.players).filter(([player]) => Object.hasOwn(mapping, player))
+      .map(([player, record]) => [mapping[player], structuredClone(record)])) }])) }), undefined);
+}
+
+export async function captureOptionalSidecarEvidence(state, { dataDir, retainCommittedReplay = false, storeOwned = false } = {}) {
+  let evidence = rootEvidence(retainedRootState(state));
+  evidence = optionalPluginData('portable archive capture', () => merge(state.members, evidence, recoverProvenanceEvidence(state)), evidence);
+  for (const [id, type] of Object.entries(optionalSidecarEvidenceTypes)) {
+    if (!type.capture || dataDir === undefined && type.files?.length) continue;
+    try {
+      const context = { state, dataDir, retainCommittedReplay, storeOwned };
+      const files = type.captureFiles ? await type.captureFiles(context) : new Map(), unavailable = new Map();
+      for (const name of type.captureFiles ? [] : type.files ?? []) {
+        if (typeof name !== 'string' || !/^plugin-[a-z0-9-]+\.json$/.test(name)) invalid();
+        try { files.set(name, await readFile(path.join(dataDir, name))); }
+        catch (error) { if (error.code !== 'ENOENT') unavailable.set(name, error.code ?? 'READ_FAILED'); }
+      }
+      const players = await type.capture({ ...context, files, unavailable });
+      if (players !== undefined) evidence = merge(state.members, evidence, { schemaVersion: 1, entries: { [id]: { version: 1, players } } });
+    } catch { warnOptionalPluginData(`${id} capture`); }
+  }
+  return Object.keys(evidence.entries).length ? evidence : undefined;
+}
+
+export async function withOptionalSidecarEvidence(backup, context) {
+  const evidence = await captureOptionalSidecarEvidence(backup.state, context);
+  if (!evidence) return backup;
+  // Keep the state carrier as well: older releases ignore the envelope extension
+  // but preserve unknown provenance through loading, Undo and re-export.
+  return { ...backup, state: materializeOptionalSidecarEvidence(backup.state, evidence), optionalSidecarEvidence: evidence };
+}
+
+// Canonical storage envelopes end in an object brace. Append small optional
+// evidence without parsing/copying a potentially large compact state tree.
+export function appendOptionalSidecarEvidence(document, evidence) {
+  if (evidence === undefined) return document;
+  validate(evidence);
+  const bytes = Buffer.isBuffer(document) ? document : Buffer.from(document);
+  let end = bytes.length;
+  while (end && [0x20, 0x09, 0x0a, 0x0d].includes(bytes[end - 1])) end--;
+  if (bytes[end - 1] !== 0x7d) invalid();
+  return Buffer.concat([bytes.subarray(0, end - 1), Buffer.from(`,"optionalSidecarEvidence":${JSON.stringify(evidence)}}\n`)]);
+}

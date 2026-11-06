@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { openStore } from '../app/storage/store.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serialize } from 'node:v8';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { applyCommand, createGroupState } from '../app/core/state.mjs';
@@ -30,14 +32,14 @@ async function handledIds(f, ids) {
 
 // No HTTP server or live save. The controller uses a real revision-checked core
 // command against synthetic state. All sidecars stay inside this worktree.
-async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:two', 'Second Task')], questMapping = new Map()) {
+async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:two', 'Second Task')], questMapping = new Map(), { durable = false } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-achievement-test-', import.meta.url)));
   let at = Date.parse('2026-10-19T12:00:00Z'), input, output, seq = 0, controller, failCommand = false;
   const warnings = [];
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]);
   state.tasks = tasks;
   const commands = [];
-  const store = {
+  let store = {
     getInfo: () => ({ revision: state.revision }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => null,
     command: async (command, expectedRevision) => {
       if (failCommand) throw Object.assign(new Error('Synthetic revision race'), { status: 409 });
@@ -47,6 +49,7 @@ async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:
   };
   let queue = Promise.resolve();
   async function start() {
+    if (durable) store = await openStore({ dataDir, initialState: state, retention: false, now: () => new Date(at).toISOString() });
     controller = await openGamePlugin({ dataDir, store, clock: () => at, world: { chunks: new Map() },
       registry: { resolve: () => ({}) }, questMapping,
       serializeMutation: operation => { const next = queue.then(operation); queue = next.catch(() => {}); return next; },
@@ -56,7 +59,7 @@ async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:
   }
   await start();
   const { key } = await controller.create(identity, { memberId: 'a', label: 'Synthetic plugin' });
-  t.after(async () => { await controller.close(); await rm(dataDir, { recursive: true, force: true }); });
+  t.after(async () => { await controller.close(); if (durable) await store.close(); await rm(dataDir, { recursive: true, force: true }); });
   async function send(achievements, extra = {}, credential = key) {
     at += 1001; input = { v: 1, seq: ++seq, sentAt: new Date(at).toISOString(), position: { x: 50, z: 50, floor: 0 }, world: { id: 1, beta: false }, ...extra };
     if (achievements !== undefined) input.achievements = achievements;
@@ -68,10 +71,10 @@ async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:
     const request = { method: 'GET', url: '/api/plugin/v1/status', headers: { authorization: `Bearer ${key}` } };
     await controller.handle(request, {}, { route: request.url, security: {} }); return output;
   }
-  return { get controller() { return controller; }, get state() { return state; }, store, commands, key, send, status, dataDir, warnings,
+  return { get controller() { return controller; }, get state() { return durable ? store.getState() : state; }, get store() { return store; }, commands, key, send, status, dataDir, warnings,
     setFailure: value => { failCommand = value; },
     advance: ms => { at += ms; },
-    restart: async () => { await controller.close(); await start(); },
+    restart: async beforeStart => { await controller.close(); if (durable) await store.close(); await beforeStart?.(); await start(); },
   };
 }
 
@@ -333,6 +336,43 @@ test('multiple achievement ids matching one task are all handled by the single a
   await f.send(part(1, 1, complete, secondSnapshot));
   assert.deepEqual(f.state.members[0].completedTasks, []);
   assert.equal(f.commands.length, 2);
+});
+
+for (const restore of ['restart', 'older-backup', 'member']) test(`automatic achievement aliases stay suppressed after failed sidecar writes, Undo and ${restore} restore`, async t => {
+  const f = await fixture(t, undefined, undefined, { durable: true });
+  const older = f.state;
+  const file = path.join(f.dataDir, 'plugin-achievements.json');
+  const command = f.store.command;
+  f.store.command = async (...args) => {
+    const result = await command(...args);
+    if (args[0].type === 'apply-game-progress') await mkdir(file);
+    return result;
+  };
+  const complete = [[1, 'First Task', 0, 0], [2, 'First_Task', 0, 0]];
+  await f.send(part(1, 1, complete));
+  assert.deepEqual(f.state.members[0].completedTasks, ['diary:one']);
+  assert.deepEqual(JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).state.provenance.pluginAutoHandled.a.achievements, [1, 2], 'Every alias is in the tick publication');
+  await f.store.command({ type: 'undo' }, f.state.revision);
+  // Keep the sidecar broken through the final close retry, then reopen without it.
+  await f.restart(() => rm(file, { recursive: true }));
+  const revision = f.state.revision;
+  await f.send(part(1, 1, complete, secondSnapshot));
+  assert.deepEqual(f.state.members[0].completedTasks, []);
+  assert.equal(f.state.revision, revision, 'Neither alias can replay the undone tick');
+  assert.deepEqual(f.controller.review(identity, 'a'), { preview: null });
+  const destination = restore === 'member' ? await fixture(t, undefined, undefined, { durable: true }) : f;
+  if (restore === 'member') {
+    await f.store.command({ type: 'set-runescape-name', memberId: 'a', name: 'FixtureActor' }, f.state.revision);
+    const review = await destination.store.prepareTransfer(serialize({ backup: await f.store.backup(), memberId: 'a', sourceMemberId: 'a' }),
+      { dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() }, route: '/api/member-restore/preview' });
+    await destination.store.applyTransfer(review.ticket, destination.state.revision);
+    await destination.store.command({ type: 'undo' }, destination.state.revision);
+  } else if (restore === 'older-backup') await destination.store.replace(older, destination.state.revision);
+  await destination.restart();
+  const restoredRevision = destination.state.revision;
+  await destination.send(part(1, 1, complete, secondSnapshot));
+  assert.deepEqual(destination.state.members[0].completedTasks, []);
+  assert.equal(destination.state.revision, restoredRevision, 'Restored aliases cannot tick again');
 });
 
 test('a persistently broken sidecar never blocks sync or reoffers pending handled IDs, and later recovers', async t => {

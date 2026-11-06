@@ -1,5 +1,6 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
 import { readFile, realpath, open, unlink } from 'node:fs/promises';
+import { optionalPluginData } from './core/optional-plugin-data.mjs';
 import { gunzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { createHash, randomBytes } from 'node:crypto';
@@ -37,7 +38,7 @@ async function capturedInheritedEvidence(dataDir, files) {
   return portablePluginItemEvidence({ ...document.state, provenance: JSON.parse(bytes) });
 }
 
-function validate(value, validateRecord = validateReviewRecord) {
+export function validatePluginItemStore(value, validateRecord = validateReviewRecord) {
   if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)
     || Object.keys(value.players).length > 256) throw new TypeError('Invalid plugin item store.');
   for (const [player, record] of Object.entries(value.players)) {
@@ -46,6 +47,7 @@ function validate(value, validateRecord = validateReviewRecord) {
   }
   return value;
 }
+const validate = validatePluginItemStore;
 
 function validateReviewRecord(record) {
   validateItemRecord(record);
@@ -127,6 +129,10 @@ function lowerDecisions(live, taskIds) {
 // The adapter returns plain, validated data. Import never writes paths supplied by a backup.
 export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, inherited, captureOptions) {
   const files = await capturePluginItemFiles(dataDir, captureOptions);
+  return exportCapturedPluginItemEvidence(dataDir, files, mapPlayerId, inherited, captureOptions);
+}
+
+export async function exportCapturedPluginItemEvidence(dataDir, files, mapPlayerId = id => id, inherited, captureOptions) {
   // A worker's supplied state may predate a concurrent import. Include the
   // inherited evidence published alongside the captured sidecar generations.
   const persisted = await capturedInheritedEvidence(dataDir, files);
@@ -263,14 +269,18 @@ async function openPluginRecords({ dataDir, members, clock = Date.now, log = con
   const file = path.join(dataDir, filename);
   let current = { v: 1, players: {} }, corrupt = false, queue = Promise.resolve(), closed = false, contents;
   try { contents = await readFile(file, 'utf8'); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  catch (error) { if (error.code !== 'ENOENT') log('Optional plugin item evidence unavailable; observations may be offered again.'); }
   if (contents !== undefined) {
     const document = optionalDocument(contents, validateRecord, log);
     if (document) current = document;
     else corrupt = true;
   }
   return {
-    get(player) { return merge(inherited(player), Object.hasOwn(current.players, player) ? current.players[player] : null); },
+    get(player) {
+      const retained = optionalPluginData('inherited item record', () => inherited(player), null);
+      const observed = Object.hasOwn(current.players, player) ? current.players[player] : null;
+      return optionalPluginData('item record union', () => merge(retained, observed), retained ?? observed);
+    },
     /** Writes one player's record; members removed from the save are dropped. */
     put(player, record) {
       if (closed) return Promise.reject(Object.assign(new Error('The picker is stopping.'), { status: 503 }));

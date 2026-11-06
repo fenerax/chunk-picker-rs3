@@ -60,11 +60,93 @@ task rules and migration exclusions remain recoverable and are listed for
 review. Member reports also describe shared sections left at the destination.
 No retained exclusion is presented as a successfully matched game record.
 
-Backups include saved gameplay, hydrated History, identity registries and
-migration archives. They exclude unaccepted plugin observations/review sidecars,
+Backups include saved gameplay, hydrated History, identity registries,
+migration archives and registered optional sidecar evidence. They exclude unregistered plugin observations and transient review state,
 accounts, sessions, invitations, keys, reference datasets and artwork. Already
 accepted plugin observations materialized in gameplay remain in the backup;
 import does not authorize a live integration or reconnect a plugin client.
+
+Committed automatic plugin replay decisions also travel with the backup.
+Restores combine incoming decisions with the destination's decisions, so an
+older backup cannot make an undone observation tick again. Portable transfers
+map these decisions to the chosen destination players; member restore imports
+only the selected source player's decisions. Undo of a member restore retains
+these replay decisions too.
+
+### Optional sidecar evidence
+
+Portable envelopes may include `optionalSidecarEvidence` with this shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "entries": {
+    "pluginReplaySuppression": {
+      "version": 1,
+      "players": {
+        "synthetic-player": { "achievements": [1], "items": ["custom:sample"] }
+      }
+    }
+  }
+}
+```
+
+Entries without their own compatibility carrier are retained under
+`state.provenance.optionalSidecarEvidence`.
+Older releases can load and re-export that provenance even when they ignore the
+optional envelope. Suppression's atomic authority remains
+`state.provenance.pluginAutoHandled`; exporting does not mutate the live state.
+Suppression capture strictly reads both legacy handled sidecars too, so decisions
+written by an older runtime survive transport. Startup durably folds those
+decisions into the atomic field. Capture, restore preparation and publication,
+startup and the stopped rollback gate validate the complete union against both
+handled limits. Unreadable, invalid or overflowing evidence refuses the operation
+instead of dropping replay decisions. Sidecar writes and restore publication
+share a per-store evidence lock; publication rechecks evidence after caller hooks.
+
+Register types in `app/optional-sidecar-evidence.mjs`. A registration supplies
+`mergePlayer(...records)`, which validates and immutably combines one or more
+per-player records. It may also supply `fromState(state)`, a code-owned `files`
+allowlist, `capture({ state, files, unavailable })`, and `materialize(state, players)`.
+Types needing a coherent multi-file generation may provide a code-owned
+`captureFiles(context)` adapter instead of the default file reader.
+Types with an existing durable carrier can set `capsule: false` and reconstruct
+their export entry through `fromState`; this prevents a redundant capsule from
+resurrecting deliberately cleared facts. `materializePublication` may validate
+file evidence while folding only replay decisions into ordinary publications;
+normal import/export materialization still installs the full portable evidence.
+Capture receives a Map of declared filenames to Buffers; missing files are
+omitted. Non-missing read failures appear in the `unavailable` Map as filename
+and error code, so the type owns unavailable-file policy as well as decoding
+and validation. An unavailable file must not erase its committed state carrier.
+Materialization is a pure,
+synchronous state projection that preserves revision and History. The shared
+capsule is installed before this hook. A controller can read its type's capsule
+to rehydrate its own evidence cache. Incoming data never chooses a file path
+and these hooks never write sidecars.
+
+The registered `pluginItems` entry uses `pluginItemFiles` and generation-coherent
+capture for live, beta and unknown records plus journal acknowledgements. Its
+merger owns world separation and evidence semantics. Live handled IDs also
+join atomic suppression; beta and unknown IDs retain their world scope.
+Ordinary commands leave file-backed journal facts in their existing sidecars,
+so reviewed capacity cleanup keeps working. Failed non-live journal writes
+remain unacknowledged and retryable without blocking live progress. Portable
+exports and imports remain strict about unavailable evidence.
+Ordinary exports, retained checkpoint capture, and standalone or archived
+portable downloads use this same registry capture and materialization route.
+Downloads capture decisions made after the retained checkpoint; internal
+restore reads keep source identity until member mapping completes.
+Unknown types remain opaque provenance;
+conflicting unknown records refuse import rather than silently lose evidence.
+
+The common player mapper selects source members before remapping their records.
+Both member and whole-picker imports combine mapped evidence with destination
+evidence before publication. Portable exports and replacement preimages capture
+both legacy handled sets. Internal command checkpoints retain committed atomic
+evidence, allowing Undo while a sidecar is unavailable. Restoring retained files materializes
+their evidence before preparing the destination. This uses the existing schema-1
+save and plugin wire formats.
 
 ## Original picker chunks
 
@@ -101,6 +183,10 @@ restoring onto 501 destination History entries, and an upload above 32 MiB.
 Roster labels are limited to 512 display characters. Mapping uses exact player
 IDs of 1–80 characters without control characters, with at most 32 players.
 Original names and migration diagnostics remain intact in the saved evidence.
+Optional evidence uses that same source-player contract, including punctuation
+and source IDs longer than 64 characters. Destination IDs still follow the
+roster mapper's safe 1–64-character contract. Evidence-type identifiers have
+their own safe 1–64-character namespace; they are never interpreted as player IDs.
 
 Transfer reports index definitions and completions once. Restore previews also
 index catalogue differences, completion differences and task labels, so a large

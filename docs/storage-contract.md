@@ -34,6 +34,14 @@ copied, or used to derive this document.
 
 ## Shared guarantees and ownership
 
+Automatic plugin ticks publish current replay decisions with gameplay. Optional
+sidecar capture and archive recovery are best effort: failures are logged and
+may reoffer plugin observations, but never veto startup, restore or export.
+ExecStartPre checks transactions and service access without reading picker data.
+No replay-reconciliation staging files or refusal records are written. The
+accepted frozen rollback limit and exact save declarations are in
+`docs/save-schema.md` and `docs/save-surface.json`.
+
 * **R**: `app/storage/registry-lock.mjs:28` writes an exclusive random temporary
   file (0600), fsyncs it, renames it over the destination, then fsyncs the parent.
   Windows retries replacement and tolerates only specified unsupported directory
@@ -284,6 +292,11 @@ state **with its action outcome in the same replacement**; memory, notifications
 and acknowledgement follow. Revisions conflict inside the queue. Orphan outputs
 of an interrupted commit are ignored. Startup can write without a revision bump
 (daily observation); action-session writes also preserve revision.
+Each attempted gameplay publication durably retains its pre-command snapshot
+before the fallible commit hook. A refused attempt and a successful retry leave
+two independently named snapshots of that same pre-command state, even when
+their revision and timestamp match. Refusal never broadcasts proposed progress;
+close drains the write queues and releases store ownership.
 Live recovery can replace it by copying/moving the whole store (bypass list).
 Evidence: `tests/storage.test.mjs:42`, `:81`, `:103`, `:191`;
 `tests/live-swap-storage.test.mjs:22`, `:38`, `:236`, `:248`;
