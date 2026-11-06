@@ -4,6 +4,16 @@ const reusableFields = new Set(['tasks', 'identityRegistry', 'legacy']);
 const object = value => value !== null && typeof value === 'object';
 const digestJSON = bytes => createHash('sha256').update(bytes).digest('hex');
 
+// Provenance hashes an object-rest projection, omitting an empty projection.
+// Only nonempty JSON records without History references keep their stored bytes.
+export function canReuseGameplayFieldBytes(key, value) {
+  if (key !== 'provenance') return true;
+  if (!object(value) || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return (prototype === Object.prototype || prototype === null)
+    && !Object.hasOwn(value, 'historyArchive') && Object.keys(value).length > 0;
+}
+
 /** Private storage cache only: inputs are valid JSON, and reused object trees
  * are immutable. Commands and validated hook outputs replace changed trees.
  * Public mutable objects must cross storage's ownership boundary first. */
@@ -14,7 +24,7 @@ export function createGameplayFingerprint() {
     if (key === 'provenance' && object(value)) {
       if (provenanceDigests.has(value)) return provenanceDigests.get(value);
       const { historyArchive, ...gameplay } = value;
-      const digest = Object.keys(gameplay).length ? digestJSON(serialized !== undefined && !Object.hasOwn(value, 'historyArchive')
+      const digest = Object.keys(gameplay).length ? digestJSON(serialized !== undefined && canReuseGameplayFieldBytes(key, value)
         ? serialized : JSON.stringify(gameplay)) : undefined;
       provenanceDigests.set(value, digest);
       return digest;

@@ -53,6 +53,30 @@ test('apply seeds worker fingerprints before subscribers without trusting upload
   assert.equal(observed.tasks, before.tasks);
 });
 
+for (const large of [false, true]) test(`member restore preserves canonical ${large ? 'sidecar' : 'prepared-JSON'} array provenance fingerprints`, async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'synthetic-member-provenance-'));
+  const roster = [{ id: 'one', name: 'Synthetic player' }];
+  const world = { chunks: new Map([['100', { id: '100' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) };
+  const provenance = [large ? 'x'.repeat(300 * 1024) : 'synthetic'];
+  const initialState = { ...createGroupState(roster), provenance };
+  const store = await openStore({ dataDir, initialState, world, retention: false });
+  t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  store.getGameplayFingerprint();
+  const incoming = createGroupState(roster);
+  incoming.members[0].notes = { '100': 'Synthetic restored note' };
+  const prepared = await store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: incoming },
+    memberId: 'one', sourceMemberId: 'one' }),
+  { world, route: '/api/member-restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} } });
+  const applied = await store.applyTransfer(prepared.ticket, 0);
+  assert.equal(applied.state.members[0].notes['100'], 'Synthetic restored note');
+  assert.deepEqual(applied.state.provenance, provenance, 'Accepted array provenance stays unchanged');
+  assert.equal(store.getGameplayFingerprint(), createGameplayFingerprint()(applied.state));
+  const saved = JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8'));
+  assert.equal(Boolean(saved.storage?.fields?.provenance), large, 'Exercise the intended byte-reuse shortcut');
+  const exported = JSON.parse((await store.exportBackup()).bytes);
+  assert.deepEqual(exported.state.provenance, provenance);
+});
+
 test('queue wait has its own busy deadline and does not consume active checking time', async () => {
   const wedge = runImportJob({}, { workerURL: new URL('data:text/javascript,while(true){}'), timeoutMs: 500 });
   const wedged = assert.rejects(wedge, error => error.status === 422);

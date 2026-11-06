@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { createGameplayFingerprint } from '../app/storage/gameplay-fingerprint.mjs';
+import { createGameplayFingerprint, canReuseGameplayFieldBytes } from '../app/storage/gameplay-fingerprint.mjs';
 
 function fixture() {
   return { schemaVersion: 1, revision: 3, rules: { enabled: true }, members: [{ id: 'synthetic', name: 'Synthetic',
@@ -30,6 +30,21 @@ test('worker digests reuse prepared JSON without including retained History refe
   assert.deepEqual(createGameplayFingerprint().exportStatic(archived, raw), createGameplayFingerprint().exportStatic(archived));
   assert.equal(createGameplayFingerprint().exportStatic({ provenance: { historyArchive: ['synthetic'] } },
     new WeakMap()).provenance, undefined);
+});
+
+test('provenance byte reuse matches the canonical nonempty object-rest projection', () => {
+  for (const provenance of [[], ['synthetic'], ['x'.repeat(300 * 1024)], {},
+    { historyArchive: [] }, { source: 'synthetic', historyArchive: [] }, { source: 'synthetic' }, Object.create(null)]) {
+    const { historyArchive, ...projection } = provenance;
+    const expected = Object.keys(projection).length
+      ? createHash('sha256').update(JSON.stringify(projection)).digest('hex') : undefined;
+    const reusable = canReuseGameplayFieldBytes('provenance', provenance);
+    assert.equal(reusable, !Array.isArray(provenance) && !Object.hasOwn(provenance, 'historyArchive') && expected !== undefined);
+    if (reusable) assert.equal(JSON.stringify(provenance), JSON.stringify(projection));
+    const prepared = new WeakMap([[provenance, JSON.stringify(provenance)]]);
+    assert.equal(createGameplayFingerprint().exportStatic({ provenance }, prepared).provenance, expected);
+  }
+  assert.equal(canReuseGameplayFieldBytes('tasks', []), true);
 });
 
 test('worker static digests seed only the exact imported trees and keep later edits fresh', () => {

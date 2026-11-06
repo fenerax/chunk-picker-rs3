@@ -17,7 +17,7 @@ import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState,
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { evaluateRollPool, partnerConnections, createRollPoolCache } from '../core/rules.mjs';
 import { captureProgressSnapshot, buildProgressModel } from '../core/progress-timeline.mjs';
-import { createGameplayFingerprint } from './gameplay-fingerprint.mjs';
+import { createGameplayFingerprint, canReuseGameplayFieldBytes } from './gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../tasks/unlock-reuse.mjs';
 import { projectPlayState, projectPlayStateSteps, PLAY_VIEW } from '../play-view.mjs';
 import { projectBrowserState } from '../web/browser-state.mjs';
@@ -1303,7 +1303,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // Large durable fields already have a verified digest. Reuse it when the
       // gameplay projection is identical, avoiding another large hash pass.
       const preparedDigests = Object.fromEntries(fields.filter(({ key, reference }) => reference
-        && (key !== 'provenance' || !Object.hasOwn(state.provenance, 'historyArchive')))
+        && canReuseGameplayFieldBytes(key, state[key]))
         .map(({ key, reference }) => [key, reference.sha256]));
       fingerprint.seedStatic(state, preparedDigests);
       taskReuseFingerprint.seedStatic(state, preparedDigests);
