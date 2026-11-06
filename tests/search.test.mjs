@@ -287,3 +287,66 @@ test('F4 blank chunk search shows surface results before numeric off-map records
   assert.equal(h.all().filter(node => node.className === 'search-result').length, 120);
   await h.type('125'); assert.ok(h.find('Off-map record · 125'));
 });
+
+test('chunk paging preserves every row, ownership, lock state and note for both members and Group settings', async t => {
+  const h = harness(t, { size: 243 });
+  const ids = h.c.chunkSearch.map(row => row.id);
+  h.c.state.members[0].unlocked = [ids[0], ids[2]];
+  h.c.state.members[1].unlocked = [ids[1], ids[2]];
+  h.c.state.members[0].selected = [ids[3]];
+  h.c.state.members[1].blacklisted = [ids[4]];
+  h.c.pool = { eligible: [{ id: ids[5] }] };
+  for (const member of h.c.state.members) for (const group of [false, true]) {
+    h.c.memberId = member.id; h.c.duoEnabled = () => group;
+    h.search.open(); await h.settle();
+    const expected = ids.map((id, i) => [`Chunk ${id}`, i === 0 ? 'Surface chunk · Unlocked by Player'
+      : i === 1 ? `Surface chunk · Unlocked by ${h.c.state.members[1].name}` : i === 2 ? `Surface chunk · Unlocked by ${h.c.state.members.map(m => m.name).join(' and ')}`
+        : i === 3 && member.id === 'actor1' ? 'Surface chunk · Saved hand selection'
+          : i === 4 && member.id === 'reed' ? 'Surface chunk · Never roll'
+            : i === 5 ? 'Surface chunk · In roll pool' : 'Surface chunk · Locked']);
+    for (const query of ['', 'o', 'ore', 'gate', 'absent-query']) {
+      await h.type(query);
+      const actual = [];
+      do {
+        for (const row of h.all().filter(node => node.className === 'search-result')) {
+          const copy = row.children[0];
+          actual.push([copy.children[0].children[0].textContent, copy.children[1].textContent]);
+        }
+        const next = h.find('Next'); if (!next || next.disabled) break;
+        await next.emit('click');
+      } while (true);
+      assert.deepEqual(actual, query === 'gate' ? expected.slice(0, 1) : query === 'absent-query' ? [] : expected, `${member.id}, Group ${group}, ${query}`);
+      assert.deepEqual(h.matches.at(-1), query === '' || query === 'absent-query' ? [] : query === 'gate' ? ids.slice(0, 1) : ids);
+    }
+  }
+});
+
+for (const scope of ['query', 'mode', 'member', 'revision', 'close']) {
+  test(`deferred map highlighting cannot publish after a ${scope} change`, async t => {
+    const previous = globalThis.requestAnimationFrame, frames = [];
+    globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+    t.after(() => { if (previous === undefined) delete globalThis.requestAnimationFrame; else globalThis.requestAnimationFrame = previous; });
+    const h = harness(t); h.search.open(); await h.settle(); await h.type('ore');
+    assert.ok(h.find('Chunk 10000'), 'the visible page is ready before map work');
+    assert.equal(frames.length, 1); assert.deepEqual(h.matches.at(-1), []);
+    if (scope === 'query') { h.query().value = 'other'; await h.query().emit('input'); }
+    if (scope === 'mode') { h.mode().value = 'Tasks'; await h.mode().emit('change'); }
+    if (scope === 'member') h.c.memberId = 'reed';
+    if (scope === 'revision') h.c.state.revision++;
+    if (scope === 'close') h.c.closeDialog();
+    while (frames.length) frames.shift()(); await h.settle();
+    assert.deepEqual(h.matches.at(-1), []);
+  });
+}
+
+test('deferred map highlighting publishes all matches after a painted page frame', async t => {
+  const previous = globalThis.requestAnimationFrame, frames = [];
+  globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+  t.after(() => { if (previous === undefined) delete globalThis.requestAnimationFrame; else globalThis.requestAnimationFrame = previous; });
+  const h = harness(t); h.search.open(); await h.settle(); await h.type('ore');
+  const view = h.find('View');
+  frames.shift()(); await h.settle();
+  assert.deepEqual(h.matches.at(-1), [], 'the first frame paints the visible page');
+  frames.shift()(); await h.settle();
+  assert.equal(h.matches.at(-1).length, 241); assert.equal(h.find('View'), view);
+});
