@@ -83,7 +83,7 @@ for (const entrypoint of ['member-upload', 'member-retained', 'member-noop', 'wh
     }
     assert.deepEqual(store.getState().provenance.pluginAutoHandled, expected);
     if (!member) assert.deepEqual(store.getState().provenance.restore.incomingProvenance.pluginAutoHandled[owner].achievements,
-      [1, 1], 'Archived source evidence is separate from the reconciled live replay policy');
+      [1], 'Archived decisions are canonical and separate from destination replay policy');
     assert.deepEqual(loadRollbackBackup(await store.backup()), store.getState(), 'Previously live release can load the additive extension');
     if (member && entrypoint !== 'member-noop') {
       const rollback = rollbackCommand(loadRollbackBackup(await store.backup()), { type: 'undo' });
@@ -212,15 +212,10 @@ for (const phase of ['backup-sync', 'temp-sync', 'rename', 'directory-sync']) {
         assert.equal(store.getInfo().durabilityWarnings, 0);
         assert.deepEqual(warnings, []);
       }
-      if (phase === 'temp-sync') {
-        assert.equal(publishedBackup, undefined, 'A failure before the final union gate publishes no backup');
-        assert.deepEqual(await readdir(backups), []);
-      } else {
-        const retained = JSON.parse(gunzipSync(await readFile(publishedBackup)));
-        assert.equal(retained.retentionPinned, true);
-        delete retained.retentionPinned;
-        assert.deepEqual(retained, JSON.parse(previous));
-      }
+      const retained = JSON.parse(gunzipSync(await readFile(publishedBackup)));
+      assert.equal(retained.retentionPinned, true);
+      delete retained.retentionPinned;
+      assert.deepEqual(retained, JSON.parse(previous), 'Retained preimage survives a failed state replacement');
       assert(!(await readdir(dataDir)).some(name => name.endsWith('.tmp')));
     } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
   });
