@@ -36,21 +36,37 @@ successful whole-picker or member import, without a report or restart. Rebuildin
 does not issue completion commands, including for live evidence. Non-live records never
 become live facts or automatic completions. Non-live containers remain ephemeral.
 Member imports preserve other players' item dismissals and container-only
-reviews while refreshing only the imported player's review. Dismissing unmapped
-items records `unmapped:<itemId>` in the scope's bounded `handled` list without
-removing retained facts. An explicit Apply or Dismiss retains each shown task in
+reviews while refreshing only the imported player's review. An explicit Apply or Dismiss retains each shown task in
 every live, beta and unknown scope that supports it, regardless of the displayed
-row's world. Unmapped identities are retained in every scope containing that ID.
+row's world, including skipped rows. Reviews containing unmapped identities are
+refused unchanged: the frozen renderer cannot honor their handled IDs. Reviews
+with any task supported only by non-live evidence also refuse unchanged: the
+frozen non-live renderer does not consult the legacy handled sidecar. Live
+support may be a retained fact or a durable pending live journal event.
 Supporting durable pending journal events count too: their scope can retain a
 decision before its facts are written, without acknowledging or inventing facts.
 All affected handled-list unions are validated before publication. The complete
 decision is published in the active compatibility copy in `state.json`, together
-with Apply's gameplay changes, in one atomic replacement; sidecars are not updated
-one at a time. A capacity refusal leaves the save, evidence and review unchanged
+with Apply's gameplay changes. Before adoption, literal task IDs and reserved
+`~plugin-review:<taskId>` handled markers are lowered into `plugin-items.json`,
+synced and read back. No non-live item facts are copied to the live scope.
+All preparations precede publication under the journal write gate. A failed
+lowering restores and verifies the preceding state and legacy bytes before
+returning a refusal; unrecoverable storage errors stop mutations until reopen.
+Writable open reconciles either copy before reports; read-only opens refuse a
+required repair. Exports refuse an incomplete projection. The markers recover
+decisions after frozen Undo or a restore that replaced provenance. The legacy
+2,000-ID bound reserves space for every remaining automatic Obtain task so frozen
+automatic writes cannot evict explicit choices. A capacity refusal leaves the save, evidence and review unchanged
 and identifies the scope and 2,000-ID bound. Dismissal alone does not increment the
 gameplay revision. Retained decisions persist through restart and portable
-recovery; container-only dismissals remain session-only. Automatic live completion
+recovery; mapped live container-only decisions also retain these markers. Automatic live completion
 keeps its existing retention behavior.
+For handled-list capacity recovery, stop the receiver after writable recovery,
+keep a backup, and remove only reviewed obsolete unrelated handled IDs from the
+active compatibility copy and the corresponding sidecar. Preserve every review
+marker and its paired literal task ID. Removing item facts to free the 500-item
+bound must also preserve these decisions; it does not reopen dismissed tasks.
 
 `plugin-item-journal-commits.json` is a separate version 1 sidecar containing
 `{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.

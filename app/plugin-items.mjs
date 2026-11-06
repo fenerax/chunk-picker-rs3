@@ -1,10 +1,11 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath, open, unlink } from 'node:fs/promises';
 import { gunzip } from 'node:zlib';
 import { promisify } from 'node:util';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { replaceSidecar } from './plugin-achievements.mjs';
+import { publishFile } from './storage/publication.mjs';
 import { GAME_ITEMS, GAME_WORN_TASKS } from './integrations/game-items.mjs';
 import { capturePluginItemFiles, pluginItemFiles, withPluginItemEvidenceWrite } from './storage/plugin-item-snapshot.mjs';
 export { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-snapshot.mjs';
@@ -48,6 +49,42 @@ function validate(value, validateRecord = validateItemRecord) {
 const journalWorlds = ['beta', 'unknown'];
 const pluginItemFile = journalWorld => journalWorld ? `plugin-item-journal-${journalWorld}.json` : 'plugin-items.json';
 const commitFile = 'plugin-item-journal-commits.json';
+const REVIEW = '~plugin-review:';
+const ITEM_TASKS = new Set([...GAME_ITEMS.values()].map(item => item.goalId).concat([...GAME_WORN_TASKS.keys()]));
+const AUTO_TASKS = new Set([...GAME_ITEMS.values()].map(item => item.goalId));
+const reviewError = message => Object.assign(new Error(`${message} Nothing was applied or dismissed.`), { status: 422, code: 'PLUGIN_ITEM_REVIEW_CAPACITY' });
+export const hasPluginItemDecisions = evidence => Object.values(evidence?.players ?? {}).some(player => player.records.live?.handled.some(id => id.startsWith(REVIEW)));
+export async function hasLegacyPluginItemDecisions(dataDir) {
+  let document;
+  try { document = JSON.parse(await readFile(path.join(dataDir, 'plugin-items.json'))); }
+  catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
+  return Object.values(document?.players ?? {}).some(record => Array.isArray(record?.handled)
+    && record.handled.some(id => typeof id === 'string' && id.startsWith(REVIEW)));
+}
+function decisionIds(record) {
+  return (record?.handled ?? []).filter(id => id.startsWith(REVIEW)).map(id => {
+    const task = id.slice(REVIEW.length);
+    if (!ITEM_TASKS.has(task)) throw new TypeError('Invalid plugin item review marker.');
+    return task;
+  });
+}
+export function recoverPluginItemDecisions(evidence) {
+  const next = mergePluginItemEvidence(evidence);
+  for (const player of Object.values(next.players)) {
+    const tasks = decisionIds(player.records.live);
+    if (tasks.length) lowerDecisions(player.records.live, tasks);
+  }
+  return mergePluginItemEvidence(next);
+}
+
+function lowerDecisions(live, taskIds) {
+  const handled = new Set([...live.handled, ...taskIds, ...taskIds.map(id => REVIEW + id)]);
+  // Frozen automatic ticks slice to 2,000. Reserve every remaining possible
+  // automatic task so rollback can never evict an accepted explicit decision.
+  const reserved = [...AUTO_TASKS].filter(id => !handled.has(id)).length;
+  if (handled.size + reserved > 2000) throw reviewError('This review exceeds the rollback sidecar capacity (2,000 handled IDs, including review markers and automatic-task reserve). Free reviewed obsolete entries, then retry.');
+  live.handled = [...handled].sort();
+}
 
 // The adapter returns plain, validated data. Import never writes paths supplied by a backup.
 export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, inherited, captureOptions) {
@@ -55,6 +92,15 @@ export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, 
   // A worker's supplied state may predate a concurrent import. Include the
   // inherited evidence published alongside the captured sidecar generations.
   const persisted = await capturedInheritedEvidence(dataDir, files);
+  // A state-first publication is not exportable until its legacy projection is
+  // verified. Writable startup alone may repair this interrupted publication.
+  if (!captureOptions?.recoverReview && hasPluginItemDecisions(persisted)) {
+    const live = files['plugin-items.json'] && validate(JSON.parse(files['plugin-items.json']));
+    for (const [id, player] of Object.entries(persisted.players)) {
+      if (decisionIds(player.records.live).some(task => !live?.players[id]?.handled.includes(task)
+        || !live.players[id].handled.includes(REVIEW + task))) throw Object.assign(new Error('Plugin review publication needs recovery; retry after the receiver reopens.'), { status: 503 });
+    }
+  }
   const players = new Map();
   for (const file of pluginItemFiles) {
     const contents = files[file];
@@ -73,7 +119,7 @@ export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, 
 }
 
 export function importPluginItemEvidence(_dataDir, evidence, mapPlayerId = id => id) {
-  const checked = mergePluginItemEvidence(evidence);
+  const checked = recoverPluginItemDecisions(evidence);
   const players = new Map();
   for (const [id, record] of Object.entries(checked.players)) {
     const target = mapPlayerId(id);
@@ -113,7 +159,53 @@ export function dismissPluginItemEvidence(evidence, memberId, taskIds, unmappedI
       { status: 422, code: 'PLUGIN_ITEM_REVIEW_CAPACITY' });
     record.handled = [...handled].sort();
   }
+  if (unmappedIds.length) throw reviewError('This review contains unmapped items. The rollback release cannot retain dismissals for those identities. Keep this review until the items are mapped.');
+  if (taskIds.some(id => !ITEM_TASKS.has(id))) throw reviewError('The rollback release cannot represent one of these item tasks.');
+  if (taskIds.some(id => !decisions.get('live')?.has(id))) throw reviewError('This review contains tasks supported only by beta or unknown-world evidence. The rollback release cannot retain those decisions. Keep the review until live evidence supports every task.');
+  if (taskIds.length) {
+    const owner = next.players[memberId] ??= { records: {}, commits: { journals: [] } };
+    const live = owner.records.live ??= { baselineAt: at, items: {}, handled: [], journal: null };
+    lowerDecisions(live, taskIds);
+  }
   return mergePluginItemEvidence(next);
+}
+
+// Prepare and sync without changing either authoritative file. The store uses
+// state.json as its recovery record, verifies this projection before adoption,
+// and restores both previous byte streams if publication is refused.
+export async function stagePluginItemDecisions(dataDir, evidence, { checkOnly = false } = {}) {
+  if (!hasPluginItemDecisions(evidence)) return;
+  const file = path.join(dataDir, 'plugin-items.json');
+  const before = await readFile(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
+  const previous = before === undefined ? { v: 1, players: {} } : validate(JSON.parse(before));
+  const players = {};
+  for (const [id, player] of Object.entries(evidence.players)) {
+    const record = mergeItemRecords(previous.players[id], player.records.live);
+    if (record) {
+      const tasks = decisionIds(record);
+      if (tasks.length) lowerDecisions(record, tasks);
+      players[id] = record;
+    }
+  }
+  const after = Buffer.from(`${JSON.stringify(validate({ v: 1, players }))}\n`);
+  if (before?.equals(after)) return;
+  if (checkOnly) return true;
+  const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
+  let handle;
+  try {
+    handle = await open(temporary, 'wx', 0o600);
+    await handle.writeFile(after); await handle.sync(); await handle.close(); handle = undefined;
+    if (!(await readFile(temporary)).equals(after)) throw new Error('Plugin item lowering preparation verification failed.');
+  } catch (error) {
+    await handle?.close().catch(() => {});
+    await unlink(temporary).catch(() => {});
+    throw error;
+  }
+  const same = async bytes => (await readFile(file)).equals(bytes);
+  return { before, file,
+    async publish() { await publishFile(temporary, file); if (!await same(after)) throw new Error('Plugin item lowering verification failed.'); },
+    async verifyRollback() { if (before === undefined) { try { await readFile(file); throw new Error('Plugin item rollback verification failed.'); } catch (error) { if (error.code !== 'ENOENT') throw error; } } else if (!await same(before)) throw new Error('Plugin item rollback verification failed.'); },
+    async cancel() { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); } };
 }
 
 export function openPluginJournalCommits(options) {
@@ -146,6 +238,13 @@ async function openPluginRecords({ dataDir, members, clock = Date.now, log = con
       try { validateRecord(record); } catch (error) { return Promise.reject(error); }
       const value = structuredClone(record);
       const pending = queue.then(() => withStoreWrite(dataDir, () => withPluginItemEvidenceWrite(dataDir, async () => {
+        // A review publication may have lowered newer decisions since this
+        // reader opened. Another player's write must retain those exact bytes.
+        try { current = validate(JSON.parse(await readFile(file)), validateRecord); corrupt = false; }
+        catch (error) {
+          if (error.code !== 'ENOENT' && !(error instanceof SyntaxError) && !(error instanceof TypeError)) throw error;
+          if (error.code !== 'ENOENT') corrupt = true;
+        }
         const live = new Set(members().map(member => member.id));
         const players = Object.fromEntries(Object.entries(current.players).filter(([id]) => live.has(id)));
         // A report may have read its record before an import published. Validate

@@ -4,7 +4,7 @@ import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfe
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { pluginItemGeneration, withPluginItemEvidenceWrite } from './plugin-item-snapshot.mjs';
-import { dismissPluginItemEvidence, exportPluginItemEvidence } from '../plugin-items.mjs';
+import { dismissPluginItemEvidence, exportPluginItemEvidence, hasPluginItemDecisions, hasLegacyPluginItemDecisions, recoverPluginItemDecisions, stagePluginItemDecisions } from '../plugin-items.mjs';
 import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope, retainPluginItemEvidence, mergePluginItemEvidence } from '../core/plugin-item-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
@@ -475,7 +475,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
     const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
-    const state = importSavedState(document, registry);
+    let state = importSavedState(document, registry);
+    if (state.provenance?.pluginItemEvidence) state = retainPluginItemEvidence(state, recoverPluginItemDecisions(state.provenance.pluginItemEvidence));
     if (state.provenance?.pluginItemEvidenceReconciled === 1 && !reconciledJournals) journalRecovery.add(state);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
@@ -1021,6 +1022,22 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
     currentDiskSerialized ??= await serializedDiskState(current);
+    // A frozen restore can replace provenance while retaining the legacy file.
+    // Recover explicit task markers before any backup, report or mutation.
+    if (hasPluginItemDecisions(current.provenance?.pluginItemEvidence) || await hasLegacyPluginItemDecisions(directory)) {
+      const recoveredItems = await exportPluginItemEvidence(directory,
+        id => current.members.some(member => member.id === id) ? id : undefined,
+        current.provenance?.pluginItemEvidence, { recoverReview: true });
+      const recoveredState = hasPluginItemDecisions(recoveredItems) ? retainPluginItemEvidence(current, recoveredItems) : current;
+      const lowering = await stagePluginItemDecisions(directory, recoveredItems, { checkOnly: true });
+      const recoveryNeeded = lowering || !isDeepStrictEqual(recoveredState, current);
+      if (recoveryNeeded) {
+        if (readOnly || liveSwapStrict) throw Object.assign(new Error('Plugin review decisions require writable recovery before opening.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
+        const bytes = await serializedDiskState(recoveredState);
+        await publishItemState(recoveredState, bytes, 'plugin-item-recovery');
+        current = recoveredState; currentDiskSerialized = bytes;
+      }
+    }
     if (existing) {
       const sealJournals = journalRecovery.has(current);
       if (sealJournals && liveSwapStrict) throw Object.assign(new Error('Live swap refuses an unreconciled journal archive; reopen it offline first.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
@@ -1090,6 +1107,38 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     queue = result.catch(() => {});
     return result;
   }
+  // Prepare both projections before publication; state is the recovery record.
+  // Keep report writes excluded until legacy lowering has been read back. A
+  // normal refusal restores and verifies both prior byte streams before return.
+  async function publishItemState(state, bytes, operation, details = {}) {
+    return withPluginItemEvidenceWrite(directory, async () => {
+      const staged = await stagePluginItemDecisions(directory, state.provenance?.pluginItemEvidence);
+      let published = false;
+      try {
+        const result = await atomicWrite(stateFile, bytes, { onPostPublishSyncError: 'warn', beforeRename: beforeCommit
+          ? () => beforeCommit({ operation, state: details.summary ?? structuredClone(state), ...(details.digest ? { digest: details.digest } : {}) }) : undefined });
+        published = true;
+        await staged?.publish();
+        return result;
+      } catch (error) {
+        if (published) {
+          try {
+            if (staged) {
+              if (staged.before === undefined) await unlink(staged.file).catch(failure => { if (failure.code !== 'ENOENT') throw failure; });
+              else await atomicWrite(staged.file, staged.before);
+              await staged.verifyRollback();
+            }
+            await atomicWrite(stateFile, currentDiskSerialized);
+            if (!(await readFile(stateFile)).equals(Buffer.from(currentDiskSerialized))) throw new Error('State rollback verification failed.');
+          } catch (cause) {
+            frozen = true;
+            throw Object.assign(new Error('Plugin review publication needs recovery. Reopen the receiver before retrying.', { cause }), { status: 503 });
+          }
+        }
+        throw error;
+      } finally { await staged?.cancel(); }
+    });
+  }
   async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency } = {}) {
     if (operation === 'replace') currency = currencyAfterRestore(currency, next);
     const observed = cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
@@ -1102,8 +1151,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!cleanup) await retainBackup(current, operation, backupLabel);
     const { ledger: nextReceipts, result: receiptResult } = commitActionReceipt(receipts, receipt, validated);
     const diskDocument = await serializedDiskState(validated, nextReceipts, currency);
-    const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
-      beforeRename: beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined });
+    const publication = await publishItemState(validated, diskDocument, operation);
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     const choicesChanged = JSON.stringify(current.members.map(member => [member.id, member.selected, member.pendingRoll]))
@@ -1645,8 +1693,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const backupFile = path.join(backupsDir, `${String(current.revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`);
         reportDurability(await atomicWrite(backupFile, publication.backup));
         const at = new Date(timestamp()); await utimes(backupFile, at, at);
-        const published = await atomicWrite(stateFile, publication.disk, { onPostPublishSyncError: 'warn',
-          beforeRename: beforeCommit ? () => beforeCommit({ operation: prepared.operation, state: publication.summary, digest: publication.digest }) : undefined });
+        const published = await publishItemState(publication.state, publication.disk, prepared.operation, publication);
         current = publication.state;
         currentDiskSerialized = publication.disk;
         receipts = publication.receipts;

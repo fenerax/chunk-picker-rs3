@@ -236,7 +236,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
   }
   function itemMatches(player, record, world, unmapped, others = [], autoTick = true) {
-    const owner = member(player), dismissed = itemHandled.get(player);
+    const owner = member(player), dismissed = itemHandled.get(player), explicit = new Set(itemStore.get(player)?.handled ?? []);
     if (unmapped !== null) {
       const records = [record, ...others.map(row => row.record), ...journalRecords(player).map(row => row.record)];
       const retainedHandled = new Set(records.flatMap(record => record.handled));
@@ -253,7 +253,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
         task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live',
-        handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: unmapped ?? [] }));
+        handled: id => record.handled.includes(id) || !!dismissed?.has(id)
+          || explicit.has(`~plugin-review:${id}`), unmapped: unmapped ?? [] }));
     const ticks = results.flatMap(result => result.ticks), tickIds = new Set(ticks.map(row => row.taskId));
     const unique = new Map();
     for (const row of results.flatMap(result => result.rows)) if (!tickIds.has(row.taskId) && !unique.has(row.taskId)) unique.set(row.taskId, row);

@@ -173,12 +173,12 @@ export async function buildSaveCorpus(t) {
   }
   const commits = await openPluginJournalCommits({ dataDir, members });
   try { await commits.put(roster[0].id, { journals: [{ id: 'aaaaaaaaaaaaaaaa', committed: 3,
-    pending: [[4, 999999, 'Synthetic pending journal item', 'unknown']] }] }); }
+    pending: [[4, 857, 'Synthetic pending journal item', 'unknown']] }] }); }
   finally { await commits.close(); }
   const portable = await store.backup();
   await store.replace(portable, store.getInfo().revision);
   // Exercise decisions backed by both materialized facts and a durable intent.
-  await store.commitPluginReview({ memberId: roster[0].id, taskIds: [], unmappedIds: [900000, 999999] }, store.getInfo().revision);
+  await store.commitPluginReview({ memberId: roster[0].id, taskIds: ['rs3:goal:equipment:000dc1'], unmappedIds: [] }, store.getInfo().revision);
   await capture('plugin-item-journals');
   snapshots.at(-1).documents.push(portable);
   const overlays = await openOverlays({ dataDir, store, world, authenticateAdmin: () => ({ admin: true }),

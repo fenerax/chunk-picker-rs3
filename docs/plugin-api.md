@@ -315,6 +315,22 @@ set it. The proposal preview carries `items`,
 `items: [{taskId}]` chosen from the preview; omitted rows stay unticked. The
 command records `member.itemProgress` (see the save schema). Apply and
 Dismiss mark every shown row handled so it is not offered again.
+This includes skipped mapped item rows and every retained supporting world.
+The decision and Apply's gameplay are validated together before publication.
+The receiver also syncs and verifies literal handled task IDs plus reserved
+`~plugin-review:<taskId>` markers in the legacy live sidecar, without moving
+non-live facts there. These IDs make mapped decisions visible to the frozen
+release's live matcher, including after Undo. Current writable open recovers the
+decision from either its portable provenance or the legacy markers after a
+frozen restore. Exports refuse an incomplete lowering. Failed publication rolls
+back both files before returning; unrecoverable storage failure stops writes
+until reopen. Capacity validation includes the frozen automatic-task reserve.
+A review containing unmapped items is refused unchanged with a 422 explanation:
+the frozen renderer cannot honor handled identities for those rows. A review
+containing any task supported only by beta or unknown-world evidence also refuses
+unchanged, because the frozen non-live matcher never reads the handled sidecar.
+Retain these reviews until the items are mapped and live evidence supports each
+task. Facts and sender acknowledgements are retained.
 
 Live-world evidence (current live containers or explicitly live journal events)
 is saved in `plugin-items.json`
@@ -344,8 +360,8 @@ always carry their evidence. Successful whole-picker and member imports refresh
 retained review rows immediately, including when the plugin is offline; this
 refresh never automatically completes tasks.
 Member imports refresh only the imported players, preserving other players'
-container-only reviews and temporary dismissals. Dismissed unmapped item IDs stay
-hidden for the session while their acknowledged evidence remains retained.
+container-only reviews and temporary dismissals. Mapped live container-only item
+decisions are also retained as legacy task markers, without persisting non-live facts.
 Prepared imports bind to the destination sidecar generations as well as the save
 revision. If a journal arrives before publication, retry the preview. Publication
 and sidecar writes share an exclusion gate, and later reports validate against the
