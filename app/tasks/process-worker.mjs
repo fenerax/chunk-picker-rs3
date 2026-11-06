@@ -2,6 +2,7 @@ import { fork } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { encodeProcessMessage, decodeReceivedProcessMessage } from './process-worker-transport.mjs';
+import { WORKER_OLD_GENERATION_MB, CALCULATOR_PROCESS_RSS_BYTES, workerMemoryError } from './worker-limits.mjs';
 
 // A Worker-compatible endpoint whose entire allocator belongs to an owned
 // process. Retirement resolves only once that process has actually exited.
@@ -19,7 +20,7 @@ export class ProcessWorker extends EventEmitter {
   #profileTimeoutMs;
   rssBytes = 0;
 
-  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, trackRss = false, profileTimeoutMs = 20000 } = {}) {
+  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, profileTimeoutMs = 20000 } = {}) {
     super();
     this.#profileTimeoutMs = profileTimeoutMs;
     // Serialization failures must occur before a child is created.
@@ -27,7 +28,7 @@ export class ProcessWorker extends EventEmitter {
     this.#exitPromise = new Promise(resolve => { this.#resolveExit = resolve; });
     this.#child = fork(fileURLToPath(new URL('./process-worker-host.mjs', import.meta.url)), [], {
       // The relay host collects its own garbage (relay-collector.mjs).
-      execArgv: [...process.execArgv, '--expose-gc'],
+      execArgv: [...process.execArgv, '--expose-gc', `--max-old-space-size=${WORKER_OLD_GENERATION_MB}`, '--max-semi-space-size=16'],
       // Optional warm-store failures must reach the service journal too.
       serialization: 'advanced', stdio: ['ignore', 'ignore', 'inherit', 'ipc'], windowsHide: true,
     });
@@ -36,6 +37,7 @@ export class ProcessWorker extends EventEmitter {
         if (message.kind === 'message') this.emit('message', decodeReceivedProcessMessage(message.payload));
         else if (message.kind === 'memory-rss') {
           if (Number.isSafeInteger(message.rssBytes) && message.rssBytes >= 0) this.rssBytes = message.rssBytes;
+          if (this.rssBytes > CALCULATOR_PROCESS_RSS_BYTES) this.#fail(workerMemoryError(), true);
         }
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
         else if (message.kind === 'profile') {
@@ -66,7 +68,8 @@ export class ProcessWorker extends EventEmitter {
     // A spawn failure has a close event, but no exit event or OS process.
     this.#child.once('close', code => { if (!this.#child.pid) this.#finish(code ?? 1); });
     this.#child.once('disconnect', () => { if (!this.#exited && !this.#stopping) void this.terminate(); });
-    this.#send({ kind: 'init', data, probeImport, trackRss });
+    // RSS reporting is mandatory even outside the session-residency pool.
+    this.#send({ kind: 'init', data, probeImport, trackRss: true });
   }
 
   get pid() { return this.#child.pid; }
@@ -77,10 +80,11 @@ export class ProcessWorker extends EventEmitter {
     catch (error) { queueMicrotask(() => this.#fail(error)); }
   }
 
-  #fail(error) {
+  #fail(error, force = false) {
+    if (force && this.#stopping) { void this.terminate({ force: true }); return; }
     if (this.#failed || this.#exited || this.#stopping) return;
     this.#failed = true;
-    void this.terminate();
+    void this.terminate({ force });
     this.emit('error', error);
   }
 

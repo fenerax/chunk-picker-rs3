@@ -24,6 +24,15 @@ function factory() {
   } };
 }
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+test('memory failure reports a retryable ceiling error and retains the bounded recovery policy', async t => {
+  const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0 });
+  const job = evaluate('memory');
+  const rejected = assert.rejects(job, error => error.status === 503 && /memory limit.*Saves remain available/.test(error.message));
+  workers[0].emit('error', Object.assign(new Error('Synthetic memory exhaustion'), { code: 'ERR_WORKER_OUT_OF_MEMORY' }));
+  await rejected;
+  assert.equal(scheduler.getHealth().restartRequired, true);
+  assert.equal(scheduler.getDiagnostics().worker.lastFailure.kind, 'worker-memory');
+});
 async function fixture(t, options = {}) {
   const f = factory(), idleClock = clock();
   const scheduler = await createTaskScheduler({ workerFactory: f.create, idleClock, deadlineMs: 600000, startupDeadlineMs: 600000, ...options });
