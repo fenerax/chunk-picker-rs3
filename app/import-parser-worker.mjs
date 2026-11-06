@@ -1,4 +1,6 @@
 // Keep upload parsing independent of dataset/catalogue initialization.
+import { assertWorkerHeapLimit } from './tasks/worker-limits.mjs';
+if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 import { parentPort, workerData } from 'node:worker_threads';
 import { serialize } from 'node:v8';
 import { Readable } from 'node:stream';

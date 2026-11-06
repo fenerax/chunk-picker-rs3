@@ -7,6 +7,7 @@ import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { WarmStoreWorker } from './warm-store-worker.mjs';
+import { PUBLISHER_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 
 // One immutable entry per scheduler, shared by native lanes. This fixed cap is
 // separate from the existing snapshot/result byte ledger. Files contain only
@@ -97,7 +98,8 @@ export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PR
         const result = await new Promise((resolve, reject) => {
           let result, error;
           const worker = new WarmStoreWorker(new URL('./prepared-collection-publisher.mjs', import.meta.url), {
-            workerData: { key, value, reference, directory, persistentDirectory: persistent ? persistentDirectory : undefined },
+            workerData: { key, value, reference, directory, persistentDirectory: persistent ? persistentDirectory : undefined, enforceMemoryLimit: true },
+            resourceLimits: PUBLISHER_WORKER_RESOURCE_LIMITS,
           }, persistent ? [path.join(persistentDirectory, 'collections')] : []);
           worker.once('message', message => { result = message; });
           worker.once('error', value => { error = value; });
@@ -105,7 +107,10 @@ export function createWorkerPreparation(data, { mode = process.env.RS3_WORKER_PR
         });
         if (result?.cacheDirectory) cacheDirectory = result.cacheDirectory;
         if (!closed && result?.reference) reference = result.reference;
-      })().catch(() => { disabled = true; }).finally(() => { pending = undefined; });
+      })().catch(error => {
+        disabled = true;
+        if (error.code === 'ERR_WORKER_OUT_OF_MEMORY') console.warn('[tasks] Collection publisher exceeded its memory ceiling; optional preparation disabled. Calculators will rebuild.');
+      }).finally(() => { pending = undefined; });
     },
     settled() { return pending ?? Promise.resolve(); },
     async clear() {

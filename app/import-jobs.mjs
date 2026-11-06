@@ -1,4 +1,5 @@
 import { Worker } from 'node:worker_threads';
+import { IMPORT_WORKER_RESOURCE_LIMITS } from './tasks/worker-limits.mjs';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
 import { displayText } from './import-output.mjs';
 
@@ -36,7 +37,7 @@ export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queue
     // Keep parser startup independent of catalogue initialization.
     const datasetSelection = job.kind === 'parse' ? undefined
       : (await import('./dataset-runtime.mjs')).selectedDataset.workerSelection();
-    const worker = new Worker(workerURL, { workerData: { ...bytes, datasetSelection }, transferList: bytes.buffers, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
+    const worker = new Worker(workerURL, { workerData: { ...bytes, datasetSelection, enforceMemoryLimit: true }, transferList: bytes.buffers, resourceLimits: IMPORT_WORKER_RESOURCE_LIMITS });
     const controller = new AbortController();
     let timer, decoding = false, cleanup = () => {};
     try {

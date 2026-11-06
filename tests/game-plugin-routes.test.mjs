@@ -249,7 +249,9 @@ test('HTTP item journals retain observation worlds across lost replies and reope
     const response = await f.plugin('/api/plugin/v1/report', created.key, report(seq, { world: { id: beta ? 204 : 1, beta }, items: items(events, worn) }));
     assert.equal(response.status, 200); return response.json();
   }
-  assert.equal((await send(0, [])).items.journal.event, 0);
+  const first = await send(0, []);
+  assert.equal(first.items.journal.event, 0);
+  assert.equal(first.items.snapshot, null, 'Stale currency requests a new snapshot without dropping the journal ack');
   assert.equal((await send(1, [event], true, [[0, item, 1, 'Synthetic beta item']])).items.journal.event, 1);
   const replay = await send(2, [event]); // Beta response was lost; sender keeps its event.
   assert.ok(replay.accepts.includes('item-journal-world'));

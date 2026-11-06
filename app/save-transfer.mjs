@@ -1,5 +1,6 @@
 import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { portableCurrencyFacts } from './storage/plugin-currency.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 export function transferDigest(value) {
@@ -60,6 +61,13 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   }
   const next = owned ? state : structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
   const changed = source.some(id => entries[id] !== id);
+  if (changed) {
+    // A rollback release can Undo the amount without updating the portable map.
+    // Resolve its History first, before archiving inverses or changing member IDs.
+    const facts = portableCurrencyFacts(next);
+    if (Object.keys(facts).length || next.provenance?.pluginCurrencyFacts) next.provenance = { ...next.provenance,
+      pluginCurrencyFacts: Object.fromEntries(Object.entries(facts).map(([id, fact]) => [mapped(id), fact])) };
+  }
   // Foreign inverses must never become live at another roster. Keep the exact
   // original history in provenance, as the normal restore boundary does.
   if (changed) {
