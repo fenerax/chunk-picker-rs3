@@ -36,7 +36,7 @@ async function run(f, command, stopped = false) {
     import { syncBuiltinESMExports } from 'node:module';
     import { promisify } from 'node:util';
     import { readFile } from 'node:fs/promises';
-    const command = process.argv[1], stopped = process.argv[2] === 'true';
+    const command = process.argv[2], stopped = process.argv[3] === 'true';
     const calls = [], maintenance = ${JSON.stringify(path.join(f.settings.controlDir, 'maintenance.json'))};
     let inactive = false;
     cp.execFile = () => { throw new Error('Unexpected callback command'); };
@@ -63,7 +63,9 @@ async function run(f, command, stopped = false) {
     inactive = true;
     const health = await invoke('health');
     console.log(JSON.stringify({ failure, marker, retry, health, calls }));`;
-  const { stdout, stderr } = await execute(process.execPath, ['--input-type=module', '-e', source, command, String(stopped)], {
+  const runner = path.join(f.scratch, 'operator-runner.mjs');
+  await writeFile(runner, source);
+  const { stdout, stderr } = await execute(process.execPath, [runner, command, String(stopped)], {
     env: { ...process.env, RS3_OPERATOR_CONFIG: f.config }, windowsHide: true, timeout: 15000,
   });
   assert.equal(stderr, '');
