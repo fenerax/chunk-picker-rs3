@@ -5,6 +5,9 @@ import { mkdir, mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createWarmStore, warmStoreAllowed, WARM_COLLECTION_LIMITS } from './warm-store.mjs';
 import { validPreparedCollectionEntry, readPreparedCollectionFile } from './prepared-collection.mjs';
+import { assertWorkerHeapLimit, PUBLISHER_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
+
+if (workerData.enforceMemoryLimit) assertWorkerHeapLimit(PUBLISHER_WORKER_RESOURCE_LIMITS);
 
 const { key, value, reference, directory, persistentDirectory } = workerData;
 let cacheDirectory;

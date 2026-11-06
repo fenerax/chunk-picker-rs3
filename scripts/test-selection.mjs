@@ -88,6 +88,7 @@ export const quickTests = new Set([
   "registry-lock.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
+  "linux-health-start-limit.test.mjs",
   "linux-operator-maintenance.test.mjs",
   "storage-durability.test.mjs",
   "storage-publication.test.mjs",
@@ -365,6 +366,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "worker-memory-ceilings.test.mjs",
   "linux-monitor.test.mjs",
   "linux-notify-crash.test.mjs",
   "linux-offhost.test.mjs",
@@ -570,6 +572,7 @@ const fullOnlyTests = new Set([
 // synthetic fixtures can exceed 2 GiB and measure timer gaps that unrelated
 // test processes would distort.
 export const soloTests = new Set([
+  "worker-memory-ceilings.test.mjs",
   "save-transfer-response-bounds.test.mjs",
   "save-transfer-wide-hook.test.mjs",
   "save-transfer-publication.test.mjs",
@@ -630,6 +633,7 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "worker-memory-ceilings.test.mjs",
   "original-paste.test.mjs",
   "original-paste-server.test.mjs",
   "original-paste-responsiveness.test.mjs",

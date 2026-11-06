@@ -31,11 +31,10 @@ const positive = (value, name, minimum = 1) => {
   if (!Number.isSafeInteger(value) || value < minimum) throw new TypeError(`${name} must be an integer of at least ${minimum}.`);
 };
 const superseded = () => Object.assign(new Error('Calculation superseded by a newer save. Request the current tasks.'), { status: 409 });
-// Windows can retain retired isolate allocator pages in the hosting process.
-// Give each native calculator an owned process so retirement releases them.
+// Isolate native allocations and relay heaps on every server platform. Explicit
+// thread mode is retained for diagnostics; production uses owned processes.
 const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
-  || process.platform !== 'win32' && process.env.RS3_TASK_WORKER_MODE !== 'process'
-  ? new WarmStoreWorker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS },
+  ? new WarmStoreWorker(new URL('./worker.mjs', import.meta.url), { workerData: { ...data, enforceMemoryLimit: true }, resourceLimits: TASK_WORKER_RESOURCE_LIMITS },
     typeof data?.warmStoreDirectory === 'string' ? [path.join(data.warmStoreDirectory, 'results')] : []) : new ProcessWorker(data);
 // Built-in advisory lanes never read the ready catalogue, so their workers skip
 // sending it. The flag is always overwritten: callers cannot strip foreground's.
@@ -135,7 +134,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     positive(maxCalculators, 'maxCalculators');
     // RSS accounting and emergency retirement need an owned process. Thread
     // RSS belongs to the server and cannot be bounded per physical calculator.
-    const factory = options.workerFactory ?? (sessions ? data => new ProcessWorker(data, { trackRss: true }) : nativeWorker);
+    const factory = options.workerFactory ?? (sessions ? data => new ProcessWorker(data) : nativeWorker);
     const native = !options.workerFactory;
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
       workerData: (includeCatalogue, group) => native
@@ -748,7 +747,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     clearTimeout(startupTimer);
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     const old = worker; worker = undefined; generation++; terminate(old);
-    if (active) { deadlineClock.clearTimeout(active.timer); counts.errors++; settle(active, unavailable('Task engine interrupted. It is recovering; retry shortly.')); active = undefined; }
+    if (active) { deadlineClock.clearTimeout(active.timer); counts.errors++; settle(active, unavailable(kind === 'worker-memory'
+      ? 'Task calculation exceeded its memory limit. It is recovering; retry shortly. Saves remain available.'
+      : 'Task engine interrupted. It is recovering; retry shortly.')); active = undefined; }
     if (!profiling && restarts >= maxRestarts) {
       status = 'restart-required'; nextRetryAt = null;
       const error = unavailable('Task engine needs a server restart. Saves remain available.');
@@ -885,7 +886,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (!calculatorPool) onWorker?.(worker);
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
-    worker.on('error', () => { if (ownGeneration === generation) failure(worker.profileRetiring ? 'profile-retired' : 'worker-error'); });
+    worker.on('error', error => { if (ownGeneration === generation) failure(worker.profileRetiring ? 'profile-retired'
+      : error?.code === 'ERR_WORKER_OUT_OF_MEMORY' ? 'worker-memory' : 'worker-error'); });
     worker.on('exit', () => { if (ownGeneration === generation && !closed) failure(worker.profileRetiring ? 'profile-retired' : 'worker-exit'); });
     worker.on('profile-retiring', () => { if (ownGeneration === generation && !closed) pump(); });
     worker.on('profile-retired', () => { if (ownGeneration === generation && !closed) failure('profile-retired'); });

@@ -1,5 +1,160 @@
 # Installed Linux tools refresh
 
+## Worker memory ceilings
+
+`app/tasks/worker-limits.mjs` owns the memory policy. Every server-started
+calculator (foreground tasks, combined view, Preview/ranking, death estimates,
+area check and sandbox) uses the same 2,048 MiB V8 old-generation ceiling and
+32 MiB young-generation setting. Native calculators use an owned process on
+Linux as well as Windows, including the legacy scheduler path. The relay host
+also gets explicit `--max-old-space-size=2048 --max-semi-space-size=16` flags.
+This avoids a relay heap failure aborting the writer. It also releases native
+allocator pages when a calculator retires.
+
+Each calculator host reports combined relay/isolate RSS every 100 ms; above
+3 GiB the parent immediately kills only that owned child. This catches native
+allocations (Buffers, transport and compression) outside V8's heap limit.
+RSS polling is an emergency guard, not a kernel hard limit: allocations can
+overshoot between samples, and a blocked relay can delay a report. Retiring
+processes remain charged to the shared pool until exit. The existing host
+memory admission/residency budget still applies across all pickers and lanes;
+these per-worker limits do not grant additional calculator slots or replace
+that aggregate budget.
+
+Both serialized import stages, upload parsing and backup/restore preparation
+(including export), share the explicit 2,048/32 MiB isolate limits. Upload and
+decompression quotas and the single active import queue remain in force.
+An import OOM returns a bounded rejection without publishing records; the next
+queued job can run. A calculator isolate OOM retains its error code across process IPC,
+rejects affected requests with a retryable 503, and uses the existing bounded
+recovery/restart budget. Saves stay in the writer.
+
+The short-lived collection publisher has a separate 128 MiB old-generation /
+16 MiB young-generation ceiling. Its input is shared backing memory, bounded
+to 128 MiB by the existing collection quota. Publication failure disables this
+optional cache; a memory failure writes a bounded journal warning, and the
+calculator rebuilds normally. Its startup also refuses
+inherited heap flags that would override its ceiling.
+
+`RS3_TASK_WORKER_MODE=thread` remains a diagnostic opt-in with the same V8
+limits, but it lacks process/native-allocation isolation and the per-child RSS
+guard. Keep production on the default owned-process path. V8 process flags can
+override `Worker.resourceLimits` even with an empty worker `execArgv`. Owned
+hosts override inherited old/young heap flags with the policy values; import
+and diagnostic calculator workers refuse an oversized effective V8 heap at
+startup. Avoid larger global `NODE_OPTIONS`/`--max-old-space-size` settings
+that would disable import jobs.
+
+To repeat the synthetic memory measurements, take the shared heavy-work lock
+first and run these separately with Node 24.x on Linux. All destinations must
+be new, isolated directories; neither script reads an installed save or starts
+a server. Reports contain numeric metadata only:
+
+```sh
+node --expose-gc scripts/perf/worker-memory-ceilings.mjs .local/memory-calculator-new
+node --expose-gc scripts/perf/import-memory-ceilings.mjs .local/memory-import-new
+node --expose-gc scripts/perf/publisher-memory-ceilings.mjs .local/memory-publisher-new
+```
+
+The calculator probe uses the existing deterministic scaled F2P pack generator
+(scale 116, seed 1), two synthetic maps, startup, evaluation, Preview, roll pool,
+ten death estimates, area check and sandbox. It records the owned process's
+kernel `VmHWM` after each workload and the largest before-GC heap from both
+host/isolate V8 traces; the separate heap readings are retained samples after GC.
+It supplies explicit synthetic grid adjacency with cache walking/resources/
+archaeology disabled; stub cache pins are not evidence of real cache geometry
+or its memory.
+The import probe parses a synthetic large portable backup and
+checks backup, compressed export and replacement preparation in turn. Its
+`getrusage` peak RSS includes the coordinator and worker together, providing a
+conservative upper bound rather than claiming per-isolate RSS.
+The publisher probe writes a maximum-sized 128 MiB shared collection through
+temporary-file and persistent-store publication and
+reports its finishing heap plus the coordinator/worker RSS high-water mark.
+Run publication as an unprivileged user; the existing root cache-access
+refusal stays in place.
+
+Measurements on Linux x64 under WSL, Node 24.22.2, on 2026-11-06 (UTC),
+with each probe holding the shared heavy-work lock:
+
+| Workload | Largest observed V8 heap | Peak RSS | Scope |
+| --- | ---: | ---: | --- |
+| 129.9 MiB scaled pack, 5,830 chunks, 32,016 tasks; all seven stages | 534.4 MiB | 1,117.5 MiB | Calculator relay and isolate; largest single-isolate before-GC heap |
+| 20,000 custom tasks, two maps, 2,000 notes of 36,000 ASCII bytes; all import stages | Not sampled separately | 1,112.0 MiB | Coordinator plus one import worker, including fixture creation |
+| Maximum 128 MiB collection, temporary and persistent publication | 7.1 MiB at publication (not a transient heap peak) | 319.2 MiB | Coordinator plus publisher and shared input |
+
+The 2,048 MiB old-generation ceiling is 3.8 times the calculator's observed
+heap maximum; its 3,072 MiB RSS guard is 2.7 times observed owned-process RSS.
+For imports, any one isolate's heap is bounded above by the measured total
+process RSS, so 2,048 MiB gives at least 1.8 times that conservative observed
+bound. The publisher hashes/writes already shared bytes without decoding the
+graph; its 128 MiB old-generation allowance leaves room for module/runtime
+overhead above the finishing heap sample, while the separate entry quota
+bounds its native input/copies. These are synthetic workload measurements, not real private cache or
+save measurements. Keep the aggregate host admission budget in place and
+repeat the probes when catalogue or backup handling changes materially.
+
+## Writer crash budget and health recovery
+
+The writer unit permits **three starts in 300 seconds**, including failed
+`ExecStartPre` attempts, with `Restart=always` and `RestartSec=15`. These limits
+already existed; retain them when installing or overriding the unit. A rapid
+crash loop reaches `Result=start-limit-hit` and stops. Its existing
+`OnFailure=chunk-picker-notify@%n.service` still alerts on terminal failure.
+Neither health nor its timer calls `reset-failed`. The health unit has only
+`After=chunk-picker.service`, without a dependency that starts the writer.
+
+Every five minutes, health skips inactive/failed writers and the first five
+minutes of a new writer. For a running writer it checks readiness, retries,
+then tries worker-only recovery. Before each recovery step it rechecks the
+writer's systemd invocation and restart count. A crash, replacement or restart
+during those waits ends that run without stopping or starting the writer.
+Only the same still-running writer can reach the existing graceful stop,
+ownership-release check and guarded start. The start-permit path also requires
+a successful drain, the same main-process start timestamp and a normal zero
+exit, plus stable stopped restart accounting (a controlled stop's reset to zero
+is allowed). The retained main-process identity/exit fields prevent a cleared
+invocation or failed-state flag from hiding a crash during the stop. Health never clears failed
+state to get another start budget.
+
+Maintenance, tools-transaction, activation and incomplete multi-picker
+service-restore evidence fence health before requests and throughout recovery. The operator
+lock, release identity check and `start-check.mjs` gate remain mandatory.
+Interrupted operations require reconciliation; never remove locks or evidence
+to make a timer or start succeed. Diagnose a rate-limited writer privately;
+any deliberate retry/reset belongs to operator recovery after the cause and
+transaction evidence have been reconciled. A skipped health run sends no
+success dead-man ping; the monitor still observes the outage.
+
+For a later approved installation, install the reviewed application release
+for calculator changes **and** the verified tools package for `operator.mjs`,
+using the refresh/rehearsal procedure below. Updating the application alone
+does not update the installed health CLI. Unit files are installed separately:
+
+1. Complete [install-day capture](#install-day-unit-capture) before replacing
+   any unit. Record whether `chunk-picker-health.timer` was enabled/active and stop that
+   timer. Wait for any active health/operator job to finish and prove ownership
+   released using the existing procedure. Do not interrupt an operation or
+   clear retained evidence.
+2. From the reviewed source tree, install these units and reload systemd:
+
+   ```sh
+   sudo install -o root -g root -m 0644 scripts/linux/systemd/chunk-picker.service /etc/systemd/system/
+   sudo install -o root -g root -m 0644 scripts/linux/systemd/chunk-picker-health.service /etc/systemd/system/
+   sudo install -o root -g root -m 0644 scripts/linux/systemd/chunk-picker-health.timer /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl cat chunk-picker.service chunk-picker-health.service chunk-picker-health.timer
+   sudo systemctl show chunk-picker.service -p StartLimitIntervalUSec -p StartLimitBurst -p OnFailure -p Result
+   ```
+
+   Check effective drop-ins too: the start budget, start-check gate and alert
+   must match this policy. Reloading does not restart the writer or clear its
+   failed state. The unit edits in this change are explanatory comments.
+3. After the verified tools switch and its receipts, restore the health timer
+   only if it was previously active. An inactive writer stays inactive. Use the
+   existing five-minute grace and private-readiness/health receipt checks; do
+   not treat an exit-zero skipped run as successful recovery.
+
 This procedure prepares a later install. Opening the tools-refresh PR does not
 authorize installing it. First rehearse on a rented disposable machine; retain
 its report and obtain the live-install decision separately. Use Node 24.20.0
