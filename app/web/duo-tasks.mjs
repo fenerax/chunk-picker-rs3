@@ -66,9 +66,9 @@ export function selectDuoTasks({ state, results, registry, selectedMemberId, fil
   }
   const catalogue = [...trustedRows];
   const availability = new Map();
-  if (personalFilter !== 'group') for (const { member, result } of sources) {
+  if (personalFilter !== 'group') for (const { member, result, neverShowIds } of sources) {
     const tasks = [...(result.tasks ?? []).filter(task => !custom(task)), ...customRows.map(task => customTaskForMember(task, member)).filter(Boolean)];
-    for (const task of tasks) if (available(task, member) && !(result.neverShowIds ?? []).includes(task.id)) {
+    for (const task of tasks) if (available(task, member) && !neverShowIds.has(task.id)) {
       const id = canonical(task);
       if (!availability.has(id)) availability.set(id, {});
       availability.get(id)[member.id] = true;

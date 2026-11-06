@@ -122,3 +122,72 @@ test('a quest route wider than the minimum zoom reports that a first-chunk fallb
   assert.equal(map.centerOnChunks(['1', '2']), false);
   assert.equal(map.centerOnChunks(['1']), true);
 });
+
+test('highlight drawing reuses consecutive styles while preserving colors, dashes and rectangle order', () => {
+  const layer = new MapSearchLayer(), ids = ['1', '2', '3', '4', '5', '6'];
+  layer.setMatches(ids, new Map(ids.map((id, i) => [id, { x: i, y: 0 }])), { lockedIds: ['3', '4'] });
+  const painted = [], dashes = [];
+  const context = { ...drawing().context,
+    setLineDash(value) { dashes.push(value); this.dash = value; },
+    fillRect(...rect) { painted.push([rect, this.fillStyle, this.strokeStyle, this.dash]); },
+  };
+  const expected = ids.map((_, i) => [[i * 128, 0, 128, 128],
+    i === 2 || i === 3 ? 'rgba(230,155,54,.22)' : 'rgba(238,66,219,.16)',
+    i === 2 || i === 3 ? '#e69b36' : '#f25fe3', i === 2 || i === 3 ? [5, 3] : []]);
+  layer.draw(view, context);
+  assert.deepEqual(painted, expected);
+  assert.deepEqual(dashes, [[], [5, 3], []]);
+  painted.length = 0; layer.draw(view, context, true);
+  assert.deepEqual(painted, expected, 'each draw initializes its own style after save/restore');
+  assert.equal(dashes.length, 6);
+});
+
+function progressiveLayer(t) {
+  const previous = globalThis.requestAnimationFrame, frames = [];
+  globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+  t.after(() => { if (previous === undefined) delete globalThis.requestAnimationFrame; else globalThis.requestAnimationFrame = previous; });
+  const picture = drawing();
+  picture.context.clearRect = () => { picture.fills.length = 0; picture.outlines.length = 0; };
+  const canvas = { getContext: () => picture.context, setAttribute() {}, remove() {} };
+  const layer = new MapSearchLayer({ ownerDocument: { createElement: () => canvas }, insertBefore() {} });
+  const cells = new Map(Array.from({ length: 5000 }, (_, i) => [String(i), { x: i % 100, y: Math.floor(i / 100) }]));
+  const viewport = { ...view, zoom: .1 };
+  const flush = () => { let count = 0; while (frames.length) { assert.ok(count++ < 100); frames.shift()(); } };
+  return { layer, cells, viewport, flush, ...picture };
+}
+
+test('large canvas highlights paint in bounded frames and eventually match synchronous geometry in full order', t => {
+  const h = progressiveLayer(t), reference = new MapSearchLayer(), expected = drawing();
+  const styles = [], expectedStyles = [], ids = [...h.cells.keys()];
+  for (const [context, output] of [[h.context, styles], [expected.context, expectedStyles]]) {
+    const stroke = context.strokeRect;
+    context.setLineDash = function(dash) { this.dash = dash; };
+    context.strokeRect = function(...rect) { output.push([this.strokeStyle, this.dash]); stroke.apply(this, rect); };
+  }
+  for (const layer of [h.layer, reference]) layer.setMatches(ids, h.cells, { lockedIds: ids.filter((_, i) => i % 3 === 0) });
+  h.layer.draw(h.viewport);
+  assert.equal(h.layer.painting, true); assert.equal(h.fills.length, 1024);
+  h.flush(); assert.equal(h.layer.painting, false);
+  reference.draw(h.viewport, expected.context);
+  assert.deepEqual(h.fills, expected.fills); assert.deepEqual(h.outlines, expected.outlines);
+  assert.equal(h.fills.length, 5000); assert.deepEqual(styles, expectedStyles);
+});
+
+for (const change of ['matches', 'viewport', 'scope', 'dispose']) {
+  test(`progressive canvas painting discards old work after ${change} changes`, t => {
+    const h = progressiveLayer(t), world = {};
+    h.layer.setScope(world, 'one', 1); h.layer.setMatches([...h.cells.keys()], h.cells); h.layer.draw(h.viewport);
+    let target = h.viewport;
+    if (change === 'matches') h.layer.setMatches(['1', '2'], h.cells);
+    if (change === 'viewport') target = { ...h.viewport, offset: { x: -500, y: -100 } };
+    if (change === 'scope') h.layer.setScope(world, 'two', 2);
+    if (change === 'dispose') {
+      const count = h.fills.length; h.layer.dispose(); h.flush();
+      assert.equal(h.fills.length, count); assert.equal(h.layer.painting, false); return;
+    }
+    h.layer.draw(target); h.flush(); assert.equal(h.layer.painting, false);
+    const reference = new MapSearchLayer(), expected = drawing();
+    reference.setMatches([...h.layer.matches.keys()], h.cells); reference.draw(target, expected.context);
+    assert.deepEqual(h.fills, expected.fills); assert.deepEqual(h.outlines, expected.outlines);
+  });
+}

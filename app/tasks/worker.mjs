@@ -25,7 +25,7 @@ import { resolveDeathSettings } from '../core/death-settings.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
 import { projectPlayResult, projectPlayTask } from '../play-view.mjs';
 import { projectDuoSidebarResult } from '../duo-play-view.mjs';
-import { buildChunkPlanningIndex } from './chunk-planning-index.mjs';
+import { buildChunkPlanningIndex, buildChunkPlanningIndexIncremental } from './chunk-planning-index.mjs';
 import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
@@ -202,6 +202,9 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true, pick
     appendViews(snapshot.baseline, timingMs);
     snapshot.includeViews = true;
   }
+  // Input-equivalent saves can reuse the baseline, but resident planning also
+  // requires a snapshot used at this exact captured revision.
+  snapshot.revision = state.revision;
   completeCache.set(key, snapshot, state, pickerId);
   return { snapshot, hit };
 }
@@ -236,13 +239,61 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = st
     return snapshot.predict(memberId, chunkId, { world: rollWorld, engine: planningEngine });
   });
 }
+const noPlanningCheckpoint = () => {};
+function* chunkPlanningRows(index, chunkId, checkpoint = noPlanningCheckpoint) {
+  for (const { task, evidence } of index.byLocation.get(String(chunkId))?.values() ?? []) {
+    checkpoint();
+    const row = { task: { ...projectPlayTask(task, { retainHiddenDisplay: true }),
+      ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence };
+    checkpoint();
+    yield row;
+  }
+}
+function chunkPlanningResult(snapshot, index, chunkId, rows) {
+  return { format: 'chunk-planning-v1', chunkId, rows,
+    clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
+}
 function chunkPlanningFor(snapshot, chunkId) {
   const index = snapshot.planningIndex ??= trackPlanningIndex(
     buildChunkPlanningIndex(definitions, snapshot.baseline, workerData.world), snapshot.baseline);
   completeCache.refresh(snapshot); sandboxCache.refresh(snapshot);
-  return { format: 'chunk-planning-v1', chunkId, rows: [...(index.byLocation.get(String(chunkId))?.values() ?? [])].map(({ task, evidence }) => ({
-    task: { ...projectPlayTask(task, { retainHiddenDisplay: true }), ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence,
-  })), clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
+  return chunkPlanningResult(snapshot, index, chunkId, [...chunkPlanningRows(index, chunkId)]);
+}
+async function residentChunkPlanningFor(state, memberId, chunkId, input, abandoned, pickerId) {
+  const key = JSON.stringify(calculationKey(state, memberId, input)), snapshot = snapshots.get(key);
+  if (!snapshot || snapshot.revision !== state.revision) return;
+  const isCurrent = () => !abandoned() && state.revision >= pickerRevision(pickerId) && snapshots.get(key) === snapshot;
+  const checkpoint = () => {
+    if (abandoned() || state.revision < pickerRevision(pickerId)) throw new Error('Resident planning cancelled.');
+  };
+  let newIndex, charged = false;
+  try {
+    if (!snapshot.planningIndex) {
+      newIndex = await buildChunkPlanningIndexIncremental(definitions, snapshot.baseline, workerData.world, isCurrent, yieldToRequests);
+      if (!isCurrent()) return;
+    }
+    // Charging is transactional and checks atomic cancellation around native
+    // measurement and throughout its byte scans. The scheduler bounds native
+    // segments that cannot cooperate. Yield before projection as well.
+    await yieldToRequests(); checkpoint();
+    if (!isCurrent()) return;
+    if (newIndex) snapshot.planningIndex = trackPlanningIndex(newIndex, snapshot.baseline);
+    completeCache.refresh(snapshot, false, false, checkpoint);
+    charged = true;
+    await yieldToRequests(); checkpoint();
+    const index = snapshot.planningIndex, rows = [];
+    let started = performance.now();
+    for (const row of chunkPlanningRows(index, chunkId, checkpoint)) {
+      rows.push(row);
+      if (performance.now() - started >= 8) { await yieldToRequests(); checkpoint(); started = performance.now(); }
+    }
+    checkpoint();
+    return chunkPlanningResult(snapshot, index, chunkId, rows);
+  } catch (error) {
+    if (newIndex && !charged && snapshot.planningIndex === newIndex) delete snapshot.planningIndex;
+    if (abandoned() || !isCurrent()) return;
+    throw error;
+  }
 }
 const sandboxSnapshots = new Map();
 const sandboxCache = createSnapshotCache(sandboxSnapshots, snapshotBudget, {
@@ -387,7 +438,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false }) => {
   if (type === 'cancel') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), revision)); return; }
   const started = performance.now();
@@ -458,6 +509,14 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       }), cache: { baselineHit: !!baselineTaskIds || cached.hit, baselineSource: baselineTaskIds ? 'current-list' : 'worker' } };
     });
     else if (type === 'death-estimates') result = await deathEstimates(state, memberId, chunkIds, timingMs, request, input, pickerId);
+    else if (type === 'chunk-planning' && residentOnly) {
+      result = await residentChunkPlanningFor(state, memberId, chunkId, input, abandoned, pickerId);
+      if (!result) {
+        timingMs.totalMs = performance.now() - started;
+        parentPort.postMessage({ id, residentPlanningMiss: true, evaluationMs: timingMs.totalMs, timingMs });
+        return;
+      }
+    }
     else {
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
       const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
@@ -540,7 +599,7 @@ else parentPort.on('message', handleMessage);
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
-const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'prepare-rules', 'roll-pool'];
+const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'resident-chunk-planning', 'sandbox', 'area-check', 'how-task', 'prepare-rules', 'roll-pool'];
 // The generated catalogue is large and shares completion families between rows.
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
