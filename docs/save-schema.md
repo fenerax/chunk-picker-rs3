@@ -29,6 +29,8 @@ currency fact, including when the fact is unchanged or becomes unknown.
 An explicit manual `set-transport-facts` command releases plugin ownership,
 including when it confirms the same coin count; its watermark is retained.
 An unchanged coherent observation of a manual fact does not transfer ownership.
+An existing `historyRevision` retains plugin ownership through Undo, even when
+Undo restores a balance from before a zero or unknown observation.
 For saves without this metadata, a matching, unattributed legacy currency
 History command identifies the previous plugin-owned fact.
 

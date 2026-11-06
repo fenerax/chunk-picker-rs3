@@ -43,10 +43,10 @@ export function observePluginCurrency(state, metadata, { memberId, keyId, seq, s
   const owner = state.members.find(row => row.id === memberId);
   if (!owner) throw new TypeError('Unknown plugin currency member.');
   const current = owner.transportFacts?.currencies?.coins;
-  // Legacy plugin writes had no actor. A manual fact with a different current
-  // value is not owned by this observation and must survive an unreadable report.
+  // Manual edits release ownership. Undo alone must not turn an earlier plugin
+  // balance into a manual fact, including after undoing an invalidation.
   const legacy = !prior && state.history.findLast(row => row.command?.type === 'set-transport-facts' && row.command.memberId === memberId);
-  const owned = prior ? prior.coins !== null && prior.coins === current
+  const owned = prior ? prior.historyRevision !== null && current !== undefined
     : legacy && !legacy.actor && legacy.command.facts.currencies?.coins === current;
   const facts = structuredClone(owner.transportFacts ?? {});
   if (coins !== null) facts.currencies = { ...facts.currencies, coins };

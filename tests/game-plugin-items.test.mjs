@@ -516,6 +516,19 @@ test('currency metadata is bounded and malformed watermarks fail closed', () => 
   assert.throws(() => loadPluginCurrency({ format: 1, keys, players: {} }), /Invalid plugin currency metadata/);
 });
 
+for (const unknown of [false, true]) test(`an unreadable report invalidates a plugin balance restored by Undo (unknown ${unknown})`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  f.advance(60000);
+  await f.send({ ...items({ backpack: unknown ? null : [] }), pouch: unknown ? null : [] });
+  await f.command({ type: 'undo' });
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 100);
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined, 'Undo did not create a manual fact');
+  await f.restart();
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+});
+
 test('bank-only reports never publish cached carried coins after the write interval', async t => {
   const f = await fixture(t, { durable: true });
   const coins = () => f.state.members[0].transportFacts?.currencies?.coins;
