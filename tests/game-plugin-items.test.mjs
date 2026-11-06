@@ -12,7 +12,8 @@ import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
 import { applyCommand, createGroupState, importBackup, validateState } from '../app/core/state.mjs';
 import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
-import { exportPluginItemEvidence, openPluginItems, openPluginJournalCommits } from '../app/plugin-items.mjs';
+import { dismissPluginItemEvidence, exportPluginItemEvidence, openPluginItems, openPluginJournalCommits } from '../app/plugin-items.mjs';
+import { retainPluginItemEvidence } from '../app/core/plugin-item-evidence.mjs';
 import { currencyAfterCommand, loadPluginCurrency, observePluginCurrency } from '../app/storage/plugin-currency.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
 
@@ -82,6 +83,13 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
       if (result.state.revision !== state.revision) commands.push(structuredClone(result.state.history.at(-1).command));
       state = result.state; currencyMetadata = result.metadata; return { currencyRetry: result.retry };
     },
+    commitPluginReview: async ({ memberId, taskIds, unmappedIds, command }, expectedRevision, options) => {
+      const evidence = dismissPluginItemEvidence(await exportPluginItemEvidence(dataDir, id => id, state.provenance?.pluginItemEvidence), memberId, taskIds, unmappedIds, new Date(at).toISOString());
+      if (command) await store.command(command, expectedRevision, options);
+      else if (failing.command || failing.publication) throw new Error('Synthetic write failure');
+      state = retainPluginItemEvidence(state, evidence);
+      return state;
+    },
   };
   let queue = Promise.resolve();
   async function start() {
@@ -106,7 +114,7 @@ async function fixture(t, { betaAsLive = false, durable = false, legacyCoins, ex
   async function apply(selected) {
     const preview = controller.review(identity, 'a');
     const review = controller.findReview(identity, { previewId: preview.previewId, expectedRevision: preview.stateRevision, items: selected.map(taskId => ({ taskId })) }, true);
-    await store.command(review.command, preview.stateRevision); await controller.finish('a');
+    await controller.finish('a', { command: review.command, expectedRevision: preview.stateRevision });
     return review.command;
   }
   return { get controller() { return controller; }, get store() { return store; }, get state() { return durable ? store.getState() : state; }, get at() { return at; }, get lastReport() { return structuredClone(input); }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
@@ -248,8 +256,8 @@ test('Apply ticks only chosen review rows; shown live rows stay handled across r
   assert.deepEqual(member.itemProgress[WEAR_TASK], { title: 'Gud raider chainbody', gameItemId: CHAINBODY, evidence: 'worn',
     seen: 'worn 2026-10-22T12:00:01.001Z', source: 'game-plugin', fetchedAt: '2026-10-22T12:00:01.001Z', memberId: 'a' });
   assert.doesNotThrow(() => validateState(f.state));
-  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
-  assert.deepEqual(saved.players.a.handled, [WEAR_TASK, goal('000597'), goal('000dc1')].sort());
+  const saved = await exportPluginItemEvidence(f.dataDir, id => id, f.state.provenance?.pluginItemEvidence);
+  assert.deepEqual(saved.players.a.records.live.handled, [WEAR_TASK, goal('000597'), goal('000dc1')].sort());
 
   await f.restart();
   await f.send(items({ snapshot: '2223456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']], backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
@@ -1496,6 +1504,125 @@ test('dismissing container-only rows does not persist them into an unrelated ret
   await source.send(containers, true);
   assert.ok(source.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'beta'), 'Container dismissal remains session-only');
   assert.equal((await exportPluginItemEvidence(source.dataDir)).players.a.records.unknown.handled.includes(WEAR_TASK), false);
+});
+
+for (const action of ['dismiss', 'apply', 'skip']) test(`explicit ${action} handles a displayed live task in every supporting retained world`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ events: [[1, CHAINBODY, 'Synthetic unknown duplicate'], [2, CHAINBODY_NOTED, 'Synthetic beta duplicate', 'beta']] }));
+  // The beta noted item supports Obtain; use its worn unnoted counterpart too.
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic live duplicate']], events: [[3, CHAINBODY, 'Synthetic beta worn duplicate', 'beta']] }));
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'live'));
+  if (action === 'dismiss') await f.controller.finish('a');
+  else await f.apply(action === 'apply' ? [WEAR_TASK] : []);
+  const retained = await exportPluginItemEvidence(f.dataDir);
+  for (const world of ['live', 'beta', 'unknown']) assert.ok(retained.players.a.records[world].handled.includes(WEAR_TASK), world);
+  if (action === 'apply') await f.command({ type: 'undo' });
+  await f.restart();
+  assert.equal(f.review().items?.some(row => row.taskId === WEAR_TASK) ?? false, false, 'A different world cannot re-offer the dismissed task');
+});
+
+async function itemEvidenceBytes(dataDir) {
+  return Object.fromEntries(await Promise.all(['state.json', 'plugin-items.json', 'plugin-item-journal-beta.json',
+    'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json'].map(async name => {
+    try { return [name, await readFile(path.join(dataDir, name), 'utf8')]; }
+    catch (error) { if (error.code !== 'ENOENT') throw error; return [name, null]; }
+  })));
+}
+
+for (const action of ['dismiss', 'apply']) test(`a full scope refuses explicit ${action} without partially publishing another scope or gameplay`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ events: [[1, BRONZE_DAGGER, 'Synthetic beta dagger', 'beta'], [2, CHAINBODY, 'Synthetic unknown worn item']] }));
+  await f.controller.close(); await f.store.close();
+  const file = path.join(f.dataDir, 'plugin-item-journal-unknown.json'), unknown = JSON.parse(await readFile(file));
+  unknown.players.a.handled = Array.from({ length: 2000 }, (_, index) => `synthetic-${String(index).padStart(4, '0')}`);
+  await writeFile(file, JSON.stringify(unknown)); await f.restart();
+  const review = f.review(), before = await itemEvidenceBytes(f.dataDir), state = f.state;
+  assert.ok(review.items.some(row => row.taskId === goal('0002ae') && row.world === 'beta'));
+  const attempt = () => action === 'apply' ? f.apply([goal('0002ae')]) : f.controller.finish('a');
+  await assert.rejects(attempt(), error => error.status === 422 && /unknown-world.*2,000 handled IDs/.test(error.message) && /Nothing was applied or dismissed/.test(error.message));
+  assert.deepEqual(f.state, state);
+  assert.deepEqual(await itemEvidenceBytes(f.dataDir), before, 'Refusal leaves the state and every scope byte-for-byte unchanged');
+  assert.equal(f.review().previewId, review.previewId, 'The same review remains available');
+  await f.restart();
+  assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), review.items.map(row => [row.taskId, row.world]));
+});
+
+for (const action of ['dismiss', 'apply']) test(`failed atomic review ${action} keeps every scope and gameplay retryable across restart`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ events: [[1, BRONZE_DAGGER, 'Synthetic beta dagger', 'beta'], [2, CHAINBODY, 'Synthetic unknown worn item']] }));
+  const review = f.review(), before = await itemEvidenceBytes(f.dataDir), state = f.state;
+  f.failing.publication = true;
+  await assert.rejects(action === 'apply' ? f.apply([goal('0002ae')]) : f.controller.finish('a'), /Synthetic publication failure/);
+  assert.deepEqual(await itemEvidenceBytes(f.dataDir), before);
+  assert.deepEqual(f.state, state);
+  assert.equal(f.review().previewId, review.previewId);
+  f.failing.publication = false; await f.restart();
+  assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), review.items.map(row => [row.taskId, row.world]));
+  let publications = 0;
+  f.failing.onCommit = () => { publications++; };
+  if (action === 'apply') await f.apply([goal('0002ae')]);
+  else await f.controller.finish('a');
+  assert.equal(publications, 1, 'The decision and any selected gameplay have one publication point');
+  await f.restart();
+  assert.deepEqual(f.review(), { preview: null });
+  const retained = await exportPluginItemEvidence(f.dataDir);
+  assert.ok(retained.players.a.records.beta.handled.includes(goal('0002ae')));
+  assert.ok(retained.players.a.records.unknown.handled.includes(WEAR_TASK));
+  assert.equal(f.state.members[0].completedTasks.includes(goal('0002ae')), action === 'apply');
+});
+
+test('a late supporting scope is validated before an explicit decision publishes', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ events: [[1, CHAINBODY, 'Synthetic retained Wear evidence']] }));
+  const review = f.review();
+  // Another admitted sidecar writer can finish after review preparation without
+  // advancing gameplay. The transaction must capture its current bounded union.
+  const beta = await openPluginItems({ dataDir: f.dataDir, journalWorld: 'beta', members: () => f.state.members });
+  const record = (await exportPluginItemEvidence(f.dataDir)).players.a.records.unknown;
+  record.handled = Array.from({ length: 2000 }, (_, index) => `synthetic-${String(index).padStart(4, '0')}`);
+  try { await beta.put('a', record); } finally { await beta.close(); }
+  const before = await itemEvidenceBytes(f.dataDir);
+  await assert.rejects(f.controller.finish('a'), error => error.status === 422 && /beta.*2,000 handled IDs/.test(error.message));
+  assert.deepEqual(await itemEvidenceBytes(f.dataDir), before);
+  assert.equal(f.review().previewId, review.previewId);
+});
+
+test('a same-revision dismissal invalidates an import prepared before the decision', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items({ events: [[1, CHAINBODY, 'Synthetic retained Wear evidence']] }));
+  const prepared = await f.store.prepareTransfer(serialize({ backup: await f.backup() }), transferOptions);
+  const revision = f.state.revision;
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
+  await f.controller.finish('a');
+  assert.equal(f.state.revision, revision, 'A dismissal does not invent gameplay');
+  const before = await itemEvidenceBytes(f.dataDir);
+  await assert.rejects(f.store.applyTransfer(prepared.ticket, revision), error => error.importConflict === true);
+  assert.deepEqual(await itemEvidenceBytes(f.dataDir), before);
+  await f.restart();
+  assert.deepEqual(f.review(), { preview: null });
+});
+
+for (const action of ['dismiss', 'apply']) test(`explicit ${action} also handles durable pending journal support before its scope is written`, async t => {
+  const f = await fixture(t, { durable: true });
+  const blocked = path.join(f.dataDir, 'plugin-item-journal-unknown.json');
+  await mkdir(blocked);
+  const response = await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic live worn item']],
+    events: [[1, CHAINBODY, 'Synthetic queued unknown item']] }));
+  assert.equal(response.items.journal.event, 0);
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === 'live'));
+  await rm(blocked, { recursive: true }); // Repair the failed path without draining the pending event yet.
+  if (action === 'apply') await f.apply([WEAR_TASK]);
+  else await f.controller.finish('a');
+  const retained = await exportPluginItemEvidence(f.dataDir);
+  assert.deepEqual(retained.players.a.records.unknown.items, {}, 'A decision does not manufacture its supporting journal fact');
+  assert.ok(retained.players.a.records.unknown.handled.includes(WEAR_TASK));
+  assert.equal(retained.players.a.commits.journals[0].pending.length, 1);
+  if (action === 'apply') await f.command({ type: 'undo' });
+  await f.restart();
+  assert.equal((await f.send(items())).items.journal.event, 1, 'The retained pending event drains without retransmission');
+  await f.restart();
+  assert.deepEqual(f.review(), { preview: null });
+  assert.ok((await exportPluginItemEvidence(f.dataDir)).players.a.records.unknown.items[CHAINBODY].wornAt);
 });
 
 for (const entrypoint of ['portable-restore', 'portable-transfer', 'source-member', 'retained-member']) test(`acknowledged journals survive ${entrypoint} with destination ownership`, async t => {

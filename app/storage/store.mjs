@@ -4,8 +4,8 @@ import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfe
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { pluginItemGeneration, withPluginItemEvidenceWrite } from './plugin-item-snapshot.mjs';
-import { exportPluginItemEvidence } from '../plugin-items.mjs';
-import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope } from '../core/plugin-item-evidence.mjs';
+import { dismissPluginItemEvidence, exportPluginItemEvidence } from '../plugin-items.mjs';
+import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope, retainPluginItemEvidence, mergePluginItemEvidence } from '../core/plugin-item-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
@@ -1124,15 +1124,20 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       : serializedResult ? { ...await preparedCommandSnapshot(baseline, omitUnchanged, view), ...(receiptResult ? { receipt: receiptResult } : {}) } : cloneCurrent();
   }
   const commandReceipt = (command, actor, requestId, requestAck) => inspectActionReceipt(receipts, command, actor, requestId, requestAck);
-  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck) {
+  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck, itemReview) {
     const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
-    return enqueue(async () => {
-      const receipt = commandReceipt(command, attribution, requestId, requestAck);
+    const work = async () => {
+      const receipt = command && commandReceipt(command, attribution, requestId, requestAck);
       if (receipt) {
         if (receipt.replay) return serializedResult ? { ...await preparedCommandSnapshot(undefined, false, view), receipt: receipt.result } : cloneCurrent();
       }
       checkRevision(expectedRevision);
       const baseline = current;
+      const reviewedItems = itemReview && dismissPluginItemEvidence(await exportPluginItemEvidence(directory,
+        id => current.members.some(member => member.id === id) ? id : undefined, current.provenance?.pluginItemEvidence),
+      itemReview.memberId, itemReview.taskIds, itemReview.unmappedIds, timestamp());
+      if (itemReview && !command) return persist(retainPluginItemEvidence(current, reviewedItems), 'plugin-item-review', undefined,
+        false, baseline, false, undefined, { cleanup: true });
       const sparseUndo = hasRetainedSparseUndo(current, command) && !current.provenance?.historyArchive?.length;
       const input = command.type === 'undo' && !sparseUndo ? await hydrateHistory(current) : { state: current };
       const undoTarget = command.type === 'undo' ? (command.undoRevision === undefined
@@ -1156,8 +1161,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // Undo validates a saved inverse, runs preparation and observes progress.
       // Separate those stages so they cannot share one long HTTP-thread turn.
       if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
-      const ready = await prepared(next, 'command');
+      let ready = await prepared(next, 'command');
       if (ready.revision !== next.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
+      if (reviewedItems) ready = retainPluginItemEvidence(ready, mergePluginItemEvidence(ready.provenance?.pluginItemEvidence, reviewedItems));
       if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
       // Caller hooks can change more than the command requested. Only exact
       // authored coordination output keeps the conservative conflict proof.
@@ -1173,7 +1179,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
         receipt, noteEdit: command.type === 'set-note', currency: currencyAfterCommand(pluginCurrency, command, input.state, ready),
         ...(command.type === 'go-members' ? { backupLabel: 'Before going members' } : {}) });
-    });
+    };
+    return enqueue(() => itemReview ? withPluginItemEvidenceWrite(directory, work) : work());
   }
   async function replacementState(document, base, actor) {
     if (isMainThread && !prepareState && !migrateState) return runImportJob({ kind: 'replacement', dataDir: directory, document, actor,
@@ -1458,6 +1465,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     command(command, expectedRevision, { actor, requestId, requestAck } = {}) {
       return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck);
+    },
+    commitPluginReview({ memberId, taskIds, unmappedIds, command }, expectedRevision, { actor } = {}) {
+      if (!current.members.some(member => member.id === memberId)
+        || command && (command.type !== 'apply-game-progress' || command.memberId !== memberId)
+        || !Array.isArray(taskIds) || taskIds.length > 100 || taskIds.some(id => typeof id !== 'string' || id.length > 200)
+        || !Array.isArray(unmappedIds) || unmappedIds.length > 30 || unmappedIds.some(id => !Number.isSafeInteger(id) || id < 0 || id > 1000000)) {
+        return Promise.reject(new TypeError('Invalid plugin item review.'));
+      }
+      return runCommand(command, expectedRevision, false, false, actor, undefined, undefined, undefined,
+        { memberId, taskIds: [...taskIds], unmappedIds: [...unmappedIds] });
     },
     observePluginCurrency(observation) {
       return enqueue(async () => {

@@ -38,8 +38,19 @@ become live facts or automatic completions. Non-live containers remain ephemeral
 Member imports preserve other players' item dismissals and container-only
 reviews while refreshing only the imported player's review. Dismissing unmapped
 items records `unmapped:<itemId>` in the scope's bounded `handled` list without
-removing retained facts. Retained beta/unknown journal dismissals persist through
-restart and portable recovery; ephemeral container dismissals remain session-only.
+removing retained facts. An explicit Apply or Dismiss retains each shown task in
+every live, beta and unknown scope that supports it, regardless of the displayed
+row's world. Unmapped identities are retained in every scope containing that ID.
+Supporting durable pending journal events count too: their scope can retain a
+decision before its facts are written, without acknowledging or inventing facts.
+All affected handled-list unions are validated before publication. The complete
+decision is published in the active compatibility copy in `state.json`, together
+with Apply's gameplay changes, in one atomic replacement; sidecars are not updated
+one at a time. A capacity refusal leaves the save, evidence and review unchanged
+and identifies the scope and 2,000-ID bound. Dismissal alone does not increment the
+gameplay revision. Retained decisions persist through restart and portable
+recovery; container-only dismissals remain session-only. Automatic live completion
+keeps its existing retention behavior.
 
 `plugin-item-journal-commits.json` is a separate version 1 sidecar containing
 `{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.
@@ -133,6 +144,11 @@ When editing a portable export instead of the stored save, remove the same fact
 from both its active provenance copy and optional envelope. Keep the marker;
 never clear historical archives to make room. Dismissal hides review rows but
 retains their evidence, so it does not itself free an item-ID slot.
+The same stopped-receiver procedure applies to a full 2,000-ID handled list:
+remove only player-reviewed obsolete decisions from the active copy and matching
+sidecars (and both carriers when editing an export). Removing a handled identity
+allows its retained task or unmapped item to be offered again; preserve decisions
+the player still needs and keep the archive marker and journal ledger intact.
 
 ## Game plugin current currency
 

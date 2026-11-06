@@ -390,22 +390,6 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     await matchItems(player, report, record, world, null);
   }
   async function rememberItemsHandled(player, rows, unmapped = []) {
-    for (const journal of journalStores.values()) {
-      const record = journal.get(player);
-      if (!record) continue;
-      const retainedTasks = new Set();
-      for (const [id, fact] of Object.entries(record.items)) {
-        const item = GAME_ITEMS.get(Number(id));
-        if (item && fact.ownedAt) retainedTasks.add(item.goalId);
-        if (fact.wornAt) for (const [taskId, ids] of GAME_WORN_TASKS) if (ids.has(Number(id))) retainedTasks.add(taskId);
-      }
-      const ids = rows.filter(row => row.world !== 'live' && retainedTasks.has(row.taskId)).map(row => row.taskId);
-      ids.push(...unmapped.filter(row => record.items[row.gameItemId]).map(row => `unmapped:${row.gameItemId}`));
-      if (!ids.length) continue;
-      record.handled = [...new Set([...record.handled, ...ids])].sort();
-      // A failed or full durable dismissal remains reviewable for retry.
-      await journal.put(player, record);
-    }
     const dismissed = itemHandled.get(player) ?? new Set();
     for (const row of rows) dismissed.add(row.taskId);
     for (const row of unmapped) dismissed.add(`unmapped:${row.gameItemId}`);
@@ -716,14 +700,24 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (nothing(achievements)) throw fail(400, 'Nothing is selected. Dismiss the review instead.');
       return { ...review.proposal, command: { ...command, achievements } };
     },
-    async finish(memberId) {
+    async finish(memberId, { command, expectedRevision = store.getInfo().revision, actor } = {}) {
       const review = liveReview(memberId);
-      // Apply and Dismiss both make the player's choice final for every live
-      // row shown, including skipped rows. Beta/unknown copies may report live later.
+      const rows = review?.proposal?.preview.items ?? [], unmapped = review?.proposal?.preview.unmappedItems ?? [];
+      // Capture and validate all retained scopes inside the store's mutation
+      // queue. Apply's gameplay and the decision share one state-file commit.
+      let result;
+      if (rows.length || unmapped.length) result = await store.commitPluginReview({ memberId, command,
+        taskIds: rows.map(row => row.taskId), unmappedIds: unmapped.map(row => row.gameItemId) }, expectedRevision, { actor });
+      else if (command) result = await store.command(command, expectedRevision, { actor });
+      importedRevision = -1; // Dismissal retains metadata without advancing gameplay.
+      const dismissed = itemHandled.get(memberId) ?? new Set();
+      for (const row of rows) dismissed.add(row.taskId);
+      for (const row of unmapped) dismissed.add(`unmapped:${row.gameItemId}`);
+      if (dismissed.size) itemHandled.set(memberId, dismissed);
       const ids = (review?.proposal?.preview.achievements ?? []).filter(row => row.world === 'live').map(row => row.achievementId);
       if (ids.length) rememberHandled(memberId, ids);
-      await rememberItemsHandled(memberId, review?.proposal?.preview.items ?? [], review?.proposal?.preview.unmappedItems ?? []);
       pending.delete(memberId); notify();
+      return result;
     },
     rememberTasks(memberId, bytes) {
       if (closed || !bytes) return;

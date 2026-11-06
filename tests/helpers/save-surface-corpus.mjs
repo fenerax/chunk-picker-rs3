@@ -166,7 +166,8 @@ export async function buildSaveCorpus(t) {
   for (const [journalWorld, itemId, event] of [['unknown', 34830, 1], ['beta', 1205, 2]]) {
     const journal = await openPluginItems({ dataDir, members, journalWorld });
     try { await journal.put(roster[0].id, { baselineAt: at,
-      items: { [itemId]: { name: `Synthetic ${journalWorld} journal item`, ownedAt: at, wornAt: at, first: false } },
+      items: { [itemId]: { name: `Synthetic ${journalWorld} journal item`, ownedAt: at, wornAt: at, first: false },
+        ...(journalWorld === 'unknown' ? { 900000: { name: 'Synthetic unmapped journal item', ownedAt: at, wornAt: at, first: false } } : {}) },
       handled: [], journal: { id: 'aaaaaaaaaaaaaaaa', event } }); }
     finally { await journal.close(); }
   }
@@ -176,6 +177,8 @@ export async function buildSaveCorpus(t) {
   finally { await commits.close(); }
   const portable = await store.backup();
   await store.replace(portable, store.getInfo().revision);
+  // Exercise decisions backed by both materialized facts and a durable intent.
+  await store.commitPluginReview({ memberId: roster[0].id, taskIds: [], unmappedIds: [900000, 999999] }, store.getInfo().revision);
   await capture('plugin-item-journals');
   snapshots.at(-1).documents.push(portable);
   const overlays = await openOverlays({ dataDir, store, world, authenticateAdmin: () => ({ admin: true }),

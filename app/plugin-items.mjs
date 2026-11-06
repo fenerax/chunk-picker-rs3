@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { replaceSidecar } from './plugin-achievements.mjs';
+import { GAME_ITEMS, GAME_WORN_TASKS } from './integrations/game-items.mjs';
 import { capturePluginItemFiles, pluginItemFiles, withPluginItemEvidenceWrite } from './storage/plugin-item-snapshot.mjs';
 export { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-snapshot.mjs';
 
@@ -82,6 +83,37 @@ export function importPluginItemEvidence(_dataDir, evidence, mapPlayerId = id =>
     players.set(target, record);
   }
   return mergePluginItemEvidence({ v: 1, players: Object.fromEntries(players) });
+}
+
+// Explicit review decisions apply to tasks, independently of the world chosen
+// for the displayed row. Work on a validated copy; no scope may change until
+// every supporting scope has room for the complete decision.
+export function dismissPluginItemEvidence(evidence, memberId, taskIds, unmappedIds, at = new Date().toISOString()) {
+  const next = mergePluginItemEvidence(evidence);
+  const player = next.players[memberId], tasks = new Set(taskIds), unmapped = new Set(unmappedIds), decisions = new Map();
+  const support = (world, itemId, worn) => {
+    const ids = decisions.get(world) ?? new Set(), item = GAME_ITEMS.get(itemId);
+    if (item && tasks.has(item.goalId)) ids.add(item.goalId);
+    if (worn) for (const [taskId, items] of GAME_WORN_TASKS) if (tasks.has(taskId) && items.has(itemId)) ids.add(taskId);
+    if (unmapped.has(itemId)) ids.add(`unmapped:${itemId}`);
+    if (ids.size) decisions.set(world, ids);
+  };
+  for (const [world, record] of Object.entries(player?.records ?? {})) {
+    for (const [id, fact] of Object.entries(record.items)) support(world, Number(id), !!fact.wornAt);
+  }
+  // Durable pending intents also support tasks, even when their scope write
+  // failed. Retain the decision now, without manufacturing or acknowledging facts.
+  for (const journal of player?.commits.journals ?? []) {
+    for (const [, id, , world] of journal.pending) support(world, id, !GAME_ITEMS.get(id)?.noted);
+  }
+  for (const [world, ids] of decisions) {
+    const record = player.records[world] ??= { baselineAt: at, items: {}, handled: [], journal: null };
+    const handled = new Set([...record.handled, ...ids]);
+    if (handled.size > 2000) throw Object.assign(new Error(`This review cannot be saved: the ${world === 'unknown' ? 'unknown-world' : world} item evidence would exceed 2,000 handled IDs. Nothing was applied or dismissed. Ask the operator to review the retained evidence and free space, then retry.`),
+      { status: 422, code: 'PLUGIN_ITEM_REVIEW_CAPACITY' });
+    record.handled = [...handled].sort();
+  }
+  return mergePluginItemEvidence(next);
 }
 
 export function openPluginJournalCommits(options) {

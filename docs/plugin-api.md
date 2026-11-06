@@ -428,8 +428,11 @@ Legacy triples and four-field beta and unknown events keep their own
 record per environment, and their rows stay in every later review (items or
 bank), including immediately after receiver startup without retransmission,
 even after the sender drops the acknowledged events. Retained journal dismissals
-persist in their scope's bounded handled list; they do not suppress later live
-task evidence. Non-live container dismissals last for the receiver run. Legacy
+persist in every retained scope that supports the shown task, regardless of the
+displayed world. Apply and Dismiss validate all handled-list unions first and
+publish the decision with any selected gameplay in one atomic save write. A
+capacity refusal returns an explanatory error without changing any scope or
+gameplay. Container-only dismissals last for the receiver run. Legacy
 triples receive the same delivery acknowledgement while retaining unknown provenance.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;
