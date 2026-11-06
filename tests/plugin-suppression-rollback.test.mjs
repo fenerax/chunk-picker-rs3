@@ -306,7 +306,11 @@ for (const kind of ['items', 'achievements']) {
           operation = () => dest.store.applyTransfer(preview.ticket, 0);
         } else operation = async () => { const preview = await prepare(); await dest.store.applyTransfer(preview.ticket, 0); };
       }
-      await assert.rejects(operation(), /Invalid plugin|evidence|suppression/i);
+      if (transport === 'preview-race' && kind === 'items') {
+        // #133's generation fence refuses this changed sidecar even before
+        // the shared union guard; preserve its public retry contract.
+        await assert.rejects(operation(), error => error.importConflict === true && /Revision conflict/.test(error.message));
+      } else await assert.rejects(operation(), /Invalid plugin|evidence|suppression/i);
       assert.equal(dest.store.getInfo().revision, 0);
       assert.deepEqual(await readFile(path.join(target, 'state.json')), before);
       await dest.store.close();
