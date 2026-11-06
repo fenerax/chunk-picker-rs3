@@ -3,6 +3,9 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
+import { pluginItemGeneration, withPluginItemEvidenceWrite } from './plugin-item-snapshot.mjs';
+import { exportPluginItemEvidence } from '../plugin-items.mjs';
+import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope } from '../core/plugin-item-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
@@ -54,7 +57,7 @@ function importSavedState(bytes, registry) {
   if (!backup || typeof backup !== 'object' || Array.isArray(backup)) throw new TypeError('backup must be an object');
   if (backup.format !== BACKUP_FORMAT) throw new TypeError('Unsupported backup format');
   if (backup.schemaVersion !== SCHEMA_VERSION) throw new TypeError(`Unsupported backup schema version: ${backup.schemaVersion}`);
-  return validateOwnedState(backup.state, registry);
+  return importBackup(backup, registry, { owned: true });
 }
 const BACKUP_ID = /^(\d{16})-[a-f0-9]{16}\.json(?:\.gz)?$/;
 const HISTORY_ID = /^history-\d{16}-\d{16}-[a-f0-9]{16}\.json\.gz$/;
@@ -351,6 +354,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   let archiveIndex;
   const listeners = new Set();
   const envelope = state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state });
+  async function itemEvidenceEnvelope(document) {
+    const members = new Set(document.state.members.map(member => member.id));
+    const pluginItems = await exportPluginItemEvidence(directory, id => members.has(id) ? id : undefined, document.state.provenance?.pluginItemEvidence);
+    // The frozen release drops optional envelopes but preserves portable
+    // provenance through edits/Undo and archives it on whole-save restore.
+    return Object.keys(pluginItems.players).length ? { ...document,
+      state: { ...document.state, provenance: { ...document.state.provenance, pluginItemEvidence: pluginItems, pluginItemEvidenceReconciled: 1 } },
+      optionalSidecarEvidence: { schemaVersion: 1, entries: { ...document.optionalSidecarEvidence?.entries,
+        pluginItems: { version: 1, players: pluginItems.players } } } } : document;
+  }
   const envelopePrefix = `${JSON.stringify({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION }).slice(0, -1)},"state":`;
   let serializedFields = new WeakMap();
   const staticReferences = new WeakMap();
@@ -457,10 +470,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     return { ...document, state };
   }
+  const journalRecovery = new WeakSet();
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
+    const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
     const state = importSavedState(document, registry);
+    if (state.provenance?.pluginItemEvidenceReconciled === 1 && !reconciledJournals) journalRecovery.add(state);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
       const value = state[key];
@@ -1006,6 +1022,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     currentDiskSerialized ??= await serializedDiskState(current);
     if (existing) {
+      const sealJournals = journalRecovery.has(current);
+      if (sealJournals && liveSwapStrict) throw Object.assign(new Error('Live swap refuses an unreconciled journal archive; reopen it offline first.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
       let ready = await prepareLoadedState(current);
       // Compare validated data directly: key ordering has no gameplay meaning,
       // and a changed projection should not stringify its large archive twice.
@@ -1027,6 +1045,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = ready;
         currentDiskSerialized = diskDocument;
         reportDurability(publication);
+      }
+      // This is retention metadata, not gameplay. Persist the archive boundary
+      // before accepting reports or exposing a copy an operator may later clear.
+      if (sealJournals && !readOnly) {
+        const diskDocument = await serializedDiskState(current);
+        reportDurability(await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
+          beforeRename: beforeCommit ? () => beforeCommit({ operation: 'plugin-item-evidence', state: structuredClone(current) }) : undefined }));
+        currentDiskSerialized = diskDocument;
       }
     }
     // Existing saves were checked by prepareLoadedState before publication.
@@ -1098,7 +1124,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     reportDurability(publication);
     if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
     for (const listener of listeners) {
-      try { listener({ revision: current.revision, ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}), ...(choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
+      try { listener({ revision: current.revision, ...(operation === 'replace' ? { restored: true } : {}), ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}), ...(choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
     }
     // Let already-requested task lanes receive the committed snapshot before
     // preparing the response pools.
@@ -1167,6 +1193,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Keep separate bounded validation/migration phases off the same event-loop turn.
     await new Promise(resolve => setImmediate(resolve));
     const ready = await prepared(incoming, 'replace');
+    const incomingItems = ready.provenance?.pluginItemEvidence;
     await new Promise(resolve => setImmediate(resolve));
     const revision = base.revision + 1;
     if (!Number.isSafeInteger(revision)) throw new RangeError('State revision limit reached.');
@@ -1184,6 +1211,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A replacement establishes a new undo boundary. Earlier snapshots may
     // describe another roster and must never rewrite the restored gameplay.
     ready.history = [{ id: `revision-${revision}`, revision, type: 'restore', at: timestamp(), ...(actor ? { actor } : {}) }];
+    const destinationItems = pluginItemEvidenceFromEnvelope((await itemEvidenceEnvelope(envelope(base))).optionalSidecarEvidence);
+    const pluginItemEvidence = reconcilePluginItemEvidence(ready, base, { provenance: { pluginItemEvidence: incomingItems } },
+      { provenance: { pluginItemEvidence: destinationItems } }).provenance?.pluginItemEvidence;
+    if (pluginItemEvidence) ready.provenance.pluginItemEvidence = pluginItemEvidence;
     // Prepare the same additive ownership annotations that publication retains.
     // Preview must describe the exact replacement, including portable metadata.
     currencyAfterRestore(undefined, ready);
@@ -1307,6 +1338,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const store = {
     async prepareImportPublication(next, operation, { validateBackup, currencySource } = {}) {
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
+      const command = next.history.at(-1)?.command;
+      const restoredMemberIds = operation === 'command' && command?.type === 'replace-member' ? [command.memberId] : undefined;
       importDependencies = [];
       const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
       // Export observes snapshots and hydrated History, not the compact disk
@@ -1328,13 +1361,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         .map(({ key, reference }) => [key, reference.sha256]));
       fingerprint.seedStatic(state, preparedDigests);
       taskReuseFingerprint.seedStatic(state, preparedDigests);
-      return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
+      return { state, disk, backup, dependencies: importDependencies, fields, summary, restoredMemberIds, digest: createHash('sha256').update(disk).digest('hex'),
         fingerprints: { gameplay: fingerprint.exportStatic(state, serializedFields), tasks: taskReuseFingerprint.exportStatic(state, serializedFields) },
         coordination: coordination.get(state), receipts, pluginCurrency: currency,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
         choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
     },
     getState: cloneCurrent,
+    getPluginItemEvidence: () => structuredClone(current.provenance?.pluginItemEvidence),
     getTaskClaimState() {
       const { schemaVersion, revision, rules, members, tasks, identityRegistry, taskClaims } = playProjection(current).state;
       // Select before cloning: History and private retained evidence can be large.
@@ -1387,7 +1421,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     prepareSnapshot: () => enqueueMaintenance(maintainRetention),
     backup: () => isMainThread ? enqueueMaintenance(() => runImportJob({ kind: 'backup', dataDir: directory,
       rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true })
-      : hydrateHistory(current).then(({ state }) => envelope(state)),
+      : hydrateHistory(current).then(({ state }) => itemEvidenceEnvelope(envelope(state))),
     exportBackup: ({ dataset, gzip = false, encoding } = {}) => enqueueMaintenance(() => runImportJob({ kind: 'export', dataDir: directory,
       exportDataset: dataset, gzip, encoding, rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true }),
     async listBackups() {
@@ -1418,7 +1452,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
             if (!snapshot) throw new TypeError('Retained backup archive is missing its snapshot.');
             const state = await importStoredBackup(snapshot.document, false, forImport);
             if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-            return envelope((await hydrateHistory(state, undefined, forImport)).state);
+            return itemEvidenceEnvelope(envelope((await hydrateHistory(state, undefined, forImport)).state));
           }
           throw error;
         }
@@ -1427,7 +1461,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const document = forImport ? await importDocument(decoded) : decoded.toString('utf8');
         const state = await importStoredBackup(document, false, forImport);
         if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
-        return envelope((await hydrateHistory(state, undefined, forImport)).state);
+        return itemEvidenceEnvelope(envelope((await hydrateHistory(state, undefined, forImport)).state));
       }, { backupRead: true });
     },
     getAccessToken: () => token,
@@ -1562,21 +1596,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     async prepareTransfer(input, options) {
       const revision = current.revision;
       const checkpoint = currentDiskSerialized;
+      const itemGeneration = await pluginItemGeneration(directory);
       const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options: { ...options, now: timestamp() },
         rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec }, { budget: options.importBudget, userId: options.importUserId,
         prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
       const ticket = {};
-      importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint });
+      importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint, itemGeneration });
       delete result.publication;
       return { ...result, ticket };
     },
     applyTransfer(ticket, expectedRevision) {
-      return enqueue(async () => {
+      return enqueue(() => withPluginItemEvidenceWrite(directory, async () => {
         const prepared = importTickets.get(ticket);
         importTickets.delete(ticket);
         if (!prepared?.publication) throw new TypeError('A validated import result is required.');
         if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new TypeError('expectedRevision must be a nonnegative safe integer.');
-        if (expectedRevision !== current.revision || prepared.revision !== current.revision || prepared.checkpoint !== currentDiskSerialized) {
+        if (expectedRevision !== current.revision || prepared.revision !== current.revision || prepared.checkpoint !== currentDiskSerialized
+          || prepared.itemGeneration !== await pluginItemGeneration(directory)) {
           throw Object.assign(new RevisionConflict({ revision: current.revision }), { importConflict: true });
         }
         const start = performance.now();
@@ -1610,23 +1646,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         taskReuseFingerprint.seedStatic(current, publication.fingerprints.tasks);
         reportDurability(published);
         for (const listener of listeners) {
-          try { listener({ revision: current.revision, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
+          try { listener({ revision: current.revision, restored: true, restoredMemberIds: publication.restoredMemberIds, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
         }
         return { state: current, reply: publication.reply, applyMs: performance.now() - start };
-      });
+      }));
     },
     replace(document, expectedRevision, { actor } = {}) {
       const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
-      return enqueue(async () => {
+      return enqueue(() => withPluginItemEvidenceWrite(directory, async () => {
         checkRevision(expectedRevision);
         const ready = await replacementState(document, cloneCurrent(), attribution);
         return persist(ready, 'replace');
-      });
+      }));
     },
     async previewReplacement(document, { actor } = {}) {
       const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
       const base = cloneCurrent();
-      return { current: base, state: await replacementState(document, base, attribution) };
+      return withPluginItemEvidenceWrite(directory, async () => ({ current: base, state: await replacementState(document, base, attribution) }));
     },
     close({ beforeUnlock } = {}) {
       if (closePromise) return closePromise;

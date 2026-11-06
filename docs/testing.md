@@ -3,6 +3,12 @@
 From the checkout root, use Node.js 24.20.0 or a newer 24.x release and npm.
 There are no dependencies to install. Tests use public repository inputs and synthetic/temporary stores;
 no plugin, running picker, downloaded Wiki cache or personal save is required.
+The journal rollback integration tests execute release `06e15939` in a temporary
+Git worktree. CI fetches that pinned commit before the Linux suite. For a local
+shallow checkout, fetch it with
+`git fetch --no-tags --depth=1 origin 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e`
+to run those cases; otherwise they report an explicit local skip. The ordinary
+frozen-loader fixture regressions still run without Git history.
 Node 24.19.0 lacks the native `entryFile` test-event metadata used by the
 coverage reporter: its synthetic coverage test fails with `Native coverage
 count mismatch`. Upgrade to 24.20.0 or a newer 24.x before running the suites.

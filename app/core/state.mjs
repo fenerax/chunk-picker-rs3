@@ -1,4 +1,5 @@
 import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
+import { mergePluginItemEvidence, pluginItemEvidenceFromEnvelope, portablePluginItemEvidence, retainPluginItemEvidence } from './plugin-item-evidence.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
@@ -930,6 +931,11 @@ function validateStateCopy(copy, registry) {
       }
     }
   }
+  const evidence = portablePluginItemEvidence(copy);
+  if (evidence !== undefined) {
+    if (Object.keys(evidence.players).some(id => !copy.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
+    copy.provenance = retainPluginItemEvidence(copy, evidence).provenance;
+  }
   return copy;
 }
 
@@ -948,7 +954,13 @@ export function importBackup(document, registry, { owned = false } = {}) {
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
   backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
-  return owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
+  let state = owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
+  const pluginItems = pluginItemEvidenceFromEnvelope(backup.optionalSidecarEvidence);
+  if (pluginItems !== undefined) {
+    state = retainPluginItemEvidence(state, mergePluginItemEvidence(state.provenance?.pluginItemEvidence, pluginItems));
+    if (Object.keys(state.provenance.pluginItemEvidence.players).some(id => !state.members.some(member => member.id === id))) fail('Plugin item evidence belongs to an unknown member');
+  }
+  return state;
 }
 
 function difference(before, after) {

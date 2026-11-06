@@ -1,71 +1,129 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
+import { gunzip } from 'node:zlib';
+import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { replaceSidecar } from './plugin-achievements.mjs';
+import { capturePluginItemFiles, pluginItemFiles, withPluginItemEvidenceWrite } from './storage/plugin-item-snapshot.mjs';
+export { capturePluginItemFiles, pluginItemFiles } from './storage/plugin-item-snapshot.mjs';
 
-// Live-world item evidence per player: reviewed item IDs seen owned or worn,
+// Live-world item evidence per player: item IDs seen owned or worn,
 // the first snapshot's time, item tasks the player already handled, and the
-// newest acknowledged plugin journal event, and when the bank was last seen with its
-// coins. Beta evidence is never stored.
-const ITEM_LIMIT = 500, HANDLED_LIMIT = 2000;
+// newest processed plugin journal event, and when the bank was last seen with its
+// coins. Non-live journals use separate files with the same bounded record shape.
+import { validateItemRecord, validateJournalCommits, mergeItemRecords, mergeJournalCommits, mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
+export { validateItemRecord } from './core/plugin-item-evidence.mjs';
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
-const time = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value));
-const text = (value, max) => typeof value === 'string' && value.length >= 1 && value.length <= max && !/[\x00-\x1f\x7f-\x9f]/.test(value);
+const gunzipAsync = promisify(gunzip);
 
-export function validateItemRecord(record) {
-  // bank is optional: records written before the plugin read the bank have none.
-  if (!exactKeys(record, ['baselineAt', 'items', 'handled', 'journal']) && !exactKeys(record, ['baselineAt', 'items', 'handled', 'journal', 'bank']) || !time(record.baselineAt) || !object(record.items)
-    || Object.keys(record.items).length > ITEM_LIMIT || !Array.isArray(record.handled) || record.handled.length > HANDLED_LIMIT
-    || record.handled.some((id, index, ids) => !text(id, 200) || index > 0 && ids[index - 1] >= id)) throw new TypeError('Invalid plugin item record.');
-  for (const [id, fact] of Object.entries(record.items)) {
-    if (!/^(0|[1-9]\d{0,6})$/.test(id) || !exactKeys(fact, ['name', 'ownedAt', 'wornAt', 'first']) || !text(fact.name, 80) || !time(fact.ownedAt)
-      || fact.wornAt !== null && !time(fact.wornAt) || typeof fact.first !== 'boolean') throw new TypeError('Invalid plugin item fact.');
-  }
-  if (record.journal !== null && (!exactKeys(record.journal, ['id', 'event']) || !/^[a-f0-9]{16}$/.test(record.journal.id)
-    || !Number.isSafeInteger(record.journal.event) || record.journal.event < 0)) throw new TypeError('Invalid plugin item journal.');
-  if (record.bank !== undefined && (!exactKeys(record.bank, ['snapshot', 'seenAt', 'coins']) || !/^[a-f0-9]{16}$/.test(record.bank.snapshot) || !time(record.bank.seenAt)
-    || !Number.isSafeInteger(record.bank.coins) || record.bank.coins < 0)) throw new TypeError('Invalid plugin item bank.');
-  return record;
+async function capturedInheritedEvidence(dataDir, files) {
+  if (!files['state.json']) return;
+  const document = JSON.parse(files['state.json']);
+  const reference = document.storage?.fields?.provenance;
+  if (!reference) return portablePluginItemEvidence(document.state);
+  // Static fields are immutable and content addressed. Resolve the exact field
+  // pinned by the captured state, never a later worker or in-memory state.
+  if (!exactKeys(reference, ['id', 'sha256']) || !/^[a-f0-9]{64}$/.test(reference.sha256)
+    || reference.id !== `static-${reference.sha256}.json.gz`) throw new TypeError('Invalid static provenance reference.');
+  const base = await realpath(path.join(dataDir, 'static'));
+  const file = await realpath(path.join(base, reference.id));
+  if (path.dirname(file) !== base) throw new TypeError('Invalid static provenance location.');
+  const bytes = await gunzipAsync(await readFile(file));
+  if (createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new TypeError('Static provenance checksum mismatch.');
+  return portablePluginItemEvidence({ ...document.state, provenance: JSON.parse(bytes) });
 }
 
-function validate(value) {
+function validate(value, validateRecord = validateItemRecord) {
   if (!exactKeys(value, ['v', 'players']) || value.v !== 1 || !object(value.players)) throw new TypeError('Invalid plugin item store.');
   for (const [player, record] of Object.entries(value.players)) {
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(player)) throw new TypeError('Invalid plugin item store.');
-    validateItemRecord(record);
+    validateRecord(record);
   }
   return value;
 }
 
+const journalWorlds = ['beta', 'unknown'];
+const pluginItemFile = journalWorld => journalWorld ? `plugin-item-journal-${journalWorld}.json` : 'plugin-items.json';
+const commitFile = 'plugin-item-journal-commits.json';
+
+// The adapter returns plain, validated data. Import never writes paths supplied by a backup.
+export async function exportPluginItemEvidence(dataDir, mapPlayerId = id => id, inherited, captureOptions) {
+  const files = await capturePluginItemFiles(dataDir, captureOptions);
+  // A worker's supplied state may predate a concurrent import. Include the
+  // inherited evidence published alongside the captured sidecar generations.
+  const persisted = await capturedInheritedEvidence(dataDir, files);
+  const players = new Map();
+  for (const file of pluginItemFiles) {
+    const contents = files[file];
+    if (contents === undefined) continue;
+    const commits = file === commitFile;
+    const document = validate(JSON.parse(contents), commits ? validateJournalCommits : validateItemRecord);
+    const world = file === pluginItemFile() ? 'live' : file === pluginItemFile('beta') ? 'beta' : 'unknown';
+    for (const [id, value] of Object.entries(document.players)) {
+      const record = players.get(id) ?? { records: {}, commits: { journals: [] } };
+      if (commits) record.commits = mergeJournalCommits(record.commits, value);
+      else record.records[world] = mergeItemRecords(record.records[world], value);
+      players.set(id, record);
+    }
+  }
+  return importPluginItemEvidence(dataDir, mergePluginItemEvidence(inherited, persisted, { v: 1, players: Object.fromEntries(players) }), mapPlayerId);
+}
+
+export function importPluginItemEvidence(_dataDir, evidence, mapPlayerId = id => id) {
+  const checked = mergePluginItemEvidence(evidence);
+  const players = new Map();
+  for (const [id, record] of Object.entries(checked.players)) {
+    const target = mapPlayerId(id);
+    if (target === undefined || target === null) continue;
+    if (typeof target !== 'string') throw new TypeError('Invalid destination player ID.');
+    if (players.has(target)) throw new TypeError('Plugin item evidence needs distinct destination players.');
+    players.set(target, record);
+  }
+  return mergePluginItemEvidence({ v: 1, players: Object.fromEntries(players) });
+}
+
+export function openPluginJournalCommits(options) {
+  return openPluginRecords({ ...options, filename: commitFile, validateRecord: validateJournalCommits, merge: mergeJournalCommits });
+}
+
 /** Sidecar only: the caller owns the save directory's existing lock. */
-export async function openPluginItems({ dataDir, members, clock = Date.now, log = console.warn }) {
-  const file = path.join(dataDir, 'plugin-items.json');
+export async function openPluginItems({ journalWorld, ...options }) {
+  if (journalWorld !== undefined && !journalWorlds.includes(journalWorld)) throw new TypeError('Invalid journal world.');
+  return openPluginRecords({ ...options, filename: pluginItemFile(journalWorld), validateRecord: validateItemRecord, merge: mergeItemRecords });
+}
+
+async function openPluginRecords({ dataDir, members, clock = Date.now, log = console.warn, filename, validateRecord, merge, inherited = () => null }) {
+  const file = path.join(dataDir, filename);
   let current = { v: 1, players: {} }, corrupt = false, queue = Promise.resolve(), closed = false, contents;
   try { contents = await readFile(file, 'utf8'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (contents !== undefined) {
-    try { current = validate(JSON.parse(contents)); }
+    try { current = validate(JSON.parse(contents), validateRecord); }
     catch {
       corrupt = true;
       log('Invalid plugin item store; starting with no item evidence until the next write.');
     }
   }
   return {
-    get(player) { return Object.hasOwn(current.players, player) ? structuredClone(current.players[player]) : null; },
+    get(player) { return merge(inherited(player), Object.hasOwn(current.players, player) ? current.players[player] : null); },
     /** Writes one player's record; members removed from the save are dropped. */
     put(player, record) {
       if (closed) return Promise.reject(Object.assign(new Error('The picker is stopping.'), { status: 503 }));
-      try { validateItemRecord(record); } catch (error) { return Promise.reject(error); }
+      try { validateRecord(record); } catch (error) { return Promise.reject(error); }
       const value = structuredClone(record);
-      const pending = queue.then(() => withStoreWrite(dataDir, async () => {
+      const pending = queue.then(() => withStoreWrite(dataDir, () => withPluginItemEvidenceWrite(dataDir, async () => {
         const live = new Set(members().map(member => member.id));
         const players = Object.fromEntries(Object.entries(current.players).filter(([id]) => live.has(id)));
-        if (live.has(player)) Object.defineProperty(players, player, { value, enumerable: true, configurable: true, writable: true });
+        // A report may have read its record before an import published. Validate
+        // against the now-current inherited evidence before changing the sidecar.
+        const combined = merge(inherited(player), Object.hasOwn(players, player) ? players[player] : null, value);
+        if (live.has(player)) Object.defineProperty(players, player, { value: combined, enumerable: true, configurable: true, writable: true });
         const next = { v: 1, players };
-        await replaceSidecar(file, `${JSON.stringify(validate(next))}\n`, corrupt, clock);
+        await replaceSidecar(file, `${JSON.stringify(validate(next, validateRecord))}\n`, corrupt, clock);
         current = next; corrupt = false;
-      }));
+      })));
       queue = pending.catch(() => {}); return pending;
     },
     async close() { closed = true; await queue; },

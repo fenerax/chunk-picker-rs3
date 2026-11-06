@@ -8,7 +8,7 @@ import { gunzipSync } from 'node:zlib';
 import { createGroupState, validateState, preferenceDefinitions, importLegacyMaps } from '../../app/core/state.mjs';
 import { selectedDataset } from '../../app/dataset-runtime.mjs';
 import { openStore } from '../../app/storage/store.mjs';
-import { openPluginItems } from '../../app/plugin-items.mjs';
+import { openPluginItems, openPluginJournalCommits } from '../../app/plugin-items.mjs';
 import { openPluginAchievements } from '../../app/plugin-achievements.mjs';
 import { openPluginKeys } from '../../app/plugin-keys.mjs';
 import { openAccountStore } from '../../app/storage/accounts.mjs';
@@ -158,8 +158,26 @@ export async function buildSaveCorpus(t) {
   try {
     await achievements.add(roster[0].id, [1, 99]);
     await items.put(roster[0].id, { baselineAt: at, items: { 857: { name: 'Synthetic item', ownedAt: at, wornAt: at, first: true } },
-      handled: [tasks[3].id], journal: { id: 'aaaaaaaaaaaaaaaa', event: 2 }, bank: { snapshot: 'bbbbbbbbbbbbbbbb', seenAt: at, coins: 50 } });
+      handled: [tasks[3].id], journal: { id: 'aaaaaaaaaaaaaaaa', event: 3 }, bank: { snapshot: 'bbbbbbbbbbbbbbbb', seenAt: at, coins: 50 } });
   } finally { await items.close(); await achievements.close(); }
+  // Real scope/ledger writers retain all journal environments and an unresolved
+  // suffix. Publish their portable compatibility copy before the frozen writer
+  // opens the disk save; its exporter intentionally drops the optional envelope.
+  for (const [journalWorld, itemId, event] of [['unknown', 34830, 1], ['beta', 1205, 2]]) {
+    const journal = await openPluginItems({ dataDir, members, journalWorld });
+    try { await journal.put(roster[0].id, { baselineAt: at,
+      items: { [itemId]: { name: `Synthetic ${journalWorld} journal item`, ownedAt: at, wornAt: at, first: false } },
+      handled: [], journal: { id: 'aaaaaaaaaaaaaaaa', event } }); }
+    finally { await journal.close(); }
+  }
+  const commits = await openPluginJournalCommits({ dataDir, members });
+  try { await commits.put(roster[0].id, { journals: [{ id: 'aaaaaaaaaaaaaaaa', committed: 3,
+    pending: [[4, 999999, 'Synthetic pending journal item', 'unknown']] }] }); }
+  finally { await commits.close(); }
+  const portable = await store.backup();
+  await store.replace(portable, store.getInfo().revision);
+  await capture('plugin-item-journals');
+  snapshots.at(-1).documents.push(portable);
   const overlays = await openOverlays({ dataDir, store, world, authenticateAdmin: () => ({ admin: true }),
     checkRequestOrigin: () => {} });
   const overlayRequest = Readable.from([Buffer.from(JSON.stringify({ widget: 'goals', player: roster[0].id, label: 'Synthetic overlay' }))]);
@@ -249,6 +267,16 @@ export async function buildSaveCorpus(t) {
       await achievements.add(roster[0].id, [1]);
       await items.put(roster[0].id, { baselineAt: at, items: {}, handled: [], journal: null });
     } finally { await achievements.close(); await items.close(); }
+    for (const scope of ['unknown', 'beta', 'commits']) {
+      await writeFile(path.join(recoveryDir, `plugin-item-journal-${scope}.json`), '{synthetic corrupt journal');
+      const journal = scope === 'commits'
+        ? await openPluginJournalCommits({ dataDir: recoveryDir, members, log() {}, clock: () => 1 })
+        : await openPluginItems({ dataDir: recoveryDir, members, journalWorld: scope, log() {}, clock: () => 1 });
+      try { await journal.put(roster[0].id, scope === 'commits' ? { journals: [] }
+        : { baselineAt: at, items: {}, handled: [], journal: null }); }
+      finally { await journal.close(); }
+    }
+    await recovery.replace(await recovery.backup(), recovery.getInfo().revision);
     features.add('quarantine-corrupt'); snapshots.push({ feature: 'quarantine-corrupt', ...await diskSnapshot(recoveryDir), state: recovery.getState() });
   } finally { await recovery.close(); }
   const migrationDir = await scratch(t, 'identity');

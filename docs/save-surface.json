@@ -6,6 +6,7 @@
     "initialize-static",
     "platform-progress",
     "plugin-progress",
+    "plugin-item-journals",
     "plugin-currency",
     "claim",
     "claim-cleanup",
@@ -147,6 +148,86 @@
     {
       "path": "/format",
       "frozen": "preserved"
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/commits/journals/[]/committed",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/commits/journals/[]/id",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/commits/journals/[]/pending/[]/[]",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/bank/coins",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/bank/seenAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/bank/snapshot",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/baselineAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/handled/[]",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/first",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/name",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/ownedAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/items/*/wornAt",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/journal/event",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/players/*/records/*/journal/id",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/entries/pluginItems/version",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
+    },
+    {
+      "path": "/optionalSidecarEvidence/schemaVersion",
+      "frozen": "private-droppable",
+      "rollForward": "The frozen portable importer/exporter may drop this optional envelope. Recover validated records and acknowledgements from the preserved state.provenance.pluginItemEvidence compatibility copy, including restore.incomingProvenance archives and transfer ownership mappings; enforce all combined limits before publication."
     },
     {
       "path": "/pluginCurrency/facts/*/coins",
@@ -1007,6 +1088,70 @@
       "frozen": "preserved"
     },
     {
+      "path": "/state/provenance/pluginItemEvidence/players/*/commits/journals/[]/committed",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/commits/journals/[]/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/commits/journals/[]/pending/[]/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/bank/coins",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/bank/seenAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/bank/snapshot",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/baselineAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/handled/[]",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/first",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/name",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/ownedAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/items/*/wornAt",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/journal/event",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/players/*/records/*/journal/id",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidence/v",
+      "frozen": "preserved"
+    },
+    {
+      "path": "/state/provenance/pluginItemEvidenceReconciled",
+      "frozen": "preserved"
+    },
+    {
       "path": "/state/provenance/restore",
       "frozen": "preserved",
       "opaque": true,
@@ -1169,6 +1314,51 @@
       "evidence": true
     },
     {
+      "path": "plugin-item-journal-beta.json",
+      "pattern": "^plugin-item-journal-beta\\.json$",
+      "root": "plugin-item-journal-beta.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-item-journal-beta.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-item-journal-beta\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-item-journal-beta.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-item-journal-unknown.json",
+      "pattern": "^plugin-item-journal-unknown\\.json$",
+      "root": "plugin-item-journal-unknown.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-item-journal-unknown.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-item-journal-unknown\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-item-journal-unknown.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
+      "path": "plugin-item-journal-commits.json",
+      "pattern": "^plugin-item-journal-commits\\.json$",
+      "root": "plugin-item-journal-commits.json",
+      "checkpoint": true,
+      "frozen": "preserved",
+      "evidence": true
+    },
+    {
+      "path": "plugin-item-journal-commits.json.corrupt-<time>[-n]",
+      "pattern": "^plugin-item-journal-commits\\.json\\.corrupt-\\d+(?:-\\d+)?$",
+      "root": "plugin-item-journal-commits.json",
+      "checkpoint": false,
+      "frozen": "preserved"
+    },
+    {
       "path": "accounts.json",
       "pattern": "^accounts\\.json$",
       "root": "accounts.json",
@@ -1263,7 +1453,7 @@
     },
     {
       "path": "<destination>.<nonce>.tmp",
-      "pattern": "^(?:state\\.json|access-token|action-acknowledgements\\.json|store\\.lock(?:\\.recovery)?|(?:accounts|invites|feedback|usage|overlays|plugin-keys|plugin-items|plugin-achievements)\\.json|static/static-[a-f0-9]{64}\\.json\\.gz|history/history-\\d{16}-\\d{16}-[a-f0-9]{16}\\.json\\.gz|backups/\\d{16}-[a-f0-9]{16}\\.json(?:\\.gz)?(?:\\.meta\\.json)?|backups/archives/archive-[a-f0-9]{16}\\.json\\.gz|receipt-quarantine/[a-f0-9]{64}\\.json)(?:\\.(?:\\d+\\.[a-f0-9]{16}|[a-f0-9-]{36})\\.tmp){1,2}$",
+      "pattern": "^(?:state\\.json|access-token|action-acknowledgements\\.json|store\\.lock(?:\\.recovery)?|(?:accounts|invites|feedback|usage|overlays|plugin-keys|plugin-items|plugin-achievements|plugin-item-journal-(?:beta|unknown|commits))\\.json|static/static-[a-f0-9]{64}\\.json\\.gz|history/history-\\d{16}-\\d{16}-[a-f0-9]{16}\\.json\\.gz|backups/\\d{16}-[a-f0-9]{16}\\.json(?:\\.gz)?(?:\\.meta\\.json)?|backups/archives/archive-[a-f0-9]{16}\\.json\\.gz|receipt-quarantine/[a-f0-9]{64}\\.json)(?:\\.(?:\\d+\\.[a-f0-9]{16}|[a-f0-9-]{36})\\.tmp){1,2}$",
       "root": "",
       "checkpoint": false,
       "frozen": "private-droppable",

@@ -66,7 +66,7 @@ test('real browser entry and optional full-state tools serve every module depend
   // import it. The main-only public candidate check cannot exercise this seam.
   queue.push('/core/state.mjs', '/core/planning.mjs');
   await walk();
-  for (const route of ['/core/rules.mjs', '/core/transport-access.mjs', '/core/teleport-returns.mjs', '/core/teleport-return-cache.mjs']) {
+  for (const route of ['/core/rules.mjs', '/core/transport-access.mjs', '/core/teleport-returns.mjs', '/core/teleport-return-cache.mjs', '/core/plugin-item-evidence.mjs']) {
     assert.ok(seen.has(route), `Traversed ${route}`);
     assert.equal((await fetch(new URL(route, origin), { redirect: 'manual' })).status, 401, `Authenticated ${route}`);
   }

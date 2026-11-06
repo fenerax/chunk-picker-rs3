@@ -88,6 +88,16 @@ test('viewers can read plugin review but cannot see keys or mutate progress', as
   assert.deepEqual(f.posts, []);
 });
 
+test('item retention failure is visible without blocking the progress review', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.itemRetentionIssue = 'Item storage is full. The journal remains queued. '.repeat(4)
+    + 'Ask the server operator to export and review retained evidence before clearing space. Live progress continues independently.';
+  f.setPreview(preview);
+  const root = await f.open();
+  assert.match(text(root), /Item storage is full.*journal remains queued.*server operator to export and review.*Live progress continues independently/);
+  assert.ok(button(root, 'Apply selected'));
+});
+
 const ticks = root => all(root).filter(node => node.tag === 'input' && node.type === 'checkbox');
 const summaryText = root => all(root).find(node => node.className === 'game-plugin-summary').textContent;
 const partFor = (root, heading) => all(root).find(node => node.tag === 'h5' && node.textContent.startsWith(heading)).parent.parent;

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { MEMBER_KEYS } from '../app/core/state.mjs';
+import { pluginItemFiles } from '../app/storage/plugin-item-snapshot.mjs';
 import { buildSaveCorpus, root } from './helpers/save-surface-corpus.mjs';
 import { surface, assertDeclared, assertCorpusCoverage, observeSaveWrites, preservationDigest, assertNeverShrinks } from './helpers/save-surface.mjs';
 
@@ -54,6 +55,7 @@ test('service checkpoint gameplay roots agree with the manifest without changing
   const declaration = /const gameplayRoots = new Set\(\[([^\]]+)\]\)/.exec(source);
   assert.ok(declaration, 'Review allowlist extraction if its declaration changes');
   const actual = [...declaration[1].matchAll(/'([^']+)'/g)].map(match => match[1]);
+  if (/\.\.\.pluginItemFiles\b/.test(declaration[1])) actual.push(...pluginItemFiles);
   const expected = [...new Set(surface.files.filter(entry => entry.checkpoint).map(entry => entry.root))];
   assert.deepEqual(actual.sort(), expected.sort());
 });

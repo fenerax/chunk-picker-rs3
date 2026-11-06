@@ -1,5 +1,6 @@
 import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 import { portableCurrencyFacts } from './storage/plugin-currency.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
@@ -17,8 +18,8 @@ export function transferDigest(value) {
   }
   return hash.digest('hex');
 }
-export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives'],
-  excluded: ['Unaccepted plugin evidence and review sidecars', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
+export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives', 'Validated item journal evidence and acknowledgements'],
+  excluded: ['Ephemeral plugin observations', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
 
 export function transferManifest(dataset, members) {
   return { version: 1, app: 'rs3-chunk-picker', schemaVersion: 1,
@@ -60,6 +61,8 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
     fail(422, 'Map each source member to a different destination member, keeping every assigned destination participant. Use a fresh picker when an assigned roster cannot fit.');
   }
   const next = owned ? state : structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
+  // Resolve frozen restore archives while source IDs still describe their owners.
+  const itemEvidence = portablePluginItemEvidence(next);
   const changed = source.some(id => entries[id] !== id);
   if (changed) {
     // A rollback release can Undo the amount without updating the portable map.
@@ -80,6 +83,11 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
     for (const field of ['skillProgress', 'questProgress', 'achievementProgress', 'itemProgress']) {
       for (const row of Object.values(member[field] ?? {})) if (row.memberId !== undefined) row.memberId = mapped(row.memberId);
     }
+  }
+  if (itemEvidence) {
+    const evidence = mergePluginItemEvidence(itemEvidence);
+    evidence.players = Object.fromEntries(Object.entries(evidence.players).filter(([id]) => Object.hasOwn(entries, id)).map(([id, record]) => [mapped(id), record]));
+    next.provenance = { ...next.provenance, pluginItemEvidence: evidence, pluginItemEvidenceReconciled: 1 };
   }
   // These records drive readiness and live compatibility projection. The exact
   // source attribution remains in transferRoster above, alongside source History.
