@@ -9,7 +9,7 @@ import { gzipSync } from 'node:zlib';
 import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { validatePluginReport } from '../app/integrations/game-plugin.mjs';
-import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
+import { GAME_ITEMS, GAME_WORN_TASKS, matchGameItems } from '../app/integrations/game-items.mjs';
 import { applyCommand, createGroupState, importBackup, validateState } from '../app/core/state.mjs';
 import { importBackup as loadLiveBackup, applyCommand as applyLiveCommand, exportBackup as exportLiveBackup } from './fixtures/rollback-main/state.mjs';
 import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
@@ -376,6 +376,35 @@ test('unknown literal task and item IDs remain valid retained evidence while aut
   const bytes = JSON.stringify(document); await writeFile(file, bytes);
   await assert.rejects(openStore({ dataDir, retention: false }), /Invalid plugin item review marker/);
   assert.equal(await readFile(file, 'utf8'), bytes);
+});
+
+test('a well-formed review marker for a later-retired task stays healthy evidence', async t => {
+  const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const at = '2026-10-22T12:00:00.000Z', members = () => [{ id: 'a' }, { id: 'b' }];
+  const record = { baselineAt: at, handled: [WEAR_TASK, `~plugin-review:${WEAR_TASK}`].sort(), journal: { id: journalId, event: 1 },
+    items: { [UNKNOWN]: { name: 'Synthetic acknowledged evidence', ownedAt: at, wornAt: null, first: true } } };
+  const writer = await openPluginItems({ dataDir, members });
+  await writer.put('a', record); await writer.close();
+  const file = path.join(dataDir, 'plugin-items.json'), original = await readFile(file, 'utf8');
+  const retired = GAME_WORN_TASKS.get(WEAR_TASK); GAME_WORN_TASKS.delete(WEAR_TASK);
+  let reader;
+  try {
+    // A fresh module instance models the next release after this task leaves the catalogue.
+    const runtime = await import('../app/plugin-items.mjs?retired-catalogue');
+    const warnings = [], log = message => warnings.push(message);
+    assert.deepEqual((await runtime.exportPluginItemEvidence(dataDir, id => id, undefined, { log })).players.a.records.live, record);
+    const inherited = { v: 1, players: { a: { records: { live: record }, commits: { journals: [] } } } };
+    assert.deepEqual((await runtime.exportPluginItemEvidence(dataDir, id => id, inherited, { log })).players.a.records.live, record);
+    reader = await runtime.openPluginItems({ dataDir, members, log });
+    assert.deepEqual(reader.get('a'), record);
+    await reader.put('b', { baselineAt: at, items: {}, handled: [], journal: null });
+    assert.equal((await readdir(dataDir)).some(name => name.startsWith('plugin-items.json.corrupt-')), false);
+    assert.deepEqual(JSON.parse(await readFile(file, 'utf8')).players.a, JSON.parse(original).players.a);
+    assert.deepEqual(warnings, []);
+    const bogus = { v: 1, players: { a: { records: { live: { ...record, handled: ['~plugin-review:bogus'] } }, commits: { journals: [] } } } };
+    await assert.rejects(runtime.exportPluginItemEvidence(dataDir, id => id, bogus), /Invalid plugin item review marker/);
+  } finally { await reader?.close(); GAME_WORN_TASKS.set(WEAR_TASK, retired); }
 });
 
 for (const name of ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json']) test(`decision recovery tolerates an unknown review marker in optional ${name}`, async t => {

@@ -69,6 +69,7 @@ const journalWorlds = ['beta', 'unknown'];
 const pluginItemFile = journalWorld => journalWorld ? `plugin-item-journal-${journalWorld}.json` : 'plugin-items.json';
 const commitFile = 'plugin-item-journal-commits.json';
 const REVIEW = '~plugin-review:';
+const MARKER_TASK = /^rs3:(?:task|goal):[A-Za-z0-9%._~-]+(?::[A-Za-z0-9%._~-]+)*$/;
 const ITEM_TASKS = new Set([...GAME_ITEMS.values()].map(item => item.goalId).concat([...GAME_WORN_TASKS.keys()]));
 const AUTO_TASKS = new Set([...GAME_ITEMS.values()].map(item => item.goalId));
 export const hasPluginItemDecisions = evidence => Object.values(evidence?.players ?? {}).some(player =>
@@ -83,7 +84,9 @@ export async function hasLegacyPluginItemDecisions(dataDir) {
 function decisionIds(record) {
   return (record?.handled ?? []).filter(id => id.startsWith(REVIEW)).map(id => {
     const task = id.slice(REVIEW.length);
-    if (!ITEM_TASKS.has(task)) throw new TypeError('Invalid plugin item review marker.');
+    // Check stable ID syntax, not today's catalogue: a marker for a task that
+    // was later retired is still a healthy historical decision.
+    if (!MARKER_TASK.test(task)) throw new TypeError('Invalid plugin item review marker.');
     return task;
   });
 }
