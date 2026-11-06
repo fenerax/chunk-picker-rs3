@@ -13,6 +13,7 @@ import { captureOnline } from './online.mjs';
 import { serviceOperation } from './service-lock.mjs';
 import { checkStoppedCompatibility, writeBackupStatus } from './recovery.mjs';
 import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
+import { reconcileBeforeStart } from './reconcile-plugin-suppression.mjs';
 
 // Hands restored service files back to the service user. The tombstone
 // ledger is repaired explicitly: an operator that died after MP5 replaced it
@@ -148,7 +149,7 @@ export async function runServiceOperator({ settings, command, argument, evidence
         result = await serviceBackup({ settings, release, request, stopped: argument === '--stopped', assertStopped: stopped });
         await writeBackupStatus(settings.dataDir, { result: 'success', byteSize: result.byteSize, at });
       } catch (error) { await writeBackupStatus(settings.dataDir, { result: 'failed', at }); throw error; }
-      finally { if (argument === '--stopped' && wasActive) { await stopped(); await controller.start(); } }
+      finally { if (argument === '--stopped' && wasActive) { await stopped(); await reconcileBeforeStart({ settings, assertStopped: stopped }); await controller.start(); } }
     } else if (command === 'restore') {
       await stopped();
       result = await restoreServiceStopped({ settings, backup: argument, release, assertStopped: stopped });

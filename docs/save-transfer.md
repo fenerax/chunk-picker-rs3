@@ -95,6 +95,13 @@ The same capsule is retained under `state.provenance.optionalSidecarEvidence`.
 Older releases can load and re-export that provenance even when they ignore the
 optional envelope. Suppression's atomic authority remains
 `state.provenance.pluginAutoHandled`; exporting does not mutate the live state.
+Suppression capture strictly reads both legacy handled sidecars too, so decisions
+written by an older runtime survive transport. Startup durably folds those
+decisions into the atomic field. Capture, restore preparation and publication,
+startup and the stopped rollback gate validate the complete union against both
+handled limits. Unreadable, invalid or overflowing evidence refuses the operation
+instead of dropping replay decisions. Sidecar writes and restore publication
+share a per-store evidence lock; publication rechecks evidence after caller hooks.
 
 Register types in `app/optional-sidecar-evidence.mjs`. A registration supplies
 `mergePlayer(...records)`, which validates and immutably combines one or more

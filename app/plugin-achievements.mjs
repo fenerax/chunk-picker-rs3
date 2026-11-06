@@ -1,4 +1,5 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
+import { withPluginEvidence } from './storage/plugin-evidence-lock.mjs';
 import { lstat, open, readFile, rename, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -99,7 +100,7 @@ export async function openPluginAchievements({ dataDir, members, clock = Date.no
       const incoming = [...new Set(ids)];
       if (incoming.some(id => !validId(id))) return Promise.reject(new TypeError('Invalid handled achievement IDs.'));
       incoming.sort((a, b) => a - b);
-      const pending = queue.then(() => withStoreWrite(dataDir, async () => {
+      const pending = queue.then(() => withStoreWrite(dataDir, () => withPluginEvidence(dataDir, async () => {
         const live = new Set(members().map(member => member.id));
         const next = { v: 1, players: Object.fromEntries(Object.entries(current.players).filter(([id]) => live.has(id))) };
         let changed = Object.keys(next.players).length !== Object.keys(current.players).length;
@@ -119,7 +120,7 @@ export async function openPluginAchievements({ dataDir, members, clock = Date.no
           await replaceSidecar(file, `${JSON.stringify(validate(next))}\n`, corrupt, clock);
           current = next; corrupt = false;
         }
-      }));
+      })));
       queue = pending.catch(() => {}); return pending;
     },
     async close() { closed = true; await queue; },

@@ -14,21 +14,30 @@ import { openGamePlugin } from '../app/game-plugin.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { reconcileForRollback } from '../scripts/linux/reconcile-plugin-suppression.mjs';
 import { reconcilePluginHandledSidecars } from '../app/storage/plugin-handled-sidecars.mjs';
+import { reconcileBeforeStart } from '../scripts/linux/reconcile-plugin-suppression.mjs';
+import { deployStopped } from '../scripts/linux/operator.mjs';
+import { readRelease } from '../scripts/linux/runtime.mjs';
+import { createHash } from 'node:crypto';
+import { serialize } from 'node:v8';
 
 const execute = promisify(execFile), root = fileURLToPath(new URL('../', import.meta.url));
 const release = '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e';
 let checkout, frozenStore, frozenPlugin;
 before(async () => {
+  if (process.env.RS3_FROZEN_ROLLBACK_ROOT) {
+    checkout = path.resolve(process.env.RS3_FROZEN_ROLLBACK_ROOT);
+  } else {
   try { await execute('git', ['cat-file', '-e', `${release}^{commit}`], { cwd: root }); }
   catch { return; } // A shallow public checkout may not contain the pinned release.
   await mkdir(path.join(root, '.local'), { recursive: true });
   checkout = path.join(root, '.local', `frozen-plugin-runtime-${randomUUID()}`);
   await execute('git', ['worktree', 'add', '--detach', checkout, release], { cwd: root });
+  }
   ({ openStore: frozenStore } = await import(pathToFileURL(path.join(checkout, 'app/storage/store.mjs'))));
   ({ openGamePlugin: frozenPlugin } = await import(pathToFileURL(path.join(checkout, 'app/game-plugin.mjs'))));
 });
 after(async () => {
-  if (checkout) await execute('git', ['worktree', 'remove', checkout], { cwd: root });
+  if (checkout && !process.env.RS3_FROZEN_ROLLBACK_ROOT) await execute('git', ['worktree', 'remove', checkout], { cwd: root });
 });
 
 const itemTask = 'rs3:goal:equipment:000dc1', achievementTask = 'diary:synthetic';
@@ -36,12 +45,14 @@ const tasks = [{ id: itemTask, category: 'BiS', label: 'Obtain a Yew shortbow' }
   { id: achievementTask, category: 'Diary', label: '~|Synthetic Achievements#Easy|~ First Task' }];
 const identity = { admin: true }, now = '2026-11-01T12:00:00.000Z';
 
-async function failedSidecarWindow(t, kind) {
+async function failedSidecarWindow(t, kind, { directory, legacy = false, atomic = false } = {}) {
   await mkdir(path.join(root, '.local'), { recursive: true });
-  const dataDir = await mkdtemp(path.join(root, '.local', 'rollback-suppression-test-'));
+  const dataDir = directory ?? await mkdtemp(path.join(root, '.local', 'rollback-suppression-test-'));
   const initialState = createGroupState([{ id: 'owner', name: 'Explorer' }]); initialState.tasks = tasks;
+  if (atomic) initialState.provenance = { pluginAutoHandled: { owner: { items: ['custom:atomic'], achievements: [98] } } };
   const catalogue = new Map(tasks.map(row => [row.id, row]));
-  let store = await openStore({ dataDir, initialState, taskCatalogue: catalogue, retention: false, now: () => now });
+  let store = await (legacy ? frozenStore : openStore)({ dataDir, initialState, taskCatalogue: catalogue, retention: false, now: () => now });
+  let activeDir = dataDir, activeMember = 'owner';
   let controller, input, seq = 0;
   t.after(async () => { await controller?.close(); await store?.close(); await rm(dataDir, { recursive: true, force: true }); });
   const file = path.join(dataDir, `plugin-${kind}.json`), held = file + '.synthetic-held';
@@ -49,11 +60,11 @@ async function failedSidecarWindow(t, kind) {
     journal: { id: 'aaaaaaaaaaaaaaaa', event: 0 }, bank: { snapshot: 'bbbbbbbbbbbbbbbb', seenAt: now, coins: 0 } } : { handled: [99] };
   await writeFile(file, JSON.stringify({ v: 1, players: { owner: previous } }));
   async function openController(open) {
-    controller = await open({ dataDir, store, clock: () => Date.parse(now), world: { chunks: new Map() },
+    controller = await open({ dataDir: activeDir, store, clock: () => Date.parse(now), world: { chunks: new Map() },
       registry: { resolve: () => ({}) }, questMapping: new Map(), taskCatalogue: () => tasks,
       serializeMutation: operation => operation(), bodyJSON: async () => input,
       json: async (_request, _response, status) => assert.equal(status, 200), checkRequestOrigin: () => {}, log: () => {} });
-    return (await controller.create(identity, { memberId: 'owner', label: 'Synthetic plugin' })).key;
+    return (await controller.create(identity, { memberId: activeMember, label: 'Synthetic plugin' })).key;
   }
   async function send(key) {
     input = { v: 1, seq: ++seq, sentAt: now, position: { x: 50, z: 50, floor: 0 }, world: { id: 1, beta: false },
@@ -63,26 +74,29 @@ async function failedSidecarWindow(t, kind) {
     const request = { method: 'POST', url: '/api/plugin/v1/report', headers: { authorization: `Bearer ${key}` } };
     await controller.handle(request, {}, { route: request.url, security: {} });
   }
-  const key = await openController(openGamePlugin), command = store.command;
+  const key = await openController(legacy ? frozenPlugin : openGamePlugin), command = store.command;
   store.command = async (...args) => {
     const result = await command(...args);
-    if (args[0].type === 'apply-game-progress') { await rename(file, held); await mkdir(file); }
+    if (!legacy && args[0].type === 'apply-game-progress') { await rename(file, held); await mkdir(file); }
     return result;
   };
   await send(key);
   assert.equal(store.getInfo().revision, 1);
   const taskId = kind === 'items' ? itemTask : achievementTask;
   assert.ok(store.getState().members[0].completedTasks.includes(taskId));
+  if (legacy) await store.command({ type: 'undo' }, store.getInfo().revision);
   await controller.close(); controller = null; // Keep writes failing THROUGH shutdown.
   await store.close(); store = null;
-  const retained = JSON.parse(await readFile(held, 'utf8')).players.owner;
+  const retained = JSON.parse(await readFile(legacy ? file : held, 'utf8')).players.owner;
   return { dataDir, file, held, previous: retained, taskId,
+    close: async () => { await controller?.close(); controller = null; await store?.close(); store = null; },
     repair: async () => { await rm(file, { recursive: true }); await rename(held, file); },
-    replayFrozen: async () => {
-      store = await frozenStore({ dataDir, retention: false, taskCatalogue: catalogue, now: () => now });
-      await store.command({ type: 'undo' }, store.getInfo().revision);
+    replayFrozen: async ({ target = dataDir, memberId = 'owner', undo = true, current = false } = {}) => {
+      activeDir = target; activeMember = memberId;
+      store = await (current ? openStore : frozenStore)({ dataDir: target, retention: false, taskCatalogue: catalogue, now: () => now });
+      if (undo) await store.command({ type: 'undo' }, store.getInfo().revision);
       const revision = store.getInfo().revision;
-      const legacyKey = await openController(frozenPlugin);
+      const legacyKey = await openController(current ? openGamePlugin : frozenPlugin);
       await send(legacyKey);
       assert.equal(store.getInfo().revision, revision, 'Frozen controller must not author a new tick after Undo');
       assert.deepEqual(store.getState().members[0].completedTasks, []);
@@ -101,7 +115,10 @@ for (const kind of ['items', 'achievements']) for (const bridge of ['startup', '
     const saved = await readFile(path.join(f.dataDir, 'state.json'));
     if (bridge === 'startup') { const healed = await openStore({ dataDir: f.dataDir, retention: false }); await healed.close(); }
     else await reconcileForRollback(f.dataDir);
-    assert.deepEqual(await readFile(path.join(f.dataDir, 'state.json')), saved, 'Reconciliation never changes gameplay or Undo');
+    const after = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'))), before = JSON.parse(saved);
+    assert.deepEqual({ ...after.state, provenance: undefined }, { ...before.state, provenance: undefined }, 'Reconciliation never changes gameplay or Undo');
+    if (bridge === 'startup') assert.deepEqual(after.state.provenance.pluginAutoHandled.owner[kind],
+      kind === 'items' ? ['custom:previous', itemTask].sort() : [1, 99]);
     const record = JSON.parse(await readFile(f.file, 'utf8')).players.owner;
     assert.deepEqual(record.handled, kind === 'items' ? ['custom:previous', itemTask].sort() : [1, 99]);
     assert.deepEqual({ ...record, handled: f.previous.handled }, f.previous, 'Keep baseline, journal, bank and existing decisions');
@@ -158,8 +175,193 @@ test('sidecar reconciliation refuses an overflowing union before publishing eith
   await writeFile(file, bytes);
   const state = store.getState(); state.provenance = { pluginAutoHandled: { owner: { achievements: [1], items: [itemTask] } } };
   try {
-    await assert.rejects(reconcilePluginHandledSidecars({ dataDir, state }), /Invalid plugin item record/);
+    await assert.rejects(reconcilePluginHandledSidecars({ dataDir, state }), /Invalid plugin (item record|suppression IDs)/);
     assert.equal(await readFile(file, 'utf8'), bytes);
     await assert.rejects(readFile(path.join(dataDir, 'plugin-achievements.json')), { code: 'ENOENT' });
   } finally { await store.close(); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+const transferOptions = { dataset: { datasetId: 'duo-legacy', datasetContractVersion: 1, digest: 'synthetic', capabilities: {} },
+  route: '/api/restore/preview', world: { chunks: new Map() } };
+const backup = state => ({ format: 'rs3-chunk-picker', schemaVersion: 1, state });
+async function emptyStore(t, settings = {}) {
+  await mkdir(path.join(root, '.local'), { recursive: true });
+  const dataDir = await mkdtemp(path.join(root, '.local', 'suppression-union-test-'));
+  const initialState = createGroupState([{ id: 'owner', name: 'Explorer' }]); initialState.tasks = tasks;
+  const store = await openStore({ dataDir, initialState, retention: false, ...settings });
+  t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  return { dataDir, store, initialState };
+}
+function record(kind, handled) {
+  return kind === 'items' ? { baselineAt: now, items: {}, handled, journal: null } : { handled };
+}
+const marker = kind => kind === 'items' ? itemTask : 1;
+const full = kind => kind === 'items' ? Array.from({ length: 2000 }, (_, i) => `custom:${i}`).sort()
+  : Array.from({ length: 20000 }, (_, i) => i + 100);
+async function sidecar(dataDir, kind, ids) {
+  await writeFile(path.join(dataDir, `plugin-${kind}.json`), JSON.stringify({ v: 1, players: { owner: record(kind, ids) } }));
+}
+function suppressed(state, kind) {
+  return { ...state, provenance: { ...state.provenance, pluginAutoHandled: { owner: {
+    items: kind === 'items' ? [itemTask] : [], achievements: kind === 'achievements' ? [1] : [],
+  } } } };
+}
+
+for (const kind of ['items', 'achievements']) {
+  for (const atomic of [false, true]) for (const transport of ['replace', 'whole', 'member']) {
+    test(`portable ${transport} retains frozen-only ${kind} decisions${atomic ? ' alongside atomic decisions' : ''}`, async t => {
+      if (!frozenStore) return t.skip('Pinned rollback release is unavailable in this shallow checkout.');
+      const f = await failedSidecarWindow(t, kind, { legacy: true, atomic });
+      const source = await openStore({ dataDir: f.dataDir, retention: false });
+      let portable;
+      try {
+        assert.ok(source.getState().provenance.pluginAutoHandled.owner[kind].includes(marker(kind)));
+        const disk = JSON.parse(await readFile(path.join(f.dataDir, 'state.json')));
+        assert.ok(disk.state.provenance.pluginAutoHandled.owner[kind].includes(marker(kind)), 'Fold-back is durable before serving');
+        portable = await source.backup();
+      } finally { await source.close(); }
+      const memberId = transport === 'replace' ? 'owner' : 'partner';
+      const initialState = createGroupState([{ id: memberId, name: 'Explorer' }]); initialState.tasks = tasks;
+      const dest = await emptyStore(t, { initialState });
+      if (transport === 'replace') await dest.store.replace(portable, 0);
+      else {
+        const prepared = await dest.store.prepareTransfer(serialize({ backup: portable,
+          ...(transport === 'member' ? { memberId, sourceMemberId: 'owner' } : { rosterMapping: { owner: memberId } }) }),
+        { ...transferOptions, route: transport === 'member' ? '/api/member-restore/preview' : transferOptions.route });
+        await dest.store.applyTransfer(prepared.ticket, 0);
+      }
+      await dest.store.close();
+      await f.replayFrozen({ target: dest.dataDir, memberId, undo: false, current: true });
+    });
+  }
+
+  for (const transport of ['replace', 'whole', 'member', 'publication', 'replace-publication', 'preview-race']) {
+    test(`${transport} refuses a ${kind} legacy/atomic union overflow before publication`, async t => {
+      let inject = false, target;
+      const dest = await emptyStore(t, { beforeCommit: async () => { if (inject) await sidecar(target, kind, full(kind)); } });
+      target = dest.dataDir;
+      const incoming = backup(suppressed(dest.initialState, kind));
+      const before = await readFile(path.join(target, 'state.json'));
+      let operation;
+      if (!['publication', 'replace-publication', 'preview-race'].includes(transport)) await sidecar(target, kind, full(kind));
+      if (transport === 'replace' || transport === 'replace-publication') {
+        inject = transport === 'replace-publication';
+        operation = () => dest.store.replace(incoming, 0);
+      }
+      else {
+        const prepare = () => dest.store.prepareTransfer(serialize({ backup: incoming,
+          ...(transport === 'member' ? { memberId: 'owner', sourceMemberId: 'owner' } : {}) }),
+        { ...transferOptions, route: transport === 'member' ? '/api/member-restore/preview' : transferOptions.route });
+        if (transport === 'publication' || transport === 'preview-race') {
+          const preview = await prepare(); inject = transport === 'publication';
+          if (transport === 'preview-race') await sidecar(target, kind, full(kind));
+          operation = () => dest.store.applyTransfer(preview.ticket, 0);
+        } else operation = async () => { const preview = await prepare(); await dest.store.applyTransfer(preview.ticket, 0); };
+      }
+      await assert.rejects(operation(), /Invalid plugin|evidence|suppression/i);
+      assert.equal(dest.store.getInfo().revision, 0);
+      assert.deepEqual(await readFile(path.join(target, 'state.json')), before);
+      await dest.store.close();
+      const reopened = await openStore({ dataDir: target, retention: false });
+      await reopened.close(); // The refused restore has not made the picker unstartable.
+    });
+  }
+
+  for (const bridge of ['startup', 'rollback-command']) test(`${bridge} refuses ${kind} overflow before changing the checkpoint or sidecars`, async t => {
+    const dest = await emptyStore(t);
+    await dest.store.close();
+    const file = path.join(dest.dataDir, 'state.json'), document = JSON.parse(await readFile(file));
+    document.state = suppressed(document.state, kind);
+    const bytes = JSON.stringify(document); await writeFile(file, bytes);
+    await sidecar(dest.dataDir, kind, full(kind));
+    const legacyBytes = await readFile(path.join(dest.dataDir, `plugin-${kind}.json`));
+    await assert.rejects(bridge === 'startup' ? openStore({ dataDir: dest.dataDir, retention: false }) : reconcileForRollback(dest.dataDir), /Invalid plugin/);
+    assert.equal(await readFile(file, 'utf8'), bytes);
+    assert.deepEqual(await readFile(path.join(dest.dataDir, `plugin-${kind}.json`)), legacyBytes);
+  });
+
+  for (const fault of ['invalid', 'unreadable', 'overflow']) test(`portable capture refuses ${fault} legacy ${kind} evidence`, async t => {
+    const dest = await emptyStore(t, { initialState: suppressed(createGroupState([{ id: 'owner', name: 'Explorer' }]), kind) });
+    const file = path.join(dest.dataDir, `plugin-${kind}.json`);
+    await rm(file, { force: true });
+    if (fault === 'invalid') await writeFile(file, '{}');
+    if (fault === 'unreadable') await mkdir(file);
+    if (fault === 'overflow') await sidecar(dest.dataDir, kind, full(kind));
+    await assert.rejects(dest.store.backup(), /Invalid|unavailable|directory|EISDIR/i);
+    await assert.rejects(dest.store.exportBackup({ dataset: transferOptions.dataset }), /Invalid|unavailable|directory|EISDIR/i);
+  });
+}
+
+async function operatorFixture(t) {
+  const dest = await emptyStore(t); await dest.store.close();
+  const controlDir = path.join(dest.dataDir, 'operator-control'); await mkdir(controlDir);
+  const settings = { dataDir: dest.dataDir, controlDir, current: path.join(controlDir, 'current.json'), minFreeBytes: 0 };
+  await writeFile(dest.dataDir + '.dataset.json', '{}');
+  t.after(() => rm(dest.dataDir + '.dataset.json', { force: true }));
+  const releases = [];
+  for (const name of ['old', 'candidate']) {
+    const core = path.join(controlDir, name); await mkdir(core);
+    const config = path.join(controlDir, `${name}-config.json`), bytes = JSON.stringify({ coreRoot: core, dataDir: dest.dataDir });
+    await writeFile(config, bytes);
+    const pointer = path.join(controlDir, `${name}-pointer.json`);
+    await writeFile(pointer, JSON.stringify({ config: { path: config, sha256: createHash('sha256').update(bytes).digest('hex') } }));
+    releases.push(await readRelease(pointer, dest.dataDir));
+  }
+  await writeFile(settings.current, releases[0].pointerBytes);
+  return { settings, current: releases[0], candidate: releases[1] };
+}
+
+for (const kind of ['items', 'achievements']) for (const repair of [false, true]) {
+  test(`real operator rollback ${repair ? 'heals' : 'refuses'} the failed ${kind} sidecar before frozen replay`, async t => {
+    if (!frozenStore) return t.skip('Pinned rollback release is unavailable in this shallow checkout.');
+    const f = await operatorFixture(t);
+    let active = true, starts = 0, window, rollbackChecked = false;
+    const controller = {
+      state: async () => ({ active, stopped: !active }), stop: async () => { active = false; },
+      start: async () => {
+        assert.equal(active, false); starts++;
+        if (starts === 1) {
+          window = await failedSidecarWindow(t, kind, { directory: f.settings.dataDir });
+          if (repair) await window.repair();
+        } else await window.replayFrozen();
+        active = true;
+      },
+    };
+    const check = async ({ phase }) => {
+      if (phase === 'rollback') {
+        rollbackChecked = true;
+        if (repair) assert.ok(!JSON.parse(await readFile(window.file)).players.owner.handled.includes(marker(kind)), 'Compatibility-only probe has not healed live evidence');
+      }
+    };
+    try {
+      await assert.rejects(deployStopped({ ...f, controller, check, wait: async () => {},
+        request: async release => ({ ready: release === f.current, savesReady: true }) }),
+      repair ? /Private readiness/ : error => error.code === 'PLUGIN_RECONCILIATION_FAILED');
+      assert.ok(rollbackChecked);
+      assert.equal(starts, repair ? 2 : 1);
+      assert.equal(active, repair);
+    } finally { await window?.close(); }
+  });
+}
+
+test('service start reconciliation gates every active picker, including quarantined stores', async t => {
+  const first = await emptyStore(t), second = await emptyStore(t);
+  await first.store.close(); await second.store.close();
+  const registryDir = path.join(first.dataDir, 'registry'), pickerRoot = path.join(first.dataDir, 'pickers');
+  await mkdir(registryDir); await mkdir(pickerRoot);
+  const owner = randomUUID(), id = `p_${'a'.repeat(32)}`, target = path.join(pickerRoot, id);
+  await rename(second.dataDir, target);
+  const document = { schemaVersion: 1, accounts: [{ id: owner, identities: [], defaultPickerId: id, createdAt: now,
+    memberships: [{ pickerId: id, role: 'owner', memberId: 'owner' }] }],
+  pickers: [{ id, kind: 'default', ownerAccountId: owner, lifecycle: 'active', provisioning: 'ready', memberIds: ['owner'], createdAt: now }], capabilities: [] };
+  await writeFile(path.join(registryDir, 'registry.json'), JSON.stringify(document));
+  await writeFile(path.join(target, 'quarantine.json'), '{}');
+  const file = path.join(target, 'state.json'), state = JSON.parse(await readFile(file)); state.state = suppressed(state.state, 'items');
+  await writeFile(file, JSON.stringify(state));
+  await writeFile(path.join(target, 'plugin-items.json'), '{}');
+  const settings = { dataDir: first.dataDir, multiPicker: { registryDir, pickerRoot } };
+  await assert.rejects(reconcileBeforeStart({ settings, assertStopped: async () => {} }), { code: 'PLUGIN_RECONCILIATION_FAILED' });
+  await rm(path.join(target, 'plugin-items.json'));
+  await reconcileBeforeStart({ settings, assertStopped: async () => {} });
+  assert.deepEqual(JSON.parse(await readFile(path.join(target, 'plugin-items.json'))).players.owner.handled, [itemTask]);
 });

@@ -258,12 +258,17 @@ ID, with sorted `achievements` (up to 20,000 numeric IDs) and `items` (up to 2,0
 task IDs). The store publishes this replay policy with the tick, outside gameplay
 Undo deltas. Unticking or Undo therefore cannot make an automatic observation
 eligible again after a sidecar failure and restart. The extension stays absent
-on older saves until an automatic tick; existing sidecars continue to supply
-earlier suppression. Backups and whole-picker restores retain the extension,
+on older saves until an automatic tick or startup folds in earlier decisions
+from the legacy handled sidecars. Backups and whole-picker restores retain the extension,
 and portable roster mapping remaps its member keys.
 
-Writable startup and standby activation durably reconcile committed replay
-decisions into the legacy item and achievement handled sidecars before serving.
+Writable startup strictly validates both legacy handled sidecars and durably
+folds their union into this provenance before serving, preserving revision,
+History and Undo. It then reconciles committed decisions back into the legacy
+sidecars. Standby activation requires a restart if new legacy decisions need
+folding. Restore preparation and publication validate both union limits against
+the destination sidecars before changing the checkpoint; overflow never commits
+an unstartable restore. Unreadable or invalid evidence refuses the operation.
 The frozen `06e15939` loader preserves this extension, but its plugin controller
 ignores it. Before starting that runtime, the stopped rollback procedure must
 successfully run the new release's

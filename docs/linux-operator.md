@@ -258,9 +258,13 @@ Run it as the service account with access to that directory. Only after this
 command exits successfully may the rollback procedure select and start the old
 runtime. Chain the start with `&&`, or stop the procedure on any nonzero exit;
 never continue after `Rollback refused`. Keep the new release available until
-the rollback is complete. This step also applies to automatic rollback adapters
-before they start a frozen runtime; their load/compatibility probe alone does
-not prove replay suppression.
+the rollback is complete. The installed operator now runs this gate before
+candidate starts, automatic failed-candidate rollback, manual deployment and
+health/backup restarts. The service wrapper also runs it before loading the
+selected runtime, including starts outside the operator. In service mode it
+visits the legacy store and every materialized active picker, including
+quarantined stores. A failure leaves the runtime stopped. Load/compatibility
+probes on disposable copies do not reconcile the real stores.
 
 The tool acquires the ordinary store writer locks, decodes the latest saved
 checkpoint without changing gameplay, and merges committed
@@ -271,9 +275,14 @@ must succeed; unreadable evidence, invalid unions, capacity overflow or writer
 ownership refuses the rollback. A partial sidecar publication is safe to retry
 while stopped: the unions are monotonic and idempotent.
 
-The current runtime performs the same reconciliation before serving a writable
-store, including standby activation. This heals an earlier crash window on
-restart. Frozen release `06e15939` retains the provenance field but its plugin
+The current runtime also strictly reads both legacy handled sidecars and folds
+their decisions into saved provenance before serving a writable store, without
+changing gameplay revision, History or Undo. This preserves decisions written
+by a frozen runtime when a later export moves the save elsewhere. Both union
+limits are checked before any checkpoint or sidecar is published. Writable
+startup then reconciles the sidecars; standby activation refuses new evidence
+that requires a restart to fold it durably. This heals an earlier crash window
+on restart. Frozen release `06e15939` retains the provenance field but its plugin
 controller only reads the legacy sidecars, so it requires the stopped reconcile
 step even when a backup loads and Undo succeeds.
 

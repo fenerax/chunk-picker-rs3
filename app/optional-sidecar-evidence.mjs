@@ -3,6 +3,7 @@ import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { mergePluginHandledRecords, reconcilePluginHandled } from './storage/plugin-handled.mjs';
 import { validRosterSourceId, validRosterDestinationId } from './import-output.mjs';
+import { legacyPluginHandledFiles, decodeLegacyPluginHandled } from './storage/plugin-handled-sidecars.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const validEvidenceTypeId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id);
@@ -13,7 +14,8 @@ const invalid = () => { throw new TypeError('Invalid optional sidecar evidence.'
 // Imported payloads never select a filesystem path or cause a sidecar write.
 export const optionalSidecarEvidenceTypes = Object.freeze({
   pluginReplaySuppression: {
-    files: [],
+    files: legacyPluginHandledFiles,
+    capture: ({ state, files, unavailable }) => decodeLegacyPluginHandled(state, files, unavailable).provenance?.pluginAutoHandled,
     fromState: state => state.provenance?.pluginAutoHandled,
     mergePlayer: (...records) => mergePluginHandledRecords(...records),
     materialize: (state, players) => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: players } }),
