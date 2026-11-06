@@ -36,13 +36,14 @@ export function baseLocationId(location) {
   return /^\d+-\d+$/.test(id) ? id.split('-')[0] : id;
 }
 
-function declarationIndex(definitions, world) {
+function declarationIndex(definitions, world, checkpoint) {
   if (definitionIndexes.has(definitions)) return definitionIndexes.get(definitions);
   const sources = new Map(), locations = new Set(), aliases = new Map(), reverseAliases = new Map();
   const add = (kind, name, location) => {
     const key = `${kind}:${name}`, set = sources.get(key) ?? new Set(); set.add(location); sources.set(key, set);
   };
   const visit = (location, record) => {
+    checkpoint();
     locations.add(location);
     for (const kind of ['Object', 'NPC', 'Monster', 'Shop', 'Spawn']) for (const [name, quantity] of entries(record[kind])) if (quantity !== false) add(kind, name, location);
     for (const [section, data] of entries(record.Sections)) visit(`${location}-${section}`, data);
@@ -53,18 +54,22 @@ function declarationIndex(definitions, world) {
       aliases.set(id, record.Name); const names = reverseAliases.get(record.Name) ?? []; names.push(id); reverseAliases.set(record.Name, names);
     }
   }
-  for (const id of world?.chunks?.keys?.() ?? []) locations.add(id);
-  for (const id of world?.areas?.keys?.() ?? []) locations.add(id);
+  for (const id of world?.chunks?.keys?.() ?? []) { checkpoint(); locations.add(id); }
+  for (const id of world?.areas?.keys?.() ?? []) { checkpoint(); locations.add(id); }
   for (const [field, kind] of [['Objects', 'Object'], ['NPCs', 'NPC'], ['Monsters', 'Monster'], ['Shops', 'Shop'], ['Spawns', 'Spawn']]) {
-    for (const [name, gates] of entries(definitions.taskUnlocks?.[field])) for (const [location] of entries(gates)) if (locations.has(location)) add(kind, name, location);
+    for (const [name, gates] of entries(definitions.taskUnlocks?.[field])) for (const [location] of entries(gates)) {
+      checkpoint(); if (locations.has(location)) add(kind, name, location);
+    }
   }
   const value = { sources, locations, aliases, reverseAliases }; definitionIndexes.set(definitions, value); return value;
 }
 
 /** Location associations retain task status. They never simulate unlocking or
  * turn a clue location marker into proof of a doable step. */
-function* chunkPlanningIndexSteps(definitions, result, world) {
-  const declarations = declarationIndex(definitions, world), byLocation = new Map(), clueLocations = new Map(), locationKeys = new Map();
+function* chunkPlanningIndexSteps(definitions, result, world, isCurrent = () => true) {
+  const checkpoint = () => { if (!isCurrent()) throw new Error('The viewed chunk changed while loading location evidence.'); };
+  checkpoint();
+  const declarations = declarationIndex(definitions, world, checkpoint), byLocation = new Map(), clueLocations = new Map(), locationKeys = new Map();
   let accounting = planningSizer(), taskIdBytes;
   const canonical = location => declarations.aliases.get(String(location)) ?? String(location);
   const keys = location => {
@@ -73,6 +78,7 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
     return locationKeys.get(id);
   };
   const add = (task, location, reason) => {
+    checkpoint();
     const id = canonical(location);
     if (!declarations.locations.has(id)) return;
     const locationBytes = planningStringBytes(id), reasonBytes = planningStringBytes(reason);
@@ -92,6 +98,7 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
     return values(definitions.codeItems?.[`${kind}Plus`]?.[clean] ?? clean);
   };
   for (const task of result.tasks ?? []) {
+    checkpoint();
     taskIdBytes = typeof task.id === 'string' ? planningStringBytes(task.id) : undefined;
     const record = task.record ?? {};
     for (const token of values(record.Chunks)) for (const location of expand('chunks', token)) add(task, location, 'Declared location requirement');
@@ -112,6 +119,7 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
     yield;
   }
   for (const [tier, markers] of entries(definitions.clues)) for (const [location, marker] of entries(markers)) {
+    checkpoint();
     const id = canonical(location);
     if (!declarations.locations.has(id)) continue;
 
@@ -121,6 +129,7 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
     yield;
   }
   const index = { byLocation, clueLocations, canonical }, bytes = accounting.finish();
+  checkpoint();
   accounting = undefined; taskIdBytes = undefined;
   if (bytes !== undefined) planningSizes.set(index, { bytes, baseline: new WeakRef(result), rows: new WeakRef(byLocation), clues: new WeakRef(clueLocations) });
   return index;
@@ -133,13 +142,14 @@ export function buildChunkPlanningIndex(definitions, result, world) {
 
 /** Explicit planning views build the same index in small slices so input and
  * map painting can continue while the full location evidence is processed. */
-export async function buildChunkPlanningIndexIncremental(definitions, result, world, isCurrent = () => true) {
-  const steps = chunkPlanningIndexSteps(definitions, result, world);
+export async function buildChunkPlanningIndexIncremental(definitions, result, world, isCurrent = () => true,
+  yieldControl = () => new Promise(resolve => typeof requestAnimationFrame === 'function' ? requestAnimationFrame(resolve) : setTimeout(resolve, 0))) {
+  const steps = chunkPlanningIndexSteps(definitions, result, world, isCurrent);
   let started = performance.now();
   for (;;) {
     const next = steps.next(); if (next.done) return next.value;
     if (performance.now() - started < 8) continue;
-    await new Promise(resolve => typeof requestAnimationFrame === 'function' ? requestAnimationFrame(resolve) : setTimeout(resolve, 0));
+    await yieldControl();
     if (!isCurrent()) throw new Error('The viewed chunk changed while loading location evidence.');
     started = performance.now();
   }
