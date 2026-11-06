@@ -1,15 +1,16 @@
 // Synthetic-only save-path profiler. Run with Node 24 and a 3 GiB heap.
 // node scripts/perf/save-path.mjs --companion <scale-dataset output> --out <report.json>
 // --baseline <checkout> enables alternating paired runs (default: 7 pairs).
+// Both roots must be isolated detached worktrees prepared by save-path-instrument.mjs.
+// --start-pair N --batch-pairs 2 splits a long series into bounded lock turns.
 // --summarize <report.json> verifies outputs and adds medians/min/max.
 // Each child owns a fresh temporary save; only scale-dataset synthetic packs
 // are accepted. No live save or external service is used.
-import { registerHooks } from 'node:module';
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 const option = (key, fallback) => { const i = process.argv.indexOf(`--${key}`); return i < 0 ? fallback : process.argv[i + 1]; };
 const root = path.resolve(option('root', fileURLToPath(new URL('../../', import.meta.url))));
 const companion = path.resolve(option('companion', '.local/perf/task-l/scale400'));
@@ -61,30 +62,7 @@ if (option('summarize')) {
     const done = () => { const row = timings[name] ??= { ms: 0, calls: 0 }; row.ms += performance.now() - start; row.calls++; };
     try { const result = fn(...args); if (result?.then) return result.finally(done); done(); return result; } catch (error) { done(); throw error; }
   };
-  const targets = {
-    '/storage/store.mjs': ['atomicWrite', 'prepared', 'retainBackup', 'serializedDiskState', 'compactHistory', 'playProjection', 'rollPools', 'commandSnapshot', 'capturedCalculation'],
-    '/core/state.mjs': ['applyValidatedCommand'],
-    '/server.mjs': ['bodyJSON', 'commandJSON'],
-  };
-  registerHooks({ load(url, context, next) {
-    const result = next(url, context);
-    const names = Object.entries(targets).find(([suffix]) => url === pathToFileURL(path.join(root, 'app', suffix.slice(1))).href)?.[1];
-    if (!names) return result;
-    let source = String(result.source);
-    for (const name of names) {
-      const pattern = new RegExp(`(async )?function ${name}\\(`);
-      // Main now extracts some server helpers. End-to-end timings and output
-      // checks stay identical; only still-local functions receive stage probes.
-      if (!pattern.test(source)) continue;
-      source = source.replace(pattern, (_match, asyncKeyword = '') => `function ${name}(...args) { return globalThis.__saveProbe('${name}', __probe_${name}, args); }\n${asyncKeyword}function __probe_${name}(`);
-    }
-    if (url.endsWith('/storage/store.mjs')) {
-      for (const [name, expression] of Object.entries({ tempWrite: 'handle.writeFile(contents)', fsync: 'handle.sync()', rename: 'rename(temporary, file)' })) {
-        source = source.replace('await ' + expression, `await globalThis.__saveProbe('${name}', () => ${expression}, [])`);
-      }
-    }
-    return { ...result, source };
-  } });
+  if (!(await readFile(path.join(root, 'app/storage/store.mjs'), 'utf8')).includes('function __probe_atomicWrite(')) throw Error('Instrument an isolated temporary worktree with save-path-instrument.mjs first.');
   const load = file => import(pathToFileURL(path.join(root, file)));
   const { createGroupState } = await load('app/core/state.mjs');
   const { createServer } = await load('app/server.mjs');
@@ -107,7 +85,7 @@ if (option('summarize')) {
     const chunks = [...app.world.chunks.keys()].filter(id => !app.world.surface || app.world.surface.has(id)).sort();
     if (chunks.length < 2) throw new Error('Fixture needs two surface chunks');
     for (const memberId of ['explorer-1', 'explorer-2']) await app.store.command({ type: 'set-chunk', memberId, chunkId: chunks[0], status: 'unlocked' }, app.store.getInfo().revision);
-    const session = await request('/api/action-session', { clientId: '00000000-0000-4000-8000-000000000001' });
+    const session = await request('/api/action-session', { clientId: randomUUID() });
     let sequence = 0, durableAt, start;
     const unsubscribe = app.store.subscribe(() => { durableAt = performance.now() - start; });
     const responses = [], rows = [];
@@ -137,7 +115,10 @@ if (option('summarize')) {
 } else {
   await mkdir(path.dirname(out), { recursive: true });
   const baseline = option('baseline'); const pairs = Number(option('pairs', baseline ? '7' : '1')); const runs = [];
-  for (let pair = 0; pair < pairs; pair++) {
+  const startPair = Number(option('start-pair', '0')), batchPairs = Number(option('batch-pairs', '2')), batchStarted = Date.now();
+  if (![pairs, startPair, batchPairs].every(Number.isSafeInteger) || pairs < 1 || startPair < 0 || startPair >= pairs || batchPairs < 1) throw Error('Invalid pair bounds.');
+  for (let pair = startPair; pair < Math.min(pairs, startPair + batchPairs); pair++) {
+    if (pair > startPair && Date.now() - batchStarted > 4 * 60 * 1000) break;
     const order = baseline ? (pair % 2 ? [['after', root], ['before', path.resolve(baseline)]] : [['before', path.resolve(baseline)], ['after', root]]) : [['before', root]];
     for (const [variant, source] of order) {
       const result = await new Promise((resolve, reject) => {
@@ -150,5 +131,5 @@ if (option('summarize')) {
       await writeFile(out, JSON.stringify({ runs }, null, 2) + '\n');
     }
   }
-  await writeFile(out, JSON.stringify({ format: 'synthetic-save-path-v1', runs, summary: summarize(runs) }, null, 2) + '\n');
+  await writeFile(out, JSON.stringify({ format: 'synthetic-save-path-v1', pairs, batch: { startPair, batchPairs }, runs, summary: summarize(runs) }, null, 2) + '\n');
 }

@@ -334,23 +334,8 @@ test('long synthetic history keeps daily checkpoints, archives every older snaps
 
 test('SIGKILL during replacement preserves the acknowledged action and replays it exactly once', async t => {
   const dataDir = await directory(t);
-  const child = spawn(process.execPath, ['--input-type=module', '-e', `
-    import { randomUUID } from 'node:crypto';
-    import { openStore } from ${JSON.stringify(storageUrl)};
-    const store = await openStore({ dataDir: ${JSON.stringify(dataDir)}, beforeCommit: async ({ state }) => {
-      if (state.revision !== 2) return;
-      setInterval(() => {}, 1000);
-      process.send({ phase: 'synced-before-rename' });
-      await new Promise(() => {});
-    } });
-    const session = await store.openActionSession(randomUUID());
-    const requestId = n => 'v3.' + session.scope + '.' + session.slot + '.' + session.generation + '.' + n;
-    await store.command({ type: 'set-rule', ruleId: 'access.shared', value: true }, 0,
-      { requestId: requestId(1), requestAck: 0 });
-    process.send({ phase: 'acknowledged', first: requestId(1), second: requestId(2) });
-    await store.command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 1,
-      { requestId: requestId(2), requestAck: 1 });
-  `], { cwd: root, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  const child = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/note-receipt-child.mjs', import.meta.url)), dataDir],
+    { cwd: root, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const exited = once(child, 'exit'); let acknowledged, stderr = '';
   child.stderr.on('data', bytes => { stderr += bytes; });
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited; });
