@@ -28,24 +28,26 @@ const catalogue = [
 ];
 const items = ({ snapshot = '0123456789abcdef', worn = [], backpack = [], events = [], id = journalId } = {}) => ({ snapshot, worn, backpack, journal: { id, events } });
 
-async function fixture(t, { betaAsLive = false, durable = false } = {}) {
+async function fixture(t, { betaAsLive = false, durable = false, legacyCoins } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   let at = Date.parse('2026-10-22T12:00:00Z'), input, output, seq = 0, controller;
   const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false };
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]), currencyMetadata;
+  if (legacyCoins !== undefined) state = applyCommand(state, { type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: legacyCoins } } });
   let store = {
     getInfo: () => ({ revision: state.revision }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => null,
     command: async (command, expectedRevision) => {
       if (failing.command) throw new Error('Synthetic write failure');
+      const before = state;
       state = applyCommand(state, command, { expectedRevision, now: () => new Date(at).toISOString(), taskCatalogue });
-      currencyMetadata = currencyAfterCommand(currencyMetadata, command);
+      currencyMetadata = currencyAfterCommand(currencyMetadata, command, before, state);
       commands.push(structuredClone(command)); return state;
     },
     observePluginCurrency: async observation => {
       const result = observePluginCurrency(state, currencyMetadata, observation, { now: () => new Date(at).toISOString() });
       if (failing.command && result.state !== state) throw new Error('Synthetic write failure');
       if (result.state !== state) commands.push(structuredClone(result.state.history.at(-1).command));
-      state = result.state; currencyMetadata = result.metadata; return state;
+      state = result.state; currencyMetadata = result.metadata; return { currencyRetry: result.retry };
     },
   };
   let queue = Promise.resolve();
@@ -78,7 +80,8 @@ async function fixture(t, { betaAsLive = false, durable = false } = {}) {
     replay: async (report, bearer) => { input = structuredClone(report); return dispatch(bearer); },
     createKey: () => controller.create(identity, { memberId: 'a', label: 'Synthetic second plugin' }),
     command: command => store.command(command, store.getInfo().revision),
-    restore: async () => store.replace(await store.backup(), store.getInfo().revision),
+    backup: () => store.backup(),
+    restore: async document => store.replace(document ?? await store.backup(), store.getInfo().revision),
     sendBank: (value, beta = false) => send(value, beta, 'bank'),
     review: () => controller.review(identity, 'a'), restart: async () => { await controller.close(); if (durable) await store.close(); await start(); } };
 }
@@ -440,39 +443,43 @@ test('unreadable currency removes the plugin fact immediately and durably', asyn
   await f.send({ ...items({ backpack: null }), pouch: null });
   assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
   const document = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
-  assert.equal(document.pluginCurrency.players.a.coins, null, 'Unknown is metadata, never a zero balance');
+  assert.equal(document.pluginCurrency.facts.a.coins, null, 'Unknown is metadata, never a zero balance');
   assert.deepEqual(loadLiveBackup(document), f.state, 'Invalidation also loads on the old release');
   await f.restart();
   assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
 });
 
-test('durable currency freshness rejects replay and out-of-order reports after restart', async t => {
+test('durable currency freshness neutralises replay and out-of-order reports after restart', async t => {
   const f = await fixture(t, { durable: true });
   await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
   const original = f.lastReport;
   await f.send({ ...items(), pouch: [] });
   const latest = f.lastReport;
   await f.restart();
-  const before = await readFile(path.join(f.dataDir, 'state.json'), 'utf8');
   for (const report of [original, { ...original, seq: latest.seq + 1 }, { ...original, sentAt: new Date(f.at + 1000).toISOString() }]) {
-    await assert.rejects(f.replay(report), { status: 409 });
+    assert.equal((await f.replay(report)).items, null, 'Ambiguity requests a new reading');
     await f.restart();
-    assert.equal(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'), before, 'Rejected observations never publish a fact or fence');
+    assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined, 'Historical funds never become current');
   }
-  assert.equal(f.state.members[0].transportFacts.currencies.coins, 0);
+  f.advance(61000);
+  await f.send({ ...items(), pouch: [] });
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 0, 'A fresh report recovers after quarantine');
 });
 
-test('freshness is per key and orders different keys by observation timestamp', async t => {
+test('switching keys invalidates currency until a stable server-time stream recovers', async t => {
   const f = await fixture(t, { durable: true });
   await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
   const original = f.lastReport;
   const { key } = await f.createKey();
-  await assert.rejects(f.replay({ ...original, items: { ...items(), pouch: [] } }, key), { status: 409 });
-  const newer = { ...original, seq: 2, sentAt: new Date(f.at + 1000).toISOString(), items: { ...items(), pouch: [] } };
+  assert.equal((await f.replay({ ...original, items: { ...items(), pouch: [] } }, key)).items, null);
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+  f.advance(61000);
+  const newer = { ...original, seq: 2, sentAt: new Date(f.at).toISOString(), items: { ...items(), pouch: [] } };
   await f.replay(newer, key);
   await f.restart();
-  await assert.rejects(f.replay({ ...original, seq: 3 }), { status: 409 });
   assert.equal(f.state.members[0].transportFacts.currencies.coins, 0);
+  await f.replay({ ...original, seq: 3 });
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
 });
 
 test('currency publication and freshness fence commit together, and manual facts survive unreadable reports', async t => {
@@ -503,17 +510,188 @@ test('Undo and restore never roll back the private currency freshness fence', as
   await f.restore();
   await f.restart();
   const after = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).pluginCurrency;
-  assert.deepEqual(after, before, 'Portable restore preserves the active ledger');
-  await assert.rejects(f.replay(original), { status: 409 });
+  assert.deepEqual(after.keys, before.keys, 'Portable restore preserves ordering fences');
+  assert.equal((await f.replay(original)).items, null);
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
 });
 
 test('currency metadata is bounded and malformed watermarks fail closed', () => {
   const keyId = '11111111-1111-4111-8111-111111111111';
-  assert.deepEqual(loadPluginCurrency(undefined), { format: 1, keys: {}, players: {} });
+  assert.deepEqual(loadPluginCurrency(undefined), { format: 2, keys: {}, players: {}, facts: {}, origins: [] });
   assert.throws(() => loadPluginCurrency({ format: 1, keys: { [keyId]: -1 }, players: {} }));
   assert.throws(() => loadPluginCurrency({ format: 1, keys: {}, players: { a: {} } }));
   const keys = Object.fromEntries(Array.from({ length: 1001 }, (_, n) => [`${n.toString(16).padStart(8, '0')}-1111-4111-8111-111111111111`, 1]));
   assert.throws(() => loadPluginCurrency({ format: 1, keys, players: {} }), /Invalid plugin currency metadata/);
+});
+
+for (const restart of [false, true]) test(`Undo restores manual currency ownership before invalidation (restart ${restart})`, async t => {
+  const f = await fixture(t, { durable: true });
+  const facts = { currencies: { coins: 100 }, items: { 'synthetic-item': 100 } };
+  await f.command({ type: 'set-transport-facts', memberId: 'a', facts });
+  await f.send({ ...items(), pouch: [[0, 995, 200, 'Coins']] });
+  const historical = f.lastReport;
+  await f.command({ type: 'undo' });
+  assert.deepEqual(f.state.members[0].transportFacts, facts);
+  if (restart) await f.restart();
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  assert.deepEqual(f.state.members[0].transportFacts, facts, 'Unreadable coins cannot erase the restored manual fact or manual items');
+  await f.restart();
+  assert.equal((await f.replay(historical)).items, null, 'Undo never rolls back freshness');
+  assert.deepEqual(f.state.members[0].transportFacts, facts);
+});
+
+test('coalescing skips non-reversible entries and continues processing items', async t => {
+  const f = await fixture(t, { durable: true });
+  const report = coins => ({ ...items(), pouch: coins ? [[0, 995, coins, 'Coins']] : [] });
+  await f.send(report(0));
+  f.advance(60000);
+  await f.send(report(100));
+  await f.send(report(0));
+  assert.equal(f.state.history.at(-1).undo, undefined, 'Returning to the group baseline has no inverse');
+  await f.send({ ...report(50), backpack: [[0, YEW_SHORTBOW, 1, 'Synthetic bow']] });
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 50);
+  assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')), 'Currency coalescing never blocks item processing');
+  await f.send(report(75));
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 75, 'Further corrections do not wait for the interval');
+  const document = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+  assert.deepEqual(loadLiveBackup(document), f.state);
+});
+
+test('restore treats imported currency as manual while retaining freshness', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 100 }, items: { 'synthetic-item': 100 } } });
+  const manual = await f.backup();
+  await f.send({ ...items(), pouch: [[0, 995, 200, 'Coins']] });
+  const historical = f.lastReport;
+  await f.restore(manual);
+  await f.restart();
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 100);
+  assert.equal(f.state.members[0].transportFacts.items['synthetic-item'], 100);
+  await f.restart();
+  assert.equal((await f.replay(historical)).items, null);
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 100);
+});
+
+test('a reset sequence recovers after restart without trusting it as a newer stream', async t => {
+  const f = await fixture(t, { durable: true });
+  const base = { v: 1, seq: f.at, sentAt: new Date(f.at).toISOString(), position: { x: 50, z: 50, floor: 0 }, world: { id: 1, beta: false },
+    items: { ...items(), pouch: [[0, 995, 100, 'Coins']] } };
+  await f.replay(base);
+  await f.restart();
+  await f.send({ ...items(), pouch: [] });
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined, 'Reset is ambiguous, never the old 100');
+  await f.restart();
+  f.advance(61000);
+  await f.send({ ...items(), pouch: [] });
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 0);
+  const metadata = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).pluginCurrency;
+  assert.equal(Object.values(metadata.keys)[0].highSeq, base.seq, 'Reset does not lower the historical high-water mark');
+  await f.replay(base);
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined, 'The retired stream cannot resurrect funds');
+});
+
+for (const skew of [300000, Date.parse('9999-01-01T00:00:00Z') - Date.parse('2026-10-22T12:00:00Z')]) {
+  test(`a skewed different key cannot resurrect funds or establish a durable lockout (${skew})`, async t => {
+    const f = await fixture(t, { durable: true });
+    await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+    const stale = f.lastReport;
+    await f.send({ ...items(), pouch: [] });
+    const { key } = await f.createKey();
+    await f.replay({ ...stale, sentAt: new Date(f.at + skew).toISOString() }, key);
+    assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+    await f.restart();
+    const { key: replacement } = await f.createKey();
+    const fresh = { ...stale, seq: 1, sentAt: new Date(f.at).toISOString(), items: { ...items(), pouch: [] } };
+    await f.replay(fresh, replacement);
+    f.advance(61000);
+    await f.restart();
+    await f.replay({ ...fresh, seq: 2, sentAt: new Date(f.at).toISOString() }, replacement);
+    assert.equal(f.state.members[0].transportFacts.currencies.coins, 0, 'A normal clock and stable stream recover');
+    const ledger = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).pluginCurrency;
+    assert.ok(Object.values(ledger.keys).every(row => row.sentAt === null || Date.parse(row.sentAt) <= f.at));
+  });
+}
+
+test('an unchanged legacy plugin balance acquires provenance without a History revision', async t => {
+  const f = await fixture(t, { durable: true, legacyCoins: 100 });
+  const revision = f.state.revision;
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  assert.equal(f.state.revision, revision);
+  const ledger = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8')).pluginCurrency;
+  assert.equal(ledger.players.a.historyRevision, null);
+  assert.equal(ledger.facts.a.source, 'plugin');
+  await f.restart();
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  await f.restart();
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+});
+
+test('manual zero followed by Undo restores plugin provenance independently of History grouping', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 0 } } });
+  await f.command({ type: 'undo' });
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 100);
+  await f.restart();
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  await f.restart();
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+});
+
+test('manual item ownership survives plugin observations, Undo and unreadable containers', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.command({ type: 'complete-task', memberId: 'a', taskId: goal('000dc1'), completed: true });
+  await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 100 }, items: { 'synthetic-item': 1 } } });
+  await f.send({ ...items({ backpack: [[0, YEW_SHORTBOW, 1, 'Synthetic bow']] }), pouch: [[0, 995, 200, 'Coins']] });
+  await f.command({ type: 'undo' });
+  await f.restart();
+  await f.send({ ...items({ backpack: null, worn: null }), pouch: null });
+  const owner = f.state.members[0];
+  assert.ok(owner.completedTasks.includes(goal('000dc1')));
+  assert.equal(owner.itemProgress?.[goal('000dc1')], undefined, 'A manual tick never acquires plugin provenance');
+  assert.deepEqual(owner.transportFacts, { currencies: { coins: 100 }, items: { 'synthetic-item': 1 } });
+});
+
+test('format-1 migration discards untrusted clock fences but retains plugin ownership', () => {
+  const keyId = '11111111-1111-4111-8111-111111111111', at = '2026-10-22T12:00:00.000Z';
+  const old = { format: 1, keys: { [keyId]: 1 }, players: { a: { keyId, seq: 1, sentAt: '9999-01-01T00:00:00Z', coins: 100, historyAt: null, historyRevision: null } } };
+  const migrated = loadPluginCurrency(old);
+  assert.equal(migrated.keys[keyId].sentAt, null);
+  const state = applyCommand(createGroupState([{ id: 'a', name: 'Synthetic player' }]), { type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 100 } } });
+  const result = observePluginCurrency(state, migrated, { memberId: 'a', keyId, seq: 2, sentAt: at, coins: null }, { now: () => at });
+  assert.equal(result.state.members[0].transportFacts?.currencies?.coins, undefined);
+});
+
+test('portable restores preserve plugin provenance without rolling back replay fences', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+  const saved = await f.backup();
+  await f.send({ ...items(), pouch: [] });
+  await f.restore(saved);
+  await f.restart();
+  await f.send({ ...items({ backpack: null }), pouch: null });
+  await f.restart();
+  assert.equal(f.state.members[0].transportFacts?.currencies?.coins, undefined);
+});
+
+for (const manual of [false, true]) test(`frozen-release Undo preserves currency provenance after cache eviction (manual ${manual})`, async t => {
+  const f = await fixture(t, { durable: true });
+  if (manual) {
+    await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 100 } } });
+    await f.send({ ...items(), pouch: [[0, 995, 200, 'Coins']] });
+  } else {
+    await f.send({ ...items(), pouch: [[0, 995, 100, 'Coins']] });
+    await f.command({ type: 'set-transport-facts', memberId: 'a', facts: { currencies: { coins: 0 } } });
+  }
+  const disk = JSON.parse(await readFile(path.join(f.dataDir, 'state.json'), 'utf8'));
+  const at = new Date(f.at + 1000).toISOString();
+  const undone = applyLiveCommand(loadLiveBackup(disk), { type: 'undo' }, { expectedRevision: f.state.revision, now: () => at });
+  const [keyId, row] = Object.entries(disk.pluginCurrency.keys)[0];
+  const result = observePluginCurrency(importBackup(exportLiveBackup(undone)), { ...disk.pluginCurrency, origins: [] },
+    { memberId: 'a', keyId, seq: row.seq + 1, sentAt: at, coins: null }, { now: () => at });
+  assert.equal(result.state.members[0].transportFacts?.currencies?.coins, manual ? 100 : undefined);
+  assert.deepEqual(loadLiveBackup({ format: 'rs3-chunk-picker', schemaVersion: 1, state: result.state }), result.state);
 });
 
 for (const unknown of [false, true]) test(`an unreadable report invalidates a plugin balance restored by Undo (unknown ${unknown})`, async t => {

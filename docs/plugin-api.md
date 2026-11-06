@@ -28,7 +28,8 @@ Use `Content-Type: application/json`. Maximum body: **16,384 bytes**, including
 unknown fields (which are rejected). Four requests per second per key, shared
 with status reads. Errors use `{ "message": "…" }`; rate limits return 429 and
 `Retry-After: 1`. Invalid payloads return 400, credentials 401, stale sequence
-409, oversized bodies 413. Successful reports return status, below.
+409 (except live item reports, described below), oversized bodies 413.
+Successful reports return status, below.
 
 ```json
 {
@@ -49,10 +50,9 @@ with status reads. Errors use `{ "message": "…" }`; rate limits return 429 and
 ```
 
 `v`, `seq`, `sentAt`, and `position` are required. `seq` is a nonnegative safe
-integer, increasing per key. Currency observations retain this watermark across
-server restarts. Use Unix milliseconds to
-start a new plugin session without reusing sequence numbers. Retries with an
-old sequence return 409 without changing anything. `sentAt` is a valid ISO UTC
+integer, increasing per key. Currency stream metadata survives server restarts;
+sequence resets use fail-safe recovery rather than preserving an old balance.
+Other report types reject reused sequences with 409. `sentAt` is a valid ISO UTC
 timestamp with seconds and optional 1–3 fractional digits.
 
 `x`/`z` are **game map squares**, integers 0–199, not tile coordinates. `floor` is an
@@ -344,14 +344,23 @@ changes within one minute coalesce into one ordinary `set-transport-facts`
 History entry; an intervening command starts another entry. Undo reverses the
 whole coalesced group. The existing History/Undo format is unchanged.
 
-Private `pluginCurrency` metadata in the atomic save envelope retains each
-key's latest currency sequence and each player's latest currency timestamp.
-An older timestamp or reused sequence returns 409 before item processing, even
-after restart. Different keys must advance the player's timestamp; equal
-timestamps are accepted only for increasing sequences from the same key.
-Unchanged and unreadable observations advance the durable fence too. A failed
+Private `pluginCurrency` metadata separates current ownership, stream ordering
+and optional History grouping. Manual provenance survives Undo and restore;
+invalidation cannot remove a manual fact. An unchanged legacy plugin balance
+still acquires provenance. Replay fences remain durable and are never undone.
+
+For live item reports, a reset sequence, changed key, replay or ambiguous clock
+invalidates plugin currency instead of retaining unsupported funds or blocking
+item processing. Status returns `items: null` to request another reading using
+the existing protocol. A stable stream recovers after a 60-second server-time
+quarantine. Client timestamps cannot order different keys: future timestamps
+and observations over 30 seconds old cannot publish current currency, and
+rejected timestamps cannot create a durable fence or extend recovery. Within a
+stream, sequence must increase and plausible timestamps must not decrease.
+Unchanged and unreadable accepted observations advance ordering too. A failed
 save acknowledges nothing and commits neither the balance nor its fence.
-The metadata is bounded and excluded from portable exports and Undo; see
+The metadata is bounded; portable exports retain fact-provenance annotations
+but exclude private ordering fences. See
 [save metadata](save-schema.md#game-plugin-current-currency).
 
 Status `items` is null until the first items report, then exactly

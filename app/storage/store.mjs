@@ -27,7 +27,7 @@ import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../
 import { loadGameDefaults } from '../game-defaults.mjs';
 import { ACTION_CLIENT_SLOTS, loadActionReceipts, inspectActionReceipt, commitActionReceipt, openActionSession, acknowledgeActionSession } from './action-receipts.mjs';
 import { reportActivationTiming } from '../live-swap-timing.mjs';
-import { currencyAfterCommand, loadPluginCurrency, observePluginCurrency } from './plugin-currency.mjs';
+import { currencyAfterCommand, currencyAfterRestore, loadPluginCurrency, observePluginCurrency } from './plugin-currency.mjs';
 import { boundedOutput, rosterOutput } from '../import-output.mjs';
 
 const gzipAsync = promisify(gzip), gunzipAsync = promisify(gunzip);
@@ -273,6 +273,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Receipts are private storage metadata, committed in the SAME replacement
   // as gameplay. Never evict IDs: an arbitrarily delayed retry must fail closed.
   let receipts, pluginCurrency;
+  const currencyEpoch = randomBytes(16).toString('hex');
   let acknowledgements = [];
   function acknowledgementFor(slot, row) {
     return { slot, clientId: row.clientId, generation: row.generation, principal: row.principal,
@@ -1032,6 +1033,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return result;
   }
   async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, currency = pluginCurrency } = {}) {
+    if (operation === 'replace') currency = currencyAfterRestore(currency, next);
     const observed = cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
     const validated = cleanup ? observed : await compactHistory(observed, archived);
     const previousCoordination = operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} }
@@ -1111,7 +1113,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         }
       }
       return persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
-        receipt, noteEdit: command.type === 'set-note', currency: currencyAfterCommand(pluginCurrency, command),
+        receipt, noteEdit: command.type === 'set-note', currency: currencyAfterCommand(pluginCurrency, command, input.state, ready),
         ...(command.type === 'go-members' ? { backupLabel: 'Before going members' } : {}) });
     });
   }
@@ -1268,12 +1270,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         ? (await hydrateHistory(observed)).state : observed));
       const state = await compactHistory(observed);
       if (coordination.has(current)) coordination.set(state, { ...(operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} } : coordinationOf(current)), lastNonClaimRevision: state.revision });
-      const disk = Buffer.from(await serializedDiskState(state));
+      const currency = operation === 'replace' ? currencyAfterRestore(pluginCurrency, state) : pluginCurrency;
+      const disk = Buffer.from(await serializedDiskState(state, receipts, currency));
       const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized, { level: constants.Z_BEST_SPEED });
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
       const summary = boundedOutput({ revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } });
       return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
-        coordination: coordination.get(state), receipts, pluginCurrency,
+        coordination: coordination.get(state), receipts, pluginCurrency: currency,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
         choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
     },
@@ -1381,11 +1384,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     observePluginCurrency(observation) {
       return enqueue(async () => {
         const result = observePluginCurrency(current, pluginCurrency, observation,
-          { now: timestamp, world, registry, taskCatalogue, membersStartBanks, xpChoiceCatalogue });
+          { now: timestamp, epoch: currencyEpoch, world, registry, taskCatalogue, membersStartBanks, xpChoiceCatalogue });
         const ready = result.state === current ? current : await prepared(result.state, 'command');
         if (ready.revision !== result.state.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
-        return persist(ready, 'plugin-currency', undefined, false, current, false, undefined,
+        await persist(ready, 'plugin-currency', undefined, false, current, false, undefined,
           { cleanup: ready === current, currency: result.metadata });
+        return { currencyRetry: result.retry };
       });
     },
     commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck); },

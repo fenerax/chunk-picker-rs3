@@ -486,8 +486,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         credentialFor(request); member(credential.player);
         void flushHandled();
         if (report) {
-          if (report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
-          sequences.set(credential.id, report.seq);
+          const currencyReport = report.items && itemWorld(report) === 'live';
+          if (!currencyReport && report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
+          sequences.set(credential.id, Math.max(sequences.get(credential.id) ?? -1, report.seq));
           const assembly = assemblies.get(credential.player);
           if (report.world?.beta === false && assembly && assembly.received === assembly.parts && !assembly.live) {
             // World is absent from the plugin's snapshot hash. Ordinary live
@@ -512,12 +513,14 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
           }
           if (report.achievements) await receiveAchievements(credential.player, report);
           if (report.items) {
+            let currencyRetry = false;
             if (itemWorld(report) === 'live') {
               const { pouch, backpack } = report.items;
               const coins = Array.isArray(pouch) && Array.isArray(backpack) ? Math.min(1e12, coinCount(pouch, true) + coinCount(backpack)) : null;
-              await store.observePluginCurrency({ memberId: credential.player, keyId: credential.id, seq: report.seq, sentAt: report.sentAt, coins });
+              currencyRetry = (await store.observePluginCurrency({ memberId: credential.player, keyId: credential.id, seq: report.seq, sentAt: report.sentAt, coins })).currencyRetry;
             }
             await receiveItems(credential.player, report);
+            if (currencyRetry) itemAcks.delete(credential.player);
           }
           if (report.bank) await receiveBank(credential.player, report);
           notify();

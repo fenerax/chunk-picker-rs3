@@ -9,44 +9,60 @@ receipts never replace it.
 
 ## Game plugin current currency
 
-The optional private envelope field `pluginCurrency` has format 1, with `keys`
-and `players` objects. It is outside gameplay `state`, portable backups and
-History/Undo. It is written in the same synced atomic replacement as the current
-currency fact, including when the fact is unchanged or becomes unknown.
+The optional private envelope field `pluginCurrency` uses format 2. Its `keys`,
+`players` and `facts` maps each hold at most 1,000 entries; `origins` caches at
+most 1,000 ownership transitions. This ledger is outside portable gameplay and
+is written atomically with every current correction or invalidation.
 
-- `keys` maps at most 1,000 plugin credential UUIDs to nonnegative safe integer
-  sequence watermarks. Currency sequences must strictly increase for each key.
-- `players` has at most 1,000 member-ID entries. Each holds `keyId`, `seq`,
-  `sentAt`, `coins`, `historyAt` and `historyRevision`. `coins` is a safe integer
-  from zero to one trillion, or null for unknown or a fact the plugin does not
-  own. It identifies plugin ownership
-  of the current fact, not an alternative spendable balance.
-- `sentAt` retains the newest accepted observation time across keys. Older
-  timestamps fail; equal timestamps require the same key and a higher sequence.
-  `historyAt` and `historyRevision` are null before the first fact change, then
-  identify the coalescible currency History group. They never delay a correction.
+- Each credential UUID in `keys` holds `highSeq`, `seq`, `generation`, `sentAt`,
+  `receivedAt` and `epoch`. Sequences and generations are nonnegative safe
+  integers. `highSeq` never decreases, even when a sequence resets. `epoch` is
+  a server-generated 32-character hex runtime ID or null. Times are ISO UTC or
+  null. Client `sentAt` is only a plausibility filter, never a server-time fence.
+- Each member in `players` holds `keyId`, `receivedAt`, `recoverAfter`,
+  `historyAt` and `historyRevision`. Recovery uses only server receive time;
+  History fields identify an optional coalescing group and confer no ownership.
+- `facts` identifies current provenance with `{coins, source}`. Coins are null
+  or a safe integer from zero to one trillion; source is `manual`, `plugin` or
+  `legacy`. An unchanged readable legacy observation establishes plugin
+  provenance without inventing a History revision. A matching manual amount
+  remains manual.
+- `origins` entries contain `revision`, `memberId`, `before` and `after` facts.
+  Ordinary History entries also carry an additive `currencyOrigins` dictionary
+  for affected members, each with the same fixed-size `before`/`after` facts.
+  These annotations survive archival and portable restores, so eviction from
+  the bounded cache cannot change Undo ownership. They contain no replay fence.
 
-An explicit manual `set-transport-facts` command releases plugin ownership,
-including when it confirms the same coin count; its watermark is retained.
-An unchanged coherent observation of a manual fact does not transfer ownership.
-An existing `historyRevision` retains plugin ownership through Undo, even when
-Undo restores a balance from before a zero or unknown observation.
-For saves without this metadata, a matching, unattributed legacy currency
-History command identifies the previous plugin-owned fact.
+Manual travel edits establish manual provenance, even for an unchanged amount.
+Undo restores the target fact's provenance, including manual amounts and plugin
+amounts restored after a manual zero. Currency invalidation removes only a
+plugin or legacy coin fact and preserves other currencies and travel facts.
+History coalescing requires an inverse; optional reconstruction failures start
+an ordinary new group. Public inverse patches retain their existing format.
 
-No watermark is evicted to make room: reaching either bound refuses another
-entry. Invalid metadata fails closed on load. Restore/import preserves the
-current private ledger rather than trusting metadata from an imported backup;
-Undo never rolls freshness back. Standby activation and import publication
-carry the ledger with the atomic storage envelope.
+Sequences that reset, key changes, replay and clock ambiguity make plugin
+currency unknown and request a fresh snapshot. A stable stream can recover
+after a 60-second server-time quarantine. Rejected timestamps do not advance
+sequence/time fences or extend that quarantine. Future timestamps and reports
+over 30 seconds old cannot publish current currency. Increasing sequence and
+nondecreasing plausible time are required within a stream; client time alone
+never orders different keys. Format-1 ledgers migrate without adopting their
+untrusted client timestamps as server fences.
+
+Keys are never evicted to admit old traffic. Invalid metadata fails closed on
+load. Undo and restore retain active replay fences; imported private metadata
+cannot replace them. Restore uses preserved fact provenance; an older portable
+backup without ownership annotations establishes manual facts. Standby
+activation and import publication carry the ledger atomically.
 
 The public backup remains schema 1. Current facts use the existing
 `transportFacts.currencies.coins` field; unknown removes only the plugin-owned
 coin entry. History uses ordinary `set-transport-facts` commands and inverse
 patches, including coalesced updates. The frozen previous-release loader can
 load these saves and undo the currency changes. Older releases ignore private
-envelope metadata and can drop it when writing; retain the original save to
-preserve freshness fences when rolling forward after such a rollback.
+envelope metadata and can drop it when writing, while preserving the additive
+History annotations; retain the original save to preserve freshness fences
+when rolling forward after such a rollback.
 
 ## Action receipts, format 2
 
