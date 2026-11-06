@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { serialize } from 'node:v8';
@@ -10,6 +10,72 @@ import { openStore } from '../app/storage/store.mjs';
 import { runImportJob } from '../app/import-jobs.mjs';
 import { transferDigest } from '../app/save-transfer.mjs';
 import { createScreenDialogs } from '../app/web/screen-dialogs.mjs';
+import { createGameplayFingerprint } from '../app/storage/gameplay-fingerprint.mjs';
+import { taskReuseInputKey } from '../app/tasks/unlock-reuse.mjs';
+
+test('apply seeds worker fingerprints before subscribers without trusting uploaded digest metadata', async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'synthetic-import-fingerprint-'));
+  const roster = [{ id: 'one', name: 'Synthetic player' }];
+  const world = { chunks: new Map([['100', { id: '100' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) };
+  const store = await openStore({ dataDir, initialState: createGroupState(roster), world, retention: false });
+  t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  store.getGameplayFingerprint(); void store.getCalculationSnapshot().taskInputKey;
+  const incoming = createGroupState(roster);
+  incoming.tasks = [{ id: 'custom:synthetic', category: 'Custom', label: 'Synthetic fingerprint marker' },
+    ...Array.from({ length: 3000 }, (_, index) => ({ id: `custom:synthetic-${index}`, category: 'Custom', label: `Synthetic additional objective ${index}` }))];
+  incoming.provenance = { syntheticFingerprintMarker: true, syntheticPadding: 'x'.repeat(512 * 1024) };
+  const prepared = await store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: incoming },
+    fingerprints: { gameplay: 'Untrusted upload metadata' } }),
+  { world, route: '/api/restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} } });
+  let observed, listenerError;
+  store.subscribe(() => {
+    try { observed = { gameplay: store.getGameplayFingerprint(), tasks: store.getCalculationSnapshot().taskInputKey }; }
+    catch (error) { listenerError = error; }
+  });
+  const stringify = JSON.stringify;
+  JSON.stringify = (value, ...args) => {
+    if (value?.restore?.incomingProvenance?.syntheticFingerprintMarker
+      || Array.isArray(value) && value[0]?.label === 'Synthetic fingerprint marker') throw new Error('Static tree walked on writer');
+    return stringify(value, ...args);
+  };
+  let applied;
+  try { applied = await store.applyTransfer(prepared.ticket, 0); }
+  finally { JSON.stringify = stringify; }
+  assert.equal(listenerError, undefined);
+  assert.equal(observed.gameplay, createGameplayFingerprint()(applied.state));
+  assert.equal(observed.tasks, taskReuseInputKey(store.getCalculationSnapshot().state));
+  const saved = JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8'));
+  for (const key of ['tasks', 'provenance']) assert.equal(saved.storage.fields[key].sha256,
+    createHash('sha256').update(JSON.stringify(applied.state[key])).digest('hex'), 'Prepared sidecar digests cover the exact publication tree');
+  const before = observed;
+  await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '100', note: 'Synthetic changed note' }, 1);
+  assert.notEqual(observed.gameplay, before.gameplay);
+  assert.equal(observed.tasks, before.tasks);
+});
+
+for (const large of [false, true]) test(`member restore preserves canonical ${large ? 'sidecar' : 'prepared-JSON'} array provenance fingerprints`, async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'synthetic-member-provenance-'));
+  const roster = [{ id: 'one', name: 'Synthetic player' }];
+  const world = { chunks: new Map([['100', { id: '100' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) };
+  const provenance = [large ? 'x'.repeat(300 * 1024) : 'synthetic'];
+  const initialState = { ...createGroupState(roster), provenance };
+  const store = await openStore({ dataDir, initialState, world, retention: false });
+  t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  store.getGameplayFingerprint();
+  const incoming = createGroupState(roster);
+  incoming.members[0].notes = { '100': 'Synthetic restored note' };
+  const prepared = await store.prepareTransfer(serialize({ backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state: incoming },
+    memberId: 'one', sourceMemberId: 'one' }),
+  { world, route: '/api/member-restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} } });
+  const applied = await store.applyTransfer(prepared.ticket, 0);
+  assert.equal(applied.state.members[0].notes['100'], 'Synthetic restored note');
+  assert.deepEqual(applied.state.provenance, provenance, 'Accepted array provenance stays unchanged');
+  assert.equal(store.getGameplayFingerprint(), createGameplayFingerprint()(applied.state));
+  const saved = JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8'));
+  assert.equal(Boolean(saved.storage?.fields?.provenance), large, 'Exercise the intended byte-reuse shortcut');
+  const exported = JSON.parse((await store.exportBackup()).bytes);
+  assert.deepEqual(exported.state.provenance, provenance);
+});
 
 test('queue wait has its own busy deadline and does not consume active checking time', async () => {
   const wedge = runImportJob({}, { workerURL: new URL('data:text/javascript,while(true){}'), timeoutMs: 500 });
