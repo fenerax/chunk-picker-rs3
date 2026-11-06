@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { createOverlayPanel } from '../app/web/overlay-panel.mjs';
 
 // Isolated DOM, API and clipboard fixtures; no server or persisted state.
-function harness({ route, clipboard } = {}) {
+function harness({ route, clipboard, members } = {}) {
   class Node {
     constructor(tag, text = '') { Object.assign(this, { tagName: tag, textContent: text, children: [], events: {}, attributes: {}, value: '', hidden: false, disabled: false }); }
     append(...nodes) { for (const node of nodes) { node.parent = this; this.children.push(node); } }
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); }
     setAttribute(key, value) { this.attributes[key] = value; }
+    getAttribute(key) { return this.attributes[key] ?? null; }
     addEventListener(key, action) { (this.events[key] ??= []).push(action); }
     async emit(key) { for (const action of this.events[key] ?? []) await action({ preventDefault() {} }); }
     focus() { this.focused = true; }
@@ -27,7 +28,7 @@ function harness({ route, clipboard } = {}) {
     if (path.endsWith('/revoke')) return { overlay: { ...saved, id: path.split('/')[3], revoked: true } };
     throw new Error('Unexpected route');
   };
-  const ui = createOverlayPanel({ api, el, button, dialog, members: () => [{ id: 'reed', name: 'Reed' }, { id: 'actor1', name: 'Player' }],
+  const ui = createOverlayPanel({ api, el, button, dialog, members: () => members ?? [{ id: 'reed', name: 'Reed' }, { id: 'actor1', name: 'Player' }],
     clipboard: clipboard ?? { writeText: async value => copies.push(value) },
     openDialog: (title, node) => { content = node; dialog.open = true; return ++generation; },
     dialogCurrent: value => dialog.open && generation === value });
@@ -75,6 +76,20 @@ test('goal sources default to personal pins and carry the chosen scope into mask
   h.choice('Overlay').value = 'count'; await h.choice('Overlay').emit('change');
   assert.equal(goals.parent.hidden, true); assert.equal(player.disabled, false); assert.equal(player.value, 'actor1');
   await h.form().emit('submit'); assert.equal(Object.hasOwn(h.calls.at(-1).body, 'goals'), false);
+});
+
+test('group goals keep the Players label in step when they reset a long player name', async () => {
+  const long = 'Synthetic player with a long name';
+  const h = harness({ members: [{ id: 'reed', name: 'Reed' }, { id: 'actor1', name: long }] }); await h.ui.open();
+  const player = h.all().find(node => node.attributes['aria-label']?.startsWith('Players')), goals = h.choice('Show goals');
+  player.value = 'actor1'; await player.emit('change');
+  assert.equal(player.attributes['aria-label'], `Players: ${long}`); assert.equal(player.title, long);
+  goals.value = 'group'; await goals.emit('change');
+  assert.equal(player.value, 'duo');
+  assert.equal(player.attributes['aria-label'], 'Players: Both players'); assert.equal(player.title, 'Both players');
+  goals.value = 'personal'; await goals.emit('change');
+  assert.equal(player.value, 'actor1');
+  assert.equal(player.attributes['aria-label'], `Players: ${long}`); assert.equal(player.title, long);
 });
 
 test('generated links stay masked, copy only to clipboard, and expire on close or next creation', async () => {

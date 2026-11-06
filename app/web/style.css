@@ -274,9 +274,10 @@ details[open]>summary::before{transform:rotate(45deg)}
 .view-only-badge{flex-shrink:0;font-size:var(--type-xs);font-weight:var(--weight-semibold);padding:var(--space-2) var(--space-3);white-space:nowrap;color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm)}
 :root[data-read-only=true] :is(#pick,#roll-two,#unpick,.toolbar-undo,.toolbar-sandbox,#sandbox-toggle,#settings-open,#runemetrics-open,#feedback-open,#teleports-open,#invites-open,#backup-open,#original-sync-open,#saves-heading,#empty-import,#random-start,#custom-task-open){display:none!important}
 :root[data-read-only=true] textarea[readonly]{min-height:4rem}
-.player-controls{order:1;display:flex;align-items:center;gap:var(--space-6);padding-left:var(--space-6);border-left:var(--border-thin) solid var(--hairline)}
-.member-switch{display:inline-flex;padding:var(--space-legacy-3px);gap:var(--space-legacy-2px);border-radius:var(--radius-pill);background:var(--bg);border:var(--border-thin) solid var(--hairline)}
-.member-switch button{border-radius:var(--radius-pill);background:transparent;color:var(--panel-muted,var(--muted));padding:var(--space-2) var(--space-5);font-weight:var(--weight-semibold);font-size:var(--type-body)}
+/* DA2-04: navigation keeps its own width; member controls wrap within theirs. */
+.player-controls{min-width:0;flex:0 1 auto;order:1;display:flex;align-items:center;gap:var(--space-6);padding-left:var(--space-6);border-left:var(--border-thin) solid var(--hairline)}
+.member-switch{min-width:0;max-width:100%;flex-wrap:wrap;display:inline-flex;padding:var(--space-legacy-3px);gap:var(--space-legacy-2px);border-radius:var(--radius-pill);background:var(--bg);border:var(--border-thin) solid var(--hairline)}
+.member-switch button{min-width:0;max-width:100%;flex:1 1 7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:var(--radius-pill);background:transparent;color:var(--panel-muted,var(--muted));padding:var(--space-2) var(--space-5);font-weight:var(--weight-semibold);font-size:var(--type-body)}
 .member-switch button:hover{color:var(--panel-text,var(--text));filter:none}
 .member-switch button[aria-pressed=true]{background:var(--gold);color:var(--on-gold)}
 .member-switch:empty{display:none}
@@ -288,7 +289,7 @@ details[open]>summary::before{transform:rotate(45deg)}
 .group-toggle input::after{content:"";position:absolute;top:1px;left:1px;width:.8rem;height:.8rem;border:0;border-radius:var(--radius-circle);background:var(--muted);transform:none;transition:left .15s,background-color .15s}
 .group-toggle input:checked{background:color-mix(in srgb,var(--gold) 35%,var(--surface));border-color:var(--gold)}
 .group-toggle input:checked::after{left:calc(100% - .8rem - 1px);background:var(--gold);transform:none}
-.topbar nav{order:2;flex:1;display:flex;align-items:center;justify-content:flex-end;gap:var(--space-legacy-0-05rem);min-width:0;white-space:nowrap}
+.topbar nav{order:2;flex:1 0 auto;display:flex;align-items:center;justify-content:flex-end;gap:var(--space-legacy-0-05rem);min-width:0;white-space:nowrap}
 .topbar nav button,.topbar nav .more-tools-menu a,.more-tools>summary{background:transparent;color:var(--panel-muted,var(--muted));padding:var(--space-3) var(--space-4);font-size:var(--type-body);border-radius:var(--radius-sm)}
 .topbar nav button:hover,.topbar nav .more-tools-menu a:hover,.more-tools>summary:hover,.more-tools[open]>summary{background:var(--surface);color:var(--surface-text,var(--text));filter:none}
 .more-tools{position:relative}
@@ -817,6 +818,8 @@ dialog:has(.rules-panel){width:min(1100px,calc(100vw - 2rem));height:min(850px,c
 
 /* Chunk panel tabs replace the stack of collapsible sections. */
 .chunk-tabs{margin-top:var(--space-4)}
+/* DA2-01: every dock tab is visible at its native width. */
+.chunk-tabs>.tab-bar{flex-wrap:wrap;overflow:visible}
 .tab-bar{display:flex;gap:var(--space-legacy-2px);border-bottom:var(--border-thin) solid var(--hairline);margin:0 calc(-1 * var(--space-2)) var(--space-5);padding:0 var(--space-2);overflow-x:auto;scrollbar-width:none}
 .tab-bar .tab{background:transparent;border:0;border-bottom:var(--border-focus) solid transparent;border-radius:0;padding:var(--space-3) var(--space-4) var(--space-3);font-size:var(--type-sm);font-weight:var(--weight-semibold);color:var(--panel-muted,var(--muted));white-space:nowrap;margin-bottom:var(--space-legacy--1px)}
 .tab-bar .tab:hover{color:var(--panel-text,var(--text));filter:none}
@@ -838,7 +841,9 @@ dialog:has(.rules-panel){width:min(1100px,calc(100vw - 2rem));height:min(850px,c
 .tab-subheading{font-size:var(--type-base);margin-top:var(--space-6);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline)}
 
 /* Right-click chunk menu. */
-.map-menu{position:absolute;z-index:9;min-width:210px;padding:var(--space-2);display:flex;flex-direction:column;gap:var(--space-legacy-1px);background:var(--panel);color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow)}
+/* A height-capped menu scrolls; its title and items keep their own height. */
+.map-menu>*{flex-shrink:0}
+.map-menu{position:absolute;overflow-y:auto;overscroll-behavior:contain;z-index:9;min-width:210px;padding:var(--space-2);display:flex;flex-direction:column;gap:var(--space-legacy-1px);background:var(--panel);color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow)}
 .map-menu-title{font-size:var(--type-xs);font-weight:var(--weight-bold);letter-spacing:.04em;color:var(--panel-muted,var(--muted));padding:var(--space-3) var(--space-4) var(--space-2);border-bottom:var(--border-thin) solid var(--hairline);margin-bottom:var(--space-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 .map-menu button,.map-menu-link{display:block;text-align:left;background:transparent;border:0;border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);font-size:var(--type-body);color:var(--panel-text,var(--text));text-decoration:none;min-height:34px}
 .map-menu button:hover,.map-menu-link:hover,.map-menu button:focus-visible{background:var(--surface);color:var(--surface-text,var(--text));filter:none}
@@ -1209,3 +1214,8 @@ progress.skill-meter::-moz-progress-bar{background:var(--gold);border-radius:var
 .why-chain-node summary{cursor:pointer;min-height:32px;padding-block:6px}
 .why-chain-content{min-width:0}
 .why-chain-body>.error{margin-block:8px}
+
+/* DA2-05: standalone link actions keep their type size and gain touch space. */
+@media(pointer:coarse){
+  .duo-live a,.duo-catchup a,.standalone-link{display:inline-flex;align-items:center;min-height:44px;min-width:44px}
+}

@@ -1,3 +1,4 @@
+import { memberDisplay } from './screen-ui.mjs';
 import { createWhyChainDisclosure } from './task-why-chain.mjs';
 import { sourceRateText } from '../tasks/rates.mjs';
 import { createRuneMetricsControls } from './runemetrics.mjs';
@@ -242,7 +243,7 @@ export function createInfoPanels(context) {
     const tabButtons = [];
     const prefix = `info-${++serial}`;
     entries.forEach(([label, render], index) => {
-      const tab = button(label, () => activate(index));
+      const tab = memberDisplay(button(label, () => activate(index)), context.state().members);
       tab.id = `${prefix}-tab-${index}`; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', `${prefix}-body`);
       tab.addEventListener('keydown', event => {
         const next = event.key === 'ArrowRight' ? (index + 1) % entries.length : event.key === 'ArrowLeft' ? (index + entries.length - 1) % entries.length : event.key === 'Home' ? 0 : event.key === 'End' ? entries.length - 1 : null;

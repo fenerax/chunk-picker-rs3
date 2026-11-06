@@ -14,7 +14,8 @@
 .duo-task-row{grid-template-columns:var(--task-status-width,18px) minmax(0,1fr) auto auto}
 .duo-task-backlog{padding:var(--space-2) var(--space-3);min-height:30px;background:transparent;color:var(--panel-muted,var(--muted));font-size:var(--type-xs)}
 .duo-task-chooser{grid-column:2 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-4) 0}
-.duo-task-chooser select{min-height:36px;width:auto}
+/* DA2-03: flex children must surrender their intrinsic option width. */
+.duo-task-chooser select{min-height:36px;width:auto;min-width:0;max-width:100%;flex:0 1 auto;text-overflow:ellipsis}
 .duo-task-chooser button{min-height:36px;font-size:var(--type-sm)}
 .duo-task-dialog-owners{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
 @media(max-width:500px){.duo-task-chip{min-height:44px}.duo-personal-filter{flex-basis:100%}.duo-personal-filter select{width:100%;min-height:44px;font-size:var(--type-base)}.duo-task-backlog{min-height:44px}.duo-task-chooser select,.duo-task-chooser button{min-height:44px}}

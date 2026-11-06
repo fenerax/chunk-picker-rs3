@@ -1,3 +1,4 @@
+import { memberSelect } from './screen-ui.mjs';
 const skillText = value => value ?? 'Not chosen yet';
 const allocationText = allocation => Object.entries(allocation ?? {})
   .map(([skill, amount]) => `${Number(amount).toLocaleString()} ${skill} XP`).join(' · ');
@@ -54,7 +55,7 @@ export function createXpChoices(c) {
     const root = c.el('div', undefined, 'xp-choices'), toolbar = c.el('div', undefined, 'xp-choice-toolbar');
     const player = c.el('select'); player.setAttribute('aria-label', 'XP choices player');
     for (const member of c.state.members) { const option = c.el('option', member.name); option.value = member.id; player.append(option); }
-    player.value = initialMember;
+    player.value = initialMember; memberSelect(player, c.state.members);
     const playerLabel = c.el('label'); playerLabel.append(c.el('span', 'Player'), player);
     const search = c.el('input'); search.type = 'search'; search.placeholder = 'Find a lamp or quest'; search.setAttribute('aria-label', 'Find a lamp or quest');
     const searchLabel = c.el('label'); searchLabel.append(c.el('span', 'Source'), search);

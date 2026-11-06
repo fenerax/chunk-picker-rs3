@@ -1,9 +1,9 @@
 /* A condensed ledger of recorded progress, in the existing dialog palette. */
 dialog:has(.profile-panel){width:min(1060px,calc(100vw - 1.5rem))}
 .profile-panel{position:relative;min-width:0;color:var(--panel-text,var(--text));font-variant-numeric:tabular-nums}
-.profile-toolbar{position:absolute;top:0;right:0;display:flex;justify-content:flex-end}
-.profile-player-choice{display:flex;align-items:center;gap:var(--space-4);font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
-.profile-player-choice select,.profile-section-heading select{min-height:36px;padding:var(--space-2) var(--space-4);font-size:var(--type-sm);min-width:0}
+.profile-toolbar{min-width:0;max-width:100%;position:absolute;top:0;right:0;display:flex;justify-content:flex-end}
+.profile-player-choice{min-width:0;max-width:100%;display:flex;align-items:center;gap:var(--space-4);font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
+.profile-player-choice select,.profile-section-heading select{max-width:100%;text-overflow:ellipsis;min-height:36px;padding:var(--space-2) var(--space-4);font-size:var(--type-sm);min-width:0}
 .profile-header{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-4) var(--space-6);padding:0 var(--space-legacy-155px) var(--space-6) 0;min-height:50px;border-bottom:var(--border-thin) solid var(--hairline)}
 .profile-player-name{font-size:var(--type-title);margin:0}
 .profile-header-facts{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));margin:0}

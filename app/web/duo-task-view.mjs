@@ -1,3 +1,4 @@
+import { memberDisplay, memberSelect } from './screen-ui.mjs';
 import { gameStorage } from './screen-save-status.mjs';
 import { duoCommandTarget } from './duo-tasks.mjs';
 import { appendTaskClaim } from './task-claims.mjs';
@@ -41,12 +42,12 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     }
     choices.forEach((owner, index) => {
       const chip = chips.children[index];
-      chip.textContent = owner.name;
+      chip.textContent = owner.name; memberDisplay(chip, owners);
       chip.setAttribute('aria-pressed', String(owner.id === ownerFilter));
     });
     const name = owners.find(owner => owner.id === getSelectedMember())?.name ?? 'selected player';
     secondary.replaceChildren(...[['group', 'Normal group tasks'], ['not-done', `Not done by ${name}`], ['only-player', `Only ${name} can do`]].map(([value, text]) => { const option = el('option', text); option.value = value; return option; }));
-    secondary.value = personalFilter;
+    secondary.value = personalFilter; memberSelect(secondary, owners);
     hint.textContent = personalFilter === 'group' ? 'Tasks from each player’s own chunks. Shared checks count for the duo.'
       : personalFilter === 'not-done' ? `Tasks ${name} can do now and has not personally completed, including tasks their partner has done.`
         : `Tasks ${name} can do now and has not personally completed, which their partner cannot do on their own map.`;
@@ -62,7 +63,7 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     const form = el('form', undefined, 'duo-task-chooser'), picker = el('select');
     picker.setAttribute('aria-label', 'Player for this task');
     for (const id of target.memberIds) { const option = el('option', getState().members.find(owner => owner.id === id)?.name ?? id); option.value = id; picker.append(option); }
-    picker.value = target.preferredMemberId;
+    picker.value = target.preferredMemberId; memberSelect(picker, getState().members);
     const confirm = el('button', done, 'primary-action'); confirm.type = 'submit';
     const cancel = button('Cancel', () => { form.remove(); onFilter(); });
     form.append(el('span', 'For', 'task-meta'), picker, confirm, cancel);
@@ -93,7 +94,7 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     const ownerId = entry.displayMemberIds ? entry.memberId : target.preferredMemberId ?? target.memberId;
     const label = button(task.label, () => showTask(entry.tasksByMember?.[ownerId] ?? task, false, { memberId: ownerId, duoEntry: entry }), 'task-label-button');
     label.disabled = !canInspect(); label.dataset.taskControl = 'open';
-    content.append(label, el('span', entry.label, 'duo-task-owner'));
+    content.append(label, memberDisplay(el('span', entry.label, 'duo-task-owner'), getState().members));
     appendPin(label, entry);
     if (task.level && !(task.record?.RequirementAlternatives && task.level === 1) && !(task.generated && task.category === 'BiS')) content.append(el('span', `Level ${task.level}`, 'task-meta'));
     if (facts.group) content.append(el('span', `Done by ${facts.completedBy.map(id => getState().members.find(owner => owner.id === id)?.name ?? id).join(' and ')}`, 'task-meta'));

@@ -282,9 +282,10 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         assert.throws(() => assertClaimFits(old), { code:'ERR_ASSERTION' }, 'old nowrap claim must fail');
         t.diagnostic('Old CSS: row ' + old.row.scroll + '/' + old.row.client + ', body ' + old.body.scroll + '/' + old.body.client);
         const current = await claimBoxes();
-        assert.equal(current.text, (id === 'long-claim' ? 'Claim for ' : 'Take over for ') + 'Explorer number one with a long partner name');
+        assert.equal(current.text, (id === 'long-claim' ? 'Claim for ' : 'Take over for ') + 'WWWWWWWWWWWWWWWWWWWW…');
+        assert.equal(await browser.evaluate("document.querySelector('.task-row:not([hidden]) .task-claim-action').title"), (id === 'long-claim' ? 'Claim for ' : 'Take over for ') + 'WWWWWWWWWWWWWWWWWWWW Synthetic long display name');
         assertClaimFits(current);
-        assert.ok(current.lines > 1, 'long partner name wraps');
+        assert.ok(current.lines > 1, 'a wide capped partner name still wraps');
         if (touch) await screenshot('narrow-260-' + id + '-coarse');
       });
     }

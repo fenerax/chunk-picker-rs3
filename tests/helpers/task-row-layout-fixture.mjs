@@ -49,7 +49,7 @@ solo('backlogged', { how: false, form: true });
 window.appendLayoutRegressions = () => {
   solo('solo-no-how', { how: false });
   solo('readonly-no-how', { readOnly: true, how: false });
-  const members = [{ id: 'one', name: 'Explorer number one with a long partner name' }, { id: 'two', name: 'Explorer number two' }];
+  const members = [{ id: 'one', name: 'WWWWWWWWWWWWWWWWWWWW Synthetic long display name' }, { id: 'two', name: 'Explorer number two' }];
   solo('long-claim', { claimState: { ...state, members } });
   solo('long-takeover', { claimState: { ...state, members, taskClaims: { [task.id]: { memberId: 'two', at: '2026-01-01T00:00:00Z' } } } });
   const viewer = createDuoTaskView({ ...duoOptions, readOnly: () => true, canEdit: () => false });

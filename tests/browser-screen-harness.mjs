@@ -1,3 +1,4 @@
+import { memberDisplay, memberSelect } from '../app/web/screen-ui.mjs';
 import { createViewCache, replaceView } from '../app/web/browser-state.mjs';
 import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import { loadTaskWhyEvidence } from '../app/web/task-why.mjs';
@@ -54,6 +55,8 @@ export async function readScreenGraph() {
 }
 
 export function runScreenGraph(context, modules) {
+  context.memberDisplay ??= memberDisplay;
+  context.memberSelect ??= memberSelect;
   context.resolveDeathSettings ??= resolveDeathSettings;
   context.createViewCache ??= () => createViewCache({ storage: null });
   context.replaceView ??= replaceView;
