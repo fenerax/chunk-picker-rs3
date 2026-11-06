@@ -192,7 +192,10 @@ test('default Platform failure retains the nondecreasing Hiscores fallback', asy
   assert.equal(snapshot.source, 'hiscores');
   assert.deepEqual(calls, ['https://secure.runescape.com', 'https://secure.runescape.com']);
   assert.equal(snapshot.message, undefined, 'Platform failure does not report RuneMetrics closure');
-  assert.deepEqual(snapshot.skills.map(row => row.skill), ['Defence']);
+  assert.deepEqual(snapshot.skills.map(row => row.skill), ['Attack', 'Defence']);
+  const review = previewProgress({ revision: 0, members: [{ ...member, completedTasks: [] }], tasks: [] }, member.id, snapshot, new Map());
+  assert.deepEqual(review.preview.skills.map(row => row.skill), ['Defence']);
+  assert.deepEqual(review.command.skills.map(row => row.skill), ['Defence']);
   assert.equal(snapshot.questPoints, undefined); assert.deepEqual(member, before);
 });
 
