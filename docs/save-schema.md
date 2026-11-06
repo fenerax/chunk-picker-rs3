@@ -13,6 +13,127 @@ rollback policies. CI runs the actual `06e15939` dependency graph. The retained
 `tests/fixtures/rollback-main/` fixture is a fast hybrid check: five of its 22
 live app imports changed after the pin, so it is not a frozen runtime.
 
+## Plugin item journal retention
+
+The portable schema and `state.json` format are unchanged. Live item evidence
+still uses the version 1 `plugin-items.json` sidecar. Two optional additive
+sidecars, `plugin-item-journal-beta.json` and
+`plugin-item-journal-unknown.json`, retain acknowledged non-live worn journals;
+legacy three-field events belong to unknown. Each file is
+`{v: 1, players: {[memberId]: record}}`, using the existing item record shape:
+`{baselineAt, items, handled, journal}`. Item facts contain
+`{name, ownedAt, wornAt, first}`; `journal` is a processed `{id, event}` watermark.
+Each player has at most 500 distinct item IDs and 2,000 handled task IDs per
+file; names have at most 80 characters. Journal facts include unmapped IDs.
+Member records are pruned against current save membership on writes. A full
+record refuses the write and journal acknowledgement, preserving existing facts.
+
+Files use the existing queued, synced atomic sidecar replacement and corrupt-file
+archive. An acknowledgement is issued only after every affected scope has been
+saved; a partial write leaves the prefix unacknowledged for idempotent retry.
+Retained journal records rebuild labelled review rows at startup and after every
+successful whole-picker or member import, without a report or restart. Rebuilding
+does not issue completion commands, including for live evidence. Non-live records never
+become live facts or automatic completions. Non-live containers remain ephemeral.
+Member imports preserve other players' item dismissals and container-only
+reviews while refreshing only the imported player's review. Dismissing unmapped
+items records `unmapped:<itemId>` in the scope's bounded `handled` list without
+removing retained facts. Retained beta/unknown journal dismissals persist through
+restart and portable recovery; ephemeral container dismissals remain session-only.
+
+`plugin-item-journal-commits.json` is a separate version 1 sidecar containing
+`{v: 1, players: {[memberId]: {journals: [{id, committed, pending}]}}}`.
+Each player has at most eight journal identities and 256 pending events across
+them. Pending events retain the original `[eventId, itemId, name, world]` evidence
+before any scope's processing watermark advances. Only resolved identities may
+age out. `committed` advances only after every pending event has reached its
+own durable scope, followed by a successful commit-ledger write. A delayed
+subset after restart must still satisfy the retained pending prefix. Per-scope
+processing watermarks never produce acknowledgements. Successfully saved live
+evidence can complete tasks independently of another scope's failure.
+When the pending-event or journal-identity ledger bound is full, the receiver
+drains its existing durable pending work first. The rejected incoming suffix
+stays unacknowledged and can be accepted on the next retry.
+
+Portable exports include the optional envelope
+`optionalSidecarEvidence: {schemaVersion: 1, entries: {pluginItems: {version: 1, players: ...}}}`.
+The common envelope contains code-owned evidence types; journals occupy one entry,
+using the same envelope contract as replay suppression. The adapters' internal
+plain-data shape remains `{v: 1, players: ...}`.
+Exports also put the same validated evidence in
+`state.provenance.pluginItemEvidence`. This compatibility copy is required:
+release `06e15939` preserves free-form provenance through portable import,
+edits, Undo, and export, but discards the optional envelope. Its whole-save
+restore moves provenance into `restore.incomingProvenance`. Current loaders
+recover evidence through every such nested restore boundary, applying archived
+`transferRoster.mapping` chains to incoming evidence before combining it with
+the current owner's root evidence. Transfers resolve these archives before
+changing member IDs. Historical archives remain unchanged; unrelated provenance
+and History are never searched for journal records. Copies are deduplicated,
+and the same bounds apply to the recovered union before publication. A union
+that exceeds a bound refuses the load or import without changing the save.
+`provenance.pluginItemEvidenceReconciled: 1` seals the current provenance node's
+incoming archive as historical. Once sealed, only its active compatibility copy
+contributes evidence; older archive copies cannot refill facts removed later.
+A frozen restore wraps this sealed node in a new unsealed boundary, so current
+loaders recover its active copy and seal the new boundary. Normal writable
+startup durably publishes any newly recovered copy and marker before accepting
+reports, without a gameplay revision. Read-only readers never write; a strict
+live swap refuses an unsealed archive until an ordinary offline reopen seals it.
+Each player contains `records` keyed by `live`, `beta`, or `unknown`, and
+`commits` with the ledger shape above. The fixed-file adapters
+`exportPluginItemEvidence` and `importPluginItemEvidence` in `app/plugin-items.mjs`
+return plain validated data and accept one player-ID mapper. They never write
+filenames supplied by an import. Restores publish the mapped evidence in
+`state.provenance.pluginItemEvidence` atomically with gameplay. Active readers
+combine that imported state with the fixed sidecars. Source-member mapping
+filters other source players before remapping. Whole-picker replacement merges
+retained destination evidence rather than revoking previous acknowledgements.
+Portable backup, backup-ID/member restore, transfer, and direct replacement all
+use this path. Invalid records, conflicting pending identities, or oversized
+unions refuse publication without changing the destination.
+Prepared import, restore, and transfer tickets also bind to the fixed sidecar
+generations captured before preparation. A sidecar change requires a new preview,
+even when the gameplay revision is unchanged. Publication checks that binding
+inside the mutation queue while excluding sidecar replacements. Direct replacement
+previews and commits validate the latest unions under the same gate. A report
+prepared before publication must validate its record against the newly imported
+evidence before writing. Item, handled-task, player, journal, and pending-event
+bounds therefore apply to the active combined view, not just individual files.
+
+All portable exports, transfer exports, directory snapshots, and service backups
+use one generation-checked capture of the fixed scope files, commit ledger, and
+`state.json` (including inherited evidence). Atomic file identities and timestamps
+must remain unchanged before and after the complete capture; a concurrent write
+retries the capture, up to eight attempts, then returns a retryable export error.
+This also covers writes from other worker isolates. No acknowledgement can be
+exported with an older scope or inherited-evidence snapshot.
+
+These records remain outside gameplay Undo and are included in operational
+snapshots and service-recovery backups. Older releases ignore the optional
+top-level envelope and free-form provenance extension, and still load the
+unchanged live record shape. Portable round-trips through the old release retain
+the compatibility provenance copy, including when its restore archives it.
+Retain the fixed sidecars during rollback; the old
+receiver cannot display non-live review rows or provide this durability guarantee
+for new acknowledgements.
+
+A full scope refuses new facts without evicting evidence or advancing its
+acknowledgement. Live tasks continue to complete. The progress review displays
+the failure, the 500-ID limit, and the recovery instruction. An operator can
+export the complete evidence, obtain the player's review of retained facts, stop
+the receiver, and remove only those reviewed facts from that scope's sidecar
+and the active `provenance.pluginItemEvidence` copy. First reopen the save with
+the current receiver so its archive boundary is durably sealed, then stop it
+again before editing. Preserve `pluginItemEvidenceReconciled: 1`, all historical
+archives, the commit ledger
+and its pending events. Restarting and retrying drains the durable pending
+prefix once space is available; no sender retransmission is required.
+When editing a portable export instead of the stored save, remove the same fact
+from both its active provenance copy and optional envelope. Keep the marker;
+never clear historical archives to make room. Dismissal hides review rows but
+retains their evidence, so it does not itself free an item-ID slot.
+
 ## Game plugin current currency
 
 The optional private envelope field `pluginCurrency` uses format 2. Its `keys`,
@@ -355,9 +476,13 @@ Writable startup strictly validates both legacy handled sidecars and durably
 folds their union into this provenance before serving, preserving revision,
 History and Undo. It then reconciles committed decisions back into the legacy
 sidecars. Standby activation requires a restart if new legacy decisions need
-folding. Restore preparation and publication validate both union limits against
-the destination sidecars before changing the checkpoint; overflow never commits
-an unstartable restore. Unreadable or invalid evidence refuses the operation.
+folding. One shared pre-publication guard captures all registered evidence and
+validates both union limits against destination sidecars before changing the
+checkpoint. Commands (including automatic ticks, Undo and note edits), cleanup,
+restore, import and transfer all use it. Overflow never commits an unstartable
+save. Live handled decisions from registered item evidence join the same union;
+beta and unknown decisions retain their world scope. Unreadable or invalid
+evidence refuses the operation.
 The frozen `06e15939` loader preserves this extension, but its plugin controller
 ignores it. All service starts, including frozen rollback, pass the installed
 [`start-check.mjs`](../scripts/linux/start-check.mjs) ExecStartPre as described in

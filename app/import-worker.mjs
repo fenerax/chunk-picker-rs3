@@ -100,7 +100,9 @@ async function run(job) {
       backup = typeof body.backup === 'string' ? JSON.parse(body.backup) : body.backup;
       backup = decodeCompletionDocument(backup);
     }
-    if (backup) requireTransferDataset(dataset, backup);
+    if (backup) {
+      requireTransferDataset(dataset, backup);
+    }
     const legacy = !backup && !pasted;
     if (legacy && dataset.capabilities?.features?.originalSync === false) fail(422, 'Choose a backup from this starter game dataset.');
     const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry }) : null;

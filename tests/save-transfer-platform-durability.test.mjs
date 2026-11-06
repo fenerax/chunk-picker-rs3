@@ -55,6 +55,7 @@ for (const entrypoint of ['member-upload', 'member-retained', 'member-noop', 'wh
     } };
     const { store, dataDir } = await scratch(t, { initialState,
       ...(entrypoint === 'direct-hook' ? { prepareState: state => state } : {}) });
+    const beforePreview = store.getState();
     const incoming = createGroupState([{ ...roster[0], id: 'source',
       ...(entrypoint !== 'member-noop' ? { name: 'Source explorer', runescapeName: 'SourceActor' } : {}) }, ...roster]);
     incoming.provenance = { pluginAutoHandled: {
@@ -77,7 +78,7 @@ for (const entrypoint of ['member-upload', 'member-retained', 'member-noop', 'wh
         ...(entrypoint.endsWith('retained') ? { backupId } : { backup }),
         ...(member ? { memberId: owner, sourceMemberId: 'source' } : { rosterMapping: { source: owner, [owner]: 'partner' } }),
       }), { dataset, world, route: member ? '/api/member-restore/preview' : entrypoint === 'import' ? '/api/import/preview' : '/api/restore/preview' });
-      assert.deepEqual(store.getState(), initialState, 'Preview does not publish replay policy');
+      assert.deepEqual(store.getState(), beforePreview, 'Preview does not publish replay policy');
       await store.applyTransfer(reviewed.ticket, 0);
     }
     assert.deepEqual(store.getState().provenance.pluginAutoHandled, expected);

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { acquireProcessGuard } from './process-guard.mjs';
 import { readStaticFieldBytes, validateStaticFieldReference } from './static-field.mjs';
 import { decodeCompletionDocument } from './completion-codec.mjs';
-import { materializeOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
+import { materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
 import { validRosterSourceId } from '../import-output.mjs';
 import { legacyPluginHandledFiles, preparePluginHandledSidecars } from './plugin-handled-sidecars.mjs';
 
@@ -12,9 +12,23 @@ const hasReplayPlayers = players => players !== undefined && (!object(players) |
   || !Array.isArray(record.items) || !Array.isArray(record.achievements) || record.items.length || record.achievements.length));
 const hasReplayEnvelope = evidence => {
   const entry = evidence?.entries?.pluginReplaySuppression;
-  return entry !== undefined && (!object(entry) || entry.version !== 1 || !Object.hasOwn(entry, 'players') || hasReplayPlayers(entry.players));
+  const items = evidence?.entries?.pluginItems;
+  return entry !== undefined && (!object(entry) || entry.version !== 1 || !Object.hasOwn(entry, 'players') || hasReplayPlayers(entry.players))
+    || items !== undefined && hasItemReplay(items.players);
 };
-const hasReplayProvenance = provenance => hasReplayPlayers(provenance?.pluginAutoHandled) || hasReplayEnvelope(provenance?.optionalSidecarEvidence);
+const hasItemReplay = players => players !== undefined && (!object(players) || Object.values(players).some(record =>
+  record?.records?.live?.handled !== undefined && (!Array.isArray(record.records.live.handled) || record.records.live.handled.length)));
+function hasReplayProvenance(provenance) {
+  const seen = new Set();
+  for (let node = provenance; object(node); node = node.restore?.incomingProvenance) {
+    if (seen.has(node)) throw new TypeError('Cyclic replay provenance.');
+    seen.add(node);
+    if (hasReplayPlayers(node.pluginAutoHandled) || hasReplayEnvelope(node.optionalSidecarEvidence)
+      || hasItemReplay(node.pluginItemEvidence?.players)) return true;
+    if (node.pluginItemEvidenceReconciled === 1) break;
+  }
+  return false;
+}
 
 async function hasLegacyReplay(dataDir) {
   let present = false;
@@ -70,7 +84,7 @@ export async function prepareStoppedPluginSuppression({ dataDir }) {
       }
     }
     if (state.provenance !== undefined && !object(state.provenance)) throw new TypeError('Invalid replay provenance.');
-    const ready = materializeOptionalSidecarEvidence(state, document.optionalSidecarEvidence ?? state.provenance?.optionalSidecarEvidence);
+    const ready = materializeOptionalSidecarEvidence(reconcileOptionalSidecarEvidence(state), document.optionalSidecarEvidence);
     return { publications: await preparePluginHandledSidecars({ dataDir: directory, state: ready }), release };
   } catch (error) { await release(); throw error; }
 }

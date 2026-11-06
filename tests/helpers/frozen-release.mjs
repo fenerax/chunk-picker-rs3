@@ -25,18 +25,18 @@ export async function requireFrozenCommit(repository = root, release = manifest.
 /** Cache an independent exact-SHA repository, never a runner-specific .git
  * worktree pointer. Each test run still executes a temporary real git worktree.
  * CI caches this directory by OS and SHA; no live app modules are imported. */
-export async function frozenRuntime(t) {
+export async function frozenRuntime(t, { release = manifest.frozenRelease } = {}) {
   // Even a cache hit must not conceal a shallow/missing source pin.
-  await requireFrozenCommit();
+  await requireFrozenCommit(root, release);
   const cacheRoot = path.resolve(process.env.RS3_FROZEN_CACHE ?? path.join(root, '.local', 'frozen-release-cache'));
   await mkdir(cacheRoot, { recursive: true });
-  const repository = path.join(cacheRoot, manifest.frozenRelease);
+  const repository = path.join(cacheRoot, release);
   await mkdir(repository, { recursive: true });
   let cached = false;
-  try { cached = (await git(repository, ['rev-parse', 'HEAD'])).stdout.trim() === manifest.frozenRelease; } catch { /* cache miss */ }
+  try { cached = (await git(repository, ['rev-parse', 'HEAD'])).stdout.trim() === release; } catch { /* cache miss */ }
   if (!cached) {
     await git(repository, ['init']);
-    await git(repository, ['-c', 'protocol.file.allow=always', 'fetch', '--depth=1', root, manifest.frozenRelease]);
+    await git(repository, ['-c', 'protocol.file.allow=always', 'fetch', '--depth=1', root, release]);
     await git(repository, ['checkout', '--detach', 'FETCH_HEAD']);
   }
   // Refuse edited cached source instead of accidentally testing a hybrid.
@@ -46,7 +46,7 @@ export async function frozenRuntime(t) {
   await mkdir(parent, { recursive: true });
   const temporary = await mkdtemp(path.join(parent, 'frozen-'));
   const checkout = path.join(temporary, 'checkout');
-  try { await git(repository, ['worktree', 'add', '--detach', checkout, manifest.frozenRelease]); }
+  try { await git(repository, ['worktree', 'add', '--detach', checkout, release]); }
   catch (error) { await rm(temporary, { recursive: true, force: true }); throw error; }
   t.after(async () => {
     await git(repository, ['worktree', 'remove', checkout]);

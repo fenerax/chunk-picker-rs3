@@ -277,11 +277,11 @@ strictly increasing positive integers across that journal, regardless of environ
 ID restarts event counting, but does not change retained events' environments.
 The same journal ID/event ID must always retain the same item, name and environment.
 
-Legacy `[eventId, itemId, name]` triples are still accepted and keep the earlier
-rule: they take the **delivery** report's world. In a live report they can persist
-live owned/worn facts and tick live goals; in a beta or unknown-world report they
-stay labelled review rows. So an item worn on beta and still queued when a live
-report is sent counts as live. Closing that gap is what the four-field form is for.
+Legacy `[eventId, itemId, name]` triples are still accepted and acknowledged, but
+their observation world is **unknown**. They stay labelled review rows, even when
+delivered on a live world, and cannot automatically tick live goals or persist
+live item facts. Current containers in the same report retain their own world:
+an item also present in a live container still supplies live evidence.
 After a sender upgrade, send old queued events as `"unknown"` unless their
 observation environment was actually retained.
 Send four-field events only after observing `"item-journal-world"` in status;
@@ -327,11 +327,37 @@ Dismiss mark every shown row handled so it is not offered again.
 Live-world evidence (current live containers or explicitly live journal events)
 is saved in `plugin-items.json`
 beside `plugin-achievements.json`, with the same atomic writes and corrupt-file
-archive. Per player it keeps `baselineAt`, reviewed `items` facts
+archive. Per player it keeps `baselineAt`, `items` facts
 (`name`, `ownedAt`, `wornAt`, `first`), sorted `handled` task IDs (at most
-2,000) and the last acknowledged `journal` `{id, event}`. Beta and
-unknown-world evidence stays in memory only and never mixes with live evidence.
-The sidecar is outside the save, Undo and backups.
+2,000) and a processed `journal` `{id, event}` watermark. Containers retain only
+reviewed IDs; journals also retain unmapped IDs so acknowledgement does not discard
+their evidence. Each record holds at most 500 distinct item IDs.
+Beta and unknown-world **journal** evidence uses separate
+`plugin-item-journal-beta.json` and `plugin-item-journal-unknown.json` sidecars
+with the same version 1 shape and bounds. Legacy triples join the unknown store.
+These stores never supply live ticks or live item facts. Non-live containers
+remain memory-only. The separate `plugin-item-journal-commits.json` ledger holds
+at most eight journal identities and 256 unresolved events per player. It saves
+the pending event payloads before scope writes and records fully committed
+acknowledgements separately from processing watermarks. Portable exports carry
+validated records and the ledger in the optional version 1
+`optionalSidecarEvidence: {schemaVersion: 1, entries: {pluginItems: {version: 1, players: ...}}}`
+envelope; imports map player IDs into
+`state.provenance.pluginItemEvidence` before publishing. Whole-directory and
+service-recovery snapshots include every file in `pluginItemFiles`.
+Every export and backup uses a shared generation-checked capture of these files
+and persisted inherited evidence. Concurrent replacements retry the entire capture
+(up to eight attempts, then a retryable error), so exported acknowledgements
+always carry their evidence. Successful whole-picker and member imports refresh
+retained review rows immediately, including when the plugin is offline; this
+refresh never automatically completes tasks.
+Member imports refresh only the imported players, preserving other players'
+container-only reviews and temporary dismissals. Dismissed unmapped item IDs stay
+hidden for the session while their acknowledged evidence remains retained.
+Prepared imports bind to the destination sidecar generations as well as the save
+revision. If a journal arrives before publication, retry the preview. Publication
+and sidecar writes share an exclusion gate, and later reports validate against the
+imported evidence before writing, so combined record limits cannot be exceeded.
 
 Cached bank coins are historical observations, not authoritative current funds.
 Transport currency counts only the live pouch and backpack, both readable in the
@@ -391,18 +417,46 @@ snapshot differs or journal events remain unacknowledged, even if the containers
 have not changed. It drops journal events at or below the acknowledged event
 for the same journal ID. An acknowledgement covers all environments in the
 received journal prefix; it does not certify live provenance or a task tick.
-Any live evidence and its watermark must reach the sidecar before that prefix is
-acknowledged. If the write fails, the prior journal acknowledgement is retained
-for retry. Beta and unknown evidence stays in memory and does not survive a
-receiver restart without a retransmission. A beta or unknown-world report's own
-containers and legacy triples share one memory slot, as before: the next beta or
-unknown report replaces it. Four-field beta and unknown events keep their own
+All journal evidence and its watermarks must reach their respective sidecars
+before that prefix is acknowledged. If any write fails, including a record
+exceeding its bound, the prior journal acknowledgement is retained for retry;
+no retained evidence is evicted to make room. Earlier successful writes remain
+durable and the sender can re-deliver the entire prefix, including after restart.
+A per-store processed watermark alone is not an acknowledgement of the prefix.
+The durable pending ledger is also retried on a later subset or empty report;
+the receiver cannot forget which other scopes the failed prefix touched.
+Successfully retained live evidence still completes tasks during a non-live
+write failure. Full stores leave a visible `itemRetentionIssue` in the progress
+review, including the capacity and operator recovery instruction. No evidence
+is evicted automatically. See `docs/save-schema.md` for the reviewed recovery
+procedure; the sender's unacknowledged prefix remains retryable throughout.
+A beta or unknown-world report's own
+containers share one memory slot: the next beta or unknown report replaces it.
+Legacy triples and four-field beta and unknown events keep their own
 record per environment, and their rows stay in every later review (items or
-bank) until handled, even after the sender drops the acknowledged events. Legacy
-triples receive the same delivery acknowledgement in their delivery world.
+bank), including immediately after receiver startup without retransmission,
+even after the sender drops the acknowledged events. Retained journal dismissals
+persist in their scope's bounded handled list; they do not suppress later live
+task evidence. Non-live container dismissals last for the receiver run. Legacy
+triples receive the same delivery acknowledgement while retaining unknown provenance.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;
 actual sender exposure would need separate verification before any migration.
+This is an additive receiver change with no plugin wire-format or portable-save
+schema-version change. Older receivers ignore the optional envelope, provenance extension
+and new files, and still load the save and unchanged live sidecar. Portable
+exports include a compatibility copy in `state.provenance.pluginItemEvidence`,
+which the frozen release preserves through import, edits, Undo, restore, and
+export. On upgrade, validated records are recovered from nested
+`restore.incomingProvenance` archives as well as the root, with transfer member
+mapping preserved. Recovered unions use the same limits and refuse publication
+unchanged if too large. The `{schemaVersion, entries}` envelope remains intact.
+The validated `provenance.pluginItemEvidenceReconciled: 1` marker makes each
+recovered boundary historical: later capacity recovery cannot be refilled from
+older archived copies. Keep this marker when clearing reviewed active facts,
+and follow the stopped-receiver procedure in `docs/save-schema.md`.
+Preserve the files during rollback: older receivers
+cannot display their retained review rows; upgrading again restores them.
 
 ## GET /api/plugin/v1/status
 

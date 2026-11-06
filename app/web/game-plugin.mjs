@@ -5,7 +5,7 @@ export function positionAge(seenAt, now = Date.now()) {
   return Number.isFinite(age) && age >= -30000 && age < MAX_AGE ? Math.max(0, age) : null;
 }
 const ageText = age => age < 60000 ? 'just now' : `${Math.floor(age / 60000)}m ago`;
-const reviewText = value => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 160);
+const reviewText = (value, limit = 160) => String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, limit);
 // Diary labels repeat the achievement title after the area, so rows show only the area when they can.
 const taskText = (title, label) => { const text = String(label ?? '').trim(), name = String(title ?? '').trim(); return reviewText(name && text.endsWith(name) && text.length > name.length ? text.slice(0, -name.length).trim() : text); };
 const count = value => Number(value).toLocaleString('en-US');
@@ -163,6 +163,7 @@ export function createGamePlugin(c) {
       const items = value.items ?? [], unmappedItems = value.unmappedItems ?? [];
       const section = el('section', undefined, 'game-plugin-review form-stack');
       section.append(el('h4', `Review plugin progress for ${owner.name}`), el('p', `Received ${date(value.fetchedAt)}${value.world ? ` · World ${value.world.id}` : ''}`, 'info-meta'));
+      if (value.itemRetentionIssue) section.append(el('p', reviewText(value.itemRetentionIssue, 512), 'warning'));
       // World warnings appear once. Rows carry a short tag only when worlds are mixed.
       const worlds = new Set(achievements.map(row => row.world).filter(world => world === 'beta' || world === 'unknown'));
       const mixed = new Set(achievements.map(row => row.world)).size > 1;

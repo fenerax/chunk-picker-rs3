@@ -81,7 +81,7 @@ for (const kind of ['items', 'achievements']) {
     const f = await fixture(t);
     await mkdir(path.join(f.dataDir, `plugin-${kind}.json`));
     const before = await inventory(f.dataDir);
-    await assert.rejects(f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) }), /directory|EISDIR/i);
+    await assert.rejects(f.store.command(tick(kind), 0, { pluginHandled: suppression(kind) }), /unavailable|directory|EISDIR/i);
     assert.equal(f.store.getInfo().revision, 0);
     assert.deepEqual(await inventory(f.dataDir), before);
   });
@@ -149,6 +149,24 @@ for (const kind of ['items', 'achievements']) {
     await mkdir(unavailable);
     const before = await inventory(f.dataDir);
     await assert.rejects(f.store.command({ type: 'undo' }, 1), /Invalid plugin/);
+    assert.deepEqual(await inventory(f.dataDir), before);
+  });
+}
+
+for (const publication of ['replace', 'automatic-tick', 'note']) {
+  test(`${publication} validates registered live item evidence together with atomic suppression`, async t => {
+    const f = await fixture(t, publication === 'replace' ? { prepareState: state => state } : {});
+    if (publication === 'note') await f.store.command(tick('items'), 0, { pluginHandled: suppression('items') });
+    const proposed = suppressed(f.initialState, 'items');
+    proposed.provenance.optionalSidecarEvidence = { schemaVersion: 1, entries: { pluginItems: { version: 1,
+      players: { owner: { records: { live: { baselineAt: now, items: {}, handled: full('items'), journal: null } }, commits: { journals: [] } } } } } };
+    // File-backed evidence enters the very same registry as portable evidence.
+    if (publication !== 'replace') await sidecar(f.dataDir, 'items');
+    const before = await inventory(f.dataDir), state = f.store.getState();
+    await assert.rejects(publication === 'replace' ? f.store.replace(proposed, 0)
+      : publication === 'automatic-tick' ? f.store.command(tick('items'), 0, { pluginHandled: suppression('items') })
+        : f.store.command({ type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Synthetic note' }, 1), /Invalid plugin/);
+    assert.deepEqual(f.store.getState(), state);
     assert.deepEqual(await inventory(f.dataDir), before);
   });
 }

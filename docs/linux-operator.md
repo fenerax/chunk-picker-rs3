@@ -268,6 +268,11 @@ with plugin intake disabled. The unit's existing three-start limit and OnFailure
 notification remain responsible for bounded failures and alerts; the operator
 does not start another runtime after a gate refusal or add a retry loop.
 
+Registered live item decisions in portable provenance, including frozen restore
+archives, join that same union. Beta and unknown records keep their world scope.
+Fresh, empty or unrelated checkpoint shapes without replay decisions remain the
+selected runtime's responsibility and do not require a replay checkpoint.
+
 The current runtime also strictly reads both legacy handled sidecars and folds
 their decisions into saved provenance before serving a writable store, without
 changing gameplay revision, History or Undo. This preserves decisions written

@@ -77,3 +77,19 @@ test('nested registry replay evidence is bridged before a valid frozen start', a
     assert.deepEqual(sidecar.players.owner.handled, suppression.owner[kind]);
   }
 });
+
+for (const carrier of ['root', 'envelope', 'nested-envelope', 'archive']) {
+  test(`${carrier} registered live item decisions are bridged before frozen start`, async t => {
+    const record = { records: { live: { baselineAt: '2026-01-01T00:00:00.000Z', items: {}, handled: ['custom:synthetic'], journal: null } }, commits: { journals: [] } };
+    const items = { schemaVersion: 1, entries: { pluginItems: { version: 1, players: { owner: record } } } };
+    const document = structuredClone(native);
+    if (carrier === 'root') document.state.provenance = { pluginItemEvidence: { v: 1, players: { owner: record } } };
+    else if (carrier === 'archive') document.state.provenance = { restore: { incomingProvenance: { pluginItemEvidence: { v: 1, players: { owner: record } } } } };
+    else if (carrier === 'envelope') document.optionalSidecarEvidence = items;
+    else document.state.provenance = { optionalSidecarEvidence: items };
+    const f = await fixture(t, document);
+    await checkStart(f);
+    const { readFile } = await import('node:fs/promises');
+    assert.deepEqual(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'))).players.owner.handled, ['custom:synthetic']);
+  });
+}
