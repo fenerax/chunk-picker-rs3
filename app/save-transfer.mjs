@@ -1,5 +1,6 @@
 import { boundedOutput, REPORT_RECORDS } from './import-output.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { mapOptionalSidecarEvidence } from './optional-sidecar-evidence.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 export function transferDigest(value) {
@@ -16,8 +17,8 @@ export function transferDigest(value) {
   }
   return hash.digest('hex');
 }
-export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives'],
-  excluded: ['Unaccepted plugin evidence and review sidecars', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
+export const backupCoverage = Object.freeze({ included: ['Gameplay state', 'Hydrated saved History', 'Identity and migration archives', 'Registered optional sidecar evidence'],
+  excluded: ['Unregistered plugin evidence and transient review state', 'Accounts, sessions, invitations and plugin keys', 'Reference datasets and artwork'] });
 
 export function transferManifest(dataset, members) {
   return { version: 1, app: 'rs3-chunk-picker', schemaVersion: 1,
@@ -82,6 +83,7 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   for (const row of next.provenance?.taskIdentityMigration?.legacyAlternativeMembers ?? []) row.memberId = mapped(row.memberId);
   if (next.provenance?.pluginAutoHandled) next.provenance.pluginAutoHandled = Object.fromEntries(
     Object.entries(next.provenance.pluginAutoHandled).filter(([id]) => Object.hasOwn(entries, id)).map(([id, record]) => [mapped(id), record]));
+  if (next.provenance?.optionalSidecarEvidence) next.provenance.optionalSidecarEvidence = mapOptionalSidecarEvidence(next.provenance.optionalSidecarEvidence, entries);
   for (const task of next.tasks) if (task.memberIds) task.memberIds = task.memberIds.map(mapped);
   for (const claim of Object.values(next.taskClaims ?? {})) claim.memberId = mapped(claim.memberId);
   for (const goal of next.groupGoals ?? []) goal.completedBy = goal.completedBy.map(mapped);

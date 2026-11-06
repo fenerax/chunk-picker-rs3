@@ -3,7 +3,8 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
-import { hasPluginHandled, withPluginHandled, reconcilePluginHandled } from './plugin-handled.mjs';
+import { hasPluginHandled, withPluginHandled } from './plugin-handled.mjs';
+import { appendOptionalSidecarEvidence, captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence, withOptionalSidecarEvidence } from '../optional-sidecar-evidence.mjs';
 import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
@@ -443,7 +444,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
-    const state = importSavedState(document, registry);
+    const state = materializeOptionalSidecarEvidence(importSavedState(document, registry), document.optionalSidecarEvidence);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
       const value = state[key];
@@ -676,7 +677,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const document = label ? JSON.stringify({ ...envelope((await hydrateHistory(state)).state), retentionPinned: true, retentionLabel: label })
       : ['replace', 'catalogue-refresh'].includes(operation)
       ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized;
-    const bytes = await gzipAsync(document, { level: constants.Z_BEST_SPEED });
+    const bytes = await gzipAsync(appendOptionalSidecarEvidence(document, await captureOptionalSidecarEvidence(state, { dataDir: directory })), { level: constants.Z_BEST_SPEED });
     const file = path.join(backupsDir, name);
     reportDurability(await atomicWrite(file, bytes));
     if (label) reportDurability(await atomicWrite(`${file}.meta.json`, JSON.stringify({ label })));
@@ -1116,8 +1117,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function replacementState(document, base, actor) {
     if (isMainThread && !prepareState && !migrateState) return runImportJob({ kind: 'replacement', dataDir: directory, document, actor,
       baseRevision: base.revision, rules: registryMetadata(registry), options: { now: timestamp() } });
-    const incoming = document?.format || typeof document === 'string' ? importBackup(document, registry, { owned: importReader })
+    let incoming = document?.format || typeof document === 'string' ? importBackup(document, registry, { owned: importReader })
       : importReader ? validateOwnedState(document, registry) : validateState(document, registry);
+    incoming = materializeOptionalSidecarEvidence(incoming, (typeof document === 'string' ? JSON.parse(document) : document)?.optionalSidecarEvidence);
+    base = materializeOptionalSidecarEvidence(base, await captureOptionalSidecarEvidence(base, { dataDir: directory }));
     // Keep separate bounded validation/migration phases off the same event-loop turn.
     await new Promise(resolve => setImmediate(resolve));
     const ready = await prepared(incoming, 'replace');
@@ -1132,8 +1135,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       else precedingEvidence.push(event);
     }
     const previousHistory = [...precedingEvidence, ...[...preceding.values()].sort((a, b) => a.revision - b.revision)];
-    const pluginAutoHandled = reconcilePluginHandled(ready, base).provenance?.pluginAutoHandled;
+    const evidence = reconcileOptionalSidecarEvidence(ready, base).provenance;
+    const pluginAutoHandled = evidence?.pluginAutoHandled;
     ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}),
+      ...(evidence?.optionalSidecarEvidence ? { optionalSidecarEvidence: evidence.optionalSidecarEvidence } : {}),
       ...(pluginAutoHandled ? { pluginAutoHandled } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
       ...(completeIncoming.provenance !== undefined ? { incomingProvenance: completeIncoming.provenance } : {}) } };
     ready.revision = revision;
@@ -1262,17 +1267,19 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
       // All transfer routes publish the union with the exact destination
       // checkpoint. applyTransfer rejects a ticket if that checkpoint changes.
-      next = reconcilePluginHandled(next, current);
+      const captured = await captureOptionalSidecarEvidence(current, { dataDir: directory });
+      next = reconcileOptionalSidecarEvidence(next, materializeOptionalSidecarEvidence(current, captured));
       importDependencies = [];
       const observed = progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
       // Export observes snapshots and hydrated History, not the compact disk
       // representation. Validate that complete envelope before preparing writes.
-      if (validateBackup) await validateBackup(envelope(observed.provenance?.historyArchive?.length
-        ? (await hydrateHistory(observed)).state : observed));
+      if (validateBackup) await validateBackup(await withOptionalSidecarEvidence(envelope(observed.provenance?.historyArchive?.length
+        ? (await hydrateHistory(observed)).state : observed), { dataDir: directory }));
       const state = await compactHistory(observed);
       if (coordination.has(current)) coordination.set(state, { ...(operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} } : coordinationOf(current)), lastNonClaimRevision: state.revision });
       const disk = Buffer.from(await serializedDiskState(state));
-      const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized, { level: constants.Z_BEST_SPEED });
+      const retained = appendOptionalSidecarEvidence(currentDiskSerialized, captured);
+      const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(retained) : retained, { level: constants.Z_BEST_SPEED });
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
       const summary = boundedOutput({ revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } });
       return { state, disk, backup, dependencies: importDependencies, fields, summary, digest: createHash('sha256').update(disk).digest('hex'),
@@ -1333,7 +1340,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     prepareSnapshot: () => enqueueMaintenance(maintainRetention),
     backup: () => isMainThread ? enqueueMaintenance(() => runImportJob({ kind: 'backup', dataDir: directory,
       rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true })
-      : hydrateHistory(current).then(({ state }) => envelope(state)),
+      : hydrateHistory(current).then(({ state }) => withOptionalSidecarEvidence(envelope(state), { dataDir: directory })),
     exportBackup: ({ dataset, gzip = false, encoding } = {}) => enqueueMaintenance(() => runImportJob({ kind: 'export', dataDir: directory,
       exportDataset: dataset, gzip, encoding, rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true }),
     async listBackups() {

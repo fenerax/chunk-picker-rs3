@@ -4,6 +4,8 @@ import { originalChunkURL, legacyChunkIndex } from '../app/original-chunk-url.mj
 import { mapTransferRoster, requireTransferDataset, transferManifest, transferReport, createTransferReviews } from '../app/save-transfer.mjs';
 import { createGroupState, validateState, applyCommand } from '../app/core/state.mjs';
 import { reconcilePluginHandled } from '../app/storage/plugin-handled.mjs';
+import { withOptionalSidecarEvidence, mapOptionalSidecarEvidence, materializeOptionalSidecarEvidence, appendOptionalSidecarEvidence } from '../app/optional-sidecar-evidence.mjs';
+import { importBackup as loadRollbackBackup } from './fixtures/rollback-main/state.mjs';
 
 const dataset = { datasetId: 'duo-legacy', datasetContractVersion: 1, coordinateSystem: 'surface-grid-v1', identityNamespace: 'rs3', digest: 'a'.repeat(64) };
 const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -101,6 +103,32 @@ test('suppression reconciliation rejects invalid or overflowing unions without d
     assert.throws(() => reconcilePluginHandled(state, { provenance: { pluginAutoHandled: { owner: record } } }), /Invalid plugin suppression IDs/);
     assert.deepEqual(state, before);
   }
+});
+
+test('registered optional evidence exports, maps and materializes without changing the atomic source field', async () => {
+  const state = createGroupState([{ id: 'source', name: 'Source explorer' }]);
+  const record = { achievements: [1], items: ['custom:sample'] };
+  state.provenance = { pluginAutoHandled: { source: record } };
+  const backup = await withOptionalSidecarEvidence({ format: 'rs3-chunk-picker', schemaVersion: 1, state });
+  assert.deepEqual(backup.optionalSidecarEvidence, { schemaVersion: 1, entries: { pluginReplaySuppression: { version: 1, players: { source: record } } } });
+  assert.equal(state.provenance.optionalSidecarEvidence, undefined, 'Export leaves the live state unchanged');
+  assert.deepEqual(loadRollbackBackup(backup), backup.state, 'The old loader retains the state carrier while ignoring the optional envelope');
+  const mapped = mapOptionalSidecarEvidence(backup.optionalSidecarEvidence, { source: 'owner' });
+  const next = materializeOptionalSidecarEvidence(createGroupState([{ id: 'owner', name: 'Explorer' }]), mapped);
+  assert.deepEqual(next.provenance.pluginAutoHandled, { owner: record });
+  const retained = JSON.parse(appendOptionalSidecarEvidence(JSON.stringify({ format: 'rs3-chunk-picker', schemaVersion: 1, state }), backup.optionalSidecarEvidence));
+  assert.deepEqual(retained.optionalSidecarEvidence, backup.optionalSidecarEvidence);
+});
+
+test('the optional evidence mapper scopes future types and refuses colliding or path-like mappings', () => {
+  const evidence = { schemaVersion: 1, entries: { syntheticEvidence: { version: 1, players: {
+    source: { labels: ['Synthetic source'] }, owner: { labels: ['Unselected source'] },
+  } } } };
+  const mapped = mapOptionalSidecarEvidence(evidence, { source: 'owner' });
+  assert.deepEqual(mapped.entries.syntheticEvidence.players, { owner: { labels: ['Synthetic source'] } });
+  const state = materializeOptionalSidecarEvidence(createGroupState([{ id: 'owner', name: 'Explorer' }]), mapped);
+  assert.deepEqual(state.provenance.optionalSidecarEvidence, mapped, 'Unknown types remain opaque provenance');
+  for (const mapping of [{ source: '../synthetic' }, { source: 'owner', owner: 'owner' }]) assert.throws(() => mapOptionalSidecarEvidence(evidence, mapping), /Invalid optional sidecar evidence/);
 });
 
 test('review receipts refuse changed uploads, mapping, identity, revision and expiration', () => {

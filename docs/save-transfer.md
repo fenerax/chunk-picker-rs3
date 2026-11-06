@@ -60,8 +60,8 @@ task rules and migration exclusions remain recoverable and are listed for
 review. Member reports also describe shared sections left at the destination.
 No retained exclusion is presented as a successfully matched game record.
 
-Backups include saved gameplay, hydrated History, identity registries and
-migration archives. They exclude unaccepted plugin observations/review sidecars,
+Backups include saved gameplay, hydrated History, identity registries,
+migration archives and registered optional sidecar evidence. They exclude unregistered plugin observations and transient review state,
 accounts, sessions, invitations, keys, reference datasets and artwork. Already
 accepted plugin observations materialized in gameplay remain in the backup;
 import does not authorize a live integration or reconnect a plugin client.
@@ -72,6 +72,53 @@ older backup cannot make an undone observation tick again. Portable transfers
 map these decisions to the chosen destination players; member restore imports
 only the selected source player's decisions. Undo of a member restore retains
 these replay decisions too.
+
+### Optional sidecar evidence
+
+Portable envelopes may include `optionalSidecarEvidence` with this shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "entries": {
+    "pluginReplaySuppression": {
+      "version": 1,
+      "players": {
+        "synthetic-player": { "achievements": [1], "items": ["custom:sample"] }
+      }
+    }
+  }
+}
+```
+
+The same capsule is retained under `state.provenance.optionalSidecarEvidence`.
+Older releases can load and re-export that provenance even when they ignore the
+optional envelope. Suppression's atomic authority remains
+`state.provenance.pluginAutoHandled`; exporting does not mutate the live state.
+
+Register types in `app/optional-sidecar-evidence.mjs`. A registration supplies
+`mergePlayer(...records)`, which validates and immutably combines one or more
+per-player records. It may also supply `fromState(state)`, a code-owned `files`
+allowlist, `capture({ state, files })`, and `materialize(state, players)`.
+Capture receives a Map of declared filenames to Buffers; missing files are
+omitted, and the type owns decoding and validation. Materialization is a pure,
+synchronous state projection that preserves revision and History. The shared
+capsule is installed before this hook. A controller can read its type's capsule
+to rehydrate its own evidence cache. Incoming data never chooses a file path
+and these hooks never write sidecars.
+
+For example, a plugin item-evidence registration can declare the exported
+`pluginItemFiles` allowlist and collect each file's records under the relevant
+player, without changing the envelope or restore code. Its merger owns world
+separation and evidence semantics. Unknown types remain opaque provenance;
+conflicting unknown records refuse import rather than silently lose evidence.
+
+The common player mapper selects source members before remapping their records.
+Both member and whole-picker imports combine mapped evidence with destination
+evidence before publication. Capture also runs for portable export, retained
+checkpoints and replacement preimages. Restoring retained files materializes
+their evidence before preparing the destination. This uses the existing schema-1
+save and plugin wire formats.
 
 ## Original picker chunks
 

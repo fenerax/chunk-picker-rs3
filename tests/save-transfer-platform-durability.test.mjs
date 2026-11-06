@@ -80,6 +80,37 @@ for (const entrypoint of ['member-upload', 'member-retained', 'member-noop', 'wh
     finally { await reopened.close(); }
   });
 }
+
+for (const member of [false, true]) test(`optional evidence envelope survives ${member ? 'member' : 'whole-picker'} restore, export and retained backup`, async t => {
+  const owner = roster[0].id, initialState = createGroupState(roster);
+  initialState.provenance = { pluginAutoHandled: { [owner]: { achievements: [9], items: ['custom:previous'] } } };
+  const { store } = await scratch(t, { initialState });
+  const source = createGroupState([{ id: 'source', name: 'Source explorer' }]);
+  const backup = exportBackup(source);
+  backup.optionalSidecarEvidence = { schemaVersion: 1, entries: {
+    pluginReplaySuppression: { version: 1, players: { source: { achievements: [1], items: ['custom:exported'] } } },
+    syntheticEvidence: { version: 1, players: { source: { labels: ['Synthetic evidence'] } } },
+  } };
+  const reviewed = await store.prepareTransfer(serialize({ backup,
+    ...(member ? { memberId: owner, sourceMemberId: 'source' } : { rosterMapping: { source: owner } }) }),
+  { dataset, world, route: member ? '/api/member-restore/preview' : '/api/restore/preview' });
+  await store.applyTransfer(reviewed.ticket, 0);
+  assert.equal(store.isPluginHandled(owner, 'achievements', 1), true);
+  assert.equal(store.isPluginHandled(owner, 'items', 'custom:exported'), true);
+  assert.equal(store.isPluginHandled(owner, 'achievements', 9), true);
+  const exported = JSON.parse((await store.exportBackup({ dataset })).bytes.toString());
+  assert.deepEqual(exported.optionalSidecarEvidence.entries.pluginReplaySuppression.players[owner],
+    { achievements: [1, 9], items: ['custom:exported', 'custom:previous'] });
+  assert.deepEqual(exported.optionalSidecarEvidence.entries.syntheticEvidence.players, { [owner]: { labels: ['Synthetic evidence'] } });
+  assert.deepEqual(loadRollbackBackup(exported), exported.state);
+  // A subsequent replacement retains this exact evidence in its preimage.
+  const revision = store.getInfo().revision;
+  await store.replace(store.getState(), revision);
+  const retained = (await store.listBackups()).find(backup => backup.revision === revision);
+  const restored = await store.readBackup(retained.id);
+  assert.deepEqual(restored.state.provenance.optionalSidecarEvidence.entries.syntheticEvidence,
+    exported.optionalSidecarEvidence.entries.syntheticEvidence);
+});
 function prepare(store, backup, member = false) {
   return store.prepareTransfer(serialize({ backup,
     ...(member ? { memberId: roster[0].id, sourceMemberId: roster[0].id } : {}) }),

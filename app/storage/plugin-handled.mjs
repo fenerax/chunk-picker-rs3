@@ -15,6 +15,12 @@ function validate(record) {
   return record;
 }
 
+export function mergePluginHandledRecords(...records) {
+  for (const record of records) validate(record);
+  return validate({ achievements: [...new Set(records.flatMap(record => record.achievements))].sort((a, b) => a - b),
+    items: [...new Set(records.flatMap(record => record.items))].sort() });
+}
+
 export function hasPluginHandled(state, player, kind, id) {
   const players = state.provenance?.pluginAutoHandled;
   const record = players && Object.hasOwn(players, player) ? players[player] : null;
@@ -44,10 +50,7 @@ export function reconcilePluginHandled(state, ...sources) {
       if (!members.has(id)) continue;
       validate(input);
       const prior = records.get(id) ?? { achievements: [], items: [] };
-      records.set(id, validate({
-        achievements: [...new Set([...prior.achievements, ...input.achievements])].sort((a, b) => a - b),
-        items: [...new Set([...prior.items, ...input.items])].sort(),
-      }));
+      records.set(id, mergePluginHandledRecords(prior, input));
     }
   }
   return present ? { ...state, provenance: { ...state.provenance, pluginAutoHandled: Object.fromEntries(records) } } : state;

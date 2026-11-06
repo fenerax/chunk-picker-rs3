@@ -3,7 +3,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { deserialize } from 'node:v8';
 import { backupPreviewState, MAX_PORTABLE_BACKUP_BYTES } from './backup-transfer.mjs';
 import { openStore } from './storage/store.mjs';
-import { reconcilePluginHandled } from './storage/plugin-handled.mjs';
+import { captureOptionalSidecarEvidence, materializeOptionalSidecarEvidence, reconcileOptionalSidecarEvidence } from './optional-sidecar-evidence.mjs';
 import { createRuleRegistryFromDefinitions } from './core/rule-registry.mjs';
 import { importBackup, previewRestore, applyValidatedCommand, validateState } from './core/state.mjs';
 import { decodeCompletionDocument } from './storage/completion-codec.mjs';
@@ -80,7 +80,8 @@ async function run(job) {
       return { bytes: job.gzip ? gzipSync(bytes, { level: 1 }) : job.encoding === 'br'
         ? brotliCompressSync(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } }) : bytes, plainBytes: bytes.length };
     }
-    const current = store.getState();
+    const baseline = store.getState();
+    const current = materializeOptionalSidecarEvidence(baseline, await captureOptionalSidecarEvidence(baseline, { dataDir: job.dataDir }));
     if (current.revision !== job.baseRevision) fail(409, 'The destination changed. Preview the backup again.');
     if (job.kind === 'replacement') return (await store.previewReplacement(job.document, { actor: job.actor })).state;
     const body = deserialize(Buffer.from(job.input)), { dataset, world, route, actor } = options;
@@ -101,7 +102,7 @@ async function run(job) {
     const legacy = !backup && !pasted;
     if (legacy && dataset.capabilities?.features?.originalSync === false) fail(422, 'Choose a backup from this starter game dataset.');
     const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry }) : null;
-    const incoming = pasted?.state ?? (legacy ? imported.state : importBackup(backup, registry, { owned: true }));
+    const incoming = materializeOptionalSidecarEvidence(pasted?.state ?? (legacy ? imported.state : importBackup(backup, registry, { owned: true })), backup?.optionalSidecarEvidence);
     const sourceRoster = rosterOutput(incoming.members);
     const destinationRoster = rosterOutput(current.members);
     const knownRules = new Set(taskRuleDefinitions.map(rule => rule.id));
@@ -146,7 +147,7 @@ async function run(job) {
       // Guards describe the imported member's already-migrated fields. Install
       // them before preparing the command, so migration cannot resurrect cleared
       // values and make the newly authored Undo stale. Other members keep theirs.
-      const guarded = reconcilePluginHandled({ ...current }, mappedMember);
+      const guarded = reconcileOptionalSidecarEvidence({ ...current }, mappedMember);
       if (pasted) guarded.provenance = { ...guarded.provenance, originalPasteImports: [
         ...(current.provenance?.originalPasteImports ?? []), { ...pasted.archive, memberId: owner.id } ] };
       for (const field of ['migratedMembers', 'journalMigratedMembers', 'taskStatusProvenance']) {
