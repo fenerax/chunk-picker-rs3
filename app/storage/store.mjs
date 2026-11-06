@@ -19,7 +19,7 @@ import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState,
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { evaluateRollPool, partnerConnections, createRollPoolCache } from '../core/rules.mjs';
 import { captureProgressSnapshot, buildProgressModel } from '../core/progress-timeline.mjs';
-import { createGameplayFingerprint } from './gameplay-fingerprint.mjs';
+import { createGameplayFingerprint, canReuseGameplayFieldBytes } from './gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../tasks/unlock-reuse.mjs';
 import { projectPlayState, projectPlayStateSteps, PLAY_VIEW } from '../play-view.mjs';
 import { projectBrowserState } from '../web/browser-state.mjs';
@@ -1326,7 +1326,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const backup = await gzipAsync(operation === 'replace' ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized, { level: constants.Z_BEST_SPEED });
       const fields = [...reusableFields].filter(key => state[key] && typeof state[key] === 'object').map(key => ({ key, json: staticReferences.has(state[key]) ? undefined : serializedFields.get(state[key]), reference: staticReferences.get(state[key]) }));
       const summary = boundedOutput({ revision: state.revision, members: rosterOutput(state.members), provenance: { dataset: state.provenance?.dataset } });
+      // Large durable fields already have a verified digest. Reuse it when the
+      // gameplay projection is identical, avoiding another large hash pass.
+      const preparedDigests = Object.fromEntries(fields.filter(({ key, reference }) => reference
+        && canReuseGameplayFieldBytes(key, state[key]))
+        .map(({ key, reference }) => [key, reference.sha256]));
+      fingerprint.seedStatic(state, preparedDigests);
+      taskReuseFingerprint.seedStatic(state, preparedDigests);
       return { state, disk, backup, dependencies: importDependencies, fields, summary, restoredMemberIds, digest: createHash('sha256').update(disk).digest('hex'),
+        fingerprints: { gameplay: fingerprint.exportStatic(state, serializedFields), tasks: taskReuseFingerprint.exportStatic(state, serializedFields) },
         coordination: coordination.get(state), receipts, pluginCurrency: currency,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
         choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
@@ -1602,6 +1610,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           if (json !== undefined) serializedFields.set(current[key], json);
           if (reference) staticReferences.set(current[key], reference);
         }
+        // These digests came from this ticket's exact worker-owned publication,
+        // never from upload metadata. Seed before synchronous save subscribers.
+        fingerprint.seedStatic(current, publication.fingerprints.gameplay);
+        taskReuseFingerprint.seedStatic(current, publication.fingerprints.tasks);
         reportDurability(published);
         for (const listener of listeners) {
           try { listener({ revision: current.revision, restored: true, restoredMemberIds: publication.restoredMemberIds, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }

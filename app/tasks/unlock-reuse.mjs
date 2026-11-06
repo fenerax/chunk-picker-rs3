@@ -11,7 +11,11 @@ const staticFields = new Set(['tasks', 'identityRegistry', 'legacy']);
  * Preferences follow storage's display-only gameplay-fingerprint boundary. */
 export function createTaskReuseFingerprint() {
   const staticDigests = new WeakMap();
-  return state => {
+  const fieldDigest = (value, serialized) => {
+    if (!staticDigests.has(value)) staticDigests.set(value, serialized === undefined ? digest(value) : createHash('sha256').update(serialized).digest('hex'));
+    return staticDigests.get(value);
+  };
+  const fingerprint = state => {
     const fields = [];
     for (const key of Object.keys(state).sort()) {
       if (['revision', 'history', 'provenance', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews'].includes(key)) continue;
@@ -19,15 +23,18 @@ export function createTaskReuseFingerprint() {
       // Chunk notes are text for people; no task or access rule reads them.
       if (key === 'members') value = value.map(({ selected, pendingRoll, blacklisted, preferences, journal, notes, chunkColours, chunkColourNames, ...member }) => member);
       const reusable = staticFields.has(key) && value && typeof value === 'object';
-      let fingerprint = reusable ? staticDigests.get(value) : undefined;
-      if (!fingerprint) {
-        fingerprint = digest(value);
-        if (reusable) staticDigests.set(value, fingerprint);
-      }
-      fields.push([key, fingerprint]);
+      fields.push([key, reusable ? fieldDigest(value) : digest(value)]);
     }
     return digest(fields);
   };
+  // Durable preparation already serialized these exact private object trees.
+  fingerprint.exportStatic = (state, serializedFields) => Object.fromEntries([...staticFields]
+    .filter(key => state[key] && typeof state[key] === 'object').map(key => [key, fieldDigest(state[key], serializedFields?.get(state[key]))]));
+  fingerprint.seedStatic = (state, digests) => {
+    for (const key of staticFields) if (state[key] && typeof state[key] === 'object' && Object.hasOwn(digests, key))
+      staticDigests.set(state[key], digests[key]);
+  };
+  return fingerprint;
 }
 
 /** Mutable/direct callers receive a fresh calculation every time. */

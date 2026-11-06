@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { createGameplayFingerprint } from '../app/storage/gameplay-fingerprint.mjs';
+import { createGameplayFingerprint, canReuseGameplayFieldBytes } from '../app/storage/gameplay-fingerprint.mjs';
 
 function fixture() {
   return { schemaVersion: 1, revision: 3, rules: { enabled: true }, members: [{ id: 'synthetic', name: 'Synthetic',
@@ -12,6 +12,67 @@ function fixture() {
   provenance: { source: 'synthetic', exactArchive: { original: true }, historyArchive: ['history-a'] },
   history: [{ revision: 3, type: 'synthetic-history' }] };
 }
+
+test('worker digests reuse prepared JSON without including retained History references', () => {
+  const source = fixture();
+  delete source.provenance.historyArchive;
+  const fields = ['tasks', 'identityRegistry', 'legacy', 'provenance'];
+  const serialized = new WeakMap(fields.map(key => [source[key], JSON.stringify(source[key])]));
+  const expected = createGameplayFingerprint().exportStatic(source);
+  const stringify = JSON.stringify;
+  let exported;
+  JSON.stringify = () => { throw new Error('Prepared JSON was serialized again'); };
+  try { exported = createGameplayFingerprint().exportStatic(source, serialized); }
+  finally { JSON.stringify = stringify; }
+  assert.deepEqual(exported, expected);
+  const archived = fixture();
+  const raw = new WeakMap(fields.map(key => [archived[key], JSON.stringify(archived[key])]));
+  assert.deepEqual(createGameplayFingerprint().exportStatic(archived, raw), createGameplayFingerprint().exportStatic(archived));
+  assert.equal(createGameplayFingerprint().exportStatic({ provenance: { historyArchive: ['synthetic'] } },
+    new WeakMap()).provenance, undefined);
+});
+
+test('provenance byte reuse matches the canonical nonempty object-rest projection', () => {
+  for (const provenance of [[], ['synthetic'], ['x'.repeat(300 * 1024)], {},
+    { historyArchive: [] }, { source: 'synthetic', historyArchive: [] }, { source: 'synthetic' }, Object.create(null)]) {
+    const { historyArchive, ...projection } = provenance;
+    const expected = Object.keys(projection).length
+      ? createHash('sha256').update(JSON.stringify(projection)).digest('hex') : undefined;
+    const reusable = canReuseGameplayFieldBytes('provenance', provenance);
+    assert.equal(reusable, !Array.isArray(provenance) && !Object.hasOwn(provenance, 'historyArchive') && expected !== undefined);
+    if (reusable) assert.equal(JSON.stringify(provenance), JSON.stringify(projection));
+    const prepared = new WeakMap([[provenance, JSON.stringify(provenance)]]);
+    assert.equal(createGameplayFingerprint().exportStatic({ provenance }, prepared).provenance, expected);
+  }
+  assert.equal(canReuseGameplayFieldBytes('tasks', []), true);
+});
+
+test('worker static digests seed only the exact imported trees and keep later edits fresh', () => {
+  const source = fixture(), imported = structuredClone(source);
+  const worker = createGameplayFingerprint(), writer = createGameplayFingerprint();
+  const expected = worker(source);
+  writer.seedStatic(imported, structuredClone(worker.exportStatic(source)));
+  const stringify = JSON.stringify;
+  let largeWalks = 0;
+  JSON.stringify = (value, ...args) => {
+    if ([imported.tasks, imported.identityRegistry, imported.legacy].includes(value)
+      || value?.exactArchive === imported.provenance.exactArchive) largeWalks++;
+    return stringify(value, ...args);
+  };
+  try {
+    assert.equal(writer(imported), expected);
+    assert.equal(largeWalks, 0, 'The writer must not serialize imported static fields again');
+  } finally { JSON.stringify = stringify; }
+  const changed = { ...imported, tasks: [{ ...imported.tasks[0], label: 'Changed task' }] };
+  assert.notEqual(writer(changed), expected);
+  assert.equal(writer(changed), createGameplayFingerprint()(changed));
+  const evidence = { ...imported, provenance: { ...imported.provenance, exactArchive: { original: false } } };
+  assert.equal(writer(evidence), createGameplayFingerprint()(evidence));
+  assert.notEqual(writer(evidence), expected);
+  const empty = { members: [], provenance: { historyArchive: [] } };
+  writer.seedStatic(empty, worker.exportStatic(empty));
+  assert.equal(writer(empty), createGameplayFingerprint()(empty));
+});
 
 test('fingerprints omit revision, history, progress snapshots, personal preferences, map journals and history retention references', () => {
   const fingerprint = createGameplayFingerprint(), original = fixture(), expected = fingerprint(original);
