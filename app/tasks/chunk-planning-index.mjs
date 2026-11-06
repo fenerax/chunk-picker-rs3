@@ -2,6 +2,8 @@ const values = value => value == null ? [] : Array.isArray(value) ? value : [val
 const entries = value => value && typeof value === 'object' ? Object.entries(value) : [];
 const definitionIndexes = new WeakMap();
 const planningSizes = new WeakMap();
+// Retained functions must not share the builder's request/cancellation scope.
+const canonicalFor = aliases => location => aliases.get(String(location)) ?? String(location);
 export const planningVarintBytes = n => n < 128 ? 1 : n < 16384 ? 2 : n < 2097152 ? 3 : n < 268435456 ? 4 : 5;
 export const planningMapBytes = n => 2 + planningVarintBytes(2 * n);
 export const planningArrayBytes = n => 3 + 2 * planningVarintBytes(n);
@@ -45,7 +47,9 @@ function declarationIndex(definitions, world, checkpoint) {
   const visit = (location, record) => {
     checkpoint();
     locations.add(location);
-    for (const kind of ['Object', 'NPC', 'Monster', 'Shop', 'Spawn']) for (const [name, quantity] of entries(record[kind])) if (quantity !== false) add(kind, name, location);
+    for (const kind of ['Object', 'NPC', 'Monster', 'Shop', 'Spawn']) for (const [name, quantity] of entries(record[kind])) {
+      checkpoint(); if (quantity !== false) add(kind, name, location);
+    }
     for (const [section, data] of entries(record.Sections)) visit(`${location}-${section}`, data);
   };
   for (const [id, record] of entries(definitions.chunks)) {
@@ -71,7 +75,7 @@ function* chunkPlanningIndexSteps(definitions, result, world, isCurrent = () => 
   checkpoint();
   const declarations = declarationIndex(definitions, world, checkpoint), byLocation = new Map(), clueLocations = new Map(), locationKeys = new Map();
   let accounting = planningSizer(), taskIdBytes;
-  const canonical = location => declarations.aliases.get(String(location)) ?? String(location);
+  const canonical = canonicalFor(declarations.aliases);
   const keys = location => {
     const id = canonical(location);
     if (!locationKeys.has(id)) locationKeys.set(id, [...new Set([id, baseLocationId(id), ...(declarations.reverseAliases.get(id) ?? [])])]);
@@ -104,8 +108,15 @@ function* chunkPlanningIndexSteps(definitions, result, world, isCurrent = () => 
     for (const token of values(record.Chunks)) for (const location of expand('chunks', token)) add(task, location, 'Declared location requirement');
     for (const [field, kind, aliasKind] of [['Objects', 'Object', 'objects'], ['NPCs', 'NPC', 'npcs'], ['Monsters', 'Monster', 'monsters'], ['Monster', 'Monster', 'monsters'], ['Shops', 'Shop', 'shops'], ['Spawns', 'Spawn', 'items'], ['Items', 'Spawn', 'items']]) {
       for (const token of values(record[field])) for (const name of expand(aliasKind, token)) for (const location of declarations.sources.get(`${kind}:${name}`) ?? []) {
-        if (Array.isArray(record.SourceLocations) && record.SourceLocations.filter(selector => selector?.field === field && selector.name === name)
-          .some(selector => !Array.isArray(selector.locations) || !selector.locations.includes(location))) continue;
+        checkpoint();
+        // Rejected source candidates are work too. Yield/check them before
+        // filtering so one task cannot monopolize the resident calculator.
+        yield;
+        if (Array.isArray(record.SourceLocations) && record.SourceLocations.some(selector => {
+          checkpoint();
+          return selector?.field === field && selector.name === name
+            && (!Array.isArray(selector.locations) || !selector.locations.some(candidate => { checkpoint(); return candidate === location; }));
+        })) continue;
         const plural = { Object: 'Objects', NPC: 'NPCs', Monster: 'Monsters', Shop: 'Shops', Spawn: 'Spawns' }[kind];
         const gates = definitions.taskUnlocks?.[plural]?.[name], gate = gates?.[location] ?? gates?.[baseLocationId(location)];
         const suffix = gate === false ? ' · Source is disabled by its declaration' : gate != null && gate !== true ? ' · An additional source-task gate is declared' : '';
@@ -113,13 +124,16 @@ function* chunkPlanningIndexSteps(definitions, result, world, isCurrent = () => 
       }
     }
     for (const source of task.sources ?? []) {
-      for (const location of [source.location, ...values(source.locations)].filter(Boolean)) add(task, location, `Current engine source: ${source.name ?? source.source ?? source.kind ?? 'source'}`);
+      for (const location of [source.location, ...values(source.locations)]) {
+        checkpoint(); if (location) add(task, location, `Current engine source: ${source.name ?? source.source ?? source.kind ?? 'source'}`);
+      }
       if (source.kind === 'chunks' && source.name) add(task, source.name, 'Current engine location evidence');
     }
     yield;
   }
   for (const [tier, markers] of entries(definitions.clues)) for (const [location, marker] of entries(markers)) {
     checkpoint();
+    yield;
     const id = canonical(location);
     if (!declarations.locations.has(id)) continue;
 

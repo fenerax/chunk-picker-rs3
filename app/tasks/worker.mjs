@@ -239,26 +239,61 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = st
     return snapshot.predict(memberId, chunkId, { world: rollWorld, engine: planningEngine });
   });
 }
+const noPlanningCheckpoint = () => {};
+function* chunkPlanningRows(index, chunkId, checkpoint = noPlanningCheckpoint) {
+  for (const { task, evidence } of index.byLocation.get(String(chunkId))?.values() ?? []) {
+    checkpoint();
+    const row = { task: { ...projectPlayTask(task, { retainHiddenDisplay: true }),
+      ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence };
+    checkpoint();
+    yield row;
+  }
+}
+function chunkPlanningResult(snapshot, index, chunkId, rows) {
+  return { format: 'chunk-planning-v1', chunkId, rows,
+    clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
+}
 function chunkPlanningFor(snapshot, chunkId) {
   const index = snapshot.planningIndex ??= trackPlanningIndex(
     buildChunkPlanningIndex(definitions, snapshot.baseline, workerData.world), snapshot.baseline);
   completeCache.refresh(snapshot); sandboxCache.refresh(snapshot);
-  return { format: 'chunk-planning-v1', chunkId, rows: [...(index.byLocation.get(String(chunkId))?.values() ?? [])].map(({ task, evidence }) => ({
-    task: { ...projectPlayTask(task, { retainHiddenDisplay: true }), ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence,
-  })), clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
+  return chunkPlanningResult(snapshot, index, chunkId, [...chunkPlanningRows(index, chunkId)]);
 }
 async function residentChunkPlanningFor(state, memberId, chunkId, input, abandoned, pickerId) {
   const key = JSON.stringify(calculationKey(state, memberId, input)), snapshot = snapshots.get(key);
   if (!snapshot || snapshot.revision !== state.revision) return;
   const isCurrent = () => !abandoned() && state.revision >= pickerRevision(pickerId) && snapshots.get(key) === snapshot;
-  if (!snapshot.planningIndex) {
-    let index;
-    try { index = await buildChunkPlanningIndexIncremental(definitions, snapshot.baseline, workerData.world, isCurrent, yieldToRequests); }
-    catch (error) { if (!isCurrent()) return; throw error; }
+  const checkpoint = () => {
+    if (abandoned() || state.revision < pickerRevision(pickerId)) throw new Error('Resident planning cancelled.');
+  };
+  let newIndex, charged = false;
+  try {
+    if (!snapshot.planningIndex) {
+      newIndex = await buildChunkPlanningIndexIncremental(definitions, snapshot.baseline, workerData.world, isCurrent, yieldToRequests);
+      if (!isCurrent()) return;
+    }
+    // Charging is transactional and checks atomic cancellation around native
+    // measurement and throughout its byte scans. The scheduler bounds native
+    // segments that cannot cooperate. Yield before projection as well.
+    await yieldToRequests(); checkpoint();
     if (!isCurrent()) return;
-    snapshot.planningIndex = trackPlanningIndex(index, snapshot.baseline);
+    if (newIndex) snapshot.planningIndex = trackPlanningIndex(newIndex, snapshot.baseline);
+    completeCache.refresh(snapshot, false, false, checkpoint);
+    charged = true;
+    await yieldToRequests(); checkpoint();
+    const index = snapshot.planningIndex, rows = [];
+    let started = performance.now();
+    for (const row of chunkPlanningRows(index, chunkId, checkpoint)) {
+      rows.push(row);
+      if (performance.now() - started >= 8) { await yieldToRequests(); checkpoint(); started = performance.now(); }
+    }
+    checkpoint();
+    return chunkPlanningResult(snapshot, index, chunkId, rows);
+  } catch (error) {
+    if (newIndex && !charged && snapshot.planningIndex === newIndex) delete snapshot.planningIndex;
+    if (abandoned() || !isCurrent()) return;
+    throw error;
   }
-  if (isCurrent()) return chunkPlanningFor(snapshot, chunkId);
 }
 const sandboxSnapshots = new Map();
 const sandboxCache = createSnapshotCache(sandboxSnapshots, snapshotBudget, {

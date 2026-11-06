@@ -10,9 +10,13 @@ const probe = globalThis.__residentPlanningProbe = {
   setLedger: value => { ledger = value; },
   location() {
     locations++;
-    if (!workerData.pauseResidentPlanning || !request?.residentOnly || paused || locations < 2) return;
+    if (locations >= 2) probe.stage('location');
+  },
+  stage(stage) {
+    const selected = workerData.pauseResidentPlanning === true ? 'location' : workerData.pauseResidentPlanning;
+    if (selected !== stage || !request?.residentOnly || paused) return;
     paused = true;
-    parentPort.postMessage({ id: request.id, type: 'progress', planningPaused: true });
+    parentPort.postMessage({ id: request.id, type: 'progress', planningPaused: true, stage });
     const cancellation = new Int32Array(request.cancellation), deadline = Date.now() + 15000;
     // Wait for a real scheduler cancellation after at least one location was
     // built. This is a synchronization barrier, never a performance sample.
@@ -20,10 +24,13 @@ const probe = globalThis.__residentPlanningProbe = {
       if (Date.now() > deadline) throw new Error('Synthetic planning cancellation did not arrive.');
       Atomics.wait(cancellation, 0, 0, 10);
     }
+    // Emulate an uninterruptible native segment. A fake scheduler clock drives
+    // retirement, so this checks a work bound rather than elapsed PC time.
+    if (workerData.stuckResidentPlanning) for (;;) Atomics.wait(cancellation, 0, 1, 10000);
   },
 };
 parentPort.on('message', message => {
-  if (!['cancel', 'supersede'].includes(message.type)) request = message;
+  if (!['cancel', 'supersede'].includes(message.type)) request = { id: message.id, residentOnly: message.residentOnly, cancellation: message.cancellation };
 });
 registerHooks({ load(url, context, next) {
   const result = next(url, context);
@@ -51,7 +58,13 @@ registerHooks({ load(url, context, next) {
   } else return result;
   const source = String(result.source);
   if (!source.includes(anchor)) throw new Error('Resident planning probe anchor changed.');
-  return { ...result, source: source.replace(anchor, replacement) };
+  let patched = source.replace(anchor, replacement);
+  if (url.endsWith('/tasks/worker.mjs')) patched = patched.replace('if (cacheSizing) trackSnapshotCore(result);',
+    'if (workerData.fixedEngineTiming) result.metrics.elapsedMs = 1.25;\n  if (cacheSizing) trackSnapshotCore(result);');
+  if (url.endsWith('/tasks/chunk-planning-index.mjs')) patched = patched.replace('if (Array.isArray(record.SourceLocations)', "globalThis.__residentPlanningProbe.stage('scan');\n        if (Array.isArray(record.SourceLocations)");
+  if (url.endsWith('/tasks/snapshot-cache.mjs')) patched = patched.replace('let cost = bytes.byteLength;', "let cost = bytes.byteLength;\n  globalThis.__residentPlanningProbe.stage('charge');");
+  if (url.endsWith('/tasks/worker.mjs')) patched = patched.replace('checkpoint();\n    yield row;', "globalThis.__residentPlanningProbe.stage('projection');\n    checkpoint();\n    yield row;");
+  return { ...result, source: patched };
 } });
 const post = parentPort.postMessage.bind(parentPort);
 parentPort.postMessage = (message, ...rest) => post(message.id === undefined || message.type === 'progress' ? message : {

@@ -613,6 +613,15 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       deadlineClock.clearTimeout(cancelledGrace.timer); cancelledGrace = undefined;
     }
   }
+  function armCancelledGrace(entry) {
+    if (closed || active !== entry || cancelledGrace) return;
+    const timer = deadlineClock.setTimeout(() => {
+      if (cancelledGrace?.entry !== entry) return;
+      cancelledGrace = undefined;
+      if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retire();
+    }, 25);
+    timer?.unref?.(); cancelledGrace = { entry, timer };
+  }
   function abortInitial() {
     initialAborted = true;
     initialReject(Object.assign(new Error('Task worker initialization cancelled.'), { name: 'AbortError', status: 503 }));
@@ -720,18 +729,21 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       entry.reuseWaiters.delete(waiter);
     }
   }
-  function cancel(entry, error) {
+  function cancel(entry, error, retiring = false) {
     if (active === entry && worker && !entry.reuseRevision) {
       if (entry.cancellation) Atomics.store(new Int32Array(entry.cancellation), 0, 1);
       try { worker.postMessage({ id: entry.id, type: 'cancel', pickerId: entry.pickerId }); } catch { failure('worker-send'); }
     }
     settle(entry, error);
+    // Every resident cancellation is bounded, including disconnects, saves and
+    // another picker's request, with or without a physical calculator pool.
+    if (entry.residentOnly && !retiring) armCancelledGrace(entry);
   }
   function retire(error = superseded()) {
     clearCancelledGrace();
     if (active) {
       deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
-      cancel(active, error); active = undefined;
+      cancel(active, error, true); active = undefined;
     }
     clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
@@ -1002,8 +1014,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return retire(unavailable('Task calculator exceeded its memory budget. Retry shortly.'));
     },
     yieldForInteractive() {
-      // Resident planning checks the atomic flag between locations. Keep the
-      // existing calculator while its cooperative reply releases the lease.
+      // Retain cooperative workers briefly; cancel() also arms retirement for
+      // native operations that cannot observe the atomic cancellation flag.
       if (active?.residentOnly) {
         if (!active.discarded) cancel(active, residentPlanningUnavailable());
         return false;
@@ -1014,15 +1026,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         // An abandoned native calculation already received its atomic cancel.
         // Let a cooperative reply release the existing host before paying for
         // replacement compilation. A stuck producer still retires promptly.
-        if (!cancelledGrace) {
-          const entry = active;
-          const timer = deadlineClock.setTimeout(() => {
-            if (cancelledGrace?.entry !== entry) return;
-            cancelledGrace = undefined;
-            if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retire();
-          }, 25);
-          timer?.unref?.(); cancelledGrace = { entry, timer };
-        }
+        armCancelledGrace(active);
         return false;
       }
       if (active.warm) { active.warm = false; warmCounts.cancelled++; }

@@ -24,7 +24,7 @@ const workerData = genericWorkerData({ definitions, world: { chunks: world.chunk
 const state = () => createGroupState(['one', 'two'].map(id => ({ id, name: 'Explorer', unlocked: ['12850'] })));
 const probeURL = new URL('./fixtures/resident-planning-probe.mjs', import.meta.url);
 
-async function fixture(t, { pool, processWorker = false, pause = false, cacheBytes } = {}) {
+async function fixture(t, { pool, processWorker = false, pause = false, stuck = false, cacheBytes, deadlineClock, fixedEngineTiming = false } = {}) {
   const workers = [], messages = [], sent = [];
   const create = data => {
     const worker = processWorker ? new ProcessWorker(data, { probeImport: probeURL.href })
@@ -38,7 +38,8 @@ async function fixture(t, { pool, processWorker = false, pause = false, cacheByt
     workers.push(worker); return worker;
   };
   const scheduler = await createTaskScheduler({ workerFactory: create, predictionWorkerFactory: create,
-    workerData: { ...workerData, pauseResidentPlanning: pause }, ...(pool ? { maxCalculators: pool } : {}),
+    workerData: { ...workerData, pauseResidentPlanning: pause, stuckResidentPlanning: stuck, fixedEngineTiming }, ...(pool ? { maxCalculators: pool } : {}),
+    ...(deadlineClock ? { deadlineClock } : {}),
     fairness: { maxOutstandingJobsPerPicker: 4 }, deadlineMs: 30000 });
   t.after(() => scheduler.close());
   const scope = scheduler.forPicker(A);
@@ -141,10 +142,14 @@ test('cold, changed revision/member/input/rules/picker and evicted snapshots fal
 });
 
 test('planning growth releases the foreground snapshot when its existing owner share is full', async t => {
-  const measure = await fixture(t);
+  // The conservative reference bound scans serialized bytes, including the
+  // engine's elapsedMs double. Its random 0x5e bytes can change the charge even
+  // when the native length is identical. Fix this irrelevant synthetic metric
+  // before measurement so two calculators have the exact same baseline cost.
+  const measure = await fixture(t, { fixedEngineTiming: true });
   await measure.evaluate();
   const charge = finalMessages(measure).at(-1).message.probe.snapshots[0].charge;
-  const f = await fixture(t, { cacheBytes: 2 * charge });
+  const f = await fixture(t, { cacheBytes: 2 * charge, fixedEngineTiming: true });
   await f.evaluate();
   assert.equal(finalMessages(f).at(-1).message.probe.snapshots.length, 1);
   const planned = await f.planning();
@@ -158,7 +163,7 @@ test('planning growth releases the foreground snapshot when its existing owner s
 
 for (const options of [{}, { pool: 1 }, { processWorker: true, pool: 1 }]) {
   test(`foreground arriving between locations preempts partial planning ${JSON.stringify(options)}`, async t => {
-    const f = await fixture(t, { ...options, pause: true });
+    const f = await fixture(t, { ...options, pause: true, deadlineClock: retirementClock() });
     await f.evaluate();
     const foreground = f.workers[0];
     const paused = new Promise(resolve => foreground.on('message', message => { if (message.planningPaused) resolve(message); }));
@@ -183,8 +188,8 @@ for (const options of [{}, { pool: 1 }, { processWorker: true, pool: 1 }]) {
   });
 }
 
-test('an abandoned resident request does not start prediction work', async t => {
-  const f = await fixture(t, { pause: true });
+for (const pool of [undefined, 1]) test(`an abandoned resident request arms retirement without prediction, pool=${pool ?? 'none'}`, async t => {
+  const clock = retirementClock(), f = await fixture(t, { pool, pause: true, deadlineClock: clock });
   await f.evaluate();
   const foreground = f.workers[0], controller = new AbortController();
   const paused = new Promise(resolve => foreground.on('message', message => { if (message.planningPaused) resolve(); }));
@@ -192,7 +197,9 @@ test('an abandoned resident request does not start prediction work', async t => 
   const planning = f.planning({ signal: controller.signal });
   const rejected = assert.rejects(planning, { name: 'AbortError' });
   await paused; controller.abort(); await rejected;
+  assert.equal([...clock.timers].filter(timer => timer.ms === 25).length, 1);
   balanced((await cancelled).probe);
+  assert.equal([...clock.timers].filter(timer => timer.ms === 25).length, 0);
   assert.equal(f.workers.length, 1);
   assert.equal(f.scheduler.getHealth().prediction.status, 'idle');
 });
@@ -207,6 +214,56 @@ test('cancellation is checked between locations within one task and incremental 
   await assert.rejects(buildChunkPlanningIndexIncremental(definitions, result, undefined, () => ++checks < 4), /viewed chunk changed/);
   assert.equal(checks, 4);
 });
+
+test('rejected source candidates and their selectors observe cancellation', async () => {
+  const data = { chunks: Object.fromEntries(Array.from({ length: 40 }, (_, i) => [String(i), { Object: { Anvil: true } }])) };
+  // Prime declaration metadata so all subsequent checks belong to the scan.
+  buildChunkPlanningIndex(data, { tasks: [] });
+  let checks = 0;
+  const result = { tasks: [{ id: 'rejected', record: { Objects: ['Anvil'],
+    SourceLocations: [{ field: 'Objects', name: 'Anvil', locations: [] }] } }] };
+  await assert.rejects(buildChunkPlanningIndexIncremental(data, result, undefined, () => ++checks < 12), /viewed chunk changed/);
+  assert.equal(checks, 12);
+});
+
+function retirementClock() {
+  const timers = new Set();
+  return { timers,
+    setTimeout(callback, ms) { const timer = { ms, fire() { timers.delete(timer); callback(); } }; timers.add(timer); return timer; },
+    clearTimeout(timer) { timers.delete(timer); },
+  };
+}
+for (const pool of [undefined, 1]) for (const stage of ['scan', 'charge', 'projection']) {
+  for (const stuck of [false, true]) test(`another picker preempts ${stage}, pool=${pool ?? 'none'}, stuck=${stuck}`, async t => {
+    const clock = retirementClock(), f = await fixture(t, { pool, pause: stage, stuck, deadlineClock: clock });
+    await f.evaluate();
+    const old = f.workers[0];
+    const paused = new Promise(resolve => old.on('message', message => { if (message.planningPaused) resolve(message); }));
+    const cancelled = new Promise(resolve => old.on('message', message => { if (message.residentPlanningMiss) resolve(message); }));
+    const planning = f.planning();
+    assert.equal((await paused).stage, stage);
+    const next = f.evaluate({ scope: f.scheduler.forPicker(B) });
+    const grace = [...clock.timers].filter(timer => timer.ms === 25);
+    assert.equal(grace.length, 1, 'every resident cancellation has a short retirement watchdog');
+    if (stuck) {
+      const exited = once(old, 'exit');
+      grace[0].fire(); await exited;
+    } else {
+      const reply = await cancelled;
+      balanced(reply.probe);
+      assert.equal(reply.probe.snapshots.some(row => row.planning), stage === 'projection', 'only fully charged indexes survive');
+    }
+    await next;
+    assert.equal((await planning).result.format, 'chunk-planning-v1');
+    assert.equal([...clock.timers].filter(timer => timer.ms === 25).length, 0);
+    assert.equal(f.scheduler.getDiagnostics().counts.retired, stuck ? 1 : 0);
+    if (stuck) {
+      assert.ok(f.sent.some(({ worker, message }) => worker !== old && message.pickerId === B && message.type === 'evaluate'),
+        'the other picker dispatches after one 25 ms grace, without a resident reply or ordinary deadline');
+    }
+    for (const { message } of finalMessages(f)) balanced(message.probe);
+  });
+}
 
 function fakeFactory() {
   const workers = [];
