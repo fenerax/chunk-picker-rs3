@@ -13,12 +13,10 @@ archived source histories/provenance and historical command/inverse values.
 Live envelope, member and provenance roots are never opaque. Adding a new live
 field or sidecar requires a declaration and a synthetic writer scenario.
 
-The optional `operatorControl` declaration covers the replay-reconciliation
-refusal marker outside picker data. Its `schemaVersion`, `at` and `code` fields
-and atomic temporary file are exercised separately from per-picker files.
 Suppression's atomic provenance, registered portable capsule, legacy handled
-sidecars and reconciliation staging files are declared explicitly. The corpus
-uses the real progress command and start gate, including byte-identical refusal.
+sidecars and ownership files are declared explicitly. The corpus uses the real
+progress command. Optional plugin evidence cannot veto startup, restore or
+export; there is no replay-reconciliation refusal marker or staging protocol.
 
 The frozen policy is one of:
 
@@ -30,10 +28,10 @@ The frozen policy is one of:
 - `needs-lower`: requires an explicitly tested projection before old startup.
 - `refused`: old startup cannot safely admit the representation.
 
-Today's manifest has no `needs-lower` or `refused` feature. Unmerged plugin
-evidence changes are not declared as if they had shipped. This PR implements
-only rollback-contract steps 1 and 2; feature markers, admission gates and
-lower/raise adapters remain separate work.
+Today's manifest has no `needs-lower` or `refused` feature. The accepted plugin
+rollback limit preserves chunks, task ticks, History and Undo. Plugin decisions
+may be offered again by the frozen release; usable evidence is recovered when
+returning to the current release. See [the save schema](save-schema.md).
 
 `save-surface.test.mjs` builds synthetic feature saves using the actual store and
 sidecar writers. It walks `state.json`, which comes from `serializedDiskState`,
