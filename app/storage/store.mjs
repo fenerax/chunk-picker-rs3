@@ -474,7 +474,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function importStoredBackup(document, ownsDocument = false, forImport = false) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport);
-    const reconciledJournals = document.state.provenance?.pluginItemEvidenceReconciled === 1;
+    const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
     const state = importSavedState(document, registry);
     if (state.provenance?.pluginItemEvidenceReconciled === 1 && !reconciledJournals) journalRecovery.add(state);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
