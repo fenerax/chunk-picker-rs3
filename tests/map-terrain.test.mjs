@@ -291,27 +291,42 @@ test('native terrain pages bound draws and memory and dispose their backing stor
 
 function queuedTerrain(t, options = {}) {
   const frames = new Map(), cancelled = [], canvases = [], images = [], changes = [];
+  const callbacks = [], patchWork = [];
   let nextFrame = 0, clock = 0;
+  let publicationWork = 0;
   const tiles = [];
   for (let x = 29; x < 45; x++) for (let y = 68; y <= 71; y++) tiles.push([x, y]);
   const terrain = new MapTerrain(manifest(options.tiles ?? tiles), { cacheLimit: 48,
-    // Existing staging tests model expensive patches that exhaust the budget.
-    now: () => (clock += 5),
+    // Time advances only when work is done, never when the scheduler queries it.
+    now: () => clock,
     fallbackImage: { naturalWidth: 6016, naturalHeight: 6400 },
     canvasFactory(width, height) {
       const calls = [], ctx = { drawImage: (...args) => calls.push(args), clearRect() {} };
       const canvas = { width, height, calls, getContext: () => ctx }; canvases.push(canvas); return canvas;
     },
     imageFactory() { const image = { naturalWidth: 256, naturalHeight: 256 }; images.push(image); return image; },
-    changed: () => changes.push(true),
+    changed() {
+      changes.push(true);
+      const cost = options.publishCost ?? 0;
+      clock += cost; publicationWork += cost;
+    },
     requestFrame(callback) { frames.set(++nextFrame, callback); return nextFrame; },
     cancelFrame(frame) { cancelled.push(frame); frames.delete(frame); },
     ...options,
   });
+  const previewPage = terrain.previewPage.bind(terrain);
+  terrain.previewPage = key => {
+    const patch = previewPage(key);
+    const cost = typeof options.patchCost === 'function' ? options.patchCost(key) : options.patchCost ?? 5;
+    clock += cost; patchWork.push({ key, cost });
+    return patch;
+  };
   t.after(() => terrain.dispose());
   const step = () => {
     assert.equal(frames.size, 1, 'Page composition has only one outstanding callback');
+    const started = clock, firstPatch = patchWork.length, published = publicationWork;
     const [id, callback] = frames.entries().next().value; frames.delete(id); callback();
+    callbacks.push({ duration: clock - started, patches: patchWork.slice(firstPatch), publish: publicationWork - published });
   };
   const loadAll = () => {
     for (let i = 0; i < images.length; i++) images[i].onload?.();
@@ -321,7 +336,7 @@ function queuedTerrain(t, options = {}) {
       assert.ok(i < 100, 'Composition must settle'); step();
     }
   };
-  return { terrain, frames, cancelled, canvases, images, changes, step, loadAll, flush };
+  return { terrain, frames, cancelled, canvases, images, changes, callbacks, step, loadAll, flush };
 }
 
 test('native pages compose one per queued frame while drawing uses the composed overview', t => {
@@ -734,12 +749,16 @@ test('pins are tile-centred, filtered and hidden below the zoom threshold', () =
 
 test('small overview patches batch within a frame and publish identical ordered mip operations', t => {
   const tiles = Array.from({ length: 16 }, (_, x) => [29 + x, 71]);
-  const fast = queuedTerrain(t, { tiles, now: () => 0 });
+  const fast = queuedTerrain(t, { tiles, patchCost: 0.25, publishCost: 0.5 });
   const slow = queuedTerrain(t, { tiles });
   const view = { left: 0, top: 0, right: 2048, bottom: 128 };
   for (const run of [fast, slow]) { run.changes.length = 0; run.terrain.setView(view, 0.5); run.loadAll(); }
   fast.step();
-  assert.equal(fast.frames.size, 0, 'Four cheap patches settle in one callback');
+  assert.equal(fast.terrain.stagedPreviews.size, 3, 'Cheap patches batch; the first publication is unmeasured');
+  assert.equal(fast.changes.length, 0, 'Partial batches stay private');
+  fast.step();
+  assert.equal(fast.frames.size, 0);
+  assert.ok(fast.callbacks.every(callback => callback.duration <= 4));
   assert.equal(fast.terrain.committedKeys.size, tiles.length);
   assert.equal(fast.changes.length, 1, 'The complete viewport publishes atomically');
   slow.flush();
@@ -749,23 +768,24 @@ test('small overview patches batch within a frame and publish identical ordered 
   assert.deepEqual([...fast.terrain.committedKeys], [...slow.terrain.committedKeys]);
 });
 
-test('overview batching yields at the time budget even when more patches are ready', t => {
-  let clock = 0;
-  const run = queuedTerrain(t, { now: () => (clock += 2) });
+test('overview admission reserves another patch before starting it', t => {
+  const run = queuedTerrain(t, { patchCost: 3, publishCost: 0.5 });
   run.changes.length = 0;
   run.terrain.setView({ left: 0, top: 0, right: 2048, bottom: 512 }, 0.5);
   run.loadAll(); run.step();
-  assert.equal(run.terrain.stagedPreviews.size, 2);
+  assert.equal(run.terrain.stagedPreviews.size, 1);
+  assert.equal(run.callbacks[0].duration, 3, 'Two 3ms patches must not make a 6ms callback');
   assert.equal(run.terrain.committedKeys.size, 0, 'Partial batches stay private');
   assert.equal(run.changes.length, 0);
   assert.equal(run.frames.size, 1);
   run.flush();
+  assert.ok(run.callbacks.every(callback => callback.duration <= 4));
   assert.equal(run.changes.length, 1);
 });
 
 test('overview batching has a hard eight-patch bound even with a coarse clock', t => {
   const tiles = Array.from({ length: 40 }, (_, x) => [29 + x, 71]);
-  const run = queuedTerrain(t, { tiles, now: () => 0 });
+  const run = queuedTerrain(t, { tiles, patchCost: 0 });
   run.changes.length = 0;
   run.terrain.setView({ left: 0, top: 0, right: 5120, bottom: 128 }, 0.5);
   run.loadAll(); run.step();
@@ -773,4 +793,86 @@ test('overview batching has a hard eight-patch bound even with a coarse clock', 
   assert.equal(run.terrain.committedKeys.size, 0);
   assert.equal(run.frames.size, 1);
   run.flush(); assert.equal(run.changes.length, 1);
+});
+
+test('a known large patch after small ones waits for another frame', t => {
+  const tiles = [[29, 71], [33, 71], ...Array.from({ length: 4 }, (_, x) =>
+    Array.from({ length: 4 }, (_, y) => [37 + x, 71 - y])).flat(), [41, 71]];
+  const run = queuedTerrain(t, { tiles, patchCost: key => key === '2,0' ? 50 : 1, publishCost: 0.5 });
+  run.changes.length = 0;
+  run.terrain.setView({ left: 0, top: 0, right: 2048, bottom: 512 }, 0.5);
+  run.loadAll();
+  // Use a deterministic small/small/large queue regardless of request priority.
+  run.terrain.previewQueue = new Set(['0,0', '1,0', '2,0', '3,0']);
+  run.step();
+  assert.deepEqual(run.callbacks[0].patches.map(patch => patch.key), ['0,0', '1,0']);
+  assert.equal(run.callbacks[0].duration, 2);
+  run.step();
+  assert.equal(run.callbacks[1].duration, 50, 'The first patch always runs, even if it exceeds the budget');
+  assert.equal(run.changes.length, 0);
+  run.flush();
+  assert.equal(run.callbacks[2].duration, 1.5);
+  assert.equal(run.changes.length, 1);
+});
+
+test('admission uses the recent maximum cost per unit rather than an average', t => {
+  const tiles = Array.from({ length: 20 }, (_, x) => [29 + x, 71]);
+  const costs = [2, 0.25, 2, 0.25, 0.25];
+  const run = queuedTerrain(t, { tiles, patchCost: () => costs.shift(), publishCost: 0.5 });
+  run.terrain.setView({ left: 0, top: 0, right: 2560, bottom: 128 }, 0.5);
+  run.loadAll(); run.step();
+  assert.equal(run.callbacks[0].duration, 2.25);
+  assert.deepEqual(run.callbacks[0].patches.map(patch => patch.cost), [2, 0.25]);
+  run.flush();
+  assert.ok(run.callbacks.every(callback => callback.duration <= 4));
+});
+
+test('publication cost is measured and reserved when admitting the final extra patch', t => {
+  const tiles = Array.from({ length: 20 }, (_, x) => [29 + x, 71]);
+  const run = queuedTerrain(t, { tiles, patchCost: 1, publishCost: 3 });
+  const load = view => { run.terrain.setView(view, 0.5); run.loadAll(); run.flush(); };
+  load({ left: 0, top: 0, right: 1024, bottom: 128 });
+  assert.equal(run.terrain.publishUnitCosts.length, 1, 'A real atomic publication calibrates the estimate');
+  run.changes.length = 0; run.callbacks.length = 0;
+  load({ left: 1024, top: 0, right: 2560, bottom: 128 });
+  assert.ok(run.callbacks.some(callback => callback.patches.length > 1), 'Keep batching cheap work');
+  assert.ok(run.callbacks.every(callback => callback.duration <= 4), 'Include publication in the whole-callback budget');
+  assert.equal(run.callbacks.at(-1).patches.length, 1, 'A 3ms publication leaves room for only one 1ms patch');
+  assert.equal(run.callbacks.at(-1).publish, 3);
+  assert.equal(run.changes.length, 1);
+});
+
+test('a measured cheap publication can share a callback with extra patches', t => {
+  const tiles = Array.from({ length: 20 }, (_, x) => [29 + x, 71]);
+  const run = queuedTerrain(t, { tiles, patchCost: 0.5, publishCost: 0.25 });
+  run.terrain.setView({ left: 0, top: 0, right: 1024, bottom: 128 }, 0.5);
+  run.loadAll(); run.flush();
+  run.callbacks.length = 0; run.changes.length = 0;
+  run.terrain.setView({ left: 1024, top: 0, right: 2560, bottom: 128 }, 0.5);
+  run.loadAll(); run.flush();
+  assert.equal(run.callbacks.length, 1);
+  assert.equal(run.callbacks[0].patches.length, 3);
+  assert.equal(run.callbacks[0].duration, 1.75, 'Measured whole callback includes the final publication');
+  assert.equal(run.changes.length, 1);
+});
+
+test('an unforeseen cost spike overruns by one extra patch and then yields', t => {
+  const tiles = Array.from({ length: 20 }, (_, x) => [29 + x, 71]);
+  const costs = [1, 50, 1, 1, 1];
+  const run = queuedTerrain(t, { tiles, patchCost: () => costs.shift(), publishCost: 5 });
+  run.changes.length = 0;
+  run.terrain.setView({ left: 0, top: 0, right: 2560, bottom: 128 }, 0.5);
+  run.loadAll(); run.step();
+  assert.equal(run.callbacks[0].duration, 51, 'An unseen equal-size 50ms patch cannot be predicted from 1ms');
+  assert.deepEqual(run.callbacks[0].patches.map(patch => patch.cost), [1, 50]);
+  assert.equal(run.changes.length, 0, 'A spike cannot force partial publication');
+  run.flush();
+  assert.equal(run.callbacks.at(-1).patches.length, 1, 'The unmeasured first publication gets its own patch frame');
+  assert.equal(run.callbacks.at(-1).duration, 6, 'Indivisible patch plus publication may exceed 4ms, as on main');
+  for (const callback of run.callbacks) {
+    const slowest = Math.max(...callback.patches.map(patch => patch.cost));
+    assert.ok(callback.duration <= Math.max(4, slowest + callback.publish) + 4,
+      'At most one unexpected patch plus the previously admitted budget and indivisible publication');
+  }
+  assert.equal(run.changes.length, 1);
 });

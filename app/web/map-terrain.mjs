@@ -3,6 +3,11 @@ import { SURFACE_GRID, surfaceCoordinates } from '../data/surface-grid.mjs';
 const CELL = 128;
 const WIDTH = SURFACE_GRID.columns * CELL, HEIGHT = SURFACE_GRID.rows * CELL;
 const PAGE_CELLS = 4, PAGE = CELL * PAGE_CELLS, NATIVE_DENSITY = 2;
+const PREVIEW_BUDGET_MS = 4, PREVIEW_PATCH_LIMIT = 8, COST_WINDOW = 16;
+const rememberCost = (samples, duration, units) => {
+  samples.push(Math.max(0, duration) / units);
+  if (samples.length > COST_WINDOW) samples.shift();
+};
 const MIN_REGION_X = Math.floor(SURFACE_GRID.startId / SURFACE_GRID.stride);
 const MAX_REGION_Y = SURFACE_GRID.startId % SURFACE_GRID.stride;
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -67,6 +72,7 @@ export class MapTerrain {
     this.nativePageKeys = new Map();
     this.unreadyVisible = new Set(); this.unreadyNative = new Set();
     this.previewQueue = new Set(); this.stagedPreviews = new Map();
+    this.previewWorkUnits = new Map(); this.previewUnitCosts = []; this.publishUnitCosts = [];
     const current = manifest?.cacheTerrain;
     const baseColour = current?.oceanColour ?? (/^#[0-9a-f]{6}$/i.test(current?.oceanColor ?? '')
       ? [1, 3, 5].map(index => parseInt(current.oceanColor.slice(index, index + 2), 16)) : null);
@@ -173,7 +179,7 @@ export class MapTerrain {
     for (const page of this.stagedPages.values()) this.releasePage(page);
     this.stagedPages.clear();
     for (const page of this.stagedPreviews.values()) this.releasePage(page);
-    this.stagedPreviews.clear(); this.previewQueue.clear();
+    this.stagedPreviews.clear(); this.previewQueue.clear(); this.previewWorkUnits.clear();
     this.prepareView();
     this.changed();
     this.notifyChunkListeners();
@@ -446,8 +452,12 @@ export class MapTerrain {
     if (this.disposed) return;
     for (const key of this.nativePages) this.queuePage(key);
     if (!this.viewLoaded()) return;
+    this.previewWorkUnits.clear();
     if (this.baseReady && this.levels.size) for (const tileKey of this.unpublishedKeys) {
       const key = this.pageKey(tileKey), staged = this.stagedPreviews.get(key);
+      // Two fixed draws (underlay and gray), plus one draw per decoded tile.
+      // The measured cost also includes allocations and scanning the keys.
+      this.previewWorkUnits.set(key, (this.previewWorkUnits.get(key) ?? 2) + 1);
       if (staged?.version === this.pageVersions.get(key)) continue;
       if (staged) { this.releasePage(staged); this.stagedPreviews.delete(key); }
       this.previewQueue.add(key);
@@ -460,6 +470,7 @@ export class MapTerrain {
     if (!this.viewLoaded()) return;
     if (!this.stagedPages.size && !this.stagedPreviews.size && !this.unpublishedKeys.size) return;
     if (this.pageQueue.size || this.previewQueue.size) return;
+    const started = this.now(), workUnits = this.publicationWorkUnits();
     if (this.baseReady && this.levels.size) for (const key of this.nativePages) {
       if (!this.pageCurrent(key, this.stagedPages.get(key) ?? this.pages.get(key))) return;
     }
@@ -492,6 +503,12 @@ export class MapTerrain {
     for (const key of this.unpublishedKeys) { this.committedKeys.add(key); changed = true; }
     this.unpublishedKeys.clear();
     if (changed) this.changed();
+    rememberCost(this.publishUnitCosts, this.now() - started, workUnits);
+  }
+
+  publicationWorkUnits() {
+    return 1 + this.stagedPreviews.size * (1 + 2 * this.levels.size)
+      + this.stagedPages.size + this.unpublishedKeys.size;
   }
 
   queuePage(key) {
@@ -519,16 +536,33 @@ export class MapTerrain {
       } else if (this.viewLoaded() && this.previewQueue.size) {
         // Overview patches are only 256px, unlike 1024px native pages. Waiting
         // one frame per patch adds almost a second to a wide cold viewport.
-        // Keep their order and atomic publication, but spend at most 4ms or
-        // eight patches here; always yield after one expensive patch.
+        // Best-effort 4ms admission budget, not a hard execution deadline.
+        // Always run the first patch. Admit extras using the recent maximum
+        // cost per draw unit, scaled to the next patch's known tile count.
+        // An unexpectedly slow extra can still overrun: at most one such
+        // patch runs before yielding, in addition to already admitted work.
+        // Atomic publication is also indivisible and can be underestimated.
         const started = this.now();
         let patches = 0;
-        do {
-          const key = this.previewQueue.values().next().value; this.previewQueue.delete(key);
+        while (this.previewQueue.size && patches < PREVIEW_PATCH_LIMIT) {
+          const key = this.previewQueue.values().next().value;
+          const units = this.previewWorkUnits.get(key) ?? 2;
+          if (patches) {
+            const patchCost = Math.max(...this.previewUnitCosts) * units;
+            // Only the final patch can publish. Until publication has been
+            // measured, give that patch its own frame, as on main.
+            const publishCost = this.previewQueue.size === 1
+              ? (this.publishUnitCosts.length ? Math.max(...this.publishUnitCosts)
+                * (this.publicationWorkUnits() + 1 + 2 * this.levels.size) : Infinity) : 0;
+            if (this.now() - started + patchCost + publishCost > PREVIEW_BUDGET_MS) break;
+          }
+          const patchStarted = this.now();
+          this.previewQueue.delete(key);
           const patch = this.previewPage(key);
           if (patch) this.stagedPreviews.set(key, patch);
+          rememberCost(this.previewUnitCosts, this.now() - patchStarted, units);
           patches++;
-        } while (this.previewQueue.size && patches < 8 && this.now() - started < 4);
+        }
       }
       this.publishView();
       this.schedulePageWork();
@@ -707,7 +741,8 @@ export class MapTerrain {
     for (const page of this.stagedPages.values()) this.releasePage(page);
     this.stagedPages.clear(); this.visibleKeys.clear(); this.unpublishedKeys.clear(); this.committedKeys.clear(); this.pageVersions.clear();
     for (const page of this.stagedPreviews.values()) this.releasePage(page);
-    this.stagedPreviews.clear(); this.previewQueue.clear(); this.unreadyVisible.clear(); this.unreadyNative.clear();
+    this.stagedPreviews.clear(); this.previewQueue.clear(); this.previewWorkUnits.clear();
+    this.unreadyVisible.clear(); this.unreadyNative.clear();
     this.nativePageKeys.clear();
     if (this.probeCanvas) this.probeCanvas.width = this.probeCanvas.height = 0;
     this.probeCanvas = null;

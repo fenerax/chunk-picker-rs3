@@ -21,7 +21,7 @@ const tiles = Array.from({ length: 32 }, (_, x) => Array.from({ length: 28 }, (_
 }))).flat();
 const manifest = { terrain: { mapId: 28, plane: 0, zoom: 2, tiles } };
 async function run({ MapTerrain }) {
-  const images = [], operations = [];
+  const images = [], operations = [], callbackMs = [];
   let frames = 0, resolve, published = false;
   const settled = new Promise(done => { resolve = done; });
   const terrain = new MapTerrain(manifest, { concurrency: 6, cacheLimit: 256,
@@ -29,7 +29,12 @@ async function run({ MapTerrain }) {
     imageFactory() { const image = { naturalWidth: 256, naturalHeight: 256 }; images.push(image); return image; },
     canvasFactory(width, height) { return { width, height, getContext: () => ({ clearRect() {},
       drawImage(image, ...args) { operations.push([image.src ?? [image.width, image.height], ...args]); } }) }; },
-    requestFrame(callback) { return setTimeout(() => { frames++; callback(); }, 16); },
+    requestFrame(callback) { return setTimeout(() => {
+      frames++;
+      const started = performance.now();
+      callback();
+      callbackMs.push(performance.now() - started);
+    }, 16); },
     cancelFrame: clearTimeout,
     changed() { if (published && terrain.committedKeys.size === tiles.length) resolve(); },
   });
@@ -40,7 +45,8 @@ async function run({ MapTerrain }) {
     await settled;
     const elapsedMs = performance.now() - started;
     const digest = createHash('sha256').update(JSON.stringify([operations, [...terrain.committedKeys]])).digest('hex');
-    return { elapsedMs, frames, tiles: terrain.committedKeys.size, operations: operations.length, digest };
+    return { elapsedMs, frames, maxCallbackMs: Math.max(...callbackMs),
+      tiles: terrain.committedKeys.size, operations: operations.length, digest };
   } finally { terrain.dispose(); }
 }
 const rows = [];
