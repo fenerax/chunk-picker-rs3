@@ -360,7 +360,7 @@ test('optional item readers validate source semantics before merging authoritati
   });
 });
 
-test('unknown literal task and item IDs remain valid retained evidence while authoritative markers stay strict', async t => {
+test('unknown literal IDs remain valid and invalid optional markers cannot veto startup', async t => {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   t.after(() => rm(dataDir, { recursive: true, force: true }));
   const record = { baselineAt: '2026-10-22T12:00:00.000Z', handled: ['synthetic-future-task', `unmapped:${UNKNOWN}`].sort(),
@@ -370,12 +370,16 @@ test('unknown literal task and item IDs remain valid retained evidence while aut
   const invalid = { v: 1, players: { a: { records: { live: { ...record, handled: ['~plugin-review:bogus'] } }, commits: { journals: [] } } } };
   await assert.rejects(exportPluginItemEvidence(dataDir, id => id, invalid), /Invalid plugin item review marker/);
   const store = await openStore({ dataDir, initialState: createGroupState([{ id: 'a', name: 'Synthetic player' }]), retention: false });
+  t.after(() => store.close());
   await store.close();
   const file = path.join(dataDir, 'state.json'), document = JSON.parse(await readFile(file));
   document.state.provenance = { pluginItemEvidence: invalid, pluginItemEvidenceReconciled: 1 };
   const bytes = JSON.stringify(document); await writeFile(file, bytes);
-  await assert.rejects(openStore({ dataDir, retention: false }), /Invalid plugin item review marker/);
-  assert.equal(await readFile(file, 'utf8'), bytes);
+  const reopened = await openStore({ dataDir, retention: false });
+  t.after(() => reopened.close());
+  assert.deepEqual(reopened.getState().members, document.state.members);
+  assert.ok((await reopened.backup()).state);
+  assert.equal(reopened.getPluginItemEvidence()?.players.a.records.live.handled.includes('~plugin-review:bogus') ?? false, false);
 });
 
 test('a well-formed review marker for a later-retired task stays healthy evidence', async t => {
@@ -458,7 +462,7 @@ for (const name of ['plugin-items.json', 'plugin-item-journal-beta.json', 'plugi
   assert.deepEqual(f.review(), { preview: null });
 });
 
-test('decision recovery retains the unsealed journal archive guard on a strict read-only open', async t => {
+test('optional unsealed journal recovery cannot veto a strict read-only open or change its checkpoint', async t => {
   const f = await fixture(t, { durable: true });
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Synthetic sealed decision']] }));
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK));
@@ -470,8 +474,10 @@ test('decision recovery retains the unsealed journal archive guard on a strict r
   document.state.provenance.restore = { incomingProvenance: { pluginItemEvidence: structuredClone(document.state.provenance.pluginItemEvidence) } };
   const bytes = JSON.stringify(document); await writeFile(file, bytes);
   let standby;
-  try { await assert.rejects(async () => { standby = await openStore({ dataDir: f.dataDir, readOnly: true, liveSwapStrict: true, retention: false }); },
-    error => error.code === 'LIVE_SWAP_MIGRATION_REQUIRED' && /unreconciled journal archive/.test(error.message)); }
+  try {
+    standby = await openStore({ dataDir: f.dataDir, readOnly: true, liveSwapStrict: true, retention: false });
+    assert.deepEqual(standby.getState().members, document.state.members);
+  }
   finally { await standby?.close(); }
   assert.equal(await readFile(file, 'utf8'), bytes);
   await f.restart();

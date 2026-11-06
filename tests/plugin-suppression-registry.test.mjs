@@ -16,6 +16,24 @@ const roster = [{ id: 'source', name: 'Explorer 1' }, { id: 'second', name: 'Exp
 const record = world => ({ baselineAt: at, items: { 857: { name: 'Synthetic bow', ownedAt: at, wornAt: null, first: true } },
   handled: [`custom:${world}`], journal: null });
 
+for (const carrier of ['field', 'capsule']) test(`full atomic replay capacity preserves independent ${carrier} review decisions through capture and mapping`, async () => {
+  const state = createGroupState([{ id: 'owner', name: 'Explorer' }]);
+  const task = 'rs3:task:synthetic:review';
+  const player = { records: { live: { ...record('live'), handled: [task, `~plugin-review:${task}`].sort() } }, commits: { journals: [] } };
+  const replay = { items: Array.from({ length: 2000 }, (_, i) => `custom:${i}`).sort(), achievements: [] };
+  state.provenance = { pluginAutoHandled: { owner: replay }, ...(carrier === 'field'
+    ? { pluginItemEvidence: { v: 1, players: { owner: player } } }
+    : { optionalSidecarEvidence: { schemaVersion: 1, entries: { pluginItems: { version: 1, players: { owner: player } } } } }) };
+  const ready = reconcileOptionalSidecarEvidence(state);
+  assert.deepEqual(ready.provenance.pluginAutoHandled.owner, replay);
+  assert.ok(ready.provenance.pluginItemEvidence.players.owner.records.live.handled.includes(task));
+  const mapped = mapTransferRoster(ready, [{ id: 'partner', name: 'Explorer' }], { owner: 'partner' });
+  const portable = await captureOptionalSidecarEvidence(mapped);
+  const restored = materializeOptionalSidecarEvidence(createGroupState([{ id: 'partner', name: 'Explorer' }]), portable);
+  assert.deepEqual(restored.provenance.pluginAutoHandled.partner, replay);
+  assert.ok(restored.provenance.pluginItemEvidence.players.partner.records.live.handled.includes(task));
+});
+
 for (const carrier of ['capsule', 'archive', 'item-field']) test(`invalid optional ${carrier} logs and preserves current atomic decisions`, async t => {
   const messages = [];
   t.mock.method(console, 'warn', message => messages.push(message));

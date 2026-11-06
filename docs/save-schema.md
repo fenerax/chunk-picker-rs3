@@ -549,7 +549,10 @@ evidence is not lowered as a startup requirement and must never prevent the
 picker from starting, restoring or exporting. Its failure degrades to “offer
 again”. On the current release, an owner-undone automatic tick remains
 suppressed: its committed atomic decision stays outside gameplay Undo and
-survives ordinary writes, restores and transfers even if sidecars fail.
+survives ordinary writes, restores and transfers even if sidecars fail. Explicit
+item review decisions retain their own authoritative carrier. A best-effort
+fold between that carrier and automatic replay policy cannot discard either
+valid record merely because their combined IDs exceed the other carrier's limit.
 
 ExecStartPre enforces operator transactions and service access only. It does
 not read or hash picker/plugin data. Runtime ownership and operator stopped
