@@ -29,7 +29,8 @@ test('all 1538 retained clue rows keep their full identity set when display cont
     const record = challenges[row.category][row.rawLabel];
     assert.equal(row.id, taskId(row.category, row.rawLabel, record));
     assert.notEqual(row.label, plainLabel(row.rawLabel));
-    if (record.ClueType === 'Map') assert.equal(row.label, `${record.ClueTier[0].toUpperCase()}${record.ClueTier.slice(1)} map clue step`);
+    // Every retained map clue names its place, so location searches keep finding it.
+    if (record.ClueType === 'Map') assert.match(row.label, new RegExp(`^${record.ClueTier[0].toUpperCase()}${record.ClueTier.slice(1)} map clue step: [A-Z][^/%_]+$`));
     else assert.ok(row.label.endsWith(`: ${plainLabel(row.rawLabel)}`), 'old location text remains searchable');
     counts[record.ClueType] = (counts[record.ClueType] ?? 0) + 1;
   }

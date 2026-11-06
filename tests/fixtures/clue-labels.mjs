@@ -4,6 +4,7 @@ export const clueLabelCases = [
   ['hard', 'Coordinates', '01 degrees 02 minutes north', 'Hard coordinates clue step: 01 degrees 02 minutes north'],
   ['hard', 'Emote', 'Bow by the ~|gate|~*', 'Hard emote clue step: Bow by the gate'],
   ['easy', 'Map', 'images/clues/map-easy.png', 'Easy map clue step'],
+  ['hard', 'Map', 'https://example.invalid/images/archive/1%21Clue_scroll_%28hard%29_-_Synthetic_Lookout%27s_tower_map.png?', "Hard map clue step: Synthetic Lookout's tower"],
   ['medium', 'Anagram', 'A synthetic anagram', 'Medium anagram clue step: A synthetic anagram'],
   ['hard', 'Cryptic', 'A synthetic riddle', 'Hard cryptic clue step: A synthetic riddle'],
   ['master', 'Skill riddle', 'Make a synthetic item', 'Master skill riddle clue step: Make a synthetic item'],

@@ -90,9 +90,10 @@ test('Tasks search still finds clue spots by their old location text', async t =
   const h = harness(t, { evidence: { tasks } });
   h.search.open(); await h.settle();
   h.mode().value = 'Tasks'; await h.mode().emit('change'); await h.settle();
-  for (const index of [0, 1]) {
+  const mapIndex = clueLabelCases.findIndex(([, type, , label]) => type === 'Map' && label.includes(':'));
+  for (const [index, text] of [[0], [1], [mapIndex, 'Synthetic Lookout']]) {
     const [, , oldText, expectedLabel] = clueLabelCases[index];
-    await h.type(oldText);
+    await h.type(text ?? oldText);
     assert.ok(h.find(expectedLabel));
     assert.equal(h.all().filter(node => node.className === 'search-result').length, 1);
   }

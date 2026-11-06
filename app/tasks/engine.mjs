@@ -65,8 +65,15 @@ function displayTaskLabel(rawLabel, record) {
   const tier = String(record.ClueTier).trim().toLowerCase();
   const type = String(record.ClueType).trim().toLowerCase();
   const prefix = `${tier.charAt(0).toUpperCase()}${tier.slice(1)} ${type} clue ${type === 'scan' || type === 'compass' ? 'spot' : 'step'}`;
-  // Map keys are image references, not instructions to print as prose.
-  return type === 'map' ? prefix : `${prefix}: ${plainLabel(rawLabel)}`;
+  // Map keys are image references; show the place named in the file, not the URL.
+  const text = type === 'map' ? mapClueLocation(rawLabel) : plainLabel(rawLabel);
+  return text ? `${prefix}: ${text}` : prefix;
+}
+// "…/Clue_scroll_(hard)_-_Observatory_map.png" names its place before "_map".
+function mapClueLocation(rawLabel) {
+  let file = String(rawLabel).split(/[?#]/)[0].split('/').pop();
+  try { file = decodeURIComponent(file); } catch { return ''; }
+  return /_-_(.+?)_map\.[a-z]+$/i.exec(file)?.[1].replace(/_/g, ' ').trim() ?? '';
 }
 const array = value => value == null ? [] : Array.isArray(value) ? value : [value];
 // Share the iterator factory; each query supplies its own pure predicate.
