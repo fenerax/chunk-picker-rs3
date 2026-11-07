@@ -75,7 +75,7 @@ function cachedPlayValue(value) {
 }
 function workerEvaluation(message) {
   const metadata = { evaluationMs: message.evaluationMs, timingMs: message.timingMs };
-  const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: message.timingMs?.eligibilitySeeded === true });
+  const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: message.eligibilitySeeded === true });
   if (message.sandboxJSON instanceof SharedArrayBuffer) {
     const sandboxJSON = Buffer.from(message.sandboxJSON);
     let result;
@@ -1042,7 +1042,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return;
       }
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
-      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, eligibilitySeeded: message.timingMs?.eligibilitySeeded === true, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
+      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, eligibilitySeeded: message.eligibilitySeeded === true, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
       if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();

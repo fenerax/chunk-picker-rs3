@@ -48,11 +48,12 @@ started export's reply drains or its source exit is confirmed, discards the late
 returns cancellation before computing a baseline. Worker retirement releases
 its entire ledger. Export does not alter the sender's retained proof.
 
-`eligibilitySeeded` travels only inside the worker's existing `timingMs`
-transport envelope, which the engine differential explicitly excludes from
-result comparison. It is never a top-level worker reply or Preview result
-field. The scheduler exposes it as non-enumerable metadata and a fixed boolean in
-Live timings' first-Preview and partner events, persisted by the existing
+Native Preview requests opt into an `eligibilitySeeded` boolean beside the
+worker's numeric `timingMs` envelope through `predictionProgress` or
+`seedEligibility`. Legacy replies keep their existing shape for the unchanged
+engine differential. The flag is never part of a Preview result, and readers
+treat its absence as false. The scheduler exposes it as non-enumerable metadata
+and a fixed boolean in Live timings' first-Preview and partner events, persisted by the existing
 allowlist. It adds no identifiers or result fields. Cached responses retain the
 producer's flag; the existing `cached` flag distinguishes those observations.
 

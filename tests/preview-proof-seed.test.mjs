@@ -80,7 +80,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
             try {
               const coldPreview = await predict(reference, state, owner.id, chunkId, { seedEligibility: false });
               const preview = await predict(seeded, state, owner.id, chunkId);
-              assert.equal(preview.timingMs.eligibilitySeeded, true, `${shared}/${owner.id}/${chunkId}: seeded first baseline`);
+              assert.equal(preview.eligibilitySeeded, true, `${shared}/${owner.id}/${chunkId}: seeded first baseline`);
               assert.ok(seeded.exports.length >= 1);
               assert.equal(seeded.exports[0].offset, 0);
               equal(preview.result, coldPreview.result, 'entire Preview delta, coverage and public metrics');
@@ -119,7 +119,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
     t.diagnostic(`Complete canonical equivalence: ${candidates} pool candidates, both owners after each, Group off/on; no new exclusions.`);
   });
 
-  await t.test('raw predict envelopes keep main field shape and the differential timing policy', async () => {
+  await t.test('legacy predict envelopes keep main field shape and native telemetry stays outside numeric timings', async () => {
     assert.equal(hash('eligibilitySeeded'), '292d00f75f77a0bf280daf538cfcd26c6fdde0fed571cd2cf15ac45183f4415f');
     const { state, workerData } = previewProofFixture({ taskCount: 32 });
     const source = await proofWorker(workerData), cold = await proofWorker(workerData);
@@ -127,18 +127,36 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
     try {
       await evaluate(source, state, 'one');
       seeded = await proofWorker(workerData, { broker: exportFrom(source) });
+      const legacyReply = await predict(cold, state, 'one', '12598', { seedEligibility: false, predictionProgress: false, previewProgress: false });
+      const { prepared, ...raw } = legacyReply;
+      const mainShape = { result: raw.result, unlockReuse: raw.unlockReuse, partnerUnlockReuse: raw.partnerUnlockReuse };
+      assert.deepEqual(compareValues(resultValue(raw, 'predict'), mainShape), [], 'all legacy reply fields checked using unchanged differential');
+      for (const packet of [raw, ...prepared]) assert.equal(Object.hasOwn(packet, 'eligibilitySeeded'), false);
+      assert.deepEqual(compareValues(resultValue({ ...raw, eligibilitySeeded: false }, 'predict'), mainShape).map(row => row.path),
+        ['/@sha256:' + hash('eligibilitySeeded')], 'the exact published regression would be detected');
       const unseededReply = await predict(cold, state, 'one', '12598', { seedEligibility: false });
       const seededReply = await predict(seeded, state, 'one', '12598');
-      for (const reply of [unseededReply, seededReply]) {
-        const { prepared, ...raw } = reply;
-        const mainShape = { result: raw.result, unlockReuse: raw.unlockReuse, partnerUnlockReuse: raw.partnerUnlockReuse };
-        assert.deepEqual(compareValues(resultValue(raw, 'predict'), mainShape), [], 'all top-level response fields checked using unchanged differential');
-        for (const packet of [raw, ...prepared]) assert.equal(Object.hasOwn(packet, 'eligibilitySeeded'), false);
-        assert.deepEqual(compareValues(resultValue({ ...raw, eligibilitySeeded: false }, 'predict'), mainShape).map(row => row.path),
-          ['/@sha256:' + hash('eligibilitySeeded')], 'the exact published regression would be detected');
+      const seedOnlyReply = await predict(seeded, state, 'one', '12598', { predictionProgress: false, previewProgress: false });
+      for (const [reply, expected] of [[unseededReply, false], [seededReply, true], [seedOnlyReply, false]]) {
+        for (const packet of [reply, ...reply.prepared]) assert.equal(packet.eligibilitySeeded, expected);
       }
-      assert.equal(unseededReply.timingMs.eligibilitySeeded, false);
-      assert.equal(seededReply.timingMs.eligibilitySeeded, true);
+      const cancellation = new SharedArrayBuffer(4); Atomics.store(new Int32Array(cancellation), 0, 1);
+      const nativeCancelled = await predict(cold, state, 'one', '12598', { cancellation, seedEligibility: false });
+      const legacyCancelled = await predict(cold, state, 'one', '12598', { cancellation, seedEligibility: false, predictionProgress: false, previewProgress: false });
+      assert.deepEqual(nativeCancelled.result, { cancelled: true }); assert.equal(nativeCancelled.eligibilitySeeded, false);
+      assert.deepEqual(legacyCancelled.result, { cancelled: true }); assert.equal(Object.hasOwn(legacyCancelled, 'eligibilitySeeded'), false);
+      const failedMessage = once(cold.worker, 'message');
+      await assert.rejects(predict(cold, state, 'one', '12598', { seedEligibility: false, snapshotKey: 42 }),
+        { name: 'TypeError', message: 'Worker snapshotKey must be a string.' });
+      const [nativeFailed] = await failedMessage;
+      assert.equal(nativeFailed.eligibilitySeeded, false);
+      for (const reply of [legacyReply, unseededReply, seededReply, seedOnlyReply, nativeCancelled, legacyCancelled, { ...nativeFailed, prepared: [] }]) {
+        for (const packet of [reply, ...reply.prepared]) if (packet.timingMs) {
+          assert.equal(Object.hasOwn(packet.timingMs, 'eligibilitySeeded'), false);
+          for (const value of Object.values(packet.timingMs)) assert.equal(typeof value, 'number');
+        }
+        if (reply.result) assert.equal(Object.hasOwn(reply.result, 'eligibilitySeeded'), false, 'telemetry never changes the predict result');
+      }
       equal(seededReply.result, unseededReply.result, 'complete delta/coverage/metrics');
     } finally { await source.close(); await cold.close(); await seeded?.close(); }
   });
@@ -304,7 +322,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
       await evaluate(source, state, 'one');
       const request = deferred(), receiver = await proofWorker(workerData, { broker: async proof => { request.resolve(proof); return exportFrom(source)(proof); } });
       try {
-        assert.equal((await predict(receiver, state, 'one', '12598')).timingMs.eligibilitySeeded, true);
+        assert.equal((await predict(receiver, state, 'one', '12598')).eligibilitySeeded, true);
         const proof = await request.promise;
         for (const altered of [
           { ...proof, namespace: '0'.repeat(64) },
@@ -324,7 +342,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
         const receiver = await proofWorker(scenario.data ?? workerData, { broker: async proof => {
           const answer = await exportFrom(source)(proof); return scenario.mutate ? scenario.mutate(answer) : answer;
         } });
-        try { assert.equal((await predict(receiver, scenario.state, scenario.memberId, '12598', { pickerId: scenario.pickerId ?? A })).timingMs.eligibilitySeeded, false); }
+        try { assert.equal((await predict(receiver, scenario.state, scenario.memberId, '12598', { pickerId: scenario.pickerId ?? A })).eligibilitySeeded, false); }
         finally { await receiver.close(); }
       }
       // Task-fact projection and own-item queries are part of the actual key.
@@ -349,7 +367,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
           worker.messages.push(message);
           if (message.type === 'predict') queueMicrotask(() => worker.emit('message', { id: message.id, type: 'progress', eligibilitySeedRequest: { namespace: 'fixture', key: 'exact', maxBytes: 100 } }));
           if (message.type === 'eligibility-proof-export') worker.finish(scenario === 'miss' ? undefined : { proof: { bytes: new Uint8Array(1) } });
-          if (message.type === 'eligibility-seed') queueMicrotask(() => worker.emit('message', { id: message.id, result: { delta: { tasksAdded: [] } }, timingMs: { eligibilitySeeded: !!message.proof?.proof } }));
+          if (message.type === 'eligibility-seed') queueMicrotask(() => worker.emit('message', { id: message.id, result: { delta: { tasksAdded: [] } }, eligibilitySeeded: !!message.proof?.proof, timingMs: {} }));
         };
         worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
         (advisory ? predictions : sources).push(worker);
@@ -394,10 +412,10 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
       receiver.worker.postMessage({ type: 'cancel', id: 1, pickerId: A });
       gate.resolve(packet);
       const cancelled = await pending;
-      assert.equal(cancelled.result.cancelled, true); assert.equal(cancelled.timingMs.eligibilitySeeded, false);
-      assert.equal(Object.hasOwn(cancelled, 'eligibilitySeeded'), false);
+      assert.equal(cancelled.result.cancelled, true); assert.equal(cancelled.eligibilitySeeded, false);
+      assert.equal(Object.hasOwn(cancelled.timingMs, 'eligibilitySeeded'), false);
       const next = await predict(receiver, state, 'one', '12599');
-      assert.equal(next.timingMs.eligibilitySeeded, true); assert.equal(next.result.cancelled, undefined);
+      assert.equal(next.eligibilitySeeded, true); assert.equal(next.result.cancelled, undefined);
     } finally { gate.resolve(undefined); await receiver.close(); await source.close(); }
   });
 
