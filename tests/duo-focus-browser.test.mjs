@@ -2,10 +2,10 @@
 // node --test tests/duo-focus-browser.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openChrome } from '../scripts/perf/cdp.mjs';
+import { openAcknowledgedChrome, removeScratch } from './helpers/acknowledged-chrome.mjs';
 import { findChrome } from '../scripts/ci/gallery-support.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
@@ -14,7 +14,9 @@ const { createGroupState } = await import('../app/core/state.mjs');
 const { emptyMetadataDataset } = await import('./helpers/server-dataset.mjs');
 
 const evaluate = async (page, fn, ...args) => {
+  page.pending = fn.name || String(fn).slice(0, 120);
   const response = await page.send('Runtime.evaluate', { expression: `(${fn})(...${JSON.stringify(args)})`, returnByValue: true, awaitPromise: true });
+  page.pending = undefined;
   if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
   return response.result?.value;
 };
@@ -24,7 +26,8 @@ const evaluate = async (page, fn, ...args) => {
 // repair, or fabricated metadata. Each revision is delivered only on release().
 function installSteps({ group }) {
   const events = [], subscribers = new Set(), gates = new Map();
-  const emit = event => { events.push(event); for (const listener of [...subscribers]) listener(event); };
+  let report = () => {};
+  const emit = event => { events.push(event); for (const listener of [...subscribers]) listener(event); report(); };
   const event = (name, revision, after = 0) => {
     const matches = row => row.name === name && row.revision === revision;
     const prior = events.slice(after).find(matches);
@@ -59,10 +62,6 @@ function installSteps({ group }) {
     return response;
   };
   window.__rs3Perf = { enabled: true, events: [] };
-  window.__rs3Perf.events.push = (...rows) => {
-    const length = Array.prototype.push.apply(window.__rs3Perf.events, rows);
-    rows.forEach(emit); return length;
-  };
   window.__focusSteps = { event, snapshot, bookmark: () => events.length, async release(revision) {
     const gate = gates.get(revision);
     if (!gate) throw new Error(`No coordination response for revision ${revision}: ${JSON.stringify(snapshot())}`);
@@ -77,12 +76,31 @@ function installSteps({ group }) {
     }
     return gate.rendered;
   } };
+  report = () => window.__duoFocusState(JSON.stringify(snapshot()));
+  // Keep diagnostics outside a possibly stalled evaluation. The outer file
+  // guard can report the latest focus/page events without issuing another CDP
+  // command to the very renderer whose acknowledgement might be stuck.
+  window.__rs3Perf.events.push = (...rows) => {
+    const length = Array.prototype.push.apply(window.__rs3Perf.events, rows);
+    rows.forEach(emit); return length;
+  };
+  for (const type of ['focusin', 'focusout']) document.addEventListener(type, report, true);
+  window.addEventListener('blur', report);
+  document.addEventListener('DOMContentLoaded', () => {
+    const observer = new MutationObserver(report);
+    for (const id of ['undo', 'save-status']) observer.observe(document.getElementById(id), { childList: true, attributes: true });
+    report();
+  }, { once: true });
   localStorage.setItem('rs3:task-view', JSON.stringify({ groupView: group }));
 }
 
 const snapshot = page => evaluate(page, () => window.__focusSteps.snapshot());
 async function acknowledged(page, name, revision, after = 0) {
-  try { return await evaluate(page, (name, revision, after) => window.__focusSteps.event(name, revision, after), name, revision, after); }
+  page.acknowledgement = `${name} at revision ${revision}`;
+  try {
+    const result = await evaluate(page, (name, revision, after) => window.__focusSteps.event(name, revision, after), name, revision, after);
+    page.acknowledgement = undefined; return result;
+  }
   catch (error) { throw new Error(`Missing ${name} acknowledgement at revision ${revision}: ${JSON.stringify(await snapshot(page))}`, { cause: error }); }
 }
 async function assertFocus(page, selector) {
@@ -129,17 +147,44 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
     t.skip('Chrome is unavailable; install Chrome/Chromium or set CHROME_PATH.');
     return;
   }
+  const directory = await mkdtemp(path.join(tmpdir(), 'duo-focus-file-'));
+  const pages = new Set(), scratch = [directory];
+  let browser, finished = false, cleanup;
+  const diagnostic = extra => {
+    if (extra.pendingCleanup) cleanup = extra;
+    const message = JSON.stringify({ ...extra, cleanup, browser: browser?.diagnostics(),
+      journeys: [...pages].slice(-3).map(page => ({ name: page.name, pendingAcknowledgement: page.acknowledgement,
+        pendingEvaluation: page.pending, state: page.state })) });
+    if (extra.outerHangGuard) process.stderr.write(`Duo focus outer hang guard: ${message}\n`);
+    t.diagnostic(message);
+  };
+  t.signal.addEventListener('abort', () => { if (!finished) diagnostic({ outerHangGuard: true }); }, { once: true });
+  t.after(async () => {
+    try { await browser?.close(); }
+    finally {
+      for (const owned of scratch) await removeScratch(owned, { signal: t.signal, report: diagnostic });
+      if (!t.signal.aborted && browser) t.diagnostic(JSON.stringify({ browserLifecycle: browser.diagnostics() }));
+      finished = true;
+    }
+  });
+  browser = await openAcknowledgedChrome(executable, path.join(directory, 'chrome'), { signal: t.signal, report: diagnostic,
+    extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [] });
   async function fixture(t, { phone = false, group = true, hide = false } = {}) {
     const directory = await mkdtemp(path.join(tmpdir(), 'duo-focus-'));
+    scratch.push(directory);
     let app, page;
     const commands = [], errors = [];
     t.after(async () => {
       // Close the browser before its synthetic server, including on a failed
       // step with metadata deliberately held in the renderer.
-      try { await page?.close(); }
+      try {
+        if (page) page.acknowledgement = 'browser context disposed';
+        if (!t.signal.aborted) await page?.close();
+      }
       finally {
-        try { await app?.close(); }
-        finally { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+        if (page) page.acknowledgement = 'synthetic server closed';
+        await app?.close();
+        if (page) page.acknowledgement = undefined;
       }
       assert.deepEqual(errors, []);
     });
@@ -150,11 +195,9 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
     app = await createServer({ dataset: await emptyMetadataDataset(), dataDir: path.join(directory, 'save'), initialState: state,
       definitions, taskMap: {}, host: '127.0.0.1', port: 0, predictionPrewarm: false, loopbackPort: undefined, publicOrigin: undefined });
     await app.listen();
-    page = await openChrome(executable, path.join(directory, 'chrome'), {
-      extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
-    });
-    await page.send('Emulation.setDeviceMetricsOverride', { width: phone ? 390 : 1440, height: phone ? 844 : 900,
-      deviceScaleFactor: 1, mobile: phone });
+    page = await browser.page({ width: phone ? 390 : 1440, height: phone ? 844 : 900, mobile: phone });
+    page.name = t.name; pages.add(page);
+    await page.send('Runtime.addBinding', { name: '__duoFocusState' });
     const baseline = process.env.RS3_FOCUS_BASELINE_WEB;
     const origin = new URL(app.inviteUrl).origin;
     const baselinePatterns = baseline ? ['duo-task-view', 'duo-coordination', 'screen-startup', 'screen-map']
@@ -168,6 +211,7 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
         responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }], body: body.toString('base64') });
     };
     page.listeners.add(({ method, params }) => {
+      if (method === 'Runtime.bindingCalled' && params.name === '__duoFocusState') page.state = JSON.parse(params.payload);
       if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails.text);
       if (method === 'Network.requestWillBeSent' && new URL(params.request.url).pathname === '/api/command') {
         commands.push(JSON.parse(params.request.postData));
@@ -189,10 +233,14 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
       page.listeners.add(listener);
     });
     await page.send('Page.navigate', { url: app.inviteUrl });
+    page.acknowledgement = 'Page.loadEventFired';
     await loaded;
+    page.acknowledgement = undefined;
     await tasksReady(0);
     await acknowledged(page, 'coordination-arrived', 0);
+    page.acknowledgement = 'coordination render at revision 0';
     await evaluate(page, () => window.__focusSteps.release(0));
+    page.acknowledgement = undefined;
     if (phone) await click(page, '#phone-tab-tasks');
     assert.equal(await evaluate(page, () => document.getElementById('group-view').checked), group);
     assert.equal(await evaluate(page, () => document.querySelector('#active-tasks [data-task-id="custom:a"]')?.checkVisibility()), true);
@@ -201,8 +249,10 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
     const settle = async (expected, canUndo = true) => {
       await acknowledged(page, 'coordination-arrived', expected);
       let rendered;
+      page.acknowledgement = `coordination render at revision ${expected}`;
       try { rendered = await evaluate(page, revision => window.__focusSteps.release(revision), expected); }
       catch (error) { throw new Error(`No coordination render at revision ${expected}: ${JSON.stringify(await snapshot(page))}`, { cause: error }); }
+      page.acknowledgement = undefined;
       assert.equal(rendered.saved, 'saved', JSON.stringify(rendered));
       assert.equal(rendered.undo.disabled, !canUndo, JSON.stringify(rendered));
       await tasksReady(expected);
@@ -263,7 +313,7 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
       });
     }
   }
-  for (const action of ['none', 'Tab', 'pointer', 'focus', 'blur', 'early Enter']) await t.test(`delayed coordination: ${action}`, { timeout: 60000 }, async t => {
+  for (const action of ['none', 'Tab', 'pointer', 'focus', 'blur', 'early Enter']) await t.test(`delayed coordination: ${action}`, async t => {
     const h = await fixture(t); await completeTwo(h);
     await tabTo(h.page, '#undo'); await key(h.page, 'Enter');
     await acknowledged(h.page, 'coordination-arrived', 3);
