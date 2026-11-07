@@ -1,7 +1,6 @@
 // Read-only source storage; packed startup is exercised only on disposable copies.
 import path from 'node:path';
 import os from 'node:os';
-import net from 'node:net';
 import { realpathSync } from 'node:fs';
 import { readFile, writeFile, mkdir, mkdtemp, cp, rm, lstat, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -313,12 +312,7 @@ export async function probe(core, dataDir, output, { retention } = {}) {
   const { authoredIdentityRegistry, resolveIdentity } = await import(pathToFileURL(path.join(core, 'app/tasks/identity.mjs')));
   const { loadDatasetInputs } = await import(pathToFileURL(path.join(core, 'app/dataset-bootstrap.mjs')));
   const { prepareTaskDefinitions } = await import(pathToFileURL(path.join(core, 'app/dataset-pipeline.mjs')));
-  let port;
-  for (let candidate = 8900; candidate <= 8999; candidate++) {
-    const free = await new Promise(resolve => { const socket = net.createServer(); socket.once('error', () => resolve(false)); socket.listen(candidate, '127.0.0.1', () => socket.close(() => resolve(true))); });
-    if (free) { port = candidate; break; }
-  }
-  if (!port) throw new Error('No scratch compatibility port available.');
+  const port = 0;
   const { createServer } = await import(pathToFileURL(path.join(core, 'app/server.mjs')));
   const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false, retention, taskWorkerOptions: { warmStoreDirectory: false },
     runeMetrics: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } },

@@ -18,6 +18,10 @@ on:
         default: linux
         type: choice
         options: [linux, windows, both]
+      release_mutations:
+        description: 'Also prove release test obligation groups against temporary product mutations'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,6 +31,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-mutations:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_mutations
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      - run: node scripts/ci/release-test-mutations.mjs
+      - name: Restore product bytes independently of the mutation process
+        if: always()
+        shell: bash
+        run: |
+          git checkout -- scripts/private-companion
+          git diff --exit-code
+          git diff --cached --exit-code
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-mutations-${{ runner.os }}
+          path: release-mutation-results
+          retention-days: 14
+          if-no-files-found: error
+
   plan:
     runs-on: ubuntu-latest
     timeout-minutes: 3

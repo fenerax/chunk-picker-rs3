@@ -276,12 +276,15 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
     $storageChangesStarted = [bool]($Recover -or $reversePending)
     $bindingBeforeHash = $null
     $bindingPath = $previous.context.config.dataDir + '.dataset.json'
-    try {
+    $stages = @{
+      'ownership' = {
         $tick = [IO.File]::Open((Join-Path $previous.context.localDir 'watchdog-tick.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
         $owner = Enter-OperatorLock $previous.context
         $null = Assert-ReleaseV2SamePointer $live -ForStop
         $null = Assert-ReleaseV2SamePointer $candidate
         Assert-ReleaseV2Transition $candidate.context $previous.context -PackUpgrade:$packUpgrade
+      }
+      'pause' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'pause'
         $observedJournalHash = if (Test-Path -LiteralPath $journalPath) { Get-ReleaseV2Hash $journalPath } else { $null }
         if ($observedJournalHash -cne $journalBeforeHash) { throw 'Pack journal changed before ownership.' }
@@ -295,6 +298,8 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
         $identityArguments = @('assert-identity', '--kit', $verificationCompanion, '--release', $release)
         if (-not $Recover) { $identityArguments += @('--current', $CurrentRelease) }
         if ($Rollback) { $identityArguments += '--rollback' }
+      }
+      'identity-before-stop' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'identity-before-stop'
         if ($null -ne $FrozenBundle) { Assert-ReleaseV2FrozenInventory $FrozenBundle }
         else {
@@ -302,27 +307,36 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
             if ($LASTEXITCODE -ne 0) { throw 'Release identity or gate evidence refused before Stop.' }
         }
         # Recovery stops only the runtime named by the currently observed pointer.
+      }
+      'owned-stop' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'owned-stop'
         Stop-OperatorCore $live.context $TimeoutSeconds -PreservePause -LockOwner $owner
         Assert-OperatorStoreReleased $live.context
         if (-not $Recover -and -not $packUpgrade -and $null -ne $journal) {
             Assert-OperatorPackJournal $live.context
         }
+      }
+      'verify-install' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'verify-install'
         if ($null -eq $FrozenBundle) {
             & $candidate.context.config.nodePath $verify --core $candidate.context.config.coreRoot --companion $verificationCompanion --receipt $receiptPath *> $log
             if ($LASTEXITCODE -ne 0) { throw 'Installation verification refused.' }
         }
+      }
+      'references-after-stop' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'references-after-stop'
         $null = Assert-ReleaseV2SamePointer $live -ForStop
         $null = Assert-ReleaseV2SamePointer $candidate
         if ((Get-ReleaseV2Hash $receiptPath) -cne $receiptHash) { throw 'Installation receipt changed.' }
+      }
+      'identity-after-stop' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'identity-after-stop'
         if ($null -eq $FrozenBundle) {
             & $candidate.context.config.nodePath $identity @identityArguments *>> $log
             if ($LASTEXITCODE -ne 0) { throw 'Release identity or gate evidence changed after Stop.' }
         }
-        if ($packUpgrade) {
+      }
+      'pack-check' = {
             Assert-OperatorLockOwner $previous.context $owner
             $phase = Set-ReleaseV2Phase $PhaseClock 'pack-check'
             $check = if ($externalCheck) { $externalCheck } else { Assert-OperatorPath (Join-Path $companion 'tools/release-pack-check.mjs') }
@@ -334,15 +348,13 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
             Invoke-ReleaseV2PackCheck $candidate.context $check $previous.pointer.config.path $candidate.pointer.config.path $transitionPath $evidence
             Assert-OperatorStoreReleased $live.context
             Assert-OperatorLockOwner $previous.context $owner
-            $phase = Set-ReleaseV2Phase $PhaseClock 'pre-commit-validation'
-            $oldHash = if ($Rollback) { $transition.new.bindingSha256 } else { $transition.old.bindingSha256 }
-            $newHash = if ($Rollback) { $transition.old.bindingSha256 } else { $transition.new.bindingSha256 }
-            if (-not $Recover) {
-                if ($reversePending) {
-                    $observedBinding = Get-ReleaseV2Hash $bindingPath
-                    $observedPointer = Get-ReleaseV2Hash $CurrentRelease
-                    if ($observedBinding -notin @($transition.old.bindingSha256,$transition.new.bindingSha256) -or $observedPointer -notin @($journal.sourcePointerSha256,$journal.targetPointerSha256) -or ($observedPointer -ceq $journal.targetPointerSha256 -and $observedBinding -cne $transition.new.bindingSha256)) { throw 'Unknown interrupted forward pair; rollback paused.' }
-                } elseif ((Get-ReleaseV2Hash $bindingPath) -cne $oldHash) { throw 'Binding changed before journal.' }
+      }
+      'observe-pair' = {
+        $oldHash = if ($packUpgrade) { if ($Rollback) { $transition.new.bindingSha256 } else { $transition.old.bindingSha256 } } else { $null }
+        $newHash = if ($packUpgrade) { if ($Rollback) { $transition.old.bindingSha256 } else { $transition.new.bindingSha256 } } else { $null }
+        $stageValue = @{binding=(Get-ReleaseV2OptionalHash $bindingPath);pointer=(Get-ReleaseV2Hash $CurrentRelease);sourceBinding=$oldHash;targetBinding=$newHash;sourcePointer=$previous.sha256;targetPointer=$candidate.sha256;allowInversePartial=($null -ne $journal -and $journal.PSObject.Properties.Name -contains 'allowInversePartial' -and $journal.allowInversePartial)}
+      }
+      'journal-intent' = {
                 $sourcePointer = $journalPath + '.' + [Guid]::NewGuid().ToString('N') + '.source-pointer.json'
                 [IO.File]::Copy($previous.path, $sourcePointer, $false)
                 $journal = [pscustomobject]@{ schemaVersion=1; state='journaled'; currentPointer=$CurrentRelease; candidatePointer=$CandidatePointer;
@@ -355,24 +367,21 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
                 $hash = [Security.Cryptography.SHA256]::Create()
                 try { $ownedJournalHash = ([BitConverter]::ToString($hash.ComputeHash($journalBytes))).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
                 Write-ReleaseV2Journal $journalPath $journal
-            }
-            # Recovery validates the latest save, which may include writes made
-            # during the interrupted Start. Retain that exact fresh proof too.
-            $journal.evidence = [pscustomobject]@{path=$evidence;sha256=(Get-ReleaseV2Hash $evidence)}
-            $phase = Set-ReleaseV2Phase $PhaseClock 'pre-commit-validation'
-            Assert-OperatorPin $journal.transition
-            $bindingHash = Get-ReleaseV2Hash $bindingPath
-            $pointerHash = Get-ReleaseV2Hash $CurrentRelease
-            if ($bindingHash -notin @($oldHash,$newHash) -or $pointerHash -notin @($previous.sha256,$candidate.sha256)) { throw 'Unknown binding/pointer pair; recovery paused.' }
-            $inverseAllowed = $journal.PSObject.Properties.Name -contains 'allowInversePartial' -and $journal.allowInversePartial -and $Rollback
-            if ($pointerHash -ceq $candidate.sha256 -and $bindingHash -cne $newHash -and -not $inverseAllowed) { throw 'Impossible binding/pointer pair; recovery paused.' }
-            if ($bindingHash -cne $newHash) {
+      }
+      'validate-pair' = {
+        $phase = Set-ReleaseV2Phase $PhaseClock 'pre-commit-validation'
+        $journal.evidence = [pscustomobject]@{path=$evidence;sha256=(Get-ReleaseV2Hash $evidence)}
+        Assert-OperatorPin $journal.transition
+        . $stages['observe-pair']
+      }
+      'binding-commit' = {
                 $bytes = if ($Rollback) { [Convert]::FromBase64String($transition.oldBindingBase64) } else { [Convert]::FromBase64String($transition.newBindingBase64) }
                 # The setters mark the boundary immediately before atomic replacement,
                 # after every recoverable pin, payload and compare-and-swap refusal.
                 $phase = Set-ReleaseV2Phase $PhaseClock 'binding-commit'
                 Set-ReleaseV2Binding $bindingPath $oldHash $bytes $newHash ([ref]$storageChangesStarted)
-            }
+      }
+      'binding-journal' = {
             $journal.state='binding-swapped'
             if (-not $storageChangesStarted) {
                 $journalBytes = [Text.UTF8Encoding]::new($false).GetBytes(($journal | ConvertTo-Json -Depth 15))
@@ -380,9 +389,9 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
                 try { $ownedJournalHash = ([BitConverter]::ToString($hash.ComputeHash($journalBytes))).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
             }
             Write-ReleaseV2Journal $journalPath $journal
-        }
-        if ((Get-ReleaseV2Hash $CurrentRelease) -cne $candidate.sha256) {
-            $phase = Set-ReleaseV2Phase $PhaseClock 'pointer-commit'
+      }
+      'pointer-commit' = {
+        $phase = Set-ReleaseV2Phase $PhaseClock 'pointer-commit'
             if (-not $Recover -and -not $packUpgrade -and $null -ne $journal) {
                 Assert-OperatorPackJournal $live.context
             }
@@ -390,8 +399,11 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
             if (-not $Recover -and -not $packUpgrade -and $null -ne $journal) {
                 [IO.File]::Move($journalPath, ($journalPath + '.' + [Guid]::NewGuid().ToString('N') + '.completed.json'))
             }
-        }
-        if ($packUpgrade) { $journal.state='pointer-swapped'; Write-ReleaseV2Journal $journalPath $journal }
+      }
+      'pointer-journal' = {
+        $journal.state='pointer-swapped'; Write-ReleaseV2Journal $journalPath $journal
+      }
+      'identity-before-start' = {
         $finalIdentityArguments = @('assert-identity', '--kit', $verificationCompanion, '--release', $release)
         if ($Rollback) { $finalIdentityArguments += '--rollback' }
         $phase = Set-ReleaseV2Phase $PhaseClock 'identity-before-start'
@@ -400,10 +412,16 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
             & $candidate.context.config.nodePath $identity @finalIdentityArguments *>> $log
             if ($LASTEXITCODE -ne 0) { throw 'Release identity or gate evidence changed before Start.' }
         }
-        if ($packUpgrade) { $journal.state='starting'; Write-ReleaseV2Journal $journalPath $journal }
+      }
+      'starting-journal' = {
+        $journal.state='starting'; Write-ReleaseV2Journal $journalPath $journal
+      }
+      'candidate-start-readiness' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'candidate-start-readiness'
         if ($packUpgrade) { Start-OperatorCore $candidate.context $TimeoutSeconds -PreservePause -LockOwner $owner -PackTransitionReady -PhaseClock $PhaseClock }
         else { Start-OperatorCore $candidate.context $TimeoutSeconds -PreservePause -LockOwner $owner -PhaseClock $PhaseClock }
+      }
+      'post-start-validation' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'post-start-validation'
         $committed = Read-ReleaseV2Pointer $CurrentRelease
         if ($committed.sha256 -cne $candidate.sha256) { throw 'Committed release changed during startup.' }
@@ -411,6 +429,8 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
             if ((Get-ReleaseV2Hash $bindingPath) -cne $newHash) { throw 'Binding changed during startup.' }
             $journal.state='ready'; Write-ReleaseV2Journal $journalPath $journal
         }
+      }
+      'rollback-readiness' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'rollback-readiness'
         if ($null -ne $FrozenBundle) {
             Assert-ReleaseV2FrozenInventory $FrozenBundle
@@ -426,15 +446,18 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
                 if (-not $compatibility.passed -or -not $compatibility.bothDirections) { throw 'Retained rollback compatibility evidence is incomplete.' }
             }
         }
+      }
+      'unpause' = {
         $phase = Set-ReleaseV2Phase $PhaseClock 'unpause'
         # The release is committed and ready; a diagnostic write must not refuse it.
         $PhaseClock.result=[ordered]@{phase='ready';storageChangesStarted=$storageChangesStarted;previousReleaseRestored=$false;refused=$false;frozen=($null -ne $FrozenBundle)}
         Remove-Item -LiteralPath (Join-Path $candidate.context.localDir 'picker-paused')
         try { $PhaseClock.result.timings=Get-ReleaseV2Timings $PhaseClock; Write-ReleaseV2Journal ($log + '.result.json') $PhaseClock.result } catch { }
         Write-Output 'Managed release is ready; current pointer and runtime agree.'
-    } catch {
+      }
+      'refusal-restoration' = {
         # Diagnostic IO must never prevent the service restoration attempt.
-        if ($null -ne $log) { try { [IO.File]::WriteAllText(($log + '.failure.txt'), ($_.Exception.Message + "`n" + $_.ScriptStackTrace)) } catch { } }
+        if ($null -ne $log) { try { [IO.File]::WriteAllText(($log + '.failure.txt'), ($primaryMessage)) } catch { } }
         $refusalPhase = $phase
         $null = Set-ReleaseV2Phase $PhaseClock 'refusal-restoration'
         $restored = $false
@@ -476,5 +499,55 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
         if ($restored) { throw ('Managed release refused, previous release restored; phase=' + $refusalPhase + '. Authenticated readiness passed; watchdog pause cleared.') }
         if ($paused) { throw ('Managed release refused; phase=' + $refusalPhase + '; storageChangesStarted=' + $storageChangesStarted + '. Watchdog remains paused; inspect retained recovery evidence.') }
         throw ('Managed release could not obtain ownership or validate its references; phase=' + $refusalPhase + '.')
-    } finally { if ($null -ne $owner) { $owner.Dispose() }; if ($null -ne $tick) { $tick.Dispose() } }
+      }
+    }
+    $driver = [Diagnostics.Process]::new()
+    $driver.StartInfo = [Diagnostics.ProcessStartInfo]::new()
+    $driver.StartInfo.FileName = $candidate.context.config.nodePath
+    $policy = Join-Path $PSScriptRoot 'release-transition.mjs'
+    if (-not (Test-Path -LiteralPath $policy)) { $policy = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/release-transition.mjs' }
+    # Installed helper snapshots contain operator scripts; release tooling stays
+    # in the explicitly supplied companion kit, also for retained-target rollback.
+    if (-not (Test-Path -LiteralPath $policy)) { $policy = Join-Path $companion 'tools/release-transition.mjs' }
+    $null = Assert-OperatorPath $policy
+    if ($null -ne $FrozenBundle) { Assert-ReleaseV2FrozenPin $FrozenBundle ([pscustomobject]@{path=$policy;sha256=(Get-ReleaseV2Hash $policy)}) }
+    $initial = @{packUpgrade=[bool]$packUpgrade;recover=[bool]$Recover;reversePending=[bool]$reversePending;rollback=[bool]$Rollback} | ConvertTo-Json -Compress
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($initial))
+    $driver.StartInfo.Arguments = '"' + $policy + '" drive ' + $encoded
+    $driver.StartInfo.UseShellExecute = $false
+    $driver.StartInfo.CreateNoWindow = $true
+    $driver.StartInfo.RedirectStandardInput = $true
+    $driver.StartInfo.RedirectStandardOutput = $true
+    $completed = $null; $primaryMessage = 'Managed stage refused.'; $driverStarted = $false
+    try {
+        $null = $driver.Start()
+        $driverStarted = $true
+        while ($null -ne ($line = $driver.StandardOutput.ReadLine())) {
+            $request = $line | ConvertFrom-Json
+            if ($request.PSObject.Properties.Name -contains 'complete') { $completed=$request; break }
+            $stageValue = $null
+            try {
+                if (-not $stages.ContainsKey([string]$request.stage)) { throw 'Unknown managed stage.' }
+                $null = . $stages[[string]$request.stage]
+                $response = @{id=$request.id;ok=$true;value=$stageValue}
+            } catch {
+                $primaryMessage = $_.Exception.Message
+                $response = @{id=$request.id;ok=$false;error=$primaryMessage}
+            }
+            $driver.StandardInput.WriteLine(($response | ConvertTo-Json -Depth 15 -Compress))
+            $driver.StandardInput.Flush()
+        }
+        $driver.StandardInput.Close()
+        $driver.WaitForExit()
+        if ($null -eq $completed) { throw 'Managed decision process exited without completion acknowledgement.' }
+        if (-not $completed.ok -or $driver.ExitCode -ne 0) { throw $completed.error }
+        Write-Output 'Managed release is ready; current pointer and runtime agree.'
+    } finally {
+        # Only the directly retained handle is an owned termination target.
+        try {
+            try { if ($driverStarted -and -not $driver.HasExited) { $driver.Kill(); $driver.WaitForExit() } } finally { $driver.Dispose() }
+        } finally {
+            try { if ($null -ne $owner) { $owner.Dispose() } } finally { if ($null -ne $tick) { $tick.Dispose() } }
+        }
+    }
 }
