@@ -305,24 +305,14 @@ test('stage waiting reports producer failure or premature completion before any 
   await assert.rejects(waitForStage(absentStage, Promise.resolve()), /completed without announcing its stage/);
 });
 
-async function controlledProbe(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'probe-watchdog-'));
-  let child, outcome;
-  t.after(async () => {
-    // Release only the fake pipe so a broken implementation also joins and
-    // cleans up after the intended assertion has failed.
-    child?.emit('close', child.exitCode, child.signalCode);
-    await outcome;
-    t.mock.restoreAll(); syncBuiltinESMExports();
-    await rm(root, { recursive: true, force: true });
-  });
+async function probeInputs(root) {
   const descriptor = { datasetId: 'synthetic', datasetContractVersion: 1, digest: '1'.repeat(64) };
   const binding = bindingBytes(descriptor), dataDir = path.join(root, 'save');
   const pin = async (name, value) => {
     const file = path.join(root, name); await put(file, value);
     return { path: file, sha256: hash(await readFile(file)) };
   };
-  await put(path.join(dataDir, 'state.json'), { synthetic: true });
+  await put(path.join(dataDir, 'state.json'), { revision: 9, members: [{ id: 'one', completedTasks: [], taskStatus: {} }], tasks: [{ id: 'rs3:task:1' }] });
   await put(dataDir + '.dataset.json', binding);
   const profile = await pin('profile.json', { datasetId: descriptor.datasetId, datasetDigest: descriptor.digest, ruleContractHash: 'a'.repeat(64) });
   const pack = await pin('pack.json', { requires: descriptor, datasetDigest: descriptor.digest, ruleContractHash: 'a'.repeat(64) });
@@ -332,23 +322,43 @@ async function controlledProbe(t) {
   const declared = { ...descriptor, bindingSha256: hash(binding) };
   const transition = { schemaVersion: 1, oldConfig: config, newConfig: config, old: declared, new: declared,
     oldBindingBase64: binding.toString('base64'), newBindingBase64: binding.toString('base64') };
+  return { config, transition };
+}
+
+async function controlledProbe(t, { deferExit = false, failCleanup = false } = {}) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'probe-watchdog-'));
+  let child, outcome, scratch, cleanupOptions;
+  t.after(async () => {
+    // Release only the fake pipe so a broken implementation also joins and
+    // cleans up after the intended assertion has failed.
+    child?.emit('close', child.exitCode, child.signalCode);
+    await outcome;
+    t.mock.restoreAll(); syncBuiltinESMExports();
+    if (scratch) await rm(scratch, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
+  });
+  const { config, transition } = await probeInputs(root);
   child = new EventEmitter(); child.stderr = new EventEmitter(); child.exitCode = null; child.signalCode = null;
-  let announceSpawn, scratch, cleanupStarted = false, kills = 0;
+  child.stderr.destroy = () => { child.stderr.destroyed = true; };
+  let announceSpawn, cleanupStarted = false, kills = 0;
   const spawned = new Promise(resolve => { announceSpawn = resolve; });
-  child.kill = () => { kills++; child.signalCode = 'SIGTERM'; child.emit('exit', null, 'SIGTERM'); return true; };
+  child.kill = () => { kills++; if (!deferExit) { child.signalCode = 'SIGTERM'; child.emit('exit', null, 'SIGTERM'); } return true; };
   const originalRemove = fsPromises.rm;
   t.mock.method(childProcess, 'spawn', (_command, args) => {
     scratch = path.dirname(args.at(-1)); announceSpawn(); return child;
   });
   t.mock.method(fsPromises, 'rm', (target, options) => {
-    if (target === scratch) cleanupStarted = true;
+    if (target === scratch) {
+      cleanupStarted = true; cleanupOptions = options;
+      if (failCleanup) return Promise.reject(Object.assign(Error('synthetic exhausted scratch removal'), { code: 'EBUSY' }));
+    }
     return originalRemove(target, options);
   });
   syncBuiltinESMExports();
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const producer = checkPackTransition({ fromConfig: config.path, toConfig: config.path, transition });
   outcome = producer.then(() => ({ error: null }), error => ({ error }));
-  return { child, spawned: waitForStage(spawned, producer), outcome, get scratch() { return scratch; }, get cleanupStarted() { return cleanupStarted; }, get kills() { return kills; } };
+  return { child, spawned: waitForStage(spawned, producer), outcome, get scratch() { return scratch; }, get cleanupStarted() { return cleanupStarted; }, get cleanupOptions() { return cleanupOptions; }, get kills() { return kills; } };
 }
 
 test('compatibility watchdog rejects even when kill never closes inherited stderr', async t => {
@@ -365,7 +375,29 @@ test('compatibility watchdog rejects even when kill never closes inherited stder
   assert.equal(error.childResult.exitCode, null); assert.equal(error.childResult.signal, 'SIGTERM');
   assert.equal(error.childResult.error, null);
   assert.match(error.childResult.stderrTail, /inherited stderr remains open/);
+  assert.equal(probe.child.stderr.destroyed, true); assert.equal(probe.child.stderr.eventNames().length, 0);
   assert.equal(existsSync(probe.scratch), false);
+});
+
+test('probe timeout joins termination before removing copied-save scratch', async t => {
+  const probe = await controlledProbe(t, { deferExit: true }); await probe.spawned;
+  t.mock.timers.tick(180000); await new Promise(setImmediate);
+  assert.equal(probe.kills, 1); assert.equal(probe.cleanupStarted, false);
+  probe.child.signalCode = 'SIGTERM'; probe.child.emit('exit', null, 'SIGTERM');
+  const { error } = await probe.outcome;
+  assert.equal(error.childResult.termination.joined, true);
+  assert.equal(probe.cleanupStarted, true);
+  assert.equal(probe.cleanupOptions.maxRetries, 10); assert.equal(probe.cleanupOptions.retryDelay, 100);
+});
+
+test('exhausted scratch cleanup preserves the primary structured timeout', async t => {
+  const probe = await controlledProbe(t, { failCleanup: true }); await probe.spawned;
+  t.mock.timers.tick(180000);
+  const { error } = await probe.outcome;
+  assert.equal(error.childResult.timedOut, true); assert.equal(error.childResult.termination.joined, true);
+  assert.equal(error.cleanupFailure.code, 'EBUSY'); assert.match(error.cleanupFailure.message, /synthetic exhausted/);
+  assert.equal(probe.cleanupOptions.maxRetries, 10); assert.equal(probe.cleanupOptions.retryDelay, 100);
+  assert.equal(error.cleanupFailure.scratch, probe.scratch); assert.equal(existsSync(probe.scratch), true);
 });
 
 test('compatibility exit settles after a bounded stderr drain even without close', async t => {
@@ -381,6 +413,83 @@ test('compatibility exit settles after a bounded stderr drain even without close
   assert.equal(error.childResult.exitCode, 7); assert.equal(error.childResult.signal, null);
   assert.match(error.childResult.stderrTail, /stderr delivered after exit/);
   assert.equal(existsSync(probe.scratch), false);
+});
+
+async function bounded(promise, milliseconds, message) {
+  let timer;
+  try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(Error(message)), milliseconds); })]); }
+  finally { clearTimeout(timer); }
+}
+
+async function realProbe(t, mode) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'probe-real-tree-'));
+  const { config, transition } = await probeInputs(root);
+  const witness = path.join(root, 'descendant.json'), input = path.join(root, 'check.json');
+  const fixtureUrl = new URL('./fixtures/probe-descendant.mjs', import.meta.url);
+  await put(path.join(root, 'app/tasks/identity.mjs'), "export const authoredIdentityRegistry=()=>({entries:{'rs3:task:1':{}},aliases:{}});export const resolveIdentity=id=>({status:'resolved',id});");
+  await put(path.join(root, 'app/dataset-bootstrap.mjs'), 'export const loadDatasetInputs=async()=>({definitionBytes:Buffer.from(JSON.stringify({challenges:{}}))});');
+  await put(path.join(root, 'app/dataset-pipeline.mjs'), 'export const prepareTaskDefinitions=x=>x;');
+  await put(path.join(root, 'app/server.mjs'), `import {writeFile} from 'node:fs/promises';
+    import {startDescendant} from ${JSON.stringify(fixtureUrl.href)};
+    import {createServer as base} from ${JSON.stringify(new URL('./fixtures/release-pipeline/server.mjs', import.meta.url).href)};
+    export async function createServer(options) {
+      const descendant=await startDescendant();
+      await writeFile(${JSON.stringify(witness)},JSON.stringify({...descendant,probePid:process.pid}));
+      ${mode === 'timeout' ? "process.stderr.write('PROBE_TREE_READY\\n');setInterval(()=>{},60000);await new Promise(()=>{});" : ''}
+      return base(options);
+    }`);
+  await put(input, { fromConfig: config.path, toConfig: config.path, transition });
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const child = childProcess.spawn(process.execPath, [fileURLToPath(fixtureUrl), 'runner', input, mode], {
+    env, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+  });
+  let stderr = ''; child.stderr.on('data', bytes => { stderr = (stderr + bytes).slice(-4096); });
+  const exit = new Promise((resolve, reject) => { child.once('exit', (code, signal) => resolve({ code, signal })); child.once('error', reject); });
+  const close = new Promise(resolve => child.once('close', resolve));
+  const settled = new Promise(resolve => child.once('message', resolve));
+  t.after(async () => {
+    let descendant;
+    try { descendant = await json(witness); await fetch(`http://127.0.0.1:${descendant.port}/stop`, { signal: AbortSignal.timeout(3000) }); }
+    catch (error) { if (error.code !== 'ENOENT' && !descendant) throw error; }
+    if (child.exitCode === null && child.signalCode === null) {
+      if (process.platform === 'win32') {
+        try { execFileSync(path.join(process.env.SystemRoot, 'System32/taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 }); } catch {}
+      } else {
+        for (const pid of [descendant?.probePid, child.pid].filter(Boolean)) {
+          try { process.kill(-pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+        }
+      }
+    }
+    await bounded(close, 5000, 'owned regression runner did not close during teardown');
+    await rm(root, { recursive: true, force: true });
+  });
+  const message = await bounded(Promise.race([settled, exit.then(value => { throw Error('Runner exited before settlement: ' + JSON.stringify(value) + stderr); })]), 25000, 'probe did not settle within its process-control bound');
+  const result = await bounded(exit, 15000, 'settled probe left a referenced inherited stderr handle in the release CLI');
+  await bounded(close, 5000, 'release CLI exit did not close its owned streams');
+  return { message, result, witness: existsSync(witness) ? await json(witness) : undefined };
+}
+
+test('real inherited stderr cannot keep a settled release CLI alive', async t => {
+  const { message, result, witness } = await realProbe(t, 'exit');
+  assert.equal(message.passed, true, message.message); assert.equal(result.code, 0);
+  assert.equal(message.events.destroyed, true);
+  assert.equal(await (await fetch(`http://127.0.0.1:${witness.port}/status`)).text(), 'owned descendant');
+});
+
+test('real probe watchdog terminates its owned tree and reports bounded process diagnostics', async t => {
+  const { message, result, witness } = await realProbe(t, 'timeout');
+  assert.equal(message.passed, false); assert.equal(result.code, 1);
+  const report = message.childResult;
+  assert.equal(report.timedOut, true); assert.equal(report.stage, 'probe:old'); assert(report.pid > 0);
+  assert.equal(typeof report.exitWithoutClose, 'boolean'); assert(Array.isArray(report.activeResources));
+  assert.equal(report.termination.joined, true); assert.equal(message.events.destroyed, true);
+  assert.equal(message.cleanupFailure, undefined);
+  if (process.platform === 'win32') {
+    assert.equal(report.termination.strategy, 'taskkill-tree');
+    assert(report.termination.descendantQuery);
+    if (report.termination.descendantQuery.code === 0) assert.deepEqual(report.survivingDescendants, []);
+  } else assert.equal(report.termination.strategy, 'process-group');
+  await assert.rejects(fetch(`http://127.0.0.1:${witness.port}/status`, { signal: AbortSignal.timeout(3000) }));
 });
 
 test('native compatibility atomically owns port zero and closes before returning its save witness', async t => {

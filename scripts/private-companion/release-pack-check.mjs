@@ -65,32 +65,104 @@ export async function saveIdentity(dataDir) {
   }
   return files;
 }
+const errorDetail = error => ({ name: error.name, code: error.code ?? null, message: refusalMessage(error.message) });
+function disposePipe(stream) { if (stream) { stream.destroy(); stream.removeAllListeners(); } }
+function boundedCommand(command, args, milliseconds) {
+  return new Promise(resolve => {
+    const child = spawn(command, args, { windowsHide: true, env: sanitizeExecutionEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '', timer, drain, done = false;
+    child.stdout.on('data', bytes => { stdout = (stdout + bytes).slice(-65536); });
+    child.stderr.on('data', bytes => { stderr = (stderr + bytes).slice(-4096); });
+    const finish = result => {
+      if (done) return; done = true; clearTimeout(timer); clearTimeout(drain);
+      disposePipe(child.stdout); disposePipe(child.stderr); child.unref();
+      resolve({ ...result, stdout, stderr: refusalMessage(stderr) });
+    };
+    child.once('error', error => finish({ error: errorDetail(error) }));
+    child.once('exit', (code, signal) => { if (!done) drain = setTimeout(() => finish({ code, signal }), 25); });
+    child.once('close', (code, signal) => finish({ code, signal }));
+    timer = setTimeout(() => { child.kill('SIGKILL'); finish({ timedOut: true }); }, Math.max(1, milliseconds));
+  });
+}
+async function windowsDescendants(parents, milliseconds) {
+  const ids = [...new Set(parents.filter(Number.isSafeInteger))];
+  const script = `$ErrorActionPreference='Stop';$queue=[Collections.Generic.Queue[int]]::new();foreach($id in @(${ids.join(',')})){$queue.Enqueue($id)};$seen=@{};$rows=@();while($queue.Count -gt 0 -and $seen.Count -lt 128){$parent=$queue.Dequeue();if($seen.ContainsKey($parent)){continue};$seen[$parent]=$true;foreach($p in @(Get-CimInstance Win32_Process -Filter (\"ParentProcessId = \"+$parent))){$rows+=[pscustomobject]@{pid=[int]$p.ProcessId;parentPid=[int]$p.ParentProcessId;name=$p.Name};$queue.Enqueue([int]$p.ProcessId)}};ConvertTo-Json -Compress -InputObject @($rows)`;
+  const result = await boundedCommand(path.join(process.env.SystemRoot ?? 'C:/Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', script], milliseconds);
+  try {
+    if (result.code !== 0) return { processes: [], query: result };
+    const rows = JSON.parse(result.stdout.replace(/^\uFEFF/, ''));
+    return { processes: [...new Map(rows.map(row => [row.pid, row])).values()], query: { code: 0 } };
+  } catch (error) { return { processes: [], query: { ...result, parseError: errorDetail(error) } }; }
+}
+async function terminateProbe(child, exited, hasExited) {
+  const deadline = Date.now() + 15000, remaining = cap => Math.max(1, Math.min(cap, deadline - Date.now()));
+  let tree, before, surviving;
+  if (Number.isSafeInteger(child.pid) && process.platform === 'win32') {
+    before = await windowsDescendants([child.pid], remaining(4000));
+    const targets = [...new Set([child.pid, ...before.processes.map(row => row.pid)])];
+    tree = await boundedCommand(path.join(process.env.SystemRoot ?? 'C:/Windows', 'System32/taskkill.exe'), [...targets.flatMap(pid => ['/PID', String(pid)]), '/T', '/F'], remaining(5000));
+    if (!hasExited() && tree.code !== 0) child.kill('SIGKILL');
+  } else if (Number.isSafeInteger(child.pid)) {
+    try { process.kill(-child.pid, 'SIGKILL'); tree = { code: 0 }; }
+    catch (error) { tree = { error: errorDetail(error) }; if (!hasExited()) child.kill('SIGKILL'); }
+  } else { child.kill('SIGKILL'); tree = { code: 0 }; } // A failed spawn has no owned PID.
+  let timer;
+  const joined = await Promise.race([exited.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), remaining(5000)); })]);
+  clearTimeout(timer);
+  if (process.platform === 'win32' && Number.isSafeInteger(child.pid)) {
+    surviving = await windowsDescendants([child.pid, ...(before?.processes ?? []).map(row => row.pid)], remaining(4000));
+  }
+  return { strategy: process.platform === 'win32' ? 'taskkill-tree' : 'process-group', joined, tree,
+    descendantsBeforeKill: before, survivingDescendants: surviving?.processes ?? [], descendantQuery: surviving?.query ?? null };
+}
 async function runProbe(config, dataDir, output) {
   const env = sanitizeExecutionEnvironment(process.env, { overrides: { RS3_DATASET: 'duo-legacy', RS3_PACKS_DIR: config.packsDir,
     RS3_PACK_SELECTION: config.selection.path, RS3_DATASET_PROFILE: config.profile.path, RS3_DATASET_PROFILE_SHA256: config.profile.sha256,
     RS3_PRIVATE_ADDON: config.addons.path, RS3_PRIVATE_ADDON_SHA256: config.addons.sha256, RS3_TASK_WORKER_MODE: 'process' } });
   await new Promise((resolve, reject) => {
-    const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
-    let detail = '', spawnError, timedOut = false;
+    const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe'] });
+    let detail = '', spawnError, timedOut = false, exitSeen = false, closeSeen = false, stopping = false, done = false, drain, termination, timeoutObservation;
+    let code = null, signal = null, acknowledgeExit;
+    const exited = new Promise(resolve => { acknowledgeExit = resolve; });
     child.stderr.on('data', bytes => { detail = (detail + bytes.toString()).slice(-4096); });
-    const failure = (code = child.exitCode, signal = child.signalCode) => {
-      const childResult = { error: spawnError ? { name: spawnError.name, code: spawnError.code, message: refusalMessage(spawnError.message) } : null,
-        exitCode: code ?? null, signal: signal ?? null, timedOut, stderrTail: refusalMessage(detail.trim()) };
-      return Object.assign(new Error('Packed save check refused: ' + JSON.stringify(childResult)), { childResult });
-    };
-    // A descendant can keep stderr open after kill, so the watchdog must settle
-    // failure itself. Exit also gets only a bounded drain of inherited stderr.
-    const timer = setTimeout(() => { timedOut = true; child.kill(); reject(failure()); }, 180000);
-    child.once('error', error => { spawnError = error; clearTimeout(timer); reject(failure()); });
-    const settle = (code, signal) => {
+    const finish = () => {
+      if (done) return; done = true; clearTimeout(timer); clearTimeout(drain);
+      const childResult = { stage: 'probe:' + path.basename(output, '.json'), pid: child.pid ?? null,
+        error: spawnError ? errorDetail(spawnError) : null, exitCode: code, signal, timedOut,
+        exitObserved: exitSeen, closeObserved: closeSeen, exitWithoutClose: exitSeen && !closeSeen,
+        stderrTail: refusalMessage(detail.trim()), activeResources: process.getActiveResourcesInfo(), termination, timeoutObservation,
+        survivingDescendants: termination?.survivingDescendants ?? [] };
+      disposePipe(child.stderr); child.unref?.();
+      child.off('exit', onExit); child.off('close', onClose);
       if (!spawnError && !timedOut && code === 0 && signal === null) return resolve();
-      reject(failure(code, signal));
+      reject(Object.assign(new Error('Packed save check refused: ' + JSON.stringify(childResult)), { childResult }));
     };
-    child.once('exit', (code, signal) => {
+    const stop = async () => {
+      if (stopping || done) return; stopping = true; clearTimeout(timer); clearTimeout(drain);
+      try { termination = await terminateProbe(child, exited, () => exitSeen || closeSeen); }
+      catch (error) { termination = { joined: exitSeen || closeSeen, error: errorDetail(error) }; }
+      finish();
+    };
+    const onExit = (value, reason) => {
+      exitSeen = true; code = value; signal = reason; acknowledgeExit();
+      if (stopping) return;
       clearTimeout(timer);
-      const drain = setTimeout(() => settle(code, signal), 25);
-      child.once('close', () => { clearTimeout(drain); settle(code, signal); });
+      drain = setTimeout(finish, 25);
+    };
+    const onClose = (value, reason) => {
+      closeSeen = true; code = value; signal = reason; acknowledgeExit();
+      if (!stopping) finish();
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      timeoutObservation = { exitObserved: exitSeen, closeObserved: closeSeen, exitWithoutClose: exitSeen && !closeSeen, activeResources: process.getActiveResourcesInfo() };
+      void stop();
+    }, 180000);
+    child.once('error', error => {
+      spawnError ??= error;
+      if (child.pid && !exitSeen) void stop(); else finish();
     });
+    child.once('exit', onExit); child.once('close', onClose);
   });
   return json(output);
 }
@@ -187,7 +259,7 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
   if (![plan.old.bindingSha256, plan.new.bindingSha256].includes(actual)) throw new Error('Current binding differs.');
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'rs3-pack-compat-'));
   const before = await saveIdentity(from.config.dataDir);
-  const reports = [];
+  const reports = []; let primaryError;
   try {
     // Rollback needs the retained target to open the latest save. It must not
     // depend on successfully starting code that the operator is replacing.
@@ -224,10 +296,20 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
     if (output) await writeFile(output, encode(result), { flag: 'wx' });
     return result;
   } catch (error) {
-    if (output) await writeFile(output + '.failure.json', encode({ passed: false, cause: refusalMessage(error),
-      probes: reports.map(r => ({ savedCount: Object.keys(r.saved).length, taskCount: r.taskIds.length, historyCount: r.historyEvents.length, progressDigest: r.progressDigest, migration: r.migrationSummary })) }), { flag: 'wx' });
+    primaryError = error;
+    if (output) try { await writeFile(output + '.failure.json', encode({ passed: false, cause: refusalMessage(error),
+      probes: reports.map(r => ({ savedCount: Object.keys(r.saved).length, taskCount: r.taskIds.length, historyCount: r.historyEvents.length, progressDigest: r.progressDigest, migration: r.migrationSummary })) }), { flag: 'wx' }); }
+    catch (failure) { error.failureReportError = errorDetail(failure); }
     throw error;
-  } finally { await rm(scratch, { recursive: true, force: true }); }
+  } finally {
+    try {
+      if (primaryError?.childResult?.termination?.joined === false || primaryError?.childResult?.survivingDescendants?.length) throw Object.assign(Error('Owned probe termination was not joined or descendants survive; scratch retained.'), { code: 'TERMINATION_UNVERIFIED' });
+      await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    } catch (error) {
+      if (!primaryError) throw error;
+      primaryError.cleanupFailure = { ...errorDetail(error), scratch };
+    }
+  }
 }
 export async function probe(core, dataDir, output, { retention } = {}) {
   const { authoredIdentityRegistry, resolveIdentity } = await import(pathToFileURL(path.join(core, 'app/tasks/identity.mjs')));

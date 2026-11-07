@@ -1,29 +1,91 @@
-// Disposable native journal/ownership contracts. No listeners or scheduler calls.
-import test from 'node:test';
+// Disposable native journal/ownership contracts with cancellation diagnostics.
+import nativeTest from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import childProcess, { spawn, execFileSync } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { syncBuiltinESMExports } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { bindingBytes, checkPackTransition, assertStableIdentities, assertPreserved } from '../scripts/private-companion/release-pack-check.mjs';
 const scripts = fileURLToPath(new URL('../scripts/private-companion/', import.meta.url));
+const observations = new AsyncLocalStorage();
+const childObservations = new WeakMap();
+function stage(value) { const context = observations.getStore(); if (context) context.stage = value; }
+function test(name, options, body) {
+  if (typeof options === 'function') { body = options; options = {}; }
+  return nativeTest(name, options, t => observations.run({ name, stage: 'setup', children: [] }, async () => {
+    const context = observations.getStore(); let finished = false;
+    const launch = childProcess.spawn;
+    t.mock.method(childProcess, 'spawn', (command, args, options) => {
+      const child = launch(command, args, options);
+      const entry = args.find(value => /\.(?:mjs|ps1)$/i.test(value)) ?? command;
+      const row = { pid: child.pid, stage: path.basename(entry), command: path.basename(command), exitObserved: false, closeObserved: false };
+      Object.defineProperty(row, 'child', { value: child });
+      context.children.push(row); childObservations.set(child, row); stage(row.stage);
+      child.once('exit', (code, signal) => { row.exitObserved = true; row.exitCode = code; row.signal = signal; });
+      child.once('close', () => { row.closeObserved = true; });
+      return child;
+    });
+    syncBuiltinESMExports();
+    const cancelled = () => {
+      if (finished) return;
+      for (const row of context.children) {
+        row.stderrDestroyed = row.child.stderr?.destroyed;
+        row.stderrReferenced = row.child.stderr?._handle?.hasRef();
+        row.exitWithoutClose = row.exitObserved && !row.closeObserved;
+      }
+      const report = { case: name, stage: context.stage, reason: String(t.signal.reason), activeResources: process.getActiveResourcesInfo(), children: context.children };
+      // Print the cheap snapshot first, even if the bounded CIM query fails.
+      console.error('PACK-UPGRADE TIMEOUT ' + JSON.stringify(report));
+      if (process.platform === 'win32') {
+        try {
+          const script = `$queue=[Collections.Generic.Queue[int]]::new();foreach($id in @(${[process.pid, ...context.children.map(row => row.pid)].filter(Number.isSafeInteger).join(',')})){$queue.Enqueue($id)};$seen=@{};$rows=@();while($queue.Count -gt 0 -and $seen.Count -lt 128){$parent=$queue.Dequeue();if($seen.ContainsKey($parent)){continue};$seen[$parent]=$true;foreach($p in @(Get-CimInstance Win32_Process -Filter (\"ParentProcessId = \"+$parent))){$rows+=$p|Select-Object ProcessId,ParentProcessId,Name;$queue.Enqueue([int]$p.ProcessId)}};ConvertTo-Json -Compress -InputObject @($rows)`;
+          const output = execFileSync(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 3000, maxBuffer: 65536, encoding: 'utf8' });
+          console.error('PACK-UPGRADE TIMEOUT PROCESSES ' + JSON.stringify({ case: name, stage: context.stage, processes: output.trim() ? JSON.parse(output.replace(/^\uFEFF/, '')) : [] }));
+        } catch (error) { console.error('PACK-UPGRADE TIMEOUT PROCESSES ' + JSON.stringify({ case: name, queryError: { code: error.code, message: error.message.slice(0, 200) } })); }
+      }
+    };
+    t.signal.addEventListener('abort', cancelled, { once: true });
+    try { return await body(t); }
+    finally {
+      context.stage = 'teardown';
+      t.after(() => { finished = true; t.signal.removeEventListener('abort', cancelled); t.mock.restoreAll(); syncBuiltinESMExports(); });
+    }
+  }));
+}
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const q = value => `'${value.replaceAll("'", "''")}'`;
-const put = async (file, value) => { await mkdir(path.dirname(file), {recursive:true}); await writeFile(file, typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value)); };
+const put = async (file, value) => { stage('write:' + path.basename(file)); await mkdir(path.dirname(file), {recursive:true}); await writeFile(file, typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value)); };
 const pin = async file => ({path:file,sha256:hash(await readFile(file))});
 async function fixture(t) {
   const root=await mkdtemp(path.join(os.tmpdir(),'pack-upgrade-v2-'));
   t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   return root;
 }
-async function run(root, body, expectedCode = 0) {
+async function run(root, body, { crashMarker } = {}) {
   const file=path.join(root,'fixture.ps1'); await put(file,body);
   return new Promise((resolve,reject)=>{
+    stage('PowerShell:launch');
     const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-File',file],{windowsHide:true,stdio:['ignore','pipe','pipe']});
-    let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
-    child.once('error',reject);child.once('exit',code=>code===expectedCode?resolve(output):reject(new Error(output || `Unexpected fixture exit ${code}`)));
+    const row = childObservations.get(child);
+    let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>{
+      output+=b;
+      const marks = [...output.slice(-4096).matchAll(/FIXTURE_STAGE:([^\r\n]+)/g)];
+      if (marks.length) { row.stage = marks.at(-1)[1]; stage(row.stage); }
+    });
+    child.once('error',reject);child.once('close',async (code,signal)=>{
+      try {
+        if (crashMarker) {
+          assert.notEqual(code, null, `Crash did not report an exit code: ${signal}`);
+          assert.notEqual(code, 0, 'Crash injection exited successfully');
+          assert.equal(await readFile(crashMarker, 'utf8'), 'interrupted', 'Crash injection marker missing');
+        } else assert.equal(code, 0, output || `Unexpected fixture exit ${code}`);
+        resolve(output);
+      } catch (error) { reject(error); }
+    });
   });
 }
 const interruptionPoints=['before-journal','after-journal','after-binding','after-pointer','during-start'];
@@ -54,8 +116,12 @@ for (const rollback of [false,true]) for (const {point,crash} of cases) {
     for(const name of ['release-v2.mjs','verify-install.mjs']) await put(path.join(kit,'tools',name),'process.exit(0);');
     await put(path.join(kit,'tools/release-pack-check.mjs'),'// synthetic check overridden in fixture');
     const target=firstRollback?old:next;
+    // Environment.Exit can deadlock redirected PowerShell 5.1 shutdown.
+    // Kill preserves an abrupt crash without running PowerShell finally blocks.
     const body=`$ErrorActionPreference='Stop'
+[Console]::Error.WriteLine('FIXTURE_STAGE:load-operator-common')
 . ${q(path.join(scripts,'Operator-Common.ps1'))}
+[Console]::Error.WriteLine('FIXTURE_STAGE:load-release-common')
 . ${q(path.join(scripts,'ReleaseV2-Common.ps1'))}
 $global:local=${q(local)}
 function Read-OperatorConfig([string]$Path,[switch]$ForStop) {
@@ -69,13 +135,15 @@ function Assert-FixtureOwnership($Context,$LockOwner) {
  $blocked=$false;try{$other=[IO.File]::Open((Join-Path $global:local 'watchdog-tick.lock'),'OpenOrCreate','ReadWrite','None');$other.Dispose()}catch{$blocked=$true};if(-not $blocked){throw 'Tick owner missing'}
 }
 function Stop-OperatorCore($Context,$TimeoutSeconds,[switch]$PreservePause,[IO.FileStream]$LockOwner) {
+ [Console]::Error.WriteLine('FIXTURE_STAGE:stop-operator-core')
  Assert-FixtureOwnership $Context $LockOwner
  if(Test-Path -LiteralPath $Context.runtimeFile){if([IO.File]::ReadAllText($Context.runtimeFile) -cne $Context.configHash){throw 'Uncertain runtime owner'};Remove-Item -LiteralPath $Context.runtimeFile}
 }
 function Assert-OperatorStoreReleased { }
 $global:point=${q(effectivePoint==='uncertain-owner'?'during-start':['unknown-binding','failed-verification'].includes(effectivePoint)?'after-journal':effectivePoint)};$global:failedOnce=${crash?`(Test-Path -LiteralPath ${q(path.join(root,'crash-marker'))})`:'$false'}
-function Fail-Once([string]$At){if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[Environment]::Exit(75)`:`throw 'Injected interruption'`}}}
+function Fail-Once([string]$At){[Console]::Error.WriteLine('FIXTURE_STAGE:boundary-'+$At);if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[System.Diagnostics.Process]::GetCurrentProcess().Kill()`:`throw 'Injected interruption'`}}}
 function Invoke-ReleaseV2PackCheck($Context,$Tool,$From,$To,$Transition,$Output) {
+ [Console]::Error.WriteLine('FIXTURE_STAGE:synthetic-pack-check')
  if(-not(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused'))){throw 'Compatibility ran without pause'}
  Fail-Once 'before-journal';[IO.File]::WriteAllText($Output,'{"passed":true,"bothDirections":true}')
 }
@@ -86,12 +154,14 @@ function Set-ReleaseV2Binding($Path,$Expected,$Bytes,$Target){ & $script:realBin
 $script:realPointer=(Get-Item Function:Set-ReleaseV2Pointer).ScriptBlock
 function Set-ReleaseV2Pointer($Previous,$Candidate){ & $script:realPointer $Previous $Candidate;Fail-Once 'after-pointer' }
 function Start-OperatorCore($Context,$TimeoutSeconds,[switch]$PreservePause,[IO.FileStream]$LockOwner,[switch]$PackTransitionReady) {
+ [Console]::Error.WriteLine('FIXTURE_STAGE:start-operator-core')
  Assert-FixtureOwnership $Context $LockOwner
  Assert-OperatorPackJournal $Context -PackTransitionReady:$PackTransitionReady -LockOwner $LockOwner
  [IO.File]::WriteAllText($Context.runtimeFile,$Context.configHash);Fail-Once 'during-start'
 }
 $args=@{CurrentRelease=${q(current)};CandidatePointer=${q(path.join(target,'pointer.json'))};CompanionRoot=${q(kit)};Receipt=${q(path.join(target,'companion.json'))};ReleaseRoot=${q(target)};Rollback=$${firstRollback}}
 $failed=$false
+[Console]::Error.WriteLine('FIXTURE_STAGE:invoke-managed')
 if(${crash?`(Test-Path -LiteralPath ${q(path.join(root,'crash-marker'))})`:'$false'}){$failed=$true}else{try{Invoke-ReleaseV2Managed @args}catch{$failed=$true}}
 if(-not $failed -or -not $global:failedOnce){Get-ChildItem -LiteralPath ${q(path.join(kit,'.local'))} -Filter '*.failure.txt'|ForEach-Object{Get-Content -LiteralPath $_.FullName};throw 'Interruption not reached'}
 if(-not(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused'))){throw 'Failure did not retain pause'}
@@ -131,7 +201,7 @@ if(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused')){throw 'Succ
 if((Read-ReleaseV2Pointer ${q(current)}).pointer.releaseId -cne ${q(rollback?'old':'new')}){throw 'Wrong pointer'}
 if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(rollback?oldB:newB))}){throw 'Wrong binding'}
 `;
-    if(crash) await run(root,body,75);
+    if(crash) await run(root,body,{crashMarker:path.join(root,'crash-marker')});
     await run(root,body);
     assert.deepEqual(JSON.parse(await readFile(save)),{revision:41,completedTasks:['kept-current-progress']});
     assert.equal(await readFile(path.join(local,'runtime'),'utf8'),rollback?'old':'new');
