@@ -239,6 +239,14 @@ test('failed preparation never publishes a releasable manifest', {}, async t => 
   const result = await invoke(f.cli, ['prepare', '--kit', f.kit, '--repo', f.repo, '--ref', f.revision, '--base', f.revision, '--previous-config', f.previous, '--input', f.input]);
   assert.notEqual(result.code, 0);
   assert.match(result.output,/Release child exited with code 1/,result.output);
+  assert.equal(f.layer.events.filter(row => row.stage === 'native-nonzero-producer').length, 1);
+  const addon = await json(path.join(f.release, 'addons/addon.json'));
+  assert.equal(addon.files.length, 2, 'the real child wrote complete addon outputs before exiting');
+  for (const row of addon.files) {
+    const bytes = await readFile(path.join(f.release, 'addons', row.path));
+    assert.equal(hash(bytes), row.sha256);
+    assert.deepEqual(bytes, await readFile(path.join(f.release, 'text', path.basename(row.path))));
+  }
   assert.ok(!(await readdir(f.release)).includes('release.json'));
   const failure=await json(path.join(f.release,'.local/prepare-failure.json'));
   assert.match(failure.cause.message,/Release child exited with code 1/);

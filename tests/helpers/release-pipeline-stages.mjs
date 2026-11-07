@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { randomUUID, createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir, cp, rm, access } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { readFile, writeFile, mkdir, rm, access } from 'node:fs/promises';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import { producePipelineOutputs } from '../fixtures/release-pipeline-producer.mjs';
 
-const json = async file => JSON.parse(await readFile(file, 'utf8'));
-const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const fixtures = new Map();
 async function environment(env, action) {
   const prior = { ...process.env };
@@ -47,25 +46,14 @@ export async function pipelineApi(f) {
     await mkdir(path.dirname(options.log), { recursive: true });
     await writeFile(options.log, 'synthetic stage acknowledged\n', { flag: 'a' });
     if (name === 'companion-check.mjs') {
-      if (layer.failBuild) throw Error('Release child exited with code 1.');
-      const a = Object.fromEntries(Array.from({ length: rest.length / 2 }, (_, i) => [rest[i * 2], rest[i * 2 + 1]]));
-      const output = a['--output'];
-      if (a['--lane'] === 'addon') {
-        await mkdir(output); const files = [];
-        for (const row of (await json(a['--receipt'])).textOverrides) {
-          const bytes = await readFile(row.source), target = path.join(output, row.path);
-          await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, bytes);
-          files.push({ path: row.path, sha256: hash(bytes) });
-        }
-        await writeFile(path.join(output, 'addon.json'), JSON.stringify({ schemaVersion: 1, features: { projectUpdates: true }, files }));
-      } else if (a['--lane'] === 'profile') {
-        const selection = await json(path.join(f.kit, 'packs/selection.json'));
-        const pack = await json(path.join(f.kit, 'packs', selection.data.id, selection.data.version, 'pack.json'));
-        await writeFile(output, JSON.stringify(pack.requires ? { datasetId: pack.requires.datasetId, datasetDigest: pack.datasetDigest, ruleContractHash: pack.ruleContractHash } : {}));
-      } else if (a['--lane'] === 'prepare') {
-        await cp(a['--core'], output, { recursive: true });
-        await mkdir(path.join(output, '.local/game-data'), { recursive: true }); await mkdir(path.join(output, '.local/map-assets'), { recursive: true });
-      } else assert.fail('Unexpected fake build lane ' + a['--lane']);
+      if (layer.failBuild) {
+        layer.failBuild = false;
+        const producer = fileURLToPath(new URL('../fixtures/release-pipeline-producer.mjs', import.meta.url));
+        events.push({ stage: 'native-nonzero-producer' });
+        return api.withReleaseStageLayer({ ...layer, run: undefined },
+          () => api.runReleaseStage(process.execPath, [producer, f.kit, ...rest], options));
+      }
+      await producePipelineOutputs(f.kit, rest);
     } else if (name === 'release-v2.mjs' && rest[0] === 'gates-worker') {
       const options = await api.parseArgs(rest.slice(1));
       await api.fullWorker(options.kit, options.release, options);

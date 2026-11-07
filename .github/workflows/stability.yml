@@ -48,6 +48,13 @@ jobs:
         with:
           node-version: 24.20.0
       - run: node scripts/ci/release-test-mutations.mjs
+      - name: Restore product bytes independently of the mutation process
+        if: always()
+        shell: bash
+        run: |
+          git checkout -- scripts/private-companion
+          git diff --exit-code
+          git diff --cached --exit-code
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
