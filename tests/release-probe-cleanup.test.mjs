@@ -56,6 +56,19 @@ test('watchdog stops only its own handle and joins exit independently of inherit
   await assert.rejects(f.promise, error => /timed out/.test(error.message) && error.childResult.termination.joined);
   f.disposed(); assert.equal(f.reads, 0);
 });
+test('stderr redaction preserves matches across chunk boundaries', async () => {
+  const f = fixture();
+  for (const chunk of ['password=synthetic-', 'private-suffix\nhttps://example.invalid/', 'synthetic-private-path']) f.child.stderr.emit('data', Buffer.from(chunk));
+  f.child.emit('exit', 1, null); f.fire(25);
+  await assert.rejects(f.promise, error => {
+    for (const text of [error.message, error.childResult.stderrTail]) {
+      assert.ok(!text.includes('private-suffix')); assert.ok(!text.includes('synthetic-private-path'));
+      assert.ok(text.includes('[credential redacted]')); assert.ok(text.includes('[address redacted]'));
+    }
+    return true;
+  });
+  f.disposed();
+});
 test('missing exit, refused kill and throwing kill settle once within the unchanged cleanup budget', async () => {
   for (const behaviour of ['accepted', 'refused', 'throws']) {
     const f = fixture(); const killError = new Error('kill failed'); let calls = 0;

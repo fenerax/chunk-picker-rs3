@@ -75,12 +75,13 @@ export async function runProbe(config, dataDir, output, {
   const childResult = { stage: 'probe:' + path.basename(output, '.json'), pid: null,
     exitObserved: false, closeObserved: false, exitCode: null, signal: null, stderrTail: '', termination: null };
   await new Promise((resolve, reject) => {
-    let child, primary, done = false, stopping = false, watchdog, drain, cleanup;
+    let child, primary, done = false, stopping = false, watchdog, drain, cleanup, detail = '';
     const cleanupFailures = [];
     const attempt = fn => { try { return fn(); } catch (error) { cleanupFailures.push(error); } };
     const finish = () => {
       if (done) return;
       done = true;
+      childResult.stderrTail = refusalMessage(detail.trim());
       for (const timer of [watchdog, drain, cleanup]) attempt(() => clearTimer(timer));
       attempt(() => signal?.removeEventListener('abort', onAbort));
       for (const pipe of [child?.stdout, child?.stderr]) {
@@ -114,7 +115,7 @@ export async function runProbe(config, dataDir, output, {
       }, 15000);
       attempt(() => { childResult.termination.killAccepted = child.kill('SIGKILL'); });
     };
-    const onData = bytes => { childResult.stderrTail = refusalMessage((childResult.stderrTail + bytes.toString()).slice(-4096)); };
+    const onData = bytes => { detail = (detail + bytes.toString()).slice(-4096); };
     const onError = error => stop(error);
     const onAbort = () => stop(signal.reason instanceof Error ? signal.reason : new Error('Packed save check aborted.', { cause: signal.reason }));
     const recordExit = (code, reason) => { childResult.exitCode = code; childResult.signal = reason ?? null; };
@@ -122,14 +123,14 @@ export async function runProbe(config, dataDir, output, {
       childResult.exitObserved = true; recordExit(code, reason);
       if (stopping) { childResult.termination && (childResult.termination.joined = true); return finish(); }
       attempt(() => clearTimer(watchdog));
-      if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + childResult.stderrTail);
+      if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + refusalMessage(detail.trim()));
       // Retain late stderr without making inherited pipe closure a prerequisite.
       drain = setTimer(finish, 25);
     };
     const onClose = (code, reason) => {
       childResult.closeObserved = true; recordExit(code, reason);
       if (stopping) { childResult.termination && (childResult.termination.joined = true); }
-      else if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + childResult.stderrTail);
+      else if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + refusalMessage(detail.trim()));
       finish();
     };
     if (signal?.aborted) return onAbort();
