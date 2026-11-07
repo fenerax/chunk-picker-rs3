@@ -89,7 +89,7 @@ export async function headroom(root, bytes, reserve) {
 // it when its holder dies. Keep the guard's inode in place; unlinking it would
 // let observers lock different files. Removal needs no guard: a vanished lock
 // just sends recovery back to acquisition.
-async function lockGuard(file, wait) {
+async function lockGuard(file, wait, onAttempt = () => {}) {
   if (process.platform !== 'linux') return async () => {};
   let guard;
   try { guard = await open(file + '.recovery', 'a', 0o600); } catch { return null; }
@@ -98,6 +98,7 @@ async function lockGuard(file, wait) {
     // The child shares guard's open description. Its successful flock
     // survives the child's exit until our handle closes, including SIGKILL.
     const child = spawn('flock', ['--exclusive', ...(wait ? ['--wait', '5'] : ['--nonblock']), '3'], { stdio: ['ignore', 'ignore', 'ignore', guard.fd] });
+    onAttempt();
     const [code] = await once(child, 'exit');
     if (code === 0) return () => guard.close();
   } catch {}
@@ -175,10 +176,10 @@ async function publishOwner(file) {
     if (temporaryOwned) await rm(temporary, { force: true });
   }
 }
-export async function exclusive(file, action, { skipBusy = false, maxBusyMs = Infinity } = {}) {
+export async function exclusive(file, action, { skipBusy = false, maxBusyMs = Infinity, onGuardAttempt } = {}) {
   let acquired;
   for (;;) {
-    const release = await lockGuard(file, true);
+    const release = await lockGuard(file, true, onGuardAttempt);
     if (release) {
       try {
         // Only a guarded Linux publisher can have created these names. A dead

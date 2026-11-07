@@ -1,7 +1,10 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
 import { chmod, mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
@@ -273,8 +276,12 @@ test('executor bounds and redacts failure diagnostics, enforces its deadline, an
   for (const privateValue of [secret, repository, host]) assert(!log.includes(privateValue));
   assert(redactedResticTail((raw + '\n').repeat(10000)).length <= 1536);
   assert(redactedResticTail((raw + '\n').repeat(10000)).split('\n').length <= 8);
-  await writeFile(script, 'setInterval(() => {}, 1000);');
-  await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, timeoutMs: 50, log: () => {} }));
+  const clock = createManualClock(), child = new EventEmitter(), killed = [];
+  child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
+  child.kill = signal => { killed.push(signal); queueMicrotask(() => child.emit('close', null)); };
+  const failed = assert.rejects(executeRestic(process.execPath, [script], { env: process.env, timeoutMs: 50, clock, execute: () => child, log: () => {} }));
+  await clock.advance(49); assert.deepEqual(killed, []);
+  await clock.advance(1); assert.deepEqual(killed, ['SIGKILL']); await clock.settled(failed);
   await writeFile(script, "process.stdout.write('synthetic-listing'.repeat(400000));");
   assert.equal(await executeRestic(process.execPath, [script, 'ls'], { env: process.env }), '');
   await assert.rejects(executeRestic(process.execPath, [script], { env: process.env, log: () => {} }));

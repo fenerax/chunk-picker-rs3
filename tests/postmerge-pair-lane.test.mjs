@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 // End-to-end synthetic producer/consumer; no real gate or heavy wrapper runs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,7 +18,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const put = async (file, value) => { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, typeof value === 'string' ? value : JSON.stringify(value)); };
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
 
-test('postmerge full receipts are consumed by release with zero fresh files after kit relocation', { timeout: 45000 }, async t => {
+test('postmerge full receipts are consumed by release with zero fresh files after kit relocation', async t => {
   await mkdir(scratch, { recursive: true });
   const root = await mkdtemp(path.join(scratch, 'postmerge-pair-lane-'));
   t.after(() => rm(root, { recursive: true, force: true }));

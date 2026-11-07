@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { serialize } from 'node:v8';
@@ -175,7 +176,7 @@ for (const mode of ['idle', 'small', 'oversized']) test(`compression failure pre
       assert.equal(cache.size, 0); assert.equal(cache.bytes, 0);
     }
   `;
-  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', source], { encoding: 'utf8', timeout: 10000 });
+  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', source], { encoding: 'utf8'});
   assert.equal(child.status, 0, child.stderr);
 });
 
@@ -312,6 +313,6 @@ for (const mode of ['idle', 'small', 'oversized']) test(`worker retirement never
     await worker.terminate();
     assert.equal(message, 'checked');
   `;
-  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', source], { encoding: 'utf8', timeout: 10000 });
+  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', source], { encoding: 'utf8'});
   assert.equal(child.status, 0, child.stderr);
 });

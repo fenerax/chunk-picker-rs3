@@ -49,7 +49,7 @@ async function settle(promise, signal) {
  * One <=4096² output plus two 512² panels; no full-world terrain mip or pin canvas.
  */
 export async function renderMapImage(map, { area = 'full', signal, onProgress = () => {},
-  canvasFactory = canvasDefault, terrainFactory = (manifest, options) => new MapTerrain(manifest, options) } = {}) {
+  canvasFactory = canvasDefault, terrainFactory = (manifest, options) => new MapTerrain(manifest, options), waitForTerrain = waitUntil } = {}) {
   const geometry = mapImageGeometry(map, area);
   let output, base, layer, terrain, pins;
   try {
@@ -100,7 +100,7 @@ export async function renderMapImage(map, { area = 'full', signal, onProgress = 
       capture.contexts = [baseContext, layerContext];
       if (terrain) {
         terrain.setView(capture.visibleBounds(), Math.max(.751, geometry.zoom), 1);
-        await waitUntil(() => terrain.viewLoaded() && !terrain.unpublishedKeys.size
+        await waitForTerrain(() => terrain.viewLoaded() && !terrain.unpublishedKeys.size
           && !terrain.pageWorkScheduled && !terrain.pageQueue.size && !terrain.previewQueue.size,
         signal, 'Map tiles are taking too long to load. Try again or choose the visible area.');
         missingTiles ||= [...terrain.visibleKeys].some(key => terrain.failed.has(key));

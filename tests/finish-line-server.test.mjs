@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -44,7 +45,7 @@ const setting = { type: 'set-finish-line-item', itemId: 'skill:Mining', target: 
 const add = { type: 'add-finish-line-custom', itemId: 'finish:shared-bank', text: 'Fill the shared bank' };
 const tick = { type: 'set-finish-line-custom', itemId: add.itemId, memberId: 'player1', completed: true };
 
-test('finish line commands preserve compact state, revisions, backups and guarded Undo without changing engine input', { timeout: 20000 }, async t => {
+test('finish line commands preserve compact state, revisions, backups and guarded Undo without changing engine input', async t => {
   const { app, request, command } = await fixture(t);
   const original = app.store.getState(), input = app.store.getCalculationSnapshot(), fingerprint = app.store.getGameplayFingerprint();
   let baseline = (await (await request('/api/state?view=play-v1')).json()).state;
@@ -81,7 +82,7 @@ test('finish line commands preserve compact state, revisions, backups and guarde
   assert.equal(history.find(event => event.type === 'set-finish-line-item').command.itemLabel, 'Mining');
 });
 
-test('both players can edit the shared list; personal ticks and their Undo require the account owner or admin', { timeout: 20000 }, async t => {
+test('both players can edit the shared list; personal ticks and their Undo require the account owner or admin', async t => {
   const { command, invite } = await fixture(t);
   const player1 = await invite('player1'), player2 = await invite('player2');
   assert.equal((await command(setting, undefined, player1)).status, 200);
@@ -100,7 +101,7 @@ test('both players can edit the shared list; personal ticks and their Undo requi
   assert.equal((await command({ type: 'undo' }, undefined, player2)).status, 200);
 });
 
-test('view-only finish line reads remain read-only and every checklist mutation is denied', { timeout: 20000 }, async t => {
+test('view-only finish line reads remain read-only and every checklist mutation is denied', async t => {
   const { app, request, command, invite } = await fixture(t);
   assert.equal((await command(setting)).status, 200);
   assert.equal((await command(add)).status, 200);

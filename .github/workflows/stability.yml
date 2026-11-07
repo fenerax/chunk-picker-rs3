@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: stability-${{ github.event_name }}-${{ github.ref }}
+  group: stability-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'pr' }}
   cancel-in-progress: true
 
 jobs:
@@ -32,6 +32,9 @@ jobs:
     timeout-minutes: 3
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      detector-matrix: ${{ steps.plan.outputs.detector-matrix }}
+      has-loop: ${{ steps.plan.outputs.has-loop }}
+      has-detectors: ${{ steps.plan.outputs.has-detectors }}
       has-work: ${{ steps.plan.outputs.has-work }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -52,7 +55,7 @@ jobs:
 
   loop:
     needs: plan
-    if: needs.plan.outputs.has-work == 'true'
+    if: needs.plan.outputs.has-loop == 'true'
     name: stability (${{ matrix.id }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -148,8 +151,41 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  detectors:
+    needs: plan
+    if: needs.plan.outputs.has-detectors == 'true'
+    name: stability (${{ matrix.id }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: node:24.21.0-bookworm
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.plan.outputs.detector-matrix) }}
+    env:
+      STABILITY_TASK: ${{ toJSON(matrix) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Match differential.yml: disposable container, no pack mounts, and no
+      # inherited service configuration or credentials in detector children.
+      - name: Detector first attempts
+        shell: bash
+        run: |
+          env -i PATH="$PATH" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$GITHUB_WORKSPACE" STABILITY_TASK="$STABILITY_TASK" GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" node scripts/ci/stability-run.mjs
+      - name: Keep first-attempt receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: stability-${{ matrix.id }}
+          path: stability-${{ matrix.id }}.json
+          retention-days: 14
+          if-no-files-found: error
+
   summary:
-    needs: [plan, loop]
+    needs: [plan, loop, detectors]
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.has-work == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -178,4 +214,7 @@ jobs:
       - name: Require every shard to succeed
         env:
           LOOP_RESULT: ${{ needs.loop.result }}
-        run: test "$LOOP_RESULT" = success
+          DETECTOR_RESULT: ${{ needs.detectors.result }}
+        run: |
+          test "$LOOP_RESULT" = success -o "$LOOP_RESULT" = skipped
+          test "$DETECTOR_RESULT" = success -o "$DETECTOR_RESULT" = skipped

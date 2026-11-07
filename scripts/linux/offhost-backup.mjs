@@ -50,10 +50,10 @@ async function reclaimScratch(settings, name) {
   return target;
 }
 export async function offhostBackup({ settings, config, run, bundle = recoveryBundle, releaseReader = readRelease,
-  ping = deadman, now = () => Date.now(), deadlineMs = 30 * 60000, budgetOptions,
+  ping = deadman, now = () => Date.now(), deadlineMs = 30 * 60000, deadlineSignal = AbortSignal.timeout, budgetOptions,
   log = message => process.stderr.write(message + '\n') }) {
   if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 30 * 60000) throw Error('Invalid off-site deadline.');
-  const signal = AbortSignal.timeout(deadlineMs);
+  const signal = deadlineSignal(deadlineMs);
   await directory(settings.controlDir);
   const skipped = async reason => {
     // Do not overwrite the status of another upload that owns offhost.lock.

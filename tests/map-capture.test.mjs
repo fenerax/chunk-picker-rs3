@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mapImageGeometry, renderMapImage, MAX_MAP_IMAGE_SIDE, MAP_CAPTURE_PANEL } from '../app/web/map-capture.mjs';
@@ -124,21 +125,31 @@ test('terrain waits for publication, reports missing tiles, and disposes its pri
   map.mapAssetManifest = { id: 'fixture' }; map.terrain = { modernBase: true, live: true };
   const originalTerrain = map.terrain;
   let disposed = 0, ready = false, options, view;
+  const entered = Promise.withResolvers(), published = Promise.withResolvers();
+  let publicationReady;
   const terrain = { unpublishedKeys: new Set(['one']), pageQueue: new Set(), previewQueue: new Set(),
     pageWorkScheduled: false, visibleKeys: new Set(['one']), failed: new Set(['one']),
     previews: new Map(), committedKeys: new Set(),
     viewLoaded: () => ready,
     setView(bounds, zoom, dpr) {
       view = { bounds, zoom, dpr };
-      setTimeout(() => { ready = true; }, 1);
-      setTimeout(() => terrain.unpublishedKeys.clear(), 10);
     },
     paintLegacyRegion() {}, dispose() { disposed++; },
   };
   const originalBase = map.drawBase;
   map.drawBase = function () { assert.equal(ready, true); assert.equal(terrain.unpublishedKeys.size, 0); originalBase.call(this); };
-  const result = await renderMapImage(map, { area: 'visible', canvasFactory: canvas.factory,
+  const rendering = renderMapImage(map, { area: 'visible', canvasFactory: canvas.factory,
+    waitForTerrain(predicate) { publicationReady = predicate; entered.resolve(); return published.promise; },
     terrainFactory(manifest, value) { assert.equal(manifest, map.mapAssetManifest); options = value; return terrain; } });
+  await entered.promise;
+  assert.equal(publicationReady(), false);
+  ready = true;
+  assert.equal(publicationReady(), false, 'Loaded tiles remain private until publication');
+  assert.equal(map.calls.length, 0);
+  terrain.unpublishedKeys.clear();
+  assert.equal(publicationReady(), true);
+  published.resolve();
+  const result = await rendering;
   assert.equal(result.missingTiles, true);
   assert.equal(options.cacheLimit, 64); assert.equal(options.concurrency, 3);
   assert.equal(options.canvasFactory(3000, 3200), null);
@@ -179,12 +190,11 @@ test('live map and marker refreshes cannot change an image between panels', asyn
 
 test('cancelling stalled sticker decoding does not allocate the output canvas', async () => {
   const map = new CaptureMap(), canvas = canvases(), abort = new AbortController();
-  map.markerImages.set('mining', { image: { complete: true, naturalWidth: 24, decode: () => new Promise(() => {}) } });
-  const timer = setTimeout(() => abort.abort(), 60);
-  try {
+  map.markerImages.set('mining', { image: { complete: true, naturalWidth: 24, decode: () => { queueMicrotask(() => abort.abort()); return new Promise(() => {}); } } });
+  {
     await assert.rejects(renderMapImage(map, { signal: abort.signal, canvasFactory: canvas.factory }), { name: 'AbortError' });
     assert.equal(canvas.allocated.length, 0);
-  } finally { clearTimeout(timer); }
+  }
 });
 
 test('cancelling stalled PNG encoding releases raster canvases', async () => {
@@ -192,7 +202,7 @@ test('cancelling stalled PNG encoding releases raster canvases', async () => {
   map.width = map.height = 100;
   const factory = (w, h) => {
     const item = canvas.factory(w, h);
-    item.toBlob = () => { setTimeout(() => abort.abort(), 5); };
+    item.toBlob = () => { queueMicrotask(() => abort.abort()); };
     return item;
   };
   await assert.rejects(renderMapImage(map, { area: 'visible', signal: abort.signal, canvasFactory: factory }), { name: 'AbortError' });

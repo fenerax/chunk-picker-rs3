@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -16,18 +19,16 @@ const ids = Array.from({ length: 12 }, (_, index) => String(selectedDataset.capa
 const definitions = { chunks: Object.fromEntries(ids.map(id => [id, { Nickname: `Place ${id}` }])),
   walkableChunks: ids, walkableChunksF2P: ids,
   challenges: { Mining: Object.fromEntries(ids.map(id => [`Mine at ${id}`, { Chunks: [id] }])) } };
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(operation, predicate) {
-  const end = Date.now() + 12000;
-  while (Date.now() < end) { const value = await operation(); if (predicate(value)) return value; await delay(20); }
-  assert.fail('Pool comparison did not settle');
+  return waitForCondition(async () => { const value = await operation(); return predicate(value) ? value : undefined; });
 }
 async function fixture(t, extra = {}) {
   const base = path.resolve('.local/pool-ranking-tests'); await mkdir(base, { recursive: true });
   const dataDir = await mkdtemp(path.join(base, 'fixture-'));
   assert.ok(path.resolve(dataDir).startsWith(base + path.sep), 'Test cleanup stays inside its fixture directory');
   const initialState = createGroupState([{ id: 'reed', name: 'Reed', unlocked: [ids[0]], selected: ids.slice(1) }]);
-  const app = await createServer({ dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, ...extra });
+  const clock = createManualClock();
+  const app = await createServer({ schedulingClock: clock, dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, ...extra });
   t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;
   const headers = { Authorization: `Bearer ${invite.pathname.slice('/join/'.length)}` };
@@ -35,7 +36,7 @@ async function fixture(t, extra = {}) {
     : { ...auth, Origin: origin, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) });
   const get = async route => { const response = await request(route); assert.equal(response.status, 200); return response.json(); };
   const intent = (visible, watchId = 'test', revision = 0) => request('/api/pool-ranking-intent', { memberId: 'reed', revision, watchId, visible });
-  return { app, get, request, intent, origin, headers };
+  return { app, get, request, intent, origin, headers, clock };
 }
 test('pool reads do no worker work; visible comparison checks every chunk and reuses saved rows', async t => {
   const f = await fixture(t);
@@ -89,7 +90,7 @@ test('closing cancels only ranking; pending task lists defer it and stale comple
   const tasks = f.request('/api/tasks?memberId=reed&view=play-v1');
   await until(async () => workers[0].messages.find(message => message.type === 'evaluate'), Boolean);
   assert.equal((await f.intent(true)).status, 200);
-  await delay(1100); assert.equal(workers.length, 1, 'Pool waits for the main task list');
+  await f.clock.advance(1100); assert.equal(workers.length, 1, 'Pool waits for the main task list');
   workers[0].finish(workers[0].messages.find(message => message.type === 'evaluate'));
   assert.equal((await tasks).status, 200);
   const active = await until(async () => workers[1]?.messages.find(message => message.type === 'predict'), Boolean);
@@ -97,12 +98,12 @@ test('closing cancels only ranking; pending task lists defer it and stale comple
   const after = await f.get('/api/diagnostics');
   assert.equal(after.predictionLane.ranking.pending, 0); assert.equal(after.predictionLane.ranking.active, 0);
   workers[1].finish(active, { delta: { tasksAdded: [{ label: 'Late task', category: 'Mining' }] } });
-  await delay(20);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal((await f.get('/api/pool-ranking?memberId=reed')).checked, 0, 'Cancelled result cannot mark a row checked');
   assert.equal(workers[1].messages.filter(message => message.type === 'predict').length, 1);
 });
 
-test('a pool read held across an HTTP save rejects its captured owner before retaining rows', { timeout: 20000 }, async t => {
+test('a pool read held across an HTTP save rejects its captured owner before retaining rows', async t => {
   const { Worker } = await import('node:worker_threads');
   let release, hold = false, markHeld;
   const held = new Promise(resolve => { markHeld = resolve; });

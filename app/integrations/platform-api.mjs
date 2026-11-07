@@ -62,7 +62,7 @@ function normalizePlatformSnapshot(profile, quests, name) {
 }
 
 export function createPlatformApiClient({ fetchImpl = globalThis.fetch, clock = Date.now,
-  cacheMs = PLATFORM_API_CACHE_MS, timeoutMs = PLATFORM_API_TIMEOUT_MS } = {}) {
+  cacheMs = PLATFORM_API_CACHE_MS, timeoutMs = PLATFORM_API_TIMEOUT_MS, timers = { setTimeout, clearTimeout } } = {}) {
   const cache = new Map(), pending = new Map(), controllers = new Set();
   async function endpoint(url, name, signal) {
     const response = await fetchImpl(url, { headers: { 'User-Agent': PLATFORM_API_USER_AGENT, Accept: 'application/json' }, signal, redirect: 'error' });
@@ -98,7 +98,7 @@ export function createPlatformApiClient({ fetchImpl = globalThis.fetch, clock = 
         return { ...normalizePlatformSnapshot(profile, quests, name), fetchedAt: new Date(clock()).toISOString(), cached: false };
       })();
       const deadline = new Promise((resolve, reject) => {
-        timeout = setTimeout(() => { controller.abort(); reject(platformApiError('TIMEOUT', 'Platform API took too long to respond. Try again later.', 504)); }, timeoutMs);
+        timeout = timers.setTimeout(() => { controller.abort(); reject(platformApiError('TIMEOUT', 'Platform API took too long to respond. Try again later.', 504)); }, timeoutMs);
       });
       const request = Promise.race([operation, deadline]); pending.set(key, request);
       try {
@@ -109,7 +109,7 @@ export function createPlatformApiClient({ fetchImpl = globalThis.fetch, clock = 
       } catch (error) {
         if (error.status) throw error;
         throw platformApiError('NETWORK_FAILURE', 'Could not reach Platform API. Check the server connection and try again later.', 502);
-      } finally { clearTimeout(timeout); controller.abort(); controllers.delete(controller); pending.delete(key); }
+      } finally { timers.clearTimeout(timeout); controller.abort(); controllers.delete(controller); pending.delete(key); }
     },
     close() { for (const controller of controllers) controller.abort(); cache.clear(); },
   };

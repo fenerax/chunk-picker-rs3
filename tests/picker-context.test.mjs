@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test, { beforeEach } from 'node:test';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import { platformResponse } from './helpers/platform-api-fixtures.mjs';
@@ -199,7 +200,7 @@ test('picker A player and viewer cannot observe picker B activity through diagno
   stream.response.destroy();
 });
 
-test('an affected non-admin picker receives crash, recovery and exhausted-restart health after requests settle', { timeout: 10000 }, async t => {
+test('an affected non-admin picker receives crash, recovery and exhausted-restart health after requests settle', async t => {
   const { scheduler, workers, taskWorker, spawned } = await calculatorFixture(t,
     { residency: undefined, autoReady: false, backoffMs: 1, maxRestarts: 1 });
   const { a, b } = await fixture(t, { runtimeOptions: { taskWorker } });
@@ -232,7 +233,7 @@ test('an affected non-admin picker receives crash, recovery and exhausted-restar
 });
 
 for (const route of ['/api/area-check?memberId=one&chunks=12342&revision=0', '/api/helper-drops?memberId=one']) {
-  test(`viewer calculation leaves residency empty: ${route.split('?')[0]}`, { timeout: 10000 }, async t => {
+  test(`viewer calculation leaves residency empty: ${route.split('?')[0]}`, async t => {
     const { scheduler, workers, taskWorker } = await calculatorFixture(t);
     const { a } = await fixture(t, { runtimeOptions: { taskWorker } });
     const cookie = await viewer(a);
@@ -671,7 +672,7 @@ function observeCompression(t) {
   return started.promise;
 }
 
-test('oversized route coalesces callers and keeps one captured revision through concurrent commits', { timeout: 10000 }, async t => {
+test('oversized route coalesces callers and keeps one captured revision through concurrent commits', async t => {
   const { a } = await gzipFixture(t), captures = oversizedSnapshots(a), started = observeCompression(t);
   const first = gzipCall(a);
   await started;
@@ -691,7 +692,7 @@ test('oversized route coalesces callers and keeps one captured revision through 
   assert.equal(cached.response.statusCode, 200); assert.equal(cached.chunks.length, 0); assert.equal(captures(), 2);
 });
 
-test('oversized route retries pool-preparation revision races and failed builds', { timeout: 10000 }, async t => {
+test('oversized route retries pool-preparation revision races and failed builds', async t => {
   const { a } = await gzipFixture(t), entered = Promise.withResolvers(), release = Promise.withResolvers();
   let injected = true;
   const captures = oversizedSnapshots(a, { async beforeSnapshot(count) {
@@ -707,7 +708,7 @@ test('oversized route retries pool-preparation revision races and failed builds'
   const retry = await gzipCall(a).body(); assert.equal(retry.store.revision, 2); assert.equal(captures(), 4);
 });
 
-test('one and all oversized-route waiter disconnects settle without poisoning retries', { timeout: 10000 }, async t => {
+test('one and all oversized-route waiter disconnects settle without poisoning retries', async t => {
   const { a } = await gzipFixture(t), entered = Promise.withResolvers(), release = Promise.withResolvers();
   oversizedSnapshots(a, { async beforeSnapshot(count) { if (count === 1) { entered.resolve(); await release.promise; } } });
   const first = gzipCall(a), second = gzipCall(a); await entered.promise;
@@ -721,7 +722,7 @@ test('one and all oversized-route waiter disconnects settle without poisoning re
   const retry = await gzipCall(a).body(); assert.equal(retry.state.revision, 1);
 });
 
-test('separate pickers share bounded gzip admission without sharing bytes or validators', { timeout: 10000 }, async t => {
+test('separate pickers share bounded gzip admission without sharing bytes or validators', async t => {
   const { a, b } = await gzipFixture(t);
   oversizedSnapshots(a); oversizedSnapshots(b);
   const started = observeCompression(t), first = gzipCall(a); await started;
@@ -735,7 +736,7 @@ test('separate pickers share bounded gzip admission without sharing bytes or val
   }
 });
 
-test('oversized-route close after collection and during send releases finish waits', { timeout: 10000 }, async t => {
+test('oversized-route close after collection and during send releases finish waits', async t => {
   const { a } = await gzipFixture(t); oversizedSnapshots(a);
   const afterCollection = gzipCall(a, { onHeaders(response) { response.destroy(); } });
   await afterCollection.done;
@@ -746,14 +747,14 @@ test('oversized-route close after collection and during send releases finish wai
   const retry = gzipCall(a, { method: 'HEAD' }); await retry.done; assert.equal(retry.response.statusCode, 200);
 });
 
-test('picker shutdown cancels an oversized gzip build and drains its route', { timeout: 10000 }, async t => {
+test('picker shutdown cancels an oversized gzip build and drains its route', async t => {
   const { a } = await gzipFixture(t); oversizedSnapshots(a);
   const started = observeCompression(t), pending = gzipCall(a); await started;
   await a.close(); await pending.done;
   assert.equal(pending.response.destroyed, true);
 });
 
-test('slow oversized sends retain a separate bounded budget across revision cache eviction', { timeout: 15000 }, async t => {
+test('slow oversized sends retain a separate bounded budget across revision cache eviction', async t => {
   const { a } = await gzipFixture(t);
   const { randomBytes } = await import('node:crypto');
   const payload = randomBytes(26 * 1024 * 1024).toString('base64') + 'Z'.repeat(16 * 1024 * 1024);
@@ -769,7 +770,7 @@ test('slow oversized sends retain a separate bounded budget across revision cach
   assert.equal(retry.response.statusCode, 200); assert.equal(captures(), 2, 'retry uses compressed-only cached bytes after the slow sender releases');
 });
 
-test('picker close destroys stalled full-state sends before draining requests', { timeout: 10000 }, async t => {
+test('picker close destroys stalled full-state sends before draining requests', async t => {
   const { a, b } = await gzipFixture(t); oversizedSnapshots(a);
   const writing = Promise.withResolvers();
   const first = gzipCall(a, { onWrite() { writing.resolve(); } }); await writing.promise;

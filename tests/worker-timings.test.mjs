@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,6 +34,7 @@ async function fixture(t, sourceDefinitions = definitions, trackStateParses = fa
     await import(${JSON.stringify(workerUrl.href)});
   `;
   const worker = new Worker(trackStateParses ? new URL(`data:text/javascript;base64,${Buffer.from(instrumented).toString('base64')}`) : workerUrl, {
+    execArgv: [...process.execArgv, '--import', new URL('./fixtures/counting-clock.mjs', import.meta.url).href],
     workerData: genericWorkerData({ definitions: sourceDefinitions, world: { chunks: world.chunks, surface: world.surface } }),
   });
   t.after(() => worker.terminate());

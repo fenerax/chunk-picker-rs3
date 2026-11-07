@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, request } from 'node:http';
@@ -15,7 +16,7 @@ async function listen(t, handler) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-test('browser dataset bootstrap recovers through an updating proxy without reloading', { timeout: 10000 }, async t => {
+test('browser dataset bootstrap recovers through an updating proxy without reloading', async t => {
   const upstream = await listen(t, (_req, res) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(payload)); });
   let calls = 0;
   const proxy = await listen(t, (req, res) => {
@@ -50,14 +51,15 @@ test('startup keeps retrying network, gateway and updating failures beyond the o
 });
 
 test('startup honours Retry-After seconds and dates even beyond the normal backoff ceiling', async () => {
-  for (const header of ['60', new Date(Date.now() + 62000).toUTCString(), '3000000']) {
+  const now = Date.parse('2026-01-01T00:00:00Z');
+  for (const header of ['60', new Date(now + 62000).toUTCString(), '3000000']) {
     const delays = []; let calls = 0;
     const value = await readStartupJSON('/synthetic', { fetch: async () => ++calls === 1
       ? new Response(JSON.stringify({ code: 'PICKER_UPDATING' }), { status: 503, headers: { 'Retry-After': header } })
-      : Response.json(payload), sleep: async delay => { delays.push(delay); }, onRetry() {} });
+      : Response.json(payload), now: () => now, sleep: async delay => { delays.push(delay); }, onRetry() {} });
     assert.equal(value.dataset.datasetId, 'synthetic'); assert.equal(calls, 2);
     if (header === '3000000') assert.equal(delays[0], 3000000000, 'server minimum is not capped to a 32-bit timer');
-    else assert.ok(delays[0] >= 59000 && delays[0] <= 62000, String(delays[0]));
+    else assert.equal(delays[0], header === '60' ? 60000 : 62000);
   }
 });
 

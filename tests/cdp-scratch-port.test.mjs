@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -112,7 +113,7 @@ test('CDP close waits for Chrome to finish exiting before scratch cleanup', asyn
   assert.equal(fixture.child.listenerCount('exit'), 0, 'exit waiter releases its listener');
 });
 
-test('CDP close observes process exit even when Chrome sends no acknowledgement', { timeout: 5000 }, async () => {
+test('CDP close observes process exit even when Chrome sends no acknowledgement', async () => {
   const fixture = transport();
   fixture.onClose(child => { child.exitCode = 0; child.emit('exit', 0); return false; });
   const browser = await openChrome('synthetic-chrome', profile, { port: Number('8947') }, fixture.dependencies);

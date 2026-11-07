@@ -143,12 +143,13 @@ function Assert-CoreWatchOwnership($Context, $Record) {
 }
 
 function Invoke-CoreWatchHelper($Context, [string]$Operation, [string]$Config, [string]$ConfigSha256,
-    [ValidateRange(1,300)][int]$TimeoutSeconds = 120) {
+    [ValidateRange(1,300)][int]$TimeoutSeconds = 120,
+    [scriptblock]$WaitForExit = { param($Process, $Milliseconds) $Process.WaitForExit($Milliseconds) }) {
     Assert-OperatorPin ([pscustomobject]@{ path = $Config; sha256 = $ConfigSha256 })
     if ($Operation -eq 'Start' -and (Test-CoreWatchPaused $Context)) { return }
     $shell = (Get-Process -Id $PID).Path
     $arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $PSScriptRoot "$Operation-Core.ps1") + '" -Config "' + $Config + '" -PreservePause'
-    Invoke-OperatorForeground -Executable $shell -Arguments $arguments -TimeoutSeconds $TimeoutSeconds
+    Invoke-OperatorForeground -Executable $shell -Arguments $arguments -TimeoutSeconds $TimeoutSeconds -WaitForExit $WaitForExit
 }
 
 function Invoke-CoreWatchRequest($Context, $Record, [string]$Endpoint, [string]$Method = 'Get') {

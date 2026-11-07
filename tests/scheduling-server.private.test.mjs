@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createWorkAcknowledgements } from './helpers/work-acknowledgements.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,11 +20,10 @@ import { constants, crc32, gzipSync, inflateRawSync } from 'node:zlib';
 const definitions = { chunks: { '12341': {}, '12342': {}, '12343': {} },
   walkableChunks: ['12341', '12342', '12343'], walkableChunksF2P: ['12341', '12342', '12343'], challenges: {} };
 const scratchRoot = fileURLToPath(new URL('../.local/tests/', import.meta.url));
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate) {
-  const deadline = Date.now() + 3000;
-  while (!predicate()) { assert.ok(Date.now() < deadline, 'Controlled request did not arrive.'); await delay(5); }
-}
+const acknowledgements = createWorkAcknowledgements();
+const until = predicate => acknowledgements.until(predicate);
+const delay = () => new Promise(resolve => setImmediate(resolve));
+
 function sharedJSON(value) {
   const bytes = Buffer.from(JSON.stringify(value)), shared = new SharedArrayBuffer(bytes.length);
   Buffer.from(shared).set(bytes); return shared;
@@ -36,7 +37,7 @@ function laneFactory() {
       else if (message.type !== 'cancel' && message.type !== 'supersede') calls.push({ worker, message });
     };
     worker.terminate = async () => { worker.emit('exit', 0); };
-    workers.push(worker);
+    acknowledgements.observe(worker); workers.push(worker);
     queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [], dynamicCatalogue: [], compileMs: 0 }));
     return worker;
   };
@@ -69,10 +70,11 @@ async function fixture(t, { serializedStateInput = false, predictionPrewarm = fa
       deathWorkerFactory: death.create, serializedStateInput, deadlineMs: 3000, predictionDeadlineMs: 3000, deathDeadlineMs: 3000 } });
   await application.listen();
   const origin = `http://127.0.0.1:${application.address().port}`;
-  const api = (route, body, transportHeaders = {}) => fetch(`${origin}${route}`, { headers: { Authorization: `Bearer ${application.store.getAccessToken()}`, Origin: origin, ...transportHeaders,
-    ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) });
+  let waiting;
+  const api = (route, body, transportHeaders = {}) => { waiting = clock.nextScheduled(250); return fetch(`${origin}${route}`, { headers: { Authorization: `Bearer ${application.store.getAccessToken()}`, Origin: origin, ...transportHeaders,
+    ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) }); };
   const revision = application.store.getInfo().revision;
-  return { application, api, revision, foreground, peer, side, death, dataDir, clock };
+  return { application, api, revision, foreground, peer, side, death, dataDir, clock, get waiting() { return waiting; } };
 }
 const groupPath = revision => `/api/tasks?memberId=player1&view=play-v1&projection=duo-sidebar-v1&revision=${revision}`;
 const peerPath = revision => `/api/tasks?memberId=player2&view=play-v1&lane=duo-v1&peerFor=player1&revision=${revision}`;
@@ -81,9 +83,9 @@ test('Group gate holds death and planning after selected tasks finish until the 
   const f = await fixture(t), selected = f.api(groupPath(f.revision));
   await until(() => f.foreground.calls.length === 1); f.foreground.finish(); assert.equal((await selected).status, 200);
   const planning = f.api('/api/chunk-planning?memberId=player1&chunkId=12342'), death = f.api('/api/death-estimates?memberId=player1&chunkId=12342');
-  await delay(60); assert.equal(f.side.calls.length, 0); assert.equal(f.death.calls.length, 0);
+  await f.waiting; assert.equal(f.side.calls.length, 0); assert.equal(f.death.calls.length, 0);
   const peer = f.api(peerPath(f.revision)); await until(() => f.peer.calls.length === 1);
-  await delay(30); assert.equal(f.side.calls.length, 0); assert.equal(f.death.calls.length, 0);
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(f.side.calls.length, 0); assert.equal(f.death.calls.length, 0);
   f.peer.finish(); assert.equal((await peer).status, 200);
   await until(() => f.side.calls.length === 1 && f.death.calls.length === 1);
   f.side.finish(); f.death.finish(); assert.equal((await planning).status, 200); assert.equal((await death).status, 200);
@@ -94,7 +96,7 @@ test('switching a settled Personal list to Group at the same revision reinstates
   await until(() => f.foreground.calls.length === 1); f.foreground.finish(); assert.equal((await personal).status, 200);
   assert.equal((await f.api(groupPath(f.revision))).status, 200);
   const death = f.api('/api/death-estimates?memberId=player1&chunkId=12342');
-  await delay(50); assert.equal(f.death.calls.length, 0);
+  await f.waiting; assert.equal(f.death.calls.length, 0);
   const peer = f.api(peerPath(f.revision)); await until(() => f.peer.calls.length === 1); f.peer.finish(); assert.equal((await peer).status, 200);
   await until(() => f.death.calls.length === 1); f.death.finish(); assert.equal((await death).status, 200);
 });

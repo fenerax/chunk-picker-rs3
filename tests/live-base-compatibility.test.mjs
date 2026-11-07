@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -83,7 +84,7 @@ test('native lifecycle and independent reconciliation scripts parse under Window
   const ps = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
   for (const source of Object.values(boundedLifecycleScripts())) {
     execFileSync(ps, ['-NoProfile', '-Command', '$tokens=$null;$issues=$null;[Management.Automation.Language.Parser]::ParseInput([Console]::In.ReadToEnd(),[ref]$tokens,[ref]$issues)|Out-Null;if($issues.Count){$issues|ForEach-Object {$_.Message};exit 1}'],
-      { input: source, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 });
+      { input: source, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']});
   }
 });
 test('owned job siblings can share the runtime parent while live storage and sidecars stay protected', () => {

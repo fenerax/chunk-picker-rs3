@@ -1,5 +1,7 @@
+import './helpers/file-safety-stop.mjs';
 import { platformResponse } from './helpers/platform-api-fixtures.mjs';
 import { fixtureDataset as selectedDataset } from './helpers/server-dataset.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test, { beforeEach } from 'node:test';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
@@ -21,11 +23,11 @@ const definitions = { chunks: { '12341': {} }, walkableChunks: ['12341'], walkab
   '~|Broken Home|~ 1': {BaseQuest:'Broken Home'}, '~|Broken Home|~ Complete the quest': {BaseQuest:'Broken Home',QuestPoints:1}, 'Necromancy!': {QuestPoints:1},
 } } };
 const response = platformResponse;
-async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, initialState, progressSources = {}} = {}) {
+async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, timers = createManualClock(), initialState, progressSources = {}} = {}) {
   initialState ??= createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
   for (const [index, member] of initialState.members.entries()) member.runescapeName ??= ['exampleGIMab', 'twosamplegim'][index];
   const directory = await mkdtemp(path.join(tmpdir(),'runemetrics-test-'));
-  const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, predictionPrewarm:false, shutdownDeadlineMs:500, progressSources: { hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...progressSources }, runeMetrics:{clock:()=>Date.parse('2026-10-27T12:00:00Z'),fetchImpl,...(timeoutMs?{timeoutMs}:{})} };
+  const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, predictionPrewarm:false, shutdownDeadlineMs:500, progressSources: { hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...progressSources }, runeMetrics:{clock:()=>Date.parse('2026-10-27T12:00:00Z'),fetchImpl,timers,...(timeoutMs?{timeoutMs}:{})} };
   const applications=[];
   let app;
   t.after(async()=>{
@@ -122,9 +124,13 @@ test('a binding changed during fetching invalidates the old account result',asyn
 
 test('private profile and timeout return neutral unavailable status without changing state',async t=>{
   for(const scenario of ['private','timeout']) {
-    const {api}=await fixture(t,{timeoutMs:20,fetchImpl:scenario==='private'?async()=>new Response(JSON.stringify(privateError.body),{status:privateError.status}):async()=>new Promise(()=>{})});
+    const timers = createManualClock();
+    const {api}=await fixture(t,{timers,timeoutMs:20,fetchImpl:scenario==='private'?async()=>new Response(JSON.stringify(privateError.body),{status:privateError.status}):async()=>new Promise(()=>{})});
     const before=(await (await api('/api/state')).json()).state;
-    const error=await api('/api/runemetrics/preview',{memberId:'player1'}); assert.equal(error.status,200);
+    const scheduled = timers.nextScheduled(20);
+    const request=api('/api/runemetrics/preview',{memberId:'player1'});
+    if(scenario==='timeout'){await scheduled;await timers.advance(20);}
+    const error=await request; assert.equal(error.status,200);
     const body=await error.json(); assert.equal(body.available,false); assert.equal(body.previewId,undefined); assert.match(body.message,/temporarily unavailable.*saved progress is unchanged/);
     assert.deepEqual((await (await api('/api/state')).json()).state,before);
   }
@@ -140,8 +146,8 @@ test('new browser modules are authenticated static assets',async t=>{
 
 test('web outages return HTTP 200 without a review token; ordinary saves continue', async t => {
   for (const failure of ['404', 'HTML', 'timeout', 'DNS']) {
-    const urls = [];
-    const { api } = await fixture(t, { timeoutMs: 20, progressSources: { webSource: 'runemetrics' },
+    const urls = [], timers = createManualClock();
+    const { api } = await fixture(t, { timers, timeoutMs: 20, progressSources: { webSource: 'runemetrics' },
       fetchImpl: async url => {
         urls.push(String(url)); assert.equal(url.origin, 'https://secure.runescape.com');
         if (failure === 'timeout') return new Promise(() => {});
@@ -149,7 +155,10 @@ test('web outages return HTTP 200 without a review token; ordinary saves continu
         return new Response('<html>Unavailable</html>', { status: failure === '404' ? 404 : 200 });
       } });
     const before = (await (await api('/api/state')).json()).state;
-    const response = await api('/api/runemetrics/preview', { memberId: 'player1' });
+    const scheduled = timers.nextScheduled(20);
+    const request = api('/api/runemetrics/preview', { memberId: 'player1' });
+    if (failure === 'timeout') { await scheduled; await timers.advance(20); }
+    const response = await request;
     assert.equal(response.status, 200);
     const value = await response.json();
     assert.equal(value.available, false); assert.equal(value.memberId, 'player1');

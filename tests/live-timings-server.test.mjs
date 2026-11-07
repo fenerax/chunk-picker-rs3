@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
 import assert from 'node:assert/strict';
@@ -179,7 +180,7 @@ test('multi-picker users and invite viewers cannot inspect or control process-wi
 });
 
 
-test('viewer diagnostics, health and worker events omit profiling counters and reasons', { timeout: 15000 }, async t => {
+test('viewer diagnostics, health and worker events omit profiling counters and reasons', async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'timing-viewer-')), workers = [];
   const initialState = createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }]);
   const app = await createServer({ dataDir, liveTimingOptions, deepProfiles: true, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState,
@@ -222,7 +223,7 @@ test('viewer diagnostics, health and worker events omit profiling counters and r
   assert.equal(summary.profile.retirements, 1);
 });
 
-test('CPU profiling is off unless the operator turns it on, and never attaches to calculators', { timeout: 15000 }, async t => {
+test('CPU profiling is off unless the operator turns it on, and never attaches to calculators', async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'timing-off-')), workers = [];
   const initialState = createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }]);
   const app = await createServer({ dataDir, liveTimingOptions, dataset: await emptyMetadataDataset(), definitions, taskMap: {}, initialState,

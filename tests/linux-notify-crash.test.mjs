@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -34,7 +35,7 @@ function start(t, dir, phase = '', failSend = false) {
 }
 
 for (const scenario of ['state', 'mailbox', 'claimed', 'compaction', 'delivery', 'offline']) {
-  test(`SIGKILL at every ${scenario} boundary retains eventual delivery`, { skip: process.platform !== 'linux', timeout: 120000 }, async t => {
+  test(`SIGKILL at every ${scenario} boundary retains eventual delivery`, { skip: process.platform !== 'linux'}, async t => {
     const baseline = await fixture(t, scenario), probe = start(t, baseline, '', scenario === 'offline');
     const { trace } = await probe.message;
     assert.deepEqual(await probe.exited, [0, null]); assert(trace.length > 0);

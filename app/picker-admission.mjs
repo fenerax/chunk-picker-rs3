@@ -4,7 +4,7 @@ const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefine
 // waiter does not free a permit until the underlying factory has settled.
 export const COLD_OPEN_ADMISSION = Object.freeze({ maxPending: 64, perAccount: 2, deadlineMs: 2000, retryMs: 25, maxRetries: 80 });
 const refused = reason => Object.assign(new Error(`Picker admission ${reason}. Wait a moment and retry.`), { status: 503, retryAfter: 1 });
-export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMISSION }) {
+export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMISSION, clock = { setTimeout, clearTimeout } }) {
   const groups = new Map(), active = new Set();
   let pending = 0, closed = false, pumping = false;
   const drained = new Set();
@@ -14,14 +14,14 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
       pending, active: active.size, accounts: groups.size, ...extra }); } catch { /* Diagnostics cannot change admission. */ }
   }
   function remove(item) {
-    clearTimeout(item.timer); item.signal?.removeEventListener('abort', item.abort);
+    clock.clearTimeout(item.timer); item.signal?.removeEventListener('abort', item.abort);
     const group = groups.get(item.account); group.count--;
     if (!group.count) groups.delete(item.account);
     pending--; if (!pending) { for (const resolve of drained) resolve(); drained.clear(); }
   }
   function cancel(item, reason) {
     if (item.settled) return;
-    item.settled = true; clearTimeout(item.timer);
+    item.settled = true; clock.clearTimeout(item.timer);
     item.signal?.removeEventListener('abort', item.abort);
     const error = refused(reason); item.controller.abort(error); item.reject(error);
     if (item.startedAt === undefined) {
@@ -71,7 +71,7 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
       else { group.queue.push(item); group.count++; }
       pending++; item.abort = () => cancel(item, 'cancelled');
       signal?.addEventListener('abort', item.abort, { once: true });
-      item.timer = setTimeout(() => cancel(item, 'deadline'), bounds.deadlineMs);
+      item.timer = clock.setTimeout(() => cancel(item, 'deadline'), bounds.deadlineMs);
       observe('queued', item); pump(); return promise;
     },
     close() {

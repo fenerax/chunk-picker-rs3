@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 // Real worker assembly/scratch boundaries with an opaque synthetic scheduler.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ const put = async (file, value) => { await mkdir(path.dirname(file), { recursive
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
 
 for (const scenario of ['recovers', 'fails-twice', 'diagnostic-off']) {
-  test('postmerge retry ' + scenario + ' preserves isolated scratch and lane outcome', { timeout: 60000 }, async t => {
+  test('postmerge retry ' + scenario + ' preserves isolated scratch and lane outcome', async t => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'postmerge-retry-'));
     t.after(() => rm(root, { recursive: true, force: true }));
     const coreRepo = path.join(root, 'core'), privateSource = path.join(root, 'private');

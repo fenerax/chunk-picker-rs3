@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -121,7 +122,7 @@ async function fixture(t) {
 }
 
 for (const deletion of ['none', 'picker', 'account']) {
-  test(`audit C1: service restore with ${deletion === 'none' ? 'no' : deletion} deletion never assigns old pickers by login order`, { timeout: 20000 }, async t => {
+  test(`audit C1: service restore with ${deletion === 'none' ? 'no' : deletion} deletion never assigns old pickers by login order`, async t => {
     const f = await fixture(t), cookies = await Promise.all(subjects.map(f.login));
     const sessions = [];
     for (const cookie of cookies) sessions.push(await f.session(cookie));
@@ -164,7 +165,7 @@ for (const deletion of ['none', 'picker', 'account']) {
   });
 }
 
-test('audit C1: a plugin report whose body started before key revocation cannot update progress', { timeout: 10000 }, async t => {
+test('audit C1: a plugin report whose body started before key revocation cannot update progress', async t => {
   const f = await fixture(t), cookie = await f.login(subjects[0]);
   const created = await f.send('/api/game-plugin/keys', cookie, { body: { memberId: 'owner', label: 'Player 1' } });
   assert.equal(created.status, 201); const { key, record } = created.json();
@@ -199,7 +200,7 @@ test('audit C1: a plugin report whose body started before key revocation cannot 
   assert.equal((await f.send('/api/game-plugin', cookie)).json().positions.length, 1);
 });
 
-test('audit C1: an OAuth flow begun before account deletion creates a fresh principal', { timeout: 10000 }, async t => {
+test('audit C1: an OAuth flow begun before account deletion creates a fresh principal', async t => {
   const f = await fixture(t), cookie = await f.login(subjects[0]), old = await f.session(cookie);
   assert.equal((await f.note(cookie, 'Player 1')).status, 200);
   const finish = await f.begin(subjects[0]);

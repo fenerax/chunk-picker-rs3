@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -120,7 +121,7 @@ await r.write('coverage.json', {passed: result.passed});
 `);
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const child = spawnSync(process.execPath, ['run.mjs'], { cwd: root, env, encoding: 'utf8', timeout: 30000, windowsHide: true });
+  const child = spawnSync(process.execPath, ['run.mjs'], { cwd: root, env, encoding: 'utf8', windowsHide: true });
   assert.equal(child.status, 0, child.stderr);
   const capability = JSON.parse(await readFile(path.join(root, 'capability.json'), 'utf8'));
   assert.equal(capability.node, process.version);

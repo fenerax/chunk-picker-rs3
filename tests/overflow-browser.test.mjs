@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -43,7 +44,7 @@ for (const rule of intentional) {
   assert.ok(['width','height'].every(key=>Array.isArray(rule.bounds?.[key]) && rule.bounds[key].length===2 && rule.bounds[key].every(Number.isFinite) && rule.bounds[key][0]<=rule.bounds[key][1]),'explicit numeric bounds');
 }
 
-test('permanent native overflow gate', { timeout: 120000 }, async t => {
+test('permanent native overflow gate', async t => {
   const scratch = await mkdtemp(path.join(tmpdir(), 'rs3-overflow-'));
   const shell = String(await source(new URL('index.html', web))).replace('<script type="module" src="/main.mjs"></script>', '<link rel="stylesheet" href="/gallery.css"><link rel="stylesheet" href="/duo-tasks.css"><script type="module" src="/gallery-preview.mjs"></script>');
   const preview = String(await source(new URL('gallery-preview.mjs', web))).replace('await build(); await render(entry);', `await build(); ${prepareOverflowFixture}\nawait render(entry);`);

@@ -102,6 +102,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   chunkSectionCatalogue,
   liveTimingOptions, deepProfiles: deepProfilesEnabled = process.env.RS3_DEEP_PROFILES === '1', taskWorkerOptions, idleMemoryOptions, shutdownDeadlineMs = 10000, retention, predictionPrewarm = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
+  shutdownClock = { setTimeout, clearTimeout },
   publicOrigin = process.env.RS3_PUBLIC_ORIGIN, rateLimits = {}, usageRateLimits = {},
   requestContextFor = requestContext,
   ingressRole = 'private',
@@ -430,7 +431,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       await syncLegacy();
       await pickerLimits.initialize(pickerRegistry);
       pickerRouter = createPickerRouter({ registry: pickerRegistry, legacy: context, pickerLimits,
-        publicOrigin, requestContextFor, backupRetentionMs, onAdmission: multiPicker.onAdmission, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
+        publicOrigin, requestContextFor, backupRetentionMs, onAdmission: multiPicker.onAdmission, admissionClock: multiPicker.admissionClock, idleClock: multiPicker.idleClock, uploadClock: multiPicker.uploadClock, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
         openContext: async pickerId => {
           const picker = pickerRegistry.getPicker(pickerId);
           if (picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') throw httpError(403, 'Picker access denied.');
@@ -563,16 +564,16 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           for (const listener of listeners) {
             listener.close(error => error ? reject(error) : --open || resolve()); listener.closeIdleConnections();
           }
-          timer = setTimeout(() => {
+          timer = shutdownClock.setTimeout(() => {
             transport.connectionDeadlinePassed = true;
             for (const socket of connections) if (!transport.savingConnections.has(socket)) socket.destroy();
           }, shutdownDeadlineMs);
         }) : Promise.resolve();
         const boundedResponses = contextClosed.then(() => {
-          saveResponseTimer = setTimeout(() => { for (const socket of connections) socket.destroy(); }, shutdownDeadlineMs);
+          saveResponseTimer = shutdownClock.setTimeout(() => { for (const socket of connections) socket.destroy(); }, shutdownDeadlineMs);
         });
         try { await deepProfiles.close(); await Promise.all([connectionsClosed, taskWorker?.close(shutdownDeadlineMs), boundedResponses]); await timings.close(); }
-        finally { clearTimeout(timer); clearTimeout(saveResponseTimer); runtime.staticCache.clear(); }
+        finally { shutdownClock.clearTimeout(timer); shutdownClock.clearTimeout(saveResponseTimer); runtime.staticCache.clear(); }
       })();
       return closePromise;
     },

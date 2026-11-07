@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -12,7 +13,7 @@ const block = start => {
 };
 const driver = block('cat > "$RUNNER_TEMP/release-ci-driver.mjs" <<\'NODE\'\n');
 const collector = block('node --input-type=module <<\'NODE\'\n');
-const run = (args, options = {}) => spawnSync(process.execPath, args, { encoding: 'utf8', windowsHide: true, timeout: 30000, ...options });
+const run = (args, options = {}) => spawnSync(process.execPath, args, { encoding: 'utf8', windowsHide: true, ...options });
 
 test('both embedded hosted JavaScript programs parse as Node modules', () => {
   for (const source of [driver, collector]) {
@@ -28,7 +29,7 @@ test('Windows owner adapter parses without executing native changes', { skip: pr
     .split('\n').map(line => line.replace(/^          /, '')).join('\n');
   const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
     '$source = [Console]::In.ReadToEnd(); $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors); if ($errors.Count) { exit 1 }'],
-  { input: source, encoding: 'utf8', windowsHide: true, timeout: 30000 });
+  { input: source, encoding: 'utf8', windowsHide: true});
   assert.equal(result.status, 0);
 });
 

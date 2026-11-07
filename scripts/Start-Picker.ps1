@@ -1,5 +1,8 @@
 param([string]$HostAddress, [int]$Port = 8788, [string]$ImportPath,
-    [ValidateRange(1, 300)][int]$ReadinessTimeoutSeconds = 60)
+    [ValidateRange(1, 300)][int]$ReadinessTimeoutSeconds = 60,
+    [scriptblock]$Clock = { [DateTime]::UtcNow },
+    [scriptblock]$Wait = { param($Milliseconds) Start-Sleep -Milliseconds $Milliseconds },
+    [scriptblock]$WaitForExit = { param($Process, $Milliseconds) $Process.WaitForExit($Milliseconds) })
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Picker-Process.ps1')
 $pickerRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -87,12 +90,12 @@ try {
     catch {
         # A process that could not be recorded must not be left unmanaged.
         $pickerProcess.Refresh()
-        if (-not $pickerProcess.HasExited) { $pickerProcess.Kill(); $pickerProcess.WaitForExit(5000) | Out-Null }
+        if (-not $pickerProcess.HasExited) { $pickerProcess.Kill(); & $WaitForExit $pickerProcess 5000 | Out-Null }
         throw
     }
 } finally { $pickerLock.Dispose() }
 
-$pickerUntil = [DateTime]::UtcNow.AddSeconds($ReadinessTimeoutSeconds)
+$pickerUntil = (& $Clock).AddSeconds($ReadinessTimeoutSeconds)
 do {
     $pickerProcess.Refresh()
     if ($pickerProcess.HasExited) { throw "The recorded picker exited during startup. Inspect .local/server-error.log (PID $($pickerRecord.pid))." }
@@ -121,6 +124,6 @@ do {
             exit 0
         }
     }
-    Start-Sleep -Milliseconds 250
-} while ([DateTime]::UtcNow -lt $pickerUntil)
+    & $Wait 250
+} while ((& $Clock) -lt $pickerUntil)
 Write-Output "Picker is still starting (PID $($pickerRecord.pid)); its starting state is recorded and Stop-Picker.ps1 can stop it. Inspect .local/server.log and .local/server-error.log. Run Start-Picker.ps1 again for its status; it will not start a competitor."

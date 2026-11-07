@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -46,7 +47,7 @@ async function fixture(t) {
 }
 const review = { type: 'set-rule-review', ruleId: 'roll.adjacent', reviewed: true, note: 'Agreed together.' };
 
-test('rule reviews survive compact responses, backups and restart without changing calculation inputs', { timeout: 20000 }, async t => {
+test('rule reviews survive compact responses, backups and restart without changing calculation inputs', async t => {
   const f = await fixture(t), original = f.app.store.getState();
   const explanationModule = await f.request('/rule-explanations.mjs');
   assert.equal(explanationModule.status, 200);
@@ -78,7 +79,7 @@ test('rule reviews survive compact responses, backups and restart without changi
   assert.equal(f.app.store.getGameplayFingerprint(), fingerprint);
 });
 
-test('both players can update shared reviews while viewers only read', { timeout: 20000 }, async t => {
+test('both players can update shared reviews while viewers only read', async t => {
   const f = await fixture(t), actor1 = await f.invite('actor1'), reed = await f.invite('reed');
   assert.equal((await f.command(review, undefined, actor1)).status, 200);
   const changed = { ...review, reviewed: false, note: 'Please revisit this.' };

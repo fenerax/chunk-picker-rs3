@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -61,14 +62,26 @@ test('review reproduction: every discovery-accepted basename is planned or visib
   }
 });
 
-test('review reproduction: dedicated detector lanes are refused in PR, dispatch and runner before any execution', async () => {
+test('review reproduction: detector entries require their isolated Linux lane and unknown dedicated lanes fail closed', async () => {
   for (const file of ['tests/y03-fuzz-ci-integration.test.mjs', 'tests/q2-diff-engine-integration.test.mjs']) {
     assert.match(classifyTest(file.slice(6)), /differential/);
-    for (const options of [{ changed: [file] }, { files: file, os: 'linux' }, { files: file, os: 'both' }])
-      assert.throws(() => planStability({ inventory: [file], ...options }), /loop not supported for this lane.*differential/);
+    for (const options of [{ changed: [file] }, { files: file, os: 'linux' }]) {
+      const result = planStability({ inventory: [file], ...options });
+      assert.equal(result.targets.length, 1); assert.equal(result.targets[0].repetitions, 50);
+      assert(result.matrix.include.every(task => task.os === 'linux' && task.lane === 'detector'));
+      assert.equal(all(result).length, 50);
+    }
+    assert.throws(() => planStability({ inventory: [file], files: file, os: 'both' }), /requires Linux/);
     await assert.rejects(executeShard({ os: 'linux', attempts: [{ file, repetition: 1, total: 50 }] }, {
       run: async () => assert.fail('dedicated lane must not execute'), save: async () => {}, log: () => {},
-    }), /loop not supported for this lane/);
+    }), /isolated Linux container/);
+    const result = await executeShard({ os: 'linux', lane: 'detector', attempts: [{ file, repetition: 1, total: 50 }] }, {
+      run: async (_file, onEvent) => {
+        emitCounts(onEvent, counts(), file);
+        return { passed: true, files: [{ passed: true, summary: { counts: counts() } }] };
+      }, save: async () => {}, log: () => {},
+    });
+    assert.equal(result.passed, true); assert.equal(result.rows[0].counts.executed, 1);
   }
   const file = 'tests/new-detector.test.mjs';
   const selection = createTestSelection(new Map([[file.slice(6), '// @test engine-differential']]));
@@ -109,6 +122,14 @@ test('Windows selection reads the real slice, refusing a changed declaration sha
   assert(files.includes('tests/owned-child-processes.test.mjs'));
   assert.throws(() => windowsSlice('export const windowsFiles = getFiles();'));
   assert.throws(() => windowsSlice('export const windowsFiles = [unknown];'));
+});
+
+test('native Windows-only entries receive Windows proof without counting skipped Linux cases', () => {
+  for (const name of ['watchdog-core', 'release-run-ci-powershell', 'release-runtime-v2', 'operator-cutover']) {
+    const file = `tests/${name}.test.mjs`;
+    const result = planStability({ inventory: [file], changed: [file], windows: [file] });
+    assert.deepEqual(result.targets, [{ file, os: 'windows', requested: 50, repetitions: 50 }]);
+  }
 });
 
 test('aggregate requires exact current-SHA attempts; missing, failed, duplicate and stale receipts fail closed', () => {

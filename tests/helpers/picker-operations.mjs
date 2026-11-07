@@ -1,3 +1,4 @@
+import './file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -21,6 +22,7 @@ async function fixture(t, configuration) {
     await copyFile(path.join(root, 'scripts', name), path.join(directory, 'scripts', name));
   }
   await copyFile(path.join(root, 'tests', 'fixtures', 'picker-helper-server.mjs'), path.join(directory, 'app', 'server.mjs'));
+  await copyFile(path.join(root, 'tests/helpers/controlled-picker-helper.ps1'), path.join(directory, 'controlled-helper.ps1'));
   await writeFile(path.join(directory, 'helper-test-config.json'), JSON.stringify(configuration));
   const listener = net.createServer();
   await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve));
@@ -30,13 +32,13 @@ async function fixture(t, configuration) {
 }
 
 export function pickerOperationTest(mode, description, configuration) {
-  test(`Windows helpers ${description}`, { skip: process.platform !== 'win32', timeout: 180000 }, async t => {
+  test(`Windows helpers ${description}`, { skip: process.platform !== 'win32'}, async t => {
     const { directory, port } = await fixture(t, configuration);
     let result;
     try {
       result = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
         '-File', path.join(root, 'tests', 'picker-helpers.test.ps1'), '-FixtureRoot', directory, '-Mode', mode, '-Port', String(port)],
-      { cwd: root, timeout: 170000, windowsHide: true });
+      { cwd: root, windowsHide: true, env: { ...process.env, PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH}` } });
     } catch (error) {
       assert.fail(`PowerShell regression failed: ${error.stdout ?? ''}${error.stderr ?? ''}`);
     }

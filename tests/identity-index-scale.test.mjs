@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildIdentityIndex, entityId, generatedGoalId, legacyTaskId } from '../app/tasks/identity.mjs';
@@ -7,9 +8,22 @@ test('full identity snapshots merge a shared alias once across the catalogue', (
   const catalogue = Array.from({ length: 5_000 }, (_, i) => ({ id: `rs3:task:synthetic-shared-${i}`,
     category: 'Synthetic', label: `Synthetic ${i}`, aliases: [shared] }));
   const index = buildIdentityIndex(catalogue);
-  const start = performance.now();
-  const snapshot = index.snapshot(catalogue.map(row => row.id));
-  assert.ok(performance.now() - start < 1_500, 'Shared aliases must not rebuild all candidates once per task');
+  const iterate = Set.prototype[Symbol.iterator];
+  let sharedCandidateVisits = 0;
+  Set.prototype[Symbol.iterator] = function* () {
+    for (const value of iterate.call(this)) {
+      if (this.size === catalogue.length) {
+        sharedCandidateVisits++;
+        assert.ok(sharedCandidateVisits <= catalogue.length * 3, 'Shared candidates must be visited a constant number of times');
+      }
+      yield value;
+    }
+  };
+  let snapshot;
+  try { snapshot = index.snapshot(catalogue.map(row => row.id)); }
+  finally { Set.prototype[Symbol.iterator] = iterate; }
+  assert.ok(sharedCandidateVisits <= catalogue.length * 3,
+    `Shared candidates must be visited a constant number of times (${sharedCandidateVisits})`);
   assert.equal(Object.keys(snapshot.entries).length, catalogue.length);
   assert.deepEqual(snapshot.aliases[shared], catalogue.map(row => row.id));
 });

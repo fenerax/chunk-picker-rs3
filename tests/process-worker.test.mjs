@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -81,7 +83,7 @@ test('uncloneable initialization values fail before spawning an owned child', ()
   assert.throws(() => new ProcessWorker({ invalid: () => {} }, { forkProcess() { assert.fail('must serialize before fork'); } }), { name: 'DataCloneError' });
 });
 
-test('isolated task worker compiles, evaluates, reuses shared state and requests missing snapshot resend', { timeout: 15000 }, async t => {
+test('isolated task worker compiles, evaluates, reuses shared state and requests missing snapshot resend', async t => {
   const { worker, state, send } = await fixture(t, { trackRss: true });
   assert.notEqual(worker.pid, process.pid);
   assert.ok(worker.rssBytes > 0, 'process RSS reports arrive independently of calculation replies');
@@ -106,7 +108,7 @@ test('isolated task worker compiles, evaluates, reuses shared state and requests
 
 const probeImport = new URL('./fixtures/process-worker-probe.mjs', import.meta.url).href;
 
-test('cancel IPC updates the child-local SAB while its worker is synchronous; isolate memory can be probed', { timeout: 15000 }, async t => {
+test('cancel IPC updates the child-local SAB while its worker is synchronous; isolate memory can be probed', async t => {
   t.diagnostic('phase: real IPC witness starting');
   const { worker, state } = await fixture(t, { probeImport });
   const cancellation = new SharedArrayBuffer(4), id = 99;
@@ -124,7 +126,7 @@ test('cancel IPC updates the child-local SAB while its worker is synchronous; is
   assert.ok(memory.workers[0].memoryUsage.heapUsed > 0);
 });
 
-test('terminate is idempotent and resolves only after its owned process exits', { timeout: 15000 }, async t => {
+test('terminate is idempotent and resolves only after its owned process exits', async t => {
   t.diagnostic('phase: real IPC witness starting');
   const { worker } = await fixture(t);
   const pid = worker.pid, exit = once(worker, 'exit');
@@ -135,7 +137,7 @@ test('terminate is idempotent and resolves only after its owned process exits', 
   await assert.rejects(worker.getMemoryUsage(), /stopped/);
 });
 
-test('initialization failure forwards the worker error and leaves no child process', { timeout: 15000 }, async t => {
+test('initialization failure forwards the worker error and leaves no child process', async t => {
   const worker = new ProcessWorker({ definitions: null });
   t.after(() => worker.terminate());
   const exited = new Promise(resolve => worker.once('exit', resolve));
@@ -188,7 +190,7 @@ for (const row of orphanStates) test(`orphan state: ${row.name}`, async () => {
   else assert.equal(await result, row.expected);
 });
 
-test('an owned calculator exits when its parent disappears without calling terminate', { timeout: 15000 }, async t => {
+test('an owned calculator exits when its parent disappears without calling terminate', async t => {
   if (process.platform === 'linux') {
     try { await readFile('/proc/self/stat', 'utf8'); }
     catch (error) {
@@ -207,17 +209,14 @@ test('an owned calculator exits when its parent disappears without calling termi
   assert.ok(workerPid > 0); assert.doesNotThrow(() => process.kill(workerPid, 0));
   const exited = once(parent, 'exit'); parent.send({ stop: true }); await exited;
   t.diagnostic('phase: parent exited; observing actual orphan state');
-  const deadline = Date.now() + 5000;
-  while (true) {
-    if (await processHasExited(workerPid)) { workerPid = undefined; break; }
-    assert.ok(Date.now() < deadline, 'calculator must exit after parent IPC disconnect');
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
+  await waitForCondition(() => processHasExited(workerPid));
+  workerPid = undefined;
+
 });
 
 const observe = promise => promise.then(value => ({ value }), error => ({ error }));
 
-test('real native profiler and IPC return both valid captures and permit reuse', { timeout: 10000 }, async t => {
+test('real native profiler and IPC return both valid captures and permit reuse', async t => {
   const { worker } = await fixture(t);
   for (let index = 0; index < 2; index++) {
     t.diagnostic(`phase: real native start ${index + 1}`);
@@ -336,7 +335,7 @@ test('cancelled profile reply never publishes a profile or grants a capture hand
   assert.equal(f.sent.filter(message => message.operation === 'stop').length, 0);
 });
 
-test('cancelled calculator and relay profiles never reach published storage', { timeout: 10000 }, async t => {
+test('cancelled calculator and relay profiles never reach published storage', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'cancelled-profile-'));
   const f = adapterFixture(t), profiles = await createDeepProfiles(directory);
   t.after(async () => { await profiles.close(); await rm(directory, { recursive: true, force: true }); });
@@ -366,7 +365,7 @@ test('graceful escalation issues SIGTERM then SIGKILL and joins exit exactly onc
   assert.deepEqual(f.signals, ['SIGTERM', 'SIGKILL']); assert.equal(retired, true); assert.equal(f.clock.pending(), 0);
 });
 
-test('real forced kill joins the owned host exit', { timeout: 10000 }, async t => {
+test('real forced kill joins the owned host exit', async t => {
   const { worker } = await fixture(t), pid = worker.pid;
   t.diagnostic('phase: owned host ready; sending SIGKILL');
   const exit = once(worker, 'exit'), retirement = worker.terminate({ force: true });

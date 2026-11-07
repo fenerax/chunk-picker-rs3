@@ -1,4 +1,5 @@
 // @test quick
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
@@ -70,6 +71,6 @@ test('saved decode admission shares limits and keeps in-flight invalidations cha
 
 test('invalidated saved graphs and entries collect while the owning context remains reachable', async () => {
   // GC is enabled only in this test-owned child, never in application/global config.
-  const { stdout } = await promisify(execFile)(process.execPath, ['--expose-gc', fileURLToPath(new URL('./helpers/saved-why-gc.mjs', import.meta.url))], { timeout: 30_000 });
+  const { stdout } = await promisify(execFile)(process.execPath, ['--expose-gc', fileURLToPath(new URL('./helpers/saved-why-gc.mjs', import.meta.url))], {});
   assert.match(stdout, /collected all saved evidence/);
 });

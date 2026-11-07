@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -24,8 +25,7 @@ test('bundled defaults resolve without importing private compatibility defaults'
     const {loadOriginalSyncIntegration}=await import('./app/dataset-bootstrap.mjs');
     if (await loadOriginalSyncIntegration(selectedDataset)!==null) throw new Error('Independent original sync should be unavailable');`;
   const result = spawnSync(process.execPath, ['--input-type=module', '--eval', source], {
-    cwd: root, env: { ...process.env, NODE_OPTIONS: '' }, windowsHide: true, encoding: 'utf8', timeout: 20000,
-  });
+    cwd: root, env: { ...process.env, NODE_OPTIONS: '' }, windowsHide: true, encoding: 'utf8', });
   assert.ifError(result.error);
   assert.equal(result.status, 0, result.stderr);
 });
@@ -37,8 +37,7 @@ test('unknown defaults cannot fall through to the private profile', async () => 
 test('the public entrypoint retains the independent port guard before app or storage imports', () => {
   const result = spawnSync(process.execPath, ['scripts/start-public-game.mjs', '--port', '8788'], {
     cwd: root, env: { ...process.env, NODE_OPTIONS: '', RS3_DATASET: 'duo-legacy' },
-    windowsHide: true, encoding: 'utf8', timeout: 20000,
-  });
+    windowsHide: true, encoding: 'utf8', });
   assert.ifError(result.error);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Choose a separate port/);
@@ -58,7 +57,7 @@ test('an untracked local file can replace the placeholder members without enteri
     if (file !== undefined) env.RS3_GAME_DEFAULTS_FILE = file;
     const result = spawnSync(process.execPath, ['--input-type=module', '--eval',
       "const { legacyGameDefaults } = await import('./app/legacy-game-defaults.mjs'); process.stdout.write(JSON.stringify(legacyGameDefaults));"],
-    { cwd: root, env, windowsHide: true, encoding: 'utf8', timeout: 20000 });
+    { cwd: root, env, windowsHide: true, encoding: 'utf8'});
     assert.ifError(result.error);
     return result;
   };

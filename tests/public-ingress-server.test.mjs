@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -44,7 +45,6 @@ function request(origin, route, { body, rawBody, method = body === undefined && 
       res.on('end', () => resolve(new Response(Buffer.concat(chunks), { status: res.statusCode,
         headers: Object.fromEntries(Object.entries(res.headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : value])) })));
     });
-    req.setTimeout(10000, () => req.destroy(new Error(`Timed out: ${method} ${route}`)));
     req.on('error', reject); req.end(bytes);
   });
 }
@@ -53,7 +53,6 @@ async function openEvents(origin, route, headers) {
   let req;
   const response = await new Promise((resolve, reject) => {
     req = http.request(origin + route, { agent: false, headers }, resolve);
-    req.setTimeout(10000, () => req.destroy(new Error(`Timed out: ${route}`)));
     req.on('error', reject); req.end();
   });
   assert.equal(response.statusCode, 200, route);
@@ -112,7 +111,7 @@ async function fixture(t) {
   };
 }
 
-test('public loopback listener never promotes master/admin credentials from forwarding headers', { timeout: 30000 }, async t => {
+test('public loopback listener never promotes master/admin credentials from forwarding headers', async t => {
   const f = await fixture(t), adminInvite = await f.invite({ label: 'Private administrator', admin: true });
   const player = await f.invite({ label: 'Player', memberId: 'actor1' });
   const master = f.app.store.getAccessToken();
@@ -153,7 +152,7 @@ test('public loopback listener never promotes master/admin credentials from forw
   assert.equal((await f.admin('/api/admin/master-link')).status, 200);
 });
 
-test('a public page visit with a leftover administrator cookie clears it instead of dead-ending', { timeout: 30000 }, async t => {
+test('a public page visit with a leftover administrator cookie clears it instead of dead-ending', async t => {
   const f = await fixture(t), adminInvite = await f.invite({ label: 'Private administrator', admin: true });
   const master = f.app.store.getAccessToken();
   for (const Cookie of [f.masterCookie, adminInvite.cookie, `duo_access=${master}`]) {
@@ -171,7 +170,7 @@ test('a public page visit with a leftover administrator cookie clears it instead
   assert.equal((await f.privateRequest('/api/session', { headers: { Cookie: f.masterCookie } })).status, 200, 'The private listener still accepts it');
 });
 
-test('early startup and ready handoff preserve each socket role with incomplete or spoofed proxy headers', { timeout: 30000 }, async () => {
+test('early startup and ready handoff preserve each socket role with incomplete or spoofed proxy headers', async () => {
   await mkdir(root, { recursive: true });
   for (const roles of [{ ingressRole: undefined, loopbackRole: 'public' }, { ingressRole: 'public', loopbackRole: undefined }]) {
     const directory = await mkdtemp(path.join(root, 'startup-')), dataDir = path.join(directory, 'game');
@@ -218,7 +217,7 @@ test('early startup and ready handoff preserve each socket role with incomplete 
   }
 });
 
-test('every administrator API entry is forbidden on the public socket before credentials or bodies are handled', { timeout: 30000 }, async t => {
+test('every administrator API entry is forbidden on the public socket before credentials or bodies are handled', async t => {
   const f = await fixture(t), administrator = await f.invite({ label: 'Administrator', admin: true });
   const player = await f.invite({ label: 'Player', memberId: 'actor1' });
   const credentials = [{}, { Cookie: player.cookie }, { Cookie: administrator.cookie }, { Cookie: f.masterCookie },
@@ -244,7 +243,7 @@ test('every administrator API entry is forbidden on the public socket before cre
   assert.deepEqual(await (await f.admin('/api/overlays')).json(), { links: [] }, 'Separately dispatched overlay management was refused');
 });
 
-test('public viewer/player, OBS and native plugin workflows survive both public listener configurations', { timeout: 30000 }, async t => {
+test('public viewer/player, OBS and native plugin workflows survive both public listener configurations', async t => {
   const f = await fixture(t), viewer = await f.invite({ label: 'Spectator', viewer: true });
   const player = await f.invite({ label: 'Player', memberId: 'actor1' });
   const overlayResponse = await f.admin('/api/overlays', { label: 'OBS', widget: 'count', player: 'duo' });

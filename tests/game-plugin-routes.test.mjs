@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +7,6 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, writeFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { prepareGameStorage } from '../app/game-profile.mjs';
@@ -208,7 +208,8 @@ for (const action of ['dismiss', 'apply']) test(`HTTP item review ${action} expl
 });
 
 test('plugin sequence ordering is per key and stale reports do not overwrite the observed position', async t => {
-  const f = await fixture(t), first = await f.create(), second = await f.create();
+  let now = 0;
+  const f = await fixture(t, { progressSources: { clock: () => now } }), first = await f.create(), second = await f.create();
   assert.equal((await f.plugin('/api/plugin/v1/report', first.key, report(5))).status, 200);
   assert.equal((await f.plugin('/api/plugin/v1/report', first.key, report(5, { position: { x: 0, z: 0, floor: 0 } }))).status, 409);
   assert.equal((await f.plugin('/api/plugin/v1/report', first.key, report(4))).status, 409);
@@ -234,7 +235,8 @@ test('plugin diagnostics stay in memory and are listed only with their own key',
 });
 
 test('plugin GET and POST share a four-request-per-second key bucket and report bodies have a 16 KiB limit', async t => {
-  const f = await fixture(t), first = await f.create(), second = await f.create();
+  let now = 0;
+  const f = await fixture(t, { progressSources: { clock: () => now } }), first = await f.create(), second = await f.create();
   for (let seq = 0; seq < 2; seq++) {
     assert.equal((await f.plugin('/api/plugin/v1/status', first.key)).status, 200);
     assert.equal((await f.plugin('/api/plugin/v1/report', first.key, report(seq))).status, 200);
@@ -244,7 +246,7 @@ test('plugin GET and POST share a four-request-per-second key bucket and report 
   const oversized = await f.plugin('/api/plugin/v1/report', second.key, report(0, { padding: 'x'.repeat(16384) })); assert.equal(oversized.status, 413);
   assert.equal((await f.plugin('/api/plugin/v1/report', second.key, report(0, { position: { x: 200, z: 49, floor: 0 } }))).status, 400);
   assert.equal(f.app.store.getInfo().revision, 0);
-  await delay(1050);
+  now += 1000;
   assert.equal((await f.plugin('/api/plugin/v1/status', first.key)).status, 200);
 });
 

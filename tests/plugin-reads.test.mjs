@@ -1,9 +1,10 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { pluginDoneRows, pluginDoneList, pluginDoneLocations, rememberActiveLocations, PLUGIN_REMEMBERED_LOCATIONS, pluginRollSummary, PLUGIN_DONE_LIMIT, PLUGIN_DONE_AGE_MS } from '../app/game-plugin-tasks.mjs';
 
@@ -148,15 +149,15 @@ test('roll summaries group the exact prediction delta and bound plain-text highl
 test('GET status summaries only peek while preserving missing-pool warmup', async t => {
   const f = await fixture(t);
   const first = await f.call('status'); assert.ok(first.pendingRoll.every(row => row.summary === null));
-  await delay(10);
+  await nextTurn();
   f.setPrediction({ delta: { tasksAdded: [task('q', 'Quest')] } });
   const next = await f.call('status'); assert.equal(next.pendingRoll[0].summary.newTasks.quests, 1);
-  await f.call('status'); await delay(10);
+  await f.call('status'); await nextTurn();
   assert.deepEqual(f.reads, { claimReads: 0, historyReads: 0 });
   f.save.revision++; f.setPrediction(null);
   assert.equal((await f.call('status')).pendingRoll[0].summary, null, 'No summary survives a changed prediction scope');
   assert.equal('lastRoll' in next, false, 'A post-unlock state cannot reuse the pre-unlock prediction');
-  await delay(10); assert.ok(f.poolWarms >= 1, 'Status still warms a missing roll pool, as before');
+  await nextTurn(); assert.ok(f.poolWarms >= 1, 'Status still warms a missing roll pool, as before');
 });
 
 

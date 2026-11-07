@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, readdir, rm } from 'node:fs/promises';
@@ -233,7 +234,7 @@ test('a killed writer leaves the preceding versioned state readable and backed u
     const store = await openStore({ dataDir: ${JSON.stringify(f.dataDir)}, completionCodec: true,
       beforeCommit: () => process.kill(process.pid, 'SIGKILL') });
     await store.command(${JSON.stringify(complete(1))}, 1);`;
-  const child = spawnSync(process.execPath, ['--input-type=module', '-e', source], { timeout: 15000 });
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', source], {});
   // Windows reports a self-SIGKILL as a non-zero exit status, not a signal.
   if (process.platform === 'win32') assert.ok(child.status !== 0 && child.status !== null, `writer must die before committing (status ${child.status})`);
   else assert.equal(child.signal, 'SIGKILL');

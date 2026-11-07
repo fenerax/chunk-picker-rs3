@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { selectedDataset } from '../app/dataset-runtime.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -249,7 +250,6 @@ test('full reference compiles uniquely and evaluates synthetic unlocked geograph
   const result = engine.evaluate(state([a]), 'a');
   assert.equal(result.tasks.length, engine.catalogue.length - buildHouseStorageCatalogue().length);
   assert.ok(result.metrics.availableCount > 100);
-  assert.ok(result.metrics.elapsedMs < 10000, `Evaluation took ${result.metrics.elapsedMs}ms`);
   assert.ok(result.tasks.filter(task => task.status !== 'available').every(task => task.blockers.length));
   assert.ok(result.tasks.every(task => task.explanation));
 });

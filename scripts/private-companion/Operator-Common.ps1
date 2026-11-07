@@ -29,7 +29,8 @@ function Assert-OperatorPath([string]$Path, [switch]$Directory) {
 }
 
 function Invoke-OperatorForeground([string]$Executable, [string]$Arguments,
-    [ValidateRange(1,650)][int]$TimeoutSeconds = 120) {
+    [ValidateRange(1,650)][int]$TimeoutSeconds = 120,
+    [scriptblock]$WaitForExit = { param($Process, $Milliseconds) $Process.WaitForExit($Milliseconds) }) {
     # A background picker may retain inherited pipe handles despite its own log
     # redirection. Drain helper output privately, but wait only for its process.
     $child = [Diagnostics.Process]::new()
@@ -48,9 +49,9 @@ function Invoke-OperatorForeground([string]$Executable, [string]$Arguments,
         $child.Handle | Out-Null
         $child.BeginOutputReadLine()
         $child.BeginErrorReadLine()
-        if (-not $child.WaitForExit([int]($TimeoutSeconds * 1000))) {
+        if (-not (& $WaitForExit $child ([int]($TimeoutSeconds * 1000)))) {
             $timedOut = $true
-            if (-not $child.HasExited) { $child.Kill(); $null = $child.WaitForExit(5000) }
+            if (-not $child.HasExited) { $child.Kill(); $null = & $WaitForExit $child 5000 }
             throw 'Foreground operator helper exceeded its deadline.'
         }
         if ($child.ExitCode -ne 0) { throw 'Foreground operator helper refused.' }

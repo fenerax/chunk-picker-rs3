@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm, stat } from 'node:fs/promises';
@@ -13,8 +14,8 @@ function run(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [harness, ...args], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let error = ''; child.stderr.on('data', bytes => { error += bytes; }); child.stdout.resume();
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Harness exceeded 55 seconds.')); }, 55000);
-    child.once('error', reject); child.once('exit', code => { clearTimeout(timer); resolve({ code, error }); });
+
+    child.once('error', reject); child.once('exit', code => { resolve({ code, error }); });
   });
 }
 function onlyNumbers(value) {
@@ -22,7 +23,7 @@ function onlyNumbers(value) {
   return value !== null && typeof value === 'object' && Object.values(value).every(onlyNumbers);
 }
 
-test('footprint trials use scratch copies, numeric reports, cold/warm tasks and store-only contexts', { timeout: 60000 }, async () => {
+test('footprint trials use scratch copies, numeric reports, cold/warm tasks and store-only contexts', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'picker-footprint-test-'));
   try {
     const store = path.join(root, 'source'); await mkdir(store);

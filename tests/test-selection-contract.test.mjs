@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { classifyTest, concurrencyFor, createTestSelection, discoverTests, fullConcurrency, readTestSelection, selectTests, testRunPolicy } from '../scripts/test-selection.mjs';
@@ -23,7 +24,7 @@ test('test children share native bytecode cache and remove only their owned cach
   try {
     const child = execFileSync(process.execPath, ['--input-type=module', '-e',
       "import { getCompileCacheDir } from 'node:module'; console.log(getCompileCacheDir());"],
-    { env: run.env, encoding: 'utf8', windowsHide: true, timeout: 10000 }).trim();
+    { env: run.env, encoding: 'utf8', windowsHide: true}).trim();
     const relative = path.relative(run.env.NODE_COMPILE_CACHE, child);
     assert.ok(!relative.startsWith('..') && !path.isAbsolute(relative));
     await access(child);
@@ -129,7 +130,7 @@ test('discovery uses the supplied tree and an untagged new file executes without
   assert.equal(selection.testRunPolicy('tagged.test.mjs').env.RS3_DATASET, 'open-f2p');
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const output = execFileSync(process.execPath, ['--test', '--test-reporter=tap', file], { env, encoding: 'utf8', windowsHide: true, timeout: 10000 });
+  const output = execFileSync(process.execPath, ['--test', '--test-reporter=tap', file], { env, encoding: 'utf8', windowsHide: true});
   assert.match(output, /automatic default runs/);
   assert.match(output, /(?:#|ℹ) pass 1/);
   // Removing/renaming a migrated exception must not leave a registry gate.

@@ -19,16 +19,15 @@ const probe = globalThis.__residentPlanningProbe = {
     if (selected !== stage || !request?.residentOnly || paused) return;
     paused = true;
     parentPort.postMessage({ id: request.id, type: 'progress', planningPaused: true, stage });
-    const cancellation = new Int32Array(request.cancellation), deadline = Date.now() + 15000;
+    const cancellation = new Int32Array(request.cancellation);
     // Wait for a real scheduler cancellation after at least one location was
     // built. This is a synchronization barrier, never a performance sample.
     while (!Atomics.load(cancellation, 0)) {
-      if (Date.now() > deadline) throw new Error('Synthetic planning cancellation did not arrive.');
-      Atomics.wait(cancellation, 0, 0, 10);
+      Atomics.wait(cancellation, 0, 0);
     }
     // Emulate an uninterruptible native segment. A fake scheduler clock drives
     // retirement, so this checks a work bound rather than elapsed PC time.
-    if (workerData.stuckResidentPlanning) for (;;) Atomics.wait(cancellation, 0, 1, 10000);
+    if (workerData.stuckResidentPlanning) for (;;) Atomics.wait(cancellation, 0, 1);
   },
 };
 parentPort.on('message', message => {

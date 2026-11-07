@@ -129,11 +129,33 @@ The final summary reports selected files, completed attempts and `overheadMs`:
 measured ledger initialization, serialization, redaction and synchronous I/O,
 plus native error transport and dataset receipt collection costs. This measures
 instrumentation work, not a causal comparison of total job runtimes. Artifact
-transfer time is separate. The targeted ledger test also benchmarks 750 files
-against a two-second wall budget and kills a synthetic writer to verify partial
-recovery. No full suite is needed to run that test.
+transfer time is separate. The targeted ledger test checks 750 synthetic file receipts and kills a
+synthetic writer to verify partial recovery. Durations are diagnostic only. No full suite is needed to run that test.
 
 ## Adding tests
+
+### Deterministic checks
+
+Import `./helpers/file-safety-stop.mjs` once in a test entry that needs a hang
+stop (keep any `@test` header first). It gives the entire file one ten-minute
+outer safety stop and reports the file, PID and active test names. A separate
+worker can stop even synchronous hangs. This is the only real-time bound a
+test may add; do not add per-test, subprocess, fetch or Promise-race deadlines.
+
+Prove behavior with manual clocks, events or explicit acknowledgements. Pass a
+controlled clock through the product's defaulted timer dependency when necessary;
+production defaults keep using native timers. Complexity guards count calls,
+visits or cache hits. Pure speed budgets belong in a separate non-blocking
+benchmark, not in the suite. Do not replace a sleep with a fixed number of event
+loop turns to wait for work: await its acknowledgement. A next-turn flush may
+prove that already-queued synchronous/microtask work is complete.
+
+`tests/test-timing-policy.test.mjs`, beside the provenance check, scans executable
+test source for elapsed-time assertions, timeout options and timer deadlines.
+Its errors give the file, line and replacement. The explicit, reasoned allowlist
+in `tests/helpers/timing-policy.mjs` covers only separately owned rebuilds and
+production-bound checks driven by controlled clocks. Comments and fixture text
+do not exempt executable timing checks.
 
 ### Hosted stability proof
 
@@ -145,9 +167,11 @@ SHA; repair the test and start a new proof. This loop supplements full coverage.
 
 The **Stability** workflow selects directly added/modified top-level
 `tests/*.test.mjs` files against the PR merge base and tests the CI merge checkout.
-Helper-only changes require manual file selection. Linux always runs; files in
-`.github/windows-slice/run.mjs` also run on Windows with that lane's environment
-and ownership setup. Each repetition uses the existing adaptive runner and
+Helper-only changes require manual file selection. Portable cases run on Linux;
+files in `.github/windows-slice/run.mjs` also run on Windows with that lane's
+environment and ownership setup. Native Windows-only entries are planned only
+on Windows; an all-skipped Linux file cannot establish proof. The two detector
+entries use the differential workflow's isolated Linux container. Each repetition uses the existing adaptive runner and
 per-file dataset/execution policy in a fresh process, with one worker and no
 retry. Up to ten hosted jobs per OS divide the repetitions (at most twenty jobs).
 Inputs/caches are prepared once per job, as in the ordinary suite.
@@ -166,8 +190,9 @@ Each repetition must execute at least one case, with every executed case passing
 and no todos. Receipts retain executed, passed, failed, cancelled, skipped and todo
 case counts. Partial skips are visible; an empty or all-skipped file fails even
 if another OS passes. Dispatch Windows-only files on Windows to obtain their
-proof. Detector/differential and other dedicated lanes are explicitly refused
-(`loop not supported for this lane`) until their CI environments are supported.
+proof. The two detector integration entries run in the same disposable Linux
+container and clean environment as differential CI. Other dedicated lanes are
+explicitly refused (`loop not supported for this lane`).
 Discovery shares the suite's entry filename rule; an entry the loop cannot
 represent safely fails planning with its filename instead of disappearing.
 
@@ -228,7 +253,7 @@ node scripts/ci/compare-test-classification.mjs cde6e485
 
 It compares suite membership, solo/shared, environment values and removals,
 lanes, fixed-port exceptions, concurrency, CI graph and runner commands for
-every existing entrypoint, and checks classification stays below one second.
+every existing entrypoint. Classification speed belongs in a non-blocking benchmark.
 
 Inspect storage defaults before running a test that writes files. Use isolated
 synthetic saves and temporary directories; never point tests at a personal save.
@@ -249,9 +274,10 @@ or static route, include `tests/server.test.mjs` and
 `tests/browser-module-graph.test.mjs`. Targeted local checks still require the
 complete CI gate.
 
-On the shared PC, acquire the shared `heavy.lock` directory atomically with an
-`owner.txt` before multi-file tests. Keep heavy steps sequential at BelowNormal
-priority, pass `--test-concurrency=1`, and release the lock within ten minutes.
+On a shared PC, follow its machine rules and shared lease adapter before
+multi-file tests. Never remove another producer's lock. Keep heavy steps
+sequential at BelowNormal priority, pass `--test-concurrency=1`, release the lease
+within ten minutes, and preserve any machine-required gap between heavy holds.
 Use the complete `testRunPolicy` environment described above for focused checks.
 
 ## Linux CI shards

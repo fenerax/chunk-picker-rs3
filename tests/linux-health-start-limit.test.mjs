@@ -1,4 +1,5 @@
 // @test quick
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
@@ -96,12 +97,13 @@ test('systemd adapter exposes crash identity and refuses health permits for fail
   await writeFile(f.settings.current, '{}');
   await writeFile(path.join(f.settings.controlDir, 'operation.lock'), JSON.stringify({ pid: process.pid }));
   let result = 'start-limit-hit', restarts = '3', activeState = 'failed', invocationId = 'synthetic-first', exitStatus = '0';
-  const controller = systemd(f.settings, { executeCommand: async (binary, args) => {
+  const now = 123456;
+  const controller = systemd(f.settings, { now: () => now, executeCommand: async (binary, args) => {
     assert.equal(binary, 'systemctl'); calls.push(args[0]);
     if (args[0] === 'show') return { stdout: `ActiveState=${activeState}\nSubState=${activeState === 'failed' ? 'failed' : 'dead'}\nMainPID=0\nControlGroup=\nTasksCurrent=0\nResult=${result}\nNRestarts=${restarts}\nInvocationID=${invocationId}\nActiveEnterTimestampMonotonic=0\nExecMainStartTimestampMonotonic=12345\nExecMainCode=1\nExecMainStatus=${exitStatus}\n` };
     assert.equal(args[0], 'start');
     const permit = JSON.parse(await readFile(path.join(f.settings.controlDir, 'start-permit.json'), 'utf8'));
-    assert(permit.expiresAt > Date.now()); return { stdout: '' };
+    assert.equal(permit.expiresAt, now + 30000); return { stdout: '' };
   } });
   const state = await controller.state();
   assert.equal(state.result, result); assert.equal(state.invocationId, 'synthetic-first'); assert.equal(state.restarts, '3');

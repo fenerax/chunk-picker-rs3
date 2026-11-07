@@ -22,7 +22,7 @@ export async function runWarmWriterProbe(directory, partition, source) {
         && file.endsWith('.tmp') && fs.existsSync(${JSON.stringify(armed)})) {
         fs.unlinkSync(${JSON.stringify(armed)});
         parentPort.postMessage({ type: 'test-warm-lock-held', file });
-        if (Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10000) === 'timed-out') throw Error('Synthetic writer gate timed out');
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
       }
       return result;
     };
@@ -44,12 +44,7 @@ export async function runWarmWriterProbe(directory, partition, source) {
       return emit.call(this, event, ...args);
     };
     async function held() {
-      let timer;
-      try {
-        return await Promise.race([heldMessage, new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error('Writer never held its lock')), 10000);
-        })]);
-      } finally { clearTimeout(timer); }
+      return heldMessage;
     }
     ${source}
   `);
@@ -58,7 +53,6 @@ export async function runWarmWriterProbe(directory, partition, source) {
   });
   let stderr = '';
   child.stderr.on('data', bytes => { stderr += bytes; });
-  const deadline = setTimeout(() => child.kill('SIGKILL'), 15000);
   try { assert.equal((await once(child, 'close'))[0], 0, stderr); }
-  finally { clearTimeout(deadline); if (child.exitCode === null) child.kill('SIGKILL'); }
+  finally { if (child.exitCode === null) child.kill('SIGKILL'); }
 }

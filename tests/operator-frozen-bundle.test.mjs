@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 // Independent synthetic inventory tests. No runtime imports, listeners or saves.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,7 +61,7 @@ if(-not $receipt.refused -or $receipt.storageChangesStarted -or $receipt.phase -
 Write-Output 'frozen inventory checks passed'
 `;
   const fixture = path.join(root,'fixture.ps1'); await writeFile(fixture,body);
-  const result = spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',fixture],{encoding:'utf8',timeout:30000,windowsHide:true});
+  const result = spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-File',fixture],{encoding:'utf8',windowsHide:true});
   assert.equal(result.status,0,result.stdout+result.stderr);
   assert.match(result.stdout,/frozen inventory checks passed/);
 });

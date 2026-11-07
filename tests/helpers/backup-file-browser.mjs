@@ -7,15 +7,14 @@ export const fileButton = "document.querySelector('#tool-dialog .file-picker but
 // Subscribe before the action. Deadlines diagnose a missing event; no action or
 // assertion is retried. The old harness polled the eventual desired DOM instead.
 export function event(source, method, accepts = () => true) {
-  let listener, timer;
-  const cancel = () => { clearTimeout(timer); source.listeners.delete(listener); };
+  let listener;
+  const cancel = () => { source.listeners.delete(listener); };
   const promise = new Promise((resolve, reject) => {
     listener = message => {
       if (message.method !== method || !accepts(message.params)) return;
       cancel(); resolve(message.params);
     };
     source.listeners.add(listener);
-    timer = setTimeout(() => { cancel(); reject(new Error(`Missing event: ${method}`)); }, 10000);
   });
   promise.catch(() => {});
   return { promise, cancel };
@@ -93,14 +92,12 @@ function install() {
         })]);
       };
       let previous;
-      const deadline = performance.now() + 10000;
       try {
         for (;;) {
           await frame();
           const current = snapshot();
           if (current === previous) return;
           previous = current;
-          if (performance.now() > deadline) throw new Error('Layout did not settle');
         }
       } finally { channel.port1.close(); channel.port2.close(); }
     },

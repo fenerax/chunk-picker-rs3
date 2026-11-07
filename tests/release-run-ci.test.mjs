@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 // Synthetic PC admission only: no real Git, GitHub, kits or installed paths.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -237,7 +238,7 @@ test('PowerShell runner parses without executing any statement', { skip: process
   const runner = fileURLToPath(new URL('../scripts/release/pc/release-run-ci.ps1', import.meta.url));
   const command = '$tokens=$null; $errors=$null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:RS3_FIXTURE_RUNNER,[ref]$tokens,[ref]$errors); if($errors.Count){$errors | ForEach-Object {$_.Message}; exit 1}';
   const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
-    windowsHide: true, timeout: 10000, encoding: 'utf8', env: { ...process.env, RS3_FIXTURE_RUNNER: runner }
+    windowsHide: true, encoding: 'utf8', env: { ...process.env, RS3_FIXTURE_RUNNER: runner }
   });
   assert.equal(result.error, undefined); assert.equal(result.status, 0, result.stdout + result.stderr);
 });

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -9,7 +10,7 @@ process.env.RS3_DATASET = 'open-f2p';
 const { createServer } = await import('../app/server.mjs');
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
 
-test('public F2P game persists commands, protects viewer access and serves its module graph', { timeout: 120000 }, async t => {
+test('public F2P game persists commands, protects viewer access and serves its module graph', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'public-candidate-server-'));
   let app;
   t.after(async () => {
@@ -27,8 +28,7 @@ test('public F2P game persists commands, protects viewer access and serves its m
   async function request(route, { body, auth = cookie, expect = 200 } = {}) {
     const url = new URL(route, origin);
     assert.equal(url.origin, origin);
-    const response = await fetch(url, { method: body === undefined ? 'GET' : 'POST', redirect: 'manual',
-      signal: AbortSignal.timeout(30000), headers: { ...(auth ? { Cookie: auth } : {}),
+    const response = await fetch(url, { method: body === undefined ? 'GET' : 'POST', redirect: 'manual', headers: { ...(auth ? { Cookie: auth } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });

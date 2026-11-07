@@ -1,10 +1,10 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 import { queuePrivate, dispatch, pairStatus, privateConfig, executionFor, parsePrivateArguments } from '../scripts/private-companion/post-merge-private.mjs';
 import { copyTools, toolDigest, buildText, textPins, pairProgress } from '../scripts/private-companion/postmerge-pair.mjs';
 import { laneEnvironment, stableExecution } from '../scripts/private-companion/release-evidence.mjs';
@@ -69,7 +69,7 @@ test('worker failure drains newest pair and terminates once without promotion', 
   assert.equal(finished.running, null); assert.equal(finished.queued, null);
 });
 
-test('concurrent stale reclaimers preserve a new live claim and durable newest request', { timeout: 3000 }, async t => {
+test('concurrent stale reclaimers preserve a new live claim and durable newest request', async t => {
   const { config, deps } = await fixture(t);
   await mkdir(config.logsRoot, { recursive: true });
   const claim = path.join(config.logsRoot, 'queue-claim.json'), guard = claim + '.reclaimer';
@@ -81,7 +81,8 @@ test('concurrent stale reclaimers preserve a new live claim and durable newest r
   const liveEntered = new Promise(resolve => { enteredLive = resolve; });
   const liveObserved = new Promise(resolve => { sawLive = resolve; });
   let deadChecks = 0, spawning = false, spawns = 0;
-  const concurrent = { ...deps, processIdentity: async pid => {
+  const contenderWaiting = Promise.withResolvers();
+  const concurrent = { ...deps, wait: async () => { contenderWaiting.resolve(); await deadHeld; }, processIdentity: async pid => {
     if (pid === 900001) { deadChecks++; enteredDead(); await deadHeld; return null; }
     if (spawning) sawLive();
     return deps.processIdentity(pid);
@@ -89,7 +90,7 @@ test('concurrent stale reclaimers preserve a new live claim and durable newest r
   const jobs = [queuePrivate(sha('b'), config, concurrent), queuePrivate(sha('c'), config, concurrent)];
   try {
     await deadEntered;
-    await delay(70); // Both notifications can reach recovery while its owner waits.
+    await contenderWaiting.promise; // The competing reclaimer reached the held ownership guard.
     assert.equal(deadChecks, 1);
     assert.ok(JSON.parse(await readFile(guard)).token);
     releaseDead(); await liveEntered;

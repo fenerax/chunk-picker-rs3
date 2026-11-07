@@ -1,4 +1,5 @@
 // @test solo dataset=open-f2p
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import workerThreads from 'node:worker_threads';
@@ -14,7 +15,7 @@ import { genericWorkerData } from './helpers/worker-dataset.mjs';
 const parse = () => runImportJob({ kind: 'parse', chunks: [Buffer.from('{}')], headers: { 'content-type': 'application/json' } });
 const definitions = { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] };
 
-test('an import isolate exhausting a small test heap fails alone and releases the import queue', { timeout: 20000 }, async () => {
+test('an import isolate exhausting a small test heap fails alone and releases the import queue', async () => {
   const OriginalWorker = workerThreads.Worker;
   workerThreads.Worker = class extends OriginalWorker {
     constructor(url, options) {
@@ -31,7 +32,7 @@ test('an import isolate exhausting a small test heap fails alone and releases th
   assert.deepEqual((await parse()).body, {});
 });
 
-test('process relay and calculator heap ceilings survive parent flag inheritance; isolate OOM preserves its code', { timeout: 20000 }, async t => {
+test('process relay and calculator heap ceilings survive parent flag inheritance; isolate OOM preserves its code', async t => {
   const fork = cp.fork;
   const probeImport = new URL('./fixtures/worker-memory-exhaustion.mjs', import.meta.url).href;
   cp.fork = (file, args, options) => {
@@ -71,12 +72,12 @@ test('RSS ceiling kills only the owned calculator immediately, including a nativ
 });
 
 test('oversized inherited V8 flags reject imports and disable optional publication safely', () => {
-  const result = spawnSync(process.execPath, ['--max-old-space-size=8192', fileURLToPath(new URL('./fixtures/worker-memory-override.mjs', import.meta.url))], { encoding: 'utf8', timeout: 15000 });
+  const result = spawnSync(process.execPath, ['--max-old-space-size=8192', fileURLToPath(new URL('./fixtures/worker-memory-override.mjs', import.meta.url))], { encoding: 'utf8'});
   assert.equal(result.status, 0, result.stderr);
-  const smallOverride = spawnSync(process.execPath, [`--max-old-space-size=${WORKER_OLD_GENERATION_MB + 2}`, fileURLToPath(new URL('./fixtures/worker-memory-override.mjs', import.meta.url))], { encoding: 'utf8', timeout: 15000 });
+  const smallOverride = spawnSync(process.execPath, [`--max-old-space-size=${WORKER_OLD_GENERATION_MB + 2}`, fileURLToPath(new URL('./fixtures/worker-memory-override.mjs', import.meta.url))], { encoding: 'utf8'});
   assert.equal(smallOverride.status, 0, smallOverride.stderr);
   const inherited = spawnSync(process.execPath, [fileURLToPath(new URL('./fixtures/worker-memory-override.mjs', import.meta.url))], {
-    encoding: 'utf8', timeout: 15000, env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=8192' },
+    encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=8192' },
   });
   assert.equal(inherited.status, 0, inherited.stderr);
   assert.equal(TASK_WORKER_RESOURCE_LIMITS.maxOldGenerationSizeMb, WORKER_OLD_GENERATION_MB);

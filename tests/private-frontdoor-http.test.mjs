@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -71,8 +73,7 @@ test('one door swaps during active traffic on both lanes with a shared drain and
   await f.door.route(f.identities[0]); await f.door.resume(f.identities[0]); f.hold();
   const headers = { host:'fixture', origin:'http://fixture', authorization:`Bearer ${master}` };
   const pending = f.lanes.map(lane => request(lane.port,lane.host,headers));
-  const deadline = Date.now()+2000;
-  while ((await f.door.status()).active !== 2 && Date.now()<deadline) await new Promise(resolve => setTimeout(resolve,2));
+  await waitForCondition(async () => (await f.door.status()).active === 2);
   assert.equal((await f.door.status()).active,2); await f.door.freeze();
   for (const lane of f.lanes) assert.equal((await request(lane.port,lane.host,headers)).status,503);
   f.release(); assert.deepEqual((await Promise.all(pending)).map(r=>r.body.version),['old','old']); await f.door.drain();

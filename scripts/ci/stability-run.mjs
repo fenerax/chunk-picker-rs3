@@ -22,7 +22,9 @@ export function diagnostic(error, cwd = process.cwd()) {
 export async function executeShard(task, { run, save, log = console.log }) {
   const rows = [], redactError = errorRedactor();
   for (const attempt of task.attempts) {
-    requireSupportedLane(attempt.file);
+    const lane = requireSupportedLane(attempt.file);
+    if (lane === 'detector' && (task.lane !== 'detector' || task.os !== 'linux'))
+      throw Error('Detector stability requires its isolated Linux container');
     log(`${attempt.file} ${task.os}: repetition ${attempt.repetition}/${attempt.total} (first attempt)`);
     const started = performance.now();
     const counter = caseCounter();

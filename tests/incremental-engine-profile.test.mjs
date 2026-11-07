@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -77,7 +78,8 @@ test('diagnostic preload preserves synthetic evaluate, prediction and How result
   for (const instrumented of [false, true]) {
     const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), {
       workerData: genericWorkerData({ definitions, world: { chunks: world.chunks, surface: world.surface } }),
-      ...(instrumented ? { execArgv: ['--import', new URL('../scripts/perf/incremental-engine-probe.mjs', import.meta.url).href] } : {}),
+      execArgv: ['--import', new URL('./fixtures/counting-clock.mjs', import.meta.url).href,
+        ...(instrumented ? ['--import', new URL('../scripts/perf/incremental-engine-probe.mjs', import.meta.url).href] : [])],
     });
     t.after(() => worker.terminate());
     try {

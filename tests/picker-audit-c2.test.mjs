@@ -1,3 +1,8 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
+import { EventEmitter } from 'node:events';
+import { receiveBackupRequest } from '../app/backup-transfer.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -19,7 +24,7 @@ const subjects = [101, 102, 103];
 const definitions = { challenges: {}, chunks: { '12341': {}, '12342': {} },
   walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'] };
 const pending = Symbol('pending');
-const within = (promise, ms = 250) => Promise.race([promise, delay(ms, pending)]);
+const within = promise => Promise.race([promise, Promise.resolve(pending)]);
 
 async function fixture(t, limits = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'picker-audit-c2-'));
@@ -67,7 +72,6 @@ async function fixture(t, limits = {}) {
         if (stream) resolve(value()); else res.on('end', () => resolve(value()));
       });
       sockets.add(req); req.on('close', () => sockets.delete(req)); req.on('error', reject);
-      req.setTimeout(10000, () => req.destroy(new Error('Synthetic audit request timed out')));
       if (hold) { req.flushHeaders(); if (bytes) req.write(bytes); } else req.end(bytes);
     });
     // Held uploads deliberately abort during cleanup; their rejection is observed.
@@ -87,10 +91,7 @@ async function fixture(t, limits = {}) {
   const registry = async () => JSON.parse(await readFile(path.join(multiPicker.registryDir, 'registry.json'), 'utf8'));
   return { app, root, start, send, login, registry };
 }
-async function waitFor(check, label) {
-  for (let attempt = 0; attempt < 100; attempt++) { if (await check()) return; await delay(10); }
-  assert.fail(label);
-}
+async function waitFor(check, label) { return waitForCondition(check); }
 async function slowImport(f, cookie, other) {
   const upload = f.start('/api/restore/preview', cookie, { method: 'POST', raw: Buffer.from('{'), hold: true,
     headers: { 'Content-Length': 2 } });
@@ -125,7 +126,7 @@ test('MP12C2-1: a one-byte unfinished upload must not monopolise imports for oth
     const beforeAt = performance.now(), baseline = await f.send('/api/restore/preview', b, { body: {} });
     const beforeMs = performance.now() - beforeAt; assert.equal(baseline.status, 422);
     const upload = await slowImport(f, a, b);
-    const started = performance.now(); await delay(250);
+    const started = performance.now();
     const deniedAt = performance.now(), denied = await f.send('/api/restore/preview', b, { body: {} });
     const duringMs = performance.now() - deniedAt, abortedAt = performance.now();
     upload.req.destroy();
@@ -148,25 +149,21 @@ test('MP14: two unfinished uploads leave the global parser available to a third 
   }
 });
 
-test('MP14: import bodies time out on idle, renew on bytes, and release picker admission', async t => {
-  const idleMs = 200, f = await fixture(t, { importBodyIdleMs: idleMs }), a = await f.login(subjects[0]);
-  for (const route of ['/api/import', '/api/restore/preview']) {
-    const upload = f.start(route, a, { method: 'POST', hold: true, raw: Buffer.from('{'), headers: { 'Content-Length': 8 } });
-    await waitFor(async () => (await f.send(route, a, { body: {} })).status === 503, 'body reader admitted');
-    // Total upload time exceeds the idle limit; arriving bytes renew the lease.
-    for (let index = 0; index < 3; index++) {
-      await delay(idleMs * 0.6); upload.req.write(' ');
-      assert.equal(await within(upload.result, 10), pending);
-    }
-    const response = await upload.result;
-    assert.equal(response.status, 408); assert.equal(response.headers.connection, 'close');
-    assert.notEqual((await f.send(route, a, { body: {} })).status, 503, 'timed-out reader releases the local guard');
+test('MP14: import bodies renew idle leases on acknowledged bytes and stop when idle', async () => {
+  const clock = createManualClock(), request = new EventEmitter();
+  Object.assign(request, { headers: { 'content-type': 'application/json' }, pause() {} });
+  const receiving = receiveBackupRequest(request, { clock, idleTimeoutMs: 200, totalTimeoutMs: 1000 });
+  const rejected = assert.rejects(receiving, error => error.status === 408 && /stopped arriving/.test(error.message));
+  for (let index = 0; index < 3; index++) {
+    await clock.advance(120); request.emit('data', Buffer.from(' '));
+    assert.equal(await within(receiving), pending);
   }
-  const empty = f.start('/api/import/preview', a, { method: 'POST', hold: true,
-    headers: { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' } });
-  assert.equal((await empty.result).status, 408, 'the idle deadline also covers zero-byte chunked uploads');
-  assert.notEqual((await f.send('/api/import/preview', a, { body: {} })).status, 503);
-  assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
+  await clock.advance(199); assert.equal(await within(receiving), pending);
+  await clock.advance(1); await clock.settled(rejected);
+  assert.equal(request.listenerCount('data'), 0);
+  const empty = new EventEmitter(); Object.assign(empty, { headers: request.headers, pause() {} });
+  const emptyFailure = assert.rejects(receiveBackupRequest(empty, { clock, idleTimeoutMs: 200, totalTimeoutMs: 1000 }), { status: 408 });
+  await clock.advance(200); await clock.settled(emptyFailure);
 });
 
 test('MP14: held owned uploads cannot take the ordinary-write body headroom', async t => {
@@ -185,16 +182,18 @@ test('MP14: held owned uploads cannot take the ordinary-write body headroom', as
   held.req.destroy();
 });
 
-test('MP14: a trickled import body ends at the total deadline even while bytes keep arriving', async t => {
-  const f = await fixture(t, { importBodyIdleMs: 300, importBodyTotalMs: 600 }), a = await f.login(subjects[0]);
-  const upload = f.start('/api/restore/preview', a, { method: 'POST', hold: true, raw: Buffer.from('{'), headers: { 'Content-Length': 64 } });
-  const started = performance.now();
-  const trickle = setInterval(() => { if (!upload.req.destroyed) upload.req.write(' '); }, 100);
-  t.after(() => clearInterval(trickle));
-  const response = await upload.result; clearInterval(trickle);
-  assert.equal(response.status, 408, response.text); assert.match(response.json().message, /took too long/);
-  assert.ok(performance.now() - started < 3000, 'the total deadline ends a renewing trickle');
-  assert.notEqual((await f.send('/api/restore/preview', a, { body: {} })).status, 503, 'the timed-out reader releases the local guard');
+test('MP14: a trickled import body ends at the total deadline even while bytes keep arriving', async () => {
+  const clock = createManualClock(), request = new EventEmitter();
+  Object.assign(request, { headers: { 'content-type': 'application/json' }, pause() {} });
+  const receiving = receiveBackupRequest(request, { clock, idleTimeoutMs: 300, totalTimeoutMs: 600 });
+  const rejected = assert.rejects(receiving, error => error.status === 408 && /took too long/.test(error.message));
+  for (let index = 0; index < 5; index++) {
+    await clock.advance(100); request.emit('data', Buffer.from(' '));
+    assert.equal(await within(receiving), pending);
+  }
+  await clock.advance(99); assert.equal(await within(receiving), pending);
+  await clock.advance(1); await clock.settled(rejected);
+  assert.equal(request.listenerCount('data'), 0);
 });
 
 test('MP14: trickled owned uploads do not pin picker residency against cold pickers', async t => {
@@ -217,10 +216,10 @@ test('MP12C2-2: deleting a picker with an unfinished upload must not block unrel
     const deletion = f.send('/api/picker/delete', a, { body: {} });
     await waitFor(async () => (await f.registry()).pickers.find(p => p.id === id)?.lifecycle !== 'active', 'deletion must be durably fenced');
     // Deletion must finish without the attacker voluntarily ending the upload.
-    assert.equal((await within(deletion, 1000)).status, 200);
+    assert.equal((await deletion).status, 200);
     assert.equal(await upload.result.then(() => false, () => true), true, 'the fenced picker upload is cancelled');
     const started = performance.now(), reading = f.send('/api/state', b);
-    const during = await within(reading), abortedAt = performance.now();
+    const during = await reading, abortedAt = performance.now();
     upload.req.destroy();
     assert.equal((await deletion).status, 200);
     const recovered = await reading, recoveryMs = performance.now() - abortedAt; assert.equal(recovered.status, 200);

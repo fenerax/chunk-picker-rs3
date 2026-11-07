@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, lstat, symlink } from 'node:fs/promises';
@@ -66,7 +67,7 @@ test('linked providers share a default and conflicting identities never merge ac
   assert.equal(f.registry.findIdentity('google', 'synthetic-linked').id, first.account.id);
 });
 
-for (const step of REGISTRY_PROVISION_POINTS) test(`process crash at ${step} resumes one default`, { timeout: 30000 }, async t => {
+for (const step of REGISTRY_PROVISION_POINTS) test(`process crash at ${step} resumes one default`, async t => {
   const f = await fixture(t);
   const result = await child(childOpen(f.options) + `
     const registry = await openRegistry({ ...options, crashPoint(name) { if (name === ${JSON.stringify(step)}) process.exit(86); } });
@@ -83,18 +84,36 @@ for (const step of REGISTRY_PROVISION_POINTS) test(`process crash at ${step} res
   await f.restart(); assert.equal((await f.registry.firstLogin('discord', 'synthetic-crash')).picker.id, login.picker.id);
 });
 
-test('two first-login processes serialize writers and select the same picker', { timeout: 30000 }, async t => {
-  const f = await fixture(t), source = childOpen(f.options) + `
-    import { setTimeout as delay } from 'node:timers/promises'; let registry;
-    for (let i = 0; i < 1000; i++) {
-      try { registry = await openRegistry(options); break; }
-      catch (failure) { if (failure.code !== 'REGISTRY_LOCKED') throw failure; await delay(10); }
-    }
-    if (!registry) throw new Error('Writer unavailable');
-    try { console.log((await registry.firstLogin('google', 'synthetic-race')).picker.id); } finally { await registry.close(); }`;
-  const results = await Promise.all([child(source), child(source)]);
-  for (const result of results) assert.equal(result.code, 0, result.stderr);
-  assert.equal(results[0].stdout.trim(), results[1].stdout.trim());
+test('two first-login processes serialize writers and select the same picker', async t => {
+  const f = await fixture(t);
+  function controlled(source) {
+    const processChild = spawn(process.execPath, ['--input-type=module', '-e', childOpen(f.options) + source],
+      { stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true });
+    let stderr = ''; processChild.stderr.on('data', bytes => { stderr += bytes; });
+    const exited = once(processChild, 'close');
+    t.after(async () => { if (processChild.exitCode === null && processChild.signalCode === null) processChild.kill(); await exited; });
+    const message = () => Promise.race([once(processChild, 'message').then(([value]) => value),
+      exited.then(() => assert.fail('Registry child exited before acknowledgement: ' + stderr))]);
+    return { processChild, exited, message };
+  }
+  const first = controlled(`
+    const registry = await openRegistry(options);
+    process.send({ picker: (await registry.firstLogin('google', 'synthetic-race')).picker.id });
+    await new Promise(resolve => process.once('message', resolve));
+    await registry.close(); process.disconnect();`);
+  const initial = await first.message();
+  const second = controlled(`
+    import assert from 'node:assert/strict';
+    await assert.rejects(openRegistry(options), { code: 'REGISTRY_LOCKED' });
+    process.send({ blocked: true });
+    await new Promise(resolve => process.once('message', resolve));
+    const registry = await openRegistry(options);
+    process.send({ picker: (await registry.firstLogin('google', 'synthetic-race')).picker.id });
+    await registry.close(); process.disconnect();`);
+  assert.deepEqual(await second.message(), { blocked: true });
+  first.processChild.send('release'); assert.equal((await first.exited)[0], 0);
+  const selected = second.message(); second.processChild.send('acquire');
+  assert.deepEqual(await selected, initial); assert.equal((await second.exited)[0], 0);
   await f.open(); assert.equal(f.registry.listPickers().length, 1); assert.equal((await json(f.ledger)).issuedPickerIds.length, 1);
 });
 
@@ -245,7 +264,7 @@ test('tombstones reconcile restored accounts, memberships and capabilities befor
   assert.equal((await json(f.file)).accounts.length, 1);
 });
 
-for (const step of ['picker-tombstoned', 'picker-deleted', 'account-tombstoned']) test(`process crash at ${step} cannot resurrect credentials`, { timeout: 30000 }, async t => {
+for (const step of ['picker-tombstoned', 'picker-deleted', 'account-tombstoned']) test(`process crash at ${step} cannot resurrect credentials`, async t => {
   const f = await fixture(t); await f.open(); const login = await f.registry.firstLogin('google', 'synthetic-delete-crash');
   const key = capability(login); await f.registry.setCapability(key);
   if (step === 'picker-deleted') { await f.registry.beginPickerDeletion(login.picker.id); await purge(f, login.picker.id); } await f.close();
@@ -264,7 +283,7 @@ test('tombstones block capabilities before registry cleanup finishes', async t =
   await f.registry.beginPickerDeletion(login.picker.id); assert.equal(observed, null);
 });
 
-test('writer locks contend across instances, processes and shared ledger roots', { timeout: 30000 }, async t => {
+test('writer locks contend across instances, processes and shared ledger roots', async t => {
   const f = await fixture(t); await f.open(); await assert.rejects(openRegistry(f.options), { code: 'REGISTRY_LOCKED' });
   await assert.rejects(openRegistry({ ...f.options, registryDir: path.join(f.root, 'other-registry') }), { code: 'REGISTRY_LOCKED' });
   const result = await child(childOpen(f.options) + `try { await openRegistry(options); process.exit(1); } catch (failure) { process.exit(failure.code === 'REGISTRY_LOCKED' ? 0 : 2); }`); assert.equal(result.code, 0, result.stderr);

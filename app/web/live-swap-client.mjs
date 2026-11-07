@@ -50,6 +50,7 @@ function validReceipt(receipt, requestId) {
 export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch = (...args) => globalThis.fetch(...args),
   pickerId, uuid = sessionUUID, sleep = delay => new Promise(resolve => setTimeout(resolve, delay)),
   timeoutMs = 15000, onRetry = () => {}, acquireSession = acquireBrowserSession, ackDelayMs = 5000,
+  clock = { setTimeout: (...args) => setTimeout(...args), clearTimeout: timer => clearTimeout(timer) },
   maxAttempts = 12, maxRetryMs = 120000, now = () => Date.now() } = {}) {
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || !Number.isFinite(maxRetryMs) || maxRetryMs <= 0
     || !Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('Positive save retry limits are required.');
@@ -61,7 +62,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
   let queue = Promise.resolve(), acknowledged = 0;
   let releaseSession, ownedClientId, ownershipPending, pendingOwnerId, documentActive = true, ackTimer;
   function releaseOwnership() {
-    clearTimeout(ackTimer); ackTimer = undefined;
+    clock.clearTimeout(ackTimer); ackTimer = undefined;
     documentActive = false;
     releaseSession?.(); releaseSession = undefined; ownedClientId = undefined;
   }
@@ -234,8 +235,8 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
   }
   function scheduleAcknowledgement() {
     if (!documentActive) return;
-    clearTimeout(ackTimer);
-    ackTimer = setTimeout(() => {
+    clock.clearTimeout(ackTimer);
+    ackTimer = clock.setTimeout(() => {
       ackTimer = undefined;
       // ACKs only prune retained receipts; their network response must never hold
       // the command queue. A following save carries the same watermark itself.
@@ -262,7 +263,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
       storage?.removeItem(outboxKey); storage?.removeItem(oldOutboxKey);
     },
     confirm: ({ signal, lazy = false } = {}) => lazy ? (scheduleAcknowledgement(), Promise.resolve())
-      : Promise.resolve().then(async () => { clearTimeout(ackTimer); const record = read(); if (record && !record.body && !record.unsent) await acknowledge(record, signal); }),
+      : Promise.resolve().then(async () => { clock.clearTimeout(ackTimer); const record = read(); if (record && !record.body && !record.unsent) await acknowledge(record, signal); }),
     send: (body, { signal, retry = false } = {}) => serialize(async () => {
       let record = read();
       const fresh = !record?.body;

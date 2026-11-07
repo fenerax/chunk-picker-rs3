@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -10,7 +11,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from
 import { encode, exclusive, json, sha } from '../scripts/linux/files.mjs';
 
 const execute = promisify(execFile);
-const linux = { skip: process.platform !== 'linux', timeout: 15000 };
+const linux = { skip: process.platform !== 'linux'};
 const operatorUrl = new URL('../scripts/linux/operator.mjs', import.meta.url).href;
 const bootFile = new URL('../scripts/linux/start-check.mjs', import.meta.url);
 

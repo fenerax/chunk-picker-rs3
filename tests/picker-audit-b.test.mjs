@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -33,7 +34,6 @@ function request(base, route, { body, method = body === undefined ? 'GET' : 'POS
         resolve({ status: res.statusCode, headers: res.headers, text, json: () => JSON.parse(text) });
       });
     });
-    req.setTimeout(10000, () => req.destroy(new Error('Synthetic audit request timed out')));
     req.on('error', reject); req.end(bytes);
   });
 }

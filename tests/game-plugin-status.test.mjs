@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -95,7 +96,7 @@ test('a missing pool is warmed after the status reply, so the next status shows 
   const request = { method: 'POST', url: '/api/plugin/v1/report', headers: { authorization: `Bearer ${key}` } };
   await controller.handle(request, {}, { route: request.url, security: {} });
   assert.equal(output.state, 'locked'); assert.equal(calculated, 0, 'The reply never waits for a pool');
-  await new Promise(resolve => setTimeout(resolve, 5));
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(calculated, 1);
   at += 1001; request.method = 'GET'; request.url = '/api/plugin/v1/status';
   await controller.handle(request, {}, { route: request.url, security: {} });

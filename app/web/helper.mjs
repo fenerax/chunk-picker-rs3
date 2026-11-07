@@ -7,7 +7,7 @@ export const helperSections = Object.freeze([
   { id: 'utilities', label: 'XP & combat', module: './helper-utilities.mjs', render: 'renderUtilities' },
   { id: 'progress', label: 'Progress', module: './helper-progress.mjs', render: 'renderProgress' },
 ]);
-export function createHelperView({ viewCache, api, getState, getMemberId, getResult, getPreferences = () => ({}), canWrite = () => false, command, usage, document = globalThis.document }) {
+export function createHelperView({ viewCache, api, getState, getMemberId, getResult, getPreferences = () => ({}), canWrite = () => false, command, usage, document = globalThis.document, clock = { setTimeout, clearTimeout } }) {
   const launch = document.getElementById('helper-open'); if (!launch) return;
   const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
   let page, host, selector, nav, active = 'training', owner, generation = 0, dispose, timer, scope, lastResult, requestedTarget, renderedKey, countedSection, context;
@@ -17,7 +17,7 @@ export function createHelperView({ viewCache, api, getState, getMemberId, getRes
   const matchingResult = () => { const result = getResult(owner); return result?.stateRevision === getState()?.revision ? result : undefined; };
   const isF2p = () => getState()?.rules?.['content.f2p'] !== false;
   const currentScope = () => `${owner}:${isF2p()}:${getState()?.revision}`;
-  function close() { generation++; dispose?.(); dispose = undefined; clearTimeout(timer); host?.replaceChildren(); drafts.clear(); lastResult = scope = requestedTarget = renderedKey = countedSection = undefined; if (page) page.hidden = true; picker.hidden = false; launch.setAttribute('aria-pressed', 'false'); launch.focus(); }
+  function close() { generation++; dispose?.(); dispose = undefined; clock.clearTimeout(timer); host?.replaceChildren(); drafts.clear(); lastResult = scope = requestedTarget = renderedKey = countedSection = undefined; if (page) page.hidden = true; picker.hidden = false; launch.setAttribute('aria-pressed', 'false'); launch.focus(); }
   async function render() {
     const request = ++generation; if (renderedKey && dispose?.getDraft) drafts.set(renderedKey, dispose.getDraft()); dispose?.(); dispose = undefined; const member = currentMember(); if (!member) return;
     if (countedSection !== active) { usage?.pageOpened(`helper:${active}`); countedSection = active; }
@@ -42,7 +42,7 @@ export function createHelperView({ viewCache, api, getState, getMemberId, getRes
     const result = matchingResult(), nextScope = currentScope();
     if (scope !== nextScope || (active === 'goals' && result !== lastResult)) void render();
     else if (result !== lastResult) { lastResult = result; dispose?.refreshResult?.(); }
-    timer = setTimeout(watch, 400);
+    timer = clock.setTimeout(watch, 400);
   }
   function open() {
     if (!getState()) return;
@@ -63,7 +63,7 @@ export function createHelperView({ viewCache, api, getState, getMemberId, getRes
     }
     owner = getMemberId(); selector.replaceChildren();
     for (const member of getState().members) { const option = el('option', member.name); option.value = member.id; selector.append(option); } selector.value = owner; memberSelect(selector, getState().members);
-    picker.hidden = true; page.hidden = false; launch.setAttribute('aria-pressed', 'true'); document.getElementById('helper-title').focus(); void render(); clearTimeout(timer); watch();
+    picker.hidden = true; page.hidden = false; launch.setAttribute('aria-pressed', 'true'); document.getElementById('helper-title').focus(); void render(); clock.clearTimeout(timer); watch();
   }
   launch.addEventListener('click', () => page && !page.hidden ? close() : open()); launch.setAttribute('aria-pressed', 'false');
   return { open, close };

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,14 +81,7 @@ test('HTTP previews follow random-start provenance across warm caches, edits, ba
   assert.deepEqual(reloaded.tasks, actual.tasks);
 });
 async function until(operation, predicate) {
-  const deadline = Date.now() + 15000;
-  let value;
-  do {
-    value = await operation();
-    if (predicate(value)) return value;
-    await new Promise(resolve => setTimeout(resolve, 25));
-  } while (Date.now() < deadline);
-  assert.fail(`Background predictions did not settle: ${JSON.stringify(value.predictionLane)}`);
+  return waitForCondition(async () => { const value = await operation(); return predicate(value) ? value : undefined; });
 }
 
 test('server warms selected and pending predictions without calculating the unopened pool', async t => {

@@ -1,6 +1,6 @@
 import { open, readFile, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import path from 'node:path';
 import { loadGameDefaults } from '../game-defaults.mjs';
 
@@ -57,7 +57,7 @@ async function atomicWrite(file, document) {
       try { await rename(temporary, file); break; }
       catch (failure) {
         if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(failure.code) || attempt >= 6) throw failure;
-        await delay(20 * 2 ** attempt);
+        await nextTurn();
       }
     }
   } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }

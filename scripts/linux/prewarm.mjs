@@ -83,7 +83,7 @@ async function readableSnapshot(settings, dataDir, gid, filesystem) {
 }
 const budgetSpent = Symbol('prewarm budget spent');
 export async function prewarmCandidate({ settings, candidate, dataDir, execute = spawn,
-  filesystem = { lstat, open, readdir }, queryIdentity = identityCommand, timeoutMs = 180000 }) {
+  filesystem = { lstat, open, readdir }, queryIdentity = identityCommand, timeoutMs = 180000, clock = { setTimeout, clearTimeout } }) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 180000) return false;
   // One deadline from entry covers script checks, identity lookup, snapshot
   // preparation, spawn and the child itself. Termination time is reserved
@@ -91,7 +91,7 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
   const terminationMs = Math.min(5000, Math.floor(timeoutMs / 10));
   let deadlineReached = false, deadlineAction = () => {}, expire;
   const expired = new Promise(resolve => { expire = resolve; });
-  const deadline = setTimeout(() => { deadlineReached = true; expire(budgetSpent); deadlineAction(); }, timeoutMs - terminationMs);
+  const deadline = clock.setTimeout(() => { deadlineReached = true; expire(budgetSpent); deadlineAction(); }, timeoutMs - terminationMs);
   const bounded = async work => {
     const value = await Promise.race([work, expired]);
     if (value === budgetSpent) throw Error('Prewarm budget spent.');
@@ -135,14 +135,14 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
       };
       const finish = result => {
         if (finished) return;
-        finished = true; clearTimeout(deadline); clearTimeout(terminationTimer); clearTimeout(groupTimer); resolve(result);
+        finished = true; clock.clearTimeout(deadline); clock.clearTimeout(terminationTimer); clock.clearTimeout(groupTimer); resolve(result);
       };
       // The entry deadline kills the tree; the reserved termination time ends
       // the wait. A stopped calculator cannot defer SIGKILL.
       const onDeadline = () => {
         if (finished || timedOut) return;
         timedOut = true;
-        terminationTimer = setTimeout(() => finish(false), terminationMs);
+        terminationTimer = clock.setTimeout(() => finish(false), terminationMs);
         killTree();
       };
       deadlineAction = onDeadline;
@@ -161,7 +161,7 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
           const waitForGroup = () => {
             try { process.kill(-child.pid, 0); }
             catch (error) { if (error.code === 'ESRCH') { finish(false); return; } }
-            groupTimer = setTimeout(waitForGroup, 20);
+            groupTimer = clock.setTimeout(waitForGroup, 20);
           };
           waitForGroup();
         } else finish(!timedOut && code === 0);
@@ -169,7 +169,7 @@ export async function prewarmCandidate({ settings, candidate, dataDir, execute =
     });
   } catch { return false; }
   finally {
-    clearTimeout(deadline);
+    clock.clearTimeout(deadline);
     // A snapshot still being prepared when the budget ran out closes when it lands.
     if (!snapshot) pendingSnapshot?.then(handle => handle.close()).catch(() => {});
     try { await snapshot?.close(); } catch { /* Optional descriptor cleanup. */ }

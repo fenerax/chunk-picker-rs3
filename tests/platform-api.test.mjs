@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createPlatformApiClient } from '../app/integrations/platform-api.mjs';
@@ -32,7 +33,7 @@ for (const fixture of cases) {
     await rejectsSize(client(t, () => new Response(text)).snapshot(member));
   });
 
-  test(`${fixture.name} cancels an endless stream immediately after crossing the byte limit`, { timeout: 2000 }, async t => {
+  test(`${fixture.name} cancels an endless stream immediately after crossing the byte limit`, async t => {
     let pulls = 0, cancelled = false;
     const body = new ReadableStream({
       pull(controller) { pulls++; controller.enqueue(new Uint8Array(64 * 1024).fill(32)); },

@@ -90,7 +90,7 @@ try {
         const { switchTools } = await import(${JSON.stringify(installer)});
         await switchTools({ ...${JSON.stringify(switching)}, idle: async () => {}, identity: async () => (${JSON.stringify(account)}) });`;
       assert.throws(() => execFileSync(process.execPath, ['--input-type=module', '-e', hook],
-        { stdio: ['ignore', 'pipe', 'pipe'], timeout: 90000, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } }),
+        { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } }),
       error => error.signal === 'SIGKILL', `${action} ${point}`);
       assert(await exists(path.join(controlDir, 'operation.lock')));
       const committed = point === 'after-commit';

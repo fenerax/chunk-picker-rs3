@@ -1,4 +1,5 @@
 // @test quick dataset=open-f2p
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -100,10 +101,10 @@ for (const groupOn of [false, true]) test(`Why HTTP equals full results for both
     const taskId = lists.get(memberId).tasks[0].id, before = jobs.length;
     // Full gzip retention runs asynchronously after the list response.
     let viewer;
-    for (let attempt = 0; attempt < 100; attempt++) {
+    for (;;) {
       viewer = await fetch(origin + route(memberId, taskId), { headers: { cookie } });
       if (viewer.ok) break;
-      await viewer.arrayBuffer(); await new Promise(resolve => setTimeout(resolve, 10));
+      await viewer.arrayBuffer(); await new Promise(resolve => setImmediate(resolve));
     }
     assert.equal(viewer.status, 200); assert.equal(jobs.length, before);
     const saved = await get(route(memberId, taskId));

@@ -58,7 +58,7 @@ export function redactedResticTail(stderr) {
     .map(line => '[redacted] ' + (line.match(phrases) ?? []).join(' ').slice(0, 160)).join('\n').slice(-1536);
 }
 export function executeRestic(binary, args, { env, signal, packProducing = false, timeoutMs = 25 * 60000,
-  log = message => process.stderr.write(message + '\n') }) {
+  log = message => process.stderr.write(message + '\n'), clock = { setTimeout, clearTimeout }, execute = spawn }) {
   return new Promise((resolve, reject) => {
     signal?.throwIfAborted();
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120 * 60000) throw Error('Invalid restic deadline.');
@@ -66,12 +66,12 @@ export function executeRestic(binary, args, { env, signal, packProducing = false
     // Linux has a hard per-pack ceiling. The trusted Windows PC uses the
     // same private temp directory, reserve admission and sampled byte budget.
     const limit = process.platform === 'linux' && packProducing;
-    const child = spawn(limit ? 'prlimit' : binary,
+    const child = execute(limit ? 'prlimit' : binary,
       limit ? [`--fsize=${resticPackLimit}:${resticPackLimit}`, '--', binary, ...args] : args,
       { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = '', bytes = 0, fault = false;
     const abort = () => child.kill('SIGKILL');
-    const timer = setTimeout(() => { fault = true; abort(); }, timeoutMs);
+    const timer = clock.setTimeout(() => { fault = true; abort(); }, timeoutMs);
     child.stdout.on('data', chunk => {
       // ls walks all trees, but its potentially huge listing is not a receipt.
       if (args.includes('ls')) return;
@@ -81,7 +81,7 @@ export function executeRestic(binary, args, { env, signal, packProducing = false
     child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-8192); });
     child.on('error', () => { fault = true; });
     child.on('close', code => {
-      clearTimeout(timer); signal?.removeEventListener('abort', abort);
+      clock.clearTimeout(timer); signal?.removeEventListener('abort', abort);
       if (fault || code !== 0 || signal?.aborted) {
         const phase = args.find(arg => ['backup', 'check', 'snapshots', 'ls', 'init', 'restore', 'stats', 'prune', 'forget'].includes(arg)) ?? 'command';
         log(`Restic ${phase} failed${fault ? ' (limit or process failure)' : ''}; stderr tail:\n${redactedResticTail(stderr) || '[empty]'}`);

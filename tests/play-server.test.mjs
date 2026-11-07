@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 import test from 'node:test';
@@ -221,13 +222,13 @@ test('optional startup preparation failure leaves degraded worker diagnostics an
 test('two authenticated clients receive each play commit over SSE and merge coherent own and peer revisions', async t => {
   const { request, origin } = await fixture(t), clients = [];
   const readRevision = async (reader, revision) => {
-    let text = ''; const deadline = setTimeout(() => { for (const client of clients) client.controller.abort(); }, 5000);
+    let text = '';
     try {
       while (!new RegExp(`data: \\{"revision":${revision}[,}]`).test(text)) {
         const chunk = await reader.read(); assert.equal(chunk.done, false); text += new TextDecoder().decode(chunk.value);
         assert.ok(text.length < 65536);
       }
-    } finally { clearTimeout(deadline); }
+    } finally { /* Readers are cancelled by the fixture cleanup. */ }
   };
   try {
     for (const label of ['Client one', 'Client two']) {

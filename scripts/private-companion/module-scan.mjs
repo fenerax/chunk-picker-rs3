@@ -9,10 +9,10 @@ const regexAfterWord = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'n
 const punctuators = ['>>>=', '...', '===', '!==', '**=', '<<=', '>>=', '>>>', '&&=', '||=', '??=', '=>', '==', '!=', '<=', '>=', '&&', '||', '??', '?.', '++', '--', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '**', '<<', '>>'];
 
 /** Tokens: {type:'word'|'punct'|'string'|'template'|'regex'|'number', value}. Throws on unbalanced input. */
-export function tokenize(source) {
+export function tokenize(source, { locations = false } = {}) {
   const tokens = [], braces = [];
-  let i = 0;
-  const push = (type, value) => tokens.push({ type, value });
+  let i = 0, start = 0;
+  const push = (type, value) => tokens.push({ type, value, ...(locations ? { start } : {}) });
   const regexAllowed = () => {
     const last = tokens.at(-1);
     if (!last) return true;
@@ -53,6 +53,7 @@ export function tokenize(source) {
     if (part.end === '${') { push('punct', '${'); braces.push('template'); }
   };
   while (i < source.length) {
+    start = i;
     const ch = source[i];
     if (ch === '\n' || ch === '\r' || ch === ' ' || ch === '\t' || ch === '\f' || ch === '\v' || ch === '﻿' || ch === ' ' || ch === ' ' || ch === ' ') { i++; continue; }
     if (ch === '#' && i === 0 && source[1] === '!') { const n = source.indexOf('\n'); i = n < 0 ? source.length : n; continue; }

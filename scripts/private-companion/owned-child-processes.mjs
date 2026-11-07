@@ -13,7 +13,7 @@ export function quoteWindowsArgument(value) {
 
 // Job membership is stronger than sampled parent PIDs: a short-lived launcher
 // cannot lose its descendants between snapshots, and PID reuse is irrelevant.
-const native = String.raw`
+export const OWNED_COMMAND_NATIVE_SOURCE = String.raw`
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -44,7 +44,7 @@ public static class OwnedCommandJob {
  public sealed class Result { public uint exitCode; public bool timedOut; public bool cleanupVerified; public uint forcedDescendants; public uint rootPid; }
  static void Require(bool value) { if(!value) throw new Win32Exception(Marshal.GetLastWin32Error()); }
  static uint Active(IntPtr job) { ACCOUNTING value; Require(QueryInformationJobObject(job,1,out value,(uint)Marshal.SizeOf(typeof(ACCOUNTING)),IntPtr.Zero)); return value.active; }
- public static Result Run(string executable,string command,string cwd,uint timeout) {
+ public static Result Run(string executable,string command,string cwd,uint timeout,Func<IntPtr,uint,uint> waitForExit=null) {
   IntPtr job=IntPtr.Zero,input=IntPtr.Zero; PROCESS child=new PROCESS(); bool assigned=false;
   try {
    job=CreateJobObject(IntPtr.Zero,null); Require(job!=IntPtr.Zero);
@@ -58,7 +58,7 @@ public static class OwnedCommandJob {
    Require(CreateProcess(executable,new StringBuilder(command),IntPtr.Zero,IntPtr.Zero,true,0x08000004,IntPtr.Zero,cwd,ref startup,out child));
    Require(AssignProcessToJobObject(job,child.process)); assigned=true;
    Require(ResumeThread(child.thread)!=0xffffffff);
-   uint wait=WaitForSingleObject(child.process,timeout); if(wait!=0 && wait!=258) throw new Win32Exception(Marshal.GetLastWin32Error());
+   uint wait=waitForExit==null ? WaitForSingleObject(child.process,timeout) : waitForExit(child.process,timeout); if(wait!=0 && wait!=258) throw new Win32Exception(Marshal.GetLastWin32Error());
    Result result=new Result(); result.rootPid=child.pid; result.timedOut=wait==258;
    if(result.timedOut) Require(TerminateJobObject(job,124));
    else {
@@ -93,7 +93,7 @@ try {
   [Environment]::SetEnvironmentVariable('TEMP',[string]$request.compilerTemp,'Process')
   [Environment]::SetEnvironmentVariable('TMP',[string]$request.compilerTemp,'Process')
   Add-Type -TypeDefinition @'
-${native}
+${OWNED_COMMAND_NATIVE_SOURCE}
 '@
  } finally {
   foreach($name in @('TEMP','TMP')) {[Environment]::SetEnvironmentVariable($name,$compilerEnvironment[$name],'Process')}

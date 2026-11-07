@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import { createRequestReader, requestError, retryAfterMs } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -269,6 +271,7 @@ test('a slow lazy ACK never delays state adoption and reload preserves the origi
 });
 
 test('back-to-back saves piggyback confirmation and batch the final ACK after idle', async () => {
+  const clock = createManualClock();
   const outbox = storage(), requests = [];
   let acked;
   const idleAck = new Promise(resolve => { acked = resolve; });
@@ -277,13 +280,14 @@ test('back-to-back saves piggyback confirmation and batch the final ACK after id
     if (path.startsWith('/api/command')) return committed(init);
     if (!body.acknowledge) return registered();
     acked(); return answer(200, { slot: 3, generation: 12, sequence: 2, acknowledged: 2 });
-  }, { ackDelayMs: 10 });
+  }, { ackDelayMs: 10, clock });
   await transport.send(command());
   await transport.confirm({ lazy: true });
   await transport.send({ ...command(), expectedRevision: 8 });
   assert.equal(requests.length, 3, 'registration then one request per save, with no ACK round trip');
   assert.equal(requests[2].body.requestAck, 1);
-  await Promise.race([idleAck, new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('ACK deadline')), 1000); timer.unref(); })]);
+  await clock.advance(10);
+  assert.equal(requests.length, 4); await idleAck;
   assert.equal(requests.length, 4);
   assert.equal(requests[3].body.acknowledge.sequence, 2);
   transport.close();

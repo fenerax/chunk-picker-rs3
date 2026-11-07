@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -15,7 +16,7 @@ test('solo files run first and alone; policy env replaces or removes lane variab
   const runFile = async ({ file, env }) => {
     events.push({ file, start: true, active: ++active });
     environments.set(file, env);
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setImmediate(resolve));
     active--;
     events.push({ file, start: false });
     return { file, passed: true, processWallMs: 1, fileWallMs: 1, bodyMs: 1, summary: { counts: {} } };

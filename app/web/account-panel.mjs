@@ -1,7 +1,7 @@
 const providerNames = { discord: 'Discord', google: 'Google' };
 const providersFor = account => [...new Set([...(account?.providers ?? []), ...(account?.identities ?? []).map(identity => identity.provider), account?.provider].filter(provider => Object.hasOwn(providerNames, provider)))];
 
-export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {} }) {
+export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {}, clock = { now: () => Date.now(), setTimeout, clearTimeout } }) {
   let session = {};
   const available = () => Boolean(session.account) || (session.signIn?.providers?.length ?? 0) > 0;
   const signedInName = () => Object.hasOwn(providerNames, session.account?.provider) ? providerNames[session.account.provider] : providersFor(session.account).map(provider => providerNames[provider]).join(' and ');
@@ -95,7 +95,7 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
     const current = () => session === selected && dialogCurrent(generation);
     let busy = false, deleted = false, retryAt = 0, retryTimer;
     async function submit() {
-      if (busy || deleted || !current() || Date.now() < retryAt) return;
+      if (busy || deleted || !current() || clock.now() < retryAt) return;
       busy = true; confirm.disabled = true; error.hidden = true;
       let release;
       try {
@@ -113,11 +113,11 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
         if (!response.ok) {
           if (response.status === 503) {
             const after = response.headers.get('Retry-After');
-            const delay = after == null ? 0 : /^\d+$/.test(after) ? Number(after) * 1000 : Date.parse(after) - Date.now();
-            retryAt = Date.now() + Math.max(0, Number.isFinite(delay) ? delay : 0);
+            const delay = after == null ? 0 : /^\d+$/.test(after) ? Number(after) * 1000 : Date.parse(after) - clock.now();
+            retryAt = clock.now() + Math.max(0, Number.isFinite(delay) ? delay : 0);
             confirm.textContent = 'Retry deletion';
-            clearTimeout(retryTimer);
-            retryTimer = setTimeout(() => { if (current()) confirm.disabled = false; }, Math.min(2147483647, Math.max(0, retryAt - Date.now())));
+            clock.clearTimeout(retryTimer);
+            retryTimer = clock.setTimeout(() => { if (current()) confirm.disabled = false; }, Math.min(2147483647, Math.max(0, retryAt - clock.now())));
             retryTimer?.unref?.();
           }
           throw new Error(value.message || 'Deletion was refused. Try again.');
@@ -141,7 +141,7 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
         if (current()) { error.textContent = failure.message || 'Deletion failed. Try again.'; error.hidden = false; }
       } finally {
         release?.(); busy = false;
-        if (!deleted && current()) confirm.disabled = Date.now() < retryAt;
+        if (!deleted && current()) confirm.disabled = clock.now() < retryAt;
       }
     }
   }

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -24,7 +25,7 @@ const shell = (await readFile(new URL('index.html', web), 'utf8'))
 
 // No app server or save imports: this host serves only shipped CSS/modules and
 // synthetic rows. Let the OS assign ports for both this host and owned Chrome.
-test('task rows fit their list container and keep actions reachable', { timeout: 60000 }, async t => {
+test('task rows fit their list container and keep actions reachable', async t => {
   const scratch = await mkdtemp(path.join(tmpdir(), 'rs3-row-layout-'));
   const server = createServer(async (request, response) => {
     try {
@@ -179,7 +180,7 @@ test('task rows fit their list container and keep actions reachable', { timeout:
         await browser.evaluate("document.querySelector('#solo .task-how').focus()");
         await browser.send('Input.dispatchKeyEvent', { type:'keyDown', key:'Tab', code:'Tab', windowsVirtualKeyCode:9 });
         await browser.send('Input.dispatchKeyEvent', { type:'keyUp', key:'Tab', code:'Tab', windowsVirtualKeyCode:9 });
-        await browser.evaluate('new Promise(resolve => setTimeout(resolve, 150))');
+        await browser.evaluate('Promise.all(document.getAnimations().map(animation => animation.finished))');
         assert.equal(await browser.evaluate("document.activeElement === document.querySelector('#solo .task-why') && getComputedStyle(document.activeElement).opacity === '1'"), true, 'keyboard reveals actions in DOM order');
         const focused = await browser.evaluate(`(() => { const row = document.querySelector('#solo'), body = row.querySelector('.task-body').getBoundingClientRect(), action = row.querySelector('.task-backlog'), box = action.getBoundingClientRect(); return { width:body.width, height:body.height, position:getComputedStyle(document.activeElement).position, reachable:document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('.task-backlog') === action }; })()`);
         assert.equal(focused.width, metrics.body.width, 'revealing actions cannot squeeze the body');

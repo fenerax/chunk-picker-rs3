@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -8,7 +9,7 @@ import path from 'node:path';
 process.env.RS3_DATASET = 'open-f2p';
 const { createServer } = await import('../app/server.mjs');
 
-test('real browser entry and optional full-state tools serve every module dependency', { timeout: 120000 }, async t => {
+test('real browser entry and optional full-state tools serve every module dependency', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'browser-module-graph-'));
   let app;
   t.after(async () => {
@@ -25,8 +26,7 @@ test('real browser entry and optional full-state tools serve every module depend
   const cookie = joined.headers.get('set-cookie')?.split(';')[0];
   assert.ok(cookie);
   const queue = ['/'], seen = new Set();
-  const get = route => fetch(new URL(route, origin), { headers: { Cookie: cookie }, redirect: 'manual',
-    signal: AbortSignal.timeout(30000) });
+  const get = route => fetch(new URL(route, origin), { headers: { Cookie: cookie }, redirect: 'manual', });
   function enqueue(specifier, from) {
     const url = new URL(specifier, new URL(from, origin));
     assert.equal(url.origin, origin, `Same-origin browser dependency from ${from}`);

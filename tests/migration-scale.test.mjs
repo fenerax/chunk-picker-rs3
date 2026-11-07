@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -183,11 +184,11 @@ function runSyntheticUpgrade() {
 if (process.argv.includes(WORKER_ARGUMENT)) {
   process.stdout.write(JSON.stringify(runSyntheticUpgrade()));
 } else {
-  test('large synthetic legacy upgrade retains all facts without repeated catalogue scans', { timeout: 65_000 }, async t => {
+  test('large synthetic legacy upgrade retains all facts without repeated catalogue scans', async t => {
     const root = fileURLToPath(new URL('../', import.meta.url));
     const { stdout } = await promisify(execFile)(process.execPath,
       [fileURLToPath(import.meta.url), WORKER_ARGUMENT], {
-        cwd: root, timeout: 60_000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024,
+        cwd: root, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024,
         env: { ...process.env, TEMP: root, TMP: root },
       });
     const measurement = JSON.parse(stdout);

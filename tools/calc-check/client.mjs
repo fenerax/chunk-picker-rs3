@@ -21,12 +21,12 @@ export function commandWords(command) {
   return words;
 }
 export class Calculator {
-  constructor(command, { timeoutMs = 180000, env = process.env } = {}) {
+  constructor(command, { timeoutMs = 180000, env = process.env, clock = { setTimeout, clearTimeout } } = {}) {
     const [program, ...args] = commandWords(command);
     this.child = spawn(program, [...args, '--protocol', '1'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
     this.child.stderr.resume(); // Candidate logs are never copied into reports.
     this.send = writer(this.child.stdin);
-    this.sentRequests = {}; this.pending = new Map(); this.nextId = 0; this.timeoutMs = timeoutMs; this.peakRSSBytes = 0; this.stderrBytes = 0;
+    this.sentRequests = {}; this.pending = new Map(); this.nextId = 0; this.timeoutMs = timeoutMs; this.clock = clock; this.peakRSSBytes = 0; this.stderrBytes = 0;
     this.child.stderr.on('data', bytes => { this.stderrBytes += bytes.length; });
     this.exited = new Promise(resolve => this.child.once('close', (code, signal) => { this.exit = { code, signal }; resolve(this.exit); }));
     this.child.on('error', () => this.fail());
@@ -39,7 +39,7 @@ export class Calculator {
   fail() {
     const error = new Error('failed');
     this.readyReject?.(error); this.readyReject = undefined;
-    for (const entry of this.pending.values()) { clearTimeout(entry.timer); entry.reject(error); }
+    for (const entry of this.pending.values()) { this.clock.clearTimeout(entry.timer); entry.reject(error); }
     this.pending.clear();
   }
   async sampleMemory() {
@@ -85,7 +85,7 @@ export class Calculator {
       if (!['error', 'result'].includes(header.type)) throw new TypeError('invalid');
       // Decode while the entry is still pending, so a malformed part rejects it through fail().
       const parts = unpackParts(header, body);
-      this.pending.delete(header.id); clearTimeout(entry.timer);
+      this.pending.delete(header.id); this.clock.clearTimeout(entry.timer);
       entry.resolve({ header, parts, prepared: entry.prepared });
     }
     if (this.pending.size || this.readyReject) this.fail();
@@ -94,7 +94,7 @@ export class Calculator {
     // The watchdog also covers the write: a candidate that never reads stdin
     // would otherwise hold send() waiting for drain past the timeout.
     let timeout;
-    const expired = new Promise((_, reject) => { timeout = setTimeout(() => { this.fail(); this.child.kill('SIGKILL'); reject(new Error('failed')); }, this.timeoutMs); });
+    const expired = new Promise((_, reject) => { timeout = this.clock.setTimeout(() => { this.fail(); this.child.kill('SIGKILL'); reject(new Error('failed')); }, this.timeoutMs); });
     try {
       const ready = await Promise.race([this.send({ v: 1, type: 'init' }, Buffer.from(stringify(bundle))).then(() => this.ready), expired]);
       // Fast calculators can finish before the next periodic descendant scan.
@@ -104,7 +104,7 @@ export class Calculator {
       await this.sampleMemory();
       return ready;
     }
-    finally { clearTimeout(timeout); }
+    finally { this.clock.clearTimeout(timeout); }
   }
   async control(header) { await this.send({ v: 1, ...header }); }
   request(header, state) {
@@ -112,8 +112,8 @@ export class Calculator {
     this.sentRequests[header.type] = (this.sentRequests[header.type] ?? 0) + 1;
     const promise = new Promise((resolve, reject) => {
       const entry = { resolve, reject, prepared: [], arm: () => {
-        clearTimeout(entry.timer);
-        entry.timer = setTimeout(() => { this.pending.delete(id); reject(new Error('failed')); }, this.timeoutMs);
+        this.clock.clearTimeout(entry.timer);
+        entry.timer = this.clock.setTimeout(() => { this.pending.delete(id); reject(new Error('failed')); }, this.timeoutMs);
       } };
       this.pending.set(id, entry); entry.arm();
       void this.send({ v: 1, ...header, id }, state === undefined ? undefined : Buffer.from(JSON.stringify(state))).catch(() => this.fail());

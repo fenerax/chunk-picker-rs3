@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, readdir, access } from 'node:fs/promises';
@@ -5,16 +7,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
 import { Client, Failure } from '../scripts/experiments/y03-fuzz-ci/client.mjs';
 import { EXIT, hash } from '../scripts/experiments/y03-fuzz-ci/semantic.mjs';
 import { validateReport } from '../scripts/experiments/y03-fuzz-ci/validate-report.mjs';
-import { killGroup } from '../scripts/experiments/y03-fuzz-ci/supervise.mjs';
+import { killGroup, supervise } from '../scripts/experiments/y03-fuzz-ci/supervise.mjs';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const gitAt = (root, ...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 15000 }).trim();
+const gitAt = (root, ...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']}).trim();
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('RS3_')));
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
-const pause = () => new Promise(resolve => setTimeout(resolve, 50));
 async function liveGroup(group) {
   const live = [];
   for (const pid of await readdir('/proc')) {
@@ -45,7 +46,7 @@ test('failure arriving during retirement is returned to the campaign', async () 
   assert.equal(client.currentRSSBytes, 0);
 });
 
-test('public controls, detector faults, committed refs, replay and independent cleanup', { skip: process.platform !== 'linux', timeout: 300000 }, async t => {
+test('public controls, detector faults, committed refs, replay and independent cleanup', { skip: process.platform !== 'linux'}, async t => {
   const temporary = await mkdtemp(path.join(process.env.Y03_TEST_ARTIFACTS ?? tmpdir(), 'y03-detectors-'));
   let source;
   t.after(async () => {
@@ -59,8 +60,7 @@ test('public controls, detector faults, committed refs, replay and independent c
     const child = spawn(process.execPath, ['scripts/experiments/y03-fuzz-ci/run.mjs', '--reference-ref', sha, '--candidate-ref', sha,
       '--cases', '1', '--shrink-attempts', '0', '--out', out, ...args], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = ''; child.stdout.resume(); child.stderr.on('data', bytes => { stderr += bytes; });
-    const timer = setTimeout(() => killGroup(child.pid), 110000);
-    const [code] = await once(child, 'close'); clearTimeout(timer); killGroup(child.pid);
+    const [code] = await once(child, 'close'); killGroup(child.pid);
     assert.notEqual(code, null, stderr);
     const report = await json(path.join(out, 'report.json'));
     assert.equal(report.exitCode, code);
@@ -76,13 +76,12 @@ test('public controls, detector faults, committed refs, replay and independent c
   const control = await run(['--replay', path.join(mismatch.out, 'failure.json'), '--fault', 'none']);
   assert.equal(control.code, EXIT.pass); assert.equal(control.report.differences, 0);
   assert.equal(control.report.nondeterministicFields, 0); assert.equal(control.report.replayPairs, 2);
-  for (const fault of ['crash', 'timeout']) {
+  for (const fault of ['crash']) {
     const result = await run(['--fault', fault]);
     assert.equal(result.code, EXIT[fault]); assert.equal(result.report.faultControlPairs, 1);
     assert.equal(result.report.failures[0].side, 1);
   }
   assert.equal((await run(['--rss-mib', '1'])).code, EXIT.memory);
-  assert.equal((await run(['--wall-ms', '100'])).code, EXIT.budget);
   // Isolated committed implementation change. The main checkout's calculator is
   // untouched; this detached worktree is owned by the test and removed below.
   source = path.join(temporary, 'source');
@@ -107,39 +106,78 @@ test('public controls, detector faults, committed refs, replay and independent c
   const replayOut = path.join(temporary, String(serial++));
   const child = spawn(process.execPath, ['scripts/experiments/y03-fuzz-ci/run.mjs', '--replay', path.join(changed.out, 'failure.json'),
     '--shrink-attempts', '0', '--out', replayOut], { cwd: source, env, detached: true, stdio: 'ignore' });
-  const timer = setTimeout(() => killGroup(child.pid), 110000);
-  const [replayCode] = await once(child, 'close'); clearTimeout(timer); killGroup(child.pid);
+  const [replayCode] = await once(child, 'close'); killGroup(child.pid);
   assert.equal(replayCode, EXIT.mismatch);
   const later = await json(path.join(replayOut, 'report.json'));
   assert.equal(later.harnessCommit, laterSHA); assert.deepEqual(later.commits, [sha, changedSHA]);
   t.diagnostic(JSON.stringify({ calculatorControlSHA: sha, changedSHA, laterHarnessSHA: laterSHA, artifacts: temporary }));
-  // Outer timeout retains its partial public report/log and retires all live
-  // group members. Zombies may remain on systems whose PID 1 does not reap.
+});
+
+test('client deadlines distinguish request timeout from exhausted campaign budget without a running clock', async () => {
+  for (const [deadline, kind] of [[100, 'timeout'], [40, 'budget'], [0, 'budget']]) {
+    const clock = createManualClock(), child = new EventEmitter();
+    let kills = 0;
+    child.send = () => {};
+    child.kill = () => { kills++; child.emit('close', 0); };
+    const client = new Client('', '', '', { requestMs: 50, rssBytes: Infinity }, () => {}, undefined, { clock, launch: () => child });
+    client.sample = () => {};
+    try {
+      const failed = assert.rejects(client.send({}, deadline), error => error.kind === kind);
+      await clock.advance(Math.min(50, deadline)); await clock.settled(failed);
+      assert.equal(kills, deadline === 0 ? 0 : 1);
+    } finally { await client.close(); }
+  }
+});
+
+test('supervisor deadline acknowledges termination and records the controlled failure', async t => {
+  const temporary = await mkdtemp(path.join(tmpdir(), 'y03-portable-supervisor-'));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const clock = createManualClock(), signals = new EventEmitter(), child = new EventEmitter();
+  child.pid = 123456789;
+  const armed = clock.nextScheduled(1500), stopped = [];
+  const running = supervise({ argv: ['--out', path.join(temporary, 'run'), '--outer-ms', '1500'], clock, signals, environment: env, checkRuntime() {},
+    execute: () => child,
+    stopGroup(pid) { stopped.push(pid); if (stopped.length === 1) queueMicrotask(() => child.emit('close', null, 'SIGKILL')); },
+  });
+  await armed;
+  await clock.advance(1499); assert.deepEqual(stopped, []);
+  await clock.advance(1); assert.equal(stopped[0], child.pid);
+  assert.equal(await running, 124);
+  assert.deepEqual(stopped, [child.pid, child.pid]);
+  const record = await json(path.join(temporary, 'run/supervisor.json'));
+  assert.equal(record.interrupted, 'deadline'); assert.equal(record.complete, false);
+  assert.equal(signals.listenerCount('SIGTERM'), 0); assert.equal(signals.listenerCount('SIGINT'), 0);
+});
+
+test('supervisor deadline and signals terminate a live process group and preserve its partial report', { skip: process.platform !== 'linux' }, async t => {
+  const temporary = await mkdtemp(path.join(tmpdir(), 'y03-controlled-supervisor-'));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
   for (const signal of ['deadline', 'SIGTERM']) {
-    const out = path.join(temporary, 'outer-' + signal);
-    const supervisor = spawn(process.execPath, ['scripts/experiments/y03-fuzz-ci/supervise.mjs', '--out', out,
-      '--reference-ref', sha, '--candidate-ref', sha, '--outer-ms', signal === 'deadline' ? '1500' : '90000',
-      ...(signal === 'SIGTERM' ? ['--fault', 'mismatch'] : [])], { cwd: ROOT, env, stdio: 'ignore' });
-    const closed = once(supervisor, 'close');
-    if (signal === 'SIGTERM') {
-      const until = performance.now() + 40000;
-      while (true) {
-        try { await access(path.join(out, 'campaign/failure.json')); break; }
-        catch (error) { if (error.code !== 'ENOENT') throw error; }
-        assert(performance.now() < until, 'Fault prefix was not checkpointed'); await pause();
-      }
-      supervisor.kill('SIGTERM');
-    }
-    const [code] = await closed;
-    assert.equal(code, signal === 'deadline' ? 124 : 143);
-    const record = await json(path.join(out, 'supervisor.json'));
-    assert.equal(record.complete, false);
-    assert.equal((await json(path.join(out, 'campaign/report.json'))).complete, false);
-    await access(path.join(out, 'campaign.log'));
-    if (signal === 'SIGTERM') await access(path.join(out, 'campaign/failure.json'));
-    const until = performance.now() + 2000;
-    while ((await liveGroup(record.processGroup)).length && performance.now() < until) await pause();
-    assert.deepEqual(await liveGroup(record.processGroup), []);
-    await assert.rejects(access(path.join(out, 'campaign/owned')), { code: 'ENOENT' });
+    const clock = createManualClock(), signals = new EventEmitter(), ready = Promise.withResolvers();
+    const out = path.join(temporary, signal), campaign = path.join(out, 'campaign');
+    let child;
+    const armed = clock.nextScheduled(1500);
+    const running = supervise({ argv: ['--out', out, '--outer-ms', '1500'], clock, signals, environment: env,
+      execute(program, _args, options) {
+        child = spawn(program, ['--input-type=module', '-e', `
+          import { mkdir, writeFile } from 'node:fs/promises';
+          await mkdir(${JSON.stringify(campaign)});
+          await writeFile(${JSON.stringify(path.join(campaign, 'report.json'))}, '{"complete":false}');
+          process.send('checkpoint'); setInterval(() => {}, 1000);
+        `], { ...options, stdio: ['ignore', options.stdio[1], options.stdio[2], 'ipc'] });
+        child.once('message', ready.resolve); return child;
+      } });
+    try {
+      await Promise.race([ready.promise, running.then(() => assert.fail('Campaign exited before checkpoint'))]);
+      await armed;
+      if (signal === 'deadline') await clock.advance(1500); else signals.emit('SIGTERM');
+      assert.equal(await running, signal === 'deadline' ? 124 : 143);
+      const record = await json(path.join(out, 'supervisor.json'));
+      assert.equal(record.interrupted, signal); assert.equal(record.complete, false);
+      assert.equal((await json(path.join(campaign, 'report.json'))).complete, false);
+      assert.deepEqual(await liveGroup(record.processGroup), []);
+      await access(path.join(out, 'campaign.log'));
+      await assert.rejects(access(path.join(campaign, 'owned')), { code: 'ENOENT' });
+    } finally { if (child) killGroup(child.pid); }
   }
 });

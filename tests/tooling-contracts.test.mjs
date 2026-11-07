@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -242,7 +243,7 @@ test('failure attribution reads the pinned node spec summary, including timeouts
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(path.join(root, 'tests'));
   const files = { 'pass.test.mjs': "import test from 'node:test'; test('passes', () => {});\n",
-    'slow.test.mjs': "import test from 'node:test'; test('outer', { timeout: 50 }, async t => { await t.test('inner', () => new Promise(r => setTimeout(r, 400))); });\n",
+    'slow.test.mjs': "import test from 'node:test'; test('outer', async t => { await t.test('inner', () => { throw Object.assign(new Error('controlled timeout report'), { code: 'ERR_TEST_TIMEOUT' }); }); });\n",
     'crash.test.mjs': "throw new Error('top-level crash');\n" };
   for (const [name, text] of Object.entries(files)) await writeFile(path.join(root, 'tests', name), text);
   const selected = Object.keys(files).map(name => 'tests/' + name);

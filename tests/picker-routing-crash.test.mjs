@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -69,7 +70,7 @@ function run(root, mode, point) {
   });
 }
 for (const point of ['account-recorded', 'id-reserved', 'registry-reserved', 'directory-created', 'directory-synced', 'registry-ready']) {
-  test(`real process death in the OAuth callback at ${point} recovers exactly one owned picker`, { timeout: 20000 }, async t => {
+  test(`real process death in the OAuth callback at ${point} recovers exactly one owned picker`, async t => {
     const root = await mkdtemp(path.join(tmpdir(), 'picker-routing-crash-'));
     t.after(() => rm(root, { recursive: true, force: true }));
     const crashed = await run(root, 'crash', point); assert.equal(crashed.code, 86, crashed.text); assert.equal(crashed.signal, null);

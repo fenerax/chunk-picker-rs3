@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -47,7 +48,7 @@ async function fixture(t) {
 const add = { type: 'add-group-goal', goalId: 'group-goal:pickaxes', text: 'Both get a rune pickaxe', completion: 'players' };
 const tick = { type: 'set-group-goal-done', goalId: add.goalId, memberId: 'actor1', done: true };
 
-test('shared goals survive compact responses, backups and restart, without changing calculation inputs', { timeout: 20000 }, async t => {
+test('shared goals survive compact responses, backups and restart, without changing calculation inputs', async t => {
   const f = await fixture(t);
   const original = f.app.store.getState(), input = f.app.store.getCalculationSnapshot(), fingerprint = f.app.store.getGameplayFingerprint();
   let baseline = (await (await f.request('/api/state?view=play-v1')).json()).state;
@@ -76,7 +77,7 @@ test('shared goals survive compact responses, backups and restart, without chang
   assert.equal(history.find(event => event.type === tick.type).command.goalText, add.text);
 });
 
-test('either player can manage the shared plan and undo its changes', { timeout: 20000 }, async t => {
+test('either player can manage the shared plan and undo its changes', async t => {
   const { app, command, invite } = await fixture(t);
   const actor1 = await invite('actor1'), reed = await invite('reed');
   const edits = [add, { ...tick, memberId: 'actor1' }, { type: 'update-group-goal', goalId: add.goalId, text: 'Get pickaxes together', completion: 'group' },
@@ -90,7 +91,7 @@ test('either player can manage the shared plan and undo its changes', { timeout:
   assert.equal(app.store.getState().groupGoals[1].done, true);
 });
 
-test('view-only links read goals and cannot execute any goal command or Undo', { timeout: 20000 }, async t => {
+test('view-only links read goals and cannot execute any goal command or Undo', async t => {
   const { app, request, command, invite } = await fixture(t);
   assert.equal((await command(add)).status, 200);
   const viewer = await invite(), revision = app.store.getInfo().revision;

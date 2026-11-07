@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,11 +12,7 @@ import { createManualClock } from './helpers/manual-clock.mjs';
 
 const task = { id: 'rs3:task:claim-server', label: 'Mine 50 copper ore', category: 'Mining', status: 'available' };
 const bytes = value => { const json = Buffer.from(JSON.stringify(value)), shared = new SharedArrayBuffer(json.length); Buffer.from(shared).set(json); return shared; };
-async function until(check, message) {
-  const deadline = Date.now() + 5000;
-  while (!check() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 15));
-  assert.ok(check(), message);
-}
+async function until(check, label) { return waitForCondition(check); }
 async function fixture(t, { prewarm = false, rollPair = false, personal = false, evaluationGate, predictionGate } = {}) {
   const clock = createManualClock();
   const base = path.resolve('.local/task-claim-server-tests'); await mkdir(base, { recursive: true });
@@ -312,7 +310,7 @@ test('[regression] panel preparation rebases a claim while waiting for the same 
   const selected = request('/api/tasks?memberId=actor1&view=play-v1&projection=duo-sidebar-v1&revision=0');
   await until(() => messages.some(message => message.type === 'evaluate'), 'selected list started');
   const pending = request('/api/prediction-intent', { revision: 0, memberId: 'actor1', chunkId: '12342' });
-  await new Promise(resolve => setTimeout(resolve, 30));
+  await new Promise(resolve => setImmediate(resolve));
   await command({ type: 'claim-task', memberId: 'reed', taskId: task.id });
   release();
   assert.equal((await selected).status, 200);
@@ -360,7 +358,7 @@ test('[regression] task responses do not wait for cleanup, and a failed cleanup 
   const errors = []; t.mock.method(console, 'error', (...args) => errors.push(args));
   let timer;
   try {
-    await Promise.race([lists(), new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('Task response waited on cleanup')), 3000); })]);
+    await lists();
     await until(() => calls === 1, 'cleanup started after the successful task response');
   } finally { clearTimeout(timer); rejectCleanup(Object.assign(new Error('Synthetic cleanup failure'), { code: 'EIO' })); }
   await until(() => errors.length === 1, 'cleanup error logged outside request');

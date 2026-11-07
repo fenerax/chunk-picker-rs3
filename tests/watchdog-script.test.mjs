@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, copyFile, readFile, rm, access } from 'node:fs/promises';
@@ -65,7 +66,7 @@ if ($fixtureMode -eq 'stop-threw') { Set-Content -LiteralPath "$fixtureCalls.sto
 Write-Output 'Picker stopped; saves drained.'
 `);
     if (mode === 'paused') await writeFile(join(local, 'picker-paused'), 'paused');
-    const result = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(scripts, 'Watch-Picker.ps1'), '-HostAddress', '127.0.0.1', '-Port', '19888', '-WorkerRecoveryTimeoutSeconds', mode === 'recovering' ? '5' : '1', '-HealthRetryDelaySeconds', '0'], { encoding: 'utf8', timeout: 20000 });
+    const result = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(scripts, 'Watch-Picker.ps1'), '-HostAddress', '127.0.0.1', '-Port', '19888', '-WorkerRecoveryTimeoutSeconds', mode === 'recovering' ? '5' : '1', '-HealthRetryDelaySeconds', '0'], { encoding: 'utf8'});
     assert.equal(result.status, 0, result.stderr || String(result.error));
     const calls = await readFile(join(root, 'calls'), 'utf8').catch(() => '');
     const log = await readFile(join(local, 'watchdog.log'), 'utf8').catch(() => '');

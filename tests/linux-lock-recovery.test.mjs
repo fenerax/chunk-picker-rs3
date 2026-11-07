@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -73,7 +74,7 @@ test('old-format, invalid and unreadable records cannot be taken over', linux, a
   await assert.rejects(exclusive(lock, () => assert.fail()), { code: 'EEXIST' });
 });
 
-test('concurrent reclaimers admit at most one operation while the winner holds the lock', { ...linux, timeout: 15000 }, async t => {
+test('concurrent reclaimers admit at most one operation while the winner holds the lock', { ...linux}, async t => {
   const { lock } = await fixture(t);
   const [, start] = (await processIdentity(process.pid)).split(':');
   await writeFile(lock, encode({ pid: process.pid, processIdentity: '00000000-0000-0000-0000-000000000000:' + start }));
@@ -132,8 +133,9 @@ test('a new lock cannot appear while a reclaimer holds the guard, so recovery ne
   await once(reclaimer.stdout, 'data');
   // The checked owner has already finished and removed its lock; a new command arrives.
   let ran = false;
-  const next = exclusive(lock, () => { ran = true; return 'ran'; });
-  await new Promise(resolve => setTimeout(resolve, 500));
+  const attempting = Promise.withResolvers();
+  const next = exclusive(lock, () => { ran = true; return 'ran'; }, { onGuardAttempt: attempting.resolve });
+  await attempting.promise;
   assert.equal(ran, false);
   assert.deepEqual(await readdir(root), ['operation.lock.recovery']);
   reclaimer.stdin.end(); await once(reclaimer, 'exit');

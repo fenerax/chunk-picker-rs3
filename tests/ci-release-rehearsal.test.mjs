@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -269,7 +270,7 @@ export async function createServer(options) {
     await writeFile(configPath, encode({ coreRoot, dataDir }));
     const child = spawnSync(process.execPath, [
       fileURLToPath(new URL('../scripts/ci/release-rehearsal-runtime.mjs', import.meta.url)), 'seed', configPath,
-    ], { cwd: root, env: sanitizeExecutionEnvironment(), windowsHide: true, timeout: 15000, stdio: 'ignore' });
+    ], { cwd: root, env: sanitizeExecutionEnvironment(), windowsHide: true, stdio: 'ignore' });
     assert.equal(child.error, undefined);
     assert.equal(child.signal, null);
     assert.equal(child.status, valid ? 0 : 1);

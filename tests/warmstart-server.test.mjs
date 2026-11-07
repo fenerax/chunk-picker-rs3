@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -38,7 +41,7 @@ function client(handle, token) {
     headers: { Authorization: `Bearer ${token}`, Origin: origin, ...init.headers } });
 }
 
-test('early private health answers while the store loads; refused commands never enter its queue', { timeout: 60000 }, async t => {
+test('early private health answers while the store loads; refused commands never enter its queue', async t => {
   const { dataDir, token } = await directory(), entered = deferred(), release = deferred();
   const initialState = createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['12341'] }]);
   let preparing = 0;
@@ -71,7 +74,7 @@ test('early private health answers while the store loads; refused commands never
   assert.equal(app.store.getState().members[0].notes['12341'], 'Ready save');
 });
 
-test('initialization failure closes both early listeners and keeps the saved bytes intact', { timeout: 60000 }, async t => {
+test('initialization failure closes both early listeners and keeps the saved bytes intact', async t => {
   const { dataDir, token } = await directory();
   await writeFile(path.join(dataDir, 'state.json'), 'broken saved bytes');
   const handle = await startServer({ ...options, dataDir, loopbackPort: 0 });
@@ -82,7 +85,7 @@ test('initialization failure closes both early listeners and keeps the saved byt
   assert.equal(await readFile(path.join(dataDir, 'access-token'), 'utf8'), token);
 });
 
-test('close during worker compilation cancels startup without waiting for its five minute allowance', { timeout: 60000 }, async t => {
+test('close during worker compilation cancels startup without waiting for its five minute allowance', async t => {
   const { dataDir } = await directory(), created = deferred();
   let terminated = false;
   const workerFactory = () => {
@@ -98,7 +101,7 @@ test('close during worker compilation cancels startup without waiting for its fi
   assert(terminated); assert.equal(handle.server.listening, false);
 });
 
-test('close while store preparation is pending closes health first and cleans the store at its safe boundary', { timeout: 60000 }, async t => {
+test('close while store preparation is pending closes health first and cleans the store at its safe boundary', async t => {
   const { dataDir } = await directory(), entered = deferred(), release = deferred();
   const handle = await startServer({ ...options, dataDir, async prepareState(state) { entered.resolve(); await release.promise; return state; } });
   t.after(async () => { release.resolve(); await closeFixture(handle, dataDir); });
@@ -111,23 +114,21 @@ test('close while store preparation is pending closes health first and cleans th
   await assert.rejects(readFile(path.join(dataDir, 'store.lock')), { code: 'ENOENT' });
 });
 
-test('an active session autonomously prepares both task lists without commands and keeps Preview available', { timeout: 60000 }, async t => {
+test('an active session autonomously prepares both task lists without commands and keeps Preview available', async t => {
+  const clock = createManualClock();
   const { dataDir, token } = await directory();
   const initialState = createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['12341'] }, { id: 'reed', name: 'Reed', unlocked: ['12342'] }]);
-  const handle = await startServer({ ...options, dataDir, initialState });
+  const handle = await startServer({ ...options, dataDir, initialState, schedulingClock: clock });
   t.after(() => closeFixture(handle, dataDir));
   const app = await handle.ready, revision = app.store.getInfo().revision;
   const savedBytes = await readFile(path.join(dataDir, 'state.json'), 'utf8');
   const request = client(handle, token);
   assert.equal((await request('/api/session')).status, 200);
-  const deadline = Date.now() + 30000;
-  let diagnostic;
-  do {
-    diagnostic = await (await request('/api/diagnostics')).json();
-    if (diagnostic.startupWarmup.status === 'ready') break;
-    assert(Date.now() < deadline, `Warmup did not finish: ${diagnostic.startupWarmup.status}`);
-    await new Promise(resolve => setTimeout(resolve, 100));
-  } while (true);
+  const diagnostic = await waitForCondition(async () => {
+    await clock.advance(1000);
+    const value = await (await request('/api/diagnostics')).json();
+    return value.startupWarmup.status === 'ready' ? value : undefined;
+  });
   assert.equal(diagnostic.startupWarmup.status, 'ready');
   assert.equal(diagnostic.deathLane.worker.status, 'idle'); assert.equal(diagnostic.duoLane.worker.status, 'idle');
   for (const memberId of ['actor1', 'reed']) {

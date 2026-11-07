@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -77,7 +78,7 @@ test('archive verification rejects altered blobs, links, extra files and outside
 
 test('private oracle helpers preserve exact results and reject changed retained blobs without game data', () => {
   const script = fileURLToPath(new URL('../scripts/perf/unlock-equivalence.mjs', import.meta.url));
-  const output = execFileSync(process.execPath, [script, '--self-test'], { encoding: 'utf8', timeout: 15000 });
+  const output = execFileSync(process.execPath, [script, '--self-test'], { encoding: 'utf8'});
   assert.match(output, /Canonicalization, preserved counters\/array order and first-difference self-tests passed/);
   assert.match(output, /Retained compressed bytes: exact, tampered, truncated, metadata and unsafe-path checks passed/);
   assert.match(output, /Exact-byte comparison: zero canonical calls, mismatch canonical checks, first path\/order, fresh artifact and corrupt reference checks passed/);

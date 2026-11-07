@@ -7,16 +7,16 @@ export class Failure extends Error {
   constructor(kind, detail = {}) { super(kind); this.kind = kind; this.code = EXIT[kind]; this.detail = detail; }
 }
 export class Client {
-  constructor(root, mode, scratch, limits, observe = () => {}, bridge = new URL('./bridge.mjs', import.meta.url)) {
-    this.limits = limits; this.peakRSSBytes = 0; this.currentRSSBytes = 0; this.durations = [];
-    this.child = fork(fileURLToPath(bridge), [root, mode, scratch], {
+  constructor(root, mode, scratch, limits, observe = () => {}, bridge = new URL('./bridge.mjs', import.meta.url), { clock = { now: () => performance.now(), setTimeout, clearTimeout }, launch = fork } = {}) {
+    this.clock = clock; this.limits = limits; this.peakRSSBytes = 0; this.currentRSSBytes = 0; this.durations = [];
+    this.child = launch(fileURLToPath(bridge), [root, mode, scratch], {
       cwd: scratch, execArgv: ['--max-old-space-size=256'], serialization: 'advanced', stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
     });
     this.closed = new Promise(resolve => this.child.once('close', resolve));
     this.child.on('message', message => {
       if (!this.pending) return;
       if (message.bridgeError) this.fail(new Failure('invalid', { bridge: true }));
-      else { const pending = this.pending; this.pending = null; clearTimeout(pending.timer); pending.resolve(message); }
+      else { const pending = this.pending; this.pending = null; this.clock.clearTimeout(pending.timer); pending.resolve(message); }
     });
     this.child.on('error', () => this.fail(new Failure('crash')));
     this.child.on('exit', (code, signal) => {
@@ -35,16 +35,16 @@ export class Client {
   }
   fail(error) {
     this.failure ??= error;
-    if (this.pending) { clearTimeout(this.pending.timer); this.pending.reject(error); this.pending = null; }
+    if (this.pending) { this.clock.clearTimeout(this.pending.timer); this.pending.reject(error); this.pending = null; }
     if (!this.exited) this.child.kill('SIGKILL');
   }
   async send(message, deadline, timeout = this.limits.requestMs) {
     if (this.failure) throw this.failure;
     if (this.exited) throw new Failure('crash');
-    const remaining = deadline - performance.now();
+    const remaining = deadline - this.clock.now();
     if (remaining <= 0) throw new Failure('budget');
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => this.fail(new Failure(remaining < timeout ? 'budget' : 'timeout')), Math.min(timeout, remaining));
+      const timer = this.clock.setTimeout(() => this.fail(new Failure(remaining < timeout ? 'budget' : 'timeout')), Math.min(timeout, remaining));
       this.pending = { resolve, reject, timer };
       this.child.send(message, error => { if (error) this.fail(new Failure('crash')); });
     });

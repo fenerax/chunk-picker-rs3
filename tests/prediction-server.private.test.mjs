@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,14 +20,7 @@ const definitions = {
   challenges: { Quest: { Present: { Chunks: ['12341'] }, Future: { Chunks: ['12342'] } } },
 };
 async function until(operation, predicate) {
-  const deadline = Date.now() + 15000;
-  let value;
-  do {
-    value = await operation();
-    if (predicate(value)) return value;
-    await new Promise(resolve => setTimeout(resolve, 25));
-  } while (Date.now() < deadline);
-  assert.fail(`Background predictions did not settle: ${JSON.stringify(value.predictionLane)}`);
+  return waitForCondition(async () => { const value = await operation(); return predicate(value) ? value : undefined; });
 }
 
 async function automaticDeathFixture(t, automatic, { selected = ['12342'], maxPrewarmQueue = 1 } = {}) {

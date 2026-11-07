@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -97,7 +98,7 @@ export async function createServer(options) {
   return { settings, current, candidate, release, controller, events, scratch };
 }
 
-test('full-store rehearsal: backup, wipe, restore and verify every byte, binding and portable export', { timeout: 55000 }, async t => {
+test('full-store rehearsal: backup, wipe, restore and verify every byte, binding and portable export', async t => {
   const f = await fixture(t), { settings, current } = f;
   const before = await inventory(settings.dataDir), binding = await readFile(settings.dataDir + '.dataset.json');
   const backup = await backupStopped({ ...settings, release: current });
@@ -134,7 +135,7 @@ test('backups enforce count, free-space reserve, ownership release and existing 
   status = await readBackupStatus(settings.dataDir); assert.equal(status.warning, 'failed'); assert.equal(status.lastSuccessAt, '2026-10-27T04:00:00.000Z');
 });
 
-test('final stopped-save gate runs all four real decoder probes even with unchanged data and code', { timeout: 55000 }, async t => {
+test('final stopped-save gate runs all four real decoder probes even with unchanged data and code', async t => {
   const { settings, current, candidate, controller } = await fixture(t);
   await controller.stop();
   const before = await inventory(settings.dataDir);
@@ -180,7 +181,7 @@ for (const fault of ['dropped history', 'changed progress', 'lost records', 'uns
   });
 }
 
-test('a candidate that accepted an earlier save refuses the final stopped revision and restarts old code untouched', { timeout: 55000 }, async t => {
+test('a candidate that accepted an earlier save refuses the final stopped revision and restarts old code untouched', async t => {
   const { settings, current, release, controller, events } = await fixture(t);
   const candidate = await release('late-incompatible', { refusesRevision: 17 });
   await controller.stop();
@@ -615,7 +616,7 @@ test('timing failures never weaken mandatory compatibility checks or activation 
 });
 
 test('in-process rehearsal callers retain operator configuration for subsequent commands',
-  { skip: process.platform !== 'linux' && 'Real isolated rehearsal runs in the Linux CI slice.', timeout: 60000 }, async t => {
+  { skip: process.platform !== 'linux' && 'Real isolated rehearsal runs in the Linux CI slice.'}, async t => {
     const f = await fixture(t), configFile = path.join(f.scratch, 'operator.json');
     await writeFile(configFile, encode({ ...f.settings, service: 'chunk-picker.service' }));
     const saved = process.env.RS3_OPERATOR_CONFIG;

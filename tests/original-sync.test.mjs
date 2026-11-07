@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -105,8 +107,11 @@ test('network failure, timeout, unexpected map/rule/chunk shapes and invalid pro
   }
   const network = createOriginalSyncClient({ retries: 0, fetchImpl: async () => { throw new Error('offline'); } });
   await assert.rejects(network.snapshot(), error => error.status === 502 && error.code === 'ORIGINAL_NETWORK');
-  const timeout = createOriginalSyncClient({ retries: 0, timeoutMs: 5, fetchImpl: (url, { signal }) => new Promise((resolve, reject) => { signal.addEventListener('abort', () => reject(signal.reason), { once: true }); }) });
-  await assert.rejects(timeout.snapshot(), error => error.status === 504 && error.code === 'ORIGINAL_TIMEOUT');
+  const clock = createManualClock();
+  const scheduled = clock.nextScheduled(5);
+  const timeout = createOriginalSyncClient({ clock, retries: 0, timeoutMs: 5, fetchImpl: (url, { signal }) => new Promise((resolve, reject) => { signal.addEventListener('abort', () => reject(signal.reason), { once: true }); }) });
+  const rejected = assert.rejects(timeout.snapshot(), error => error.status === 504 && error.code === 'ORIGINAL_TIMEOUT');
+  await scheduled; await clock.advance(5); await clock.settled(rejected); timeout.close();
   const bad = structuredClone(capture); delete bad.metadata.capturedAt;
   assert.throws(() => previewOriginalSync(stateFromCapture(), bad), /provenance/);
   for (const field of ['unlocked', 'blacklisted', 'potential']) for (const value of [false, { nonsense: true }, 'not-a-chunk', null]) {

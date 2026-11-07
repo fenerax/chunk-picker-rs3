@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -14,9 +15,7 @@ import { importBackup } from '../app/core/state.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const storageUrl = new URL('../app/storage/store.mjs', import.meta.url).href;
-// Child boot includes Windows process inspection and can be delayed by the full
-// suite. Recovery assertions begin only after an explicit ownership handshake.
-const CHILD_STARTUP_MS = 60_000;
+// Recovery assertions begin only after an explicit ownership handshake.
 const deadOwner = { pid: 2147483647, startedAt: '2000-01-01T00:00:00.000Z', host: hostname(), nonce: 'dead', createdAt: '2000-01-01T00:00:00.000Z' };
 async function directory(t) {
   const base = path.join(root, '.local', 'test-storage');
@@ -74,10 +73,10 @@ for (const removedLock of [false, true]) {
     t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill(); await exited; });
     let output = '';
     const ready = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error(`Recovery child did not start: ${output}`)), CHILD_STARTUP_MS);
-      child.stdout.on('data', bytes => { output += bytes; if (output.includes('recovery-owned')) { clearTimeout(timeout); resolve(); } });
+
+      child.stdout.on('data', bytes => { output += bytes; if (output.includes('recovery-owned')) { resolve(); } });
       child.stderr.on('data', bytes => { output += bytes; });
-      exited.then(() => { clearTimeout(timeout); if (!output.includes('recovery-owned')) reject(new Error(output)); });
+      exited.then(() => { if (!output.includes('recovery-owned')) reject(new Error(output)); });
     });
     await ready;
     const marker = JSON.parse(await readFile(path.join(dataDir, 'store.lock.recovery'), 'utf8'));
@@ -132,9 +131,9 @@ test('a different process cannot enter recovery while the OS-owned mutex is held
   const exited = once(child, 'exit');
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill(); await exited; });
   await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Mutex child timed out.')), CHILD_STARTUP_MS);
-    child.stdout.once('data', () => { clearTimeout(timeout); resolve(); });
-    exited.then(() => { clearTimeout(timeout); reject(new Error('Mutex child exited early.')); });
+
+    child.stdout.once('data', () => { resolve(); });
+    exited.then(() => { reject(new Error('Mutex child exited early.')); });
   });
   const marker = await readFile(path.join(dataDir, 'store.lock.recovery'), 'utf8');
   await assert.rejects(() => openStore({ dataDir }), /already holds or is recovering/);
@@ -163,9 +162,9 @@ test('an estimated process start never authorizes recovery of a live PID', async
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill(); await exited; });
   const owner = await new Promise((resolve, reject) => {
     let output = '';
-    const timeout = setTimeout(() => reject(new Error('Fallback owner child timed out.')), CHILD_STARTUP_MS);
-    child.stdout.on('data', bytes => { output += bytes; if (output.includes('\n')) { clearTimeout(timeout); resolve(JSON.parse(output.trim())); } });
-    exited.then(() => { clearTimeout(timeout); reject(new Error('Fallback owner child exited early.')); });
+
+    child.stdout.on('data', bytes => { output += bytes; if (output.includes('\n')) { resolve(JSON.parse(output.trim())); } });
+    exited.then(() => { reject(new Error('Fallback owner child exited early.')); });
   });
   assert.equal(owner.startVerified, false);
   assert.ok(Number.isFinite(Date.parse(owner.startedAt)));
@@ -352,12 +351,12 @@ test('SIGKILL during replacement preserves the acknowledged action and replays i
   child.stderr.on('data', bytes => { stderr += bytes; });
   t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited; });
   await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`Save child timed out: ${stderr}`)), CHILD_STARTUP_MS);
+
     child.on('message', message => {
       if (message.phase === 'acknowledged') acknowledged = message;
-      if (message.phase === 'synced-before-rename') { clearTimeout(timeout); resolve(); }
+      if (message.phase === 'synced-before-rename') { resolve(); }
     });
-    exited.then(() => { clearTimeout(timeout); reject(new Error(`Save child exited early: ${stderr}`)); });
+    exited.then(() => { reject(new Error(`Save child exited early: ${stderr}`)); });
   });
   assert.ok(acknowledged);
   child.kill('SIGKILL'); await exited;

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
@@ -16,7 +17,7 @@ function harness(replies, { delayMs = 0 } = {}) {
     active++; peak = Math.max(peak, active);
     calls.push({ url: new URL(url), init, at: clock });
     try {
-      if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
+      if (delayMs) await new Promise(resolve => setImmediate(resolve));
       const reply = typeof replies === 'function' ? replies(calls.length - 1, new URL(url)) : replies[calls.length - 1];
       if (reply instanceof Error) throw reply;
       return reply ?? Response.json({ query: {} });

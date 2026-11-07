@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -136,7 +137,7 @@ for (const mode of ['thread', 'process']) for (const site of ['owner', 'partner'
     const env = { ...process.env, RS3_DATASET: 'open-starter' };
     for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_DATASET_PROFILE', 'RS3_DATASET_PROFILE_SHA256', 'RS3_PRIVATE_ADDON', 'RS3_PRIVATE_ADDON_SHA256']) delete env[key];
     const child = spawnSync(process.execPath, ['--input-type=module', '--eval', source], {
-      encoding: 'utf8', env, timeout: 15000, windowsHide: true,
+      encoding: 'utf8', env, windowsHide: true,
     });
     assert.equal(child.status, 0, `status=${child.status}, signal=${child.signal}\n${child.stderr}\n${child.stdout}`);
     assert.match(child.stdout, new RegExp(`checked ${mode} ${site}`));

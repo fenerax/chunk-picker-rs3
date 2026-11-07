@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
@@ -21,7 +22,7 @@ const environment = log => {
   return log ? { ...env, RS3_STARTUP_TIMING_LOG: log } : env;
 };
 
-test('opt-in startup log orders every phase and resolves the dataset once in the server process', { timeout: 120000 }, async t => {
+test('opt-in startup log orders every phase and resolves the dataset once in the server process', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'rs3-startup-timing-'));
   const log = path.join(directory, 'startup.jsonl'), dataDir = path.join(directory, 'game');
   const child = spawn(process.execPath, [path.join(root, 'app', 'server.mjs'), '--data-dir', dataDir, '--host', '127.0.0.1', '--port', '0'],

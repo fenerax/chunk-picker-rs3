@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -29,7 +30,7 @@ async function request(handler, route, body, key) {
   return { status: response.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) };
 }
 
-test('server shutdown drains an accepted achievement command before flushing and closing its sidecar', { timeout: 15000 }, async t => {
+test('server shutdown drains an accepted achievement command before flushing and closing its sidecar', async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-shutdown-'));
   const initialState = createGroupState([{ id: 'a', name: 'Explorer 1' }]);
   initialState.tasks = [{ id: 'diary:one', category: 'Diary', label: '~|Synthetic Achievements#Easy|~ First Task' }];

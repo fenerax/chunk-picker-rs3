@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
@@ -277,7 +278,7 @@ test('projection is enabled by default and zero forces reference even with an ex
     if (switchValue === undefined) delete env.RS3_FINAL_PROJECTION;
     else env.RS3_FINAL_PROJECTION = switchValue;
     const child = spawnSync(process.execPath, ['--input-type=module', '-e', source, explicit ? 'explicit' : 'default'],
-      { env, encoding: 'utf8', timeout: 30000 });
+      { env, encoding: 'utf8'});
     assert.equal(child.status, 0, child.stderr);
     const calls = JSON.parse(child.stdout);
     if (switchValue === undefined) {

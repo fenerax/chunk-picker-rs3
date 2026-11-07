@@ -22,9 +22,10 @@ export function groupRSS(group) {
   }
   return total;
 }
-async function main() {
-  requireNode(); publicEnvironment();
-  const { values: opts, tokens } = parseArgs({ tokens: true, options: Object.fromEntries([
+export async function supervise({ argv = process.argv.slice(2), clock = { setTimeout, clearTimeout, setInterval, clearInterval },
+  execute = spawn, signals = process, environment = process.env, memory = groupRSS, stopGroup = killGroup, checkRuntime = requireNode } = {}) {
+  checkRuntime(); publicEnvironment(environment);
+  const { values: opts, tokens } = parseArgs({ args: argv, tokens: true, options: Object.fromEntries([
     'out', 'reference-ref', 'candidate-ref', 'candidate-patch', 'cases', 'request-ms', 'wall-ms', 'rss-mib', 'outer-ms', 'tree-rss-mib',
   ].map(name => [name, { type: 'string' }])) });
   if (!opts.out) throw Error('--out required');
@@ -33,19 +34,19 @@ async function main() {
   await mkdir(out);
   const log = openSync(path.join(out, 'campaign.log'), 'wx');
   const args = tokens.filter(token => !['out', 'outer-ms', 'tree-rss-mib'].includes(token.name)).flatMap(token => ['--' + token.name, token.value]);
-  const child = spawn(process.execPath, ['--max-old-space-size=512', fileURLToPath(new URL('./run.mjs', import.meta.url)), '--out', campaign, ...args],
-    { detached: true, cwd: ROOT, stdio: ['ignore', log, log] });
+  const child = execute(process.execPath, ['--max-old-space-size=512', fileURLToPath(new URL('./run.mjs', import.meta.url)), '--out', campaign, ...args],
+    { detached: true, cwd: ROOT, stdio: ['ignore', log, log], env: environment });
   closeSync(log);
   const record = { format: 'q2-supervisor-v1', processGroup: child.pid, outerMs, rssBytes, sampledTreePeakRSSBytes: 0, complete: false };
   await writeFile(path.join(out, 'supervisor.json'), JSON.stringify(record));
   let interrupted, monitorError;
-  const abort = reason => { interrupted ??= reason; killGroup(child.pid); };
+  const abort = reason => { interrupted ??= reason; stopGroup(child.pid); };
   const term = () => abort('SIGTERM'), int = () => abort('SIGINT');
-  process.on('SIGTERM', term); process.on('SIGINT', int);
-  const timer = setTimeout(() => abort('deadline'), outerMs);
-  const monitor = setInterval(() => {
+  signals.on('SIGTERM', term); signals.on('SIGINT', int);
+  const timer = clock.setTimeout(() => abort('deadline'), outerMs);
+  const monitor = clock.setInterval(() => {
     try {
-      const bytes = groupRSS(child.pid); record.sampledTreePeakRSSBytes = Math.max(record.sampledTreePeakRSSBytes, bytes);
+      const bytes = memory(child.pid); record.sampledTreePeakRSSBytes = Math.max(record.sampledTreePeakRSSBytes, bytes);
       if (bytes > rssBytes) abort('memory');
     } catch (error) { monitorError = error.message; abort('monitor'); }
   }, 50);
@@ -60,13 +61,13 @@ async function main() {
     }
   } catch (error) { record.exitCode = 14; record.error = error.message; }
   finally {
-    clearTimeout(timer); clearInterval(monitor); killGroup(child.pid);
+    clock.clearTimeout(timer); clock.clearInterval(monitor); stopGroup(child.pid);
     try { await cleanupOwned(campaign); }
     catch (error) { record.exitCode = 14; record.complete = false; record.cleanupError = error.message; }
-    process.off('SIGTERM', term); process.off('SIGINT', int);
+    signals.off('SIGTERM', term); signals.off('SIGINT', int);
     record.durationMs = performance.now() - began;
     await writeFile(path.join(out, 'supervisor.json'), JSON.stringify(record, null, 2) + '\n');
   }
-  console.log(JSON.stringify({ out, ...record })); process.exitCode = record.exitCode;
+  console.log(JSON.stringify({ out, ...record })); return record.exitCode;
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => { console.error(error.message); process.exitCode = 14; });
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) supervise().then(code => { process.exitCode = code; }).catch(error => { console.error(error.message); process.exitCode = 14; });

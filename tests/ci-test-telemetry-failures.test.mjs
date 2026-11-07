@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -63,7 +64,7 @@ test('receipt bytes contain only public error vocabulary at every cause depth an
   }
 });
 
-test('Windows failure logging and ledger bytes reject secret-shaped error fields', { skip: process.platform !== 'win32', timeout: 30000 }, async t => {
+test('Windows failure logging and ledger bytes reject secret-shaped error fields', { skip: process.platform !== 'win32'}, async t => {
   const cwd = await scratch(t), work = path.join(cwd, 'work');
   await mkdir(path.join(cwd, '.github/windows-slice'), { recursive: true });
   await mkdir(path.join(cwd, 'scripts/ci'), { recursive: true });
@@ -208,7 +209,7 @@ test('synthetic verdict', {todo:${kind.startsWith('todo')}}, () => {
   };
 }
 
-for (const kind of ['pass', 'fail']) test(`telemetry I/O faults preserve the native ${kind} verdict and CLI exit code`, { timeout: 30000 }, async t => {
+for (const kind of ['pass', 'fail']) test(`telemetry I/O faults preserve the native ${kind} verdict and CLI exit code`, async t => {
   const run = await cliFixture(t), baseline = await run({ kind, telemetry: false });
   assert.equal(baseline.code, kind === 'pass' ? 0 : 1);
   for (const fault of ['mkdir', 'open', '1', '2', '3', '4', 'close', 'dataset-mkdir', 'dataset-read', 'dataset-cleanup', 'log']) {
@@ -218,7 +219,7 @@ for (const kind of ['pass', 'fail']) test(`telemetry I/O faults preserve the nat
   }
 });
 
-for (const kind of ['todo-null', 'todo-cycle', 'todo-primitive', 'todo-deep']) test(`${kind} passes identically with and without telemetry`, { timeout: 30000 }, async t => {
+for (const kind of ['todo-null', 'todo-cycle', 'todo-primitive', 'todo-deep']) test(`${kind} passes identically with and without telemetry`, async t => {
   const run = await cliFixture(t), baseline = await run({ kind, telemetry: false }), result = await run({ kind });
   assert.equal(baseline.code, 0, baseline.output); assert.equal(result.code, baseline.code, result.output);
   assert.equal(result.receipt.receipts[0].firstAttempt.outcome, 'pass');
@@ -263,7 +264,7 @@ test('sanitizer and metadata getter failures cannot replace a passing verdict', 
   }
 });
 
-test('the runtime dataset receipt writer tolerates EIO on open, both writes and close', { timeout: 30000 }, async t => {
+test('the runtime dataset receipt writer tolerates EIO on open, both writes and close', async t => {
   const cwd = await scratch(t), runtime = new URL('../app/dataset-runtime.mjs', import.meta.url).href;
   for (const fault of ['open', '1', '2', 'close']) {
     const destination = path.join(cwd, fault + '.jsonl');

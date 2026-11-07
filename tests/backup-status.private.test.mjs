@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, writeFile, readFile, rm, copyFile, readdir } from 'node:fs/promises';
@@ -42,7 +43,7 @@ test('PowerShell backup records success, preserves it after redacted failure and
   await writeFile(path.join(f.dataDir, 'feedback.json'), '{"messages":[]}');
   const runner = path.join(scripts, 'fixture.ps1');
   await writeFile(runner, `param([switch]$Fail)\nfunction Invoke-WebRequest { param($Uri, $Headers, $OutFile, $TimeoutSec)\nif ($Fail) { throw 'failed synthetic-secret Bearer other-secret ?token=query-secret' }\nSet-Content -LiteralPath $OutFile -Value '{"format":"rs3-chunk-picker","state":{"members":{"a":{},"b":{}},"revision":42}}'\n}\n& "$PSScriptRoot/Backup-Picker.ps1" -Keep 1\n$archive = Get-ChildItem -LiteralPath "$PSScriptRoot/../.local/destination" -File | Where-Object Name -Match '^rs3-chunk-picker-\\d{4}-\\d{2}-\\d{2}\\.zip$' | Select-Object -First 1\n$zip = [IO.Compression.ZipFile]::OpenRead($archive.FullName)\ntry { ConvertTo-Json -InputObject @($zip.Entries.FullName) | Set-Content -LiteralPath "$PSScriptRoot/../.local/archive-manifest.json" } finally { $zip.Dispose() }\n`);
-  const run = (...args) => spawnSync('pwsh', ['-NoProfile', '-File', runner, ...args], { encoding: 'utf8', timeout: 30000 });
+  const run = (...args) => spawnSync('pwsh', ['-NoProfile', '-File', runner, ...args], { encoding: 'utf8'});
   const ok = run();
   assert.equal(ok.status, 0, ok.stderr);
   const status = JSON.parse(await readFile(path.join(f.metadata, 'backup-status.json'), 'utf8'));

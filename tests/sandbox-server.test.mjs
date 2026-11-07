@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 import test from 'node:test';
@@ -167,7 +169,7 @@ test('sandbox calculations stay on the advisory lane and a concurrent save super
   };
   const { app, post, body } = await fixture(t, { taskWorkerOptions: { workerFactory } });
   const pending = post(body({ unlockChunks: [chunkId(1)] }));
-  for (let index = 0; index < 100 && !workers[1]?.messages.some(row => row.type === 'sandbox'); index++) await new Promise(resolve => setTimeout(resolve, 10));
+  await waitForCondition(() => workers[1]?.messages.some(row => row.type === 'sandbox'));
   assert.equal(workers.length, 2);
   assert.ok(workers[1].messages.some(row => row.type === 'sandbox'));
   assert.ok(!workers[0].messages.some(row => row.type === 'sandbox'));

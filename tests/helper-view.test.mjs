@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import { amountInput, parseAmount } from '../app/web/amount-input.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +9,7 @@ import { dataTable, levelChart, chanceChart } from '../app/web/helper-charts.mjs
 import { renderGoals } from '../app/web/helper-goals.mjs';
 import { renderUtilities } from '../app/web/helper-utilities.mjs';
 import { renderDrops } from '../app/web/helper-drops.mjs';
-import { createHelperView } from '../app/web/helper.mjs';
+import { createHelperView as createView } from '../app/web/helper.mjs';
 import { dropChance, skillGoals, combatProjection } from '../app/web/helper-model.mjs';
 import { xpForLevel } from '../app/core/experience.mjs';
 
@@ -48,10 +51,9 @@ const find = (host, tag, label) => walk([host]).find(node => node.tag === tag &&
 const submit = form => form.dispatchEvent({ type: 'submit', preventDefault() {} });
 const observed = (level, xp = xpForLevel(level)) => ({ level, xp, source: 'runemetrics', runescapeName: 'DemoExplorer', fetchedAt: '2026-10-11T12:00:00Z' });
 const member = () => ({ id: 'actor1', name: 'Player', runescapeName: 'DemoExplorer', skillProgress: { Mining: observed(10), Attack: observed(40) }, completedTasks: [] });
-async function until(predicate) {
-  for (let i = 0; i < 200 && !predicate(); i++) await new Promise(resolve => setTimeout(resolve, 10));
-  assert.ok(predicate());
-}
+const clock = createManualClock();
+const createHelperView = options => createView({ ...options, clock });
+async function until(predicate) { if (!predicate()) await clock.advance(400); assert.ok(predicate(), 'Controlled helper work must settle at its refresh boundary'); }
 
 test('chart data tables have captions, semantic column headings and row headings', () => {
   const h = dom();
@@ -269,7 +271,7 @@ test('shell opening only reads a catalogue, and closing aborts pending work with
   const helper = createHelperView({ document: h.document, api, getState: () => state, getMemberId: () => owner.id, getResult: () => undefined });
   helper.open();
   try {
-    for (let i = 0; i < 100 && !reads.length; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    await waitForCondition(() => reads.length);
     assert.equal(picker.hidden, true);
     assert.equal(launch.attributes['aria-pressed'], 'true');
     assert.equal(reads.length, 1);
@@ -297,10 +299,6 @@ test('shell discards reads from the previous player or revision while open', asy
   const api = (path, body, signal) => new Promise(resolve => { reads.push({ path, body, signal, resolve }); });
   const helper = createHelperView({ document: h.document, api, getState: () => state, getMemberId: () => selectedMember, getResult: () => undefined });
   const catalogue = { skills: [{ skill: 'Mining', status: 'f2p', f2pCap: 110 }], methods: [] };
-  async function until(predicate) {
-    for (let i = 0; i < 200 && !predicate(); i++) await new Promise(resolve => setTimeout(resolve, 10));
-    assert.ok(predicate());
-  }
   helper.open();
   try {
     await until(() => reads.length === 1);
@@ -344,7 +342,7 @@ test('shell keeps calculator inputs when task results finish, retains drafts acr
     utilities.dispatchEvent({ type: 'click' }); await until(() => currentXp()?.value === '0');
     const typed = currentXp(); typed.value = '50000';
     results.set(owner.id, { memberId: owner.id, stateRevision: 7, tasks: [] });
-    await new Promise(resolve => setTimeout(resolve, 450));
+    await clock.advance(450);
     assert.equal(currentXp(), typed);
     assert.equal(currentXp().value, '50000');
     state.revision = 8; results.clear();

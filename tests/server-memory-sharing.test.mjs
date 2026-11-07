@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -43,7 +44,7 @@ test('an equivalent second dataset resolution keeps the import-time provider', (
   assert.equal(reuseEquivalentDataset(changed, undefined), changed);
 });
 
-test('a task worker releases its definition transfer input once compiled', { timeout: 120000 }, async t => {
+test('a task worker releases its definition transfer input once compiled', async t => {
   const definitions = { chunks: { '12341': {}, '12342': {} }, walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'],
     challenges: { Quest: { 'Present quest': { Chunks: ['12341'] } } } };
   const world = buildWorld(definitions);
@@ -67,7 +68,7 @@ test('a task worker releases its definition transfer input once compiled', { tim
   }
 });
 
-test('the server keeps one dataset provider and serves shared definition bytes in every encoding', { timeout: 120000 }, async t => {
+test('the server keeps one dataset provider and serves shared definition bytes in every encoding', async t => {
   const { createServer } = await import('../app/server.mjs');
   const imported = selectedDataset;
   const directory = await mkdtemp(path.join(tmpdir(), 'server-memory-sharing-'));

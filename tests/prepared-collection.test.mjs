@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -224,7 +226,7 @@ test('persistent collection launches and publication do no body I/O or hashing o
   } finally { await reopened.clear(); }
 });
 
-test('terminated collection publishers release only their own aged lock', { timeout: 20000 }, async t => {
+test('terminated collection publishers release only their own aged lock', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'prepared-publisher-exit-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await runWarmWriterProbe(directory, 'collections', `
@@ -334,13 +336,12 @@ test('the pool labels physical foreground/advisory allocations for bounded prepa
 });
 
 test('native foreground preserves catalogues through idle retirement and a coalesced wake', async t => {
-  const scheduler = await createTaskScheduler({ workerData: init(), idleMs: 50 });
+  const idleClock = createManualClock();
+  const scheduler = await createTaskScheduler({ workerData: init(), idleMs: 50, idleClock });
   t.after(() => scheduler.close());
   const catalogue = scheduler.catalogue, dynamic = scheduler.dynamicCatalogue;
-  const deadline = Date.now() + 5000;
-  while (scheduler.getHealth().status !== 'sleeping') {
-    assert.ok(Date.now() < deadline); await new Promise(resolve => setTimeout(resolve, 10));
-  }
+  await idleClock.advance(50);
+  assert.equal(scheduler.getHealth().status, 'sleeping');
   const current = state();
   const [a, b] = await Promise.all([scheduler.evaluate(current, 'a'), scheduler.evaluate(current, 'a')]);
   assert.deepEqual(a.result, b.result);

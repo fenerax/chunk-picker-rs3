@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -54,7 +55,7 @@ for (const [label, name] of [
   ['short', 'Explorer'],
   ['long', 'Synthetic display name '.repeat(3).slice(0, 58)],
 ]) for (const [width, height, phone] of [[320, 568, true], [390, 844, true], [1280, 900, false]]) {
-  test(`${label} display name at ${width}x${height}: native map controls and navigation`, { timeout: 90000 }, async t => {
+  test(`${label} display name at ${width}x${height}: native map controls and navigation`, async t => {
     const directory = await mkdtemp(path.join(tmpdir(), 'phone-controls-browser-'));
     let app, browser;
     try {
@@ -200,7 +201,7 @@ for (const [label, name] of [
               for (let node = document.querySelector(${JSON.stringify(container)}); node; node = node.parentElement) positions.push(node.scrollLeft, node.scrollTop);
               return JSON.stringify(positions);
             })()`);
-            await until(async () => { const a = await offsets(); await new Promise(r => setTimeout(r, 120)); return a === await offsets(); });
+            await until(async () => { const a = await offsets(); await browser.evaluate('new Promise(requestAnimationFrame)'); return a === await offsets(); });
           } else {
             await browser.send('Input.synthesizeScrollGesture', { x: panel.x, y: panel.y,
               yDistance: direction * distance, speed: 900, gestureSourceType: 'mouse' });

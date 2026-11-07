@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 // Real Chromium input, chooser, download and AX against disposable starter saves.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -95,8 +96,7 @@ async function close(page, mode) {
 }
 
 for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpose and filename in Chromium (${activation})`, {
-  timeout: 60000,
-}, async t => {
+  }, async t => {
   if (unavailable) { t.skip('Chrome not found'); return; }
   const directory = await mkdtemp(path.join(tmpdir(), 'backup-file-browser-'));
   const dataDir = path.join(directory, 'save'), downloads = path.join(directory, 'downloads');

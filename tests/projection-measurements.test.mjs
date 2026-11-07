@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -37,7 +38,7 @@ test('explicit GC probe preserves memoryUsage.rss and returns bounded numeric re
     assert.equal(d.requests[0].passesAfter-d.requests[0].passesBefore,0);
     assert.equal(typeof d.requests[0].gc.pauseMs,'number');assert.ok(d.gc.count>=0);
     c.port1.close();await w.terminate();`;
-  const result = spawnSync(process.execPath, ['--import', probe, '--input-type=module', '-e', main], { encoding: 'utf8', timeout: 10000 });
+  const result = spawnSync(process.execPath, ['--import', probe, '--input-type=module', '-e', main], { encoding: 'utf8'});
   assert.equal(result.status, 0, result.stderr);
 });
 

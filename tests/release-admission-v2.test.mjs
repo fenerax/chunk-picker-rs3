@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -17,7 +18,7 @@ async function fixture(t, body, free = 20) {
   return { root, script };
 }
 function run(script, ...args) {
-  const result = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', script, ...args], { encoding: 'utf8', timeout: 15000, windowsHide: true });
+  const result = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', script, ...args], { encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   return result.stdout.trim();
 }
@@ -103,8 +104,7 @@ $result = Join-Path (Split-Path $context.Root) ($lane + '.json')
 [IO.File]::WriteAllText($result, ([bool]$reservation | ConvertTo-Json))
 if ($reservation) {
   # Keep the admitted process alive until both attempted reservations are visible.
-  $deadline = [DateTime]::UtcNow.AddSeconds(5)
-  while ((-not (Test-Path -LiteralPath (Join-Path (Split-Path $context.Root) 'heavy.json')) -or -not (Test-Path -LiteralPath (Join-Path (Split-Path $context.Root) 'light.json'))) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 20 }
+  while ((-not (Test-Path -LiteralPath (Join-Path (Split-Path $context.Root) 'heavy.json')) -or -not (Test-Path -LiteralPath (Join-Path (Split-Path $context.Root) 'light.json')))) { [Threading.Thread]::Yield() | Out-Null }
   Remove-ResourceReservation $context $reservation
 }`, 7);
   const start = lane => new Promise((resolve, reject) => {

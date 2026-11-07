@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkedBatches } from '../app/checked-batches.mjs';
@@ -9,7 +10,7 @@ function deferred() {
 }
 const collect = async iterable => { const values = []; for await (const value of iterable) values.push(value); return values; };
 
-test('inspections admit at most three reads and preserve input order despite reversed completion', { timeout: 2000 }, async () => {
+test('inspections admit at most three reads and preserve input order despite reversed completion', async () => {
   const entries = Array.from({ length: 8 }, (_, index) => index), pending = entries.map(deferred);
   const admitted = [deferred(), deferred(), deferred()], started = [];
   let active = 0, peak = 0;
@@ -31,7 +32,7 @@ test('inspections admit at most three reads and preserve input order despite rev
   assert.equal(peak, 3); assert.equal(active, 0);
 });
 
-test('a failed inspection drains its batch and prevents subsequent reads', { timeout: 2000 }, async () => {
+test('a failed inspection drains its batch and prevents subsequent reads', async () => {
   for (const synchronous of [false, true]) {
     const pending = Array.from({ length: 4 }, deferred), admitted = deferred(), started = [];
     const failure = new Error('Synthetic input failed');

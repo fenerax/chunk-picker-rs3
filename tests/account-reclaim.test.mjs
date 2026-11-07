@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
@@ -11,12 +12,12 @@ import { reconcileTombstones } from '../app/storage/tombstones.mjs';
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'account-reclaim-'));
   const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
-  let clock = Date.now(), registry = await openRegistry({ ...options, now: () => clock });
+  let clock = Date.parse('2026-01-01T00:00:00Z'), registry = await openRegistry({ ...options, now: () => clock });
   const target = await registry.firstLogin('discord', 'synthetic-target');
   await registry.unlinkIdentity(target.account.id, 'discord');
   const file = path.join(options.registryDir, 'registry.json'), ledger = path.join(options.tombstoneDir, 'ledger.json');
-  const f = { root, options, target, file, ledger, get registry() { return registry; }, advance: ms => { clock += ms; },
-    close: () => registry.close(), open: async () => { registry = await openRegistry(options); } };
+  const f = { root, options, target, file, ledger, now: () => clock, get registry() { return registry; }, advance: ms => { clock += ms; },
+    close: () => registry.close(), open: async () => { registry = await openRegistry({ ...options, now: () => clock }); } };
   t.after(async () => { await registry.close(); await rm(root, { recursive: true, force: true }); });
   return f;
 }
@@ -106,7 +107,7 @@ test('MP15 a source with two linked providers refuses without dropping either id
 
 test('MP15 only hashes persist and service backups exclude claim credentials', async t => {
   const f = await fixture(t), issued = await f.registry.issueRelinkCode(f.target.account.id);
-  assert.equal(Date.parse(issued.expiresAt) - Date.now() > 86300000, true);
+  assert.equal(Date.parse(issued.expiresAt) - f.now(), 86400000);
   const bytes = await readFile(f.file, 'utf8');
   assert.equal(bytes.includes(issued.code), false);
   const document = registryRecoveryDocument(JSON.parse(bytes));
@@ -129,7 +130,7 @@ import { readFile } from 'node:fs/promises';
 import { openRegistry } from './app/storage/registry.mjs';
 import { reconcileTombstones } from './app/storage/tombstones.mjs';
 const [file, step] = process.argv.slice(1), input = JSON.parse(await readFile(file));
-const registry = await openRegistry({ ...input.options, crashPoint: name => { if (name === step) process.exit(86); } });
+const registry = await openRegistry({ ...input.options, now: () => input.now, crashPoint: name => { if (name === step) process.exit(86); } });
 await registry.claimIdentity(input.code, 'discord', 'synthetic-player', { emptyAccountId: input.source });
 await reconcileTombstones({ registry, revokeAccount: async () => {} });
 await registry.close(); process.exit(1);
@@ -140,7 +141,7 @@ for (const step of steps) test(`MP15 process death at ${step} preserves one iden
   const f = await fixture(t), source = await f.registry.firstLogin('discord', 'synthetic-player');
   const issued = await f.registry.issueRelinkCode(f.target.account.id);
   const input = path.join(f.root, 'input.json');
-  await writeFile(input, JSON.stringify({ options: f.options, source: source.account.id, code: issued.code }), { mode: 0o600 });
+  await writeFile(input, JSON.stringify({ options: f.options, now: f.now(), source: source.account.id, code: issued.code }), { mode: 0o600 });
   await f.close();
   const code = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--input-type=module', '-e', childProgram, input, step], { cwd: path.resolve(import.meta.dirname, '..'), stdio: 'ignore' });
@@ -169,7 +170,7 @@ test('MP15 stopped checkpoint refuses pending retirement until registry replay r
   const f = await fixture(t), source = await f.registry.firstLogin('discord', 'synthetic-player');
   const issued = await f.registry.issueRelinkCode(f.target.account.id);
   await f.close();
-  const interrupted = await openRegistry({ ...f.options, crashPoint: name => { if (name === 'relink-committed') throw Error('Synthetic interruption'); } });
+  const interrupted = await openRegistry({ ...f.options, now: f.now, crashPoint: name => { if (name === 'relink-committed') throw Error('Synthetic interruption'); } });
   try {
     await assert.rejects(interrupted.claimIdentity(issued.code, 'discord', 'synthetic-player', { emptyAccountId: source.account.id }), /Synthetic interruption/);
   } finally { await interrupted.close(); }

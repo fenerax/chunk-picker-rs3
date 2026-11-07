@@ -16,12 +16,13 @@ function Invoke-PickerHelper {
     $pickerCall = [Guid]::NewGuid().ToString('N')
     $pickerOut = Join-Path $FixtureRoot "$pickerCall.stdout"
     $pickerErr = Join-Path $FixtureRoot "$pickerCall.stderr"
-    $pickerArgs = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $FixtureRoot "scripts\$Name") + '"')) + $Arguments
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject @($Arguments) -Compress)))
+    $pickerArgs = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $FixtureRoot 'controlled-helper.ps1') + '"'), '-FixtureRoot', ('"' + $FixtureRoot + '"'), '-Mode', $Mode, '-Name', $Name, '-EncodedArguments', $encoded)
     $pickerInvocation = Start-Process -FilePath $pickerShell -ArgumentList $pickerArgs -WindowStyle Hidden -RedirectStandardOutput $pickerOut -RedirectStandardError $pickerErr -PassThru
     $pickerInvocation.Handle | Out-Null
     # Start-Process -Wait waits for descendants too; the managed Node child must
     # remain running after Start exits, so wait only for this helper invocation.
-    Assert-PickerCondition ($pickerInvocation.WaitForExit(90000)) 'Helper invocation did not return within 90 seconds.'
+    $pickerInvocation.WaitForExit()
     $pickerInvocation.Refresh()
     $pickerText = [string](Get-Content -LiteralPath $pickerOut -Raw) + [string](Get-Content -LiteralPath $pickerErr -Raw)
     Assert-PickerCondition ($pickerText -notmatch '(?i)(?:/|%2f)join(?:/|%2f)[A-Za-z0-9_-]{12,}') 'Helper stdout and stderr must exclude invitation credentials.'
@@ -48,31 +49,8 @@ try {
         Assert-PickerCondition (@(Get-Content -LiteralPath (Join-Path $FixtureRoot 'starts.ndjson')).Count -eq 1) 'Ownership recovery launched a competitor.'
         [IO.File]::WriteAllText((Join-Path $FixtureRoot 'allow-ready'), 'ready')
     } else {
-        # A managed starting result is valid when the full suite briefly starves
-        # Node on Windows. Synchronize with authenticated readiness before testing
-        # graceful/forced stop, and refresh ownership through the same Start helper.
-        $pickerHealthUntil = [DateTime]::UtcNow.AddSeconds(60)
-        $pickerManagedId = $pickerInitial.pid
-        $pickerFixtureHealth = $null
-        do {
-            $pickerTokenPath = Join-Path $FixtureRoot '.local\duo\access-token'
-            if (Test-Path -LiteralPath $pickerTokenPath) {
-                $pickerFixtureToken = (Get-Content -LiteralPath $pickerTokenPath -Raw).Trim()
-                try { $pickerFixtureHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health" -Headers @{ Authorization = "Bearer $pickerFixtureToken" } -TimeoutSec 5 }
-                catch { $pickerFixtureHealth = $null }
-                if ($pickerFixtureHealth.ready -or $pickerFixtureHealth.savesReady) {
-                    if ($pickerInitial.state -ne 'running' -or -not $pickerInitial.url) {
-                        $pickerStart += Invoke-PickerHelper 'Start-Picker.ps1' @('-HostAddress', '127.0.0.1', '-Port', [string]$Port, '-ReadinessTimeoutSeconds', '1')
-                        $pickerInitial = Get-Content -LiteralPath $pickerRuntimePath -Raw | ConvertFrom-Json
-                        Assert-PickerCondition ($pickerInitial.pid -eq $pickerManagedId) 'Readiness refresh must keep the same managed process.'
-                    }
-                    if ($pickerInitial.state -eq 'running' -and $pickerInitial.url) { break }
-                }
-            }
-            Start-Sleep -Milliseconds 250
-        } while ([DateTime]::UtcNow -lt $pickerHealthUntil)
-        Assert-PickerCondition ([bool]($pickerFixtureHealth.ready -or $pickerFixtureHealth.savesReady)) 'The disposable server did not become authenticated-ready within 60 seconds.'
-        Assert-PickerCondition ($pickerInitial.state -eq 'running' -and $pickerInitial.url) 'Authenticated readiness must produce a running record and invitation.'
+        $pickerFixtureToken = (Get-Content -LiteralPath (Join-Path $FixtureRoot '.local\duo\access-token') -Raw).Trim()
+        Assert-PickerCondition ($pickerInitial.state -eq 'running' -and $pickerInitial.url) 'Acknowledged readiness must produce a running record and invitation.'
         Assert-PickerCondition (([Uri]$pickerInitial.url).AbsolutePath -eq "/join/$pickerFixtureToken") 'Protected runtime retrieval must retain the administrator invitation.'
         Assert-PickerCondition (@(Get-Content -LiteralPath (Join-Path $FixtureRoot 'starts.ndjson')).Count -eq 1) 'Readiness refresh launched a competitor.'
     }

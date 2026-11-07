@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -10,10 +12,7 @@ const definitions = { chunks: { '12341': {} }, walkableChunks: ['12341'], walkab
 const result = { tasks: [{ id: 'synthetic-idle-task', label: 'Mine ore', category: 'Mining', status: 'available' }],
   metrics: { availableCount: 1 }, activityInfo: { skills: [{ skill: 'Mining' }] } };
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
-async function until(predicate) {
-  for (let i = 0; i < 1000; i++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 5)); }
-  assert.fail('Timed out waiting for idle-memory fixture');
-}
+async function until(predicate) { return waitForCondition(predicate); }
 function clock() {
   let time = 0, sequence = 0;
   const timers = new Map();

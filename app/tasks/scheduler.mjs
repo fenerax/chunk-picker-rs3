@@ -140,7 +140,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
       workerData: (includeCatalogue, group) => native
         ? nativeWorkerInput(group === 'foreground' || options.workerPreparation.persistent ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
-      sessions, clock: options.idleClock, memoryUsage: options.calculatorMemoryUsage,
+      sessions, clock: options.idleClock, deadlineClock: options.deadlineClock, memoryUsage: options.calculatorMemoryUsage,
       onWorker: options.onWorker,
       onReady: native ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
@@ -742,7 +742,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function cancel(entry, error, retiring = false) {
     if (active === entry && worker && !entry.reuseRevision) {
-      if (entry.cancellation) Atomics.store(new Int32Array(entry.cancellation), 0, 1);
+      if (entry.cancellation) {
+        const cancellation = new Int32Array(entry.cancellation);
+        Atomics.store(cancellation, 0, 1);
+        Atomics.notify(cancellation, 0);
+      }
       try { worker.postMessage({ id: entry.id, type: 'cancel', pickerId: entry.pickerId }); } catch { failure('worker-send'); }
     }
     settle(entry, error);
@@ -756,7 +760,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
       cancel(active, error, true); active = undefined;
     }
-    clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
+    deadlineClock.clearTimeout(startupTimer); deadlineClock.clearTimeout(restartTimer); restartTimer = undefined;
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     clearImmediate(idleTimer); idleTimer = undefined;
     const old = worker; worker = undefined; generation++;
@@ -779,7 +783,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     const profiling = kind === 'profile-retired';
     if (!profiling) failures++;
     if (!profiling) lastFailure = { kind, at: new Date().toISOString() };
-    clearTimeout(startupTimer);
+    deadlineClock.clearTimeout(startupTimer);
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     const old = worker; worker = undefined; generation++; terminate(old);
     if (active) { deadlineClock.clearTimeout(active.timer); counts.errors++; settle(active, unavailable(kind === 'worker-memory'
@@ -798,7 +802,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (!profiling) restarts++;
     nextRetryAt = new Date(Date.now() + delay).toISOString();
     announce();
-    restartTimer = setTimeout(launch, delay);
+    restartTimer = deadlineClock.setTimeout(launch, delay);
   }
   function canReadResident(type, pickerId) {
     return !closed && !closedPickers.has(pickerId) && status === 'ready' && worker && !worker.profileRetiring
@@ -938,7 +942,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     catch { failure('worker-start'); return; }
     if (!calculatorPool) onWorker?.(worker);
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
-    startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
+    startupTimer = deadlineClock.setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', error => { if (ownGeneration === generation) failure(worker.profileRetiring ? 'profile-retired'
       : error?.code === 'ERR_WORKER_OUT_OF_MEMORY' ? 'worker-memory' : 'worker-error'); });
     worker.on('exit', () => { if (ownGeneration === generation && !closed) failure(worker.profileRetiring ? 'profile-retired' : 'worker-exit'); });
@@ -954,7 +958,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
           && message.datasetDigest !== workerData.datasetDigest) { failure('dataset-mismatch'); return; }
         if (workerFactory === nativeWorker) workerPreparation?.accept(message);
         receivedCatalogue ||= Array.isArray(message.catalogue);
-        clearTimeout(startupTimer); status = 'ready'; recovering = false;
+        deadlineClock.clearTimeout(startupTimer); status = 'ready'; recovering = false;
         signal?.removeEventListener('abort', abortInitial);
         lastProgressAt = idleClock.now();
         compileMs = Number.isFinite(message.compileMs) ? message.compileMs : 0;
@@ -1408,7 +1412,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       if (closed || !(scheduler.getHealth().stuck || status === 'restart-required')) return false;
       manualRestart = (async () => {
         clearCancelledGrace();
-        clearTimeout(restartTimer); clearTimeout(startupTimer); clearImmediate(idleTimer); idleTimer = undefined;
+        deadlineClock.clearTimeout(restartTimer); deadlineClock.clearTimeout(startupTimer); clearImmediate(idleTimer); idleTimer = undefined;
         idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
         status = 'restarting'; recovering = true; generation++;
         scheduler.cancelPrewarm();
@@ -1442,7 +1446,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         closed = true; status = 'closed'; generation++;
         initialReject(unavailable('The task server is closing.'));
         announce(); listeners.clear();
-        clearTimeout(restartTimer); clearTimeout(startupTimer);
+        deadlineClock.clearTimeout(restartTimer); deadlineClock.clearTimeout(startupTimer);
         idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
         clearImmediate(idleTimer); scheduler.cancelPrewarm(); sentSnapshots.clear();
         for (const entry of [...pending.values()]) settle(entry, unavailable('The task server is closing.'));
@@ -1451,8 +1455,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       }
       closePromise = (async () => {
         let timer;
-        await Promise.race([Promise.allSettled([...terminating]), new Promise(resolve => { timer = setTimeout(resolve, timeoutMs); })]);
-        clearTimeout(timer);
+        await Promise.race([Promise.allSettled([...terminating]), new Promise(resolve => { timer = deadlineClock.setTimeout(resolve, timeoutMs); })]);
+        deadlineClock.clearTimeout(timer);
       })();
       return closePromise;
     },

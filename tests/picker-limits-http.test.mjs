@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -112,7 +113,7 @@ test('event streams share account and global quotas across sessions and release 
   streams.push(await f.send('/api/events', b, { stream: true }));
   assert.equal((await f.send('/api/events', c)).status, 429);
   streams[0].req.destroy(); streams[0].res.destroy();
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await new Promise(resolve => setImmediate(resolve));
   streams.push(await f.send('/api/events', a2, { stream: true })); assert.equal(streams.at(-1).status, 200);
 });
 

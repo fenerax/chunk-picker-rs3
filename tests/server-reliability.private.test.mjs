@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,8 +10,7 @@ import path from 'node:path';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 const definitions = { chunks: { '12341': {} }, walkableChunks: ['12341'], walkableChunksF2P: ['12341'], challenges: {} };
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate) { for (let i = 0; i < 1000; i++) { if (await predicate()) return; await delay(5); } assert.fail('Timed out'); }
+async function until(predicate) { return waitForCondition(predicate); }
 function fakeFactory() {
   const workers = [];
   return { workers, workerFactory() {

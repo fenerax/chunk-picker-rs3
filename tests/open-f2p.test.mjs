@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import { wikiCacheRoot } from '../scripts/fetch-open-f2p-wiki.mjs';
 import assert from 'node:assert/strict';
@@ -213,9 +214,9 @@ async function guardedBuild({ generator, authoredFile, pins, cacheDir, outputDir
     let stdout = '', stderr = '';
     child.stdout.on('data', bytes => { stdout += bytes; });
     child.stderr.on('data', bytes => { stderr += bytes; });
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Guarded build timed out')); }, 20000);
-    child.once('error', error => { clearTimeout(timer); reject(error); });
-    child.once('close', code => { clearTimeout(timer); code === 0 ? resolve(JSON.parse(stdout)) : reject(new Error(stderr)); });
+
+    child.once('error', error => { reject(error); });
+    child.once('close', code => { code === 0 ? resolve(JSON.parse(stdout)) : reject(new Error(stderr)); });
   });
   const actualDataReads = result.audit.filter(row => row.allowed && row.kind === 'read' && !row.path.endsWith('.mjs'));
   const normalize = filename => process.platform === 'win32' ? path.resolve(filename).toLowerCase() : path.resolve(filename);

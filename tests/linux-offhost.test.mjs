@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -129,12 +131,17 @@ test('staging preflight and per-write budgets use the destination filesystem and
 });
 test('overall deadline aborts network work and releases both locks', async t => {
   const f = await fixture(t);
-  await assert.rejects(offhostBackup({ ...f, config: {}, deadlineMs: 500, run: async (_args, { signal }) => {
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(resolve, 10000);
-      signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
-    });
-  } }));
+  const clock = createManualClock(), controller = new AbortController(), started = Promise.withResolvers();
+  const failed = assert.rejects(offhostBackup({ ...f, config: {}, deadlineMs: 500,
+    deadlineSignal(ms) { clock.setTimeout(() => controller.abort(new Error('controlled upload deadline')), ms); return controller.signal; },
+    run: async (_args, { signal }) => {
+      started.resolve();
+      return new Promise((_, reject) => {
+        signal.throwIfAborted();
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+    } }), /controlled upload deadline/);
+  await started.promise; await clock.advance(500); await failed;
   await checkStart(f.settings);
   await exclusive(path.join(f.settings.controlDir, 'offhost.lock'), async () => {});
   const unit = await readFile(new URL('../scripts/linux/systemd/chunk-picker-offhost.service', import.meta.url), 'utf8');

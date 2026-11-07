@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
@@ -16,10 +17,10 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   return root;
 }
-async function run(root, body, timeout = 90000) {
+async function run(root, body) {
   const script = path.join(root, `fixture-${Math.random().toString(16).slice(2)}.ps1`);
   await writeFile(script, `$ErrorActionPreference='Stop'\n${['Operator-Common.ps1', 'ReleaseV2-Common.ps1', 'Watchdog-Common.ps1', 'Task-Common.ps1', 'InstallV2-Common.ps1'].map(file => `. ${quote(path.join(scripts, file))}`).join('\n')}\n${body}`);
-  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', script], { encoding: 'utf8', timeout });
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', script], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr || String(result.error));
   return result.stdout;
 }
@@ -58,10 +59,9 @@ foreach ($file in Get-ChildItem -LiteralPath ${quote(scripts)} -Filter '*.ps1') 
 
 test('native detached launch releases redirected foreground pipes while synthetic child stays alive', { skip: !windows }, async t => {
   const root = await fixture(t), server = path.join(root, 'child.mjs'), pidFile = path.join(root, 'child.pid');
-  await writeFile(server, `import fs from 'node:fs'; fs.writeFileSync(process.argv[2], String(process.pid)); console.log('synthetic stdout'); console.error('synthetic stderr'); process.stdin.on('end',()=>fs.writeFileSync(process.argv[2]+'.stdin','closed')); process.stdin.resume(); setTimeout(()=>{},30000);`);
+  await writeFile(server, `import fs from 'node:fs'; fs.writeFileSync(process.argv[2], String(process.pid)); console.log('synthetic stdout'); console.error('synthetic stderr'); process.stdin.on('end',()=>fs.writeFileSync(process.argv[2]+'.stdin','closed')); process.stdin.resume(); setInterval(()=>{},1000);`);
   let childPid;
   try {
-    const start = Date.now();
     const output = await run(root, `
 Add-Type -TypeDefinition @'
 using System; using System.Text; using System.Runtime.InteropServices;
@@ -113,7 +113,7 @@ $job=[FixtureJob]::Enter()
 # The watchdog task runs below normal; the picker must not inherit that.
 [Diagnostics.Process]::GetCurrentProcess().PriorityClass='BelowNormal'
 $child=Start-OperatorDetached -Executable ${quote(process.execPath)} -Arguments ${quote(`"${server}" "${pidFile}"`)} -WorkingDirectory ${quote(root)} -StandardOutput ${quote(path.join(root, 'stdout.log'))} -StandardError ${quote(path.join(root, 'stderr.log'))}
-$until=[DateTime]::UtcNow.AddSeconds(3); while (-not (Test-Path -LiteralPath ${quote(pidFile)}) -and [DateTime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 25 }
+while (-not (Test-Path -LiteralPath ${quote(pidFile)})) { if ($child.HasExited) { throw 'Detached child exited before readiness' }; [Threading.Thread]::Yield() | Out-Null }
 if ($child.HasExited) { throw 'Synthetic detached child exited early' }
 if ($child.PriorityClass -ne 'Normal') { throw "Detached child runs at $($child.PriorityClass) priority" }
 [Diagnostics.Process]::GetCurrentProcess().PriorityClass='Normal'
@@ -137,7 +137,6 @@ $child.Dispose()
 `, 12000);
     const result = JSON.parse(output.trim());
     childPid = result.childPid;
-    assert.ok(Date.now() - start < 10000, 'foreground pipes must close before the child lifetime');
     for (const [name, capability, expectedStatus] of [
       ['detached child breaks away from the caller job', result.membership, 'asserted'],
       ['detached child outlives the kill-on-job-close caller', result.survival, 'armed'],

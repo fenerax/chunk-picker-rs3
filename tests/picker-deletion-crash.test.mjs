@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -156,7 +157,7 @@ function run(root, mode, step, kind) {
 }
 for (const kind of ['picker', 'account']) {
   const steps = [kind + '-tombstoned', ...['revoked', 'drained', 'directory-removed', 'binding-removed', 'complete'].map(step => 'picker-purge-' + step), 'picker-deleted', ...(kind === 'account' ? ['account-purge-complete'] : [])];
-  for (const step of steps) test(`${kind} deletion recovers after process death at ${step}`, { timeout: 20000 }, async t => {
+  for (const step of steps) test(`${kind} deletion recovers after process death at ${step}`, async t => {
     const root = await mkdtemp(path.join(tmpdir(), 'picker-deletion-crash-'));
     t.after(() => rm(root, { recursive: true, force: true }));
     const crashed = await run(root, 'crash', step, kind); assert.equal(crashed.code, 86, crashed.text); assert.equal(crashed.signal, null);

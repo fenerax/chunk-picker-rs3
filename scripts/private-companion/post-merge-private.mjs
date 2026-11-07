@@ -273,7 +273,7 @@ export async function queuePrivate(sha, input = DEFAULT_CONFIG, dependencies = {
       // Wait for a competing notification to publish instead of acknowledging
       // an undurable "pending" request that would lose a newer merge.
       await recoverDeadQueueClaim(claim, identity);
-      await delay(50);
+      await (dependencies.wait ?? delay)(50);
     }
   }
   if (!handle) throw Error('Could not claim private queue.');
@@ -507,7 +507,7 @@ export async function dispatch(config, sha, token, configPath, dependencies = {}
       catch (error) {
         if (error.code !== 'EEXIST') throw error;
         await recoverDeadQueueClaim(claim, dependencies.processIdentity ?? processIdentity);
-        await delay(50);
+        await (dependencies.wait ?? delay)(50);
       }
     }
     if (!lock) throw Error('Private queue claim remained busy after completion; retry the newest merge.');

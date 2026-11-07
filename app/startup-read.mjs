@@ -115,7 +115,7 @@ export function startupRetryAfter(response, now = Date.now()) {
   const delay = /^\d+$/.test(raw) ? Number(raw) * 1000 : Math.max(0, Date.parse(raw) - now) || 0;
   return Number.isSafeInteger(delay) ? delay : 0;
 }
-export function readStartupJSON(path, { fetch: fetcher = globalThis.fetch, cache = 'no-cache', ...options } = {}) {
+export function readStartupJSON(path, { fetch: fetcher = globalThis.fetch, cache = 'no-cache', now = Date.now, ...options } = {}) {
   return retryStartupRead(async (signal, readJSON) => {
     const response = await fetcher(path, { credentials: 'same-origin', cache, signal });
     if ([401, 403].includes(response.status)) throw Object.assign(new Error('Access required.'), { status: response.status });
@@ -123,7 +123,7 @@ export function readStartupJSON(path, { fetch: fetcher = globalThis.fetch, cache
     try { value = await readJSON(response); }
     catch { if (response.ok) throw new Error('Game data was interrupted or unreadable.'); }
     if (!response.ok) throw Object.assign(new Error('Game data could not be loaded.'), {
-      status: response.status, code: value?.code, retryAfterMs: startupRetryAfter(response),
+      status: response.status, code: value?.code, retryAfterMs: startupRetryAfter(response, now()),
     });
     if (!value || typeof value !== 'object') throw new Error('Game data was unreadable.');
     return value;

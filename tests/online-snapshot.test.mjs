@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -17,10 +18,7 @@ const { openStore } = await import('../app/storage/store.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 
 async function atomic(file, bytes) {
-  for (let attempt = 0; ; attempt++) {
-    try { return await linuxAtomic(file, bytes); }
-    catch (error) { if (process.platform !== 'win32' || error.code !== 'EPERM' || attempt >= 6) throw error; await new Promise(resolve => setTimeout(resolve, 20 * 2 ** attempt)); }
-  }
+  return linuxAtomic(file, bytes);
 }
 async function fixture(t) {
   const root = path.resolve('.local/online-snapshot-tests'); await mkdir(root, { recursive: true });
@@ -37,7 +35,7 @@ test('concurrent real commands and sidecar writes yield a consistent full snapsh
   // A transaction spans two files, while a real store write shares the barrier.
   const transaction = withStoreWrite(dataDir, async () => {
     await atomic(path.join(dataDir, 'sidecar-a.json'), 'before');
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setImmediate(resolve));
     await atomic(path.join(dataDir, 'sidecar-b.json'), 'before');
   });
   const snapshot = snapshotStore(dataDir, id, { maxHoldMs: 30000 });
@@ -145,7 +143,7 @@ test('nested and deferred maintenance cannot escape the snapshot barrier', async
   let maintenance;
   await withStoreWrite(dataDir, async () => {
     maintenance = withStoreWrite(dataDir, async () => {
-      await new Promise(resolve => setTimeout(resolve, 20));
+      await new Promise(resolve => setImmediate(resolve));
       await atomic(path.join(dataDir, 'maintenance.json'), 'complete');
     });
   });

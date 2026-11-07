@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -128,6 +130,7 @@ function storage() {
 }
 const coordinatorSource = (await readFile(new URL('../app/web/screen-save-status.mjs', import.meta.url), 'utf8')).replace(/^import .*\n/gm, '').replace(/^export /gm, '');
 function browser(initial = defaultSession(), transport) {
+  const clock = createManualClock();
   let session = initial, dialog, generation = 0;
   const calls = [], destinations = [], notices = [], local = storage(), tab = storage(), monitors = [], disposals = [];
   const c = { panelContext: {}, state: { revision: 7 }, result: { private: true }, normalPlayResults: new Map([['owner', {}]]),
@@ -145,12 +148,12 @@ function browser(initial = defaultSession(), transport) {
     notify: message => notices.push(message), schedule: callback => { monitors.push(callback); return 1; }, cancel: () => disposals.push('monitor') });
   const coordinator = c.panelContext.pickerSession; coordinator.initialize(session);
   const actions = [];
-  const panel = createAccountPanel({ el, fetch: rawFetch, beforeSignOut: coordinator.beforeSignOut, beginAccountAction: coordinator.beginAccountAction,
+  const panel = createAccountPanel({ el, clock, fetch: rawFetch, beforeSignOut: coordinator.beforeSignOut, beginAccountAction: coordinator.beginAccountAction,
     dialogCurrent: value => generation === value && !!dialog, location: { assign: path => destinations.push(path) },
     openDialog: (title, node) => { dialog = { title, node }; return ++generation; },
     ownerActions: Object.fromEntries(['Rules', 'Preferences', 'Export or restore gameplay', 'Plugin keys'].map(label => [label, () => actions.push(label)])) });
   panel.setSession(session);
-  return { panel, c, coordinator, calls, destinations, notices, siteStore: local, tab, monitors, disposals, rendered, actions,
+  return { clock, panel, c, coordinator, calls, destinations, notices, siteStore: local, tab, monitors, disposals, rendered, actions,
     get dialog() { return dialog; }, close: () => { generation++; dialog = undefined; },
     setSession: value => { session = value; }, open: target => click(panel.rows(), target) };
 }
@@ -246,7 +249,7 @@ for (const status of [403, 409, 503]) test(`${status} displays server refusal, p
   if (status === 503) {
     const button = walk(b.dialog.node).find(item => item.textContent === 'Retry deletion'); assert.equal(button.disabled, true);
     await click(b.dialog.node, 'Retry deletion'); assert.equal(attempts, 1);
-    await new Promise(resolve => setTimeout(resolve, 1050));
+    await b.clock.advance(1000);
     assert.equal(button.disabled, false); assert.equal(attempts, 1, 'Retry-After never starts an automatic retry');
   }
   await click(b.dialog.node, status === 503 ? 'Retry deletion' : 'Delete account');
@@ -273,8 +276,9 @@ test('cancel and a closed dialog never dispatch a stale confirmation', async () 
   b.open('Delete account'); const closed = b.dialog.node; b.close(); await click(closed, 'Delete account'); assert.equal(b.calls.length, 0);
 });
 test('closing a dialog during reauthentication prevents deletion', async () => {
-  const gate = Promise.withResolvers(); const b = browser(defaultSession(), () => gate.promise);
-  b.open('Delete picker'); const sending = click(b.dialog.node, 'Delete picker'); await settle();
+  const gate = Promise.withResolvers(), entered = Promise.withResolvers();
+  const b = browser(defaultSession(), () => { entered.resolve(); return gate.promise; });
+  b.open('Delete picker'); const sending = click(b.dialog.node, 'Delete picker'); await entered.promise;
   b.close(); gate.resolve(response(defaultSession())); await sending;
   assert.deepEqual(b.calls.map(([route]) => route), ['/api/session']); assert.equal(b.coordinator.stopped, false);
 });

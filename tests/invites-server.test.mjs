@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
@@ -248,7 +249,7 @@ test('join and anonymous rate limits use forwarded clients separately and generi
   assert.equal((await f.request('/', { headers: client('203.0.113.23') })).status, 401);
 });
 
-test('gameplay restore preserves revoked authentication and closes the revoked invitation SSE stream', { timeout: 60000 }, async t => {
+test('gameplay restore preserves revoked authentication and closes the revoked invitation SSE stream', async t => {
   const f = await fixture(t);
   const created = await f.invite();
   const joined = await f.join(created.link);
@@ -262,7 +263,7 @@ test('gameplay restore preserves revoked authentication and closes the revoked i
   assert.equal((await f.admin(`/api/invites/${created.invite.id}/revoke`, {})).status, 200);
   let timer;
   try {
-    const ended = await Promise.race([reader.read(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Revoked SSE stream did not close')), 2000); })]);
+    const ended = await reader.read();
     assert.equal(ended.done, true);
   } finally { clearTimeout(timer); await reader.cancel().catch(() => {}); }
   assert.equal((await f.admin('/api/restore', { expectedRevision: 0, backup })).status, 200);
@@ -283,7 +284,7 @@ test('concurrent failed joins cannot exceed a client allowance or consume anothe
   assert.equal((await f.request(new URL(created.link).pathname, { headers: { ...headers, 'X-Forwarded-For': '203.0.113.31' } })).status, 303);
 });
 
-test('revocation queues after an in-flight save and rejects later queued commands and administrator invite creation', { timeout: 60000 }, async t => {
+test('revocation queues after an in-flight save and rejects later queued commands and administrator invite creation', async t => {
   let unblock, reached;
   const barrier = new Promise(resolve => { unblock = resolve; });
   const entered = new Promise(resolve => { reached = resolve; });
@@ -322,7 +323,7 @@ test('revocation queues after an in-flight save and rejects later queued command
   assert.equal((await (await f.admin('/api/invites')).json()).invites.length, 1);
 });
 
-test('eldest invitation session eviction terminates its open SSE stream', { timeout: 60000 }, async t => {
+test('eldest invitation session eviction terminates its open SSE stream', async t => {
   const f = await fixture(t, { rateLimits: { failedJoins: 100, unauthenticated: 100 } });
   const created = await f.invite();
   const eldest = await f.join(created.link);
@@ -334,7 +335,7 @@ test('eldest invitation session eviction terminates its open SSE stream', { time
   const newest = await Promise.all(Array.from({ length: 32 }, () => f.join(created.link)));
   let timer;
   try {
-    const ended = await Promise.race([reader.read(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Evicted session SSE stream did not close')), 2000); })]);
+    const ended = await reader.read();
     assert.equal(ended.done, true);
   } finally { clearTimeout(timer); await reader.cancel().catch(() => {}); }
   assert.equal((await f.request('/api/state', { cookie: eldest.cookie })).status, 401);
@@ -513,7 +514,6 @@ test('unknown API mutations fail before reading a slow body and close the upload
       const chunks = []; res.on('data', bytes => chunks.push(bytes));
       res.on('end', () => resolve({ status: res.statusCode, connection: res.headers.connection, body: Buffer.concat(chunks).toString() }));
     });
-    req.setTimeout(2000, () => req.destroy(new Error('Unknown route waited for the upload.')));
     req.on('error', reject); req.flushHeaders();
     t.after(() => req.destroy());
   });

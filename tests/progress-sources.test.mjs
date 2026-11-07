@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test, { beforeEach } from 'node:test';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
@@ -203,7 +205,7 @@ test('default Platform failure retains the nondecreasing Hiscores fallback', asy
 for (const failure of ['404', '410', 'HTML', 'timeout', 'DNS']) {
   for (const webSource of ['platform-api', 'runemetrics', 'official-api']) {
     test(`${webSource}: ${failure} preserves saved progress and never contacts RuneMetrics`, async t => {
-      const calls = [], signals = [];
+      const calls = [], signals = [], timers = createManualClock();
       const fetchImpl = async (url, { signal }) => {
         calls.push(String(url)); signals.push(signal);
         assert.equal(url.origin, 'https://secure.runescape.com');
@@ -211,14 +213,16 @@ for (const failure of ['404', '410', 'HTML', 'timeout', 'DNS']) {
         if (failure === 'DNS') throw Object.assign(new Error('Synthetic DNS failure'), { code: 'ENOTFOUND' });
         return new Response('<html>Unavailable</html>', { status: failure === 'HTML' ? 200 : Number(failure) });
       };
-      const sources = createSources({ webSource, platformApi: { fetchImpl, timeoutMs: 15 },
+      const sources = createSources({ webSource, platformApi: { fetchImpl, timeoutMs: 15, timers },
         hiscores: { async snapshot() { throw new Error('Synthetic Hiscores outage'); } } });
       t.after(() => sources.close());
       const member = { ...owner, completedTasks: ['quest:synthetic'], skillProgress: {
         Attack: { source: 'runemetrics', runescapeName: owner.runescapeName, level: 9, xp: 1000.5 } } };
       const before = structuredClone(member);
       for (let attempt = 0; attempt < 2; attempt++) {
-        const value = await sources.snapshot(member);
+        const snapshot = sources.snapshot(member);
+        if (failure === 'timeout') await timers.advance(15);
+        const value = await snapshot;
         assert.equal(value.available, false); assert.equal(value.message, PROGRESS_UNAVAILABLE_MESSAGE);
         assert.equal(value.skills, undefined); assert.equal(value.quests, undefined);
         assert.deepEqual(member, before);

@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -78,14 +80,17 @@ for (const large of [false, true]) test(`member restore preserves canonical ${la
 });
 
 test('queue wait has its own busy deadline and does not consume active checking time', async () => {
-  const wedge = runImportJob({}, { workerURL: new URL('data:text/javascript,while(true){}'), timeoutMs: 500 });
+  const clock = createManualClock(), active = clock.nextScheduled(500);
+  const wedge = runImportJob({}, { clock, workerURL: new URL('data:text/javascript,while(true){}'), timeoutMs: 500 });
   const wedged = assert.rejects(wedge, error => error.status === 422);
-  const expired = runImportJob({}, { queueWaitMs: 30, userId: 'expired' });
-  await assert.rejects(expired, error => error.status === 503 && error.retryAfter === 5 && /busy.*try again/i.test(error.message));
+  await active;
+  const expired = runImportJob({}, { clock, queueWaitMs: 30, userId: 'expired' });
+  const busy = assert.rejects(expired, error => error.status === 503 && error.retryAfter === 5 && /busy.*try again/i.test(error.message));
+  await clock.advance(30); await clock.settled(busy);
   const budget = { remainingMs: 5000 };
   const next = runImportJob({ kind: 'parse', chunks: [Buffer.from('{}')], headers: { 'content-type': 'application/json' } },
-    { budget, timeoutMs: 5000, userId: 'expired' });
-  await wedged;
+    { budget, clock, timeoutMs: 5000, userId: 'expired' });
+  await clock.advance(470); await wedged;
   assert.deepEqual((await next).body, {});
   assert.ok(budget.remainingMs > 0);
 });

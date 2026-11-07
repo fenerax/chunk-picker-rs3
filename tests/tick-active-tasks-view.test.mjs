@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTickActiveTasks } from '../app/web/tick-active-tasks.mjs';
@@ -18,7 +19,7 @@ class Element {
 }
 const walk = root => root.children.flatMap(child => [child, ...walk(child)]);
 const byClass = (root, name) => walk(root).find(node => node.className.split(' ').includes(name));
-const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+const flush = () => new Promise(resolve => setImmediate(resolve));
 
 function harness(t, { readOnly = false, sessionMember = 'ash', memberId = 'ash', revision = 7 } = {}) {
   const saved = Object.getOwnPropertyDescriptor(globalThis, 'document');

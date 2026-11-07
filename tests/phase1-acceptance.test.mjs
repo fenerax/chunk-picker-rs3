@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test, { beforeEach } from 'node:test';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import { platformResponse } from './helpers/platform-api-fixtures.mjs';
@@ -41,7 +43,7 @@ function request(base, route, { body, headers = {}, method = body === undefined 
       if (stream) { resolve(result()); return; }
       res.on('end', () => resolve(result()));
     });
-    req.on('error', reject); req.setTimeout(15000, () => req.destroy(new Error('HTTP acceptance timeout'))); req.end(bytes);
+    req.on('error', reject); req.end(bytes);
   });
 }
 async function fixture(t, { initiallyEnabled = true, beforeCommit, backupRetentionMs, taskWorkerOptions, runeMetrics, unauthenticatedLimit = 10000, dataset = selectedDataset, ...limits } = {}) {
@@ -261,7 +263,7 @@ test('P1.3 preview tokens cannot apply or consume another picker proposal', asyn
 });
 
 // Bullet 4: native credentials, SSE and overlay delivery across durable deletion.
-test('P1.4 deletion closes A streams and capabilities while B continues worker and plugin events', { timeout: 15000 }, async t => {
+test('P1.4 deletion closes A streams and capabilities while B continues worker and plugin events', async t => {
   const f = await fixture(t), a = await f.login(A), b = await f.login(B);
   await f.note(a, 'Player 1', 0); await f.note(b, 'Player 2', 0);
   const id = await f.picker(A), account = (await f.registry()).accounts.find(row => row.defaultPickerId === id);
@@ -283,7 +285,7 @@ test('P1.4 deletion closes A streams and capabilities while B continues worker a
   const lengths = [streamBytes(left).length, streamBytes(overlay).length];
   assert.equal((await f.note(b, 'Player 2', 1)).status, 200); assert.equal((await f.send('/api/tasks?memberId=owner', b)).status, 200);
   assert.equal((await f.send('/api/plugin/v1/status', undefined, { headers: { Authorization: 'Bearer ' + keys[1] } })).status, 200);
-  await keyFor(f, b); await settle(); assert.ok(streamBytes(right).length > before.length);
+  await keyFor(f, b); await waitForCondition(() => /event: game-plugin/.test(streamBytes(right).slice(before.length)));
   assert.match(streamBytes(right), /event: game-plugin/);
   assert.deepEqual([streamBytes(left).length, streamBytes(overlay).length], lengths);
   assert.equal((await f.send('/api/state', a)).status, 401);
@@ -314,14 +316,15 @@ function controlledWorkers() {
 }
 
 // Bullet 5: the scheduler itself is real; only its transport is deterministic.
-test('P1.5 cancellation, late delivery and worker crash preserve B queued HTTP work', { timeout: 15000 }, async t => {
+test('P1.5 cancellation, late delivery and worker crash preserve B queued HTTP work', async t => {
   const workers = controlledWorkers(), f = await fixture(t, { taskWorkerOptions: { workerFactory: workers.workerFactory, backoffMs: 1 } });
   const a = await f.login(A), b = await f.login(B), aId = await f.picker(A), bId = await f.picker(B);
   const aRequest = f.send('/api/tasks?memberId=owner', a), first = await workers.next(); assert.equal(first.message.pickerId, aId);
-  const bRequest = f.send('/api/tasks?memberId=owner', b); await settle();
+  const bRequest = f.send('/api/tasks?memberId=owner', b);
+  await waitForCondition(async () => (await f.private('/api/diagnostics')).json().queue.depth > 0);
   const deletion = f.send('/api/picker/delete', a, { body: {} });
   // Deletion fences admission and signals A's active job before late delivery.
-  for (let i = 0; i < 200 && !first.worker.messages.some(m => m.type === 'cancel' && m.pickerId === aId); i++) await new Promise(resolve => setTimeout(resolve, 5));
+  await waitForCondition(() => first.worker.messages.some(m => m.type === 'cancel' && m.pickerId === aId));
   assert.ok(first.worker.messages.some(m => m.type === 'cancel' && m.pickerId === aId));
   first.worker.emit('error', new Error('synthetic transport crash'));
   workers.finish(first, 'Player 1');
@@ -334,7 +337,7 @@ test('P1.5 cancellation, late delivery and worker crash preserve B queued HTTP w
   await f.restart(); assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 2');
 });
 
-test('P1.5 eviction during queued HTTP writes drains accepted work and preserves B', { timeout: 15000 }, async t => {
+test('P1.5 eviction during queued HTTP writes drains accepted work and preserves B', async t => {
   const entered = Promise.withResolvers(), release = Promise.withResolvers(); let held = false;
   const f = await fixture(t, { maxOpenContexts: 3, beforeCommit: async ({ state }) => {
     if (!held && state.members[0].notes?.['12341'] === 'Player 1') { held = true; entered.resolve(); await release.promise; }
@@ -449,7 +452,7 @@ for (const change of ['switch', 'logout']) test(`P1.7 browser ${change} retires 
 // MP8 must provide the service backup/restore entry point before this can run.
 // Bullet 8: MP8 service backup and stopped restore with the real server on both
 // sides. A is deleted after the backup; its tombstone wins over the backup copy.
-test('P1.8 restoring a service backup containing a later-deleted picker keeps it deleted and B unchanged', { timeout: 15000 }, async t => {
+test('P1.8 restoring a service backup containing a later-deleted picker keeps it deleted and B unchanged', async t => {
   const f = await fixture(t), a = await f.login(A), b = await f.login(B);
   await f.note(a, 'Player 1', 0); await f.note(b, 'Player 2', 0);
   const ids = [await f.picker(A), await f.picker(B)], keys = [await keyFor(f, a), await keyFor(f, b)];

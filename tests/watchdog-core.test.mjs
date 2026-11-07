@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, copyFile } from 'node:fs/promises';
@@ -20,7 +21,7 @@ async function fixture(run) {
 async function execute(dir, body, expected = 0, hostShell = shell) {
   const file = join(dir, 'check.ps1');
   await writeFile(file, `$ErrorActionPreference = 'Stop'\n. ${ps(join(scripts, 'Operator-Common.ps1'))}\n. ${ps(join(scripts, 'Task-Common.ps1'))}\n. ${ps(join(scripts, 'Watchdog-Common.ps1'))}\nfunction Get-FixtureHash([string]$Path) { $sha = [Security.Cryptography.SHA256]::Create(); try { return ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($Path)))).Replace('-', '').ToLowerInvariant() } finally { $sha.Dispose() } }\n${body}\n`);
-  const result = spawnSync(hostShell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file], { encoding: 'utf8', timeout: 25000 });
+  const result = spawnSync(hostShell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file], { encoding: 'utf8'});
   assert.equal(result.status, expected, result.stderr || String(result.error));
   return result;
 }
@@ -429,7 +430,7 @@ test('task wrappers reject credential or URL action text without echoing it', { 
     const marker = `https://synthetic.invalid/join/${'a'.repeat(43)}`;
     await writeFile(watchdog, taskXml('M7 rehearsal watchdog').replace('powershell.exe -NoProfile', marker));
     await execute(dir, setup.replace('$plan = Read-CoreTaskPlan $planPath', ''));
-    const result = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-File', join(scripts, 'Register-CoreTasks.ps1'), '-Plan', join(dir, 'plan.json'), '-DryRun'], { encoding: 'utf8', timeout: 15000 });
+    const result = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-File', join(scripts, 'Register-CoreTasks.ps1'), '-Plan', join(dir, 'plan.json'), '-DryRun'], { encoding: 'utf8'});
     assert.notEqual(result.status, 0);
     assert.doesNotMatch(result.stdout + result.stderr, /synthetic\.invalid|a{43}/);
   });
@@ -459,11 +460,11 @@ test('task restore uses retained originals when candidate config or watch script
   await tasks(async ({ dir, mock, watchdog, backup, config, watchScript, setup }) => {
     await execute(dir, setup + '\nInvoke-CoreTaskRegistration $plan');
     await rm(config); await rm(watchScript);
-    const restored = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-File', join(scripts, 'Restore-CoreTasks.ps1'), '-Plan', join(dir, 'plan.json')], { encoding: 'utf8', timeout: 15000 });
+    const restored = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-File', join(scripts, 'Restore-CoreTasks.ps1'), '-Plan', join(dir, 'plan.json')], { encoding: 'utf8'});
     assert.equal(restored.status, 0, restored.stderr);
     assert.deepEqual(await readFile(join(mock, 'M7 rehearsal watchdog.xml')), await readFile(watchdog));
     assert.deepEqual(await readFile(join(mock, 'M7 rehearsal backup.xml')), await readFile(backup));
-    const refused = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-File', join(scripts, 'Register-CoreTasks.ps1'), '-Plan', join(dir, 'plan.json'), '-DryRun'], { encoding: 'utf8', timeout: 15000 });
+    const refused = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-File', join(scripts, 'Register-CoreTasks.ps1'), '-Plan', join(dir, 'plan.json'), '-DryRun'], { encoding: 'utf8'});
     assert.notEqual(refused.status, 0);
   });
 });
@@ -474,7 +475,7 @@ test('watchdog helper returns on foreground exit while an inert redirected child
     await copyFile(join(scripts, 'Operator-Common.ps1'), join(operator, 'Operator-Common.ps1'));
     await copyFile(join(scripts, 'Watchdog-Common.ps1'), join(operator, 'Watchdog-Common.ps1'));
     const config = join(dir, 'candidate.json'); await writeFile(config, '{}');
-    await writeFile(join(dir, 'holder.mjs'), `import fs from 'node:fs';\nfs.writeFileSync(process.argv[2], String(process.pid));\nprocess.stdout.write('inert stdout\\n');\nprocess.stderr.write('inert stderr\\n');\nsetTimeout(() => process.exit(0), 9000);\n`);
+    await writeFile(join(dir, 'holder.mjs'), `import fs from 'node:fs';\nfs.writeFileSync(process.argv[2], String(process.pid));\nprocess.stdout.write('inert stdout\\n');\nprocess.stderr.write('inert stderr\\n');\nsetInterval(() => {}, 1000);\n`);
     await writeFile(join(operator, 'Start-Core.ps1'), `param([string]$Config, [switch]$PreservePause)
 $ErrorActionPreference = 'Stop'
 if (-not $PreservePause) { throw 'PreservePause missing' }
@@ -491,12 +492,18 @@ Write-Output 'fixture helper stdout must be discarded'
 $context = [pscustomobject]@{localDir=${ps(dir)}}
 $watch = [Diagnostics.Stopwatch]::StartNew()
 try {
-    Invoke-CoreWatchHelper $context 'Start' ${ps(config)} (Get-FixtureHash ${ps(config)}) -TimeoutSeconds 15
+    Invoke-CoreWatchHelper $context 'Start' ${ps(config)} (Get-FixtureHash ${ps(config)}) -TimeoutSeconds 15 -WaitForExit {
+        param($process, $milliseconds)
+        $id = [Guid]::NewGuid().ToString('N')
+        $null = Register-ObjectEvent -InputObject $process -EventName Exited -SourceIdentifier $id
+        $process.EnableRaisingEvents = $true
+        try { if (-not $process.HasExited) { $null = Wait-Event -SourceIdentifier $id }; return $true }
+        finally { Unregister-Event -SourceIdentifier $id; Remove-Event -SourceIdentifier $id -ErrorAction SilentlyContinue }
+    }
     $watch.Stop()
     $owner = [IO.File]::ReadAllText(${ps(join(dir, 'holder-owner.json'))}) | ConvertFrom-Json
     $holder = Get-Process -Id $owner.pid -ErrorAction SilentlyContinue
     if (-not $holder) { throw 'Foreground helper waited for its background child' }
-    if ($watch.ElapsedMilliseconds -ge 6000) { throw 'Foreground helper waited for pipe EOF' }
     [pscustomobject]@{returnedWhileHolderAlive=$true; elapsedMs=$watch.ElapsedMilliseconds; stdoutRedirected=(Test-Path -LiteralPath ${ps(join(dir, 'holder.log'))}); stderrRedirected=(Test-Path -LiteralPath ${ps(join(dir, 'holder-error.log'))})} | ConvertTo-Json -Compress
 } finally {
     if (Test-Path -LiteralPath ${ps(join(dir, 'holder-owner.json'))}) {
@@ -506,7 +513,7 @@ try {
             $started = if ($owner.startedAt -is [DateTime]) { $owner.startedAt.ToUniversalTime() } else { [DateTime]::Parse($owner.startedAt).ToUniversalTime() }
             if ($holder.Path -ine $owner.executable -or $holder.StartTime.ToUniversalTime().Ticks -ne $started.Ticks) { throw 'Inert holder cleanup ownership refused' }
             $holder.Kill()
-            if (-not $holder.WaitForExit(5000)) { throw 'Inert holder cleanup timed out' }
+            $holder.WaitForExit()
         }
     }
 }
@@ -526,8 +533,9 @@ test('watchdog helper deadline stops only its launched foreground helper', { ski
     const config = join(dir, 'candidate.json'); await writeFile(config, '{}');
     await writeFile(join(operator, 'Start-Core.ps1'), `param([string]$Config, [switch]$PreservePause)
 $self = Get-Process -Id $PID
-[IO.File]::WriteAllText(${ps(join(dir, 'helper-owner.json'))}, (@{pid=$PID; startedAt=$self.StartTime.ToUniversalTime().ToString('o'); executable=$self.Path} | ConvertTo-Json))
-Start-Sleep -Seconds 10
+[IO.File]::WriteAllText(${ps(join(dir, 'helper-owner.pending'))}, (@{pid=$PID; startedAt=$self.StartTime.ToUniversalTime().ToString('o'); executable=$self.Path} | ConvertTo-Json))
+[IO.File]::Move(${ps(join(dir, 'helper-owner.pending'))}, ${ps(join(dir, 'helper-owner.json'))})
+[Threading.Thread]::Sleep([Threading.Timeout]::Infinite)
 `);
     await execute(dir, `
 . ${ps(join(operator, 'Operator-Common.ps1'))}
@@ -535,7 +543,29 @@ Start-Sleep -Seconds 10
 $context = [pscustomobject]@{localDir=${ps(dir)}}
 $refused = $false
 try {
-    try { Invoke-CoreWatchHelper $context 'Start' ${ps(config)} (Get-FixtureHash ${ps(config)}) -TimeoutSeconds 1 }
+    try { Invoke-CoreWatchHelper $context 'Start' ${ps(config)} (Get-FixtureHash ${ps(config)}) -TimeoutSeconds 1 -WaitForExit {
+        param($process, $milliseconds)
+        if ($milliseconds -ne 1000) { $process.WaitForExit(); return $true }
+        $watcher = [IO.FileSystemWatcher]::new(${ps(dir)})
+        $id = [Guid]::NewGuid().ToString('N')
+        $null = Register-ObjectEvent -InputObject $watcher -EventName Renamed -SourceIdentifier $id
+        $created = [Guid]::NewGuid().ToString('N')
+        $null = Register-ObjectEvent -InputObject $watcher -EventName Created -SourceIdentifier $created
+        $watcher.EnableRaisingEvents = $true
+        try {
+            while (-not (Test-Path -LiteralPath ${ps(join(dir, 'helper-owner.json'))})) {
+                $event = Wait-Event
+                Remove-Event -EventIdentifier $event.EventIdentifier
+            }
+        } finally {
+            $watcher.Dispose()
+            foreach ($subscription in @($id, $created)) {
+                Unregister-Event -SourceIdentifier $subscription
+                Remove-Event -SourceIdentifier $subscription -ErrorAction SilentlyContinue
+            }
+        }
+        return $false
+    } }
     catch { $refused = $_.Exception.Message -eq 'Foreground operator helper exceeded its deadline.' }
     if (-not $refused) { throw 'Helper deadline was not enforced' }
     $owner = [IO.File]::ReadAllText(${ps(join(dir, 'helper-owner.json'))}) | ConvertFrom-Json
@@ -547,7 +577,7 @@ try {
         if ($helper) {
             $started = if ($owner.startedAt -is [DateTime]) { $owner.startedAt.ToUniversalTime() } else { [DateTime]::Parse($owner.startedAt).ToUniversalTime() }
             if ($helper.Path -ine $owner.executable -or $helper.StartTime.ToUniversalTime().Ticks -ne $started.Ticks) { throw 'Foreground fixture cleanup ownership refused' }
-            $helper.Kill(); $null = $helper.WaitForExit(5000)
+            $helper.Kill(); $helper.WaitForExit()
         }
     }
 }

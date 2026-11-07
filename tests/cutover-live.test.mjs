@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -139,7 +140,7 @@ test('PowerShell 7 retains exact runtime timestamps and bounded integer schema; 
   const runtime=await f.put('timestamp.json',{pid:12345,processStartedAt:'2026-10-15T01:02:03.1234567Z'});
   const sentinel=await f.put('old-stop.ps1','$p=Get-Process -Id $PID; $p.Kill(); throw "Kill returned unexpectedly"');
   const command=`. '${path.join(tools,'Operator-Common.ps1').replaceAll("'","''")}'; . '${path.join(tools,'Legacy-Stop.ps1').replaceAll("'","''")}'; $ErrorActionPreference='Stop'; $v=Read-OperatorJson '${runtime.path.replaceAll("'","''")}'; if($v.pid -isnot [int] -or $v.processStartedAt -cne '2026-10-15T01:02:03.1234567Z'){exit 2}; $blocked=$false;try{Invoke-LegacyGracefulStop '${sentinel.path.replaceAll("'","''")}' 1}catch{$blocked=$_.Exception.Message -match 'Forced termination is disabled'};if(-not $blocked){exit 3};exit 0`;
-  const result=spawnSync('pwsh.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{encoding:'utf8',timeout:20000});
+  const result=spawnSync('pwsh.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{encoding:'utf8'});
   assert.equal(result.status,0,result.stdout+result.stderr);
 });
 
@@ -162,24 +163,22 @@ test('stopped-writer lease blocks other helpers, releases on failure and reasser
   const backend=new SystemBackend(await readPlan(f.filename));
   const probe=()=>{
     const command=`try{$s=[IO.File]::Open('${helper.replaceAll("'","''")}','Open','ReadWrite','None');$s.Dispose();exit 0}catch{exit 2}`;
-    return spawnSync('pwsh.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{encoding:'utf8',timeout:20000}).status;
+    return spawnSync('pwsh.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(command,'utf16le').toString('base64')],{encoding:'utf8'}).status;
   };
   await assert.rejects(backend.withWriterLock(async()=>{assert.equal(probe(),2);await rm(marker);throw new Error('injected lease failure');}),/injected lease failure/);
   assert.equal(probe(),0);assert.equal(await readFile(marker,'utf8'),'M7 operator pause');
 });
 
 test('foreground completion does not wait for inherited background pipe handles',{skip:process.platform!=='win32'},async()=>{
-  const script="const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setTimeout(()=>{},1500)'],{stdio:'inherit',detached:true,windowsHide:true});console.log(child.pid);process.exit(0);";
+  const script="const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit',detached:true,windowsHide:true});console.log(child.pid);process.exit(0);";
   let holder;
   try {
-    const result=await runChild(process.execPath,['-e',script],{timeout:10000});
+    const result=await runChild(process.execPath,['-e',script],{});
     holder=Number(result.stdout.trim());assert.ok(Number.isSafeInteger(holder)&&holder>0);
     let alive=false;try{process.kill(holder,0);alive=true;}catch{}
     assert.equal(alive,true,'Foreground helper must return before the inherited pipe holder exits');
   } finally {
-    // The inert pipe-holder has a fixed self-exit; leave no test process behind.
-    await new Promise(resolve=>setTimeout(resolve,1800));
-    if(holder){let alive=false;try{process.kill(holder,0);alive=true;}catch{}assert.equal(alive,false);}
+    if(holder) { try { process.kill(holder, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
   }
 });
 
@@ -225,7 +224,7 @@ cp.spawn=(exe,args,options)=>{
 };
 syncBuiltinESMExports();
 `);
-  const result=await runChild(process.execPath,['--import',pathToFileURL(preload.path).href,path.join(operator,'cutover-runbook.mjs'),'--plan',f.filename,'--step','verify'],{timeout:20000});
+  const result=await runChild(process.execPath,['--import',pathToFileURL(preload.path).href,path.join(operator,'cutover-runbook.mjs'),'--plan',f.filename,'--step','verify'],{});
   const receipt=JSON.parse(result.stdout);assert.equal(receipt.step,'verify');assert.equal(receipt.status,'complete');assert.equal(receipt.summary.scratchCredentialsRevoked,true);
   const state=JSON.parse(await readFile(path.join(f.plan.receiptDir,'state.json')));assert.equal(state.forward.at(-1).status,'complete');
 });

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -130,7 +131,7 @@ test('CLI checks disposable artifacts against the full inventory and refuses mis
   await writeFile(path.join(directory, 'windows.json'), JSON.stringify(windows));
   await writeFile(path.join(directory, 'differential.json'), JSON.stringify(differential));
   const run = (extraEnv = {}) => spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/ci/coverage-gate.mjs', import.meta.url)), directory],
-    { encoding: 'utf8', windowsHide: true, timeout: 30000, env: { ...process.env, ...extraEnv } });
+    { encoding: 'utf8', windowsHide: true, env: { ...process.env, ...extraEnv } });
   const failed = run();
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /UNCOVERED tests\/skill-guides-extraction/);

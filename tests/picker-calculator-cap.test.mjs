@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
@@ -70,7 +71,7 @@ async function contexts(t, scheduler, options = {}) {
   return opened;
 }
 
-test('eight open contexts keep all four busy lanes under one calculator cap', { timeout: 15000 }, async t => {
+test('eight open contexts keep all four busy lanes under one calculator cap', async t => {
   for (const cap of [1, 2, 3]) {
     const { f, scheduler, scopes } = await fixture(t, { maxCalculators: cap });
     await contexts(t, scheduler);
@@ -89,7 +90,7 @@ test('eight open contexts keep all four busy lanes under one calculator cap', { 
   }
 });
 
-test('interactive A goes ahead of B queued background work across lanes', { timeout: 5000 }, async t => {
+test('interactive A goes ahead of B queued background work across lanes', async t => {
   const { f, scopes: [a, b, c] } = await fixture(t, { maxCalculators: 1 });
   const blocker = evaluate(c, 'blocker', 'death-estimates'), busy = await f.next();
   b.prewarm(state(), 'input', [{ memberId: 'one', chunkIds: ['12342', '12343', '12344'] }]);
@@ -135,7 +136,7 @@ test('crash recovery waits for actual exit and rejects stale or wrong-picker res
   const active = evaluate(a, 'same'), rejected = assert.rejects(active, { status: 503 });
   const old = await f.next(), surviving = evaluate(b, 'same', 'predict');
   old.worker.emit('error', new Error('synthetic crash')); await rejected;
-  await new Promise(resolve => setTimeout(resolve, 10)); assert.equal(f.workers.length, 1); assert.equal(f.live, 1);
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(f.workers.length, 1); assert.equal(f.live, 1);
   old.worker.exit(); const next = await f.next(); assert.notEqual(next.worker, old.worker); assert.equal(f.peak, 1);
   finish(old, 'stale'); next.worker.emit('message', { id: next.message.id, pickerId: ids[0], result: { marker: 'wrong' } });
   finish(next, 'beta'); assert.equal((await surviving).result.marker, 'beta');
@@ -199,7 +200,7 @@ test('calculator cap rejects invalid values before creating any calculator', asy
   assert.equal(f.workers.length, 0);
 });
 
-for (const mode of ['process', 'thread']) test(`${mode} calculators share compiled workers with isolated picker snapshots and results`, { timeout: 15000 }, async t => {
+for (const mode of ['process', 'thread']) test(`${mode} calculators share compiled workers with isolated picker snapshots and results`, async t => {
   const { ProcessWorker } = await import('../app/tasks/process-worker.mjs');
   const { Worker } = await import('node:worker_threads');
   const { genericWorkerData } = await import('./helpers/worker-dataset.mjs');
@@ -288,7 +289,7 @@ test('a rejected termination cannot release an unproven physical slot', async t 
   const active = evaluate(a, 'first'), rejected = assert.rejects(active, { status: 503 }), old = await f.next();
   old.worker.terminate = async () => { throw new Error('synthetic termination failure'); };
   const surviving = evaluate(b, 'second', 'predict'); old.worker.emit('error', new Error('synthetic crash')); await rejected;
-  await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.workers.length, 1); assert.equal(scheduler.getDiagnostics().calculators.resident, 1);
   old.worker.exit(); const work = await f.next(); finish(work, 'beta');
   assert.equal((await surviving).result.marker, 'beta'); assert.equal(f.peak, 1);

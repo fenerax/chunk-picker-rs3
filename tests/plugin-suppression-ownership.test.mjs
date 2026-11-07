@@ -1,4 +1,5 @@
 // @test quick
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -26,9 +27,9 @@ async function fixture(t, mode) {
   const stop = async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited; };
   t.after(async () => { await stop(); await rm(root, { recursive: true, force: true }); });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Synthetic owner failed to start: ${stderr}`)), 60_000);
-    child.once('message', message => { clearTimeout(timer); assert.equal(message.ready, true); resolve(); });
-    exited.then(() => { clearTimeout(timer); reject(new Error(`Synthetic owner exited early: ${stderr}`)); }, reject);
+
+    child.once('message', message => { assert.equal(message.ready, true); resolve(); });
+    exited.then(() => { reject(new Error(`Synthetic owner exited early: ${stderr}`)); }, reject);
   });
   return { dataDir, controlDir, stop };
 }

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
@@ -149,7 +150,7 @@ test('HTTP pool reuse survives display saves; a roll uses the same draw and stat
 });
 
 
-test('a save while a sandbox pool is awaiting the calculator refuses the stale response', { timeout: 15000 }, async t => {
+test('a save while a sandbox pool is awaiting the calculator refuses the stale response', async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'roll-pool-race-'));
   let app, release, held;
   const blocked = new Promise(resolve => { held = resolve; });

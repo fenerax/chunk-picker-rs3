@@ -17,32 +17,32 @@ export function reserveImportUser(userId) {
   let active = true;
   return () => { if (active) { active = false; requests.delete(userId); } };
 }
-export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queueWaitMs = IMPORT_QUEUE_WAIT_MS, request, maxUploadBytes, prepareHook, userId = Symbol(), workerURL = new URL(job.kind === 'parse' ? './import-parser-worker.mjs' : './import-worker.mjs', import.meta.url) } = {}) {
+export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queueWaitMs = IMPORT_QUEUE_WAIT_MS, request, maxUploadBytes, prepareHook, userId = Symbol(), clock = { now: () => performance.now(), setTimeout, clearTimeout }, createWorker = (...args) => new Worker(...args), workerURL = new URL(job.kind === 'parse' ? './import-parser-worker.mjs' : './import-worker.mjs', import.meta.url) } = {}) {
   if (users.has(userId) || users.size >= IMPORT_QUEUE_LIMIT) return Promise.reject(busy());
   users.add(userId);
   let expired = false, waitTimer;
   const waiting = new Promise((resolve, reject) => {
-    waitTimer = setTimeout(() => { expired = true; reject(busy()); }, queueWaitMs);
+    waitTimer = clock.setTimeout(() => { expired = true; reject(busy()); }, queueWaitMs);
   });
   const result = queue.then(async () => {
-    clearTimeout(waitTimer);
+    clock.clearTimeout(waitTimer);
     if (expired) return;
-    const activeStart = performance.now();
+    const activeStart = clock.now();
     const available = Math.min(timeoutMs, budget?.remainingMs ?? timeoutMs);
     const timeout = () => Object.assign(new Error(`This backup took too long to check (${Math.ceil(timeoutMs / 1000)} seconds of active work). No records were imported. Try another backup.`), { status: 422 });
     if (available <= 0) throw timeout();
     const bytes = await encodeImportBytes({ ...job, prepareHook: Boolean(prepareHook) });
-    if (performance.now() - activeStart >= available) throw timeout();
+    if (clock.now() - activeStart >= available) throw timeout();
     // Packed providers require the parent's verified selection in each isolate.
     // Keep parser startup independent of catalogue initialization.
     const datasetSelection = job.kind === 'parse' ? undefined
       : (await import('./dataset-runtime.mjs')).selectedDataset.workerSelection();
-    const worker = new Worker(workerURL, { workerData: { ...bytes, datasetSelection, enforceMemoryLimit: true }, transferList: bytes.buffers, resourceLimits: IMPORT_WORKER_RESOURCE_LIMITS });
+    const worker = createWorker(workerURL, { workerData: { ...bytes, datasetSelection, enforceMemoryLimit: true }, transferList: bytes.buffers, resourceLimits: IMPORT_WORKER_RESOURCE_LIMITS });
     const controller = new AbortController();
     let timer, decoding = false, cleanup = () => {};
     try {
       return await new Promise((resolve, reject) => {
-        timer = setTimeout(() => reject(timeout()), Math.max(1, available - (performance.now() - activeStart)));
+        timer = clock.setTimeout(() => reject(timeout()), Math.max(1, available - (clock.now() - activeStart)));
         worker.on('message', async message => {
           decoding = true;
           try {
@@ -94,7 +94,7 @@ export function runImportJob(job, { timeoutMs = IMPORT_TIMEOUT_MS, budget, queue
           request.on('error', error); request.on('aborted', error); request.on('end', end); request.on('data', data);
         }
       });
-    } finally { controller.abort(); cleanup(); clearTimeout(timer); await worker.terminate(); if (budget) budget.remainingMs -= performance.now() - activeStart; }
+    } finally { controller.abort(); cleanup(); clock.clearTimeout(timer); await worker.terminate(); if (budget) budget.remainingMs -= clock.now() - activeStart; }
   });
   const tracked = Promise.race([result, waiting]).finally(() => users.delete(userId));
   queue = result.catch(() => {});

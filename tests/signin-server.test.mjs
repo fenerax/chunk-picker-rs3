@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -47,7 +48,6 @@ function httpRequest(origin, route, { body, method = body === undefined ? 'GET' 
         text: async () => text, json: async () => JSON.parse(text) });
       });
     });
-    req.setTimeout(10000, () => req.destroy(new Error(`Timed out: ${method} ${route.split('?')[0]}`)));
     req.on('error', reject); req.end(bytes);
   });
 }
@@ -297,7 +297,7 @@ test('off mode keeps direct invite entry and exposes no cancellation flow', asyn
   }
 });
 
-test('both providers claim player invitations using PKCE and restore account sessions after restart', { timeout: 30000 }, async t => {
+test('both providers claim player invitations using PKCE and restore account sessions after restart', async t => {
   const f = await fixture(t);
   const invitation = await f.invite(), discord = f.browser();
   const identity = await signIn(f, discord, 'discord', invitation);
@@ -325,7 +325,7 @@ test('both providers claim player invitations using PKCE and restore account ses
   assert.equal(f.app.store.getInfo().revision, 0, 'Identity operations never change game History');
 });
 
-test('state, cookie binding, callback replay, expiry and cancellation fail before provider exchange', { timeout: 30000 }, async t => {
+test('state, cookie binding, callback replay, expiry and cancellation fail before provider exchange', async t => {
   const f = await fixture(t), invitation = await f.invite(), client = f.browser();
   const first = await f.begin(client, 'discord', invitation), count = f.provider.calls.length;
   const wrong = await client.request(`/auth/discord/callback?${new URLSearchParams({ code: 'fixture-code', state: invented('wrong-state') })}`);
@@ -347,7 +347,7 @@ test('state, cookie binding, callback replay, expiry and cancellation fail befor
   assert.equal(first.name, 'discord');
 });
 
-test('Google rejects nonce, issuer, audience, expiry and invalid issued-at claims without issuing a session', { timeout: 30000 }, async t => {
+test('Google rejects nonce, issuer, audience, expiry and invalid issued-at claims without issuing a session', async t => {
   const f = await fixture(t);
   for (const claims of [{ nonce: 'fixture-wrong-nonce' }, { iss: 'https://issuer.example.invalid' }, { aud: 'fixture-wrong-client' }, { exp: 1 },
     { iat: Math.floor(f.clock.now() / 1000) + 61 }, { iat: 'fixture-invalid-issued-at' }, { iat: 1.5 }]) {
@@ -359,7 +359,7 @@ test('Google rejects nonce, issuer, audience, expiry and invalid issued-at claim
   assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 0);
 });
 
-test('a claimed invitation rejects another account and linking a second provider keeps the original account', { timeout: 30000 }, async t => {
+test('a claimed invitation rejects another account and linking a second provider keeps the original account', async t => {
   const f = await fixture(t), invitation = await f.invite(), owner = f.browser();
   const original = await signIn(f, owner, 'discord', invitation);
   const stranger = f.browser(), attempted = await f.callback(stranger, await f.begin(stranger, 'discord', invitation), { subject: String(10n ** 17n + 2n) });
@@ -387,7 +387,7 @@ test('a claimed invitation rejects another account and linking a second provider
   const claimed = await session(owner); assert.equal(claimed.account.id, original.account.id); assert.equal(claimed.memberId, 'reed');
 });
 
-test('provider linking requires the original account session throughout the callback', { timeout: 30000 }, async t => {
+test('provider linking requires the original account session throughout the callback', async t => {
   const f = await fixture(t), client = f.browser();
   const original = await signIn(f, client, 'discord', await f.invite());
   const started = await client.request('/auth/link/google'); assert.equal(started.status, 303);
@@ -399,7 +399,7 @@ test('provider linking requires the original account session throughout the call
   assert.deepEqual(accounts.find(account => account.id === original.account.id).providers, ['discord']);
 });
 
-test('required sign-in invalidates legacy player sessions while viewer and private master access continue', { timeout: 30000 }, async t => {
+test('required sign-in invalidates legacy player sessions while viewer and private master access continue', async t => {
   const f = await fixture(t), invitation = await f.invite(), legacy = f.browser();
   const page = await legacy.request(new URL(invitation.link).pathname); assert.equal(page.status, 200);
   assert.match(await page.text(), /\/auth\/invite/);
@@ -417,7 +417,7 @@ test('required sign-in invalidates legacy player sessions while viewer and priva
   const signedIn = await signIn(f, legacy, 'discord', invitation); assert.equal(signedIn.signIn.mode, 'required');
 });
 
-test('account administration is private only and provider secrets, tokens and profiles never reach persisted game data', { timeout: 30000 }, async t => {
+test('account administration is private only and provider secrets, tokens and profiles never reach persisted game data', async t => {
   const f = await fixture(t), owner = f.browser(), identity = await signIn(f, owner, 'discord', await f.invite());
   const accountId = identity.account.id;
   for (const [route, body] of [['/api/accounts'], [`/api/accounts/${accountId}/unlink`, { provider: 'discord' }],
@@ -457,7 +457,7 @@ test('account administration is private only and provider secrets, tokens and pr
   assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 0);
 });
 
-test('auth routes require the public HTTPS origin, reject cross-site posts and share the unauthenticated budget', { timeout: 30000 }, async t => {
+test('auth routes require the public HTTPS origin, reject cross-site posts and share the unauthenticated budget', async t => {
   const f = await fixture(t, 'optional', { unauthenticated: 4 }), client = f.browser();
   assert.equal((await httpRequest(f.privateOrigin(), '/auth/discord')).status, 403);
   assert.equal((await client.request('/auth/discord', { headers: { 'X-Forwarded-Proto': undefined } })).status, 403);
@@ -468,7 +468,7 @@ test('auth routes require the public HTTPS origin, reject cross-site posts and s
   assert.equal(f.provider.calls.length, 0, 'Authorization redirects never contact a provider from the server');
 });
 
-test('plain form posts with a null Origin need same-origin Fetch Metadata', { timeout: 30000 }, async t => {
+test('plain form posts with a null Origin need same-origin Fetch Metadata', async t => {
   const f = await fixture(t), client = f.browser();
   await signIn(f, client, 'discord', await f.invite());
   const form = site => ({ body: {}, headers: { Origin: 'null', ...(site ? { 'Sec-Fetch-Site': site } : {}) } });
@@ -480,7 +480,7 @@ test('plain form posts with a null Origin need same-origin Fetch Metadata', { ti
   assert.equal(client.jar.has('duo_access'), false); assert.equal((await client.request('/api/session')).status, 401);
 });
 
-test('provider failures remain generic and off mode preserves direct invitation access', { timeout: 30000 }, async t => {
+test('provider failures remain generic and off mode preserves direct invitation access', async t => {
   const f = await fixture(t), client = f.browser();
   const flow = await f.begin(client, 'discord', await f.invite());
   const result = await f.callback(client, flow, { tokenFailure: true });
@@ -497,7 +497,7 @@ test('provider failures remain generic and off mode preserves direct invitation 
   assert.equal(f.provider.calls.length, calls);
 });
 
-test('a private administrator can remove the final provider while the original invitation stays claimed', { timeout: 30000 }, async t => {
+test('a private administrator can remove the final provider while the original invitation stays claimed', async t => {
   const f = await fixture(t), owner = f.browser(), invitation = await f.invite();
   const original = await signIn(f, owner, 'discord', invitation);
   assert.equal((await f.admin(`/api/accounts/${original.account.id}/unlink`, { provider: 'discord' })).status, 200);
@@ -512,7 +512,7 @@ test('a private administrator can remove the final provider while the original i
   assert.equal(claimed.claimedAccountId, original.account.id);
 });
 
-test('a provider rejects a code whose PKCE challenge does not match the exchanged verifier', { timeout: 30000 }, async t => {
+test('a provider rejects a code whose PKCE challenge does not match the exchanged verifier', async t => {
   const f = await fixture(t), client = f.browser(), flow = await f.begin(client, 'discord', await f.invite());
   const result = await f.callback(client, flow, { pkceMismatch: true });
   assert.equal(result.response.status, 502); assert.equal(client.jar.has('duo_access'), false);
@@ -520,7 +520,7 @@ test('a provider rejects a code whose PKCE challenge does not match the exchange
   assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 0);
 });
 
-test('unconfigured providers are omitted and invalid secret files fail startup with a generic error', { timeout: 30000 }, async t => {
+test('unconfigured providers are omitted and invalid secret files fail startup with a generic error', async t => {
   const f = await fixture(t), secretKey = 'RS3_GOOGLE_CLIENT_SECRET_FILE', secretFile = process.env[secretKey];
   delete process.env[secretKey];
   await f.restart();
@@ -543,7 +543,7 @@ test('unconfigured providers are omitted and invalid secret files fail startup w
   } finally { process.env[secretKey] = secretFile; }
 });
 
-test('unknown identities without an invite store nothing and can later join through a player invite', { timeout: 30000 }, async t => {
+test('unknown identities without an invite store nothing and can later join through a player invite', async t => {
   const f = await fixture(t), client = f.browser();
   const before = (await (await f.admin('/api/accounts')).json()).accounts;
   const first = await f.callback(client, await f.begin(client, 'discord'));
@@ -635,7 +635,7 @@ for (const failure of [{ timeout: true }, { oversized: 'content-length' }, { ove
   });
 }
 
-test('an existing optional invitation session upgrades from Settings sign-in without reopening its invite', { timeout: 30000 }, async t => {
+test('an existing optional invitation session upgrades from Settings sign-in without reopening its invite', async t => {
   const f = await fixture(t), client = f.browser(), invitation = await f.invite();
   assert.equal((await client.request(new URL(invitation.link).pathname)).status, 200);
   assert.equal((await client.request('/auth/invite', { body: {} })).status, 303);

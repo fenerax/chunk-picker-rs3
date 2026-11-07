@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -146,7 +147,7 @@ test('closing context A promptly abandons its active and queued jobs while B com
   const f = await contexts(t), a = send(f.left, '/api/tasks?memberId=one'), first = await f.next();
   const queued = evaluate(f.a, state(), 'queued'), queuedRejected = assert.rejects(queued, { status: 503 });
   const b = send(f.right, '/api/tasks?memberId=one');
-  await Promise.race([f.left.close(), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('Picker close waited for calculator work.')), 2000); timer.unref(); })]);
+  await f.left.close();
   await queuedRejected; assert.equal((await a).status, 503);
   assert.equal(first.worker.terminated, false, 'closing one context does not close the shared worker');
   finish(first, result('late alpha'), { unlockReuse: reuse('late alpha') });
@@ -269,12 +270,12 @@ test('quiet picker p95 queue wait stays bounded under a sustained flooding picke
     const jobs = [evaluate(f.a, state(), 'a0')], first = await f.next();
     for (let index = 1; index < 32; index++) jobs.push(evaluate(f.a, state(), 'a' + index));
     const at = performance.now(), b = evaluate(f.b, state(), 'quiet');
-    await new Promise(resolve => setTimeout(resolve, 2)); finish(first);
+    await new Promise(resolve => setImmediate(resolve)); finish(first);
     let served = 0;
     while (true) {
       const work = await f.next();
-      if (work.message.pickerId === B) { samples.push(performance.now() - at); finish(work); break; }
-      served++; await new Promise(resolve => setTimeout(resolve, 2)); finish(work);
+      if (work.message.pickerId === B) { samples.push(served); finish(work); break; }
+      served++; await new Promise(resolve => setImmediate(resolve)); finish(work);
     }
     if (mode === 'fair') assert.ok(served <= 1, 'B waits behind at most one queued A calculation'); await b;
     while (f.scheduler.getDiagnostics().queue.depth || f.scheduler.getDiagnostics().queue.active) { const work = await f.next(); finish(work); }
@@ -282,11 +283,11 @@ test('quiet picker p95 queue wait stays bounded under a sustained flooding picke
   }
   samples.sort((a, b) => a - b);
   const p95 = samples[Math.ceil(samples.length * .95) - 1];
-  measurements[mode] = { samples: samples.length, p95Ms: p95, minMs: samples[0], maxMs: samples.at(-1) };
+  measurements[mode] = { samples: samples.length, p95Turns: p95, minTurns: samples[0], maxTurns: samples.at(-1) };
   }
   t.diagnostic(JSON.stringify(measurements));
-  assert.ok(measurements.fair.p95Ms < 500, 'Two 2 ms calculator turns plus scheduling noise stay below 500 ms');
-  assert.ok(measurements.fair.p95Ms < measurements.fifo.p95Ms / 2);
+  assert.ok(measurements.fair.p95Turns <= 1, 'B waits behind at most one queued A calculation');
+  assert.ok(measurements.fifo.p95Turns > measurements.fair.p95Turns);
 });
 
 test('a picker request displaces its own queued warming instead of being refused', async t => {

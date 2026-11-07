@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -470,7 +471,7 @@ test('foreground can preempt an unsolicited advisory calculator still compiling'
   assert.equal(workers[1].terminated, true); assert.equal(ran, true);
 });
 
-test('shutdown force-stops warm production without waiting for graceful retirement', { timeout: 1000 }, async t => {
+test('shutdown force-stops warm production without waiting for graceful retirement', async t => {
   let release;
   t.after(() => release?.());
   const { scheduler, scopes: [scope], workers } = await fixture(t);
@@ -490,7 +491,7 @@ test('shutdown force-stops warm production without waiting for graceful retireme
   await scheduler.close(20);
 });
 
-test('pool shutdown escalates retirement already waiting for a warm calculator exit', { timeout: 1000 }, async t => {
+test('pool shutdown escalates retirement already waiting for a warm calculator exit', async t => {
   const clock = createManualClock(), sessions = createSessionResidency(config, clock);
   let release;
   const exited = new Promise(resolve => { release = resolve; });
@@ -512,14 +513,16 @@ test('pool shutdown escalates retirement already waiting for a warm calculator e
   assert.equal(pool.diagnostics().resident, 0);
 });
 
-test('pooled shutdown keeps the requested deadline when termination never resolves', { timeout: 1000 }, async t => {
-  const { scheduler, workers } = await fixture(t);
+test('pooled shutdown keeps the requested deadline when termination never resolves', async t => {
+  const clock = createManualClock();
+  t.after(() => clock.advance(10000));
+  const { scheduler, workers } = await fixture(t, { deadlineClock: clock });
   workers[0].terminate = () => new Promise(() => {});
-  const started = performance.now();
   const first = scheduler.close(20);
   assert.equal(scheduler.close(20), first);
-  await first;
-  assert.ok(performance.now() - started < 500);
+  let closed = false; first.then(() => { closed = true; });
+  await clock.advance(19); assert.equal(closed, false, 'Shutdown retains the requested allowance');
+  await clock.advance(1); await clock.settled(first);
   assert.equal(scheduler.getHealth().status, 'closed');
 });
 

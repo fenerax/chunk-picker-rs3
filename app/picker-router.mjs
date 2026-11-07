@@ -20,11 +20,11 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  pickerLimits, onAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  pickerLimits, onAdmission, admissionClock, idleClock = { setTimeout, clearTimeout }, uploadClock, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const entries = new Map();
-  const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission });
+  const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission, clock: admissionClock });
   // Process-wide budget for owned backup parsers, on top of each context's own
   // single-import guard, so many owners cannot each materialize a large backup
   // at once. Legacy keeps its own guard and is outside this budget.
@@ -45,14 +45,14 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   function drainPicker(id, phase) {
       if (phase === 'revoke') {
         const entry = entries.get(id);
-        if (entry && !entry.closing) { clearTimeout(entry.timer); return entry.revoking ??= entry.context.revokeDeletion(); }
+        if (entry && !entry.closing) { idleClock.clearTimeout(entry.timer); return entry.revoking ??= entry.context.revokeDeletion(); }
         return;
       }
       // Reserve the closing entry under the queue, then drain only this picker
       // outside it. Closing entries cannot be selected as capacity victims.
       return serialize(() => {
         const entry = entries.get(id);
-        if (entry) { clearTimeout(entry.timer); entry.closing = true; }
+        if (entry) { idleClock.clearTimeout(entry.timer); entry.closing = true; }
         return entry;
       }).then(async entry => { if (entry) { await entry.revoking; await evict(entry); } });
   }
@@ -61,17 +61,17 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   }
   const checkpoint = createPickerCheckpoint({ serialize, entries, registry, legacy });
   async function evict(entry) {
-    clearTimeout(entry.timer);
+    idleClock.clearTimeout(entry.timer);
     entry.closing = true;
     // Keep the entry until close drains, so no writer can reopen alongside it.
     try { await entry.context.close(); } finally { entries.delete(entry.id); }
   }
   const checkpointBlocked = entry => storeWriteBlocked(registry.pickerDirectory(entry.id));
   function idle(entry) {
-    clearTimeout(entry.timer);
+    idleClock.clearTimeout(entry.timer);
     if (closed || entry.closing || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
-    entry.timer = setTimeout(() => {
-      void serialize(async () => {
+    entry.timer = idleClock.setTimeout(() => {
+      return serialize(async () => {
         if (closed || entry.closing || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
         // A checkpoint holds this directory: closing now would hold the queue behind the copy.
         if (checkpointBlocked(entry)) return idle(entry);
@@ -101,7 +101,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (closed || signal?.aborted || registry.getPicker(id)?.lifecycle !== 'active') { await context.close(); signal?.throwIfAborted(); throw retry(); }
         entry = { id, context, active: 0, streams: new Set() };
       }
-      clearTimeout(entry.timer);
+      idleClock.clearTimeout(entry.timer);
       entries.delete(id); entries.set(id, entry); entry.active++;
       return entry;
     }));
@@ -116,7 +116,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
         const warm = entries.get(id);
         if (!warm || warm.closing) return null;
-        clearTimeout(warm.timer); entries.delete(id); entries.set(id, warm); warm.active++; return warm;
+        idleClock.clearTimeout(warm.timer); entries.delete(id); entries.set(id, warm); warm.active++; return warm;
       });
       if (entry) return entry;
     }
@@ -286,7 +286,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           releaseImportUser = reserveImportUser(identity.accountId ?? identity.id ?? identity.sessionId ?? security.rateKey);
           receiving.set(pickerId, request); receivingId = pickerId;
           bindBody?.importing();
-          upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
+          upload = await receiveBackupRequest(request, { clock: uploadClock, idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
         };
         const selected = await contextFor(request, security, bindBody, receiveBackup, controller.signal); entry = selected.entry;
         controller.signal.throwIfAborted();
@@ -323,7 +323,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     close() {
       if (closing) return closing;
       closed = true;
-      for (const entry of entries.values()) clearTimeout(entry.timer);
+      for (const entry of entries.values()) idleClock.clearTimeout(entry.timer);
       closing = Promise.all([admission?.close(), deletion.drain()]).then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
       return closing;
     },

@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -113,7 +115,7 @@ test('deletion is session-scoped, checks origin and fields, and never opens the 
   assert.equal((await f.send('/api/state', b)).status, 200);
 });
 
-test('deleting A closes its streams, refuses old credentials and leaves B events and game independent', { timeout: 10000 }, async t => {
+test('deleting A closes its streams, refuses old credentials and leaves B events and game independent', async t => {
   const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
   await f.note(a, 'Player 1', 0); await f.note(b, 'Player 2', 0);
   const id = await f.picker('101'), directory = path.join(f.multiPicker.pickerRoot, id);
@@ -135,7 +137,7 @@ test('deleting A closes its streams, refuses old credentials and leaves B events
   assert.equal((await f.note(b, 'Player 2', 1)).status, 200);
   await f.send('/api/tasks?memberId=owner', b); await settle();
   assert.equal(Buffer.concat(left.chunks).length, stopped);
-  assert.ok(Buffer.concat(right.chunks).length > before);
+  await waitForCondition(() => Buffer.concat(right.chunks).length > before);
   assert.equal((await f.send('/api/state', b)).json().state.members[0].notes['12341'], 'Player 2');
   const fresh = await f.login('101'); assert.notEqual(await f.picker('101'), id);
   const state = (await f.send('/api/state', fresh)).json().state;
@@ -222,7 +224,7 @@ test('legacy picker deletion is refused; deleting its member account preserves t
   assert.equal(hash((await f.private('/api/backup')).text), before);
 });
 
-test('invites, plugin keys and overlay capabilities revoke durably before purge and overlay streams end', { timeout: 10000 }, async t => {
+test('invites, plugin keys and overlay capabilities revoke durably before purge and overlay streams end', async t => {
   let observe;
   const f = await fixture(t, { crashPoint: async (point, { pickerId }) => {
     if (observe && point === 'picker-purge-revoked') await observe(pickerId);
@@ -264,7 +266,7 @@ test('invites, plugin keys and overlay capabilities revoke durably before purge 
   observe = undefined; await f.restart(); assert.equal(await exists(directory), false);
 });
 
-test('deletion drains an already accepted write and fences new admission while B keeps saving', { timeout: 10000 }, async t => {
+test('deletion drains an already accepted write and fences new admission while B keeps saving', async t => {
   const accepted = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
   const f = await fixture(t, { beforeCommit: async ({ state }) => {
     if (armed && state.members[0].notes?.['12341'] === 'Player 1') { armed = false; accepted.resolve(); await release.promise; }
@@ -292,7 +294,7 @@ test('routing absent exposes no deletion capability or retention policy', async 
   assert.equal(await exists(f.multiPicker.registryDir), false);
 });
 
-test('deleting A cancels its pending MP3 job and drops its late result while B finishes', { timeout: 10000 }, async t => {
+test('deleting A cancels its pending MP3 job and drops its late result while B finishes', async t => {
   const pending = [], waiting = [], workers = [];
   const next = () => pending.length ? Promise.resolve(pending.shift()) : new Promise(resolve => waiting.push(resolve));
   const workerFactory = () => {
@@ -313,7 +315,8 @@ test('deleting A cancels its pending MP3 job and drops its late result while B f
   t.after(() => { left.req.destroy(); right.req.destroy(); });
   const ended = new Promise(resolve => left.res.once('end', resolve));
   const aRequest = f.send('/api/tasks?memberId=owner', a), first = await next(); assert.equal(first.message.pickerId, aId);
-  const bRequest = f.send('/api/tasks?memberId=owner', b); await settle();
+  const bRequest = f.send('/api/tasks?memberId=owner', b);
+  await waitForCondition(async () => (await f.private('/api/diagnostics')).json().queue.depth > 0);
   const deletion = f.send('/api/picker/delete', a, { body: {} }); await ended;
   assert.ok(workers.some(w => w.messages.some(m => m.type === 'cancel' && m.pickerId === aId)));
   const count = Buffer.concat(left.chunks).length;
@@ -325,7 +328,7 @@ test('deleting A cancels its pending MP3 job and drops its late result while B f
   assert.equal((await f.send('/api/state', b)).status, 200);
 });
 
-test('the durable tombstone fences streams and admission before registry cleanup can finish', { timeout: 10000 }, async t => {
+test('the durable tombstone fences streams and admission before registry cleanup can finish', async t => {
   const tombstoned = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
   const f = await fixture(t, { crashPoint: async point => {
     if (armed && point === 'picker-tombstoned') { tombstoned.resolve(); await release.promise; }
@@ -348,7 +351,7 @@ test('the durable tombstone fences streams and admission before registry cleanup
   assert.equal((await deletion).status, 200);
 });
 
-test('account deletion ends its sessions in other memberships without closing that picker or its owner streams', { timeout: 10000 }, async t => {
+test('account deletion ends its sessions in other memberships without closing that picker or its owner streams', async t => {
   const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
   const aId = await f.picker('101'), bId = await f.picker('102'), doc = await f.registry();
   const accountId = doc.accounts.find(row => row.defaultPickerId === aId).id;

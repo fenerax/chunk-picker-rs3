@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 // Synthetic CLI/network harness: no server, credentials, external fetch or live state.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -377,7 +378,7 @@ test('offline CLI requires an independent digest and emits only scoped success o
     await writeFile(file, bytes); await writeFile(expect, JSON.stringify(expected));
     const script = fileURLToPath(new URL('../scripts/release/verify-ci-evidence.mjs', import.meta.url));
     const run = args => spawnSync(process.execPath, [script, '--expect', expect, ...args],
-      { encoding: 'utf8', windowsHide: true, timeout: 10000 });
+      { encoding: 'utf8', windowsHide: true});
     const accepted = run(['--file', file, '--sha256', sha(bytes)]);
     assert.equal(accepted.status, 0); assert.equal(accepted.stderr, '');
     assert.deepEqual(JSON.parse(accepted.stdout), result);

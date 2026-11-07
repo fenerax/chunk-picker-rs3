@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test, { beforeEach } from 'node:test';
 import { blockUnmockedFetch } from './helpers/block-unmocked-fetch.mjs';
 import assert from 'node:assert/strict';
@@ -180,9 +182,10 @@ test('duplicate skill or quest observations are rejected before caching and reco
 });
 
 test('timeout bounds a hung upstream request and aborts both endpoint signals',async()=>{
-  const signals=[];
-  const client=createTestPlatformClient({timeoutMs:20,fetchImpl:async(url,{signal})=>{signals.push(signal); return new Promise(()=>{});}});
-  await assert.rejects(client.snapshot(group().members[0]),error=>error.code==='TIMEOUT'&&error.status===504);
+  const signals=[], timers=createManualClock();
+  const client=createTestPlatformClient({timers,timeoutMs:20,fetchImpl:async(url,{signal})=>{signals.push(signal); return new Promise(()=>{});}});
+  const failed=assert.rejects(client.snapshot(group().members[0]),error=>error.code==='TIMEOUT'&&error.status===504);
+  await timers.advance(20); await timers.settled(failed);
   assert.equal(signals.length,2); assert.ok(signals.every(signal=>signal.aborted)); client.close();
 });
 
@@ -285,9 +288,9 @@ test('Platform paired requests use saved bindings, single-flight cache and bound
     try { await assert.rejects(failing.snapshot(group().members[0]), error => error.code === code); }
     finally { failing.close(); }
   }
-  const signals = [];
-  const hung = createPlatformApiClient({ timeoutMs: 20, fetchImpl: async (url, { signal }) => { signals.push(signal); return new Promise(() => {}); } });
-  try { await assert.rejects(hung.snapshot(group().members[0]), error => error.code === 'TIMEOUT'); assert.ok(signals.every(signal => signal.aborted)); }
+  const signals = [], timers = createManualClock();
+  const hung = createPlatformApiClient({ timers, timeoutMs: 20, fetchImpl: async (url, { signal }) => { signals.push(signal); return new Promise(() => {}); } });
+  try { const failed = assert.rejects(hung.snapshot(group().members[0]), error => error.code === 'TIMEOUT'); await timers.advance(20); await timers.settled(failed); assert.ok(signals.every(signal => signal.aborted)); }
   finally { hung.close(); }
 });
 

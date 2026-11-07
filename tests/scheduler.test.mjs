@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { createWorkAcknowledgements } from './helpers/work-acknowledgements.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -5,11 +8,10 @@ import { createTaskScheduler, nativeWorkerInput, predictionCacheKey } from '../a
 import { STATE_SNAPSHOT_LIMIT } from '../app/tasks/state-transfer.mjs';
 import { createProcessProfiles } from '../app/tasks/process-profiles.mjs';
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate) {
-  const deadline = Date.now() + 2000;
-  while (!predicate()) { if (Date.now() > deadline) assert.fail('Condition did not become true.'); await delay(5); }
-}
+const acknowledgements = createWorkAcknowledgements();
+const until = predicate => acknowledgements.until(predicate);
+const delay = () => new Promise(resolve => setImmediate(resolve));
+
 function factory({ supports = [] } = {}) {
   const workers = [];
   function create() {
@@ -17,7 +19,7 @@ function factory({ supports = [] } = {}) {
     worker.postMessage = message => worker.messages.push(message);
     worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 1); };
     worker.finish = (result = { metrics: { availableCount: 1 } }, id = worker.messages.at(-1).id) => worker.emit('message', { id, result, evaluationMs: 2, timingMs: { engineMs: 1, totalMs: 2 } });
-    workers.push(worker);
+    acknowledgements.observe(worker); workers.push(worker);
     queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [], compileMs: 1, supports }));
     return worker;
   }
@@ -44,6 +46,7 @@ function finishPlay(worker, play = '{"format":"play-v1"}', duo) {
 async function fixture(t, options = {}) {
   const f = factory(options);
   const scheduler = await createTaskScheduler({ workerFactory: f.create, firstCalculationDeadlineMs: options.deadlineMs ?? 30000, backoffMs: 10, maxBackoffMs: 20, ...options });
+  scheduler.subscribe(acknowledgements.notify);
   t.after(() => scheduler.close());
   const evaluate = (key, revision = 0, memberId = 'actor1', signal, input = key) => scheduler.evaluate({ revision }, memberId, 'evaluate', undefined, key, input, signal);
   return { ...f, scheduler, evaluate };
@@ -132,24 +135,28 @@ test('rule preparation uses tiny foreground inputs, exact rule/revision caching 
 });
 
 test('preparation cache belongs to the current worker and preparation retains the request watchdog', async t => {
-  const { workers, scheduler } = await fixture(t, { deadlineMs: 50 });
+  const clock = createManualClock();
+  const { workers, scheduler } = await fixture(t, { deadlineMs: 50, deadlineClock: clock });
   const first = scheduler.prepareRules({}, 0); workers[0].finish({ prepared: true }); await first;
   workers[0].emit('error', new Error('restart'));
+  await clock.advance(10);
   await until(() => workers.length === 2 && scheduler.getHealth().ready);
   const next = scheduler.prepareRules({}, 0);
   assert.equal(workers[1].messages.at(-1).type, 'prepare-rules');
   assert.equal(workers[1].messages.at(-1).state.revision, 0);
-  await assert.rejects(next, error => error.status === 504);
+  const rejected = assert.rejects(next, error => error.status === 504);
+  await clock.advance(50); await clock.settled(rejected);
   assert.equal(scheduler.getDiagnostics().counts.expired, 1);
   assert.equal(scheduler.getHealth().status, 'restarting');
 });
 
 test('a worker crash recovers with backoff; exhaustion reports restart-required and rejects later work', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 1, backoffMs: 40 });
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 1, backoffMs: 40, deadlineClock: clock });
   const first = evaluate('one'); const rejected = assert.rejects(first, /recovering/);
   workers[0].emit('error', new Error('private task data must never be diagnostic'));
   assert.equal(scheduler.getHealth().ready, false); assert.equal(scheduler.getHealth().status, 'restarting');
-  await rejected; await until(() => scheduler.getHealth().ready);
+  await rejected; await clock.advance(40); await until(() => scheduler.getHealth().ready);
   assert.equal(workers[0].terminated, true); assert.equal(workers.length, 2);
   const recovered = evaluate('two'); workers[1].finish(); await recovered;
   workers[1].emit('exit', 2);
@@ -160,11 +167,14 @@ test('a worker crash recovers with backoff; exhaustion reports restart-required 
 });
 
 test('startup failures and startup hangs exhaust a bounded restart budget', async () => {
+  const clock = createManualClock();
   let attempts = 0;
-  await assert.rejects(createTaskScheduler({ workerFactory: () => { attempts++; throw new Error('bad boot'); }, backoffMs: 5, maxRestarts: 2 }), /server restart/);
+  const failed = assert.rejects(createTaskScheduler({ workerFactory: () => { attempts++; throw new Error('bad boot'); }, backoffMs: 5, maxRestarts: 2, deadlineClock: clock }), /server restart/);
+  await clock.advance(15); await clock.settled(failed);
   assert.equal(attempts, 3);
   let terminations = 0;
-  await assert.rejects(createTaskScheduler({ workerFactory: () => { const worker = new EventEmitter(); worker.terminate = async () => { terminations++; }; return worker; }, startupDeadlineMs: 10, backoffMs: 5, maxRestarts: 1 }), /server restart/);
+  const hung = assert.rejects(createTaskScheduler({ workerFactory: () => { const worker = new EventEmitter(); worker.terminate = async () => { terminations++; }; return worker; }, startupDeadlineMs: 10, backoffMs: 5, maxRestarts: 1, deadlineClock: clock }), /server restart/);
+  await clock.advance(25); await clock.settled(hung);
   assert.equal(terminations, 2);
 });
 
@@ -281,7 +291,8 @@ test('serialized queued coalescing keys the captured revision rather than a newe
 });
 
 test('serialized input retries resend rejected snapshots and worker recovery clears sent keys', async t => {
-  const { workers, scheduler } = await fixture(t);
+  const clock = createManualClock();
+  const { workers, scheduler } = await fixture(t, { deadlineClock: clock });
   const metadata = { revision: 0, members: [{ id: 'actor1' }] };
   const stateJSON = sharedBytes('{}');
   const operation = key => scheduler.evaluate(metadata, 'actor1', 'evaluate', undefined, key, 'gameplay', undefined, [], 'full', { stateJSON, inputKey: 'gameplay' });
@@ -293,6 +304,7 @@ test('serialized input retries resend rejected snapshots and worker recovery cle
   assert.equal(workers[0].messages.at(-1).stateJSON, stateJSON);
   finishJSON(workers[0], '{}'); await retry;
   workers[0].emit('error', new Error('restart'));
+  await clock.advance(10);
   await until(() => workers.length === 2 && scheduler.getHealth().ready);
   const recovered = operation('recovered');
   assert.equal(workers[1].messages.at(-1).stateJSON, stateJSON);
@@ -446,8 +458,10 @@ test('disconnect cancels only that waiter, and abandoned queued snapshots are re
 });
 
 test('active deadline restarts the worker', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 35, backoffMs: 5 });
-  await assert.rejects(evaluate('hung'), { status: 504 });
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 35, backoffMs: 5, deadlineClock: clock });
+  const failed = assert.rejects(evaluate('hung'), { status: 504 });
+  await clock.advance(35); await clock.settled(failed); await clock.advance(5);
   await until(() => workers.length === 2 && scheduler.getHealth().ready);
   const recovered = evaluate('recovered'); workers[1].finish(); await recovered;
   assert.equal(scheduler.getDiagnostics().counts.expired, 1);
@@ -455,38 +469,45 @@ test('active deadline restarts the worker', async t => {
 });
 
 test('queued deadline during backoff releases its snapshot without another restart', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 20, backoffMs: 100, maxBackoffMs: 100 });
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 20, backoffMs: 100, maxBackoffMs: 100, deadlineClock: clock });
   workers[0].emit('error', new Error('crash'));
-  await assert.rejects(evaluate('queued'), { status: 504 });
+  const failed = assert.rejects(evaluate('queued'), { status: 504 });
+  await clock.advance(20); await clock.settled(failed);
   assert.equal(scheduler.getDiagnostics().queue.depth, 0); assert.equal(scheduler.getHealth().failures, 1);
 });
 
 test('a discarded active result neither enters cache nor triggers its old deadline', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 20 });
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 20, deadlineClock: clock });
   const operation = evaluate('old'); const rejected = assert.rejects(operation, /superseded/);
   scheduler.supersede(1, 'new'); await rejected; workers[0].finish();
-  await delay(40);
+  await clock.advance(40);
   assert.equal(scheduler.getDiagnostics().cache.entries, 0); assert.equal(scheduler.getHealth().restarts, 0);
 });
 
 test('abandoned active work retains its watchdog and discards late results', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 30, backoffMs: 5 });
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 30, backoffMs: 5, deadlineClock: clock });
   const controller = new AbortController();
   const hung = evaluate('hung', 0, 'actor1', controller.signal); const rejected = assert.rejects(hung, { name: 'AbortError' });
   controller.abort(); await rejected;
+  await clock.advance(35);
   await until(() => workers.length === 2 && scheduler.getHealth().ready);
   assert.equal(scheduler.getDiagnostics().cache.entries, 0);
   const operation = evaluate('okay'); workers[1].finish(); await operation;
 });
 
 test('shutdown rejects pending calculations and bounds a worker that refuses to terminate', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t);
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { deadlineClock: clock });
   workers[0].terminate = () => new Promise(() => {});
   const active = evaluate('active'); const rejected = assert.rejects(active, /closing/);
   const queued = evaluate('queued', 0, 'reed'); const queuedRejected = assert.rejects(queued, /closing/);
-  const started = performance.now(); await scheduler.close(20);
+  const closing = scheduler.close(20);
+  await clock.advance(20); await clock.settled(closing);
   await Promise.all([rejected, queuedRejected]);
-  assert.ok(performance.now() - started < 1000); assert.equal(scheduler.getHealth().status, 'closed');
+  assert.equal(scheduler.getHealth().status, 'closed');
   workers[0].terminate = async () => {};
 });
 
@@ -547,9 +568,11 @@ test('death cancellation preserves followers and cancelled partial results never
 });
 
 test('death failures and deadlines leave the foreground worker available', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, deathDeadlineMs: 25, firstCalculationDeadlineMs: 25 });
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, deathDeadlineMs: 25, firstCalculationDeadlineMs: 25, deadlineClock: clock });
   const dead = scheduler.evaluate({ revision: 0 }, 'actor1', 'death-estimates', undefined, 'death', 'input', undefined, ['12342']);
-  await assert.rejects(dead, { status: 504 });
+  const rejected = assert.rejects(dead, { status: 504 });
+  await clock.advance(25); await clock.settled(rejected);
   assert.equal(scheduler.getHealth().death.restartRequired, true);
   assert.equal(scheduler.getHealth().ready, true);
   assert.equal(workers[0].terminated, false);
@@ -811,16 +834,17 @@ for (const pooled of [false, true]) {
   });
 
   test(`${pooled ? 'pooled' : 'dedicated'} repeated expiry while awaiting online preserves a pending foreground request`, async t => {
-    const online = Promise.withResolvers(), workers = []; let nativeStarts = 0, retirements = 0, lane;
+    const clock = createManualClock(), online = Promise.withResolvers(), workers = []; let nativeStarts = 0, retirements = 0, lane;
     const creation = createTaskScheduler({ maxRestarts: 0, onCreated(value) { lane ??= value; }, ...(pooled ? { maxCalculators: 1 } : {}), workerFactory() {
       const worker = new EventEmitter(); workers.push(worker);
       worker.messages = []; worker.postMessage = message => worker.messages.push(message);
       worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
-      worker.profiles = createProcessProfiles({ online: online.promise,
+      worker.profiles = createProcessProfiles({ clock, online: online.promise,
         worker: { startCpuProfile() { nativeStarts++; throw new Error('Cancelled capture reached calculator.'); } },
         retire() { retirements++; worker.profileRetiring = true; worker.emit('profile-retiring'); },
         openSession: async () => ({ disconnect() {}, post(method, callback) { callback(null, { profile: {} }); } }),
       });
+      acknowledgements.observe(worker);
       return worker;
     } });
     // Cold startup has an admitted lane waiting for the same calculator.
@@ -829,8 +853,8 @@ for (const pooled of [false, true]) {
     const worker = workers[0];
     const request = lane.evaluate({ revision: 0 }, 'actor1', 'evaluate', undefined, 'foreground', 'foreground');
     for (let index = 0; index < 4; index++) {
-      const started = assert.rejects(worker.profiles.start(Date.now() + 20), /cancelled/);
-      await delay(30); await started;
+      const started = assert.rejects(worker.profiles.start(clock.now() + 20), /cancelled/);
+      await clock.advance(30); await clock.settled(started);
       assert.equal(worker.terminated, undefined);
     }
     online.resolve(); worker.emit('message', { type: 'ready', catalogue: [] });

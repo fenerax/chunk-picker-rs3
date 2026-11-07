@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { serialize } from 'node:v8';
@@ -8,14 +9,13 @@ import { baseLocationId, buildChunkPlanningIndex, buildChunkPlanningIndexIncreme
 // Observe the fake DOM's completed replacement instead of counting event-loop turns.
 function afterReplacement(node, action) {
   const ready = Promise.withResolvers(), replace = node.replaceChildren;
-  const timer = setTimeout(() => ready.reject(new Error('Panel did not finish rendering')), 10000);
   node.replaceChildren = function (...nodes) {
     replace.apply(this, nodes);
     if (nodes[0]?.textContent === 'Loading tasks for this chunk…') return;
     ready.resolve();
   };
   try { action(); } catch (error) { ready.reject(error); }
-  return ready.promise.finally(() => { clearTimeout(timer); node.replaceChildren = replace; });
+  return ready.promise.finally(() => { node.replaceChildren = replace; });
 }
 async function openSection(section) {
   const body = section.children[1];

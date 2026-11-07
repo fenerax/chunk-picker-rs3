@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises';
@@ -9,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const tools = fileURLToPath(new URL('../scripts/private-companion/', import.meta.url));
 const sha = value => createHash('sha256').update(value).digest('hex');
-const ps = (script, ...args) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.join(tools, script), ...args], { encoding: 'utf8', timeout: 20000 });
+const ps = (script, ...args) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.join(tools, script), ...args], { encoding: 'utf8'});
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'operator-synthetic-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -114,7 +115,7 @@ test('operator dry run refuses changed pack, unknown settings and unsafe rollbac
 
 test('operator sources parse without loading application modules', { skip: process.platform !== 'win32' }, () => {
   const command = `Get-ChildItem -LiteralPath '${tools.replaceAll("'", "''")}' -Filter '*.ps1' | ForEach-Object { $errors=$null; $tokens=$null; $null=[Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors); if($errors.Count){exit 1} }; exit 0`;
-  const parsed = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8', timeout: 20000 });
+  const parsed = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8'});
   assert.equal(parsed.status, 0, parsed.stderr);
 });
 
@@ -139,7 +140,7 @@ $rejected=$false; try { $null=Get-OperatorOwnedProcess $context $record } catch 
 $script:fake.CreationDate=[DateTime]::Parse($record.processStartedAt);$script:fake.ExecutablePath='C:\\synthetic\\other.exe'
 $rejected=$false; try { $null=Get-OperatorOwnedProcess $context $record } catch { $rejected=$true }; if(-not $rejected){exit 3}
 exit 0`;
-  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')], { encoding: 'utf8', timeout: 20000 });
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')], { encoding: 'utf8'});
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
@@ -227,7 +228,7 @@ foreach($filename in @(${literal(previousPath)},${literal(f.configPath)})){
  try{Assert-ReleaseContextsUnchanged $candidate $previous ${literal(f.configPath)} ${literal(previousPath)} ${literal(f.core)} ${literal(f.companion)}}catch{$rejected=$true}finally{[IO.File]::WriteAllText($filename,$bytes)};if(-not $rejected){exit 5}
 }
 exit 0`;
-  const checked = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')], { encoding: 'utf8', timeout: 20000 });
+  const checked = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')], { encoding: 'utf8'});
   assert.equal(checked.status, 0, checked.stdout + checked.stderr);
   assert.deepEqual(await inventory(f.root), before);
 });
@@ -238,7 +239,7 @@ test('an optional signin.json sidecar makes loopback public and passes only sign
   const sidecar = path.join(f.local, 'signin.json');
   const read = () => {
     const command = `. '${path.join(tools, 'Operator-Common.ps1').replaceAll("'", "''")}'; $ErrorActionPreference='Stop'; try { $c=Read-OperatorConfig '${f.configPath.replaceAll("'", "''")}'; $s=Read-OperatorSignIn $c; if ($null -eq $s) { 'null' } else { $s | ConvertTo-Json -Compress } } catch { exit 1 }`;
-    return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8', timeout: 20000 });
+    return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8'});
   };
   const absent = read(); assert.equal(absent.status, 0, absent.stderr); assert.equal(absent.stdout.trim(), 'null');
   const valid = { schemaVersion: 1, mode: 'optional', discord: { clientId: '1234567890', secretFile: discordSecret }, google: { clientId: 'synthetic.apps.googleusercontent.com', secretFile: googleSecret } };

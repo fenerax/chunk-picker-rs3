@@ -73,15 +73,15 @@ export function localMapAssetPath(path) {
   return local;
 }
 /** Optional local assets must never cause startup to contact an external host. */
-export async function loadTerrainManifest(fetcher = globalThis.fetch, { optimizedTimeoutMs = 3000 } = {}) {
+export async function loadTerrainManifest(fetcher = globalThis.fetch, { optimizedTimeoutMs = 3000, clock = { setTimeout, clearTimeout } } = {}) {
   try {
     const controller = new AbortController();
     let timeout;
     const optimized = Promise.race([
       Promise.resolve().then(() => fetcher('/assets/map/terrain.optimized-manifest.json', { signal: controller.signal }))
         .then(response => response.ok ? response.json() : null).catch(() => null),
-      new Promise(resolve => { timeout = setTimeout(() => { controller.abort(); resolve(null); }, optimizedTimeoutMs); }),
-    ]).finally(() => clearTimeout(timeout));
+      new Promise(resolve => { timeout = clock.setTimeout(() => { controller.abort(); resolve(null); }, optimizedTimeoutMs); }),
+    ]).finally(() => clock.clearTimeout(timeout));
     const response = await fetcher('/assets/map/manifest.json');
     if (!response.ok) return null;
     const manifest = await response.json();

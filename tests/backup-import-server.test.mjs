@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -336,7 +337,6 @@ test('an invalid unfinished request returns an error and releases the import adm
     });
     t.after(() => request.destroy());
     request.on('error', reject);
-    request.setTimeout(5000, () => { request.destroy(); reject(new Error('Invalid unfinished JSON did not receive an error response.')); });
     // Never end the body: a parse error must not wait for a sender to finish.
     request.write('}');
   });

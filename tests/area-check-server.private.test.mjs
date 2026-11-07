@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -89,7 +91,7 @@ test('view-only links can use Area check while commands remain forbidden and sta
 test('a concurrent save supersedes Area check and stale revisions are rejected', async t => {
   const { app, workers, post, check, request } = await fixture(t, { deferred: true });
   const pending = check('&chunks=12342');
-  for (let index = 0; index < 100 && !workers[1]?.messages.some(row => row.type === 'area-check'); index++) await new Promise(resolve => setTimeout(resolve, 10));
+  await waitForCondition(() => workers[1]?.messages.some(row => row.type === 'area-check'));
   assert.ok(workers[1]?.messages.some(row => row.type === 'area-check'));
   const saved = await post('/api/command', { expectedRevision: 0, command: { type: 'set-rule', ruleId: 'access.shared', value: false } });
   assert.equal(saved.status, 200); assert.equal((await pending).status, 409);

@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,8 +11,7 @@ import path from 'node:path';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 const definitions = { chunks: { '12341': {} }, walkableChunks: ['12341'], walkableChunksF2P: ['12341'], challenges: {} };
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate) { for (let i = 0; i < 1000; i++) { if (await predicate()) return; await delay(5); } assert.fail('Timed out'); }
+async function until(predicate) { return waitForCondition(predicate); }
 function fakeFactory() {
   const workers = [];
   return { workers, workerFactory() {
@@ -115,7 +117,7 @@ test('HTTP disconnect removes queued calculation while the other member remains 
   const queued = api('/api/tasks?memberId=reed', undefined, { signal: controller.signal }); const rejected = assert.rejects(queued, { name: 'AbortError' });
   await until(async () => (await (await api('/api/diagnostics')).json()).queue.depth === 1);
   controller.abort(); await rejected;
-  for (let i = 0; i < 20; i++) { const info = await (await api('/api/diagnostics')).json(); if (!info.queue.depth && info.counts.cancelled) break; await delay(5); }
+  await until(async () => { const info = await (await api('/api/diagnostics')).json(); return !info.queue.depth && info.counts.cancelled; });
   const info = await (await api('/api/diagnostics')).json(); assert.equal(info.queue.depth, 0); assert.equal(info.counts.cancelled, 1);
   f.workers[0].finish(); assert.equal((await active).status, 200);
 });
@@ -142,28 +144,27 @@ test('HTTP request coalescing and gameplay cache survive display saves and histo
 test('graceful shutdown drains queued saves, rejects new writes and bounds unfinished connections', async t => {
   let release, entered = false;
   const held = new Promise(resolve => { release = resolve; });
-  const { application, api, origin } = await fixture(t, { definitions: { ...definitions, challenges: undefined }, beforeCommit: async () => { entered = true; await held; }, shutdownDeadlineMs: 60 });
+  const shutdownClock = createManualClock();
+  const { application, api, origin } = await fixture(t, { definitions: { ...definitions, challenges: undefined }, beforeCommit: async () => { entered = true; await held; }, shutdownDeadlineMs: 60, shutdownClock });
   const saving = api('/api/command', { expectedRevision: 0, command: { type: 'set-rule', ruleId: 'access.shared', value: false } }, { headers: { 'Accept-Encoding': 'identity' } });
   await until(() => entered);
   const socket = net.connect(application.address().port, '127.0.0.1'); socket.on('error', () => {});
   await new Promise(resolve => socket.once('connect', resolve));
   socket.write(`POST /api/command HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nAuthorization: Bearer ${application.store.getAccessToken()}\r\nContent-Type: application/json\r\nContent-Length: 5000\r\n\r\n{`);
-  const started = performance.now(); const closing = application.close();
-  let admissionTimer;
+  const closing = application.close();
   try {
     // Store admission closes synchronously; a regression must fail without
     // waiting forever behind the deliberately held first save.
-    await assert.rejects(Promise.race([
-      application.store.command({ type: 'set-rule', ruleId: 'access.shared', value: true }, 0),
-      new Promise((_, reject) => { admissionTimer = setTimeout(() => reject(new Error('Store admission stayed open during shutdown.')), 1000); }),
-    ]), /closed/);
-    clearTimeout(admissionTimer);
+    const refused = application.store.command({ type: 'set-rule', ruleId: 'access.shared', value: true }, 0);
+    const refusal = assert.rejects(refused, /closed/);
+    await shutdownClock.advance(0); await shutdownClock.settled(refusal);
     // Let the network deadline expire while an accepted save is still queued.
-    await delay(90); release();
-    assert.equal((await saving).status, 200); await closing;
-    assert.equal(application.store.getState().revision, 1); assert.ok(performance.now() - started < 5000);
+    await shutdownClock.advance(60);
+    const responseDeadline = shutdownClock.nextScheduled(60); release();
+    assert.equal((await saving).status, 200); await responseDeadline; await shutdownClock.advance(60); await closing;
+    assert.equal(application.store.getState().revision, 1);
   } finally {
-    clearTimeout(admissionTimer); release(); socket.destroy();
+    release(); socket.destroy();
     await closing.catch(() => {}); await saving.catch(() => {});
   }
 });
@@ -173,15 +174,17 @@ test('a nonreading save requester cannot keep shutdown open after its save commi
   initialState.legacy = { gameplayNotes: 'x'.repeat(4 * 1024 * 1024) };
   let release, entered = false;
   const held = new Promise(resolve => { release = resolve; });
+  const shutdownClock = createManualClock();
   const { application, origin } = await fixture(t, { initialState, definitions: { ...definitions, challenges: undefined },
-    shutdownDeadlineMs: 50, beforeCommit: async () => { entered = true; await held; } });
+    shutdownDeadlineMs: 50, shutdownClock, beforeCommit: async () => { entered = true; await held; } });
   const socket = net.connect(application.address().port, '127.0.0.1'); socket.on('error', () => {});
   await new Promise(resolve => socket.once('connect', resolve)); socket.pause();
   const body = JSON.stringify({ expectedRevision: 0, command: { type: 'set-rule', ruleId: 'access.shared', value: false } });
   socket.write(`POST /api/command HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nAuthorization: Bearer ${application.store.getAccessToken()}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
   await until(() => entered);
-  const started = performance.now(), closing = application.close(); release(); await closing;
-  assert.equal(application.store.getState().revision, 1); assert.ok(performance.now() - started < 5000);
+  const closing = application.close(), responseDeadline = shutdownClock.nextScheduled(50);
+  release(); await responseDeadline; await shutdownClock.advance(50); await closing;
+  assert.equal(application.store.getState().revision, 1);
   socket.destroy();
 });
 

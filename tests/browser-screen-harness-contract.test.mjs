@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, realpath, lstat } from 'node:fs/promises';
@@ -61,12 +62,12 @@ test('private browser harness supplies every public collaborator', { skip: !proc
     }
     source = source.replace(/\bimport\.meta\.url\b/g, JSON.stringify(url.href))
       .replace(/^export\s+(?=(?:async\s+)?function\s+|(?:const|let|class)\s+)/gm, '');
-    const run = new Script(source + '\nrunScreenGraph;', { filename: helperPath }).runInNewContext(bindings, { timeout: 1000 });
+    const run = new Script(source + '\nrunScreenGraph;', { filename: helperPath }).runInNewContext(bindings, {});
     const context = createContext({});
     // Execute actual collaborator setup with stand-ins at the import boundary;
     // this checks names, presence and setup shape, not app collaborator behavior.
     const entry = new URL('../app/web/main.mjs', url);
-    runInContext('run(context, modules)', createContext({ run, context, modules: new Map([[entry.href, 'const screen = {};\n']]) }), { timeout: 1000 });
+    runInContext('run(context, modules)', createContext({ run, context, modules: new Map([[entry.href, 'const screen = {};\n']]) }), {});
     return context;
   }
   const [reference, actual] = await Promise.all([collaborators(publicPath), collaborators(privatePath)]);

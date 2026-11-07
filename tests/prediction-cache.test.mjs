@@ -1,13 +1,15 @@
+import './helpers/file-safety-stop.mjs';
+import { createWorkAcknowledgements } from './helpers/work-acknowledgements.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createTaskScheduler, predictionCacheKey } from '../app/tasks/scheduler.mjs';
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate) {
-  const deadline = Date.now() + 2000;
-  while (!predicate()) { if (Date.now() > deadline) assert.fail('Condition did not become true.'); await delay(2); }
-}
+const acknowledgements = createWorkAcknowledgements();
+const until = predicate => acknowledgements.until(predicate);
+const delay = () => new Promise(resolve => setImmediate(resolve));
+
 function factory({ ready = true } = {}) {
   const workers = [];
   const create = () => {
@@ -16,7 +18,7 @@ function factory({ ready = true } = {}) {
     worker.terminate = async () => { worker.terminated = true; };
     worker.requests = () => worker.messages.filter(message => message.id && message.type !== 'cancel');
     worker.finish = (result = { delta: { tasks: [] } }, id = worker.requests().at(-1).id) => worker.emit('message', { id, result, evaluationMs: 2, timingMs: { predictionMs: 1, totalMs: 2 } });
-    workers.push(worker);
+    acknowledgements.observe(worker); workers.push(worker);
     if (ready) queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [], compileMs: 1 }));
     return worker;
   };
@@ -26,6 +28,8 @@ const state = (revision = 0, rules = {}) => ({ revision, rules, taskRules: {}, m
 async function fixture(t, options = {}, predictionOptions) {
   const foreground = factory(), prediction = factory(predictionOptions);
   const scheduler = await createTaskScheduler({ workerFactory: foreground.create, predictionWorkerFactory: prediction.create, backoffMs: 5, maxBackoffMs: 10, ...options });
+  scheduler.subscribe(acknowledgements.notify);
+  scheduler.subscribeResidency(acknowledgements.notify);
   t.after(() => scheduler.close());
   const predict = (chunk = '12342', snapshot = state(), memberId = 'actor1', input = 'gameplay', signal) => scheduler.evaluate(snapshot, memberId, 'predict', chunk, 'caller-key-is-not-trusted', input, signal);
   const warm = (chunks = ['12342', '12343'], snapshot = state(), input = 'gameplay', signal) => scheduler.prewarm(snapshot, input, [{ memberId: 'actor1', chunkIds: chunks }], { signal });
@@ -385,9 +389,10 @@ test('unchanged revision with changed rules and another member never reuses a pr
 });
 
 test('abandoned warming keeps its watchdog and restart resends the full snapshot', async t => {
-  const { scheduler, prediction, warm, predict, foreground } = await fixture(t, { predictionDeadlineMs: 25, firstCalculationDeadlineMs: 25 });
+  const clock = createManualClock();
+  const { scheduler, prediction, warm, predict, foreground } = await fixture(t, { predictionDeadlineMs: 25, firstCalculationDeadlineMs: 25, deadlineClock: clock });
   warm(['1']); await until(() => prediction.workers[0]?.requests().length === 1);
-  scheduler.cancelPrewarm();
+  scheduler.cancelPrewarm(); await clock.advance(30);
   await until(() => prediction.workers.length === 2 && scheduler.getHealth().prediction.ready);
   assert.equal(prediction.workers[0].terminated, true); assert.equal(foreground.workers[0].terminated, false);
   assert.equal(scheduler.getDiagnostics().predictionLane.cache.entries, 0);
@@ -469,11 +474,13 @@ test('cancelled prepared notifications cannot publish or cache a Preview; a late
 
 
 test('the hard deadline still retires a producer stalled after early Preview delivery', async t => {
-  const { scheduler, prediction, predict } = await fixture(t, { predictionDeadlineMs: 30, firstCalculationDeadlineMs: 30, maxRestarts: 0 });
+  const clock = createManualClock();
+  const { scheduler, prediction, predict } = await fixture(t, { predictionDeadlineMs: 30, firstCalculationDeadlineMs: 30, maxRestarts: 0, deadlineClock: clock });
   const operation = predict(); await until(() => prediction.workers[0]?.requests().length === 1);
   const worker = prediction.workers[0];
   prepared(worker, { delta: { tasksAdded: [] } }); await operation;
-  await until(() => scheduler.getHealth().prediction.status === 'restart-required');
+  await clock.advance(30);
+  assert.equal(scheduler.getHealth().prediction.status, 'restart-required');
   assert.equal(worker.terminated, true);
   assert.equal(scheduler.getDiagnostics().predictionLane.queue.active, 0);
   assert.equal(scheduler.getDiagnostics().predictionLane.counts.expired, 1);

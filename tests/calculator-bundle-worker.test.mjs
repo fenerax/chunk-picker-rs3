@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -33,7 +34,7 @@ function request(worker, message) {
   });
 }
 
-test('process and thread calculators run from bundle with source JSON reads forbidden', { timeout: 120000 }, async t => {
+test('process and thread calculators run from bundle with source JSON reads forbidden', async t => {
   const scratch = await mkdtemp(path.join(tmpdir(), 'calculator-bundle-worker-'));
   t.after(() => rm(scratch, { recursive: true, force: true }));
   const directory = path.join(scratch, 'bundle'), init = await defaultInit(dataset);

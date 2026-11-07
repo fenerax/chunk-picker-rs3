@@ -37,13 +37,13 @@ function assertOptions({ mapIds, concurrency, retries, timeoutMs }) {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000) throw new TypeError('timeoutMs must be from 1 to 120000');
 }
 
-async function fetchJson(url, { fetchImpl, retries, timeoutMs, retryDelayMs, sleep }) {
+async function fetchJson(url, { fetchImpl, retries, timeoutMs, retryDelayMs, sleep, clock }) {
   let lastError;
   let attempts = 0;
   for (let attempt = 0; attempt <= retries; attempt++) {
     attempts += 1;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+    const timer = clock.setTimeout(() => controller.abort(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
     try {
       const response = await fetchImpl(url, { method: 'GET', signal: controller.signal,
         headers: { accept: 'application/json' } });
@@ -60,7 +60,7 @@ async function fetchJson(url, { fetchImpl, retries, timeoutMs, retryDelayMs, sle
       if (attempt === retries || !retryable) break;
       await sleep(retryDelayMs * 2 ** attempt);
     } finally {
-      clearTimeout(timer);
+      clock.clearTimeout(timer);
     }
   }
   throw new Error(`GET ${url} failed after ${attempts} attempt(s): ${lastError?.message ?? String(lastError)}`, { cause: lastError });
@@ -97,6 +97,7 @@ export async function capturePublicMaps({
   timeoutMs = 15000,
   retryDelayMs = 100,
   sleep = wait,
+  clock = { setTimeout, clearTimeout },
   now = () => new Date(),
   includeVersion = true,
 } = {}) {
@@ -107,7 +108,7 @@ export async function capturePublicMaps({
   const jobs = mapIds.flatMap(mapId => PUBLIC_GAMEPLAY_FIELDS.map(field => ({ mapId, field })));
   const fetched = await boundedMap(jobs, concurrency, async ({ mapId, field }) => ({ mapId, field,
     value: await fetchJson(`${root}/maps/${encodeURIComponent(mapId)}/${field}.json`,
-      { fetchImpl, retries, timeoutMs, retryDelayMs, sleep }) }));
+      { fetchImpl, retries, timeoutMs, retryDelayMs, sleep, clock }) }));
 
   const maps = Object.fromEntries(mapIds.map(id => [id, {}]));
   for (const { mapId, field, value } of fetched) if (value !== null) maps[mapId][field] = value;
@@ -115,7 +116,7 @@ export async function capturePublicMaps({
   let sourceVersion;
   if (includeVersion) {
     try {
-      const value = await fetchJson(`${root}/version.json`, { fetchImpl, retries, timeoutMs, retryDelayMs, sleep });
+      const value = await fetchJson(`${root}/version.json`, { fetchImpl, retries, timeoutMs, retryDelayMs, sleep, clock });
       if (typeof value === 'string' || typeof value === 'number') sourceVersion = String(value);
       else if (value !== null) warnings.push('Public source version had an unexpected shape and was omitted.');
     } catch (error) {

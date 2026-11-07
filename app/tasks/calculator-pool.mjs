@@ -6,7 +6,7 @@ const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefin
 // One server owns the physical calculators. Lanes borrow a slot for one job;
 // even a retiring calculator holds its slot until termination has completed.
 export function createCalculatorPool({ limit, workerFactory, workerData, onReady, onWorker, idleMs = 600000, startupDeadlineMs = 30000,
-  sessions, clock = { now: () => performance.now(), setTimeout, clearTimeout }, memoryUsage = worker => worker.rssBytes }) {
+  sessions, clock = { now: () => performance.now(), setTimeout, clearTimeout }, deadlineClock = { setTimeout, clearTimeout }, memoryUsage = worker => worker.rssBytes }) {
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false, evictions = 0, activityObserved = false;
   let memoryTrips = 0, optimizationsSuspended = false, closePromise;
@@ -323,8 +323,8 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       closePromise = (async () => {
         let timer;
         try {
-          await Promise.race([Promise.allSettled(exits), new Promise(resolve => { timer = setTimeout(resolve, timeoutMs); })]);
-        } finally { clearTimeout(timer); ready = undefined; }
+          await Promise.race([Promise.allSettled(exits), new Promise(resolve => { timer = deadlineClock.setTimeout(resolve, timeoutMs); })]);
+        } finally { deadlineClock.clearTimeout(timer); ready = undefined; }
       })();
       return closePromise;
     } };

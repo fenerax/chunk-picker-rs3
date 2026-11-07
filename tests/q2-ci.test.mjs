@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -82,7 +83,7 @@ test('real PR script persists a successful not-relevant summary and refuses miss
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('RS3_') && key !== 'GITHUB_STEP_SUMMARY'));
   const head = (await execute('git', ['rev-parse', 'HEAD'], { cwd: ROOT })).stdout.trim();
   const run = (base, name) => execute(process.execPath, ['scripts/experiments/q2-diff-engine/pr.mjs', '--base-ref', base,
-    '--head-ref', head, '--out', path.join(temporary, name)], { cwd: ROOT, env, timeout: 30000 });
+    '--head-ref', head, '--out', path.join(temporary, name)], { cwd: ROOT, env});
   await run(head, 'skip');
   const skipped = JSON.parse(await readFile(path.join(temporary, 'skip/summary.json'), 'utf8'));
   assert.equal(skipped.status, 'not relevant'); assert.equal(skipped.exitCode, 0);

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -79,7 +80,7 @@ async function fixture(t) {
 
 // The router, per-picker scheduler scopes and one real calculator all remain
 // enabled. Identical member IDs/revisions/drafts must preserve each map's proof.
-test('multiPicker isolates shared snapshot and eligibility results through one real calculator', { timeout: 30000 }, async t => {
+test('multiPicker isolates shared snapshot and eligibility results through one real calculator', async t => {
   const f = await fixture(t), cookies = [await f.login('101'), await f.login('102')];
   for (const [index, cookie] of cookies.entries()) {
     const response = await f.send('/api/state', cookie);

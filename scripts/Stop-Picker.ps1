@@ -1,4 +1,7 @@
-param([ValidateRange(1, 300)][int]$TimeoutSeconds = 20)
+param([ValidateRange(1, 300)][int]$TimeoutSeconds = 20,
+    [scriptblock]$Clock = { [DateTime]::UtcNow },
+    [scriptblock]$Wait = { param($Milliseconds) Start-Sleep -Milliseconds $Milliseconds },
+    [scriptblock]$WaitForExit = { param($Process, $Milliseconds) $Process.WaitForExit($Milliseconds) })
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Picker-Process.ps1')
 $pickerRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -30,14 +33,14 @@ try {
 } finally { $pickerLock.Dispose() }
 
 Write-Output 'Requesting picker shutdown and waiting for queued saves to finish.'
-$pickerUntil = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+$pickerUntil = (& $Clock).AddSeconds($TimeoutSeconds)
 $pickerShutdownAccepted = $false
 do {
     $pickerProcess = Get-PickerRecordedProcess $pickerRecord
     if (-not $pickerProcess) { break }
     if (-not (Test-PickerProcessOwnership $pickerProcess $pickerRoot $pickerData $pickerRecord.executable $pickerRecord.processStartedAt)) {
         # An exiting process briefly reports no command line; after an accepted shutdown, recheck before alarming.
-        if ($pickerShutdownAccepted) { Start-Sleep -Milliseconds 500; if (-not (Get-PickerRecordedProcess $pickerRecord)) { break } }
+        if ($pickerShutdownAccepted) { & $Wait 500; if (-not (Get-PickerRecordedProcess $pickerRecord)) { break } }
         throw 'The recorded PID changed owner while waiting. No process was stopped.'
     }
     if (-not $pickerShutdownAccepted) {
@@ -50,8 +53,8 @@ do {
             }
         }
     }
-    Start-Sleep -Milliseconds 250
-} while ([DateTime]::UtcNow -lt $pickerUntil)
+    & $Wait 250
+} while ((& $Clock) -lt $pickerUntil)
 
 $pickerProcess = Get-PickerRecordedProcess $pickerRecord
 if ($pickerProcess) {
@@ -68,7 +71,7 @@ if ($pickerProcess) {
         }
         Write-Warning "Picker did not finish shutdown within $TimeoutSeconds seconds; forcing the owned process to stop. A save that was not acknowledged may need recovery from its durable state or backups."
         $pickerKillHandle.Kill()
-        if (-not $pickerKillHandle.WaitForExit(5000)) { throw 'The picker did not exit after forced stop; ownership record was retained.' }
+        if (-not (& $WaitForExit $pickerKillHandle 5000)) { throw 'The picker did not exit after forced stop; ownership record was retained.' }
     }
 }
 $pickerLock = Enter-PickerHelperLock $pickerLocal

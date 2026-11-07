@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -152,7 +154,7 @@ test('a note edit retires only an unrequested warm prediction', async t => {
   const scheduler = await createTaskScheduler({ workerFactory: foreground.create, predictionWorkerFactory: prediction.create });
   t.after(() => scheduler.close());
   const { before } = states();
-  const dispatched = async index => { for (let i = 0; i < 100 && !prediction.workers[index]?.requests().length; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
+  const dispatched = async index => { await waitForCondition(() => prediction.workers[index]?.requests().length); };
   assert.equal(scheduler.prewarm(before, 'input', [{ memberId: 'actor1', chunkIds: ['12342'] }]).queued, 1); await dispatched(0);
   assert.equal(prediction.workers[0].requests().at(-1)?.type, 'predict');
   // A foreground request cancels the warm-up first; the process still runs it.

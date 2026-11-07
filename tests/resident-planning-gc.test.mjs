@@ -1,4 +1,5 @@
 // @test solo dataset=open-f2p
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -10,6 +11,6 @@ for (const mode of ['views', 'transfer']) test(`resident index releases hydrated
   // flags, environment or manually prepared calculator process.
   const { stdout } = await promisify(execFile)(process.execPath, ['--expose-gc',
     fileURLToPath(new URL('./fixtures/resident-planning-gc.mjs', import.meta.url)), mode],
-  { windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024 });
+  { windowsHide: true, maxBuffer: 1024 * 1024 });
   assert.match(stdout, /request state collected; planning index retained/);
 });

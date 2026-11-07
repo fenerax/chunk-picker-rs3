@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -282,7 +283,7 @@ test('CLI --json previews a copied sidecar save with current catalogue data and 
   const fixture = await staticFixture(t), bytes = await readFile(fixture.file);
   const files = await readdir(fixture.directory), dependencies = await readdir(path.join(fixture.directory, 'static'));
   const result = spawnSync(process.execPath, [path.resolve('scripts/preview-resource-contents.mjs'), '--state', fixture.file, '--json'],
-    { cwd: fixture.directory, encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024, timeout: 60000 });
+    { cwd: fixture.directory, encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024});
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.beforeCacheResources, false);

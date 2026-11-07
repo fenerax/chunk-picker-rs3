@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
@@ -225,7 +226,7 @@ test('CLI masks malformed JSON and refuses input/output aliases before writing',
   const script = fileURLToPath(new URL('../scripts/save-copy/scrub-save.mjs', import.meta.url));
   const env = { ...process.env, RS3_DATASET: 'open-f2p' };
   for (const key of ['RS3_PACKS_DIR','RS3_PACK_SELECTION','RS3_DATASET_PROFILE','RS3_DATASET_PROFILE_SHA256','RS3_PRIVATE_ADDON','RS3_PRIVATE_ADDON_SHA256','RS3_GAME_DEFAULTS_FILE','SECRET_SCAN_CORPUS']) delete env[key];
-  const result = spawnSync(process.execPath, [script, input, input], { encoding: 'utf8', env, timeout: 120000 });
+  const result = spawnSync(process.execPath, [script, input, input], { encoding: 'utf8', env});
   assert.equal(result.status, 1); assert.ok(!result.stderr.includes('Fixture Person'));
   assert.equal(await readFile(input, 'utf8'), '{"Fixture Person":bad}');
 });

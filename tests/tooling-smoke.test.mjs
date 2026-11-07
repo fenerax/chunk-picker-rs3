@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -124,7 +125,7 @@ test('gallery deadline terminates its exact owned child and records verified cle
   await writeFile(worker, gallerySupervisorSource, { flag: 'wx' });
   await writeFile(gallery, "import {spawn} from 'node:child_process';import {writeFile} from 'node:fs/promises';const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true});await writeFile(new URL('./owned-child.json',import.meta.url),JSON.stringify({pid:child.pid}));await new Promise(()=>{});\n", { flag: 'wx' });
   await writeFile(envelope, JSON.stringify({ gallery, cleanup, stopModule: path.join(source, 'scripts/perf/cdp.mjs'), args: [], timeoutMs: 3000 }), { flag: 'wx' });
-  await assert.rejects(promisify(execFile)(process.execPath, [worker, envelope], { cwd: root, env: sanitizeExecutionEnvironment(), windowsHide: true, timeout: 25000 }), error => error.code === 1);
+  await assert.rejects(promisify(execFile)(process.execPath, [worker, envelope], { cwd: root, env: sanitizeExecutionEnvironment(), windowsHide: true}), error => error.code === 1);
   const proof = JSON.parse(await readFile(cleanup, 'utf8')), { pid } = JSON.parse(await readFile(pidFile, 'utf8'));
   assert.equal(proof.passed, false);
   assert.equal(proof.cleanupVerified, true);

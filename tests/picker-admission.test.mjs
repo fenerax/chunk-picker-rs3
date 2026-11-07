@@ -1,7 +1,9 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable, Writable } from 'node:stream';
-import { setImmediate as turn, setTimeout as delay } from 'node:timers/promises';
+import { setImmediate as turn } from 'node:timers/promises';
 import { createPickerAdmission, COLD_OPEN_ADMISSION } from '../app/picker-admission.mjs';
 import { createPickerLimits } from '../app/security/picker-limits.mjs';
 import { withDirectoryBarriers } from '../app/storage/snapshot.mjs';
@@ -9,8 +11,9 @@ import { createPickerRouter } from '../app/picker-router.mjs';
 const owner = id => ({ accountId: id, pickerId: id });
 function fixture(t, bounds = {}, options = {}) {
   const events = [], limits = createPickerLimits(options);
-  const admission = createPickerAdmission({ limits, bounds: { ...COLD_OPEN_ADMISSION, ...bounds }, onEvent: e => events.push(e) });
-  t.after(() => admission.close()); return { admission, events, limits };
+  const clock = createManualClock();
+  const admission = createPickerAdmission({ clock, limits, bounds: { ...COLD_OPEN_ADMISSION, ...bounds }, onEvent: e => events.push(e) });
+  t.after(() => admission.close()); return { admission, events, limits, clock };
 }
 const run = (a, id, work = async () => id, signal) => a.run(owner(id), work, signal);
 const rejects = (promise, message) => assert.rejects(promise, e => e.status === 503 && e.retryAfter === 1 && e.message.includes(message));
@@ -46,18 +49,20 @@ test('queued cancellation removes work; retry takes a fresh bounded slot and nev
 
 test('active cancellation and deadline keep the real lease and slots until work settles', async t => {
   for(const boundary of ['cancelled','deadline']){
-    const {admission:a,limits,events}=fixture(t,{deadlineMs:30,perAccount:1}), gate=Promise.withResolvers(),entered=Promise.withResolvers(),controller=new AbortController();t.after(()=>gate.resolve());
+    const gate=Promise.withResolvers(),entered=Promise.withResolvers(),controller=new AbortController();t.after(()=>gate.resolve());
+    const {admission:a,limits,events,clock}=fixture(t,{deadlineMs:30,perAccount:1});
     const first=run(a,'a',async()=>{entered.resolve();await gate.promise;},controller.signal), rejected=rejects(first,boundary);await entered.promise;
-    if(boundary==='cancelled')controller.abort();await rejected;
+    if(boundary==='cancelled')controller.abort();else await clock.advance(30);await clock.settled(rejected);
     await rejects(run(a,'a'),'account-full');assert.throws(()=>limits.coldStart(owner('b')),{status:503});
     gate.resolve();await turn();assert.equal(events.filter(e=>e.event==='released').length,1);assert.equal(await run(a,'b'),'b');
   }
 });
 
 test('queue deadline, factory error and shutdown release once, drain active work and fence new retries', async t => {
-  const {admission:a,events}=fixture(t,{deadlineMs:30}),gate=Promise.withResolvers(),entered=Promise.withResolvers();t.after(()=>gate.resolve());
+  const gate=Promise.withResolvers(),entered=Promise.withResolvers();t.after(()=>gate.resolve());
+  const {admission:a,events,clock}=fixture(t,{deadlineMs:30});
   const active=run(a,'a',async()=>{entered.resolve();await gate.promise;}),rejected=rejects(active,'deadline');await entered.promise;
-  await rejects(run(a,'b'),'deadline');await rejected;
+  const queued=rejects(run(a,'b'),'deadline');await clock.advance(30);await clock.settled(queued);await clock.settled(rejected);
   const closing=a.close();let closed=false;closing.then(()=>closed=true);await turn();assert.equal(closed,false);
   await rejects(run(a,'b'),'shutdown');gate.resolve();await closing;
   assert.equal(events.filter(e=>e.event==='released').length,1);
@@ -72,9 +77,9 @@ test('independent account quotas and existing global cold concurrency remain enf
 });
 
 function routerFixture(t,{openGate,handleGate,maxOpenContexts=3}={}){
-  const calls=[],closed=[],handled=[],events=[],limits=createPickerLimits();
+  const calls=[],closed=[],handled=[],events=[],limits=createPickerLimits(),clock=createManualClock();
   const registry={getPicker:()=>({lifecycle:'active',provisioning:'ready'}),pickerDirectory:id=>`/synthetic-admission/${id}`};
-  const router=createPickerRouter({registry,pickerLimits:limits,maxOpenContexts,onAdmission:e=>events.push(e),
+  const router=createPickerRouter({registry,pickerLimits:limits,maxOpenContexts,onAdmission:e=>events.push(e),admissionClock:clock,
     legacy:{authenticate:req=>({kind:'account',accountId:req.headers.account,pickerId:req.headers.picker})},
     openContext:async id=>{calls.push(id);await openGate?.(id);return {close:async()=>{closed.push(id);},handle:async(req,res)=>{handled.push(id);await handleGate?.(id);res.writeHead(200);res.end('{}');}};}});
   t.after(()=>router.close());
@@ -85,7 +90,7 @@ function routerFixture(t,{openGate,handleGate,maxOpenContexts=3}={}){
     const done=router.handle(request,response,{host:'127.0.0.1'}).then(()=>({status:response.statusCode,headers,text:Buffer.concat(chunks).toString()}));
     return {request,response,done,disconnect:()=>{request.aborted=true;request.emit('aborted');response.destroy();}};
   }
-  return {router,send,calls,closed,handled,events};
+  return {router,send,calls,closed,handled,events,clock};
 }
 const id=n=>'p_'+n.toString(16).padStart(32,'0');
 test('twenty cold pickers progress through six owned slots, retaining isolation and the residency bound',async t=>{
@@ -113,7 +118,7 @@ test('disconnect during a queued open removes it, active disconnect closes late 
 test('busy residency waits outside the coordinator and wakes after the resident request drains',async t=>{
   const gate=Promise.withResolvers(),entered=Promise.withResolvers();t.after(()=>gate.resolve());
   const f=routerFixture(t,{maxOpenContexts:2,handleGate:async value=>{if(value===id(1)){entered.resolve();await gate.promise;}}});
-  const first=f.send(id(1));await entered.promise;const second=f.send(id(2));await delay(40);assert.deepEqual(f.calls,[id(1)]);
+  const first=f.send(id(1));await entered.promise;const second=f.send(id(2));await turn();assert.deepEqual(f.calls,[id(1)]);
   gate.resolve();assert.equal((await first.done).status,200);assert.equal((await second.done).status,200);assert.deepEqual(f.closed,[id(1)]);
 });
 
@@ -137,7 +142,8 @@ test('router deadline answers before a stalled factory settles, and closes its l
   const gate=Promise.withResolvers(),entered=Promise.withResolvers();t.after(()=>gate.resolve());
   const f=routerFixture(t,{openGate:async()=>{entered.resolve();await gate.promise;}});
   const first=f.send(id(1));await entered.promise;
-  const result=await first.done;assert.equal(result.status,503);assert.match(result.text,/admission deadline/);assert.equal(result.headers.get('retry-after'),1);
+  await f.clock.advance(COLD_OPEN_ADMISSION.deadlineMs);
+  const result=await f.clock.settled(first.done);assert.equal(result.status,503);assert.match(result.text,/admission deadline/);assert.equal(result.headers.get('retry-after'),1);
   assert.deepEqual(f.handled,[]);assert.deepEqual(f.closed,[]);gate.resolve();await turn();await turn();
   assert.deepEqual(f.closed,[id(1)]);assert.equal((await f.send(id(1)).done).status,200);assert.equal(f.calls.length,2);
 });

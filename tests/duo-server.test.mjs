@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,11 +16,7 @@ const definitions = { chunks: { '12341': {}, '12342': {} }, walkableChunks: ['12
 const peerRoute = (revision = 0) => `/api/tasks?memberId=two&view=play-v1&lane=duo-v1&peerFor=one&revision=${revision}`;
 const sidebarRoute = (revision = 0) => `/api/tasks?memberId=one&view=play-v1&projection=duo-sidebar-v1&revision=${revision}`;
 const inspectionRoute = (revision = 0, memberId = 'one') => `/api/tasks?memberId=${memberId}&view=play-v1&projection=duo-inspection-v1&revision=${revision}`;
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate) {
-  const deadline = Date.now() + 3000;
-  while (!await predicate()) { if (Date.now() > deadline) assert.fail('Condition did not become true.'); await delay(5); }
-}
+async function until(predicate) { return waitForCondition(predicate); }
 const sharedBytes = value => { const bytes = Buffer.from(JSON.stringify(value)), shared = new SharedArrayBuffer(bytes.length); Buffer.from(shared).set(bytes); return shared; };
 const evaluations = worker => worker?.messages.filter(message => message.type === 'evaluate') ?? [];
 function factory() {
@@ -46,9 +45,10 @@ async function fixture(t, options = {}) {
   const base = path.resolve('.local/duo-server-tests'); await mkdir(base, { recursive: true });
   const directory = await mkdtemp(path.join(base, 'server-'));
   assert.equal(path.dirname(directory), base);
+  const clock = createManualClock();
   const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }, { id: 'two', name: 'Two', unlocked: ['12342'] }]);
   initialState.provenance = { privateFixture: 'Synthetic archive excluded from calculation bytes' };
-  const app = await createServer({ dataset: await emptyMetadataDataset(), dataDir: directory, definitions, taskMap: {}, initialState, port: 0, predictionPrewarm: false,
+  const app = await createServer({ dataset: await emptyMetadataDataset(), dataDir: directory, definitions, taskMap: {}, initialState, port: 0, predictionPrewarm: false, schedulingClock: clock,
     mapAssetsDir: path.join(directory, 'assets'), gameDataDir: path.join(directory, 'game-data'), ...options });
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;
@@ -56,7 +56,7 @@ async function fixture(t, options = {}) {
   const request = (route, { body, signal } = {}) => fetch(origin + route, { signal, method: body ? 'POST' : 'GET',
     headers: { ...auth, ...(body ? { Origin: origin, 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const diagnostics = async () => (await request('/api/diagnostics')).json();
-  return { app, origin, request, diagnostics };
+  return { app, origin, request, diagnostics, clock };
 }
 function mockOptions(own, peer, extras = {}) { return { taskWorkerOptions: { workerFactory: own.create, duoWorkerFactory: peer.create, serializedStateInput: true, ...extras } }; }
 
@@ -166,7 +166,7 @@ test('HTTP peer disconnect preserves a coalesced follower and abandoned bytes ne
   await until(() => evaluations(peer.workers[0]).length === 1);
   const second = request(peerRoute(), { signal: secondController.signal }), secondRejected = assert.rejects(second, { name: 'AbortError' });
   await until(async () => (await diagnostics()).duoLane.counts.coalesced === 1);
-  firstController.abort(); await firstRejected; await delay(10);
+  firstController.abort(); await firstRejected;
   assert.equal((await diagnostics()).duoLane.counts.cancelled, 0);
   secondController.abort(); await secondRejected; await until(() => peer.workers[0].messages.at(-1).type === 'cancel');
   peer.workers[0].finish(); await until(async () => (await diagnostics()).duoLane.queue.active === 0);
@@ -246,7 +246,7 @@ test('sidebar projection routing authenticates and validates revision and mode b
 });
 
 test('sidebar API sends selected sidebar bytes while ordinary, full and peer requests retain their respective bytes', async t => {
-  const own = factory(), peer = factory(), side = factory(), { app, request } = await fixture(t, mockOptions(own, peer, { predictionWorkerFactory: side.create }));
+  const own = factory(), peer = factory(), side = factory(), { app, request, clock } = await fixture(t, mockOptions(own, peer, { predictionWorkerFactory: side.create }));
   const snapshot = app.store.getCalculationSnapshot;
   app.store.getCalculationSnapshot = () => new Proxy(snapshot(), { get(target, key, receiver) {
     if (key === 'state') throw new Error('Sidebar dispatch materialized native state');
@@ -260,8 +260,9 @@ test('sidebar API sends selected sidebar bytes while ordinary, full and peer req
   assert.equal(sidebar.projection, 'duo-sidebar-v1'); assert.equal(sidebar.tasks[0].label, 'Sidebar projection'); assert.equal(sidebar.memberId, 'one'); assert.equal(sidebar.stateRevision, 0);
   const peerPending = request(peerRoute()); await until(() => evaluations(peer.workers[0]).length === 1);
   assert.equal(evaluations(peer.workers[0])[0].duoSidebarProjection, undefined); assert.equal(evaluations(peer.workers[0])[0].stateJSON, input.stateJSON);
+  const waiting = clock.nextScheduled(250);
   const fullPending = request('/api/tasks?memberId=one');
-  await delay(30);
+  await waiting;
   assert.equal(side.workers.length, 0, 'Full hydration waits for the required peer list');
   assert.equal(evaluations(own.workers[0]).length, 1);
   peer.workers[0].finish(); const partner = await (await peerPending).json(); assert.equal(partner.tasks[0].label, 'Peer projection'); assert.equal(partner.projection, undefined);

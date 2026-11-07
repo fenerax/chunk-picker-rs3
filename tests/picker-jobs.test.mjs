@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -153,7 +154,7 @@ test('closing context A promptly abandons its active and queued jobs while B com
   const f = await contexts(t), a = send(f.left, '/api/tasks?memberId=one'), first = await f.next();
   const queued = evaluate(f.a, state(), 'queued'), queuedRejected = assert.rejects(queued, { status: 503 });
   const b = send(f.right, '/api/tasks?memberId=one');
-  await Promise.race([f.left.close(), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('Picker close waited for calculator work.')), 2000); timer.unref(); })]);
+  await f.left.close();
   await queuedRejected; assert.equal((await a).status, 503);
   assert.equal(first.worker.terminated, false, 'closing one context does not close the shared worker');
   finish(first, result('late alpha'), { unlockReuse: reuse('late alpha') });

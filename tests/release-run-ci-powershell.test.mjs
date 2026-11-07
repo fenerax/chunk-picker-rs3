@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 // Execute preflight and one refused normal invocation with a fixture shim.
 // The shim never opens the helper, launches a command, or touches release state.
 import test from 'node:test';
@@ -82,8 +83,7 @@ async function fixture(t) {
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', runner,
     '-Release', 'rel-fixture', '-Kit', 'r-fixture', '-ExpectLive', 'rel-old',
     '-CandidateCommit', '1'.repeat(40), '-RunId', '123', '-Config', config, ...(preflightOnly ? ['-PreflightOnly'] : []), ...extra
-  ], { windowsHide: true, encoding: 'utf8', timeout: 15000,
-    env: { ...process.env, RS3_FIXTURE_ROOT: directory, RS3_FIXTURE_CURRENT: settings.Current, RS3_FIXTURE_MODE: mode } });
+  ], { windowsHide: true, encoding: 'utf8', env: { ...process.env, RS3_FIXTURE_ROOT: directory, RS3_FIXTURE_CURRENT: settings.Current, RS3_FIXTURE_MODE: mode } });
   return { directory, settings, config, invoke };
 }
 

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile, stat, readdir, mkdir, rename, unlink } from 'node:fs/promises';
@@ -120,7 +121,7 @@ test('50 controlled admission/expiry orders never admit after the deadline', asy
     assert.equal(clock.pending(), 0); assert.equal(inspector.disconnected(), 1);
   }
 });
-test('CPU profiles cover process calculators, deadline, close, downloads and caps', { timeout: 30000 }, async t => {
+test('CPU profiles cover process calculators, deadline, close, downloads and caps', async t => {
   const dir = await temporary(t), clock = nativeClock(), profiles = await nativeDeepProfiles(dir, { clock, caps: { count: 3, fileBytes: 4 * 1024 * 1024, totalBytes: 12 * 1024 * 1024 } });
   const worker = new ProcessWorker(genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }));
   t.after(async () => { await profiles.close(); await worker.terminate(); });

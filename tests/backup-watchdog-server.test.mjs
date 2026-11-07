@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -41,7 +43,7 @@ test('backup metadata and worker recovery are admin-only and preserve saves duri
   assert.deepEqual(backupStatus, { lastRunAt: at, lastSuccessAt: at, result: 'success', byteSize: 256, warning: null });
   assert.equal((await api('/backup-status.mjs')).status, 200);
   const stalled = api('/api/tasks?memberId=actor1');
-  for (let i = 0; !workers[0].messages.length && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  await waitForCondition(() => workers[0].messages.length);
   assert.equal(workers[0].messages[0].reportProgress, true);
   time = 120001;
   const health = await (await api('/api/health')).json();

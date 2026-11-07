@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { promisify } from 'node:util';
@@ -8,8 +9,7 @@ import { observationNames } from '../scripts/perf/short-height-readiness.mjs';
 // The app and this CDP harness have no npm dependencies. Only a missing Chrome
 // installation may skip the native keyboard, clipping and hit-ownership checks.
 test('short phone shells and enlarged dialog titles leave focused controls visible', {
-  timeout: 240000,
-}, async t => {
+  }, async t => {
   let executable;
   try { executable = await findChrome(); } catch (error) {
     if (error.message !== 'CHROME_UNAVAILABLE') throw error;
@@ -17,7 +17,7 @@ test('short phone shells and enlarged dialog titles leave focused controls visib
   }
   const { stdout } = await promisify(execFile)(process.execPath, ['scripts/perf/short-height-browser.mjs'], {
     cwd: new URL('../', import.meta.url), env: { ...process.env, CHROME_PATH: executable },
-    windowsHide: true, timeout: 230000, maxBuffer: 1024 * 1024,
+    windowsHide: true, maxBuffer: 1024 * 1024,
   });
   const records = stdout.trim().split('\n').map(line => JSON.parse(line));
   const summary = records.pop();

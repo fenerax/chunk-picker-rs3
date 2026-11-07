@@ -25,9 +25,9 @@ export async function cleanupOwned(out) {
   }
   await rm(scratch, { recursive: true, force: true });
 }
-async function main() {
-  requireNode(); publicEnvironment();
-  const { values: opts, tokens } = parseArgs({ tokens: true, options: Object.fromEntries([
+export async function supervise({ argv = process.argv.slice(2), clock = { setTimeout, clearTimeout }, execute = spawn, stopGroup = killGroup, signals = process, environment = process.env, checkRuntime = requireNode } = {}) {
+  checkRuntime(); publicEnvironment(environment);
+  const { values: opts, tokens } = parseArgs({ args: argv, tokens: true, options: Object.fromEntries([
     'out', 'profile', 'reference-ref', 'candidate-ref', 'outer-ms', 'fault', 'cases', 'request-ms', 'shrink-attempts', 'wall-ms', 'rss-mib', 'replay',
   ].map(name => [name, { type: 'string' }])) });
   const out = path.resolve(opts.out), campaign = path.join(out, 'campaign');
@@ -37,17 +37,17 @@ async function main() {
   await mkdir(out);
   const log = openSync(path.join(out, 'campaign.log'), 'wx');
   const args = tokens.filter(token => !['out', 'outer-ms'].includes(token.name)).flatMap(token => ['--' + token.name, token.value]);
-  const child = spawn(process.execPath, [fileURLToPath(new URL('./run.mjs', import.meta.url)), '--out', campaign, ...args], {
+  const child = execute(process.execPath, [fileURLToPath(new URL('./run.mjs', import.meta.url)), '--out', campaign, ...args], {
     detached: true, cwd: ROOT, stdio: ['ignore', log, log],
   });
   closeSync(log);
   const record = { pid: child.pid, processGroup: child.pid, outerMs, complete: false };
   await writeFile(path.join(out, 'supervisor.json'), JSON.stringify(record) + '\n');
   let interrupted;
-  const abort = signal => { interrupted ??= signal; killGroup(child.pid); };
+  const abort = signal => { interrupted ??= signal; stopGroup(child.pid); };
   const term = () => abort('SIGTERM'), int = () => abort('SIGINT');
-  process.on('SIGTERM', term); process.on('SIGINT', int);
-  const timer = setTimeout(() => abort('deadline'), outerMs);
+  signals.on('SIGTERM', term); signals.on('SIGINT', int);
+  const timer = clock.setTimeout(() => abort('deadline'), outerMs);
   let exitCode = 14;
   try {
     const [code, signal] = await once(child, 'close');
@@ -66,14 +66,14 @@ async function main() {
     }
   } catch (error) { record.error = error.message; exitCode = error.exitCode ?? 14; }
   finally {
-    clearTimeout(timer);
-    killGroup(child.pid); // Includes any surviving bridge after coordinator exit.
+    clock.clearTimeout(timer);
+    stopGroup(child.pid); // Includes any surviving bridge after coordinator exit.
     try { await cleanupOwned(campaign); }
     catch (error) { record.cleanupError = error.message; exitCode = 14; record.complete = false; }
-    process.off('SIGTERM', term); process.off('SIGINT', int);
+    signals.off('SIGTERM', term); signals.off('SIGINT', int);
     record.exitCode = exitCode;
     await writeFile(path.join(out, 'supervisor.json'), JSON.stringify(record, null, 2) + '\n');
   }
-  process.exitCode = exitCode;
+  return exitCode;
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => { console.error(error.message); process.exitCode = 14; });
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) supervise().then(code => { process.exitCode = code; }).catch(error => { console.error(error.message); process.exitCode = 14; });

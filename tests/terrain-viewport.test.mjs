@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MapTerrain } from '../app/web/map-terrain.mjs';
@@ -167,12 +169,16 @@ test('manifest loader never requests external hosts or accepts another map', asy
 test('stalled optional optimized manifest aborts and releases the existing PNG fallback', async () => {
   let signal;
   const original = { schemaVersion: 1, terrain: {} };
-  const result = await loadTerrainManifest(async (route, options) => {
+  const clock = createManualClock();
+  const loading = loadTerrainManifest(async (route, options) => {
     if (route.endsWith('terrain.optimized-manifest.json')) {
       signal = options.signal; return new Promise(() => {});
     }
     return { ok: true, json: async () => original };
-  }, { optimizedTimeoutMs: 5 });
+  }, { optimizedTimeoutMs: 5, clock });
+  await clock.advance(4); assert.equal(signal.aborted, false);
+  await clock.advance(1);
+  const result = await clock.settled(loading);
   assert.equal(result, original);
   assert.equal(signal.aborted, true);
 });

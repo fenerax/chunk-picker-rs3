@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -171,16 +174,15 @@ test('LRU capacity closes only the evicted streams; cookies and durable games su
 });
 
 test('idle eviction releases the writer and a following request reopens its durable state', async t => {
-  const f = await fixture(t, { idleCloseMs: 25 }), cookie = await f.login('101'), id = await f.picker('101');
+  const idleClock = createManualClock();
+  const f = await fixture(t, { idleCloseMs: 25, idleClock }), cookie = await f.login('101'), id = await f.picker('101');
   assert.equal((await f.note(cookie, 'Player 1', 0)).status, 200);
   const lock = path.join(f.multiPicker.pickerRoot, id, 'store.lock');
-  // Poll only the public lock lifecycle; do not use a timing assumption for success.
-  let released = false;
-  for (let i = 0; i < 100; i++) {
-    await new Promise(resolve => setTimeout(resolve, 10));
-    try { await readFile(lock); } catch (error) { if (error.code === 'ENOENT') { released = true; break; } throw error; }
-  }
-  assert.equal(released, true);
+  await idleClock.advance(24);
+  await readFile(lock);
+  await idleClock.advance(1);
+  await idleClock.settleCallbacks();
+  await assert.rejects(readFile(lock), { code: 'ENOENT' });
   assert.equal((await f.send('/api/state', cookie)).json().state.members[0].notes['12341'], 'Player 1');
 });
 
@@ -238,7 +240,7 @@ test('an owner has ordinary writes and export without operator, invitation or gl
   assert.equal((await f.note(cookie, 'Player 1', 0)).status, 200);
 });
 
-test('sign-out invalidates a picker-bound session before later stream delivery and cannot expose legacy', { timeout: 5000 }, async t => {
+test('sign-out invalidates a picker-bound session before later stream delivery and cannot expose legacy', async t => {
   const f = await fixture(t), cookie = await f.login('101'), otherSession = await f.login('101');
   const stream = await f.send('/api/events', cookie, { stream: true });
   const ended = new Promise(resolve => stream.res.once('end', resolve));
@@ -249,7 +251,7 @@ test('sign-out invalidates a picker-bound session before later stream delivery a
   await f.restart(); assert.equal((await f.send('/api/state', cookie)).status, 401);
 });
 
-test('capacity eviction skips a busy picker; shutdown drains its accepted write and refuses its queued successor', { timeout: 15000 }, async t => {
+test('capacity eviction skips a busy picker; shutdown drains its accepted write and refuses its queued successor', async t => {
   const entered = Promise.withResolvers(), release = Promise.withResolvers();
   t.after(() => release.resolve());
   let held = false;
@@ -662,7 +664,7 @@ test('startup retires a duo account deleted offline but keeps an owned picker ac
   assert.equal((await f.registry()).accounts.length, 2);
 });
 
-test('one process-wide budget refuses another complete upload with a retry while an import is active', { timeout: 15000 }, async t => {
+test('one process-wide budget refuses another complete upload with a retry while an import is active', async t => {
   const started = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
   const f = await fixture(t, { beforeCommit: async () => {
     if (armed) { armed = false; started.resolve(); await release.promise; }
@@ -683,7 +685,7 @@ test('one process-wide budget refuses another complete upload with a retry while
   } finally { release.resolve(); }
 });
 
-test('a slow backup upload is received outside residency; another picker is served meanwhile', { timeout: 15000 }, async t => {
+test('a slow backup upload is received outside residency; another picker is served meanwhile', async t => {
   const f = await fixture(t, { maxOpenContexts: 2 }), a = await f.login('101'), b = await f.login('102');
   const stream = await f.send('/api/events', a, { stream: true });
   const ended = new Promise(resolve => stream.res.once('end', resolve));
@@ -703,7 +705,7 @@ test('a slow backup upload is received outside residency; another picker is serv
   } finally { if (!slow.readableEnded) slow.push(null); }
 });
 
-test('MP14: a fenced picker drains outside residency and cannot be chosen as a capacity victim', { timeout: 10000 }, async t => {
+test('MP14: a fenced picker drains outside residency and cannot be chosen as a capacity victim', async t => {
   const accepted = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
   const f = await fixture(t, { maxOpenContexts: 3, beforeCommit: async () => {
     if (armed) { armed = false; accepted.resolve(); await release.promise; }
@@ -720,13 +722,10 @@ test('MP14: a fenced picker drains outside residency and cannot be chosen as a c
     await fenced;
     // The ledger stays at revoked while close drains the accepted write.
     // Observe that phase before probing residency, rather than racing revoke.
-    let draining = false;
-    for (let attempt = 0; attempt < 100; attempt++) {
+    await waitForCondition(async () => {
       const ledger = JSON.parse(await readFile(path.join(f.multiPicker.tombstoneDir, 'ledger.json')));
-      if (ledger.pickers.find(row => row.pickerId === id)?.purgeProgress === 'revoked') { draining = true; break; }
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-    assert.equal(draining, true, 'deletion reached the local close drain');
+      return ledger.pickers.find(row => row.pickerId === id)?.purgeProgress === 'revoked';
+    });
     assert.equal((await f.send('/api/state', b)).status, 200, 'resident reads proceed during the drain');
     // B is idle and may be evicted; the closing A must never be selected.
     assert.equal((await f.send('/api/state', c)).status, 200, 'capacity acquisition does not wait on the closing picker');

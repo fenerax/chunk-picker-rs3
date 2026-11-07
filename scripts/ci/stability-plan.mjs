@@ -6,6 +6,18 @@ import { classifyTest, discoverTestEntries, discoverTests, isTestEntryFile } fro
 
 export const CANARY = 'tests/test-selection.test.mjs';
 export const PR_BUDGET = 200;
+const detectorLanes = new Map([
+  ['tests/y03-fuzz-ci-integration.test.mjs', 'differential-only'],
+  ['tests/q2-diff-engine-integration.test.mjs', 'engine-differential-only'],
+]);
+// These entries exercise native Windows contracts and have no Linux cases.
+// Report their proof on Windows; an all-skipped Linux run is never proof.
+export const WINDOWS_ONLY = new Set([
+  'backup-status.private', 'operations', 'operations-degraded', 'operations-forced',
+  'operations-graceful', 'operations-owner', 'operator-cutover', 'operator-frozen-bundle',
+  'private-live-swap', 'release-admission-v2', 'release-run-ci-powershell',
+  'release-runtime-v2', 'restore-picker.private', 'watchdog-core',
+].map(name => `tests/${name}.test.mjs`));
 const entryName = file => typeof file === 'string' && file.startsWith('tests/') && !file.slice(6).includes('/') ? file.slice(6) : null;
 const tooling = file => /^scripts\/ci\/stability-(plan|run|summary|counts)\.mjs$/.test(file)
   || ['.github/workflows/stability.yml', '.github/windows-slice/run.ps1',
@@ -20,7 +32,9 @@ export function windowsSlice(source) {
 
 export function requireSupportedLane(file, classify = classifyTest) {
   const lane = classify(entryName(file));
-  if (!['quick', 'full-only'].includes(lane)) throw Error(`loop not supported for this lane (${lane}): ${JSON.stringify(file)}`);
+  if (!['quick', 'full-only'].includes(lane) && detectorLanes.get(file) !== lane)
+    throw Error(`loop not supported for this lane (${lane}): ${JSON.stringify(file)}`);
+  return detectorLanes.get(file) === lane ? 'detector' : 'ordinary';
 }
 
 export function planStability({ changed = [], inventory, windows = [], files, repetitions = 50, os = 'linux', classify = classifyTest }) {
@@ -37,11 +51,12 @@ export function planStability({ changed = [], inventory, windows = [], files, re
     // portable path / comma-whitespace dispatch syntax cannot represent safely.
     if (/[\\\s,|\u0000-\u001f\u007f]/.test(name)) throw Error(`Cannot plan test entry filename: ${JSON.stringify(file)}`);
     requireSupportedLane(file, classify);
+    if (detectorLanes.has(file) && manual && os !== 'linux') throw Error('Detector stability requires Linux: ' + file);
   }
   selected = [...new Set(selected)].sort();
   const pairs = selected.flatMap(file => (manual
     ? os === 'both' ? ['linux', 'windows'] : [os]
-    : windows.includes(file) ? ['linux', 'windows'] : ['linux']).map(os => ({ file, os, requested: Number(repetitions) })));
+    : WINDOWS_ONLY.has(file) ? ['windows'] : windows.includes(file) ? ['linux', 'windows'] : ['linux']).map(os => ({ file, os, requested: Number(repetitions) })));
   if (!manual && changed.some(tooling) && !selected.includes(CANARY)) {
     if (!available.has(CANARY)) throw Error('Stability canary missing');
     requireSupportedLane(CANARY, classify);
@@ -53,12 +68,12 @@ export function planStability({ changed = [], inventory, windows = [], files, re
   const targets = pairs.map(pair => ({ ...pair, repetitions: Math.min(pair.requested, perPair) }));
   const systems = [...new Set(targets.map(pair => pair.os))];
   const include = [];
-  for (const os of systems) {
-    const attempts = targets.filter(pair => pair.os === os).flatMap(({ file, repetitions }) =>
+  for (const os of systems) for (const lane of ['ordinary', 'detector']) {
+    const attempts = targets.filter(pair => pair.os === os && requireSupportedLane(pair.file, classify) === lane).flatMap(({ file, repetitions }) =>
       Array.from({ length: repetitions }, (_, i) => ({ file, repetition: i + 1, total: repetitions })));
     const count = Math.min(10, attempts.length);
-    const shards = Array.from({ length: count }, (_, i) => ({ id: `${os}-${i + 1}`, os,
-      runner: os === 'linux' ? 'ubuntu-latest' : 'windows-latest', attempts: [] }));
+    const shards = Array.from({ length: count }, (_, i) => ({ id: `${lane === 'detector' ? 'detector-' : ''}${os}-${i + 1}`, os,
+      ...(lane === 'detector' ? { lane } : {}), runner: os === 'linux' ? 'ubuntu-latest' : 'windows-latest', attempts: [] }));
     attempts.forEach((attempt, i) => shards[i % count].attempts.push(attempt));
     include.push(...shards);
   }
@@ -82,6 +97,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     ...(event.pull_request ? {} : { files: event.inputs?.files ?? '', repetitions: event.inputs?.repetitions ?? 50, os: event.inputs?.os ?? 'linux' }) });
   Object.assign(plan, { sha: git(['rev-parse', 'HEAD']), runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT });
   await writeFile('stability-plan.json', JSON.stringify(plan, null, 2) + '\n');
-  await appendFile(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(plan.matrix)}\nhas-work=${plan.targets.length > 0}\n`);
+  const ordinary = { include: plan.matrix.include.filter(task => task.lane !== 'detector') };
+  const detectors = { include: plan.matrix.include.filter(task => task.lane === 'detector') };
+  await appendFile(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(ordinary)}\ndetector-matrix=${JSON.stringify(detectors)}\nhas-loop=${ordinary.include.length > 0}\nhas-detectors=${detectors.include.length > 0}\nhas-work=${plan.targets.length > 0}\n`);
   await appendFile(process.env.GITHUB_STEP_SUMMARY, `### Stability plan\n\n${plan.targets.length} file/OS pairs; ${plan.reduced ? 'REDUCED proof (200-attempt PR cap); dispatch each file for 50 before landing.' : 'Full requested repetitions.'}\n\nDirectly changed entry files only; helper-only edits need manual dispatch.\n`);
 }

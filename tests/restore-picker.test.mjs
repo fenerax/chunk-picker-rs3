@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, mkdir, stat, symlink, realpath, lstat } from 'node:fs/promises';
@@ -36,7 +37,7 @@ async function fixture(t) {
 }
 async function absent(target) { await assert.rejects(stat(target), { code: 'ENOENT' }); }
 async function runWrapper(backupPath, targetFolder) {
-  return exec('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper, '-BackupPath', backupPath, '-TargetFolder', targetFolder], { timeout: 30000, windowsHide: true });
+  return exec('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper, '-BackupPath', backupPath, '-TargetFolder', targetFolder], { windowsHide: true });
 }
 // Small stored ZIP fixture writer: deliberate duplicate/path entries stay possible.
 function crc32(bytes) {

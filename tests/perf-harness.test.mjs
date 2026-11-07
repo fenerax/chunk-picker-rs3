@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -72,7 +73,7 @@ test('dwell follows locked-panel readiness and records observed wait outside Unl
   let now = 100, panelReady = false, closed = false;
   const calls = [];
   const context = vm.createContext({
-    options: { unlockDwellMs: 3000, unlockPick: 'any', unlockPreview: 'off', settlement: 'tasks', timeout: 1000 },
+    options: { unlockDwellMs: 3000, unlockPick: 'any', unlockPreview: 'off', settlement: 'tasks'},
     performance: { now: () => now }, snapshotExpression: 'snapshot',
     loadedViewport: () => ({ time: 100, visible: 1 }),
     networkCollector: () => ({ requests: new Map(), idle: () => false, close: () => { closed = true; } }),

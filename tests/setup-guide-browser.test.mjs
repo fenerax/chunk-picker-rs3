@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -13,7 +14,7 @@ const { createServer } = await import('../app/server.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 
 for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
-  test(`setup step focus and close lifecycle: ${count} member(s), ${mode}`, { timeout: 60000 }, async t => {
+  test(`setup step focus and close lifecycle: ${count} member(s), ${mode}`, async t => {
     // The adaptive runner transports errors over IPC, which can lose an
     // AssertionError's non-enumerable message. Diagnostics survive that hop.
     const equal = (actual, expected, message) => {

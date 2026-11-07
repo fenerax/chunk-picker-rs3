@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, mkdir, stat, symlink, realpath, lstat } from 'node:fs/promises';
@@ -36,7 +37,7 @@ async function fixture(t) {
 }
 async function absent(target) { await assert.rejects(stat(target), { code: 'ENOENT' }); }
 async function runWrapper(backupPath, targetFolder) {
-  return exec('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper, '-BackupPath', backupPath, '-TargetFolder', targetFolder], { timeout: 30000, windowsHide: true });
+  return exec('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper, '-BackupPath', backupPath, '-TargetFolder', targetFolder], { windowsHide: true });
 }
 // Small stored ZIP fixture writer: deliberate duplicate/path entries stay possible.
 function crc32(bytes) {
@@ -99,7 +100,7 @@ test('PowerShell omitted target creates distinct scratch stores directly under t
     }
   });
   for (let i = 0; i < 2; i++) {
-    const output = await exec('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper, '-BackupPath', f.backupPath], { timeout: 30000, windowsHide: true });
+    const output = await exec('pwsh', ['-NoProfile', '-NonInteractive', '-File', wrapper, '-BackupPath', f.backupPath], { windowsHide: true });
     const result = JSON.parse(output.stdout), target = result.targetFolder;
     assert.equal(path.isAbsolute(target), true);
     assert.equal(path.dirname(target).toLowerCase(), local.toLowerCase());

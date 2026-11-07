@@ -1,3 +1,6 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
+import { waitForCondition } from './helpers/condition.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,8 +51,7 @@ function checkDispatchMethods(source) {
   assert.deepEqual(Object.keys(routePermissions).sort(), ['GET', 'POST'], 'additional method registries need dispatch audit coverage');
 }
 async function until(predicate, message) {
-  const deadline = Date.now() + 10000;
-  while (!predicate() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+  await waitForCondition(predicate);
   assert.ok(predicate(), message);
 }
 async function openEvents(t, f) {
@@ -260,7 +262,8 @@ test('Backlog chunk search reads only the selected player and never submits view
   initialState.tasks = [{ id: first, label: 'Mine ore', category: 'Mining' }, { id: second, label: 'Chop wood', category: 'Woodcutting' }];
   initialState.members[0].taskStatus = { [first]: { backlogged: true, backlogReason: 'Later' } };
   initialState.members[1].taskStatus = { [second]: { backlogged: true } };
-  const f = await fixture(t, { initialState, port: 0, taskWorkerOptions: { idleMs: 100, residency: { activeMs: 1, idleMs: 100 } }, definitions: {
+  const clock = createManualClock();
+  const f = await fixture(t, { initialState, port: 0, taskWorkerOptions: { idleClock: clock, idleMs: 100, residency: { activeMs: 1, idleMs: 100 } }, definitions: {
     chunks: { '12341': { Nickname: 'Lumbridge', Sections: { 2: {} } }, '12342': { Nickname: 'Varrock' } },
     walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'],
     challenges: { Mining: { 'Mine ore': { PickerId: first, Chunks: ['12341-2[+]'] } }, Woodcutting: { 'Chop wood': { PickerId: second, Chunks: ['12342'] } } },
@@ -274,8 +277,8 @@ test('Backlog chunk search reads only the selected player and never submits view
   }
   assert.equal((await f.viewer('/api/backlog-search?memberId=missing')).status, 400);
   assert.equal((await f.viewer('/api/backlog-search?memberId=actor1', {})).status, 403);
-  const deadline = Date.now() + 10000;
-  while ((await diagnostics()).worker.status !== 'sleeping' && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+  await clock.advance(100);
+  assert.equal((await diagnostics()).worker.status, 'sleeping');
   assert.equal((await f.viewer('/api/backlog-search?memberId=actor1')).status, 200);
   const after = await diagnostics(); assert.equal(after.worker.status, 'sleeping'); assert.deepEqual(after.counts, before.counts);
   assert.deepEqual(f.application.store.getState(), saved, 'search never changes saved tasks, revisions or History');
@@ -303,7 +306,8 @@ test('native calculator announces readiness after its asynchronous module graph 
 });
 
 test('view-only requests read completed tasks without submitting work, including after calculator sleep', async t => {
-  const f = await fixture(t, { taskWorkerOptions: { idleMs: 100, residency: { activeMs: 1, idleMs: 100 } } }), stream = await openEvents(t, f);
+  const clock = createManualClock();
+  const f = await fixture(t, { taskWorkerOptions: { idleClock: clock, idleMs: 100, residency: { activeMs: 1, idleMs: 100 } } }), stream = await openEvents(t, f);
   const memberId = f.application.store.getState().members[0].id;
   const route = `/api/tasks?memberId=${memberId}`;
   const diagnostics = () => f.admin('/api/diagnostics').then(response => response.json());
@@ -347,8 +351,8 @@ test('view-only requests read completed tasks without submitting work, including
       }
     }
   }
-  const deadline = Date.now() + 10000;
-  while ((await diagnostics()).worker.status !== 'sleeping' && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+  await clock.advance(100);
+  assert.equal((await diagnostics()).worker.status, 'sleeping');
   const asleep = await diagnostics(); assert.equal(asleep.worker.status, 'sleeping');
   for (let index = 0; index < 3; index++) {
     const response = await f.viewer(route); assert.equal(response.status, 200); await response.arrayBuffer();

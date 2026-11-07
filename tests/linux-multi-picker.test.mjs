@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test, { after } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
@@ -826,10 +827,10 @@ test('a dormant picker waiting on its checkpoint never blocks an unrelated resid
   const barrier = withDirectoryBarriers([dir(A)], async () => { held.resolve(); await finish.promise; });
   await held.promise;
   const first = send(A); await waiting.promise;
-  const second = send(B); let timer, completed;
-  try { completed = await Promise.race([second.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), 1000); })]); }
+  const second = send(B); let completed;
+  try { completed = await second.then(() => true); }
   finally {
-    clearTimeout(timer); lifecycle = 'deleting'; finish.resolve(); await barrier;
+    lifecycle = 'deleting'; finish.resolve(); await barrier;
     await Promise.all([first, second]); await router.close();
   }
   assert.equal(completed, true, 'Resident B must run before A releases its checkpoint gate.');
@@ -862,11 +863,10 @@ test('capacity eviction skips a checkpointed context so resident handlers keep r
   // B's own requests wait for its copy by design; other pickers must not.
   const barrier = withDirectoryBarriers([dir(B)], async () => { held.resolve(); await finish.promise; });
   await held.promise;
-  let timer, completed;
+  let completed;
   try {
-    completed = await Promise.race([(async () => [await send(A), await send(D)])(),
-      new Promise(resolve => { timer = setTimeout(() => resolve(false), 1000); })]);
-  } finally { clearTimeout(timer); finish.resolve(); await barrier; await router.close(); }
+    completed = [await send(A), await send(D)];
+  } finally { finish.resolve(); await barrier; await router.close(); }
   assert.deepEqual(completed, [200, 200], 'Cold A and resident D must not wait for B\'s checkpoint.');
   assert.deepEqual(calls, [B, C, D, A]); assert.equal(closed[0], C);
   assert.deepEqual(handled, [B, C, D, A, D]);

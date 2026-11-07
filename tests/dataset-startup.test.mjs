@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -47,7 +48,7 @@ async function storageBytes(directory) {
 async function child(options, config) {
   const configPath = path.join(options.directory, `child-${config.mode}-${Date.now()}.json`); await writeFile(configPath, encode(config));
   const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(new URL('./helpers/dataset-startup-child.mjs', import.meta.url)), configPath], {
-    cwd: root, windowsHide: true, timeout: 90000, maxBuffer: 256 * 1024,
+    cwd: root, windowsHide: true, maxBuffer: 256 * 1024,
     env: { ...process.env, RS3_PACKS_DIR: options.packsDir, RS3_PACK_SELECTION: options.selectionPath,
       RS3_MAP_ASSETS_DIR: path.join(options.directory, 'absent-map'), RS3_TERRAIN_ASSETS_DIR: path.join(options.directory, 'absent-terrain'), RS3_ICON_ASSETS_DIR: path.join(options.directory, 'absent-icons'), RS3_GAME_DATA_DIR: path.join(options.directory, 'absent-game'),
       RS3_LOOPBACK_PORT: '', RS3_PUBLIC_ORIGIN: '' },

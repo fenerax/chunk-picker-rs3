@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -115,7 +116,7 @@ test('all installed CLI and unit entrypoints act through a symlink, including ma
   for (const [entry, args, diagnostic] of toolsCliChecks) {
     let failed = false;
     const base = entry.startsWith('scripts/linux/') || entry.startsWith('scripts/release/vps/') ? alias : output;
-    try { execFileSync(process.execPath, [path.join(base, entry), ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 15000 }); }
+    try { execFileSync(process.execPath, [path.join(base, entry), ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true}); }
     catch (error) {
       failed = true; assert.equal(error.status, 1, entry); assert.equal(error.stdout.toString(), '', entry);
       assert(error.stderr.toString().startsWith(diagnostic), entry + ': ' + error.stderr);

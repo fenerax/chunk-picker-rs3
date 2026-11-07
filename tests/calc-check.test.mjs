@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -54,7 +56,7 @@ test('comparison preserves array order and gameplay fields, ignores only sourced
   assert.deepEqual(commandWords('node "two words.mjs" \'literal$()\''), ['node', 'two words.mjs', 'literal$()']);
 });
 
-test('small generated and fixture corpus matches, while one wrong field exits nonzero at its exact path', { timeout: 180000 }, async () => {
+test('small generated and fixture corpus matches, while one wrong field exits nonzero at its exact path', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'calc-check-test-'));
   const { writeFile } = await import('node:fs/promises');
   try {
@@ -83,7 +85,7 @@ test('small generated and fixture corpus matches, while one wrong field exits no
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
-test('adapter refuses unknown requests, validates state members, bounds refs, scopes supersession, and exits on EOF', { timeout: 30000 }, async () => {
+test('adapter refuses unknown requests, validates state members, bounds refs, scopes supersession, and exits on EOF', async () => {
   const calculator = new Calculator(reference, { timeoutMs: 10000, env: publicEnv('duo-legacy') });
   // Resolve the independent bundle in a child so the suite never changes the
   // application's process-wide dataset selection.
@@ -136,7 +138,7 @@ test('adapter refuses unknown requests, validates state members, bounds refs, sc
 
 // Runs three core test files in a child: about 10 s alone, but since the full suite runs more
 // files at once it took 106 s on a green main run and passed 120 s twice on 2026-11-01.
-test('fixture harvesting includes commands, getter-safe engines and per-test datasets', { timeout: 300000 }, async () => {
+test('fixture harvesting includes commands, getter-safe engines and per-test datasets', async () => {
   const env = publicEnv('duo-legacy');
   const child = spawn(process.execPath, ['--input-type=module', '-e', `
     import { buildCorpus } from './tools/calc-check/corpus.mjs';
@@ -158,7 +160,7 @@ test('fixture harvesting includes commands, getter-safe engines and per-test dat
   assert.equal(result.datasets, 2);
 });
 
-test('malformed candidate replies and unread init bundles fail within the watchdog instead of hanging', { timeout: 60000 }, async () => {
+test('malformed candidate replies and unread init bundles fail within the watchdog instead of hanging', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'calc-check-client-'));
   const { writeFile } = await import('node:fs/promises');
   const codec = JSON.stringify(new URL('../calculator/reference/codec.mjs', import.meta.url).href);
@@ -171,18 +173,23 @@ test('malformed candidate replies and unread init bundles fail within the watchd
         if (header.type === 'init') await send({ v: 1, type: 'ready', parts: [] });
         else if (header.id) await send({ v: 1, type: 'result', id: header.id, parts: [{ name: 'play', bytes: 99 }] }, Buffer.from('{}'));
       }`);
-    const calculator = new Calculator(`${JSON.stringify(process.execPath)} ${JSON.stringify(malformed)}`, { timeoutMs: 20000 });
-    await calculator.init({});
-    const began = performance.now();
-    await assert.rejects(calculator.request({ type: 'evaluate' }, {}).promise, /failed/);
-    assert.ok(performance.now() - began < 10000, 'rejected by the decode failure, not the request watchdog');
-    await calculator.close();
+    const clock = createManualClock();
+    const calculator = new Calculator(`${JSON.stringify(process.execPath)} ${JSON.stringify(malformed)}`, { timeoutMs: 20000, clock });
+    try {
+      await calculator.init({});
+      const failed = assert.rejects(calculator.request({ type: 'evaluate' }, {}).promise, /failed/);
+      await calculator.reading;
+      await clock.settled(failed);
+      assert.equal(clock.now(), 0, 'Decode failure rejects without firing the watchdog');
+    } finally { await calculator.close(); }
     // Never reads stdin, so a bundle larger than the pipe buffer cannot drain.
     const deaf = path.join(directory, 'deaf.mjs');
     await writeFile(deaf, 'setInterval(() => {}, 1000);');
-    const stuck = new Calculator(`${JSON.stringify(process.execPath)} ${JSON.stringify(deaf)}`, { timeoutMs: 1000 });
-    await assert.rejects(stuck.init({ padding: 'x'.repeat(8 * 1024 * 1024) }), /failed/);
-    await stuck.close();
+    const stuck = new Calculator(`${JSON.stringify(process.execPath)} ${JSON.stringify(deaf)}`, { timeoutMs: 1000, clock });
+    try {
+      const rejected = assert.rejects(stuck.init({ padding: 'x'.repeat(8 * 1024 * 1024) }), /failed/);
+      await clock.advance(1000); await clock.settled(rejected);
+    } finally { await stuck.close(); }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 

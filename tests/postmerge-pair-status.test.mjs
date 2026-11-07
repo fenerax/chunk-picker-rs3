@@ -1,10 +1,11 @@
+import './helpers/file-safety-stop.mjs';
 // Deterministic Windows sharing violations; no real lane, browser or wrapper child.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, writeFile, rename, readdir, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { setTimeout as delay } from 'node:timers/promises';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 import { createWorkerStatusWriter, createWorkerProgressReporter } from '../scripts/private-companion/post-merge-private.mjs';
 import { runAdaptive } from '../scripts/adaptive-test-runner.mjs';
 
@@ -24,7 +25,7 @@ test('overlapping scheduler/file status writes stay ordered and retry the same a
   const write = createWorkerStatusWriter({ platform: 'win32', wait: async ms => { waits.push(ms); }, renameFile: async (from, to) => {
     active++; peak = Math.max(peak, active);
     try {
-      await delay(5);
+      await nextTurn();
       if (++calls <= 2) throw blocked();
       committed.push(JSON.parse(await readFile(from)).completed);
       await rename(from, to);
@@ -79,7 +80,7 @@ test('a queued progress update retains the degraded flag after its predecessor f
   const write = createWorkerStatusWriter();
   let calls = 0;
   const reporter = createWorkerProgressReporter({ warn: () => {}, writeStatus: async (file, value) => {
-    if (++calls === 1) { await delay(5); throw blocked(); }
+    if (++calls === 1) { await nextTurn(); throw blocked(); }
     await write(file, value);
   } });
   await Promise.all([reporter.write(state, { completed: 1 }), reporter.write(state, { completed: 2 })]);

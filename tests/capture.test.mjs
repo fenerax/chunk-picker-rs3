@@ -1,3 +1,5 @@
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { capturePublicMaps, defaultCapturePath, PUBLIC_GAMEPLAY_FIELDS, runCaptureCli } from '../app/capture-maps.mjs';
@@ -66,8 +68,10 @@ test('timeouts are aborted and exhausted without falling back to unscoped reads'
     calls.push(url);
     signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
   });
-  await assert.rejects(capturePublicMaps({ mapIds: ['qxa'], fetchImpl, concurrency: 1, retries: 0,
+  const clock = createManualClock();
+  const failed = assert.rejects(capturePublicMaps({ mapIds: ['qxa'], fetchImpl, clock, concurrency: 1, retries: 0,
     timeoutMs: 5, includeVersion: false }), /Timed out|aborted/);
+  await clock.advance(5); await clock.settled(failed);
   assert.equal(calls.length, 1);
   assert.match(calls[0], /\/maps\/qxa\/rules\.json$/);
 });

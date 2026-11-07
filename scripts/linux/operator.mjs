@@ -19,7 +19,7 @@ import { deadman, recordStatus, withStatus } from './ops-status.mjs';
 import { phaseReceipt, inPhase } from './phases.mjs';
 
 const execute = promisify(execFile);
-export function systemd(settings, { executeCommand = execute } = {}) {
+export function systemd(settings, { executeCommand = execute, now = Date.now } = {}) {
   const service = settings.service;
   const command = async args => {
     try { return (await executeCommand('systemctl', [...args, service], { timeout: 150000, maxBuffer: 16384, windowsHide: true })).stdout; }
@@ -50,7 +50,7 @@ export function systemd(settings, { executeCommand = execute } = {}) {
         }
         const permit = path.join(settings.controlDir, 'start-permit.json');
         await atomic(permit, encode({ lockSha256: sha(lock), pointerSha256: sha(await readFile(settings.current)),
-          processIdentity: await processIdentity(process.pid), expiresAt: Date.now() + 30000 }));
+          processIdentity: await processIdentity(process.pid), expiresAt: now() + 30000 }));
         try { return await command(['start']); } finally { await rm(permit, { force: true }); }
       });
     },

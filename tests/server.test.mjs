@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -617,7 +618,7 @@ test('predictions and profile previews run without changing durable state', asyn
   assert.deepEqual((await (await api('/api/state')).json()).state, before);
 });
 
-test('a heavy task evaluation cannot block health or saves, and obsolete results are discarded', { timeout: 20000 }, async t => {
+test('a heavy task evaluation cannot block health or saves, and obsolete results are discarded', async t => {
   const tasks = {};
   for (let index = 0; index < 1200; index++) tasks[`Task ${index}`] = { Chunks: ['12341'], ...(index < 1199 ? { Tasks: { [`Task ${index + 1}`]: 'Quest' } } : {}) };
   const heavyDefinitions = { ...taskDefinitions, challenges: { Quest: tasks } };

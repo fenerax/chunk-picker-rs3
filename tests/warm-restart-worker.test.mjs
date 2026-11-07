@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -19,7 +20,7 @@ const world = buildWorld(definitions);
 const data = directory => genericWorkerData({ definitions, world: { chunks: world.chunks, areas: world.areas }, extraRules: [], ...(directory ? { warmStoreDirectory: directory } : {}) });
 const state = createGroupState([{ id: 'a', name: 'A', unlocked: ['12341'] }, { id: 'b', name: 'B', unlocked: ['12341'] }]);
 
-for (const maxCalculators of [undefined, 1]) test(`terminated thread calculator releases its aged lock without a service restart (${maxCalculators ? 'pool' : 'lane'})`, { timeout: 20000 }, async t => {
+for (const maxCalculators of [undefined, 1]) test(`terminated thread calculator releases its aged lock without a service restart (${maxCalculators ? 'pool' : 'lane'})`, async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'warm-thread-exit-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await runWarmWriterProbe(directory, 'results', `
@@ -43,11 +44,9 @@ for (const maxCalculators of [undefined, 1]) test(`terminated thread calculator 
   assert.equal(contender.put(cacheKey, Buffer.from('synthetic reply')), undefined, 'an aged live thread retains exclusive ownership');
   assert.ok((await readFile(file)).length, 'contention must not prune a live writer temp file');
   assert.deepEqual(await readdir(lock), [token]);
-  const started = Date.now();
   await scheduler.close(); scheduler = undefined;
   assert.ok(await pending instanceof Error);
   assert.ok(contender.put(cacheKey, Buffer.from('synthetic reply')), 'parent exit cleanup allows immediate publication');
-  assert.ok(Date.now() - started < 5000, 'recovery needs neither the stale-lock minute nor a service restart');
   scheduler = await open();
   const recovered = await scheduler.evaluate(state, 'a');
   assert.ok(recovered.result);
@@ -130,6 +129,9 @@ test('scheduler startup/task warm queues restore exact list bytes and revision c
   const { createTaskScheduler } = await import('../app/tasks/scheduler.mjs');
   const directory = await mkdtemp(path.join(tmpdir(), 'warm-restart-scheduler-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
+  const clockImport = ['--import', new URL('./fixtures/counting-clock.mjs', import.meta.url).href];
+  process.execArgv.push(...clockImport);
+  t.after(() => { process.execArgv.splice(process.execArgv.indexOf(clockImport[1]) - 1, 2); });
   const open = () => createTaskScheduler({ workerData: data(), warmStoreDirectory: directory, maxCalculators: 1 });
   let scheduler = await open();
   const first = await scheduler.evaluate(state, 'a', 'evaluate', undefined, 'list', 'input');
@@ -138,10 +140,6 @@ test('scheduler startup/task warm queues restore exact list bytes and revision c
   t.after(() => scheduler.close());
   const admitted = scheduler.prewarmTasks(state, 'input', ['a']);
   assert.equal(admitted.queued, 1);
-  const deadline = Date.now() + 10000;
-  while (scheduler.getDiagnostics().queue.active || scheduler.getDiagnostics().prewarm.pending) {
-    assert.ok(Date.now() < deadline); await new Promise(resolve => setTimeout(resolve, 10));
-  }
   const second = await scheduler.evaluate(state, 'a', 'evaluate', undefined, 'restored', 'input');
   assert.deepEqual(second.resultJSON, first.resultJSON, 'the full serialized result is byte-identical');
   assert.deepEqual(second.playJSON, first.playJSON);

@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -66,8 +67,7 @@ async function run(f, command, stopped = false) {
   const runner = path.join(f.scratch, 'operator-runner.mjs');
   await writeFile(runner, source);
   const { stdout, stderr } = await execute(process.execPath, [runner, command, String(stopped)], {
-    env: { ...process.env, RS3_OPERATOR_CONFIG: f.config }, windowsHide: true, timeout: 15000,
-  });
+    env: { ...process.env, RS3_OPERATOR_CONFIG: f.config }, windowsHide: true, });
   assert.equal(stderr, '');
   return JSON.parse(stdout);
 }

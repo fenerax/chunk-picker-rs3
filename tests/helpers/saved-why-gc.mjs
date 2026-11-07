@@ -8,8 +8,8 @@ assert.equal(typeof global.gc, 'function');
 const owners = [];
 async function seed(mode) {
   let expire;
-  const clock = { setTimeout(fn, ms) { expire = fn; return setTimeout(fn, ms); },
-    clearTimeout(id) { clearTimeout(id); expire = undefined; } };
+  const clock = { setTimeout(fn, ms) { expire = fn; return { unref() {} }; },
+    clearTimeout(id) { expire = undefined; } };
   const cache = createResponseCache(), owner = createSavedWhyEvidence({ cache, clock });
   owners.push(owner);
   const entry = { revision: 7, fullGzip: gzipSync(JSON.stringify({ tasks: [{ id: 'synthetic', label: 'retained '.repeat(1000) }] })) };

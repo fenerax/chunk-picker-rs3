@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -38,7 +39,7 @@ test('the scaled F2P fixture is deterministic, connected and keeps identities un
   assert.ok(copies > 10 && copies < 30, 'About 20 MiB needs a proportional number of copies');
 });
 
-test('a scaled application copy resolves its larger synthetic F2P dataset', { timeout: 120000 }, async t => {
+test('a scaled application copy resolves its larger synthetic F2P dataset', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'server-scale-fixture-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const { appDir, copies, bytes } = await writeScaledApp(directory, { copies: 2 });

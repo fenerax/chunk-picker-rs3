@@ -159,7 +159,7 @@ export function originalSyncCommand(review, selections) {
 
 /** In-memory, short-lived capture cache. No request means no original reads. */
 export function createOriginalSyncClient({ fetchImpl = globalThis.fetch, timeoutMs = 10000, retries = 1,
-  cacheTtlMs = 30000, now = () => new Date() } = {}) {
+  cacheTtlMs = 30000, now = () => new Date(), clock } = {}) {
   if (!Number.isFinite(cacheTtlMs) || cacheTtlMs < 0 || cacheTtlMs > 60000) throw new TypeError('Original-picker cache must be between 0 and 60000ms.');
   let cached, pending, closed = false;
   return {
@@ -167,7 +167,7 @@ export function createOriginalSyncClient({ fetchImpl = globalThis.fetch, timeout
       if (closed) throw Object.assign(new Error('The picker is stopping. Retry after it restarts.'), { status: 503 });
       if (!DEFAULT_MAP_IDS.length) throw Object.assign(new Error('This dataset has no linked original maps.'), { status: 422, code: 'ORIGINAL_MAP_BINDING' });
       if (cached && now().getTime() - Date.parse(cached.document.metadata.capturedAt) < cacheTtlMs) return { ...structuredClone(cached), cached: true };
-      if (!pending) pending = import('../capture-maps.mjs').then(({ capturePublicMaps }) => capturePublicMaps({ fetchImpl, timeoutMs, retries, now })).then(result => {
+      if (!pending) pending = import('../capture-maps.mjs').then(({ capturePublicMaps }) => capturePublicMaps({ fetchImpl, timeoutMs, retries, now, clock })).then(result => {
         // Validate both sources before caching; failed captures never fall back.
         for (const id of DEFAULT_MAP_IDS) normalizeOriginalMap(result.document.maps[id], id);
         cached = result; return result;

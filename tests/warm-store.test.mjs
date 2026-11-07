@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readdir, readFile, writeFile, rm, utimes, mkdir, symlink } from 'node:fs/promises';
@@ -163,7 +164,7 @@ test('delayed exit cleanup cannot unlink a replacement writer token', async t =>
   assert.equal(await readFile(replacement, 'utf8'), String(process.pid));
 });
 
-for (const legacy of [false, true]) test(`simultaneous reclamation preserves the live writer and its temp file (${legacy ? 'legacy' : 'token'} owner)`, { timeout: 20000 }, async t => {
+for (const legacy of [false, true]) test(`simultaneous reclamation preserves the live writer and its temp file (${legacy ? 'legacy' : 'token'} owner)`, async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'warm-store-race-')), lock = path.join(directory, '.write-lock');
   const shared = new SharedArrayBuffer(6 * Int32Array.BYTES_PER_ELEMENT), gates = new Int32Array(shared);
   const workers = [];
@@ -176,7 +177,7 @@ for (const legacy of [false, true]) test(`simultaneous reclamation preserves the
       const { createWarmStore, warmHash } = await import(${JSON.stringify(new URL('../app/tasks/warm-store.mjs', import.meta.url).href)});
       const { directory, shared, first } = workerData, gates = new Int32Array(shared);
       const lock = path.join(directory, '.write-lock'), store = createWarmStore(directory);
-      const wait = index => { if (Atomics.wait(gates, index, 0, 10000) === 'timed-out') throw Error('Interleaving timed out'); };
+      const wait = index => { while (Atomics.load(gates, index) === 0) Atomics.wait(gates, index, 0); };
       const kill = process.kill, rename = fs.renameSync, write = fs.writeFileSync, unlink = fs.unlinkSync;
       let held = false;
       process.kill = (pid, signal) => {
@@ -289,17 +290,42 @@ test('process termination during publication yields an intact hit or a miss, wit
   const { spawn } = await import('node:child_process');
   const { once } = await import('node:events');
   const moduleURL = new URL('../app/tasks/warm-store.mjs', import.meta.url).href;
-  for (const delay of [0, 5, 25]) {
-    const directory = await scratch(t), cacheKey = key(delay), size = 32 * 1024 * 1024;
-    const script = `import { createWarmStore } from ${JSON.stringify(moduleURL)};
+  for (const phase of ['partial', 'written', 'published']) {
+    const directory = await scratch(t), cacheKey = key(phase), size = 32 * 1024 * 1024;
+    const scriptFile = path.join(directory, 'publisher.mjs');
+    await writeFile(scriptFile, `
+      import fs from 'node:fs';
+      import { syncBuiltinESMExports } from 'node:module';
+      const phase = ${JSON.stringify(phase)}, write = fs.writeFileSync, rename = fs.renameSync;
+      const pause = () => { process.send(phase); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0); };
+      fs.writeFileSync = (file, bytes, options) => {
+        if (String(file).endsWith('.tmp') && phase === 'partial') {
+          const fd = fs.openSync(file, 'wx', 0o600); fs.writeSync(fd, bytes.subarray(0, 80)); fs.closeSync(fd); pause();
+          return;
+        }
+        const result = write(file, bytes, options);
+        if (String(file).endsWith('.tmp') && phase === 'written') pause();
+        return result;
+      };
+      fs.renameSync = (from, to) => {
+        const result = rename(from, to);
+        if (String(from).endsWith('.tmp') && phase === 'published') pause();
+        return result;
+      };
+      syncBuiltinESMExports();
+      const { createWarmStore } = await import(${JSON.stringify(moduleURL)});
       const store = createWarmStore(${JSON.stringify(directory)}), bytes = Buffer.alloc(${size}, 7);
-      process.send('ready', () => { store.put(${JSON.stringify(cacheKey)}, bytes); });`;
-    const child = spawn(process.execPath, ['--input-type=module', '--eval', script], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+      store.put(${JSON.stringify(cacheKey)}, bytes);
+    `);
+    const child = spawn(process.execPath, [scriptFile], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
     const exited = once(child, 'close');
-    await once(child, 'message');
-    await new Promise(resolve => setTimeout(resolve, delay)); child.kill('SIGKILL'); await exited;
+    t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited; });
+    const [actualPhase] = await Promise.race([once(child, 'message'), exited.then(() => assert.fail('Publisher missed its fault boundary'))]);
+    assert.equal(actualPhase, phase);
+    child.kill('SIGKILL'); await exited;
     const store = createWarmStore(directory), restored = store.get(cacheKey);
-    if (restored) assert.deepEqual(restored, Buffer.alloc(size, 7));
+    if (phase === 'published') assert.deepEqual(restored, Buffer.alloc(size, 7));
+    else assert.equal(restored, undefined);
     const lock = path.join(directory, '.write-lock');
     try { await utimes(lock, new Date(0), new Date(0)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     assert.ok(store.put(key('replacement'), Buffer.from('complete')));

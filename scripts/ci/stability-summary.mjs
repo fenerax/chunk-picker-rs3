@@ -42,7 +42,7 @@ export function summarizeStability(plan, receipts) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const directory = process.argv[2];
   const plan = JSON.parse(await readFile(path.join(directory, 'stability-plan.json'), 'utf8'));
-  const receipts = await Promise.all((await readdir(directory)).filter(name => /^stability-(linux|windows)-\d+\.json$/.test(name))
+  const receipts = await Promise.all((await readdir(directory)).filter(name => /^stability-(?:detector-)?(linux|windows)-\d+\.json$/.test(name))
     .map(async name => JSON.parse(await readFile(path.join(directory, name), 'utf8'))));
   const summary = summarizeStability(plan, receipts);
   await writeFile('stability-receipt.json', JSON.stringify(summary, null, 2) + '\n');

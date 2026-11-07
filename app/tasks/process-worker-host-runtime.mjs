@@ -131,7 +131,11 @@ export function createProcessWorkerHost({ parent = process, WorkerClass = Worker
         relay.note(envelopeBytes(message.payload));
         if (request.type === 'cancel') {
           const cancellation = cancellations.get(request.id);
-          if (cancellation) Atomics.store(new Int32Array(cancellation), 0, 1);
+          if (cancellation) {
+            const flag = new Int32Array(cancellation);
+            Atomics.store(flag, 0, 1);
+            Atomics.notify(flag, 0);
+          }
         } else if (request.cancellation instanceof SharedArrayBuffer) cancellations.set(request.id, request.cancellation);
         if (request.id !== undefined && !['cancel', 'supersede'].includes(request.type)) requests.add(request.id);
         worker.postMessage(request);

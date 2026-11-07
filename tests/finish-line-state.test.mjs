@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGroupState, applyCommand, applyValidatedCommand, validateState, exportBackup, importBackup, getUndoEligibility, taskClaimInvalidatingEvent } from '../app/core/state.mjs';
@@ -16,7 +17,7 @@ const add = { type: 'add-finish-line-custom', itemId: 'finish:shared-bank', text
 const tick = { type: 'set-finish-line-custom', itemId: add.itemId, memberId: 'actor1', completed: true };
 
 for (const apply of [applyCommand, applyValidatedCommand]) {
-  test(`${apply.name} keeps shared targets separate from account progress and round trips every save surface`, { timeout: 10000 }, () => {
+  test(`${apply.name} keeps shared targets separate from account progress and round trips every save surface`, () => {
     let state = createGroupState(owners);
     assert.equal(validateState(state).finishLine, undefined);
     const original = structuredClone(state);
@@ -44,7 +45,7 @@ for (const apply of [applyCommand, applyValidatedCommand]) {
     assert.equal(describeHistoryEvent(state.history.at(-1), { memberName: id => owners.find(owner => owner.id === id)?.name }), `Unticked F2P finish line item “${add.text}” for Player`);
   });
 
-  test(`${apply.name} guards shared Undo, preserves independent personal Undo and restores optional absence`, { timeout: 10000 }, () => {
+  test(`${apply.name} guards shared Undo, preserves independent personal Undo and restores optional absence`, () => {
     const original = createGroupState(owners);
     let state = apply(original, setting, options);
     assert.equal(state.history[0].undo.finishLineChange.before.exists, false);
@@ -72,7 +73,7 @@ for (const apply of [applyCommand, applyValidatedCommand]) {
     assert.equal(createTaskReuseFingerprint()(original), createTaskReuseFingerprint()(undonePersonal));
   });
 
-  test(`${apply.name} rejects malformed commands atomically and does not mutate shared baseline trees`, { timeout: 10000 }, () => {
+  test(`${apply.name} rejects malformed commands atomically and does not mutate shared baseline trees`, () => {
     const state = apply(apply(createGroupState(owners), setting, options), add, options), before = JSON.stringify(state);
     const invalid = [
       { ...setting, target: 0 }, { ...setting, target: 121 }, { ...setting, target: 1.5 }, { ...setting, target: '60' },
@@ -92,7 +93,7 @@ for (const apply of [applyCommand, applyValidatedCommand]) {
     assert.equal(JSON.stringify(state), before);
   });
 
-  test(`${apply.name} includes or excludes custom rows and deletes their overrides with reversible guards`, { timeout: 10000 }, () => {
+  test(`${apply.name} includes or excludes custom rows and deletes their overrides with reversible guards`, () => {
     let state = apply(createGroupState(owners), add, options);
     const excluded = apply(state, { type: setting.type, itemId: add.itemId, enabled: false }, options);
     assert.deepEqual(excluded.finishLine.items[add.itemId], { enabled: false });
@@ -108,7 +109,7 @@ for (const apply of [applyCommand, applyValidatedCommand]) {
   });
 }
 
-test('finish line saved-state and undo validation reject tampering and bounded overflows', { timeout: 10000 }, () => {
+test('finish line saved-state and undo validation reject tampering and bounded overflows', () => {
   const state = applyCommand(applyCommand(createGroupState(owners), setting, options), add, options);
   for (const mutate of [
     row => { row.finishLine.customItems[0].completedBy = ['absent']; },
@@ -130,7 +131,7 @@ test('finish line saved-state and undo validation reject tampering and bounded o
   assert.equal(taskClaimInvalidatingEvent({ command: tick }), false);
 });
 
-test('unchanged checklist saves and their Undo leave progress history continuous', { timeout: 10000 }, () => {
+test('unchanged checklist saves and their Undo leave progress history continuous', () => {
   let state = applyCommand(createGroupState(owners), setting, options);
   state = applyCommand(state, setting, options);
   assert.equal(state.history.at(-1).undo, undefined);

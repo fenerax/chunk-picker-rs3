@@ -1,3 +1,4 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
@@ -31,7 +32,7 @@ test('contexts remain separate through asynchronous work and failures, and span 
     const pooled=new EventEmitter();let controls=0;pooled.postMessage=()=>controls++;p.attach(pooled);assert.equal(controls,0,'pooled endpoints must never receive diagnostic jobs');
     async function run(id,fail){const response=new EventEmitter();response.end=()=>response.emit('finish');
       return p.request({headers:{'x-rs3-profile':id},url:'/api/state'},response,async()=>{
-        try {return await p.span('outer',async()=>{await new Promise(r=>setTimeout(r,5));const entry={};p.queued(entry);p.dispatch(entry);await p.workerHandler(async()=>p.span('inner',()=>{if(fail)throw Error('expected');return 7}))({_profile:entry._profile,type:'evaluate'});p.completed(entry);return 7;});}
+        try {return await p.span('outer',async()=>{await new Promise(r=>setImmediate(r));const entry={};p.queued(entry);p.dispatch(entry);await p.workerHandler(async()=>p.span('inner',()=>{if(fail)throw Error('expected');return 7}))({_profile:entry._profile,type:'evaluate'});p.completed(entry);return 7;});}
         finally{response.end();}});}
     const idle=new EventEmitter();idle.end=()=>idle.emit('finish');
     await p.request({headers:{'x-rs3-profile':'outside-scenario'},url:'/api/state'},idle,async()=>{p.span('ignored',()=>1);idle.end();});
@@ -117,7 +118,7 @@ test('existing y06 trace loader still imports all of its app seams',()=>{
 test('harness records actual awaited operations and leaves unobserved intervals uncovered',async()=>{
  const h=harness({evaluate:async()=>7,send:async()=>8},'test');
  assert.equal(await h.browser.evaluate('0'),7);assert.equal(await h.browser.send('Page.test'),8);
- await h.browser.wait('poll.sleep',()=>new Promise(r=>setTimeout(r,5)));
+ await h.browser.wait('controlled.turn',()=>new Promise(r=>setImmediate(r)));
  assert.equal(h.spans.length,3);assert.ok(h.spans.every(s=>s.layer==='harness'&&s.end>=s.start));
  const s=reconcile(0,10,[{layer:'harness',name:'poll.sleep',start:2,end:8},{layer:'browser',name:'style',start:4,end:6}]);
  assert.equal(s.harnessMs,4);assert.equal(s.unaccountedMs,4);assert.equal(s.phases['browser:style'],2);
