@@ -28,7 +28,7 @@ const optional = async file => { try { return await lstat(file); } catch (error)
 // they are checked by exact-pair lanes, never made part of a tooling certificate.
 export const toolingEntryPoints = Object.freeze([
   'tools/release-v2.mjs', 'tools/companion-check.mjs', 'tools/gallery-check.mjs',
-  'tools/cutover-runbook.mjs',
+  'tools/cutover-runbook.mjs', 'tools/release-transition.mjs',
   'tools/gallery-browser-check.mjs', 'tools/verify-install.mjs', 'tools/verify-github-evidence.mjs',
   'tools/release-early.mjs', 'tools/release-practice.mjs', 'tools/post-merge-private.mjs',
   'checks/private-source/scripts/test.mjs', 'checks/private-source/scripts/test-selection.mjs',

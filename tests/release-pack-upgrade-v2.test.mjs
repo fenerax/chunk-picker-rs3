@@ -1,5 +1,10 @@
 // Disposable native journal/ownership contracts. No listeners or scheduler calls.
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { transitionFixture } from './helpers/release-transition-stages.mjs';
+import { runNative, closeNativeHost, stopNativeChildren } from './helpers/release-native-host.mjs';
+import { assertPair } from '../scripts/private-companion/release-transition.mjs';
+const safety = setTimeout(() => { stopNativeChildren(); process.exit(1); }, 600000);
+safety.unref(); after(async () => { try { await closeNativeHost(); } finally { clearTimeout(safety); } });
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
@@ -18,23 +23,61 @@ async function fixture(t) {
   t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   return root;
 }
-async function run(root, body, expectedCode = 0) {
-  const file=path.join(root,'fixture.ps1'); await put(file,body);
-  return new Promise((resolve,reject)=>{
-    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-File',file],{windowsHide:true,stdio:['ignore','pipe','pipe']});
-    let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
-    child.once('error',reject);child.once('exit',code=>code===expectedCode?resolve(output):reject(new Error(output || `Unexpected fixture exit ${code}`)));
-  });
-}
+const run = (root, body, expectedCode = 0) => runNative(root, body, expectedCode !== 0);
 const interruptionPoints=['before-journal','after-journal','after-binding','after-pointer','during-start'];
 // A refusal at journal intent restores the previous ready journal, so only a
 // crash (covered above) can leave that intent pending for a reverse.
 const cases=[...interruptionPoints,'unknown-binding','uncertain-owner','failed-verification'].map(point=>({point,crash:false})).concat(interruptionPoints.map(point=>({point,crash:true})),interruptionPoints.slice(2).map(point=>({point:'pending-'+point,crash:false})));
+test('pair policy rejects foreign and impossible pairs, allowing only the inverse partial pair', () => {
+  const pair = { binding:'old',pointer:'old',sourceBinding:'old',targetBinding:'new',sourcePointer:'old',targetPointer:'new' };
+  assert.doesNotThrow(() => assertPair(pair));
+  assert.throws(() => assertPair({...pair,binding:'foreign'}), /Unknown/);
+  assert.throws(() => assertPair({...pair,pointer:'foreign'}), /Unknown/);
+  assert.throws(() => assertPair({...pair,pointer:'new'}), /Impossible/);
+  assert.doesNotThrow(() => assertPair({...pair,pointer:'new'},true));
+});
 for (const rollback of [false,true]) for (const {point,crash} of cases) {
-  const pending=point.startsWith('pending-');
-  if(pending&&!rollback) continue;
+  const pending=point.startsWith('pending-'); if(pending&&!rollback) continue;
   const firstRollback=rollback&&!pending, effectivePoint=pending?point.slice('pending-'.length):point;
-  test(`${rollback?'rollback':'upgrade'} ${crash?'process-exit':'interruption'} ${point}: reconcile under ownership, preserve current save`, {skip:process.platform!=='win32',timeout:30000},async t=>{
+  test(`${rollback?'rollback':'upgrade'} ${crash?'process-exit':'interruption'} ${point}: reconcile under ownership, preserve current save`, async () => {
+    const f = transitionFixture(firstRollback), state = f.state;
+    const fault = effectivePoint === 'uncertain-owner' ? 'during-start' : ['unknown-binding','failed-verification'].includes(effectivePoint) ? 'after-journal' : effectivePoint;
+    await assert.rejects(f.run({ point: fault, crash }), /paused|exited/);
+    assert.equal(state.fault, fault, 'the requested injection was reached');
+    assert.equal(state.paused, true); assert.equal(state.owner, false); assert.equal(state.tick, false);
+    const source = firstRollback ? 'new' : 'old', target = firstRollback ? 'old' : 'new';
+    assert.equal(state.binding, ['after-binding','after-pointer','during-start'].includes(fault) ? target : source);
+    assert.equal(state.pointer, ['after-pointer','during-start'].includes(fault) ? target : source);
+    if (effectivePoint === 'unknown-binding') {
+      const kept = state.binding; state.binding = 'foreign';
+      await assert.rejects(f.run({ recover:true }), /paused/); assert.equal(state.binding,'foreign'); state.binding = kept;
+    }
+    if (effectivePoint === 'uncertain-owner') {
+      state.runtime = 'foreign'; await assert.rejects(f.run({recover:true}), /paused/);
+      assert.equal(state.runtime, 'foreign'); state.runtime = target;
+    }
+    if (effectivePoint === 'failed-verification') {
+      state.verificationFailed = true; await assert.rejects(f.run({recover:true}), /paused/); state.verificationFailed = false;
+    }
+    if (pending) {
+      await assert.rejects(f.run({rollback:true, reversePending:true, point:'after-journal'}), /paused/);
+      assert.deepEqual(state.journal,{state:'journaled',rollback:true,allowInversePartial:true});
+      await f.run({rollback:true,recover:true});
+    } else await f.run({rollback,recover:!!state.journal});
+    assert.equal(state.journal.state,'ready'); assert.equal(state.paused,false);
+    assert.equal(state.binding,rollback?'old':'new'); assert.equal(state.pointer,rollback?'old':'new');
+    assert.equal(state.runtime,rollback?'old':'new'); assert.equal(state.checkedRevision,41);
+  });
+}
+test('native scripts acknowledge interruption, inverse recovery, hard crash and ready success', {skip:process.platform!=='win32'}, async t => {
+  await nativeStage(t, false, 'after-binding', false);
+  await nativeStage(t, true, 'pending-after-pointer', false);
+  await nativeStage(t, false, 'after-journal', true);
+});
+
+async function nativeStage(t, rollback, point, crash) {
+  const pending=point.startsWith('pending-');
+  const firstRollback=rollback&&!pending, effectivePoint=pending?point.slice('pending-'.length):point;
     const root=await fixture(t), local=path.join(root,'local'), kit=path.join(root,'kit');
     const old=path.join(kit,'releases/old'), next=path.join(kit,'releases/new');
     const current=path.join(root,'current.json'), binding=path.join(local,'data.dataset.json');
@@ -74,7 +117,7 @@ function Stop-OperatorCore($Context,$TimeoutSeconds,[switch]$PreservePause,[IO.F
 }
 function Assert-OperatorStoreReleased { }
 $global:point=${q(effectivePoint==='uncertain-owner'?'during-start':['unknown-binding','failed-verification'].includes(effectivePoint)?'after-journal':effectivePoint)};$global:failedOnce=${crash?`(Test-Path -LiteralPath ${q(path.join(root,'crash-marker'))})`:'$false'}
-function Fail-Once([string]$At){if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[Environment]::Exit(75)`:`throw 'Injected interruption'`}}}
+function Fail-Once([string]$At){if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[System.Diagnostics.Process]::GetCurrentProcess().Kill()`:`throw 'Injected interruption'`}}}
 function Invoke-ReleaseV2PackCheck($Context,$Tool,$From,$To,$Transition,$Output) {
  if(-not(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused'))){throw 'Compatibility ran without pause'}
  Fail-Once 'before-journal';[IO.File]::WriteAllText($Output,'{"passed":true,"bothDirections":true}')
@@ -131,14 +174,13 @@ if(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused')){throw 'Succ
 if((Read-ReleaseV2Pointer ${q(current)}).pointer.releaseId -cne ${q(rollback?'old':'new')}){throw 'Wrong pointer'}
 if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(rollback?oldB:newB))}){throw 'Wrong binding'}
 `;
-    if(crash) await run(root,body,75);
+    if(crash) { await run(root,body,75); assert.equal(await readFile(path.join(root,'crash-marker'),'utf8'),'interrupted'); }
     await run(root,body);
     assert.deepEqual(JSON.parse(await readFile(save)),{revision:41,completedTasks:['kept-current-progress']});
     assert.equal(await readFile(path.join(local,'runtime'),'utf8'),rollback?'old':'new');
-  });
 }
 
-test('compatibility uses separate packed startup processes, checks latest save both ways and refuses changed identity/binding', {timeout:30000},async t=>{
+test('compatibility uses separate packed startup processes, checks latest save both ways and refuses changed identity/binding', {},async t=>{
   const root=await fixture(t),data=path.join(root,'data');
   await put(path.join(data,'state.json'),{revision:9});
   const descriptors=[],configs=[];
@@ -147,7 +189,7 @@ test('compatibility uses separate packed startup processes, checks latest save b
     await put(path.join(core,'app/tasks/identity.mjs'),`export const authoredIdentityRegistry=()=>({entries:{'rs3:quest:1':{}},aliases:{legacy:'rs3:quest:1'}});export const resolveIdentity=id=>({status:'resolved',id});`);
     await put(path.join(core,'app/dataset-bootstrap.mjs'),'export const loadDatasetInputs=async()=>({definitionBytes:Buffer.from(JSON.stringify({challenges:{}}))});');
     await put(path.join(core,'app/dataset-pipeline.mjs'),'export const prepareTaskDefinitions=x=>x;');
-    await put(path.join(core,'app/server.mjs'),`import http from 'node:http';import {readFile,writeFile} from 'node:fs/promises';export async function createServer({dataDir,port}){const saved=JSON.parse(await readFile(dataDir+'/state.json'));if(saved.revision!==9)throw Error('save');if(!process.env.RS3_PACK_SELECTION.includes(${JSON.stringify(name)}))throw Error('selection');const server=http.createServer((q,r)=>{r.setHeader('Content-Type','application/json');r.end(JSON.stringify({tasks:[{id:'rs3:quest:1'}]}));});return {dataset:{},store:{getState:()=>({members:[{id:'one',completedTasks:[],taskStatus:{}}],tasks:[{id:'rs3:quest:1'}]}),backup:async()=>({})},listen:()=>new Promise(ok=>server.listen(port,'127.0.0.1',ok)),get inviteUrl(){return 'http://127.0.0.1:'+port+'/join/synthetic';},close:()=>new Promise(ok=>server.close(ok))};}`);
+    await put(path.join(core,'app/server.mjs'),`import http from 'node:http';import {readFile,writeFile} from 'node:fs/promises';export async function createServer({dataDir,port}){const saved=JSON.parse(await readFile(dataDir+'/state.json'));if(saved.revision!==9)throw Error('save');if(!process.env.RS3_PACK_SELECTION.includes(${JSON.stringify(name)}))throw Error('selection');const server=http.createServer((q,r)=>{r.setHeader('Content-Type','application/json');r.end(JSON.stringify({tasks:[{id:'rs3:quest:1'}]}));});return {dataset:{},store:{getState:()=>({members:[{id:'one',completedTasks:[],taskStatus:{}}],tasks:[{id:'rs3:quest:1'}]}),backup:async()=>({})},listen:()=>new Promise(ok=>server.listen(port,'127.0.0.1',ok)),get inviteUrl(){return 'http://127.0.0.1:'+server.address().port+'/join/synthetic';},close:()=>new Promise(ok=>server.close(ok))};}`);
     const descriptor={datasetId:'duo-legacy',datasetContractVersion:1,digest:digit.repeat(64)};
     const bytes=bindingBytes(descriptor);descriptors.push({...descriptor,bindingSha256:hash(bytes)});
     await put(path.join(packs,'pack.json'),{requires:descriptor,datasetDigest:descriptor.digest,ruleContractHash:'a'.repeat(64)});

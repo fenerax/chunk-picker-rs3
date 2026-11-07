@@ -1,7 +1,6 @@
 // Read-only source storage; packed startup is exercised only on disposable copies.
 import path from 'node:path';
 import os from 'node:os';
-import net from 'node:net';
 import { realpathSync } from 'node:fs';
 import { readFile, writeFile, mkdir, mkdtemp, cp, rm, lstat, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -75,12 +74,13 @@ export async function runProbe(config, dataDir, output, {
   const childResult = { stage: 'probe:' + path.basename(output, '.json'), pid: null,
     exitObserved: false, closeObserved: false, exitCode: null, signal: null, stderrTail: '', termination: null };
   await new Promise((resolve, reject) => {
-    let child, primary, done = false, stopping = false, watchdog, drain, cleanup;
+    let child, primary, done = false, stopping = false, watchdog, drain, cleanup, detail = '';
     const cleanupFailures = [];
     const attempt = fn => { try { return fn(); } catch (error) { cleanupFailures.push(error); } };
     const finish = () => {
       if (done) return;
       done = true;
+      childResult.stderrTail = refusalMessage(detail.trim());
       for (const timer of [watchdog, drain, cleanup]) attempt(() => clearTimer(timer));
       attempt(() => signal?.removeEventListener('abort', onAbort));
       for (const pipe of [child?.stdout, child?.stderr]) {
@@ -114,7 +114,7 @@ export async function runProbe(config, dataDir, output, {
       }, 15000);
       attempt(() => { childResult.termination.killAccepted = child.kill('SIGKILL'); });
     };
-    const onData = bytes => { childResult.stderrTail = refusalMessage((childResult.stderrTail + bytes.toString()).slice(-4096)); };
+    const onData = bytes => { detail = (detail + bytes.toString()).slice(-4096); };
     const onError = error => stop(error);
     const onAbort = () => stop(signal.reason instanceof Error ? signal.reason : new Error('Packed save check aborted.', { cause: signal.reason }));
     const recordExit = (code, reason) => { childResult.exitCode = code; childResult.signal = reason ?? null; };
@@ -122,14 +122,14 @@ export async function runProbe(config, dataDir, output, {
       childResult.exitObserved = true; recordExit(code, reason);
       if (stopping) { childResult.termination && (childResult.termination.joined = true); return finish(); }
       attempt(() => clearTimer(watchdog));
-      if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + childResult.stderrTail);
+      if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + refusalMessage(detail.trim()));
       // Retain late stderr without making inherited pipe closure a prerequisite.
       drain = setTimer(finish, 25);
     };
     const onClose = (code, reason) => {
       childResult.closeObserved = true; recordExit(code, reason);
       if (stopping) { childResult.termination && (childResult.termination.joined = true); }
-      else if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + childResult.stderrTail);
+      else if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + refusalMessage(detail.trim()));
       finish();
     };
     if (signal?.aborted) return onAbort();
@@ -297,12 +297,7 @@ export async function probe(core, dataDir, output, { retention } = {}) {
   const { authoredIdentityRegistry, resolveIdentity } = await import(pathToFileURL(path.join(core, 'app/tasks/identity.mjs')));
   const { loadDatasetInputs } = await import(pathToFileURL(path.join(core, 'app/dataset-bootstrap.mjs')));
   const { prepareTaskDefinitions } = await import(pathToFileURL(path.join(core, 'app/dataset-pipeline.mjs')));
-  let port;
-  for (let candidate = 8900; candidate <= 8999; candidate++) {
-    const free = await new Promise(resolve => { const socket = net.createServer(); socket.once('error', () => resolve(false)); socket.listen(candidate, '127.0.0.1', () => socket.close(() => resolve(true))); });
-    if (free) { port = candidate; break; }
-  }
-  if (!port) throw new Error('No scratch compatibility port available.');
+  const port = 0;
   const { createServer } = await import(pathToFileURL(path.join(core, 'app/server.mjs')));
   const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false, retention, taskWorkerOptions: { warmStoreDirectory: false },
     runeMetrics: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } },

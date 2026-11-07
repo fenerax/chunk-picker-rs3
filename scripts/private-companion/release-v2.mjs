@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { mkdir, mkdtemp, readFile, writeFile, lstat, readdir, rm, cp, open, unlink, chmod } from 'node:fs/promises';
 import { spawn, execFileSync } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { hashTree, captureInputIdentity, captureExecutionIdentity, sanitizeExecutionEnvironment, deriveLaneKey, readSuccessReceipt, writeSuccessReceipt, digestValue } from './release-identity.mjs';
@@ -26,7 +27,10 @@ const exists = async file => { try { await lstat(file); return true; } catch (e)
 const here = fileURLToPath(import.meta.url);
 const defaultKit = path.resolve(path.dirname(here), '..');
 const policy = { version: 'release-v2.1', public: 'independent-full', private: 'complete-overlay-full', gallery: 'plain-and-framed', text: 'exact-prose-contract-v1' };
-const ps = process.platform === 'win32' ? path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe') : 'pwsh';
+const nativePowerShell = process.platform === 'win32' ? path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe') : 'pwsh';
+const stageLayers = new AsyncLocalStorage();
+export const withReleaseStageLayer = (layer, action) => stageLayers.run(layer, action);
+const powerShell = () => stageLayers.getStore()?.powerShell ?? nativePowerShell;
 async function lockScript(kit,lane) {
   const pin = (await json(path.join(kit,'kit.json'))).locks?.[lane];
   if (!pin) return path.join(kit,'operator/with-'+lane+'.ps1'); // Synthetic/old kit compatibility.
@@ -58,6 +62,7 @@ function inside(root, file) { const r = path.relative(root, file); return !!r &&
 async function regular(file) { const s = await lstat(file); if (s.isSymbolicLink() || !s.isFile() || s.nlink !== 1) throw new Error('Regular file required.'); return file; }
 async function safeRemove(root, target) { if (!inside(root, target) || (await lstat(target)).isSymbolicLink()) throw new Error('Cleanup containment refused.'); await rm(target, { recursive: true, force: true }); }
 async function run(command, args, { cwd, env = sanitizeExecutionEnvironment(), log, timeout = 0 } = {}) {
+  if (stageLayers.getStore()?.run) return stageLayers.getStore().run(command, args, { cwd, env, log, timeout });
   const output = await open(log, 'a', 0o600);
   let timer;
   try {
@@ -80,6 +85,7 @@ async function run(command, args, { cwd, env = sanitizeExecutionEnvironment(), l
     });
   } finally { clearTimeout(timer); await output.close(); }
 }
+export { run as runReleaseStage };
 async function timed(timings, name, action) {
   const start = Date.now(), tick = performance.now(), startedAt = new Date(start).toISOString(); console.log(`Release stage: ${name}`);
   const record = passed => timings.push({ stage: name, startedAt, completedAt:new Date().toISOString(), seconds:(performance.now()-tick)/1000, passed });
@@ -340,7 +346,7 @@ export async function stableSpecs(kit,release,manifest,retained=null,options={})
   result.public=await spec('public-full',common,heavy,node,['scripts/test.mjs','full'],{RS3_DATASET:'open-f2p'});
   result.private=await spec('private-full',{...runtime,privateExport:component(manifest,'privateSource'),text:component(manifest,'text'),assemblyRecipe:await hashFile(path.join(kit,'tools/companion-check.mjs'))},heavy,node,['scripts/test.mjs','full'],{RS3_GAME_DATA_DIR:path.join(release,'.local/assembly/.local/game-data'),RS3_MAP_ASSETS_DIR:path.join(release,'.local/assembly/.local/map-assets'),RS3_PUBLIC_BROWSER_SCREEN_HARNESS:path.join(release,'core/tests/browser-screen-harness.mjs')});
   result.install=await spec('verify-data',runtime,path.join(kit,'tools/verify-install.mjs'),node,['verify-install','packed']);
-  result.gallery=await spec('gallery',{...runtime,runner:await hashFile(path.join(kit,'tools/gallery-check.mjs')),fixture:await hashFile(path.join(kit,'checks/private-source/tests/fixtures/original-sync/capture.json')),cdp:await hashFile(path.join(kit,'checks/private-source/scripts/perf/cdp.mjs')),checker:await hashFile(path.join(kit,'tools/gallery-browser-check.mjs')),browser:retained?.gallery?.contract?.inputs?.browser??await hashFile(kitManifest.browser?.path??'C:/Program Files/Google/Chrome/Application/chrome.exe')},light,ps,['gallery','plain-and-framed']);
+  result.gallery=await spec('gallery',{...runtime,runner:await hashFile(path.join(kit,'tools/gallery-check.mjs')),fixture:await hashFile(path.join(kit,'checks/private-source/tests/fixtures/original-sync/capture.json')),cdp:await hashFile(path.join(kit,'checks/private-source/scripts/perf/cdp.mjs')),checker:await hashFile(path.join(kit,'tools/gallery-browser-check.mjs')),browser:retained?.gallery?.contract?.inputs?.browser??await hashFile(kitManifest.browser?.path??'C:/Program Files/Google/Chrome/Application/chrome.exe')},light,powerShell(),['gallery','plain-and-framed']);
   result.startup=await spec('copied-startup',{...runtime,runner:await hashFile(path.join(kit,'tools/release-early.mjs'))},light,node,['startup','copied-synthetic-save']);
   if(manifest.lane==='text')result.text=await spec('text-contract',{...runtime,privateExport:component(manifest,'privateSource'),textProof:manifest.textProof,candidateInput:manifest.identity.digest},light,node,['text-tests-and-endpoint']);
   return result;
@@ -567,8 +573,8 @@ async function textGates(kit, release, manifest, timings) {
   if (await exists(assembly)) throw new Error('Retained assembly requires inspection.');
   try {
     await timed(timings, 'assemble-text', () => run(node, [path.join(kit, 'tools/companion-check.mjs'), '--core', path.join(release, 'core'), '--receipt', path.join(release, 'companion.json'), '--lane', 'prepare-text', '--output', assembly], { cwd: kit, log: path.join(release, '.local/text.log') }));
-    await timed(timings, 'text-checks', async () => run(ps, ['-NoProfile', '-File', await lockScript(kit,'light'), node,path.join(kit,'tools/release-v2.mjs'),'text-tests-worker','--kit',kit,'--release',release], { cwd: kit, log: path.join(release, '.local/text.log') }));
-    await timed(timings, 'text-endpoint', async () => run(ps, ['-NoProfile', '-File', await lockScript(kit,'light'), node, path.join(kit, 'tools/release-v2.mjs'), 'text-endpoint-worker', '--kit', kit, '--release', release], { cwd: kit, log: path.join(release, '.local/text-endpoint.log') }));
+    await timed(timings, 'text-checks', async () => run(powerShell(), ['-NoProfile', '-File', await lockScript(kit,'light'), node,path.join(kit,'tools/release-v2.mjs'),'text-tests-worker','--kit',kit,'--release',release], { cwd: kit, log: path.join(release, '.local/text.log') }));
+    await timed(timings, 'text-endpoint', async () => run(powerShell(), ['-NoProfile', '-File', await lockScript(kit,'light'), node, path.join(kit, 'tools/release-v2.mjs'), 'text-endpoint-worker', '--kit', kit, '--release', release], { cwd: kit, log: path.join(release, '.local/text-endpoint.log') }));
   } finally { if (await exists(assembly)) await safeRemove(path.join(release, '.local'), assembly); }
   await writeFile(path.join(release,'release-gate/text-gate.json'),JSON.stringify({inputDigest:manifest.identity.digest,passed:true,cleanupVerified:true,endpointSha256:sha(await readFile(path.join(release,'release-gate/text-endpoint.json'))),testsSha256:sha(await readFile(path.join(release,'.local/narrow-tests.log')))} )+'\n');
 }
@@ -627,15 +633,15 @@ export async function releaseCandidate(options) {
       const args=['--kit',kit,'--release',release,'--evidence-dir',evidenceDirectory(kit,options),'--early-phase',phase,'--round-id',roundId,'--early-budget-ms',String(Math.max(1,budget)),(await import('./retry-policy.mjs')).resolveRetryPolicy({retryOnceInIsolation:specs.env.RS3_TEST_RETRY_ONCE_IN_ISOLATION==='1'})?'--retry-once-in-isolation':'--no-retry-once-in-isolation',...(options['idle-state']?['--idle-state',options['idle-state']]:[])];
       let failure;
       try{await fullWorker(kit,release,{...options,'early-phase':phase,'round-id':roundId,'early-budget-ms':String(Math.max(1,budget)),'lookup-only':true});}
-      catch(error){if(!error.needsAdmission)failure=error;else try{await run(ps,['-NoProfile','-File',await lockScript(kit,'heavy'),node,path.join(kit,'tools/release-v2.mjs'),'gates-worker',...args],{cwd:kit,log:path.join(release,'.local/early-'+phase+'.log')});}catch(error){failure=error;}}
+      catch(error){if(!error.needsAdmission)failure=error;else try{await run(powerShell(),['-NoProfile','-File',await lockScript(kit,'heavy'),node,path.join(kit,'tools/release-v2.mjs'),'gates-worker',...args],{cwd:kit,log:path.join(release,'.local/early-'+phase+'.log')});}catch(error){failure=error;}}
       const observed=await exists(path.join(release,'.local/full-timings.json'))?await json(path.join(release,'.local/full-timings.json')):[];
       timings.push(...observed);
       if(failure){const files=observed.flatMap(row=>row.failures??[]);throw Error('Early '+phase+' failed: '+(files.length?files.join(', '):failure.message));}
     };
     try{
       early=await orderedEarly({
-        gallery:async budget=>{const args=['-NoProfile','-File',await lockScript(kit,'light'),node,path.join(kit,'tools/gallery-check.mjs'),'--core',path.join(release,'core'),'--receipt',path.join(release,'companion.json'),'--checker',path.join(kit,'tools/gallery-browser-check.mjs')];gallery=await useGate({kit,release,options,contract:specs.gallery,timings,action:()=>run(ps,args,{cwd:kit,env:specs.env,log:path.join(release,'.local/gallery.log'),timeout:budget})});},
-        startup:async budget=>{const wrapper=await lockScript(kit,'light');startup=await useGate({kit,release,options,contract:specs.startup,timings,action:()=>run(ps,['-NoProfile','-File',wrapper,node,path.join(kit,'tools/release-early.mjs'),'startup','--core',path.join(release,'core'),'--receipt',path.join(release,'companion.json'),'--scratch',path.join(release,'.local/copied-startup')],{cwd:kit,env:specs.env,log:path.join(release,'.local/startup.log'),timeout:budget})});},
+        gallery:async budget=>{const args=['-NoProfile','-File',await lockScript(kit,'light'),node,path.join(kit,'tools/gallery-check.mjs'),'--core',path.join(release,'core'),'--receipt',path.join(release,'companion.json'),'--checker',path.join(kit,'tools/gallery-browser-check.mjs')];gallery=await useGate({kit,release,options,contract:specs.gallery,timings,action:()=>run(powerShell(),args,{cwd:kit,env:specs.env,log:path.join(release,'.local/gallery.log'),timeout:budget})});},
+        startup:async budget=>{const wrapper=await lockScript(kit,'light');startup=await useGate({kit,release,options,contract:specs.startup,timings,action:()=>run(powerShell(),['-NoProfile','-File',wrapper,node,path.join(kit,'tools/release-early.mjs'),'startup','--core',path.join(release,'core'),'--receipt',path.join(release,'companion.json'),'--scratch',path.join(release,'.local/copied-startup')],{cwd:kit,env:specs.env,log:path.join(release,'.local/startup.log'),timeout:budget})});},
         pipeline:budget=>earlyWorker('pipeline',budget),previous:budget=>earlyWorker('previous',budget)
       });
     }catch(error){await writeFile(path.join(release,'release-gate/early.json'),JSON.stringify(error.earlyResult??{passed:false})+'\n');throw error;}
@@ -658,7 +664,7 @@ export async function releaseCandidate(options) {
         await checkActivity(options);
         const workerArgs=['--kit',kit,'--release',release,'--evidence-dir',directory,'--round-id',roundId,(await import('./retry-policy.mjs')).resolveRetryPolicy({retryOnceInIsolation:specs.env.RS3_TEST_RETRY_ONCE_IN_ISOLATION==='1'})?'--retry-once-in-isolation':'--no-retry-once-in-isolation',...(options['idle-state']?['--idle-state',options['idle-state']]:[]),...(options['neutral-ci']?['--neutral-ci']:[])];
         try{await fullWorker(kit,release,{...options,'round-id':roundId,'lookup-only':true});}
-        catch(error){if(!error.needsAdmission)throw error;const heavy=await lockScript(kit,'heavy');await timed(timings,'heavy-hold',()=>observeIdleIfRequested(options,()=>run(ps,['-NoProfile','-File',heavy,node,path.join(kit,'tools/release-v2.mjs'),'gates-worker',...workerArgs],{cwd:kit,log:path.join(release,'.local/heavy-worker.log')})));}
+        catch(error){if(!error.needsAdmission)throw error;const heavy=await lockScript(kit,'heavy');await timed(timings,'heavy-hold',()=>observeIdleIfRequested(options,()=>run(powerShell(),['-NoProfile','-File',heavy,node,path.join(kit,'tools/release-v2.mjs'),'gates-worker',...workerArgs],{cwd:kit,log:path.join(release,'.local/heavy-worker.log')})));}
         timings.push(...await json(path.join(release,'.local/full-timings.json')));
       }
     }
@@ -746,13 +752,13 @@ export async function freezeCandidate(options) {
     const checkedGates=await json(path.join(release,'release-gate/gates.json'));
     if(checkedGates.suites?.public?.kind==='github-hosted-public'&&!checkedGates.offlinePublic)throw Error('Freeze requires a local public rollback reserve. Prepare it before activation.');
     const browser=(await json(path.join(kit,'kit.json'))).browser?.path??'C:/Program Files/Google/Chrome/Application/chrome.exe';
-    const executables=[ps,browser];
+    const executables=[powerShell(),browser];
     if(checkedGates.gallery?.contract?.inputs?.browser){checkedFiles.push({path:browser,sha256:checkedGates.gallery.contract.inputs.browser});}
     const commandPin=checkedGates.gallery?.contract?.execution?.binaries?.components?.find(row=>row.name==='command')?.files?.[0]?.sha256;
-    if(commandPin)checkedFiles.push({path:ps,sha256:commandPin});
+    if(commandPin)checkedFiles.push({path:powerShell(),sha256:commandPin});
     await timed(timings,'validate-rollback-and-evidence',async()=>{await assertCandidate(rollbackKit,rollbackRoot,previous,true,true);await assertGateEvidence(rollbackKit,rollbackRoot,previous,true);if(!await exists(path.join(rollbackRoot,'release-gate/accepted.json'))&&previous.lane!=='adopted')throw Error('Freeze requires accepted rollback.');});
     const log=path.join(release,'.local/freeze-dry-run.log');
-    const dry=async(root,current,rollback)=>run(ps,['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',current,'-CandidatePointer',path.join(root,'pointer.json'),'-CompanionRoot',kit,'-Receipt',path.join(root,'companion.json'),'-ReleaseRoot',root,'-DryRun',...(rollback?['-Rollback']:[])],{cwd:kit,log});
+    const dry=async(root,current,rollback)=>run(powerShell(),['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',current,'-CandidatePointer',path.join(root,'pointer.json'),'-CompanionRoot',kit,'-Receipt',path.join(root,'companion.json'),'-ReleaseRoot',root,'-DryRun',...(rollback?['-Rollback']:[])],{cwd:kit,log});
     await timed(timings,'forward-dry-run',()=>dry(release,options.current,false));
     await timed(timings,'rollback-dry-run',()=>dry(rollbackRoot,path.join(release,'pointer.json'),true));
     const current=await readFile(await regular(options.current)), candidate=await frozenInputs(kit,release,manifest), retained=await frozenInputs(rollbackKit,rollbackRoot,previous,{retained:true});
@@ -783,7 +789,7 @@ export async function promoteCandidate(options){
     await verifyPrevious(manifest,options.current);await checkActivity(options);
     // No cancellation after this boundary. The existing single-writer journal,
     // latest-save verification, CAS, readiness and rollback own the transaction.
-    await timed(timings,'managed-activation',()=>run(ps,['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',options.current,'-CandidatePointer',path.join(release,'pointer.json'),'-CompanionRoot',kit,'-Receipt',path.join(release,'companion.json'),'-ReleaseRoot',release,'-FrozenSeal',frozen.filename,'-FrozenSealSha256',frozen.sha256],{cwd:kit,log:path.join(release,'.local/handover.log')}));
+    await timed(timings,'managed-activation',()=>run(powerShell(),['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',options.current,'-CandidatePointer',path.join(release,'pointer.json'),'-CompanionRoot',kit,'-Receipt',path.join(release,'companion.json'),'-ReleaseRoot',release,'-FrozenSeal',frozen.filename,'-FrozenSealSha256',frozen.sha256],{cwd:kit,log:path.join(release,'.local/handover.log')}));
     const managed=await json(path.join(release,'.local/activation-phases.json'));
     if(managed.refused||managed.frozen!==true||managed.phase!=='ready'||!managed.timings?.phases?.some(row=>row.phase==='rollback-readiness'))throw Error('Managed activation readiness receipt missing. Inspect runtime before retrying.');
     await writeFile(path.join(release,'release-gate/accepted.json'),JSON.stringify({accepted:true,inputDigest:manifest.identity.digest,completedAt:new Date().toISOString(),frozenSealSha256:frozen.sha256,timings,managed,...phaseSummary(timings)})+'\n');
@@ -827,6 +833,14 @@ export async function parseArgs(args) {
   result['retry-once-in-isolation'] = resolveRetryPolicy(result, manifest);
   return result;
 }
+export async function assertReleaseIdentity(options) {
+  const kit = path.resolve(options.kit ?? defaultKit), root = path.resolve(options.release), manifest = await json(path.join(root, 'release.json'));
+  await assertCandidate(options.rollback ? path.resolve(root,'../..') : kit, root, manifest,true,!!options.rollback);
+  if (options.rollback) { if (!await exists(path.join(root, 'release-gate/accepted.json')) && manifest.lane!=='adopted') throw new Error('Rollback requires retained accepted release.'); if (options.current) await pointerConfig(options.current); }
+  else await verifyPrevious(manifest, options.current);
+  await assertGateEvidence(options.rollback ? path.resolve(root,'../..') : kit, root, manifest,!!options.rollback);
+  return { exactIdentity: true, gatesPassed: true };
+}
 if (process.argv[1] && path.resolve(process.argv[1]) === here) {
   try {
     const command = process.argv[2];
@@ -842,7 +856,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === here) {
       const journal=await json(path.join(path.dirname(selected.config.dataDir),'release-pack-transition.json'));
       const root=path.dirname(journal.candidatePointer);
       await lease(kit,async()=>{
-        await run(ps,['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',options.current,'-CandidatePointer',journal.candidatePointer,'-CompanionRoot',kit,'-Receipt',path.join(root,'companion.json'),'-ReleaseRoot',root,'-Recover',...(journal.rollback?['-Rollback']:[])],{cwd:kit,log:path.join(root,'.local/recovery.log')});
+        await run(powerShell(),['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',options.current,'-CandidatePointer',journal.candidatePointer,'-CompanionRoot',kit,'-Receipt',path.join(root,'companion.json'),'-ReleaseRoot',root,'-Recover',...(journal.rollback?['-Rollback']:[])],{cwd:kit,log:path.join(root,'.local/recovery.log')});
         if (!journal.rollback) { const manifest=await json(path.join(root,'release.json')); await writeFile(path.join(root,'release-gate/accepted.json'),JSON.stringify({accepted:true,inputDigest:manifest.identity.digest,completedAt:new Date().toISOString(),recovered:true})+'\n'); }
         console.log(JSON.stringify({recovered:true,authenticatedReadiness:true}));
       });
@@ -852,7 +866,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === here) {
       await lease(kit,async()=>{
         await assertCandidate(path.resolve(root,'../..'),root,manifest,true,true);await assertGateEvidence(path.resolve(root,'../..'),root,manifest,true);await pointerConfig(options.current);
         if(!await exists(path.join(root,'release-gate/accepted.json')) && manifest.lane!=='adopted')throw new Error('Rollback requires accepted target.');
-        await run(ps,['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',options.current,'-CandidatePointer',path.join(root,'pointer.json'),'-CompanionRoot',kit,'-Receipt',path.join(root,'companion.json'),'-ReleaseRoot',root,'-Rollback'],{cwd:kit,log:path.join(root,'.local/rollback.log')});
+        await run(powerShell(),['-NoProfile','-File',path.join(kit,'operator/Managed-ReleaseV2.ps1'),'-CurrentRelease',options.current,'-CandidatePointer',path.join(root,'pointer.json'),'-CompanionRoot',kit,'-Receipt',path.join(root,'companion.json'),'-ReleaseRoot',root,'-Rollback'],{cwd:kit,log:path.join(root,'.local/rollback.log')});
         console.log(JSON.stringify({rolledBack:true,authenticatedReadiness:true}));
       });
     }
@@ -880,12 +894,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === here) {
       console.log(JSON.stringify({narrowChecksPassed:true}));
     }
     else if (command === 'assert-identity') {
-      const kit = path.resolve(options.kit ?? defaultKit), root = path.resolve(options.release), manifest = await json(path.join(root, 'release.json'));
-      await assertCandidate(options.rollback ? path.resolve(root,'../..') : kit, root, manifest,true,!!options.rollback);
-      if (options.rollback) { if (!await exists(path.join(root, 'release-gate/accepted.json')) && manifest.lane!=='adopted') throw new Error('Rollback requires retained accepted release.'); if (options.current) await pointerConfig(options.current); }
-      else await verifyPrevious(manifest, options.current);
-      await assertGateEvidence(options.rollback ? path.resolve(root,'../..') : kit, root, manifest,!!options.rollback);
-      console.log(JSON.stringify({ exactIdentity: true, gatesPassed: true }));
+      console.log(JSON.stringify(await assertReleaseIdentity(options)));
     }
     else if (command === 'run') { const candidate = await prepare(options); const selected={...options,release:candidate};await releaseCandidate({...selected,'gates-only':true});await freezeCandidate(selected);await promoteCandidate(selected); }
     else throw new Error('Command refused.');
