@@ -14,6 +14,8 @@ import { readBackupRequest } from '../app/backup-transfer.mjs';
 import { Readable } from 'node:stream';
 import { serialize } from 'node:v8';
 import { randomUUID } from 'node:crypto';
+import { Worker } from 'node:worker_threads';
+import { encodeImportBytes } from '../app/import-bytes.mjs';
 
 const roster = [{ id: 'source', name: 'Synthetic player' }];
 function largeSave() {
@@ -171,20 +173,76 @@ test('worker imports and exports keep destination credential sidecars outside po
   assert.equal(JSON.stringify(result.response).includes(secret), false);
 });
 
-test('timeout terminates a wedged worker, releases the global queue, and cannot apply a partial result', async () => {
-  // An isolated CPU wedge exercises the same deadline/termination path as a
-  // pathological replay without depending on a machine-specific input runtime.
-  const workerURL = new URL('data:text/javascript,while(true){}');
-  const start = performance.now();
-  const wedged = runImportJob({}, { workerURL, timeoutMs: 100 });
-  const next = runImportJob({ kind: 'parse', chunks: [Buffer.from('{}')], headers: { 'content-type': 'application/json' } });
-  let fired;
-  await new Promise(resolve => setTimeout(() => { fired = performance.now() - start; resolve(); }, 20));
-  assert.ok(fired < 250, `wedged-worker main-thread timer took ${fired.toFixed(1)} ms`);
-  await assert.rejects(wedged, error => error.status === 422 && /took too long/.test(error.message));
-  assert.deepEqual((await next).body, {});
-  const elapsed = performance.now() - start;
-  assert.ok(elapsed < 3_000, `wedged-worker cleanup and queued parser took ${elapsed.toFixed(1)} ms`);
+test('timeout terminates a wedged worker, releases the global queue, and cannot apply a partial result', async t => {
+  const { store } = await scratchStore(t), before = store.getState();
+  const partial = editedSave(1, 0);
+  const entered = Promise.withResolvers(), hook = Promise.withResolvers();
+  const stopped = Promise.withResolvers(), acknowledgeExit = Promise.withResolvers();
+  const nativeOn = Worker.prototype.on, nativeTerminate = Worker.prototype.terminate;
+  let worker, receive, exitCode, applications = 0, nextStarted = false;
+  // Observe the real isolate through its existing EventEmitter API. Restore the
+  // prototype as soon as this job installs its result listener.
+  const observe = t.mock.method(Worker.prototype, 'on', function (event, listener) {
+    if (event === 'message') {
+      worker = this;
+      receive = listener;
+      nativeOn.call(worker, 'exit', code => { exitCode = code; });
+      observe.mock.restore();
+    }
+    return nativeOn.call(this, event, listener);
+  });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const wedged = runImportJob({ kind: 'replacement', document: partial }, {
+      workerURL: new URL('./fixtures/import-timeout-worker.mjs', import.meta.url),
+      prepareHook: input => { entered.resolve(input); return hook.promise; },
+    }).then(document => { applications++; return store.replace(document, 0); });
+    // Attach the rejection observer before firing the controlled deadline.
+    const rejected = assert.rejects(wedged, error => error.status === 422 && /took too long/.test(error.message));
+    assert.deepEqual(await entered.promise, partial, 'worker reached preparation with a partial replacement');
+    const terminate = t.mock.method(worker, 'terminate', async function () {
+      const code = await nativeTerminate.call(this);
+      stopped.resolve(code);
+      // Hold the termination acknowledgement to prove admission waits for exit.
+      await acknowledgeExit.promise;
+      return code;
+    });
+    // Stagger the queued deadline by one virtual millisecond. It can then act as
+    // a deterministic failure acknowledgement if timeout cleanup strands it.
+    t.mock.timers.tick(1);
+    const request = Object.assign(new Readable({ read() {
+      nextStarted = true; this.push(Buffer.from('{}')); this.push(null);
+    } }), { headers: { 'content-type': 'application/json' }, complete: true });
+    const next = runImportJob({ kind: 'parse', headers: request.headers }, { request, maxUploadBytes: 1024 });
+    next.catch(() => {});
+    assert.equal(nextStarted, false, 'next parser is queued behind the wedged worker');
+    t.mock.timers.tick(IMPORT_TIMEOUT_MS - 1);
+    await Promise.resolve(); // Run the timeout rejection's finally block.
+    assert.ok(terminate.mock.callCount() > 0, 'timeout must terminate the wedged worker');
+    const terminatedCode = await stopped.promise;
+    assert.equal(exitCode, terminatedCode, 'native worker exit acknowledged termination');
+    assert.equal(worker.threadId, -1, 'the wedged isolate has exited');
+    assert.equal(nextStarted, false, 'queue waits for the termination acknowledgement');
+
+    hook.resolve(partial);
+    // Deliver a valid result after cancellation, as if a message were already
+    // queued when the deadline fired. Await the actual production result handler.
+    await receive(await encodeImportBytes({ result: partial }));
+    acknowledgeExit.resolve();
+    await rejected;
+    t.mock.timers.tick(1); // An unreleased queue rejects next with its busy error.
+    assert.deepEqual((await next).body, {});
+    assert.equal(nextStarted, true, 'the next queued parser started and consumed its request');
+    assert.equal(applications, 0, 'neither the partial nor the late result reached apply');
+    assert.deepEqual(store.getState(), before, 'timeout leaves authoritative state unchanged');
+  } finally {
+    hook.resolve(partial); acknowledgeExit.resolve();
+    // A failed termination assertion must not leave a queued parser behind.
+    t.mock.timers.tick(IMPORT_TIMEOUT_MS);
+    observe.mock.restore();
+    if (worker) await nativeTerminate.call(worker);
+    t.mock.timers.reset();
+  }
 });
 
 test('roster remap preserves the removed preferred-method guard through reload', async t => {
