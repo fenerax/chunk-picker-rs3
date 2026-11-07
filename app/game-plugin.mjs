@@ -65,6 +65,24 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
   const testingModes = new Map();
+  // Receipt identities outlive failed writes and mode flips. The ledger seeds
+  // unresolved identities again after restart; only a completed retry drains them.
+  const testingJournals = new Map();
+  const eventIdentity = (journal, event) => `${journal}:${event}`;
+  function rememberTestingJournal(player, journal, events) {
+    if (!events.length) return;
+    let remembered = testingJournals.get(player);
+    if (!remembered) testingJournals.set(player, remembered = new Map());
+    for (const [event] of events) {
+      const id = eventIdentity(journal, event);
+      if (!remembered.has(id)) remembered.set(id, false);
+    }
+  }
+  function refreshTestingJournals(player) {
+    for (const journal of journalCommits.get(player).journals) {
+      rememberTestingJournal(player, journal.id, journal.pending.filter(event => event[3] === 'unknown'));
+    }
+  }
   let testingModesDirty = true, pendingRestore;
   const retainedReviewRestores = new Set();
   const testing = player => store.getPluginTestingMode?.(player) ?? false;
@@ -79,11 +97,12 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const members = new Set(store.getCalculationSnapshot().members.map(owner => owner.id));
     const restored = pendingRestore === null ? members : pendingRestore;
     for (const player of testingModes.keys()) if (!members.has(player)) {
-      clearTestingCaches(player); testingModes.delete(player);
+      clearTestingCaches(player); testingModes.delete(player); testingJournals.delete(player);
     }
     for (const player of members) {
       const enabled = testing(player), previous = testingModes.get(player);
       testingModes.set(player, enabled);
+      refreshTestingJournals(player);
       if (restored?.has(player)) retainedReviewRestores.add(player);
       // A restore boundary also clears caches when several restores return to
       // the original mode before the next plugin use.
@@ -415,8 +434,17 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         }
       } catch { retained = false; log('Could not commit the item journal acknowledgement; the plugin will retry.'); }
     }
-    if (retained && intentSaved) itemRetentionIssues.delete(player);
-    else itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
+    if (retained && intentSaved) {
+      itemRetentionIssues.delete(player);
+      // Evidence, sidecar acknowledgement and the save's pending copy all
+      // succeeded. Keep identities quarantined, but permit the off-toggle.
+      for (const journal of journalCommits.get(player).journals) {
+        for (const [id] of testingJournals.get(player) ?? []) {
+          const [journalId, event] = id.split(':');
+          if (journalId === journal.id && Number(event) <= journal.committed) testingJournals.get(player).set(id, true);
+        }
+      }
+    } else itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
     itemAcks.set(player, { snapshot: value.snapshot, journal: committed() === undefined ? ack.journal : { id: value.journal.id, event: committed() } });
     const record = records.get('delivery')?.record ?? saved ?? { items: {}, handled: [], journal: null };
     // Journal records reach the review through journalRecords; only a live record joins here.
@@ -643,14 +671,20 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // promote a report that arrived while testing was enabled.
       const testingAtReceipt = testing(credential.player);
       let report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
+      if (report?.items && (testingAtReceipt || testing(credential.player))) {
+        rememberTestingJournal(credential.player, report.items.journal.id, report.items.journal.events);
+      }
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         credentialFor(request); member(credential.player);
         refreshTestingModes(); refreshRetainedReviews();
         void flushHandled();
         if (report) {
-          const quarantined = testingAtReceipt || testing(credential.player);
+          const journal = report.items?.journal;
+          const quarantined = testingAtReceipt || testing(credential.player)
+            || journal?.events.some(([event]) => testingJournals.get(credential.player)?.has(eventIdentity(journal.id, event)));
           if (quarantined) {
+            if (journal) rememberTestingJournal(credential.player, journal.id, journal.events);
             // The plugin's wire format is unchanged. Quarantine observation
             // provenance before any source cache, journal intent or matcher sees it.
             // Unknown cannot be elevated by the synthetic beta-as-live option.
@@ -725,6 +759,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     async setTestingMode(identity, body) {
       fields(body, ['memberId', 'enabled', 'expectedRevision'], 'testing mode'); authorize(identity, body.memberId);
       if (typeof body.enabled !== 'boolean') throw fail(400, 'Turn plugin testing mode on or off.');
+      refreshTestingJournals(body.memberId);
+      if (!body.enabled && [...(testingJournals.get(body.memberId)?.values() ?? [])].some(durable => !durable)) {
+        throw fail(409, 'Testing reports are still being saved; try again shortly');
+      }
       await store.setPluginTestingMode(body.memberId, body.enabled, body.expectedRevision);
       refreshTestingModes(); notify(); return { enabled: testing(body.memberId) };
     },
@@ -825,6 +863,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         await flushHandled(true);
         await Promise.all([keys.close(), handled.close(), itemStore.close(), journalCommits.close(), ...[...journalStores.values()].map(store => store.close())]);
         itemRetentionIssues.clear();
+        testingJournals.clear();
         itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear();
         progressSource.clear(); itemTasks = undefined;
         sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();

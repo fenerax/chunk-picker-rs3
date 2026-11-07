@@ -32,9 +32,12 @@ switch is turned off while its body or queued mutation is waiting. Item journals
 are retained and acknowledged as unknown-world evidence, including events
 labelled `live` by the sender. Quarantine decisions are saved in portable journal
 metadata before optional ledger writes. If that write fails, the request returns
-503 without acknowledging or retaining the event's evidence. Retrying after
-switching off or restarting consults the durable non-live decision, so testing
-events cannot become live evidence. No automatic handled IDs, tick provenance
+503 without acknowledging or retaining the event's evidence. Journal identities
+are remembered before queueing or writing, so retries stay unknown-world even
+after a mode change. Turning testing off returns 409 ("Testing reports are still
+being saved; try again shortly") until the pending quarantine has been saved and
+acknowledged. Restart reconstructs pending quarantine from the save and sidecar;
+the plugin's successful retry releases the switch. No automatic handled IDs, tick provenance
 or History entries are added.
 Existing live evidence also cannot auto-tick while the mode is on.
 

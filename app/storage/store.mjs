@@ -1497,6 +1497,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         if (!current.members.some(member => member.id === player) || typeof enabled !== 'boolean') throw new TypeError('Choose a player and turn testing mode on or off.');
         const next = withPluginTestingMode(current, player, enabled);
         if (next === current) return;
+        if (!enabled && current.provenance?.pluginItemEvidence?.players[player]?.commits.journals
+          .some(journal => journal.pending.some(event => event[3] === 'unknown'))) {
+          // Reconstruct unresolved quarantine from the save and sidecar after
+          // restart. An inherited intent alone is not a completed scope write.
+          const evidence = await exportPluginItemEvidence(directory, id => id, current.provenance.pluginItemEvidence).catch(() => undefined);
+          if (!evidence || evidence.players[player]?.commits.journals.some(journal => journal.pending.some(event => event[3] === 'unknown'))) {
+            throw Object.assign(new Error('Testing reports are still being saved; try again shortly'), { status: 409 });
+          }
+        }
         return persist(inheritStateMetadata(current, next), 'plugin-settings', undefined, false, current, false, undefined, { cleanup: true });
       });
     },

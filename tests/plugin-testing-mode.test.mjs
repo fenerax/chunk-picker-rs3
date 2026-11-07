@@ -113,9 +113,12 @@ async function assertHeldTestingReport(t, phase, body) {
   const inFlight = f.send(body);
   try {
     await Promise.race([hold.entered, inFlight.then(() => { throw new Error('Report completed before the acknowledged hold.'); })]);
-    await f.toggle(false);
+    if (phase === 'beforeMutation' && body.items) {
+      await assert.rejects(f.toggle(false), { status: 409, message: 'Testing reports are still being saved; try again shortly' });
+    } else await f.toggle(false);
   } finally { hold.release(); }
   await inFlight;
+  await f.toggle(false);
   assert.equal(f.store.getPluginTestingMode(player), false);
   assert.deepEqual(f.state().members, before.members);
   assert.deepEqual(f.state().history, before.history);
@@ -165,8 +168,8 @@ test('turning testing mode off and restarting never replays testing journal evid
   assert.deepEqual(f.state().provenance.pluginAutoHandled ?? {}, {});
 });
 
-test('a failed testing journal intent write rejects without evidence and its durable quarantine survives an off-toggle and restart', async t => {
-  const f = await fixture(t);
+test('failed testing journal intents block disabling across restart until a quarantined retry completes', async t => {
+  const f = await fixture(t, { betaAsLive: true });
   await f.toggle(true);
   const before = f.state(), blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
   await mkdir(blocked);
@@ -183,12 +186,20 @@ test('a failed testing journal intent write rejects without evidence and its dur
   assert.deepEqual(retained.records, {});
   assert.deepEqual(retained.commits.journals[0].pending, [[1, itemId, 'Synthetic unacknowledged item', 'unknown']]);
   assertDeclared(backup, []);
+  const stillSaving = { status: 409, message: 'Testing reports are still being saved; try again shortly' };
+  await assert.rejects(f.toggle(false), stillSaving);
+  await assert.rejects(f.store.setPluginTestingMode(player, false, f.store.getInfo().revision), stillSaving);
   await f.restart();
-  await f.store.replace(backup, f.store.getInfo().revision);
+  assert.equal(f.store.getPluginTestingMode(player), true);
+  await assert.rejects(f.toggle(false), stillSaving);
+  await assert.rejects(f.store.setPluginTestingMode(player, false, f.store.getInfo().revision), stillSaving);
   await rmdir(blocked);
-  await f.toggle(false); await f.restart();
+  await assert.rejects(f.toggle(false), stillSaving);
+  await assert.rejects(f.store.setPluginTestingMode(player, false, f.store.getInfo().revision), stillSaving);
+  await f.store.replace(backup, f.store.getInfo().revision);
+  await assert.rejects(f.toggle(false), stillSaving);
   const beforeRetry = f.state();
-  const reply = await f.send({ items: { ...report.items, backpack: [[0, 995, 123, 'Synthetic coins']] } });
+  const reply = await f.send({ items: { ...report.items, backpack: [[0, 995, 999, 'Synthetic coins']] } });
   assert.equal(reply.items.journal.event, 1);
   assert.deepEqual(f.state().members, beforeRetry.members);
   assert.deepEqual(f.state().history, beforeRetry.history);
@@ -198,9 +209,17 @@ test('a failed testing journal intent write rejects without evidence and its dur
   assert.ok(evidence.records.unknown.items[itemId]);
   assert.deepEqual(evidence.commits.journals[0].pending, []);
   assert.deepEqual(f.state().provenance.pluginItemEvidence.players[player].commits.journals[0].pending, []);
+  await f.toggle(false);
+  await f.send({ items: { ...report.items, backpack: [[0, 995, 999, 'Synthetic coins']] } });
+  assert.deepEqual(f.state().members, beforeRetry.members, 'A remembered testing identity quarantines the entire retry after switching off');
+  assert.deepEqual(f.state().history, beforeRetry.history);
+  await f.send({ items: items([[2, itemId, 'Synthetic fresh live item', 'live']], [[0, 995, 456, 'Synthetic coins']]) });
+  assert.deepEqual(f.state().members[0].completedTasks, [goal]);
+  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456);
+  assert.equal(f.state().history.length, 2);
 });
 
-test('failed testing journal retention leaves only non-live pending events which drain safely after switching off', async t => {
+test('failed testing journal retention blocks switching off until non-live pending events drain', async t => {
   const f = await fixture(t);
   await f.toggle(true);
   const blocked = path.join(f.dataDir, 'plugin-item-journal-unknown.json');
@@ -210,8 +229,11 @@ test('failed testing journal retention leaves only non-live pending events which
   const pending = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-item-journal-commits.json'), 'utf8'));
   assert.equal(pending.players[player].journals[0].pending[0][3], 'unknown');
   await rmdir(blocked);
-  await f.toggle(false); await f.restart();
+  await assert.rejects(f.toggle(false), { status: 409 });
+  await f.restart();
+  await assert.rejects(f.toggle(false), { status: 409 });
   await f.send({ items: items([[1, itemId, 'Synthetic pending item', 'live']], [[0, 995, 123, 'Synthetic coins']]) });
+  await f.toggle(false);
   assert.deepEqual(f.state().members[0].completedTasks, []);
   assert.deepEqual(f.state().history, []);
   const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
