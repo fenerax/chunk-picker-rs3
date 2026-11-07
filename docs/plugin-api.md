@@ -27,10 +27,15 @@ capabilities are unchanged. The plugin's own beta checkbox may still say live.
 While testing mode is on, every incoming observation is treated as non-live,
 even `world.beta: false`. Achievement and item matches use the existing
 unknown-world review path and cannot tick automatically or be applied while
-the mode is on. Item journals are retained and acknowledged as unknown-world
-evidence, including events labelled `live` by the sender. Failed journal writes
-leave only non-live pending payloads, so retrying after testing cannot promote
-them. No automatic handled IDs, tick provenance or History entries are added.
+the mode is on. A report received during testing stays non-live even if the
+switch is turned off while its body or queued mutation is waiting. Item journals
+are retained and acknowledged as unknown-world evidence, including events
+labelled `live` by the sender. Quarantine decisions are saved in portable journal
+metadata before optional ledger writes. If that write fails, the request returns
+503 without acknowledging or retaining the event's evidence. Retrying after
+switching off or restarting consults the durable non-live decision, so testing
+events cannot become live evidence. No automatic handled IDs, tick provenance
+or History entries are added.
 Existing live evidence also cannot auto-tick while the mode is on.
 
 Levels/XP and quests are excluded from both proposals and the plugin source

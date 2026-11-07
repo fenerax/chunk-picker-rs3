@@ -1480,6 +1480,17 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     getAccessToken: () => token,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     isPluginHandled: (player, kind, id) => hasPluginHandled(current, player, kind, id),
+    retainPluginJournalCommits(player, commits) {
+      const value = structuredClone(commits);
+      return enqueue(async () => {
+        if (!current.members.some(member => member.id === player)) throw new TypeError('Choose a player for the journal.');
+        const evidence = mergePluginItemEvidence(current.provenance?.pluginItemEvidence,
+          { v: 1, players: { [player]: { records: {}, commits: value } } });
+        if (isDeepStrictEqual(evidence, current.provenance?.pluginItemEvidence)) return;
+        const next = inheritStateMetadata(current, retainPluginItemEvidence(current, evidence));
+        return persist(next, 'plugin-item-intent', undefined, false, current, false, undefined, { cleanup: true });
+      });
+    },
     setPluginTestingMode(player, enabled, expectedRevision) {
       return enqueue(async () => {
         checkRevision(expectedRevision);

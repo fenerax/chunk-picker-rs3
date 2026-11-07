@@ -26,7 +26,7 @@ const tasks = [{ id: 'synthetic-diary', category: 'Diary', label: '~|Synthetic#E
 const achievement = (part = 1, parts = 1) => ({ snapshot, part, parts, complete: part === 1 ? [[1, 'Synthetic achievement', 0, 0]] : [] });
 const items = (events = [], backpack = []) => ({ snapshot, worn: [], backpack, pouch: [], journal: { id: journalId, events } });
 
-async function fixture(t, { betaAsLive = false } = {}) {
+async function fixture(t, { betaAsLive = false, beforeBody = async () => {}, beforeMutation = async () => {} } = {}) {
   let store, controller, input, output, seq = 0;
   const close = async () => { try { await controller?.close(); } finally { await store?.close(); } };
   // Hooks run in registration order: close writers before scratch removes files.
@@ -43,7 +43,8 @@ async function fixture(t, { betaAsLive = false } = {}) {
     controller = await openGamePlugin({ dataDir, store, world: { chunks: new Map() }, registry: { resolve: () => ({}) },
       questMapping: new Map([['synthetic quest', [{ taskId: 'synthetic-quest', label: 'Synthetic quest' }]]]),
       taskCatalogue: () => tasks, clock: () => now, itemsBetaAsLive: betaAsLive,
-      serializeMutation: operation => operation(), bodyJSON: async () => input,
+      serializeMutation: async operation => { await beforeMutation(); return operation(); },
+      bodyJSON: async () => { await beforeBody(); return input; },
       json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; },
       checkRequestOrigin() {}, log() {},
     });
@@ -56,6 +57,10 @@ async function fixture(t, { betaAsLive = false } = {}) {
     restart: async () => { await close(); await start(); },
     toggle: (enabled, identity = { memberId: player }, memberId = player) => controller.setTestingMode(identity,
       { memberId, enabled, expectedRevision: store.getInfo().revision }),
+    async status() {
+      const request = { method: 'GET', url: '/api/plugin/v1/status', headers: { authorization: `Bearer ${credentials[player]}` } };
+      await controller.handle(request, {}, { route: request.url, security: {} }); return output;
+    },
     async send(body = {}, memberId = player) {
       now += 1001;
       input = { v: 1, seq: ++seq, sentAt: new Date(now).toISOString(), world: { id: 1, beta: false }, position: { x: 50, z: 50, floor: 0 }, ...body };
@@ -77,7 +82,7 @@ test('testing mode quarantines live achievements, containers, toolbelt, bank and
   assert.deepEqual(after.members, before.members);
   assert.deepEqual(after.history, before.history);
   assert.equal(after.revision, before.revision);
-  assert.equal(after.provenance.pluginAutoHandled, undefined);
+  assert.deepEqual(after.provenance.pluginAutoHandled ?? {}, {});
   assert.equal(f.controller.progressSnapshot(after.members[0]), null);
   const review = f.controller.review(admin, player);
   assert.equal(review.achievements[0].world, 'unknown');
@@ -91,6 +96,53 @@ test('testing mode quarantines live achievements, containers, toolbelt, bank and
   assert.deepEqual(evidence.commits.journals, [{ id: journalId, committed: 1, pending: [] }]);
   await assert.rejects(readFile(path.join(f.dataDir, 'plugin-achievements.json')), { code: 'ENOENT' });
   assertDeclared(backup, []);
+});
+
+function acknowledgedHold() {
+  const entered = Promise.withResolvers(), released = Promise.withResolvers();
+  return { entered: entered.promise, release: released.resolve,
+    wait: () => { entered.resolve(); return released.promise; } };
+}
+
+async function assertHeldTestingReport(t, phase, body) {
+  const hold = acknowledgedHold();
+  const f = await fixture(t, { [phase]: hold.wait });
+  await f.toggle(true);
+  const before = f.state();
+  const inFlight = f.send(body);
+  try {
+    await Promise.race([hold.entered, inFlight.then(() => { throw new Error('Report completed before the acknowledged hold.'); })]);
+    await f.toggle(false);
+  } finally { hold.release(); }
+  await inFlight;
+  assert.equal(f.store.getPluginTestingMode(player), false);
+  assert.deepEqual(f.state().members, before.members);
+  assert.deepEqual(f.state().history, before.history);
+  assert.deepEqual(f.state().provenance.pluginAutoHandled ?? {}, {});
+  assert.equal(f.controller.progressSnapshot(f.state().members[0]), null);
+  const evidence = (await f.store.backup()).optionalSidecarEvidence?.entries.pluginItems?.players[player];
+  assert.equal(evidence?.records.live, undefined);
+  if (body.items) {
+    assert.ok(evidence.records.unknown.items[itemId]);
+    assert.deepEqual(evidence.records.unknown.handled, []);
+    assert.deepEqual(evidence.commits.journals, [{ id: journalId, committed: 1, pending: [] }]);
+  }
+}
+
+test('a testing report held during body parsing stays quarantined after switching off', async t => {
+  await assertHeldTestingReport(t, 'beforeBody', { achievements: achievement() });
+  await assertHeldTestingReport(t, 'beforeBody', { items: items([[1, itemId, 'Synthetic held journal', 'live']],
+    [[0, itemId, 1, 'Synthetic item'], [1, 995, 999, 'Synthetic coins']]) });
+  await assertHeldTestingReport(t, 'beforeBody', { bank: { snapshot, part: 1, parts: 1, age: 0, rows: [[itemId, 1], [995, 1000]] } });
+  await assertHeldTestingReport(t, 'beforeBody', { skills: { ATTACK: { level: 50, xp: 101333 } }, quests: { finished: ['Synthetic quest'], started: [] } });
+});
+
+test('a testing report held in the mutation queue stays quarantined after switching off', async t => {
+  await assertHeldTestingReport(t, 'beforeMutation', { achievements: achievement() });
+  await assertHeldTestingReport(t, 'beforeMutation', { items: items([[1, itemId, 'Synthetic held journal', 'live']],
+    [[0, itemId, 1, 'Synthetic item'], [1, 995, 999, 'Synthetic coins']]) });
+  await assertHeldTestingReport(t, 'beforeMutation', { bank: { snapshot, part: 1, parts: 1, age: 0, rows: [[itemId, 1], [995, 1000]] } });
+  await assertHeldTestingReport(t, 'beforeMutation', { skills: { ATTACK: { level: 50, xp: 101333 } }, quests: { finished: ['Synthetic quest'], started: [] } });
 });
 
 test('turning testing mode off and restarting never replays testing journal evidence or incomplete assemblies', async t => {
@@ -109,7 +161,42 @@ test('turning testing mode off and restarting never replays testing journal evid
   const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
   assert.deepEqual(evidence.records.live?.items ?? {}, {});
   assert.ok(evidence.records.unknown.items[itemId]);
-  assert.equal(f.state().provenance.pluginAutoHandled, undefined);
+  assert.deepEqual(f.state().provenance.pluginAutoHandled ?? {}, {});
+});
+
+test('a failed testing journal intent write rejects without evidence and its durable quarantine survives an off-toggle and restart', async t => {
+  const f = await fixture(t);
+  await f.toggle(true);
+  const before = f.state(), blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
+  await mkdir(blocked);
+  const report = { items: items([[1, itemId, 'Synthetic unacknowledged item', 'live']]) };
+  await assert.rejects(f.send(report), { status: 503 });
+  assert.deepEqual(f.state().members, before.members);
+  assert.deepEqual(f.state().history, before.history);
+  assert.equal(f.controller.review(admin, player).preview, null);
+  assert.equal((await f.status()).items?.journal?.event ?? 0, 0);
+  await assert.rejects(readFile(path.join(f.dataDir, 'plugin-item-journal-unknown.json')), { code: 'ENOENT' });
+  await assert.rejects(readFile(path.join(f.dataDir, 'plugin-items.json')), { code: 'ENOENT' });
+  const backup = await f.store.backup();
+  const retained = backup.state.provenance.pluginItemEvidence.players[player];
+  assert.deepEqual(retained.records, {});
+  assert.deepEqual(retained.commits.journals[0].pending, [[1, itemId, 'Synthetic unacknowledged item', 'unknown']]);
+  assertDeclared(backup, []);
+  await f.restart();
+  await f.store.replace(backup, f.store.getInfo().revision);
+  await rmdir(blocked);
+  await f.toggle(false); await f.restart();
+  const beforeRetry = f.state();
+  const reply = await f.send({ items: { ...report.items, backpack: [[0, 995, 123, 'Synthetic coins']] } });
+  assert.equal(reply.items.journal.event, 1);
+  assert.deepEqual(f.state().members, beforeRetry.members);
+  assert.deepEqual(f.state().history, beforeRetry.history);
+  assert.deepEqual(f.state().provenance.pluginAutoHandled ?? {}, {});
+  const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
+  assert.deepEqual(evidence.records.live?.items ?? {}, {});
+  assert.ok(evidence.records.unknown.items[itemId]);
+  assert.deepEqual(evidence.commits.journals[0].pending, []);
+  assert.deepEqual(f.state().provenance.pluginItemEvidence.players[player].commits.journals[0].pending, []);
 });
 
 test('failed testing journal retention leaves only non-live pending events which drain safely after switching off', async t => {
@@ -154,7 +241,9 @@ test('mode is per-player, defaults off, and mode off retains live ticks, currenc
 });
 
 test('testing mode also blocks automatic matches from previously retained live evidence', async t => {
-  const f = await fixture(t);
+  const hold = acknowledgedHold();
+  let holdNext = false;
+  const f = await fixture(t, { beforeMutation: () => holdNext ? hold.wait() : undefined });
   await f.close();
   const records = await openPluginItems({ dataDir: f.dataDir, members: () => f.state().members });
   try { await records.put(player, { baselineAt: at, items: { [itemId]: { name: 'Synthetic retained item', ownedAt: at, wornAt: null, first: true } }, handled: [], journal: null }); }
@@ -163,6 +252,13 @@ test('testing mode also blocks automatic matches from previously retained live e
   const before = f.state();
   await f.send({ items: items() });
   await f.send({ bank: { snapshot, part: 1, parts: 1, age: 0, rows: [] } });
+  assert.deepEqual(f.state().members, before.members);
+  assert.deepEqual(f.state().history, before.history);
+  holdNext = true;
+  const inFlight = f.send({ items: items() });
+  try { await hold.entered; await f.toggle(false); }
+  finally { hold.release(); }
+  await inFlight;
   assert.deepEqual(f.state().members, before.members);
   assert.deepEqual(f.state().history, before.history);
 });
@@ -218,7 +314,7 @@ test('the exact frozen runtime preserves testing metadata, chunks, ticks, Histor
     const undone = await old.command({ type: 'undo' }, loaded.revision);
     assert.deepEqual(undone.members[0].unlocked, ['100']);
     assert.deepEqual(undone.members[0].completedTasks, ['synthetic-diary']);
-    assert.equal(undone.members[0].notes['100'], undefined);
+    assert.equal(undone.members[0].notes?.['100'], undefined);
     assert.equal(pluginTestingMode(frozen.core.importBackup(frozen.core.exportBackup(undone)), player), true);
   } finally { await old.close(); }
 });
