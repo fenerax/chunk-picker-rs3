@@ -33,7 +33,8 @@ test('verified uncovered ocean replaces legacy water in overview and clipped nat
   assert.deepEqual(clip.fills, [{ colour: 'rgb(96,118,154)', args: [10, 20, 128, 128] }]);
   terrain.nativePages.add('0,0');
   const page = terrain.nativePage('0,0');
-  assert.deepEqual(page.colour.fills, [{ colour: 'rgb(96,118,154)', args: [0, 0, 256, 256] }]);
+  assert.deepEqual(page.colour.fills, [], 'An unloaded native region leaves the current ocean/terrain mip visible');
+  assert.equal(page.nativeKeys.size, 0);
 });
 
 test('cache surface presence including empty floors and any legacy land classification veto ocean fill', t => {
@@ -70,7 +71,9 @@ test('exhausted community failure in proven ocean publishes flat water while pro
   assert.deepEqual(terrain.previews.get('29,71').fills[0], { colour: 'rgb(96,118,154)', args: [0, 0, 64, 64] });
   assert.equal(terrain.previews.has('30,71'), false);
   assert.ok(terrain.committedKeys.has('29,71'));
-  assert.deepEqual(terrain.pages.get('0,0').colour.fills[0].args, [0, 0, 256, 256]);
+  assert.deepEqual(terrain.pages.get('0,0').colour.fills, [], 'Failed native slots cannot mask the current mip');
+  const published = terrain.levels.get(0.5).colour.calls.at(-1)[0];
+  assert.ok(published.calls.some(args => args[0] === terrain.previews.get('29,71')), 'The water preview publishes through the mip underlay');
 });
 
 test('community terrain wins, cache terrain fills missing slots, then the old image covers failures', () => {
@@ -581,7 +584,7 @@ test('overview arrivals and new native keys refresh a previously cached page ato
   assert.notEqual(refreshed, original);
   assert.equal(original.colour.width, 0);
   assert.ok(refreshed.nativeKeys.has('30,71'));
-  assert.ok(refreshed.colour.calls.some(args => args[0] === terrain.previews.get('30,71')));
+  assert.ok(!refreshed.colour.calls.some(args => args[0] === terrain.previews.get('30,71')), 'Native pages leave overview-only regions to the current mip');
   assert.ok(refreshed.colour.calls.some(args => args[0] === images.at(-1)));
   assert.equal(changes.length, 1);
 });

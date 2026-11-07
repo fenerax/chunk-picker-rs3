@@ -10,6 +10,47 @@ import { ART_BINDINGS, artBinding } from '../app/art-bindings.mjs';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+
+async function terrainPackFixture(t) {
+  const options=await fixture(t), root=path.join(options.temp,'terrain');
+  const directory='terrain.optimized-2026-10-08-0123456789abcdef', manifestPath=`${directory}/manifest.json`;
+  const pageBytes=png,page={x:0,y:0,path:`${directory}/overview/0_0.png`,bytes:pageBytes.length,sha256:hash(pageBytes)};
+  const bytes=Buffer.from(JSON.stringify({directory,pages:[page],oceanColour:[96,118,154],provenance:{grid:{columns:1,rows:1}}}));
+  await mkdir(path.join(root,directory,'overview'),{recursive:true});
+  await writeFile(path.join(root,page.path),pageBytes);await writeFile(path.join(root,manifestPath),bytes);
+  const buildOptions={...options,terrainAssetsDir:root,nestedManifestPaths:[manifestPath]};
+  const webp=Buffer.from('524946461a000000574542505650384c0d0000002f00000010071011118888fe0700','hex');
+  const coarse={path:`${directory}/coarse-${hash(webp).slice(0,16)}.webp`,bytes:webp.length,sha256:hash(webp),width:1,height:1,scale:.0625};
+  const sidecar=path.join(root,directory,'coarse-descriptor.json');
+  return {options,root,directory,manifestPath,bytes,buildOptions,webp,coarse,sidecar};
+}
+
+test('optimized packs copy a supplied companion and its manifest byte-identically', async t => {
+  const {options,root,directory,manifestPath,bytes,buildOptions,webp,coarse,sidecar}=await terrainPackFixture(t);
+  await writeFile(path.join(root,coarse.path),webp);
+  const companionBytes=Buffer.from(JSON.stringify({sourceManifestSha256:hash(bytes),coarseOverview:coarse})+'\r\n');
+  await writeFile(sidecar,companionBytes);
+  const supplied=await buildArtPack(buildOptions),provider=await loadArtPack(options);
+  assert.deepEqual(await readFile(await provider.file('terrainAssets',manifestPath)),bytes);
+  assert.deepEqual(await readFile(await provider.file('terrainAssets',coarse.path)),webp);
+  assert.deepEqual(await readFile(await provider.file('terrainAssets',`${directory}/coarse-descriptor.json`)),companionBytes);
+  assert.equal(JSON.parse(await readFile(path.join(supplied.directory,'provenance.json'))).method,'byte-preserving-copy');
+  assert.ok(supplied.manifest.files.some(file=>file.path.endsWith('/coarse-descriptor.json')));
+  await writeFile(sidecar,JSON.stringify({sourceManifestSha256:'0'.repeat(64),coarseOverview:coarse}));
+  await assert.rejects(buildArtPack({...buildOptions,version:'1.0.1'}),/companion source mismatch/);
+  assert.equal((await loadArtPack(options)).status().version,'1.0.0');
+});
+
+test('optimized packs without a companion build without generating one', async t => {
+  const {options,root,directory,manifestPath,bytes,buildOptions,coarse,sidecar}=await terrainPackFixture(t);
+  const built=await buildArtPack(buildOptions),provider=await loadArtPack(options);
+  assert.deepEqual(await readFile(await provider.file('terrainAssets',manifestPath)),bytes);
+  assert.equal(await provider.file('terrainAssets',coarse.path),null);
+  assert.equal(await provider.file('terrainAssets',`${directory}/coarse-descriptor.json`),null);
+  assert.equal(built.manifest.files.some(file=>file.path.includes('/coarse-')),false);
+  await assert.rejects(readFile(sidecar),{code:'ENOENT'});
+  assert.deepEqual(await readFile(path.join(root,manifestPath)),bytes,'Source export stays unchanged');
+});
 test('safe files reject linked ancestors above the supplied root and wrong path types', async t => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'picker-safe-path-'));
   t.after(() => rm(directory, { recursive: true, force: true }));

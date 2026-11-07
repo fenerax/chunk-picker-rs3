@@ -2,6 +2,7 @@
 import importlib.util
 import io
 import json
+import shutil
 from pathlib import Path
 import sys
 import tempfile
@@ -14,6 +15,9 @@ sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location("terrain_exporter", REPO / "scripts/build-terrain-assets.py")
 exporter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(exporter)
+coarse_spec = importlib.util.spec_from_file_location("terrain_underlay", REPO / "scripts/build-terrain-underlay.py")
+underlay = importlib.util.module_from_spec(coarse_spec)
+coarse_spec.loader.exec_module(underlay)
 
 
 class TerrainExporterTests(unittest.TestCase):
@@ -66,10 +70,18 @@ class TerrainExporterTests(unittest.TestCase):
         descriptor = json.loads((bundle_path.parent / "descriptor.json").read_bytes())
         self.assertEqual(descriptor["manifestSha256"], exporter.digest(bundle_path.read_bytes()))
         self.assertEqual(bundle["provenance"]["inputs"][0]["sha256"], tile["sha256"])
-        for entry in bundle["tiles"] + bundle["pages"]:
+        for entry in bundle["tiles"] + bundle["pages"] + [bundle["coarseOverview"]]:
             data = (output / entry["path"]).read_bytes()
             self.assertEqual(entry["sha256"], exporter.digest(data))
             self.assertEqual(entry["bytes"], len(data))
+        coarse = bundle["coarseOverview"]
+        self.assertEqual((coarse["width"], coarse["height"], coarse["scale"]), (8, 8, 0.0625))
+        with Image.open(output / coarse["path"]) as decoded_coarse:
+            self.assertEqual(decoded_coarse.size, (8, 8))
+        separate = underlay.build(output, str(bundle_path.relative_to(output)), self.root / "separate-underlay")
+        self.assertEqual(separate["coarseOverview"], coarse)
+        self.assertEqual(bundle["provenance"]["underlayExporterSha256"],
+                         exporter.digest((REPO / "scripts/build-terrain-underlay.py").read_bytes()))
         page = Image.open(output / bundle["pages"][0]["path"]).convert("RGBA")
         self.assertEqual(page.getpixel((128, 128)), (0, 0, 0, 0))
         self.assertEqual(page.getpixel((63, 20))[3], 0)
@@ -78,6 +90,32 @@ class TerrainExporterTests(unittest.TestCase):
         self.assertEqual(native.tobytes(), source.tobytes())
         with self.assertRaises(FileExistsError):
             exporter.build(self.root, manifest_data, manifest, (29, 71, 1, 1), output)
+
+    def test_compact_underlay_uses_verified_pages_at_smallest_mip_density(self):
+        directory = "terrain.optimized-fixture-0123456789ab"
+        page = self.source(f"{directory}/overview/0_0.webp", Image.new("RGBA", (256, 256), (120, 60, 10, 255)))
+        page.update(x=0, y=0)
+        bundle = {"directory": directory, "oceanColour": [96, 118, 154], "pages": [page],
+                  "provenance": {"grid": {"columns": 1, "rows": 1}}}
+        manifest_path = f"{directory}/manifest.json"
+        data = exporter.json_bytes(bundle)
+        (self.root / manifest_path).write_bytes(data)
+        output = self.root.parent / (self.root.name + "-coarse")
+        output.mkdir()
+        self.addCleanup(lambda: shutil.rmtree(output))
+        descriptor = underlay.build(self.root, manifest_path, output)
+        self.assertEqual(json.loads((output / directory / "coarse-descriptor.json").read_text()), descriptor)
+        coarse = descriptor["coarseOverview"]
+        self.assertEqual(descriptor["sourceManifestSha256"], exporter.digest(data))
+        self.assertEqual((coarse["width"], coarse["height"], coarse["scale"]), (8, 8, 0.0625))
+        encoded = (output / coarse["path"]).read_bytes()
+        self.assertEqual((coarse["bytes"], coarse["sha256"]), (len(encoded), exporter.digest(encoded)))
+        self.assertEqual(Image.open(io.BytesIO(encoded)).getpixel((7, 7)), (120, 60, 10))
+        with self.assertRaises(FileExistsError):
+            underlay.build(self.root, manifest_path, output)
+        (self.root / page["path"]).write_bytes(b"altered")
+        with self.assertRaisesRegex(ValueError, "integrity mismatch"):
+            underlay.build(self.root, manifest_path, output)
 
 
 if __name__ == "__main__":

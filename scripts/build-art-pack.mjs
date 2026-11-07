@@ -114,7 +114,7 @@ export async function buildArtPack({ sourceRoot = defaultSource, packsDir, versi
     try { await copy(binding.component, binding.relative); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     selectedBindings.push({ route, component: binding.component, relative: binding.relative });
   }
-  const manifestPaths = new Set([TERRAIN_BUNDLE.manifestPath, ...ICON_BUNDLES.map(bundle => `icons-${bundle.kind}.${bundle.version}/manifest.json`), ...nestedManifestPaths]);
+  const manifestPaths = new Set([TERRAIN_BUNDLE?.manifestPath, ...ICON_BUNDLES.map(bundle => `icons-${bundle.kind}.${bundle.version}/manifest.json`), ...nestedManifestPaths].filter(Boolean));
   const interiorDescriptors = new Map();
   // The committed current interior descriptor remains owned by the legacy data
   // provider in milestone 1. Read its path only; never package its topology.
@@ -161,6 +161,19 @@ export async function buildArtPack({ sourceRoot = defaultSource, packsDir, versi
       for (const [key, child] of Object.entries(value)) if (!['raw', 'sources', 'inputs', 'baseManifest', 'provenance'].includes(key)) collect(child);
     }
     collect(manifest);
+    // Old immutable exports may have an offline-produced companion. Copy its
+    // exact bytes when present; packaging never generates or requires artwork.
+    if (/^terrain\.optimized-[a-zA-Z0-9_-]+$/.test(manifest.directory ?? '') && Array.isArray(manifest.pages) && !manifest.coarseOverview) {
+      const descriptorPath = `${manifest.directory}/coarse-descriptor.json`;
+      let companion;
+      try { companion = JSON.parse(await readFile(await sourceFile(entry.source, descriptorPath), 'utf8')); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (companion) {
+        if (companion.sourceManifestSha256 !== await hashFile(filename)) throw new TypeError('Terrain companion source mismatch.');
+        await copy(component, descriptorPath);
+        await copy(component, companion.coarseOverview.path, companion.coarseOverview);
+      }
+    }
     for (const [relativeArt, record] of records) {
       try { await copy(component, relativeArt, record); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }

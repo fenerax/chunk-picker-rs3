@@ -7,8 +7,12 @@ import json
 import math
 from pathlib import Path
 import re
+import runpy
 
 from PIL import Image, ImageDraw, features, __version__ as pillow_version
+
+UNDERLAY_SCRIPT = Path(__file__).with_name("build-terrain-underlay.py")
+write_underlay = runpy.run_path(str(UNDERLAY_SCRIPT))["write_underlay"]
 
 
 def digest(data):
@@ -154,6 +158,7 @@ def build(root, manifest_data, manifest, bounds, output):
             selected[(x, y)] = (image, source)
     provenance = {"sourceManifestSha256": digest(manifest_data), "pillow": pillow_version,
                   "libwebp": features.version("webp"), "exporterSha256": digest(Path(__file__).read_bytes()),
+                  "underlayExporterSha256": digest(UNDERLAY_SCRIPT.read_bytes()),
                   "grid": {"minRegionX": min_x, "maxRegionY": max_y, "columns": columns, "rows": rows},
                   "encoder": {"format": "WebP", "lossless": True, "quality": 80, "method": 4, "exact": True,
                               "qualityMeaning": "compression effort; decoded RGBA remains exact"},
@@ -193,6 +198,7 @@ def build(root, manifest_data, manifest, bounds, output):
               "iconFree": True, "layoutComplete": True, "transparentWater": True,
               "directory": directory, "oceanColour": ocean, "tiles": tiles, "pages": pages,
               "provenance": provenance}
+    bundle["coarseOverview"] = write_underlay(output, bundle, output)
     data = json_bytes(bundle)
     # Publishing the manifest last makes partial output unavailable to the server.
     (target / "manifest.json").write_bytes(data)

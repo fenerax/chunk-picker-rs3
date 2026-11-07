@@ -37,14 +37,18 @@ const nativePath = `${directoryName}/native/0_${minX}_${maxY}.webp`;
 const nativeRoute = `/assets/map/${nativePath}`;
 const pagePath = `${directoryName}/overview/0_0.webp`;
 const pageRoute = `/assets/map/${pagePath}`;
+const coarseFile = { path: `${directoryName}/coarse-${sha256(imageBytes).slice(0, 16)}.webp`,
+  bytes: imageBytes.length, sha256: sha256(imageBytes), width: SURFACE_GRID.columns * 8, height: SURFACE_GRID.rows * 8, scale: 0.0625 };
+const coarseRoute = `/assets/map/${coarseFile.path}`;
 
-async function fixture(t, { installed = true, corrupt = false, malformed = false, stale = false } = {}) {
+async function fixture(t, { installed = true, corrupt = false, malformed = false, stale = false, companion = false, staleCompanion = false } = {}) {
   await mkdir(root, { recursive: true });
   const directory = await mkdtemp(path.join(root, 'test-terrain-assets-'));
   const mapAssetsDir = path.join(directory, 'original'), terrainAssetsDir = path.join(directory, 'optimized');
   await mkdir(mapAssetsDir);
   await writeFile(path.join(mapAssetsDir, 'manifest.json'), stale ? '{}' : sourceBytes);
   const bundle = bundleFixture();
+  if (!companion) bundle.coarseOverview = coarseFile;
   if (malformed) bundle.pages[0].regions.pop();
   const manifestBytes = Buffer.from(JSON.stringify(bundle));
   const terrainBundle = { directory: directoryName, manifestPath: `${directoryName}/manifest.json`, manifestSha256: sha256(manifestBytes) };
@@ -54,6 +58,9 @@ async function fixture(t, { installed = true, corrupt = false, malformed = false
     await writeFile(path.join(terrainAssetsDir, terrainBundle.manifestPath), corrupt ? '{}' : manifestBytes);
     await writeFile(path.join(terrainAssetsDir, nativePath), imageBytes);
     await writeFile(path.join(terrainAssetsDir, pagePath), imageBytes);
+    await writeFile(path.join(terrainAssetsDir, coarseFile.path), imageBytes);
+    if (companion) await writeFile(path.join(terrainAssetsDir, directoryName, 'coarse-descriptor.json'), JSON.stringify({
+      sourceManifestSha256: staleCompanion ? '0'.repeat(64) : terrainBundle.manifestSha256, coarseOverview: coarseFile }));
     await writeFile(path.join(terrainAssetsDir, directoryName, 'private.json'), 'private');
   }
   const app = await createServer({ dataDir: path.join(directory, 'state'), mapAssetsDir, terrainAssetsDir, terrainBundle,
@@ -74,9 +81,17 @@ async function fixture(t, { installed = true, corrupt = false, malformed = false
   return { app, origin, get, raw, directory, terrainAssetsDir, terrainBundle };
 }
 
+test('immutable exports use the packaged source-bound coarse companion', async t => {
+  const { get }=await fixture(t,{companion:true});
+  assert.deepEqual((await (await get(TERRAIN_MANIFEST_PATH)).json()).coarseOverview,coarseFile);
+  assert.equal((await get(coarseRoute)).status,200);
+  const stale=await fixture(t,{companion:true,staleCompanion:true});
+  assert.equal((await (await stale.get(TERRAIN_MANIFEST_PATH)).json()).available,false);
+});
+
 test('optimized manifest, native and overview files use authentication before conditional/HEAD responses', async t => {
   const { origin, get } = await fixture(t);
-  for (const route of [TERRAIN_MANIFEST_PATH, nativeRoute, pageRoute]) {
+  for (const route of [TERRAIN_MANIFEST_PATH, nativeRoute, pageRoute, coarseRoute]) {
     const response = await get(route);
     assert.equal(response.status, 200);
     const etag = response.headers.get('etag');
@@ -92,6 +107,7 @@ test('optimized manifest, native and overview files use authentication before co
   const payload = await manifest.json();
   assert.equal(payload.available, true); assert.equal(payload.tiles.length, 2350); assert.equal(payload.pages.length, 156);
   assert.equal(payload.provenance, undefined, 'large offline provenance is separate from the browser manifest');
+  assert.deepEqual(payload.coarseOverview, coarseFile);
   const native = await get(nativeRoute);
   assert.equal(native.headers.get('content-type'), 'image/webp');
   assert.equal(native.headers.get('cache-control'), 'private, max-age=31536000, immutable');
@@ -118,7 +134,7 @@ test('revoked invitation sessions cannot revalidate optimized terrain or fetch H
   assert.equal(joined.status, 303);
   const cookie = joined.headers.get('set-cookie').split(';')[0];
   const etags = new Map();
-  for (const route of [TERRAIN_MANIFEST_PATH, nativeRoute, pageRoute]) {
+  for (const route of [TERRAIN_MANIFEST_PATH, nativeRoute, pageRoute, coarseRoute]) {
     const response = await fetch(`${origin}${route}`, { headers: { cookie } });
     assert.equal(response.status, 200); etags.set(route, response.headers.get('etag'));
   }
@@ -162,4 +178,20 @@ test('terrain catalogue enforces exact crop/page coverage, dimensions, hashes an
   }
   assert.throws(() => createTerrainAssetCatalogue(bundle, { ...descriptor, manifestPath: '../manifest.json' }), TypeError);
   assert.throws(() => createTerrainAssetCatalogue(bundle, { ...descriptor, directory: 'terrain.optimized-2026-10-08' }), TypeError);
+  const compact = { ...bundle, coarseOverview: coarseFile };
+  assert.equal(createTerrainAssetCatalogue(compact, descriptor).files.get(coarseRoute).bytes, imageBytes.length);
+  for (const change of [{ width: 1 }, { height: 1 }, { scale: 0.125 }, { bytes: 524289 }, { bytes: 0 },
+    { sha256: 'invalid' }, { path: `${directoryName}/../coarse-${sha256(imageBytes).slice(0,16)}.webp` }]) {
+    assert.throws(() => createTerrainAssetCatalogue({ ...compact, coarseOverview: { ...coarseFile, ...change } }, descriptor), TypeError);
+  }
+});
+
+test('coarse underlay integrity is checked before cached HEAD and conditional responses', async t => {
+  const { get, terrainAssetsDir } = await fixture(t);
+  const response = await get(coarseRoute), etag = response.headers.get('etag');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'private, max-age=31536000, immutable');
+  await writeFile(path.join(terrainAssetsDir, coarseFile.path), 'changed underlay');
+  assert.equal((await get(coarseRoute, { method: 'HEAD' })).status, 404);
+  assert.equal((await get(coarseRoute, { headers: { 'if-none-match': etag } })).status, 404);
 });

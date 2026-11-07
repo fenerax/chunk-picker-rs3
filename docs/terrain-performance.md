@@ -42,12 +42,134 @@ compressed; the full installed manifest remains the audit record.
 
 ## Loading and fallback
 
-Only intersecting overview pages are requested. The loader starts nearest the
-viewport centre, shares a six-request cap across overview and native images,
-and cancels requests and queued work made unnecessary by pan/zoom. Decode
+Visible demand starts nearest the viewport centre and shares a six-request cap
+across overview and native images. Requests and queued work made unnecessary
+by pan/zoom are cancelled. Decode
 callbacks check request identity before publishing. Native pages remain bounded;
 other visible regions use overview pages. Explicit open chunk panels retain
 their independent native-image demand. Completed terrain publishes atomically.
+
+When installed, initial terrain readiness includes a compact whole-map colour underlay at
+**1/16 logical density**, the smallest existing mip level. For the production
+grid this is **376 × 400**, **68,166 WebP body bytes** and **601,600 decoded RGBA
+bytes** added at startup. It preserves recognisable land/coastlines for a blurry
+placeholder; visible overview/native responses provide detail. The renderer
+loads and decodes it at foreground priority before the first terrain paint or
+detail requests, then seeds the existing colour/gray mip chain. An immediate
+pan or zoom therefore shows terrain even when every idle callback and every
+destination response is still held. World/asset replacement repeats readiness
+and cancels the old instance's requests.
+
+Deferred map construction remains unready while the terrain manifest is in
+flight, even if state/display and animation frames finish first. Manifest
+resolution to legacy fallback explicitly releases that gate; a manifest with a
+compact companion keeps it closed through the image's decode acknowledgement.
+This gates terrain drawing only: grid, state, pins and hover still paint while
+terrain is loading. Artwork-free gallery samples (`imageStatus: unused`) settle
+without a manifest or a fallback-image download. Hover-only frames do not read
+or publish terrain readiness.
+
+Every new terrain export embeds `coarseOverview`. The offline Python/Pillow
+exporter calls the shared generator in `build-terrain-underlay.py`; the standalone
+script adds a companion to an older export without changing its manifest. The
+Node-only `duo-art` builder copies existing artwork byte-for-byte and never
+generates images or launches Python. If the source contains a companion, the
+pack includes its image and `<terrain-directory>/coarse-descriptor.json`, bound
+to the original immutable manifest hash. The server validates that binding and
+serves the image through the existing authenticated, integrity-checked route.
+
+Without a companion, readiness settles immediately and visible terrain uses
+the existing viewport LOD path (native detail at close zoom). Missing, invalid
+or failed-to-decode compact artwork cannot block that loading. No startup sweep
+of all overview pages is performed. Installing the companion enables the
+blurry-then-sharp placeholder; older packs remain usable without it. No whole-map
+native load or full-resolution world atlas is added.
+
+Once visible loading/composition settles, idle work warms the regular overview
+previews and nearby native detail. Native page canvases contain fine tiles only;
+unloaded regions remain transparent over the current mip. A cached page can no
+longer cover a newer overview with the ocean it contained when first composed.
+Completed overview/native tiles replace the coarse coastline with certified
+ocean under their alpha pixels, so the blurry placeholder cannot leak through
+finished transparent-water artwork.
+
+Background work uses `requestIdleCallback` (a yielding task where unavailable),
+low image fetch priority, and **one request at a time**, within the shared six.
+It starts only after foreground requests and composition settle. View changes
+cancel obsolete work before pumping visible demand; a matching request is
+promoted without restarting its download. Chunk-panel requests also preempt or
+promote speculation. Cancellation/disposal retains the existing identity guard
+against late fetch/decode callbacks. Failed speculative requests do not poison
+foreground retry or download unpriced PNG fallback sources.
+
+Budgets per terrain instance, including reservations for cancelled requests:
+
+- Readiness underlay: **512 KiB** maximum advertised body bytes and one image at
+  the smallest mip dimensions. It adds 601,600 retained decoded bytes on the
+  production grid. Packs without the companion add no startup underlay memory.
+- Whole-map overview: **4 MiB** maximum advertised body bytes. The installed
+  2,109,044-byte page bundle fits. Unpriced/oversized bundles disable speculation;
+  their visible-demand loading still works. Already available previews are reused.
+- Native prefetch: **1 MiB**, at most **64 spare decoded images**, inside the
+  existing **256-image** cache. It warms the one-region ring near native views;
+  at the top overview tier it also warms nearby visible native detail. Lower
+  overview tiers and their adjacent levels share the overview source and need
+  no additional downloads. Fine prefetch never traverses the entire map.
+- Native page limits remain **16**, or **8 active pages** above DPR 1. Existing
+  composition frame limits and mip draw counts are unchanged. Background warming
+  retains the same bounded per-region previews a full zoom-out already retained,
+  rather than adding a second image cache. Budgets reset on terrain replacement.
+
+### Controlled cold-delivery comparison (2026-11-07)
+
+Real installed WebP/PNG terrain was served only from an isolated local fixture,
+without a real save. Both versions used fresh Chrome contexts with HTTP cache
+disabled and all origin storage cleared. CDP held every image response and each
+decode acknowledgement; idle callbacks, animation frames and the clock were
+advanced explicitly. Baseline was core `0aedba5`. A 512 × 256 synthetic view
+started at zoom 0.5, idled, then panned to new native terrain at model time 30 s
+and idled until 60 s. Each release consumed a modelled 100 ms plus body bytes at
+2,000,000 bytes/s; these are deterministic delivery measurements, not wall-clock
+internet benchmarks. Terrain body bytes exclude headers and unrelated UI data.
+
+| First controlled minute | Before | After |
+| --- | ---: | ---: |
+| Downloaded terrain body bytes | 291,038 | 3,377,318 |
+| Startup compact underlay body bytes | 0 | 68,166 |
+| Added startup decoded underlay bytes | 0 | 601,600 |
+| Reserved background overview bytes | 0 | 1,970,180 |
+| Reserved background native bytes | 0 | 1,047,934 |
+| Peak retained decoded image RGBA bytes | 2,097,152 | 14,757,376 |
+| Peak terrain canvas backing bytes | 120,753,152 | 147,311,616 |
+| Retained native images at 60 s / cap | 8 / 256 | 54 / 256 |
+| Retained native pages at 60 s / cap | 2 / 16 | 2 / 16 |
+| Initial visible detail completion, model ms / requests | 268.382 / 2 | 402.465 / 3 |
+| Native pan completion, model ms / requests | 877.137 / 8 | 877.137 / 8 |
+
+The corrected comparison remeasures both sides with canvas allocations sampled
+before transient staging is released; the previous table missed those peaks.
+Image memory counts unique retained image objects at four bytes per pixel,
+including decoded in-flight images; canvas memory counts mips, previews and
+retained/staged terrain pages. Browser HTTP/decoder/GPU caches are not measured.
+The compact whole-map first paint is ready after 134.083 model ms. Its one
+foreground request adds 134.083 model ms to initial detail completion; subsequent
+native-demand completion is unchanged. These are explicit startup costs of
+guaranteeing terrain coverage before interaction, rather than idle warm-up.
+The native image ceiling remains 64 MiB plus the existing bounded in-flight
+pool and the 601,600-byte startup image. Whole-map preview warming and transient
+page replacement account for the canvas peak increase; the grid's
+per-region preview ceiling is unchanged. A real-PNG held-response regression
+verifies compact-underlay pixels on the first cold pan/zoom frame without
+running idle work or releasing destination responses. It also caches one native
+tile, warms that page's overview from a different view, then returns with new
+native responses held: existing detail stays sharp and unloaded regions show
+the newer overview. The manifest itself is also held while construction/model/
+viewport frames advance; readiness cannot publish before it resolves and the
+coarse image decodes. Cancelled image requests have distinct fixture identities,
+so returning to the same asset cannot deliver a stale interception; unexpected
+CDP delivery errors fail directly without retries. Further regressions cover foreground preemption/promotion,
+idle exhaustion, byte/cache caps and page-load listener removal on abort
+(including prior abort) or browser exit.
 
 A complete modern layout does not fetch the unused 8.08 MB legacy world PNG.
 Older/partial manifests and absent local assets still load that fallback. Missing
@@ -90,6 +212,31 @@ npm test
 The exporter refuses an existing content-addressed directory and never changes
 source files. An already installed bundle therefore needs no rebuild. Use a
 separate empty output root for exact reproduction, then compare its descriptor.
+
+To derive the compact companion from an existing verified export:
+
+```sh
+python scripts/build-terrain-underlay.py --source .local/map-assets --manifest terrain.optimized-2026-10-08-38129fc98c5adcd7/manifest.json --output .local/terrain-underlay
+```
+
+This checks every overview's size/hash, downsamples it with Pillow BILINEAR,
+composites over the current ocean and verifies lossless decoded pixels. The
+returned descriptor binds the source manifest's SHA-256. Install the generated
+`coarse-*.webp` and `coarse-descriptor.json` beside that export's existing
+overview directory; its immutable manifest stays intact.
+Do this one-off export step before building the art pack: copy both generated
+files into the matching existing terrain directory in the pack's art source,
+then run the Node pack builder. Restart the server after selecting the new pack.
+Without the companion there is no startup underlay request or whole-map overview
+sweep; visible tiles continue loading through the existing LOD selection.
+
+Pack coverage: `duo-legacy` with `duo-art` uses the optimized terrain path,
+including the existing `38129fc98c5adcd7` export used by the current release.
+For that existing export, run the one-off companion step above before rebuilding
+the art pack. New exports include it in their own manifests. `open-f2p` and `open-starter` inherit a null
+terrain bundle and use their authored map fallback, so they do not need a
+terrain companion. Existing installed packs are immutable and require a new
+pack build/selection at deployment; this change does not alter the live install.
 
 ## Options assessed
 

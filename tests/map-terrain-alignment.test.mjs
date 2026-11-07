@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MapTerrain, TERRAIN_LEVELS } from '../app/web/map-terrain.mjs';
+import { SURFACE_GRID } from '../app/data/surface-grid.mjs';
 
 const source = () => ({ mapId: 28, plane: 0, zoom: 2, iconFree: true,
   directory: 'terrain.cache-alignment-v1/28/2', layoutComplete: true,
@@ -40,11 +41,40 @@ test('transparent cache terrain reveals identical water in native pages and nati
   t.after(() => terrain.dispose());
   const key = terrain.pageKey('64,68'); terrain.nativePages.add(key);
   const page = terrain.nativePage(key);
-  assert.deepEqual(page.colour.fills[0], { colour: 'rgb(96,118,154)', args: [0, 0, 1024, 1024] });
+  assert.deepEqual(page.colour.fills, [], 'Unloaded native regions reveal the current overview');
+  terrain.coarseImage = { naturalWidth: 376, naturalHeight: 400 };
   const transparent = { naturalWidth: 256, naturalHeight: 256 };
   terrain.paintNativeTile('64,68', transparent, page);
   assert.deepEqual(page.colour.fills.at(-1), { colour: 'rgb(96,118,154)', args: [768, 768, 256, 256] });
   assert.equal(page.colour.calls.at(-1)[0], transparent);
+  assert.ok(page.colour.calls.every(args => args[0] !== terrain.coarseImage), 'Complete alpha tiles use certified water, without a blurred coastline');
+  const preview = canvas(64, 64);
+  terrain.previews.set('64,68', preview); terrain.unpublishedKeys.add('64,68');
+  const patch = terrain.previewPage(key);
+  assert.deepEqual(patch.colour.fills, [{ colour: 'rgb(96,118,154)', args: [192, 192, 64, 64] }]);
+  assert.equal(patch.colour.calls.at(-1)[0], preview);
+  terrain.releasePage(patch);
+});
+
+test('chunk panels use coarse terrain only until a tile image is available', t => {
+  const terrain = new MapTerrain({ cacheTerrain: source() }, { canvasFactory: canvas });
+  t.after(() => terrain.dispose());
+  const key = '64,68', chunkId = String(64 * SURFACE_GRID.stride + 68);
+  const coarse = canvas(376, 400), image = { naturalWidth: 256, naturalHeight: 256 };
+  terrain.coarseImage = coarse;
+  terrain.pending.set(key, { naturalWidth: 0, naturalHeight: 0 });
+  const loading = canvas(256, 256);
+  assert.equal(terrain.drawChunk(loading.getContext('2d'), chunkId), true);
+  assert.deepEqual(loading.calls.map(args => args[0]), [coarse], 'Loading panels retain the coarse coastline');
+  terrain.pending.delete(key);
+  for (const cache of [terrain.chunkImages, terrain.images, terrain.previews]) {
+    cache.set(key, image);
+    const loaded = canvas(256, 256);
+    assert.equal(terrain.drawChunk(loaded.getContext('2d'), chunkId), true);
+    assert.deepEqual(loaded.calls.map(args => args[0]), [image], 'Loaded alpha artwork cannot reveal a coarse coastline');
+    assert.deepEqual(loaded.fills, [{ colour: 'rgb(96,118,154)', args: [0, 0, 256, 256] }], 'Transparent water reveals the certified ocean');
+    cache.delete(key);
+  }
 });
 
 test('partial or unsafe cache manifests retain the original image fallback', t => {
@@ -74,7 +104,7 @@ test('complete modern terrain composes ocean and native pages when the obsolete 
   assert.equal(legacyCalls, 0);
   assert.equal(target.calls.length, 1);
   terrain.nativePages.add('0,0');
-  assert.deepEqual(terrain.nativePage('0,0').colour.fills[0], { colour: 'rgb(96,118,154)', args: [0, 0, 1024, 1024] });
+  assert.deepEqual(terrain.nativePage('0,0').colour.fills, [], 'An empty native page leaves the ready ocean mip visible');
 });
 
 test('black community placeholders advance to certified cache floors even when those floors are black', t => {
