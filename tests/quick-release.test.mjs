@@ -24,14 +24,20 @@ test('every GitHub job is required, including every test shard and the coverage,
 // The release gate silently broke once when test.yml was sharded but this list
 // still named the old single `test` job. Tie the two together.
 test('the required shard checks match the test job name and shard matrix in test.yml', async () => {
-  const workflow = await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8');
-  const job = /^ {2}test:\r?\n([\s\S]*?)(?=^ {2}[a-z-]+:\r?\n)/m.exec(workflow)?.[1];
-  assert.ok(job, 'test.yml has a top-level test job');
-  const shards = /^\s+shard: \[([0-9, ]+)\]\s*$/m.exec(job)?.[1].split(',').map(Number);
-  const name = /^\s+name: (.+?)\s*$/m.exec(job)?.[1];
-  assert.ok(shards?.length && name?.includes('${{ matrix.shard }}'), 'test job declares a shard matrix and a per-shard name');
-  const expected = shards.map(shard => name.replaceAll('${{ matrix.shard }}', String(shard)));
-  assert.deepEqual(REQUIRED_CHECKS.filter(check => check.startsWith('test (')), expected);
+  const lines = (await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8')).split(/\r?\n/);
+  const start = lines.indexOf('  test:');
+  assert.ok(start >= 0, 'test.yml has a top-level test job');
+  // The job runs until the next line indented two spaces or less (or the end of the file).
+  const end = lines.findIndex((line, index) => index > start && /^ {0,2}\S/.test(line));
+  const job = lines.slice(start + 1, end < 0 ? undefined : end).join('\n');
+  // include/exclude change which shard checks GitHub emits; expand them here before using them.
+  assert.doesNotMatch(job, /^\s+(include|exclude):/m, 'test matrix uses include/exclude, which this check does not expand');
+  const shards = /^\s+shard:\s*\[([^\]]*)\]\s*$/m.exec(job)?.[1].split(',').map(value => Number(value.trim()));
+  assert.ok(shards?.length && shards.every(Number.isInteger), 'test matrix lists its shards inline, as integers: shard: [1, 2, ...]');
+  const name = /^ {4}name:\s*(["']?)(.+?)\1\s*$/m.exec(job)?.[2];
+  assert.ok(name?.includes('${{ matrix.shard }}'), 'test job has a per-shard name');
+  const expected = shards.map(shard => name.replaceAll('${{ matrix.shard }}', String(shard))).sort();
+  assert.deepEqual(REQUIRED_CHECKS.filter(check => check.startsWith('test (')).sort(), expected);
 });
 
 test('GitHub checks pass only when every required job is green', () => {
