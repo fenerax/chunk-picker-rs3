@@ -78,6 +78,10 @@ class TerrainExporterTests(unittest.TestCase):
         self.assertEqual((coarse["width"], coarse["height"], coarse["scale"]), (8, 8, 0.0625))
         with Image.open(output / coarse["path"]) as decoded_coarse:
             self.assertEqual(decoded_coarse.size, (8, 8))
+        separate = underlay.build(output, str(bundle_path.relative_to(output)), self.root / "separate-underlay")
+        self.assertEqual(separate["coarseOverview"], coarse)
+        self.assertEqual(bundle["provenance"]["underlayExporterSha256"],
+                         exporter.digest((REPO / "scripts/build-terrain-underlay.py").read_bytes()))
         page = Image.open(output / bundle["pages"][0]["path"]).convert("RGBA")
         self.assertEqual(page.getpixel((128, 128)), (0, 0, 0, 0))
         self.assertEqual(page.getpixel((63, 20))[3], 0)

@@ -38,14 +38,23 @@ its tile receipts come from the current committed interior descriptor. The
 loader verifies those diagnostic bytes lazily without parsing them. It preserves
 the original nested JSON bytes and existing application descriptor contracts.
 
-Optimized terrain exports include a compact whole-map underlay. For older
-exports without it, the builder generates a source-hash-bound image and
-`<terrain-directory>/coarse-descriptor.json` inside the new pack. This offline
-build step needs Python with Pillow (`--python` selects the executable); runtime
-still needs only Node. An existing companion is copied instead. Generation
-failure leaves the previous selection intact. New exports embed `coarseOverview`
-and need no extra generation at packaging time. The existing selected terrain
-export is supported without rewriting its immutable manifest. See
+The pack builder needs only Node and always copies existing artwork byte-for-byte.
+New terrain exports embed `coarseOverview`, produced by the offline Python/Pillow
+exporter. An older export may supply a source-hash-bound compact image and
+`<terrain-directory>/coarse-descriptor.json`; both are copied unchanged when
+present. Packs without a companion still build and use visible terrain loading.
+
+Before packaging an existing export, generate its companion once:
+
+```sh
+python scripts/build-terrain-underlay.py --source C:/path/to/map-assets --manifest terrain.optimized-2026-10-08-38129fc98c5adcd7/manifest.json --output .local/terrain-underlay
+```
+
+Copy the generated `coarse-*.webp` and `coarse-descriptor.json` from the output's
+matching terrain directory into the existing export directory in the art source,
+then run `build-art-pack.mjs`. Its immutable manifest stays unchanged. Python and
+Pillow belong only to this offline export step; packaging and runtime do not use
+them. See
 [terrain loading and budgets](terrain-performance.md#loading-and-fallback).
 
 `app/art-bindings.mjs` explicitly lists the current legacy top-level resource

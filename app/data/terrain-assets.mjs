@@ -8,7 +8,7 @@ export const TERRAIN_MANIFEST_PATH = datasetValue("app/data/terrain-assets.mjs#T
 export const TERRAIN_BUNDLE = datasetValue("app/data/terrain-assets.mjs#TERRAIN_BUNDLE");
 
 // Optional companion for the existing immutable export. Its source manifest
-// must match exactly; older installations use the overview-page readiness path.
+// must match exactly; installations without it retain viewport tile loading.
 export const TERRAIN_COARSE_BUNDLE = Object.freeze({
   sourceManifestSha256: '84e32362fd581ec824438ec380a231b933e28bb3cbf4edd8ee8f7de1589d04a6',
   coarseOverview: Object.freeze({

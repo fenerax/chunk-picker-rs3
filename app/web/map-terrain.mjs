@@ -140,20 +140,20 @@ export class MapTerrain {
         for (const region of regions) this.overviewByTile.set(region, key);
       }
     }
-    // Bound both startup page fallback and speculation by advertised body bytes.
+    // Bound speculation by advertised body bytes. Missing compact artwork must
+    // leave the normal viewport loader ready, without a whole-map page fetch.
     this.backgroundAvailable = this.modernBase && this.overviewPages.size > 0
       && [...this.overviewPages.values()].every(page => Number.isSafeInteger(page.bytes) && page.bytes > 0)
       && [...this.overviewPages.values()].reduce((sum, page) => sum + page.bytes, 0) <= TERRAIN_OVERVIEW_BYTES;
     const coarse = optimized?.coarseOverview;
-    if (this.backgroundAvailable) {
-      this.coarseReady = false;
-      if (coarse?.scale === TERRAIN_COARSE_SCALE && coarse.width === WIDTH * TERRAIN_COARSE_SCALE
+    if (this.backgroundAvailable
+        && coarse?.scale === TERRAIN_COARSE_SCALE && coarse.width === WIDTH * TERRAIN_COARSE_SCALE
         && coarse.height === HEIGHT * TERRAIN_COARSE_SCALE && Number.isSafeInteger(coarse.bytes)
         && coarse.bytes > 0 && coarse.bytes <= TERRAIN_COARSE_BYTES
         && coarse.path?.startsWith(`${optimized.directory}/coarse-`)
         && /^coarse-[a-f0-9]{16}\.webp$/.test(coarse.path.slice(optimized.directory.length + 1))) {
-        this.coarseQueue.set('compact', coarse);
-      } else this.queueCoarsePages();
+      this.coarseReady = false;
+      this.coarseQueue.set('compact', coarse);
     }
     this.oceanKeys = new Set();
     const ocean = manifest?.oceanFallback, cache = manifest?.cacheTerrain;
@@ -180,14 +180,6 @@ export class MapTerrain {
 
   get baseReady() { return this.coarseReady && (!!this.fallbackImage || this.modernBase); }
 
-  queueCoarsePages() {
-    this.coarseCanvas = this.canvasFactory(WIDTH * TERRAIN_COARSE_SCALE, HEIGHT * TERRAIN_COARSE_SCALE);
-    if (!this.coarseCanvas) { this.coarseReady = true; return; }
-    const ctx = this.coarseCanvas.getContext('2d'); ctx.fillStyle = this.oceanColour;
-    ctx.fillRect(0, 0, this.coarseCanvas.width, this.coarseCanvas.height);
-    this.coarseQueue = new Map(this.overviewPages);
-  }
-
   pumpCoarse() {
     while (!this.disposed && this.coarseQueue.size && this.coarsePending.size < this.concurrency) {
       const [key, source] = this.coarseQueue.entries().next().value; this.coarseQueue.delete(key);
@@ -196,16 +188,8 @@ export class MapTerrain {
       const finish = ready => {
         if (this.disposed || this.coarsePending.get(key) !== image) return;
         image.onload = image.onerror = null; this.coarsePending.delete(key);
-        ready &&= image.naturalWidth === (key === 'compact' ? source.width : source.pixelWidth)
-          && image.naturalHeight === (key === 'compact' ? source.height : source.pixelHeight);
-        if (key === 'compact') {
-          if (ready) this.coarseImage = image;
-          else this.queueCoarsePages();
-        } else if (ready) this.coarseCanvas.getContext('2d').drawImage(image,
-          source.left * TERRAIN_COARSE_SCALE, source.top * TERRAIN_COARSE_SCALE,
-          PAGE * TERRAIN_COARSE_SCALE, PAGE * TERRAIN_COARSE_SCALE);
-        if (this.coarseQueue.size || this.coarsePending.size) { this.pumpCoarse(); return; }
-        this.coarseImage ??= this.coarseCanvas;
+        ready &&= image.naturalWidth === source.width && image.naturalHeight === source.height;
+        if (ready) this.coarseImage = image;
         this.coarseReady = true; this.composeBase(); this.pump(); this.prepareView();
       };
       image.onload = () => typeof image.decode === 'function' ? image.decode().then(() => finish(true), () => finish(false)) : finish(true);
@@ -887,8 +871,6 @@ export class MapTerrain {
     this.cancelBackground();
     for (const [key, image] of this.coarsePending) this.cancelLoad(this.coarsePending, key, image);
     this.coarseQueue.clear(); this.coarseImage = null;
-    if (this.coarseCanvas) this.coarseCanvas.width = this.coarseCanvas.height = 0;
-    this.coarseCanvas = null;
     this.chunkListeners.clear();
     this.chunkImages.clear();
     if (this.updateFrame !== null) this.cancelFrame(this.updateFrame);
