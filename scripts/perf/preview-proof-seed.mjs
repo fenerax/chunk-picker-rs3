@@ -16,7 +16,7 @@ for (const seeded of [false, true]) {
   try {
     await scheduler.evaluate(fixture.state, 'one', 'evaluate', undefined, 'baseline', input);
     const started = performance.now();
-    const preview = await scheduler.evaluate(fixture.state, 'one', 'predict', '12598', undefined, input);
+    const preview = await scheduler.evaluate(fixture.state, 'one', 'predict', '12342', undefined, input);
     const firstPreviewMs = performance.now() - started;
     assert.equal(preview.eligibilitySeeded, seeded, 'measurement must exercise the declared path');
     rows.push({ arm: seeded ? 'seeded' : 'unseeded', firstPreviewMs, eligibilitySeeded: preview.eligibilitySeeded,

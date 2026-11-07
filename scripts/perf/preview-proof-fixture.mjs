@@ -36,7 +36,10 @@ export function previewProofFixture({ taskCount = 2048 } = {}) {
   const registry = createRuleRegistry();
   for (const [id, value] of Object.entries({ 'content.f2p': false, 'access.shared': true, 'travel.automatic': false, 'access.transport': false }))
     if (registry.get(id)) state.rules[id] = value;
-  state.tasks = engine.catalogue;
+  // A saved catalogue uses the state schema, not the engine's richer identity
+  // catalogue (raw labels, aliases and generated kind metadata stay compiled).
+  state.tasks = engine.catalogue.map(({ id, label, category, completionIds }) => ({ id, label, category,
+    ...(completionIds ? { completionIds } : {}) }));
   for (const member of state.members) {
     member.taskRules = { 'Show Nonskill Tasks': true };
     member.taskStatus = { [engine.catalogue[0].id]: { challengeCompleted: true } };

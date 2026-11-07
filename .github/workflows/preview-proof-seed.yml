@@ -6,8 +6,6 @@ on:
       - 'app/tasks/**'
       - 'scripts/perf/preview-proof-*.mjs'
       - '.github/workflows/preview-proof-seed.yml'
-  push:
-    branches: ['perf/preview-proof-seed']
   workflow_dispatch:
 
 permissions:
