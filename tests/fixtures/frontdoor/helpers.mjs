@@ -2,6 +2,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import timers from 'node:timers/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { requestContext, checkRequestOrigin } from './core/app/security/request.mjs';
 import { openInviteStore } from './core/app/storage/invites.mjs';
 export { requestContext };
@@ -14,6 +16,12 @@ export const master = 'A'.repeat(43), member = 'B'.repeat(43), viewer = 'C'.repe
 export const lanes = [{ name: 'local', host: '127.0.0.1', port: 8901, trust: 'loopback-proxy' },
   { name: 'tail', host: contextHost, port: 8902, trust: 'direct-peer' }];
 export async function fixture(t) {
+  // The archived core stays byte-for-byte pinned. Its Windows rename backoff
+  // uses this controlled promise clock, so fixture writes never depend on a
+  // real retry sleep. Restore the built-in binding with the fixture's scope.
+  const delay = t.mock.method(timers, 'setTimeout', async () => {});
+  syncBuiltinESMExports();
+  t.after(() => { delay.mock.restore(); syncBuiltinESMExports(); });
   const root = path.join(process.env.RS3_LIVE_SWAP_TEST_ROOT || path.join(os.tmpdir(),'rs3-live-swap-tests'), 'frontdoor'); await mkdir(root, { recursive: true });
   const directory = await mkdtemp(path.join(root, 'run-'));
   const sha = value => createHash('sha256').update(value).digest('hex');
@@ -25,7 +33,7 @@ export async function fixture(t) {
   const store = await openInviteStore({ dataDir: directory, masterToken: master, masterLabel: 'Synthetic master', now: () => Date.parse(now) });
   const resources = [];
   t.after(async () => { for (const cleanup of resources.reverse()) await cleanup(); await store.close(); await rm(directory, { recursive: true, force: true }); });
-  return { directory, store, resources };
+  return { directory, store, resources, promiseClock: delay.mock };
 }
 export function evaluate(request, store, context = requestContext(request, { host: contextHost, publicOrigin })) {
   const identity = store.authenticate(request, context);

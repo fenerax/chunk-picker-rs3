@@ -36,9 +36,19 @@ export function pickerOperationTest(mode, description, configuration) {
     const { directory, port } = await fixture(t, configuration);
     let result;
     try {
-      result = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      const execution = run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
         '-File', path.join(root, 'tests', 'picker-helpers.test.ps1'), '-FixtureRoot', directory, '-Mode', mode, '-Port', String(port)],
       { cwd: root, windowsHide: true, env: { ...process.env, PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH}` } });
+      // Preserve finite phase diagnostics even when the helper never exits.
+      let diagnostic = '';
+      execution.child.stdout.on('data', bytes => {
+        diagnostic += bytes;
+        for (let end; (end = diagnostic.indexOf('\n')) >= 0;) {
+          const line = diagnostic.slice(0, end).trim(); diagnostic = diagnostic.slice(end + 1);
+          if (/^TEST_PHASE [a-z-]+$/.test(line)) console.error(`${mode}: ${line}`);
+        }
+      });
+      result = await execution;
     } catch (error) {
       assert.fail(`PowerShell regression failed: ${error.stdout ?? ''}${error.stderr ?? ''}`);
     }

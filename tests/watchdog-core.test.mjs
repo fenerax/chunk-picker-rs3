@@ -34,12 +34,13 @@ async function tick(mode, build = '') {
     const runtime = join(dir, 'server-runtime.json');
     const calls = join(dir, 'calls');
     await writeFile(config, '{}');
-    if (mode !== 'absent') await writeFile(runtime, JSON.stringify({ pid: 123, processStartedAt: mode === 'starting' ? new Date().toISOString() : '2026-01-01T00:00:00Z', configHash: 'test', state: mode.startsWith('stopping') ? 'stopping' : mode === 'unknown' ? 'unknown' : mode === 'starting' ? 'starting' : 'running' }));
+    if (mode !== 'absent') await writeFile(runtime, JSON.stringify({ pid: 123, processStartedAt: mode === 'starting' ? '2026-11-06T12:00:00Z' : '2026-01-01T00:00:00Z', configHash: 'test', state: mode.startsWith('stopping') ? 'stopping' : mode === 'unknown' ? 'unknown' : mode === 'starting' ? 'starting' : 'running' }));
     if (mode === 'paused') await writeFile(join(dir, 'picker-paused'), 'paused');
     await execute(dir, `
 $global:mode = ${ps(mode)}
 $global:calls = ${ps(calls)}
 $global:gets = 0
+$global:clock = [pscustomobject]@{ now = [DateTime]::Parse('2026-11-06T12:00:00Z').ToUniversalTime() }
 $global:context = [pscustomobject]@{ localDir = ${ps(dir)}; runtimeFile = ${ps(runtime)}; configHash = 'test'; config = [pscustomobject]@{ host = $(if ($global:mode -eq 'tailscale-wait') { '100.100.100.100' } else { '127.0.0.1' }); port = 19888; loopbackPort = 19889 } }
 function Read-OperatorConfig { return $global:context }
 function Get-OperatorOwnedProcess {
@@ -52,7 +53,7 @@ function Get-OperatorOwnedProcess {
 if (${ps(build)}) {
     $started = ([DateTime](Get-CimInstance Win32_Process -Filter "ProcessId = $PID").CreationDate).ToUniversalTime()
     if (${ps(build)} -eq 'wrong-start') { $started = $started.AddSeconds(-1) }
-    $at = $(if (${ps(build)} -eq 'old') { [DateTime]::UtcNow.AddHours(-2) } else { [DateTime]::UtcNow })
+    $at = $(if (${ps(build)} -eq 'old') { $global:clock.now.AddHours(-2) } else { $global:clock.now })
     Set-Content -LiteralPath (Join-Path $global:context.localDir 'release-build-active.json') -Value (@{ pid = $PID; processStartedAt = $started.ToString('o'); startedAt = $at.ToString('o') } | ConvertTo-Json)
 }
 function Get-NetTCPConnection {
@@ -83,7 +84,7 @@ function Assert-CoreWatchUnoccupied {
     if ($global:mode -eq 'stopping-held') { throw 'A process still names this data directory. No writer was started.' }
     if ($global:mode -eq 'stopping-locked') { throw 'Storage lock remains; verify its owner before retrying. No lock was deleted.' }
 }
-Invoke-CoreWatchTick -Config ${ps(config)} -ConfigSha256 (Get-FixtureHash ${ps(config)}) -HealthRetryDelaySeconds 0 -WorkerRecoveryTimeoutSeconds 1
+Invoke-CoreWatchTick -Config ${ps(config)} -ConfigSha256 (Get-FixtureHash ${ps(config)}) -HealthRetryDelaySeconds 0 -WorkerRecoveryTimeoutSeconds 1 -Clock { $global:clock.now } -Wait { param($Milliseconds) $global:clock.now = $global:clock.now.AddMilliseconds($Milliseconds) }
 `);
     return {
       calls: (await readFile(calls, 'utf8').catch(() => '')).trim().split(/\r?\n/).filter(Boolean),

@@ -23,6 +23,7 @@ test('test sources use deterministic behavior checks and the shared file safety 
 test('policy catches inline and indirect measurements, deadlines and timer aliases with locations', () => {
   for (const source of [
     'assert.ok(performance.now() - began < 3000);',
+    'const elapsed = Date.now() - start; const withinBudget = elapsed < 50; assert.ok(withinBudget);',
     'assert.ok(Math.abs(Date.now() - began) < 3000);',
     'assert.ok(result.metrics.elapsedMs < 3000);',
     'assert.ok(result.heldMs < 30000);',
@@ -55,7 +56,7 @@ test('policy catches inline and indirect measurements, deadlines and timer alias
     'const elapsed = performance.now() - start; diagnostic(elapsed);',
   ]) assert.deepEqual(timingViolations(source, 'tests/synthetic.test.mjs'), []);
   for (const entry of Object.values(timingAllowlist)) for (const reason of Object.values(entry)) assert.ok(reason.length > 20);
-  for (const file of ['tests/warm-candidate.test.mjs', 'tests/linux-offhost.test.mjs', 'tests/map-terrain.test.mjs']) {
+  for (const file of ['tests/warm-candidate.test.mjs', 'tests/linux-offhost.test.mjs', 'tests/map-terrain.test.mjs', 'tests/fixtures/frontdoor/core/app/storage/invites.mjs']) {
     assert.equal(timingViolations('setTimeout(() => {}, 5);', file).length, 1, 'controlled checks do not exempt future timers');
     assert.equal(timingViolations('assert(Date.now() - began < 10);', file).length, 1, 'controlled checks do not exempt future elapsed budgets');
   }

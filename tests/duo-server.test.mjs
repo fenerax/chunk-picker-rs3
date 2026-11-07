@@ -193,7 +193,7 @@ test('overtaken display revisions do not promote old peer responses and gameplay
 test('dedicated startup queue is bounded and closing during startup rejects and terminates both lanes', async t => {
   const own = factory(), booting = new EventEmitter(); let terminated = false;
   booting.postMessage = () => {}; booting.terminate = async () => { terminated = true; };
-  const scheduler = await createTaskScheduler({ workerFactory: own.create, duoWorkerFactory: () => booting, maxDuoQueue: 1, startupDeadlineMs: 1000 });
+  const scheduler = await createTaskScheduler({ workerFactory: own.create, duoWorkerFactory: () => booting, maxDuoQueue: 1, deadlineClock: createManualClock() });
   t.after(() => scheduler.close());
   const peer = key => scheduler.evaluate({ revision: 0 }, 'two', 'evaluate', undefined, key, key, undefined, [], 'play-v1', undefined, 'duo');
   const waiting = peer('one'), rejected = assert.rejects(waiting, /closing/);

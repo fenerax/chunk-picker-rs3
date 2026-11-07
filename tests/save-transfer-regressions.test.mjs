@@ -141,15 +141,26 @@ test('hostile warning and repeated long-label report stay bounded through worker
 
 test('malformed markup and diagnostic text use delimiter scans without backtracking', () => {
   const original = RegExp.prototype[Symbol.replace];
+  const indexOf = String.prototype.indexOf;
   const patterns = [];
+  let searched = 0, allowance = 0;
+  String.prototype.indexOf = function (needle, from = 0) {
+    const result = indexOf.call(this, needle, from);
+    const start = Math.max(0, Math.min(this.length, Number(from) || 0));
+    searched += (result < 0 ? this.length : result + String(needle).length) - start;
+    assert.ok(searched <= allowance, 'Unterminated delimiters must not repeatedly scan the same suffix.');
+    return result;
+  };
   RegExp.prototype[Symbol.replace] = function (...args) { patterns.push(this.source);
     assert.ok(!this.source.includes('.*') && !this.source.includes('[^>'), 'Unterminated delimiters must not enter a backtracking replacement');
     return original.apply(this, args); };
   try {
     for (const label of ['<'.repeat(400_000), '~|'.repeat(200_000), '*'.repeat(400_000) + 'x']) {
+      searched = 0; allowance = label.length * 8;
       assert.equal(stripTaskMarkup(label), label.replace(/[~|]/g, ''));
+      assert.ok(searched <= allowance);
     }
-  } finally { RegExp.prototype[Symbol.replace] = original; }
+  } finally { RegExp.prototype[Symbol.replace] = original; String.prototype.indexOf = indexOf; }
   assert.ok(patterns.every(source => !source.includes('.*') && !source.includes('[^>')),
     'Unterminated delimiters must use index scans, never a backtracking replacement');
 });

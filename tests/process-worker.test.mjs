@@ -108,6 +108,26 @@ test('isolated task worker compiles, evaluates, reuses shared state and requests
 
 const probeImport = new URL('./fixtures/process-worker-probe.mjs', import.meta.url).href;
 
+test('the process relay stores cancellation and wakes its child-local observer', async t => {
+  const f = hostFixture(t);
+  f.worker.postMessage({ id: 99, cancellation: new SharedArrayBuffer(4) });
+  const flag = new Int32Array(f.foreground.at(-1).cancellation);
+  const notify = Atomics.notify;
+  let notifications = 0;
+  t.mock.method(Atomics, 'notify', (view, index, count) => {
+    if (view.buffer === flag.buffer) { assert.equal(Atomics.load(view, index), 1); notifications++; }
+    return notify(view, index, count);
+  });
+  const observer = Atomics.waitAsync(flag, 0, 0);
+  assert.equal(observer.async, true);
+  try {
+    f.worker.postMessage({ type: 'cancel', id: 99 });
+    assert.equal(notifications, 1, 'Relay cancellation must wake its child-local observer.');
+    assert.equal(await observer.value, 'ok');
+    f.complete(99);
+  } finally { notify(flag, 0); }
+});
+
 test('cancel IPC updates the child-local SAB while its worker is synchronous; isolate memory can be probed', async t => {
   t.diagnostic('phase: real IPC witness starting');
   const { worker, state } = await fixture(t, { probeImport });

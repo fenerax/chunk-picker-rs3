@@ -7,7 +7,8 @@ export const helperSections = Object.freeze([
   { id: 'utilities', label: 'XP & combat', module: './helper-utilities.mjs', render: 'renderUtilities' },
   { id: 'progress', label: 'Progress', module: './helper-progress.mjs', render: 'renderProgress' },
 ]);
-export function createHelperView({ viewCache, api, getState, getMemberId, getResult, getPreferences = () => ({}), canWrite = () => false, command, usage, document = globalThis.document, clock = { setTimeout, clearTimeout } }) {
+export function createHelperView({ viewCache, api, getState, getMemberId, getResult, getPreferences = () => ({}), canWrite = () => false, command, usage, document = globalThis.document,
+  clock = { setTimeout: (...args) => setTimeout(...args), clearTimeout: timer => clearTimeout(timer) } }) {
   const launch = document.getElementById('helper-open'); if (!launch) return;
   const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
   let page, host, selector, nav, active = 'training', owner, generation = 0, dispose, timer, scope, lastResult, requestedTarget, renderedKey, countedSection, context;

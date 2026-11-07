@@ -1,5 +1,7 @@
 // Affected-test evidence: the static scanner, trace-verified file plans and the
 // runner's trace, cross-file and deadline behaviour. Fixture projects are disposable.
+import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -254,7 +256,7 @@ test('a traced lane records what each file observed, fails closed on what it can
     'tests/shell.test.mjs': head + "import { execSync } from 'node:child_process';\ntest('shell', () => execSync('echo hi'));\n",
     'tests/writer.test.mjs': head + "import { mkdirSync, writeFileSync } from 'node:fs';\ntest('writes', () => { mkdirSync(new URL('../gen/', import.meta.url), { recursive: true }); writeFileSync(new URL('../gen/shared.txt', import.meta.url), 'x'); });\n",
     'tests/peer.test.mjs': head + "import { existsSync } from 'node:fs';\ntest('peeks', () => existsSync(new URL('../gen/shared.txt', import.meta.url)));\n",
-    'tests/hang.test.mjs': head + "test('hangs', () => new Promise(() => setInterval(() => {}, 1000)));\n",
+    'tests/hang.test.mjs': head + "test('hangs', () => { process.stdout.write('hung-ready\\n'); return new Promise(() => setInterval(() => {}, 1000)); });\n",
     // promisify(execFile) resolves { stdout, stderr } and still passes through the trace.
     'tests/promised.test.mjs': head + "import { execFile } from 'node:child_process';\nimport { promisify } from 'node:util';\ntest('promised', async () => { const { stdout } = await promisify(execFile)(process.execPath, ['-e', \"process.stdout.write(require('node:fs').readFileSync('data/child.txt', 'utf8'))\"], { windowsHide: true }); if (stdout !== 'child\\n') throw Error('stdout ' + stdout); });\n",
     'tests/promisedother.test.mjs': head + "import { execFile } from 'node:child_process';\nimport { promisify } from 'node:util';\ntest('promised other', async () => { await promisify(execFile)('rs3-no-such-tool', []).catch(() => {}); });\n",
@@ -265,7 +267,8 @@ test('a traced lane records what each file observed, fails closed on what it can
     'tests/probe.test.mjs': head + "import { execFileSync } from 'node:child_process';\ntest('probe', () => { try { execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${process.pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`], { windowsHide: true, stdio: 'ignore' }); } catch {} });\n",
     'tests/script.test.mjs': head + "import { execFileSync } from 'node:child_process';\ntest('script', () => { try { execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${process.pid} -ErrorAction Stop).StartTime; Get-Content x`], { windowsHide: true, stdio: 'ignore' }); } catch {} });\n",
   });
-  const options = { cwd, env, memory: () => 64 * GiB, minConcurrency: 2, maxConcurrency: 3, policy: () => ({}), traceRoot: roots.trace };
+  const deadlineClock = createManualClock();
+  const options = { cwd, env, deadlineClock, memory: () => 64 * GiB, minConcurrency: 2, maxConcurrency: 3, policy: () => ({}), traceRoot: roots.trace };
   const run = await runAdaptive({ ...options, files: ['reads', 'child', 'shell', 'writer', 'peer', 'pure', 'ancestor', 'sibling', 'probe', 'script', 'promised', 'promisedother'].map(name => `tests/${name}.test.mjs`) });
   assert.equal(run.passed, true);
   const by = Object.fromEntries(run.files.map(item => [path.basename(item.file, '.test.mjs'), item]));
@@ -294,7 +297,12 @@ test('a traced lane records what each file observed, fails closed on what it can
   assert.ok(by.script.trace.hazards.includes('untraced child powershell.exe'));
   assert.equal(verdict('script').verified, false);
 
-  const hung = await runAdaptive({ ...options, files: ['tests/hang.test.mjs'], fileDeadlineMs: 2000 });
+  const ready = Promise.withResolvers();
+  const hanging = runAdaptive({ ...options, files: ['tests/hang.test.mjs'], fileDeadlineMs: 2000,
+    onEvent(event) { if (event.type === 'test:stdout' && event.data.message.includes('hung-ready')) ready.resolve(); } });
+  await Promise.race([ready.promise, hanging.then(() => assert.fail('Hanging fixture ended before its readiness acknowledgement.'))]);
+  await deadlineClock.advance(2000);
+  const hung = await hanging;
   assert.equal(hung.passed, false);
   assert.equal(hung.files[0].timedOut, true);
   assert.equal(hung.files[0].summary.counts.failed >= 1, true);

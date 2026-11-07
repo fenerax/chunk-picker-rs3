@@ -1,5 +1,6 @@
 // @test solo dataset=open-f2p
 import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import workerThreads from 'node:worker_threads';
@@ -25,7 +26,7 @@ test('an import isolate exhausting a small test heap fails alone and releases th
   };
   syncBuiltinESMExports();
   try {
-    await assert.rejects(runImportJob({ kind: 'parse' }, { timeoutMs: 15000,
+    await assert.rejects(runImportJob({ kind: 'parse' }, { clock: createManualClock(),
       workerURL: new URL('./fixtures/worker-memory-exhaustion.mjs', import.meta.url) }),
     error => error.status === 422 && /available memory.*No records were imported/.test(error.message));
   } finally { workerThreads.Worker = OriginalWorker; syncBuiltinESMExports(); }

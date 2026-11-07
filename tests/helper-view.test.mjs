@@ -287,7 +287,18 @@ test('shell opening only reads a catalogue, and closing aborts pending work with
   assert.deepEqual(state, before);
 });
 
-test('shell discards reads from the previous player or revision while open', async () => {
+test('shell discards reads from the previous player or revision while open', async t => {
+  const schedule = clock.setTimeout, cancel = clock.clearTimeout;
+  // Browser timer functions reject an arbitrary receiver. Exercise the default
+  // clock while keeping its scheduled work under the test's manual clock.
+  t.mock.method(globalThis, 'setTimeout', function (...args) {
+    assert.ok(this == null || this === globalThis, 'Browser timer receiver must be the global object.');
+    return schedule(...args);
+  });
+  t.mock.method(globalThis, 'clearTimeout', function (...args) {
+    assert.ok(this == null || this === globalThis, 'Browser timer receiver must be the global object.');
+    return cancel(...args);
+  });
   const h = dom(), owner = member(), partner = { ...member(), id: 'reed', name: 'Reed', skillProgress: {} };
   const state = { revision: 7, members: [owner, partner] }, before = structuredClone(state.members), reads = [];
   let selectedMember = owner.id;
@@ -297,7 +308,7 @@ test('shell discards reads from the previous player or revision while open', asy
   mapSelect.addEventListener('change', () => { selectedMember = mapSelect.value; });
   h.addRoot(launch); h.addRoot(picker); h.addRoot(mapSelect);
   const api = (path, body, signal) => new Promise(resolve => { reads.push({ path, body, signal, resolve }); });
-  const helper = createHelperView({ document: h.document, api, getState: () => state, getMemberId: () => selectedMember, getResult: () => undefined });
+  const helper = createView({ document: h.document, api, getState: () => state, getMemberId: () => selectedMember, getResult: () => undefined });
   const catalogue = { skills: [{ skill: 'Mining', status: 'f2p', f2pCap: 110 }], methods: [] };
   helper.open();
   try {

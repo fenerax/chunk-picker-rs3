@@ -126,7 +126,7 @@ export function crossFileTrace(results, { names = new Set(), scratchFiles = new 
 // A controller per file gives Node's native FileTest events and an independent
 // environment. Only the actual test child runs cases. No worker is suspended.
 // Past its deadline the controller tree is killed and the file counts as failed.
-async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot }) {
+async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot, deadlineClock = { setTimeout, clearTimeout } }) {
   const started = performance.now();
   const environment = { ...env };
   delete environment.NODE_TEST_CONTEXT; delete environment.RS3_TEST_TRACE_DIR; delete environment.RS3_TEST_TRACER;
@@ -154,7 +154,7 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
   });
   let summary, fileWallMs, bodyMs = 0, callbackError, childError, timedOut = false;
   const errors = [];
-  const deadline = deadlineMs > 0 ? setTimeout(() => {
+  const deadline = deadlineMs > 0 ? deadlineClock.setTimeout(() => {
     timedOut = true;
     emit({ type: 'test:diagnostic', data: { file, nesting: 0, message: `file deadline of ${deadlineMs} ms exceeded; killing its process tree` } });
     killTree(child);
@@ -194,7 +194,7 @@ async function nativeFile({ file, cwd, env, signal, onEvent, deadlineMs = DEFAUL
     child.once('error', error => { childError = error; });
     child.once('close', (code, exitSignal) => resolve([code, exitSignal, performance.now()]));
   });
-  clearTimeout(deadline);
+  deadlineClock.clearTimeout(deadline);
   signal?.removeEventListener('abort', abort);
   const completedAt = new Date().toISOString();
   const datasets = [];
@@ -272,7 +272,7 @@ export async function runAdaptive({ files, cwd = process.cwd(), env = process.en
   memory = freemem, floorBytes = 4 * GiB, reserveBytes = GiB,
   minConcurrency = 2, maxConcurrency = 6, pollMs = 250, rampMs = 1000,
   onEvent = async () => {}, onFile = async () => {}, onSchedule = async () => {}, onAdmit = async () => {}, onFileError = async () => {},
-  signal, runFile = nativeFile, policy, fileDeadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot } = {}) {
+  signal, runFile = nativeFile, policy, fileDeadlineMs = DEFAULT_FILE_DEADLINE_MS, traceRoot, datasetRoot, deadlineClock } = {}) {
   if (!Array.isArray(files) || files.some(file => typeof file !== 'string' || !file)) throw new TypeError('files must be an array of nonempty paths');
   if (new Set(files.map(file => path.resolve(cwd, file))).size !== files.length) throw new Error('Duplicate test files');
   policy ??= await loadTestPolicy(cwd);
@@ -346,7 +346,7 @@ export async function runAdaptive({ files, cwd = process.cwd(), env = process.en
         const task = Promise.resolve().then(async () => {
           await onAdmit(admission);
           let result;
-          try { result = await runFile({ file, cwd, env: environment, signal: controller.signal, onEvent: emit, deadlineMs, traceRoot, datasetRoot }); }
+          try { result = await runFile({ file, cwd, env: environment, signal: controller.signal, onEvent: emit, deadlineMs, traceRoot, datasetRoot, deadlineClock }); }
           catch (error) {
             await onFileError({ ...admission, completedAt: new Date().toISOString(), processWallMs: performance.now() - admitted,
               passed: false, errors: [childErrorRecord(error)], ...error.fileReceipt });

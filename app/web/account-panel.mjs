@@ -1,7 +1,8 @@
 const providerNames = { discord: 'Discord', google: 'Google' };
 const providersFor = account => [...new Set([...(account?.providers ?? []), ...(account?.identities ?? []).map(identity => identity.provider), account?.provider].filter(provider => Object.hasOwn(providerNames, provider)))];
 
-export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {}, clock = { now: () => Date.now(), setTimeout, clearTimeout } }) {
+export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {},
+  clock = { now: () => Date.now(), setTimeout: (...args) => setTimeout(...args), clearTimeout: timer => clearTimeout(timer) } }) {
   let session = {};
   const available = () => Boolean(session.account) || (session.signIn?.providers?.length ?? 0) > 0;
   const signedInName = () => Object.hasOwn(providerNames, session.account?.provider) ? providerNames[session.account.provider] : providersFor(session.account).map(provider => providerNames[provider]).join(' and ');

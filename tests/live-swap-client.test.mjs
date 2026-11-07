@@ -736,14 +736,16 @@ test('the total retry deadline includes sleep and hanging fetch or JSON readers 
   assert.equal(attempts, 3);
   budgeted.close();
   for (const reader of [false, true]) {
-    const signals = [];
+    const signals = [], clock = createManualClock(), ready = Promise.withResolvers();
     const transport = protocolClient(registeredStorage(), async (_path, init) => {
       signals.push(init.signal);
       const hanging = new Promise(() => {});
-      return reader ? { status: 200, ok: true, json: () => hanging } : hanging;
-    }, { timeoutMs: 1000, maxRetryMs: 15 });
-    await assert.rejects(transport.send(command()), { retryPaused: true });
-    assert.ok(signals.length >= 1 && signals.length <= 12);
+      if (!reader) ready.resolve();
+      return reader ? { status: 200, ok: true, json: () => { ready.resolve(); return hanging; } } : hanging;
+    }, { clock, now: clock.now, timeoutMs: 1000, maxRetryMs: 15 });
+    const rejected = assert.rejects(transport.send(command()), { retryPaused: true });
+    await ready.promise; await clock.advance(15); await clock.settled(rejected);
+    assert.equal(signals.length, 1);
     assert.ok(signals.every(signal => signal.aborted));
     transport.close();
   }

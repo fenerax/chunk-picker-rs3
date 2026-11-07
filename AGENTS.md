@@ -11,6 +11,7 @@ Read `README.md` for the current runtime and `PRODUCT.md` for product decisions.
 
 ## Verification
 
+- Use the existing common `.git/hooks/pre-push` scanner with the local corpus. Never set `core.hooksPath`; the tracked `.githooks` hook omits the corpus and refuses publication.
 - Before pushing, fetch `origin/main` and run targeted tests for the changed behavior, respecting task-specific test limits. Use `docs/testing.md` for the test environment and shared-PC lock, BelowNormal priority, one worker and ten-minute lease. Targeted local checks still require the complete CI gate.
 - When a change adds a browser module or static route, run `tests/server.test.mjs` and `tests/browser-module-graph.test.mjs`.
 - Explore the UI after releases and UI changes on an isolated synthetic server. Treat difficulty finding controls as a usability defect; keep exploratory writes away from live saves.

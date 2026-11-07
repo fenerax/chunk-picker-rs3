@@ -27,8 +27,8 @@ async function fixture(t, extra = {}) {
   const dataDir = await mkdtemp(path.join(base, 'fixture-'));
   assert.ok(path.resolve(dataDir).startsWith(base + path.sep), 'Test cleanup stays inside its fixture directory');
   const initialState = createGroupState([{ id: 'reed', name: 'Reed', unlocked: [ids[0]], selected: ids.slice(1) }]);
-  const clock = createManualClock();
-  const app = await createServer({ schedulingClock: clock, dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, ...extra });
+  const clock = extra.schedulingClock;
+  const app = await createServer({ dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, ...extra });
   t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;
   const headers = { Authorization: `Bearer ${invite.pathname.slice('/join/'.length)}` };
@@ -51,7 +51,8 @@ test('pool reads do no worker work; visible comparison checks every chunk and re
   assert.equal(checked.total, pending.total); assert.equal(checked.rows.length, pending.total);
   assert.ok(checked.rows.every(row => Number.isSafeInteger(row.count)));
   assert.equal((await f.intent(false)).status, 200);
-  const diag = await f.get('/api/diagnostics');
+  const diag = await until(() => f.get('/api/diagnostics'), value => !value.predictionLane.queue.active
+    && !value.predictionLane.queue.depth && !value.predictionLane.retainedWork.pending);
   assert.equal(diag.poolRanking.watchers, 0); assert.equal(diag.predictionLane.ranking.pending, 0);
   assert.deepEqual((await f.get('/api/pool-ranking?memberId=reed')).rows, checked.rows);
   assert.deepEqual((await f.get('/api/diagnostics')).predictionLane, diag.predictionLane);
@@ -86,13 +87,14 @@ test('closing cancels only ranking; pending task lists defer it and stale comple
     worker.finish = (message, result = { tasks: [], metrics: {} }) => worker.emit('message', { id: message.id, result, evaluationMs: 1 });
     workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
   };
-  const f = await fixture(t, { taskWorkerOptions: { workerFactory } });
+  const f = await fixture(t, { schedulingClock: createManualClock(), taskWorkerOptions: { workerFactory, deadlineClock: createManualClock() } });
   const tasks = f.request('/api/tasks?memberId=reed&view=play-v1');
   await until(async () => workers[0].messages.find(message => message.type === 'evaluate'), Boolean);
   assert.equal((await f.intent(true)).status, 200);
   await f.clock.advance(1100); assert.equal(workers.length, 1, 'Pool waits for the main task list');
   workers[0].finish(workers[0].messages.find(message => message.type === 'evaluate'));
   assert.equal((await tasks).status, 200);
+  await f.clock.advance(1100);
   const active = await until(async () => workers[1]?.messages.find(message => message.type === 'predict'), Boolean);
   assert.equal((await f.intent(false)).status, 200);
   const after = await f.get('/api/diagnostics');

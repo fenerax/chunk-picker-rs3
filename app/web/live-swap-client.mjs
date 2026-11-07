@@ -140,7 +140,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     const stop = () => { controller.abort(); rejectTimeout(new Error('Save request timed out or was paused.')); };
     abortRequests.add(stop);
     signal?.addEventListener('abort', stop, { once: true });
-    const deadline = setTimeout(stop, limit);
+    const deadline = clock.setTimeout(stop, limit);
     try {
       if (signal?.aborted) stop();
       // Bound even a transport or response reader that ignores AbortSignal.
@@ -151,7 +151,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
         catch (error) { if (response.ok) throw error; value = {}; }
         return { response, value };
       })()]);
-    } finally { abortRequests.delete(stop); clearTimeout(deadline); signal?.removeEventListener('abort', stop); }
+    } finally { abortRequests.delete(stop); clock.clearTimeout(deadline); signal?.removeEventListener('abort', stop); }
   }
   // Ordinary 403s are definitive command refusals (e.g. another player's Undo).
   // Protocol refusals cannot establish the outcome of an earlier dispatch.

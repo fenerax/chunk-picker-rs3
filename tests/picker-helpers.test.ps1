@@ -32,6 +32,7 @@ function Invoke-PickerHelper {
 }
 
 try {
+    Write-Output 'TEST_PHASE starting'
     $pickerStart = Invoke-PickerHelper 'Start-Picker.ps1' @('-HostAddress', '127.0.0.1', '-Port', [string]$Port, '-ReadinessTimeoutSeconds', $(if ($Mode -eq 'slow') { '1' } else { '5' }))
     $pickerInitial = Get-Content -LiteralPath $pickerRuntimePath -Raw | ConvertFrom-Json
     Assert-PickerCondition ($pickerInitial.pid -gt 0 -and $pickerInitial.processStartedAt) 'The process must be recorded with its creation time.'
@@ -59,6 +60,7 @@ try {
     }
     if ($Mode -eq 'owner') {
         foreach ($pickerInvalidTime in @($null, 'invalid-date')) {
+            Write-Output 'TEST_PHASE rejecting-missing-creation-time'
             $pickerInvalid = Get-Content -LiteralPath $pickerRuntimePath -Raw | ConvertFrom-Json
             $pickerInvalid.processStartedAt = $pickerInvalidTime
             $pickerInvalid | ConvertTo-Json | Set-Content -LiteralPath $pickerRuntimePath -Encoding UTF8
@@ -67,6 +69,7 @@ try {
             Assert-PickerCondition ([bool](Get-Process -Id $pickerInitial.pid -ErrorAction SilentlyContinue)) 'Stop killed a process without a valid creation-time record.'
             $pickerInitial | ConvertTo-Json | Set-Content -LiteralPath $pickerRuntimePath -Encoding UTF8
         }
+        Write-Output 'TEST_PHASE rejecting-reused-pid'
         $pickerWrong = Get-Content -LiteralPath $pickerRuntimePath -Raw | ConvertFrom-Json
         $pickerWrong.processStartedAt = ([DateTime]::Parse($pickerWrong.processStartedAt)).AddDays(-1).ToString('o')
         $pickerWrong | ConvertTo-Json | Set-Content -LiteralPath $pickerRuntimePath -Encoding UTF8
@@ -76,6 +79,7 @@ try {
         Assert-PickerCondition (-not (Test-Path -LiteralPath (Join-Path $FixtureRoot 'shutdown-requested'))) 'Stop contacted a process whose creation time did not match.'
         $pickerInitial | ConvertTo-Json | Set-Content -LiteralPath $pickerRuntimePath -Encoding UTF8
     }
+    Write-Output 'TEST_PHASE stopping'
     $pickerStopped = Invoke-PickerHelper 'Stop-Picker.ps1' @('-TimeoutSeconds', $(if ($Mode -eq 'forced') { '5' } else { '12' }))
     Assert-PickerCondition (-not (Get-Process -Id $pickerInitial.pid -ErrorAction SilentlyContinue)) 'Stop left its child running.'
     Assert-PickerCondition (-not (Test-Path -LiteralPath $pickerRuntimePath)) 'Stop left a stale runtime record.'
@@ -91,6 +95,7 @@ try {
         $pickerLoggedText = [string](Get-Content -LiteralPath (Join-Path $FixtureRoot ".local\$pickerLogName") -Raw -ErrorAction SilentlyContinue)
         Assert-PickerCondition ($pickerLoggedText -notmatch '(?i)(?:/|%2f)join(?:/|%2f)[A-Za-z0-9_-]{12,}') 'Server logs must exclude invitation credentials.'
     }
+    Write-Output 'TEST_PHASE stopped'
     Write-Output "PASS $Mode"
 } finally {
     # Only the process launched by this unique fixture may be cleaned up on failure.

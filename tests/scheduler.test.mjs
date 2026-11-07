@@ -457,6 +457,26 @@ test('disconnect cancels only that waiter, and abandoned queued snapshots are re
   assert.equal(scheduler.getDiagnostics().queue.depth, 0); workers[0].finish(); await active;
 });
 
+test('cancelling active work stores its flag and wakes a blocked cancellation observer', async t => {
+  const { workers, evaluate } = await fixture(t, { deadlineClock: createManualClock() });
+  const controller = new AbortController();
+  const rejected = assert.rejects(evaluate('cancel-wakeup', 0, 'actor1', controller.signal), { name: 'AbortError' });
+  const flag = new Int32Array(workers[0].messages.at(-1).cancellation);
+  const notify = Atomics.notify;
+  let notifications = 0;
+  t.mock.method(Atomics, 'notify', (view, index, count) => {
+    if (view.buffer === flag.buffer) { assert.equal(Atomics.load(view, index), 1); notifications++; }
+    return notify(view, index, count);
+  });
+  const observer = Atomics.waitAsync(flag, 0, 0);
+  assert.equal(observer.async, true);
+  try {
+    controller.abort(); await rejected;
+    assert.equal(notifications, 1, 'Cancellation must wake the observer after publishing the flag.');
+    assert.equal(await observer.value, 'ok');
+  } finally { notify(flag, 0); workers[0].finish(); }
+});
+
 test('active deadline restarts the worker', async t => {
   const clock = createManualClock();
   const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 35, backoffMs: 5, deadlineClock: clock });

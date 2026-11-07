@@ -10,11 +10,15 @@ export const timingAllowlist = Object.freeze({
   'tests/warm-candidate.test.mjs': { timer: 'Every timer call is advanced by node:test mock timers; it proves production candidate cancellation.' },
   'tests/linux-offhost.test.mjs': { timer: 'Upload cancellation is driven by createManualClock, never wall time.' },
   'tests/map-terrain.test.mjs': { elapsed: 'Production callback budgets use an injected deterministic work clock, including explicit publication costs.' },
+  'tests/fixtures/frontdoor/core/app/storage/invites.mjs': { timer: 'Byte-pinned historical production code: frontdoor/helpers.mjs replaces only the promise timer with a controlled immediate clock during fixture use; the provenance hash remains unchanged.' },
 });
 
 // Controlled-clock exemptions bind individual authored checks. Adding another
 // real timer or elapsed assertion to one of these files still fails the policy.
 const controlledChecks = {
+  'tests/fixtures/frontdoor/core/app/storage/invites.mjs': [
+    'await delay(20 * 2 ** attempt);',
+  ],
   'tests/warm-candidate.test.mjs': [
     'return new Promise(resolve => setTimeout(() => resolve(query(...args)), 100000));',
   ],
@@ -124,6 +128,9 @@ export function timingViolations(source, file, { allowlist = timingAllowlist } =
     for (const { name, rhs } of assignments) if (!derived.has(name) && hasClock(rhs)
       && rhs.some(token => code(token) && (['+', '-'].includes(token.value) || derived.has(token.value)))) { derived.add(name); changed = true; }
   } while (changed);
+  const bounded = new Set();
+  for (const { name, rhs } of assignments) if (hasClock(rhs) && rhs.some(token => code(token) && comparisons.has(token.value))
+    && rhs.some(token => token.type === 'number' || ['+', '-'].includes(token.value) || derived.has(token.value))) bounded.add(name);
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     const inTestOptions = [...optionObjects].some(start => start < i && pairs.get(start) > i);
@@ -159,7 +166,7 @@ export function timingViolations(source, file, { allowlist = timingAllowlist } =
         const returnedDurationBudget = args.some(item => ['<', '<='].includes(item.value))
           && args.some(item => item.type === 'word' && /^(?:elapsed(?:Ms)?|duration(?:Ms)?|wallMs|heldMs|took|ms)$/.test(item.value));
         const measuredBound = hasClock(args) && args.some(item => item.type === 'number' || ['+', '-'].includes(item.value) || derived.has(item.value));
-        if (measuredBound && (operator || comparisonCall) || returnedDurationBudget) report(before, 'elapsed');
+        if (measuredBound && (operator || comparisonCall) || returnedDurationBudget || args.some(token => bounded.has(token.value))) report(before, 'elapsed');
       }
     }
   }

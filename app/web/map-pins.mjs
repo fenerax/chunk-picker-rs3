@@ -73,7 +73,8 @@ export function localMapAssetPath(path) {
   return local;
 }
 /** Optional local assets must never cause startup to contact an external host. */
-export async function loadTerrainManifest(fetcher = globalThis.fetch, { optimizedTimeoutMs = 3000, clock = { setTimeout, clearTimeout } } = {}) {
+export async function loadTerrainManifest(fetcher = globalThis.fetch, { optimizedTimeoutMs = 3000,
+  clock = { setTimeout: (...args) => setTimeout(...args), clearTimeout: timer => clearTimeout(timer) } } = {}) {
   try {
     const controller = new AbortController();
     let timeout;

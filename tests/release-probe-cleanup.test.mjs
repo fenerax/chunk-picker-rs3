@@ -1,21 +1,15 @@
-import test, { after } from 'node:test';
+import './helpers/file-safety-stop.mjs';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
-import { writeSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runProbe, cleanupProbeScratch } from '../scripts/private-companion/release-pack-check.mjs';
 
-// Only a lost acknowledgement/process exit can reach this file-wide safety stop.
-const safety = setTimeout(() => {
-  writeSync(2, 'Probe cleanup file stuck: ' + JSON.stringify(process.getActiveResourcesInfo()) + '\n');
-  process.exit(1);
-}, 600000);
-safety.unref(); after(() => clearTimeout(safety));
 const config = { nodePath: process.execPath, coreRoot: '.', packsDir: '.',
   selection: { path: '.' }, profile: { path: '.', sha256: 'synthetic' }, addons: { path: '.', sha256: 'synthetic' } };
 const turn = () => new Promise(resolve => setImmediate(resolve));

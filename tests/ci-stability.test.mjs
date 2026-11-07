@@ -240,7 +240,7 @@ test('public diagnostics strip external paths and credentials, keeping assertion
 });
 
 test('workflow pins existing action SHAs, is read-only, cancels old pushes, and retains receipts even on failure', async () => {
-  const workflow = await readFile(new URL('../.github/workflows/stability.yml', import.meta.url), 'utf8');
+  const workflow = (await readFile(new URL('../.github/workflows/stability.yml', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
   const existing = await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8');
   const actions = [...workflow.matchAll(/uses: (\S+)/g)].map(([, action]) => action);
   assert(actions.length > 0);

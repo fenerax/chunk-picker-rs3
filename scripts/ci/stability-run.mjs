@@ -55,11 +55,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     environment = { env: await laneEnvironment(release, process.execPath, {
       RS3_TEST_CONCURRENCY: '1', RS3_TEST_RETRY_ONCE_IN_ISOLATION: '0',
       RS3_GAME_DATA_DIR: path.join(cwd, '.local/game-data'), RS3_MAP_ASSETS_DIR: path.join(cwd, '.local/map-assets'),
-      RS3_PUBLIC_BROWSER_SCREEN_HARNESS: path.join(cwd, 'tests/browser-screen-harness.mjs'),
     }), cleanup: async () => {} };
   } else environment = await testRunEnvironment();
   for (const key of ['RS3_COVERAGE_REPORT', 'RS3_COVERAGE_LANE', 'RS3_TEST_FILE_LEDGER', 'RS3_TEST_DATASET_RECEIPT']) delete environment.env[key];
   environment.env.RS3_TEST_RETRY_ONCE_IN_ISOLATION = '0';
+  if (task.attempts.some(attempt => attempt.file === 'tests/browser-screen-harness-contract.test.mjs'))
+    environment.env.RS3_PUBLIC_BROWSER_SCREEN_HARNESS = path.join(cwd, '.local/stability-public-reference/tests/browser-screen-harness.mjs');
   const receipt = { schema: 'rs3-stability-shard-v2', id: task.id, sha: process.env.GITHUB_SHA,
     runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT, rows: [] };
   const destination = `stability-${task.id}.json`;

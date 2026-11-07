@@ -82,10 +82,11 @@ test('world hops preserve pending skills; switching beta/live copies starts a ne
 test('a missing pool is warmed after the status reply, so the next status shows available chunks', async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-warm-'));
   let at = Date.now(), pool = null, calculated = 0, output;
+  const warmed = Promise.withResolvers();
   const state = { revision: 0, rules: {}, tasks: [], members: [{ id: 'a', name: 'Explorer', unlocked: ['12850'], selected: [], pendingRoll: [], completedTasks: [] }] };
   const controller = await openGamePlugin({ dataDir, clock: () => at,
     store: { getInfo: () => ({ revision: 0 }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => pool,
-      rollPool: () => { calculated++; pool = { eligible: [{ id: '13107' }] }; return pool; } },
+      rollPool: () => { calculated++; pool = { eligible: [{ id: '13107' }] }; warmed.resolve(); return pool; } },
     world: { chunks: new Map([['12850', { name: 'Lumbridge' }], ['13107', { name: 'Mine' }]]) },
     registry: { resolve: () => ({}) }, questMapping: new Map(),
     serializeMutation: operation => operation(), bodyJSON: async () => ({ v: 1, seq: 1, sentAt: new Date(at).toISOString(), position: { x: 51, z: 51, floor: 0 } }),
@@ -96,7 +97,7 @@ test('a missing pool is warmed after the status reply, so the next status shows 
   const request = { method: 'POST', url: '/api/plugin/v1/report', headers: { authorization: `Bearer ${key}` } };
   await controller.handle(request, {}, { route: request.url, security: {} });
   assert.equal(output.state, 'locked'); assert.equal(calculated, 0, 'The reply never waits for a pool');
-  await new Promise(resolve => setImmediate(resolve));
+  await warmed.promise;
   assert.equal(calculated, 1);
   at += 1001; request.method = 'GET'; request.url = '/api/plugin/v1/status';
   await controller.handle(request, {}, { route: request.url, security: {} });

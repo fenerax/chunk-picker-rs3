@@ -1,7 +1,10 @@
+import './helpers/file-safety-stop.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFile, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import filesystem from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { fixture, cases, evaluate, requestContext, token, contextHost, publicOrigin, lanes } from './fixtures/frontdoor/helpers.mjs';
 import { forwardHeaders, createIngressContext, ingressHeader } from '../scripts/private-companion/live-swap/ingress.mjs';
 const through = createIngressContext({ token, contextHost, requestContext });
@@ -39,4 +42,21 @@ test('direct ingress strips every proxy header, overwrites provenance, and authe
 test('bridge security fixture bytes match the recorded core pin', async () => {
   const provenance=JSON.parse(await readFile(new URL('./fixtures/frontdoor/PROVENANCE.json',import.meta.url)));
   for(const file of provenance.files) assert.equal(createHash('sha256').update(await readFile(new URL('./fixtures/frontdoor/core/'+file.path,import.meta.url))).digest('hex'),file.sha256);
+});
+
+test('the byte-pinned Windows rename backoff uses the fixture promise clock', async t => {
+  const { store, promiseClock } = await fixture(t);
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform'), rename = filesystem.rename;
+  let attempts = 0;
+  const mockedRename = t.mock.method(filesystem, 'rename', async (...args) => {
+    if (++attempts === 1) throw Object.assign(new Error('Synthetic busy rename'), { code: 'EBUSY' });
+    return rename(...args);
+  });
+  syncBuiltinESMExports();
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' });
+  t.after(() => { Object.defineProperty(process, 'platform', platform); mockedRename.mock.restore(); syncBuiltinESMExports(); });
+  await store.revoke(store.list()[0].id);
+  assert.equal(attempts, 2);
+  assert.deepEqual(promiseClock.calls.map(call => call.arguments), [[20]]);
+  assert.equal(store.list()[0].revoked, true);
 });
