@@ -70,6 +70,7 @@ for (const rollback of [false,true]) for (const {point,crash} of cases) {
   });
 }
 test('native scripts acknowledge interruption, inverse recovery, hard crash and ready success', {skip:process.platform!=='win32'}, async t => {
+  await nativeStage(t, false, 'success', false);
   await nativeStage(t, false, 'after-binding', false);
   await nativeStage(t, true, 'pending-after-pointer', false);
   await nativeStage(t, false, 'after-journal', true);
@@ -138,6 +139,7 @@ function Start-OperatorCore($Context,$TimeoutSeconds,[switch]$PreservePause,[IO.
  [IO.File]::WriteAllText($Context.runtimeFile,$Context.configHash);Fail-Once 'during-start'
 }
 $args=@{CurrentRelease=${q(current)};CandidatePointer=${q(path.join(target,'pointer.json'))};CompanionRoot=${q(kit)};Receipt=${q(path.join(target,'companion.json'))};ReleaseRoot=${q(target)};Rollback=$${firstRollback}}
+if($${point==='success'}) { Invoke-ReleaseV2Managed @args } else {
 $failed=$false
 if(${crash?`(Test-Path -LiteralPath ${q(path.join(root,'crash-marker'))})`:'$false'}){$failed=$true}else{try{Invoke-ReleaseV2Managed @args}catch{$failed=$true}}
 if(-not $failed -or -not $global:failedOnce){Get-ChildItem -LiteralPath ${q(path.join(kit,'.local'))} -Filter '*.failure.txt'|ForEach-Object{Get-Content -LiteralPath $_.FullName};throw 'Interruption not reached'}
@@ -174,9 +176,22 @@ if(Test-Path -LiteralPath $journalPath){
  Invoke-ReleaseV2Managed @args -Recover
  if((Read-OperatorJson $journalPath).state -cne 'ready'){throw 'Recovery did not commit readiness'}
 }else{Invoke-ReleaseV2Managed @args}
+}
 if(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused')){throw 'Successful readiness left pause'}
 if((Read-ReleaseV2Pointer ${q(current)}).pointer.releaseId -cne ${q(rollback?'old':'new')}){throw 'Wrong pointer'}
 if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(rollback?oldB:newB))}){throw 'Wrong binding'}
+$journalPath=Join-Path $global:local 'release-pack-transition.json'
+$context=(Read-ReleaseV2Pointer ${q(current)}).context
+Assert-OperatorPackJournal $context
+$readyBytes=[IO.File]::ReadAllBytes($journalPath);$pendingJournal=Read-OperatorJson $journalPath
+try {
+ foreach($state in @('journaled','binding-swapped','pointer-swapped','starting')) {
+  $pendingJournal.state=$state
+  [IO.File]::WriteAllText($journalPath,($pendingJournal|ConvertTo-Json -Depth 15))
+  $blocked=$false;try{Assert-OperatorPackJournal $context}catch{$blocked=$true}
+  if(-not $blocked){throw ('Ordinary Start admitted pending state '+$state)}
+ }
+} finally { [IO.File]::WriteAllBytes($journalPath,$readyBytes) }
 `;
     if(crash) { await run(root,body,75); assert.equal(await readFile(path.join(root,'crash-marker'),'utf8'),'interrupted'); }
     await run(root,body);

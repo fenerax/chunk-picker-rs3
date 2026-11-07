@@ -9,6 +9,7 @@ const product = name => 'scripts/private-companion/' + name;
 const mutations = [
   ['stage commits', 'release-transition.mjs', "if (pair.binding !== pair.targetBinding) await stage('binding-commit');", '', pack, 'upgrade interruption after-binding'],
   ['ownership', 'release-transition.mjs', "'identity-before-stop', 'owned-stop',", "'identity-before-stop',", pack, 'uncertain-owner'],
+  ['native pending Start refusal', 'Operator-Common.ps1', "if ($journal.state -ne 'ready') {", 'if ($false) {', pack, '^native scripts', 'win32'],
   ['pair admission', 'release-transition.mjs', "if (![sourceBinding, targetBinding].includes(binding) || ![sourcePointer, targetPointer].includes(pointer)) throw Error('Unknown binding/pointer pair; recovery paused.');", '', pack, 'pair policy'],
   ['journal and inverse intent', 'release-transition.mjs', "await stage('journal-intent');", '', pack, 'pending-after-binding'],
   ['identity additions', 'release-pack-check.mjs', 'export function assertStableIdentities(a, b, additions) {', 'export function assertStableIdentities(a, b, additions) { return;', pack, 'declared saved identity'],
@@ -30,7 +31,11 @@ const mutations = [
 ];
 const directory = path.resolve('release-mutation-results'); await mkdir(directory);
 const receipts = [], sha = bytes => createHash('sha256').update(bytes).digest('hex');
-for (const [group, name, before, after, file, pattern] of mutations) {
+for (const [group, name, before, after, file, pattern, platform] of mutations) {
+  if (platform && platform !== process.platform) {
+    receipts.push({ group, file, pattern, attempt: 0, detected: null, skipped: 'requires native Windows adapter' });
+    continue;
+  }
   const target = product(name), original = await readFile(target), source = original.toString('utf8');
   if (!source.includes(before)) throw Error('Mutation anchor absent: ' + group);
   let receipt;
@@ -54,4 +59,4 @@ for (const [group, name, before, after, file, pattern] of mutations) {
   receipts.push(receipt); console.log(JSON.stringify(receipt));
   await writeFile(path.join(directory, 'receipt.json'), JSON.stringify({ sha: process.env.GITHUB_SHA, os: process.platform, receipts }, null, 2));
 }
-if (receipts.some(row => !row.detected)) process.exitCode = 1;
+if (receipts.some(row => row.detected === false)) process.exitCode = 1;
