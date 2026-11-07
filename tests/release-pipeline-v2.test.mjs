@@ -238,7 +238,7 @@ test('changed-pack new kit earns fresh pack keys while retaining the current sav
     await cp(path.join(old.kit, 'operator/with-' + lane + '.ps1'), file);
     locks[lane] = { path: file, sha256: hash(await readFile(file)) };
   }
-  await put(path.join(old.kit, 'kit.json'), { schemaVersion: 2, locks, concurrency: 1, browser: { path: process.execPath } });
+  await put(path.join(old.kit, 'kit.json'), { schemaVersion: 2, locks, concurrency: 1, browser: { path: old.browser } });
   await old.prepare(); await old.gates(); await accepted(old);
   await writeFile(locks.heavy.path, '\n# changed shared policy\n', { flag: 'a' });
   await assert.rejects(old.gates(), /wrapper changed/i);

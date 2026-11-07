@@ -82,8 +82,13 @@ export async function fixture(t, { version = '1.0.0', digit = '1' } = {}) {
   await cp(path.join(fixtures, 'assemble.mjs'), path.join(kit, 'tools/companion-check.mjs'));
   await cp(path.join(fixtures, 'with-heavy.ps1'), path.join(kit, 'operator/with-heavy.ps1'));
   await put(path.join(kit, 'operator/with-light.ps1'), 'param([Parameter(Position=0)][string]$Command,[Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest)\n& $Command @Rest\nexit $LASTEXITCODE');
-  await put(path.join(kit, 'operator/Managed-ReleaseV2.ps1'), "param([string]$CurrentRelease,[string]$CandidatePointer,[string]$CompanionRoot,[string]$Receipt,[string]$ReleaseRoot,[switch]$DryRun,[switch]$Rollback)\nif(-not $DryRun){throw 'Only synthetic dry runs allowed'}\nAdd-Content -LiteralPath (Join-Path $CompanionRoot '.local/dry-runs.txt') -Value ([bool]$Rollback)\n");
-  await put(path.join(kit, 'kit.json'), { schemaVersion: 2, concurrency: 1, browser: { path: process.execPath } });
+  await put(path.join(kit, 'operator/Managed-ReleaseV2.ps1'), "param([string]$CurrentRelease,[string]$CandidatePointer,[string]$CompanionRoot,[string]$Receipt,[string]$ReleaseRoot,[switch]$DryRun,[switch]$Rollback)\n$PSModuleAutoLoadingPreference='None'\nif(-not $DryRun){throw 'Only synthetic dry runs allowed'}\n[IO.File]::AppendAllText([IO.Path]::Combine($CompanionRoot,'.local','dry-runs.txt'),([bool]$Rollback).ToString()+[Environment]::NewLine)\n");
+  // The gallery producer is synthetic. Give its byte-identity boundary a small
+  // owned input instead of repeatedly hashing Node as a pretend browser. Actual
+  // Node/PowerShell executable pins and all startup processes remain authentic.
+  const browser = path.join(kit, 'browser-fixture.bin');
+  await put(browser, 'Synthetic browser identity; never executed.\n');
+  await put(path.join(kit, 'kit.json'), { schemaVersion: 2, concurrency: 1, browser: { path: browser } });
   const privateSource = path.join(kit, 'checks/private-source');
   await put(path.join(privateSource, 'scripts/adaptive-test-runner.mjs'), `export async function runAdaptive({files,env,onFile}) {
     const response=await fetch(${JSON.stringify(control.url)},{method:'POST',body:JSON.stringify({files,owner:{path:env.RS3_HEAVY_LOCK_PATH,pid:Number(env.RS3_HEAVY_LOCK_PID),token:env.RS3_HEAVY_LOCK_TOKEN}})});
@@ -154,5 +159,5 @@ export async function fixture(t, { version = '1.0.0', digit = '1' } = {}) {
       throw new Error(error.message + '\nClosed stage diagnostics: ' + JSON.stringify(logs), { cause: error });
     }
   };
-  return { root, kit, repo, release, previous, input, dataDir, descriptor: { ...descriptor, bindingSha256: hash(bindingBytes(descriptor)) }, cli, api, revision, prepare, gates, control };
+  return { root, kit, browser, repo, release, previous, input, dataDir, descriptor: { ...descriptor, bindingSha256: hash(bindingBytes(descriptor)) }, cli, api, revision, prepare, gates, control };
 }
