@@ -13,6 +13,7 @@ export async function proofWorker(workerData, { broker, WorkerClass = Worker } =
     const request = pending.get(message.id);
     if (!request) { releaseEligibilityChunk(message); return; }
     if (message.type === 'progress') {
+      if (typeof message.eligibilitySeeded === 'boolean') request.progress.push(message);
       if (message.eligibilitySeedRequest) {
         exports.push(message.eligibilitySeedRequest);
         Promise.resolve().then(() => broker?.(message.eligibilitySeedRequest, message))
@@ -30,14 +31,14 @@ export async function proofWorker(workerData, { broker, WorkerClass = Worker } =
     }
     if (message.type === 'prediction-prepared') { request.prepared.push(message); return; }
     pending.delete(message.id);
-    if (message.error) request.reject(Object.assign(new Error(message.error.message), message.error));
-    else request.resolve({ ...message, prepared: request.prepared });
+    if (message.error) request.reject(Object.assign(new Error(message.error.message), message.error, { raw: message, progress: request.progress }));
+    else request.resolve({ ...message, raw: message, prepared: request.prepared, progress: request.progress });
   });
   return { worker, ready: ready[0], exports,
     send(message) {
       const id = ++sequence;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject, prepared: [], pickerId: message.pickerId ?? 'legacy-shared' });
+        pending.set(id, { resolve, reject, prepared: [], progress: [], pickerId: message.pickerId ?? 'legacy-shared' });
         worker.postMessage({ id, ...message });
       });
     },

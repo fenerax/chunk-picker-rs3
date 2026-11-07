@@ -73,9 +73,9 @@ function cachedPlayValue(value) {
   let result;
   return Object.defineProperties({ get result() { return result ??= JSON.parse(playJSON.toString('utf8')); } }, descriptors);
 }
-function workerEvaluation(message) {
+function workerEvaluation(message, entry) {
   const metadata = { evaluationMs: message.evaluationMs, timingMs: message.timingMs };
-  const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: message.eligibilitySeeded === true });
+  const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: entry.eligibilitySeeded === true });
   if (message.sandboxJSON instanceof SharedArrayBuffer) {
     const sandboxJSON = Buffer.from(message.sandboxJSON);
     let result;
@@ -1009,7 +1009,12 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
           .then(reply, () => reply());
         return;
       }
-      if (message.type === 'progress') return;
+      if (message.type === 'progress') {
+        // Control metadata belongs only to this request and never reaches UI
+        // observers, result payloads or the numeric timing-stage accumulator.
+        if (active.type === 'predict' && typeof message.eligibilitySeeded === 'boolean') active.eligibilitySeeded = message.eligibilitySeeded === true;
+        return;
+      }
       // A display save can advance admission metadata while the immutable
       // worker snapshot retains its captured revision. Validate that origin
       // before promoting equivalent results to the current task revision.
@@ -1027,7 +1032,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
             && Array.isArray(message.result?.delta?.tasksAdded) && !message.result.cancelled) {
             // The owner's immutable Preview is complete. Keep the pending entry,
             // deadline and calculator lease until its partner preparation ends.
-            const value = active.previewValue = workerEvaluation(message);
+            const value = active.previewValue = workerEvaluation(message, active);
             storeEvaluation(active.key, active.revision, active.type, value, active.pickerId);
             for (const waiter of active.waiters) {
               waiter.signal?.removeEventListener('abort', waiter.abort);
@@ -1042,7 +1047,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return;
       }
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
-      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, eligibilitySeeded: message.eligibilitySeeded === true, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
+      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, eligibilitySeeded: entry.eligibilitySeeded === true, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
       if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
@@ -1059,7 +1064,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         settle(entry, error);
       } else {
         counts.completed++;
-        const value = workerEvaluation(message);
+        const value = workerEvaluation(message, entry);
         if (!entry.discarded && (entry.waiters.size || entry.warm || entry.previewValue)) {
           onEvaluation?.(message, entry);
           if (!entry.residentOnly) storeEvaluation(entry.key, entry.revision, entry.type, value, entry.pickerId);

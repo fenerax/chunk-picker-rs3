@@ -478,9 +478,11 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
   const request = { pickerId, cancelled: false, get latestRevision() { return pickerRevision(pickerId); } };
   const abandoned = () => request.cancelled || cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0) !== 0;
   let eligibilitySeeded = false;
-  // Native Preview opts into metadata outside the numeric stage durations.
-  // Legacy/protocol replies retain their existing field shape.
-  const predictionMetadata = () => type === 'predict' && (predictionProgress || seedEligibility) ? { eligibilitySeeded } : {};
+  // Native Preview observes this control message; final result envelopes and
+  // numeric stage durations keep the established calculator contract.
+  const notifyPredictionMetadata = () => {
+    if (eligibilitySeeded && type === 'predict' && (predictionProgress || seedEligibility)) parentPort.postMessage({ id, type: 'progress', eligibilitySeeded });
+  };
   requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
@@ -510,10 +512,14 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     if (restored && !abandoned() && state.revision >= pickerRevision(pickerId)) {
       timingMs.totalMs = performance.now() - started;
       if (type === 'predict' && predictionProgress) {
-        if (previewProgress) parentPort.postMessage({ id, type: 'prediction-prepared', result: restored.result, evaluationMs: timingMs.totalMs, timingMs, ...predictionMetadata() });
-        if (restored.unlockReuse) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse: restored.unlockReuse, ...predictionMetadata() });
+        if (previewProgress) {
+          notifyPredictionMetadata();
+          parentPort.postMessage({ id, type: 'prediction-prepared', result: restored.result, evaluationMs: timingMs.totalMs, timingMs });
+        }
+        if (restored.unlockReuse) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse: restored.unlockReuse });
       }
-      parentPort.postMessage({ id, ...restored, evaluationMs: timingMs.totalMs, timingMs, ...predictionMetadata() });
+      notifyPredictionMetadata();
+      parentPort.postMessage({ id, ...restored, evaluationMs: timingMs.totalMs, timingMs });
       return;
     }
     let result, unlockReuse, partnerUnlockReuse;
@@ -597,7 +603,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       }
       if (type === 'predict' && abandoned()) {
         timingMs.totalMs = performance.now() - started;
-        parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs, ...predictionMetadata() }); return;
+        notifyPredictionMetadata();
+        parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs }); return;
       }
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
       const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
@@ -608,7 +615,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         await yieldToRequests();
         if (abandoned()) {
           timingMs.totalMs = performance.now() - started;
-          parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs, ...predictionMetadata() });
+          notifyPredictionMetadata();
+          parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs });
           return;
         }
       }
@@ -618,9 +626,10 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         // building reusable task projections. Ordinary/protocol clients retain
         // the existing owner-prepared and final response sequence.
         const elapsedMs = performance.now() - started;
+        notifyPredictionMetadata();
         parentPort.postMessage({ id, type: 'prediction-prepared',
           result: { delta: prediction.delta, coverage: prediction.result.coverage, metrics: prediction.result.metrics },
-          evaluationMs: elapsedMs, timingMs: { ...timingMs, totalMs: elapsedMs }, ...predictionMetadata() });
+          evaluationMs: elapsedMs, timingMs: { ...timingMs, totalMs: elapsedMs } });
       }
       if (prediction && !state.members.find(owner => owner.id === memberId).unlocked.includes(chunkId)) {
         // Reuse only this exact hypothetical task input after a durable save.
@@ -636,7 +645,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
           playJSON: sharedJSON(play), duoJSON: duoSidebarJSON, duoSidebarJSON };
         // Publish the owner's reusable task bytes first. A save during partner work
         // may reuse these exact bytes while the same worker finishes the pair.
-        if (predictionProgress) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse, ...predictionMetadata() });
+        if (predictionProgress) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse });
         await yieldToRequests();
         if (!abandoned()) {
           const partner = prediction.state.members.find(owner => owner.id !== memberId);
@@ -669,10 +678,12 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     timingMs.totalMs = performance.now() - started;
     const reply = { ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}) };
     if (!abandoned() && state.revision >= pickerRevision(pickerId)) warmResults?.put(warmKey, reply);
-    parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs, ...predictionMetadata() });
+    notifyPredictionMetadata();
+    parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs });
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
-    parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs, ...predictionMetadata() });
+    notifyPredictionMetadata();
+    parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { requests.delete(id); }
 };
 if (PROFILE_ENABLED) profile.installWorker(parentPort, handleMessage);

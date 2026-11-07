@@ -8,7 +8,7 @@ registerHooks({ load(url, context, next) {
   replace("const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);",
     "const { snapshot } = timed(timingMs, 'baselineMs', () => snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId));");
   replace('evaluateFull(input, member, { includeViews: false, timingMs })', "timed(timingMs, 'hypotheticalMs', () => evaluateFull(input, member, { includeViews: false, timingMs }))");
-  replace('evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs })', "timed(timingMs, 'partnerMs', () => evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs }))");
+  replace('evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs, pickerId })', "timed(timingMs, 'partnerMs', () => evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs, pickerId }))");
   replace('const play = mapPlayResult(prediction.result);', "const play = timed(timingMs, 'projectionMs', () => mapPlayResult(prediction.result));");
   replace('const peerPlay = mapPlayResult(peer);', "const peerPlay = timed(timingMs, 'projectionMs', () => mapPlayResult(peer));");
   replace('function sharedJSON(value) {', "let previewTiming;\nfunction sharedJSON(value) { return timed(previewTiming, 'serializationMs', () => rawSharedJSON(value)); }\nfunction rawSharedJSON(value) {");
