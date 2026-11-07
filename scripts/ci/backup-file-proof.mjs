@@ -18,9 +18,12 @@ const git = (...args) => {
 };
 const head = git('rev-parse', 'HEAD'), baseline = '055332ff0951b7a38011243043ae2f5558827ee2';
 const entry = 'tests/backup-file-browser.test.mjs';
+const baselineRead = spawnSync('git', ['show', `${baseline}:${entry}`], { cwd: root, encoding: 'utf8' });
+assert.equal(baselineRead.status, 0, baselineRead.stderr);
+const baselineSource = baselineRead.stdout;
 const proof = { head, baseline, node: process.version, platform: process.platform,
   inputBlobs: Object.fromEntries(['app/open-starter.mjs', 'app/open-starter-data.mjs'].map(file => [file, git('rev-parse', `${head}:${file}`)])),
-  baselineSha256: createHash('sha256').update(git('show', `${baseline}:${entry}`)).digest('hex'),
+  baselineSha256: createHash('sha256').update(baselineSource).digest('hex'),
   measurements: [], mutations: [] };
 const save = () => writeFileSync(path.join(output, 'proof.json'), JSON.stringify(proof, null, 2) + '\n');
 const worktrees = new Set();
@@ -74,7 +77,7 @@ try {
   // Identical product/runtime/inputs and disabled bytecode cache, alternating
   // order. Retain any baseline first failure; never retry it for a timing win.
   const before = checkout('before', head), after = checkout('after', head);
-  writeFileSync(path.join(before, entry), git('show', `${baseline}:${entry}`) + '\n');
+  writeFileSync(path.join(before, entry), baselineSource);
   let baselineFailed = false;
   for (const pair of [1, 2, 3]) for (const variant of pair % 2 ? ['before', 'after'] : ['after', 'before']) {
     if (variant === 'before' && baselineFailed) continue;
