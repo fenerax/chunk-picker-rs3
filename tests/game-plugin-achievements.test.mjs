@@ -448,7 +448,9 @@ test('sidecar warnings reset after recovery and a final failed flush does not re
   await f.send(part(1, 1, [[1, 'First Task', 0, 0]]));
   await eventually(() => assert.equal(f.warnings.length, 1));
   await rm(file, { recursive: true });
+  const historyBeforeRecovery = structuredClone(f.state.history);
   f.advance(60001); await f.status(); await handledIds(f, [1]);
+  assert.deepEqual(f.state.history, historyBeforeRecovery, 'Status retries only the sidecar, without another progress command');
   await rm(file); await mkdir(file);
   await f.send(part(1, 1, [[2, 'Second Task', 0, 0]], secondSnapshot));
   await eventually(() => assert.equal(f.warnings.length, 2));

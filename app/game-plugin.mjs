@@ -717,6 +717,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
           }
           if (report.bank) await receiveBank(credential.player, report, quarantined);
           notify();
+        } else {
+          // Status reads still drive background sidecar recovery. Reports wait
+          // until their testing watermark is durable before starting any writes.
+          refreshRetainedReviews(); void flushHandled();
         }
         keys.touch(credential.id, report?.world);
         return status(credential.player);
