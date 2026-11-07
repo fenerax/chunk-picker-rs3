@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { ELIGIBILITY_CHUNK_BYTES, ELIGIBILITY_HANDOFF_BYTES } from './eligibility-transfer.mjs';
 import { isMainThread } from 'node:worker_threads';
 import { serialize, deserialize, DefaultDeserializer } from 'node:v8';
 import { zstdCompressSync, zstdDecompressSync, constants } from 'node:zlib';
@@ -120,7 +121,7 @@ const backingBytes = bytes => bytes.buffer.byteLength;
 export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLimit = 512, ownerByteLimit = byteLimit, eligibilityByteLimit = ownerByteLimit, snapshotByteLimit = byteLimit } = {}) {
   if (!Number.isSafeInteger(byteLimit) || byteLimit < 0 || !Number.isSafeInteger(entryLimit) || entryLimit < 0 || !Number.isSafeInteger(ownerByteLimit) || ownerByteLimit < 0 || !Number.isSafeInteger(eligibilityByteLimit) || eligibilityByteLimit < 0 || !Number.isSafeInteger(snapshotByteLimit) || snapshotByteLimit < 0) throw new TypeError('Invalid eligibility byte budget.');
   const retained = new Map();
-  let measuringResult = false;
+  let measuringResult = false, handoff;
   let retainedBytes = 0, snapshotRetainedBytes = 0;
   const owners = new Map();
   const release = (token, entry) => {
@@ -151,10 +152,28 @@ export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLi
     get pickerOwners() { return [...owners.keys()].filter(owner => typeof owner === 'string' && owner.startsWith('picker:')).length; },
     get ownerByteLimit() { return ownerByteLimit; },
     canAdmit,
+    canAdmitWithoutEviction(cost) { return canAdmit({ cost, preserve: [...retained.keys()] }); },
     get entryLimit() { return entryLimit; },
     get eligibilityByteLimit() { return eligibilityByteLimit; },
     get bytes() { return retainedBytes; },
     get size() { return retained.size; },
+    // Reserve every transient native/IPC copy before requesting a proof. This
+    // uses the existing eligibility partition and cannot displace any entry.
+    // Only a bounded chunk crosses thread/IPC boundaries. The receiving
+    // assembly is charged separately, once, and becomes the retained proof.
+    reserveHandoff() {
+      if (handoff || retained.size + 2 > entryLimit) return;
+      const available = Math.min(byteLimit - retainedBytes, eligibilityByteLimit - (owners.get('eligibility') ?? 0));
+      const maxBytes = available - ELIGIBILITY_HANDOFF_BYTES;
+      if (maxBytes < 1) return;
+      const token = {};
+      if (!this.admit(token, () => {}, { cost: ELIGIBILITY_HANDOFF_BYTES, preserve: [...retained.keys()] })) return;
+      handoff = token;
+      return { maxBytes, release: () => { this.forget(token); if (handoff === token) handoff = undefined; } };
+    },
+    admitWithoutEviction(bytes, onEvict) {
+      return this.admit(bytes, onEvict, { preserve: [...retained.keys()] });
+    },
     forget(bytes) {
       const entry = retained.get(bytes);
       if (!entry) return false;
@@ -168,6 +187,7 @@ export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLi
       return true;
     },
     admit(bytes, onEvict, { cost = backingBytes(bytes), owner = 'eligibility', preserve = [] } = {}) {
+      if (handoff) preserve = [...new Set([...preserve, handoff])];
       const ownerLimit = owner === 'eligibility' ? eligibilityByteLimit : ownerByteLimit;
       if (!Number.isSafeInteger(cost) || cost < 0) throw new TypeError('Invalid cache byte cost.');
       if (!canAdmit({ cost, owner, preserve })) return false;
@@ -200,6 +220,7 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
   if (!Number.isSafeInteger(limit) || limit < 0 || !Number.isSafeInteger(byteLimit) || byteLimit < 0) throw new TypeError('Invalid eligibility cache bound.');
   budget ??= createEligibilityBudget({ byteLimit });
   const entries = new Map();
+  const proofIds = new WeakMap(), proofOwner = randomUUID(); let proofSequence = 0;
   let retainedBytes = 0;
   const discard = (key, bytes) => {
     if (!entries.delete(key)) return;
@@ -233,6 +254,62 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
   return {
     get size() { return entries.size; },
     get bytes() { return retainedBytes; },
+    exportProof(key, maxBytes) {
+      const bytes = entries.get(key);
+      if (!bytes || !Number.isSafeInteger(maxBytes) || backingBytes(bytes) > maxBytes) return;
+      // The message boundary copies these existing bytes. Never serialize a
+      // graph, compute a miss, or expose this buffer to an in-process importer.
+      return { key, bytes, compressed: compressed.has(bytes) };
+    },
+    exportProofChunk(key, maxBytes, offset = 0, proofId) {
+      const bytes = entries.get(key);
+      if (!bytes || !Number.isSafeInteger(maxBytes) || backingBytes(bytes) > maxBytes
+        || !Number.isSafeInteger(offset) || offset < 0 || offset >= bytes.byteLength) return;
+      if (!proofIds.has(bytes)) proofIds.set(bytes, `${proofOwner}:${++proofSequence}`);
+      const identity = proofIds.get(bytes);
+      if (offset !== 0 && proofId !== identity || proofId !== undefined && proofId !== identity) return;
+      const chunk = Buffer.allocUnsafeSlow(Math.min(ELIGIBILITY_CHUNK_BYTES, bytes.byteLength - offset));
+      bytes.copy(chunk, 0, offset, offset + chunk.byteLength);
+      return { key, bytes: chunk, compressed: compressed.has(bytes), totalBytes: bytes.byteLength, offset, proofId: identity };
+    },
+    beginImport(key, proof) {
+      const { key: inputKey, totalBytes, compressed: packed, proofId } = proof ?? {};
+      if (limit === 0 || entries.size >= limit || entries.has(key) || inputKey !== key
+        || !Number.isSafeInteger(totalBytes) || totalBytes < 1 || typeof packed !== 'boolean' || typeof proofId !== 'string'
+        || totalBytes > byteLimit || !budget.canAdmitWithoutEviction(totalBytes)) return;
+      const bytes = Buffer.allocUnsafeSlow(totalBytes);
+      let written = 0, committed = false, closed = false;
+      const abort = () => {
+        if (closed || committed) return;
+        closed = true; budget.forget(bytes); bytes.buffer.transfer(0);
+      };
+      if (!budget.admitWithoutEviction(bytes, () => committed ? discard(key, bytes) : abort())) { abort(); return; }
+      return {
+        append(chunk) {
+          if (closed || committed || chunk?.key !== key || chunk.proofId !== proofId || chunk.totalBytes !== totalBytes
+            || chunk.compressed !== packed || chunk.offset !== written || !(chunk.bytes instanceof Uint8Array)
+            || chunk.bytes.byteLength < 1 || chunk.bytes.byteLength > ELIGIBILITY_CHUNK_BYTES || written + chunk.bytes.byteLength > totalBytes) return false;
+          bytes.set(chunk.bytes, written); written += chunk.bytes.byteLength; return true;
+        },
+        finish() {
+          if (closed || committed || written !== totalBytes || entries.size >= limit || entries.has(key) || !budget.touch(bytes)) { abort(); return false; }
+          if (packed) compressed.add(bytes);
+          entries.set(key, bytes); retainedBytes += backingBytes(bytes); committed = true; return true;
+        },
+        abort,
+      };
+    },
+    importProof(key, proof) {
+      if (limit === 0 || entries.size >= limit || entries.has(key) || proof?.key !== key
+        || !(proof.bytes instanceof Uint8Array) || typeof proof.compressed !== 'boolean') return false;
+      if (!budget.canAdmit({ cost: proof.bytes.byteLength })) return false;
+      const bytes = Buffer.allocUnsafeSlow(proof.bytes.byteLength);
+      bytes.set(proof.bytes);
+      if (proof.compressed) compressed.add(bytes);
+      if (!budget.admitWithoutEviction(bytes, () => discard(key, bytes))) return false;
+      entries.set(key, bytes); retainedBytes += backingBytes(bytes);
+      return true;
+    },
     evaluate(state, memberId, options, compute) {
       // Automatic travel owns its separate baseline. Do not retain the same
       // large capability proof twice. Zero bounds also explicitly disable reuse.
@@ -242,13 +319,15 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
         return applyCompletionOverlay(result, state, memberId);
       }
       const key = eligibilityInputKey(state, memberId, options);
-      const cached = entries.get(key);
+      let cached = entries.get(key);
       let result;
       if (cached) {
         entries.delete(key); entries.set(key, cached);
         if (!budget.touch(cached)) throw new Error('Eligibility cache accounting mismatch.');
-        result = copyResult(cached, budget.measuringResult);
-      } else {
+        try { result = copyResult(cached, budget.measuringResult); }
+        catch { discard(key, cached); cached = undefined; }
+      }
+      if (!cached) {
         // Release the oldest retained proof before computing its replacement.
         if (entries.size >= limit) evict();
         result = compute();

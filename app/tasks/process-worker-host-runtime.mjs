@@ -3,6 +3,7 @@ import { encodeReceivedWorkerMessage, decodeReceivedProcessMessage } from './pro
 import { createRelayCollector, envelopeBytes } from './relay-collector.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 import { createProcessProfiles } from './process-profiles.mjs';
+import { eligibilityTransferList, releaseEligibilityChunk } from './eligibility-transfer.mjs';
 
 // Production and controlled tests execute the same message/retirement controller.
 // Defaults retain the real process, Worker, inspector and timers.
@@ -119,6 +120,7 @@ export function createProcessWorkerHost({ parent = process, WorkerClass = Worker
           if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) { cancellations.delete(result.id); requests.delete(result.id); }
           try { const payload = encodeReceivedWorkerMessage(result); send({ kind: 'message', payload }); relay.note(envelopeBytes(payload)); }
           catch (error) { fail(error); }
+          finally { releaseEligibilityChunk(result); }
           retireProfileWhenIdle();
         });
         worker.on('error', fail);
@@ -134,7 +136,7 @@ export function createProcessWorkerHost({ parent = process, WorkerClass = Worker
           if (cancellation) Atomics.store(new Int32Array(cancellation), 0, 1);
         } else if (request.cancellation instanceof SharedArrayBuffer) cancellations.set(request.id, request.cancellation);
         if (request.id !== undefined && !['cancel', 'supersede'].includes(request.type)) requests.add(request.id);
-        worker.postMessage(request);
+        worker.postMessage(request, eligibilityTransferList(request));
       }
     } catch (error) { fail(error); }
   });

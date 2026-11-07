@@ -754,7 +754,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         ? taskWorker.preparedEvaluation?.(() => stateInput.taskInputKey, memberId, state.revision) : undefined;
       const evaluation = reused ?? await taskWorker.evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput,
         side && type !== 'death-estimates' ? 'side' : evaluationLane, duoSidebarProjection);
-      noteTiming({ source: evaluation.hit && !evaluation.coalesced ? 'cache' : 'computed', coalesced: evaluation.coalesced, calculatorStarted: evaluation.calculatorStarted, timingMs: evaluation.timingMs });
+      noteTiming({ source: evaluation.hit && !evaluation.coalesced ? 'cache' : 'computed', coalesced: evaluation.coalesced, calculatorStarted: evaluation.calculatorStarted, eligibilitySeeded: evaluation.eligibilitySeeded, timingMs: evaluation.timingMs });
       completed = !evaluation.cancelled;
       // Compress off the response path. Current lists survive retirement within
       // the existing quota, so reading them need not compile another worker.

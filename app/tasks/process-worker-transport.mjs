@@ -1,3 +1,5 @@
+import { eligibilityChunk } from './eligibility-transfer.mjs';
+
 // Advanced child-process serialization preserves Maps, Sets and Buffer, but
 // cannot carry SharedArrayBuffer. Placeholders are referenced from a separate
 // envelope, so arbitrary user properties can never be mistaken for a tag.
@@ -70,6 +72,14 @@ function encode(value, walk) {
       return placeholder;
     }
   });
+  const chunk = eligibilityChunk(data);
+  if (chunk?.bytes instanceof Uint8Array) {
+    // ArrayBuffer gets private storage on IPC decode. Typed-array decoding can
+    // alias the IPC parser's input buffer, which must never be detached.
+    const { bytes } = chunk;
+    chunk.bytes = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+      ? bytes.buffer : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  }
   return { data, shared, views };
 }
 
@@ -105,12 +115,17 @@ function sharedReplacements(shared, views) {
 
 export function decodeProcessMessage({ data, shared, views }) {
   const replacements = sharedReplacements(shared, views);
-  return transform(data, entry => replacements.get(entry));
+  const result = transform(data, entry => replacements.get(entry));
+  const chunk = eligibilityChunk(result);
+  if (chunk?.bytes instanceof ArrayBuffer) chunk.bytes = new Uint8Array(chunk.bytes);
+  return result;
 }
 
 // Only consume freshly deserialized IPC envelopes here: IPC has already cloned
 // their graph. Preserve that owned graph while restoring shared placeholders.
 export function decodeReceivedProcessMessage({ data, shared, views }) {
+  const chunk = eligibilityChunk(data);
+  if (chunk?.bytes instanceof ArrayBuffer) chunk.bytes = new Uint8Array(chunk.bytes);
   if (!shared.length && !views.length) return data;
   const replacements = sharedReplacements(shared, views);
   return transformOwned(data, entry => replacements.get(entry));

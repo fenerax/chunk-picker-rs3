@@ -38,7 +38,7 @@ registerHooks({ load(url, context, next) {
   const result = next(url, context);
   let anchor, replacement;
   if (url.endsWith('/tasks/worker.mjs')) {
-    anchor = 'function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSizing = false } = {}) {';
+    anchor = 'function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSizing = false, pickerId } = {}) {';
     replacement = anchor + '\n  globalThis.__residentPlanningProbe.evaluateFull++;';
   } else if (url.endsWith('/tasks/chunk-planning-index.mjs')) {
     anchor = 'const add = (task, location, reason) => {';

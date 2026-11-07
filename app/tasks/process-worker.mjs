@@ -2,6 +2,7 @@ import { fork } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { encodeProcessMessage, decodeReceivedProcessMessage } from './process-worker-transport.mjs';
+import { releaseEligibilityChunk } from './eligibility-transfer.mjs';
 import { WORKER_OLD_GENERATION_MB, CALCULATOR_PROCESS_RSS_BYTES, workerMemoryError } from './worker-limits.mjs';
 
 // A Worker-compatible endpoint whose entire allocator belongs to an owned
@@ -106,7 +107,12 @@ export class ProcessWorker extends EventEmitter {
     this.emit('exit', code);
   }
 
-  postMessage(message) { this.#send({ kind: 'post', payload: encodeProcessMessage(message) }); }
+  postMessage(message) {
+    // Advanced IPC serializes synchronously. Release the owned chunk after
+    // serialization; the bounded wire copy remains until the send drains.
+    try { this.#send({ kind: 'post', payload: encodeProcessMessage(message) }); }
+    finally { releaseEligibilityChunk(message); }
+  }
 
   terminate({ force = false } = {}) {
     if (this.#exited) return this.#exitPromise;

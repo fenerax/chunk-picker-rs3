@@ -5,6 +5,7 @@ import path from 'node:path';
 const requests = new AsyncLocalStorage();
 export const actions = Object.freeze(['tasks-full', 'tasks-play', 'tasks-duo', 'tasks-sidebar', 'tasks-inspection', 'preview-first', 'preview-partner', 'how', 'why', 'roll-pool', 'pool-ranking', 'chunk-planning', 'sandbox', 'command', 'state-full', 'state-play', 'calculator-wake', 'worker-start']);
 const actionSet = new Set(actions);
+const flags = ['cached', 'coalesced', 'calculatorStarted', 'eligibilitySeeded', 'failed'];
 const stages = new Set(['engineMs', 'collectionMs', 'equipmentMs', 'presentationMs', 'currentBiSMs', 'activityMs', 'predictionMs', 'deathMs', 'totalMs', 'sandboxInputMs', 'sandboxProjectionMs', 'sandboxDeltaMs', 'sandboxSerializationMs', 'preparationMs', 'rollPoolMs', 'howMs', 'areaCheckMs', 'sandboxValidationMs', 'sandboxPoolMs']);
 const HOUR = 3600000, HOURS = 168, RECENT = 2048;
 export const TIMING_FILE_CAP = 8 * 1024 * 1024;
@@ -17,6 +18,7 @@ export function noteTiming(metadata) {
   if (metadata.source === 'computed' || !current.source) current.source = metadata.source;
   current.coalesced ||= !!metadata.coalesced;
   current.calculatorStarted ||= !!metadata.calculatorStarted;
+  current.eligibilitySeeded ||= metadata.eligibilitySeeded === true;
   if (metadata.timingMs && metadata.source !== 'cache') {
     for (const [key, value] of Object.entries(metadata.timingMs.stages ?? metadata.timingMs)) {
       if (stages.has(key) && Number.isFinite(value)) current.stages[key] = (current.stages[key] ?? 0) + duration(value);
@@ -48,11 +50,11 @@ export async function openLiveTimings(dataDir, { enabled = true, paused = false,
     if (!hours.has(hour)) prune();
     const event = { action, durationMs: Math.round(duration(ms) * 1000) / 1000, time,
       cached: metadata.source === 'cache', coalesced: !!metadata.coalesced, calculatorStarted: !!metadata.calculatorStarted,
-      failed: !!metadata.failed, stages: {} };
+      eligibilitySeeded: metadata.eligibilitySeeded === true, failed: !!metadata.failed, stages: {} };
     for (const [key, value] of Object.entries(metadata.source === 'cache' ? {} : metadata.stages ?? {})) if (stages.has(key) && Number.isFinite(value)) event.stages[key] = duration(value);
     let row = hours.get(hour); if (!row) hours.set(hour, row = {});
-    const cell = row[action] ??= { count: 0, cached: 0, coalesced: 0, calculatorStarted: 0, failed: 0, max: 0, histogram: {}, stages: {} };
-    cell.count++; for (const flag of ['cached', 'coalesced', 'calculatorStarted', 'failed']) cell[flag] += Number(event[flag]);
+    const cell = row[action] ??= { count: 0, ...Object.fromEntries(flags.map(flag => [flag, 0])), max: 0, histogram: {}, stages: {} };
+    cell.count++; for (const flag of flags) cell[flag] += Number(event[flag]);
     cell.max = Math.max(cell.max, event.durationMs);
     const bin = bucket(event.durationMs); cell.histogram[bin] = (cell.histogram[bin] ?? 0) + 1;
     for (const [key, value] of Object.entries(event.stages)) { const stage = cell.stages[key] ??= { count: 0, totalMs: 0, maxMs: 0 }; stage.count++; stage.totalMs += value; stage.maxMs = Math.max(stage.maxMs, value); }
@@ -72,7 +74,7 @@ export async function openLiveTimings(dataDir, { enabled = true, paused = false,
         for (const action of actions) {
           const value = row?.[action]; if (!value || !Number.isSafeInteger(value.count) || value.count < 0) continue;
           const cell = { count: value.count, max: duration(value.max), histogram: {}, stages: {} };
-          for (const flag of ['cached', 'coalesced', 'calculatorStarted', 'failed']) cell[flag] = Math.min(cell.count, Math.max(0, Number.isSafeInteger(value[flag]) ? value[flag] : 0));
+          for (const flag of flags) cell[flag] = Math.min(cell.count, Math.max(0, Number.isSafeInteger(value[flag]) ? value[flag] : 0));
           for (let i = 0; i <= 422; i++) if (Number.isSafeInteger(value.histogram?.[i]) && value.histogram[i] > 0) cell.histogram[i] = value.histogram[i];
           for (const key of stages) if (value.stages?.[key]) cell.stages[key] = { count: Math.min(cell.count, Math.max(0, Number(value.stages[key].count) || 0)), totalMs: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Number(value.stages[key].totalMs) || 0)), maxMs: duration(value.stages[key].maxMs) };
           clean[action] = cell;
@@ -83,7 +85,7 @@ export async function openLiveTimings(dataDir, { enabled = true, paused = false,
       if (Array.isArray(saved.recent)) for (const event of saved.recent.slice(-RECENT)) {
         if (!actionSet.has(event?.action) || !Number.isFinite(event.time) || event.time > now() || event.time < now() - HOURS * HOUR) continue;
         const clean = { action: event.action, time: event.time, durationMs: duration(event.durationMs), stages: {} };
-        for (const flag of ['cached', 'coalesced', 'calculatorStarted', 'failed']) clean[flag] = event[flag] === true;
+        for (const flag of flags) clean[flag] = event[flag] === true;
         for (const key of stages) if (Number.isFinite(event.stages?.[key])) clean.stages[key] = duration(event.stages[key]);
         recent[cursor] = clean; cursor = (cursor + 1) % RECENT; size++;
       }
@@ -96,9 +98,9 @@ export async function openLiveTimings(dataDir, { enabled = true, paused = false,
     const windows = {};
     for (const [name, span] of [['24h', 24], ['7d', HOURS]]) windows[name] = actions.map(action => {
       const cells = [...hours].filter(([hour]) => hour > hourNow() - span).map(([, row]) => row[action]).filter(Boolean);
-      const row = { action, count: 0, cached: 0, coalesced: 0, calculatorStarted: 0, failed: 0, max: 0, stages: {} }, hist = {};
+      const row = { action, count: 0, ...Object.fromEntries(flags.map(flag => [flag, 0])), max: 0, stages: {} }, hist = {};
       for (const cell of cells) {
-        for (const key of ['count', 'cached', 'coalesced', 'calculatorStarted', 'failed']) row[key] += cell[key];
+        for (const key of ['count', ...flags]) row[key] += cell[key];
         row.max = Math.max(row.max, cell.max);
         for (const [key, count] of Object.entries(cell.histogram)) hist[key] = (hist[key] ?? 0) + count;
         for (const [key, value] of Object.entries(cell.stages)) { const s = row.stages[key] ??= { count: 0, totalMs: 0, maxMs: 0 }; s.count += value.count; s.totalMs += value.totalMs; s.maxMs = Math.max(s.maxMs, value.maxMs); }
