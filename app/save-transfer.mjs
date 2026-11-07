@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mapOptionalSidecarEvidence } from './optional-sidecar-evidence.mjs';
 import { mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 import { portableCurrencyFacts } from './storage/plugin-currency.mjs';
+import { pluginTestingSettings } from './core/plugin-testing.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 export function transferDigest(value) {
@@ -64,6 +65,13 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   const next = owned ? state : structuredClone(state), mapped = id => Object.hasOwn(entries, id) ? entries[id] : id;
   // Resolve frozen restore archives while source IDs still describe their owners.
   const itemEvidence = portablePluginItemEvidence(next);
+  const provenance = next.provenance;
+  if (provenance && typeof provenance === 'object' && [Object.prototype, null].includes(Object.getPrototypeOf(provenance))
+    && Object.hasOwn(provenance, 'pluginTestingMode')) {
+    const testing = pluginTestingSettings(next);
+    if (Object.keys(testing).length) next.provenance = { ...provenance, pluginTestingMode: Object.fromEntries(
+      Object.entries(testing).filter(([id]) => Object.hasOwn(entries, id)).map(([id, enabled]) => [mapped(id), enabled])) };
+  }
   const changed = source.some(id => entries[id] !== id);
   if (changed) {
     // A rollback release can Undo the amount without updating the portable map.

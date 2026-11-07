@@ -146,7 +146,7 @@ export function createSettingsPanel(ctx) {
         }
         if (section.id === 'panels' && ctx.gamePlugin && (!query || 'game plugin keys sync levels quests position'.includes(query))) {
           const row = el('div', undefined, 'rule-row settings-option'), copy = el('div', undefined, 'field-copy');
-          copy.append(el('strong', 'Game plugin'), el('p', 'Manage private plugin keys and review progress sent from the game.', 'field-help'));
+          copy.append(el('strong', 'Game plugin'), el('p', 'Manage private plugin keys, turn testing mode on or off, and review progress sent from the game.', 'field-help'));
           row.append(copy, button('Game plugin…', ctx.gamePlugin.open)); node.append(row); count++;
         }
         for (const preferenceId of section.ids) {

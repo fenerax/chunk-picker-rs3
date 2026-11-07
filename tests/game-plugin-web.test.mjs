@@ -37,7 +37,7 @@ function fixture(t, { viewer = false } = {}) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
     }
   });
-  let preview, keys = [], nextFailure = false;
+  let preview, keys = [], testingModes = {}, nextFailure = false;
   const c = {
     state: { revision: 1, members: [{ id: 'one', name: 'Explorer 1' }] }, sessionMember: 'one', sandbox: { active: false },
     canWrite: () => !viewer, queue: Promise.resolve(), $: id => id === 'tool-dialog' ? dialog : null,
@@ -50,7 +50,8 @@ function fixture(t, { viewer = false } = {}) {
     iconLink: (href, label) => Object.assign(new Node('a'), { href, className: 'icon-button', attributes: { 'aria-label': label } }),
     api: async (path, body) => {
       if (body) posts.push({ path, body });
-      if (path === '/api/game-plugin') return { keys: structuredClone(keys), positions: [], active: false };
+      if (path === '/api/game-plugin') return { keys: structuredClone(keys), testingModes: { ...testingModes }, positions: [], active: false };
+      if (path === '/api/game-plugin/testing-mode') { testingModes[body.memberId] = body.enabled; return { enabled: body.enabled }; }
       if (path.startsWith('/api/game-plugin/review')) {
         if (nextFailure) { nextFailure = false; throw new Error('Connection interrupted. Retry.'); }
         return structuredClone(preview ?? { preview: null });
@@ -74,6 +75,7 @@ function fixture(t, { viewer = false } = {}) {
   return { c, client, posts, copied, proposal, dialog,
     setPreview: value => { preview = value; }, failReview: () => { nextFailure = true; },
     setKeys: value => { keys = value; },
+    setTesting: value => { testingModes.one = value; },
     open: async () => { await client.refresh(); const root = client.controls({ memberId: 'one', keys: true }); await settle(); return root; },
   };
 }
@@ -86,6 +88,26 @@ test('viewers can read plugin review but cannot see keys or mutate progress', as
   assert.doesNotMatch(text(root), /Private key label/);
   for (const label of ['Create plugin key', 'Copy key once', 'Revoke key', 'Apply selected', 'Dismiss snapshot', 'Skip']) assert.equal(button(root, label), undefined);
   assert.deepEqual(f.posts, []);
+});
+
+test('testing mode toggles in plugin settings and remains visible in Activity Info and view-only status', async t => {
+  const f = fixture(t), root = await f.open();
+  assert.equal(button(root, 'Turn testing mode on').attributes['aria-pressed'], 'false');
+  await button(root, 'Turn testing mode on').action();
+  assert.deepEqual(f.posts.at(-1), { path: '/api/game-plugin/testing-mode', body: { memberId: 'one', enabled: true, expectedRevision: 1 } });
+  assert.equal(button(root, 'Turn testing mode off').attributes['aria-pressed'], 'true');
+  const notice = all(root).find(node => node.className === 'warning' && node.textContent.startsWith('Plugin testing mode is on:'));
+  assert.equal(notice.hidden, false);
+  const info = f.client.controls({ memberId: 'one' }); await settle();
+  assert.equal(all(info).find(node => node.textContent.startsWith('Plugin testing mode is on:')).hidden, false);
+  f.setPreview(f.proposal()); await f.client.refresh(); await settle();
+  assert.equal(button(root, 'Apply selected').disabled, true);
+  await button(root, 'Turn testing mode off').action();
+  assert.equal(notice.hidden, true);
+  f.c.canWrite = () => false;
+  f.setTesting(true); await f.client.refresh(); await settle();
+  assert.equal(notice.hidden, false);
+  assert.equal(button(root, 'Turn testing mode off'), undefined);
 });
 
 test('item retention failure is visible without blocking the progress review', async t => {

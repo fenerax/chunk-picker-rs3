@@ -6,6 +6,7 @@
     "initialize-static",
     "platform-progress",
     "plugin-progress",
+    "plugin-testing-mode",
     "plugin-item-journals",
     "plugin-currency",
     "claim",
@@ -36,6 +37,11 @@
     "plugin-start-gate"
   ],
   "json": [
+    {
+      "path": "/state/provenance/pluginTestingMode/*",
+      "frozen": "preserved",
+      "reason": "Per-player boolean picker setting, outside gameplay Undo. The frozen release preserves free-form provenance but ignores the switch; its receiver does not enforce testing mode. Current readers recover settings through frozen restore archives and map roster IDs."
+    },
     {
       "path": "/actionReceipts/format",
       "frozen": "preserved"

@@ -42,7 +42,7 @@ export const routePermissions = Object.freeze({
   }),
   POST: Object.freeze({
     '/api/plugin/v1/report': 'plugin', '/api/game-plugin/keys': 'write', '/api/game-plugin/keys/:id/revoke': 'write',
-    '/api/game-plugin/apply': 'write', '/api/game-plugin/dismiss': 'write',
+    '/api/game-plugin/apply': 'write', '/api/game-plugin/dismiss': 'write', '/api/game-plugin/testing-mode': 'write',
     '/api/action-session': 'write', '/api/sandbox/evaluate': 'write', '/api/prediction-intent': 'write', '/api/pool-ranking-intent': 'write', '/api/feedback': 'write', '/api/feedback/:id/status': 'admin',
     '/api/feedback/seen': 'write', '/api/usage': 'usage',
     '/api/invites': 'admin', '/api/invites/:id/player': 'admin', '/api/invites/:id/revoke': 'admin',
