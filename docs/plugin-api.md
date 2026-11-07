@@ -15,6 +15,82 @@ progress. Each player can have three active keys. Copy a newly created key once
 and paste it into the plugin. Only SHA-256 hashes are stored in the separate
 key sidecar. Keys can be revoked. Never put them in URLs, logs, or saves.
 
+### Picker testing mode
+
+Before testing on a beta world, turn on **Plugin testing mode** in **More →
+Game plugin**. It defaults off and is saved separately for each player. That
+player or an administrator can change it. The picker shows its status both
+there and in Activity Info's plugin section, including when disconnected.
+This is picker-side behavior only: plugin 1.0.0's reports, status fields and
+capabilities are unchanged. The plugin's own beta checkbox may still say live.
+
+While testing mode is on, incoming reports are acknowledged and discarded,
+even `world.beta: false`. Nothing from them ticks tasks, changes levels, XP,
+quests, equipment, bank or coins, enters the skill/quest source cache, or becomes
+review/Apply evidence. No testing journal facts, suppression or History entries
+are retained. Existing live evidence cannot auto-tick from a testing report either.
+A report received during testing is dropped even if the switch is turned off
+while its body or queued mutation is waiting.
+
+The only retained report state is delivery bookkeeping: snapshot/part counters
+in memory, and journal positions in the existing `plugin-item-journal-commits.json`
+sidecar. The journal prefix is deliberately acknowledged without retaining its
+observations. The plugin drops events through that index, stops sending completed
+snapshots, and sends the next live event normally. Testing multipart sets keep
+only counters, including a continuation received after switching off. This is
+an exception to the normal evidence-before-acknowledgement rule below.
+There is no testing watermark, durable snapshot replay set or save-format change
+for reports. Replaying reports the server has already acknowledged is outside
+the testing-mode contract, as for ordinary live deliveries.
+
+If the journal acknowledgement write fails, the request returns 503 without
+processing or retaining observations. The receiver keeps a pending mark and
+the testing event boundary for that journal in memory until its successful
+acknowledgement, including when its event list is empty.
+Testing observations in a retry after switching off are still dropped while
+that receiver remains running.
+Only events through the highest index actually received during testing are
+dropped: a mixed retry processes new live journal events above that fixed
+boundary in the same request, without applying its containers or coins. Off-mode
+retries never extend the testing boundary. While a journal is pending, all
+non-journal parts of reports carrying that journal are dropped. Acknowledging
+another journal cannot release it. After its acknowledgement, the next full
+live container snapshot can apply normally. Memory holds one boundary per
+journal, with no snapshot-ID set. Reports without items have no journal ID;
+they use one separate pending mark per player, cleared only by a successful
+acknowledgement of a journal-less report for that player.
+Turning testing off is never blocked by pending acknowledgements; there is no
+409 gate. Normal live journal processing still drains a full durable pending
+prefix before leaving an overflowing suffix for redelivery. Current live
+containers continue independently of a blocked or conflicting journal retry.
+
+Changing the switch clears temporary proposals, observed multipart rows and the
+skill/quest source cache. It preserves delivery counters for dropped testing
+sets so switching off does not itself request their replay. Fresh observations
+after switching off follow the normal live-world rules.
+
+Two limits require care:
+
+- If the server crashes or restarts between receiving a testing report and
+  acknowledging it, then testing is turned off before its retry, the retry can
+  be treated as live. Keep testing on until the plugin sync succeeds.
+- Turning testing off while still logged into the test world makes subsequent
+  reports live. Leave the test world before turning testing off.
+
+Testing mode is a setting of the live picker, not part of a member backup.
+Member restore and member import keep the destination's current setting.
+Whole-picker backups and restores preserve the setting as additive schema-1
+metadata in `provenance.pluginTestingMode`; full-save roster transfers map its
+player IDs. This key stays absent until testing is used. Unchanged
+toggles do not write a save. Enabling testing requires plain-object provenance;
+other existing provenance is preserved and the change is refused with 409.
+The setting is outside gameplay Undo. Frozen rollback release `06e15939` loads
+and preserves the metadata but
+**ignores testing mode**; it does not protect beta testing. Chunks, ticks,
+History and Undo remain compatible. Optional plugin metadata never gates
+startup, restore or export; plugin decisions may be offered again after an
+emergency rollback. See [the frozen save contract](save-surface.md).
+
 All three routes require `Authorization: Bearer gpk_…` with a dedicated plugin key.
 Cookies, picker master/invite credentials and overlay keys cannot authorize
 them. A plugin key cannot authorize any other route, even alongside a valid

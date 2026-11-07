@@ -5,7 +5,6 @@ import { openStore } from '../app/storage/store.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serialize } from 'node:v8';
-import { setTimeout as delay } from 'node:timers/promises';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { applyCommand, createGroupState } from '../app/core/state.mjs';
 
@@ -14,20 +13,11 @@ const part = (part = 1, parts = 1, complete = [], id = snapshot) => ({ snapshot:
 const task = (id, title, group = 'Easy') => ({ id, category: 'Diary', label: `~|Synthetic Achievements#${group}|~ ${title}` });
 const identity = { admin: true };
 
-// Poll gently: on Windows a file held open by this read can't be replaced, so
-// tight polling starves the sidecar's atomic rename until its retries run out.
-async function eventually(check) {
-  for (let attempt = 0; ; attempt++) {
-    try { return await check(); }
-    catch (error) { if (attempt >= 200) throw error; await delay(25); }
-  }
-}
 async function handledIds(f, ids) {
-  return eventually(async () => {
-    const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-achievements.json'), 'utf8'));
-    assert.deepEqual(saved, { v: 1, players: { a: { handled: ids } } });
-    return saved;
-  });
+  await f.controller.prepareSnapshot();
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-achievements.json'), 'utf8'));
+  assert.deepEqual(saved, { v: 1, players: { a: { handled: ids } } });
+  return saved;
 }
 
 // No HTTP server or live save. The controller uses a real revision-checked core
@@ -384,7 +374,7 @@ test('a persistently broken sidecar never blocks sync or reoffers pending handle
   const file = path.join(f.dataDir, 'plugin-achievements.json');
   await mkdir(file);
   assert.equal((await f.send(part(1, 1, [[1, 'First Task', 0, 0]]))).achievements.received, 1);
-  await eventually(() => assert.equal(f.warnings.length, 1));
+  await f.status(); assert.equal(f.warnings.length, 1);
   assert.match(f.warnings[0], /handled.*memory.*background/);
   await f.store.command({ type: 'undo' }, f.state.revision);
   const complete = [[1, 'First Task', 0, 0], [2, 'Second Task', 0, 0], [42, 'Shared Task', 0, 0], [43, 'Other Shared Task', 0, 0]];
@@ -436,22 +426,25 @@ test('shutdown retries pending handled IDs without waiting for the retry interva
   const f = await fixture(t), file = path.join(f.dataDir, 'plugin-achievements.json');
   await mkdir(file);
   await f.send(part(1, 1, [[1, 'First Task', 0, 0]]));
-  await eventually(() => assert.equal(f.warnings.length, 1));
+  await f.status(); assert.equal(f.warnings.length, 1);
   await rm(file, { recursive: true });
   await f.controller.close();
-  await handledIds(f, [1]);
+  assert.deepEqual(JSON.parse(await readFile(file)), { v: 1, players: { a: { handled: [1] } } }, 'Close has awaited the final flush');
 });
 
 test('sidecar warnings reset after recovery and a final failed flush does not reject close', async t => {
   const f = await fixture(t), file = path.join(f.dataDir, 'plugin-achievements.json');
   await mkdir(file);
   await f.send(part(1, 1, [[1, 'First Task', 0, 0]]));
-  await eventually(() => assert.equal(f.warnings.length, 1));
+  await f.status(); assert.equal(f.warnings.length, 1);
   await rm(file, { recursive: true });
-  f.advance(60001); await f.status(); await handledIds(f, [1]);
+  const historyBeforeRecovery = structuredClone(f.state.history);
+  f.advance(60001); await f.status();
+  assert.deepEqual(JSON.parse(await readFile(file)), { v: 1, players: { a: { handled: [1] } } }, 'Status awaits the recovery flush');
+  assert.deepEqual(f.state.history, historyBeforeRecovery, 'Status retries only the sidecar, without another progress command');
   await rm(file); await mkdir(file);
   await f.send(part(1, 1, [[2, 'Second Task', 0, 0]], secondSnapshot));
-  await eventually(() => assert.equal(f.warnings.length, 2));
+  await f.status(); assert.equal(f.warnings.length, 2);
   await f.controller.close();
   assert.equal(f.warnings.length, 2, 'Close retries but does not log again in the same failure streak');
 });

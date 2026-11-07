@@ -1676,6 +1676,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               transport.savingConnections.set(savingSocket, (transport.savingConnections.get(savingSocket) ?? 0) + 1);
             }
             if (route === '/api/game-plugin/keys') { await json(request, response, 201, await gamePlugin.create(identity, body)); return; }
+            if (route === '/api/game-plugin/testing-mode') { await json(request, response, 200, await gamePlugin.setTestingMode(identity, body)); return; }
             const pluginRevoke = /^\/api\/game-plugin\/keys\/([a-f0-9-]{36})\/revoke$/.exec(route);
             if (pluginRevoke) { await json(request, response, 200, await gamePlugin.revoke(identity, pluginRevoke[1], body)); return; }
             if (route === '/api/game-plugin/apply' || route === '/api/game-plugin/dismiss') {
@@ -1861,7 +1862,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           // Order revocation with accepted saves. Once revoke returns, a queued
           // request cannot commit using the revoked session or admin capability.
           const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply', '/api/game-plugin/dismiss', '/api/shutdown'].includes(route)
-            || route === '/api/game-plugin/keys' || /^\/api\/game-plugin\/keys\/[^/]+\/revoke$/.test(route)
+            || route === '/api/game-plugin/keys' || route === '/api/game-plugin/testing-mode' || /^\/api\/game-plugin\/keys\/[^/]+\/revoke$/.test(route)
             || route === '/api/invites' || /^\/api\/invites\/[^/]+\/(?:revoke|player)$/.test(route)
             || /^\/api\/accounts\/[^/]+\/(?:unlink|revoke-sessions|delete)$/.test(route);
           await (durable ? serializeMutation(execute) : execute());

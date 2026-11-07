@@ -115,6 +115,6 @@ export function createPluginProgressSource({ clock = Date.now, freshMs = PLUGIN_
           .map(title => ({ title: title.replaceAll('_', ' '), status: kind === 'finished' ? 'COMPLETED' : 'STARTED',
             provenance: { source: 'game-plugin', fetchedAt: new Date(quests.at).toISOString(), memberId: member.id } }))) };
     },
-    clear() { members.clear(); },
+    clear(memberId) { if (memberId === undefined) members.clear(); else members.delete(memberId); },
   };
 }

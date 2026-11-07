@@ -66,7 +66,7 @@ export function createGamePlugin(c) {
     if (inFlight) return inFlight;
     inFlight = (async () => {
       try { snapshot = await c.api('/api/game-plugin'); paint(); }
-      catch { paint(); /* Expire old markers even while the connection is down. */ }
+      catch (error) { paint(); return error; /* Expire old markers even while the connection is down. */ }
       finally { inFlight = undefined; schedule(); }
     })();
     return inFlight;
@@ -77,9 +77,12 @@ export function createGamePlugin(c) {
     const root = el('section', undefined, 'game-plugin form-stack dialog-section');
     root.setAttribute('aria-label', `Game plugin for ${owner?.name ?? 'player'}`);
     const status = el('p', 'Loading game plugin…', 'info-meta'), content = el('div', undefined, 'form-stack');
+    const testingNotice = el('p', undefined, 'info-meta');
+    testingNotice.setAttribute('role', 'status'); testingNotice.hidden = true;
     status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     // The dialog title or the Activity Info section already names it.
-    root.append(el('p', 'Send levels, completed quests, achievements and your recent position from the game. Uniquely matched achievements from live worlds tick tasks automatically; Undo can restore them. Review levels, quests and other achievement matches here.', 'field-help'), status, content);
+    root.append(el('p', 'Send levels, completed quests, achievements, items and your recent position from the game. Live achievement and item matches can tick tasks automatically, with Undo. Turn on plugin testing mode before testing the plugin, even if it says live.', 'field-help'), testingNotice, status, content);
+    const testing = () => snapshot.testingModes?.[memberId] === true;
     const current = () => isCurrent() && root.isConnected && c.state.members.some(item => item.id === memberId);
     let busy = false, disposed = false, reviewRequest = 0, renderedSignature, draftLabel = '', secret = '', secretInput, secretHost;
     const openDiagnostics = new Set();
@@ -128,6 +131,19 @@ export function createGamePlugin(c) {
       const section = el('section', undefined, 'form-stack');
       section.append(el('h4', `Plugin keys for ${owner.name}`), el('p', 'Anyone with this key can report game data for this player. Uniquely matched achievements from live worlds tick tasks automatically, with Undo. Levels, quests and other achievement matches wait for review. Keep the key private. You can copy a new key once; create another if you lose it.', 'field-help'), keyRows());
       if (!writable(memberId)) return section;
+      const toggle = button(testing() ? 'Turn testing mode off' : 'Turn testing mode on', async () => {
+        if (!current() || busy || !writable(memberId)) return;
+        busy = true; toggle.disabled = true;
+        try {
+          const value = await c.api('/api/game-plugin/testing-mode', { memberId, enabled: !testing(), expectedRevision: c.state.revision });
+          snapshot = { ...snapshot, testingModes: { ...snapshot.testingModes, [memberId]: value.enabled } };
+          const refreshError = await refresh(); busy = false; renderedSignature = undefined;
+          if (current()) { await update(); if (refreshError) report(`Testing mode was saved, but plugin status could not be refreshed. ${refreshError.message}`, true); }
+        } catch (error) { if (current()) report(error.message, true); }
+        finally { busy = false; toggle.disabled = false; }
+      });
+      toggle.setAttribute('aria-pressed', String(testing()));
+      section.append(el('p', 'Testing mode is saved for this player. Levels, quests, equipment, bank and coins from testing are not applied. Testing reports are discarded without review. Turn it off only after leaving the test world.', 'field-help'), toggle);
       const label = el('input'); label.type = 'text'; label.maxLength = 80; label.placeholder = 'For example: home PC'; label.autocomplete = 'off';
       label.value = draftLabel; label.addEventListener('input', () => { draftLabel = label.value; });
       const create = button('Create plugin key', async () => {
@@ -184,7 +200,7 @@ export function createGamePlugin(c) {
         const itemTicks = items.filter(row => itemChoices.has(row.taskId)).length;
         if (itemTicks) parts.push(plural(itemTicks, 'item task'));
         summary.textContent = parts.length ? `Apply saves ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0]}.` : 'Nothing is selected. Dismiss clears this snapshot without changes.';
-        if (apply) apply.disabled = stale || !parts.length;
+        if (apply) apply.disabled = testing() || stale || !parts.length;
       }
       // A section the player takes or leaves as a whole: levels or quests.
       function part(key, title, ...body) {
@@ -307,7 +323,7 @@ export function createGamePlugin(c) {
       if (stale) section.append(el('p', 'The saved map changed. Refresh the review before applying.', 'warning'), button('Refresh review', () => update()));
       refreshChoices();
       async function mutate(action) {
-        if (!current() || busy || !writable(memberId)) return;
+        if (!current() || busy || !writable(memberId) || action === 'apply' && testing()) return;
         if (action === 'apply' && c.state.revision !== value.stateRevision) { apply.disabled = true; report('The saved map changed. Refresh the review before applying.', true); return; }
         const selectedAchievements = chosen().map(row => ({ achievementId: row.achievementId, taskId: achievementChoices.get(row.achievementId) }));
         const selectedItems = items.filter(row => itemChoices.has(row.taskId)).map(row => ({ taskId: row.taskId }));
@@ -330,6 +346,9 @@ export function createGamePlugin(c) {
     }
     async function update() {
       if (!current()) { dispose(); return; }
+      testingNotice.hidden = !testing();
+      testingNotice.className = testing() ? 'warning' : 'info-meta';
+      testingNotice.textContent = testing() ? 'Plugin testing mode is on: nothing from the plugin will tick tasks. Levels, equipment, bank and coins are not applied.' : '';
       if (busy || disposed || secret) return;
       const request = ++reviewRequest;
       try {
@@ -338,7 +357,7 @@ export function createGamePlugin(c) {
         const preview = Object.hasOwn(value, 'preview') ? value.preview : value;
         if (preview && preview.memberId !== memberId) throw new Error('This snapshot belongs to another player. Refresh the review.');
         const assembly = snapshot.keys?.find(row => (row.memberId ?? row.player?.id ?? row.player) === memberId && row.achievements)?.achievements;
-        const signature = JSON.stringify([preview, c.state.revision, assembly, keys ? snapshot.keys : null, writable(memberId), snapshot.active]);
+        const signature = JSON.stringify([preview, c.state.revision, assembly, keys ? snapshot.keys : null, writable(memberId), snapshot.active, testing()]);
         if (renderedSignature === signature) return;
         renderedSignature = signature;
         content.replaceChildren(...(preview ? [review(preview)] : [el('p', 'No plugin snapshot waiting for review. Send one from the game plugin.', 'info-meta')]), ...(keys && c.canWrite() ? [keyForm()] : []));

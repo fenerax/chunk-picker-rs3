@@ -123,6 +123,8 @@ export async function buildSaveCorpus(t) {
     await store.command(payload, store.getInfo().revision, options); await capture(feature);
   };
   await capture('initialize-static');
+  await store.setPluginTestingMode(roster[0].id, true, store.getInfo().revision);
+  await capture('plugin-testing-mode', true);
   await command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 'rules');
   await command({ type: 'update-task', taskId: tasks[0].id, task: { label: 'Synthetic edited task', memberIds: [roster[0].id] } }, 'task-edits');
   await command({ type: 'apply-runemetrics', source: 'platform-api', memberId: roster[0].id, runescapeName: 'FixtureActor', fetchedAt: at,
