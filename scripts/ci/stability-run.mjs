@@ -85,6 +85,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
             if (['test:stdout', 'test:stderr'].includes(event.type)) output = (output + event.data.message).slice(-32768);
             if (event.type === 'test:fail') console.error(diagnostic(event.data.details?.error));
             if (event.type === 'test:diagnostic' && /deadline/.test(event.data.message)) console.error(event.data.message);
+            // Keep release-pack phase measurements on successful attempts too;
+            // failure-only output cannot explain slow but correct Windows runs.
+            if (event.type === 'test:diagnostic' && /^\{"stage":\{"rollback":/.test(event.data.message)) console.log(diagnostic(event.data.message));
           }, onFile: failureOutput, onFileError: failureOutput });
       } finally { for (const signal of ['SIGINT', 'SIGTERM']) process.removeListener(signal, abort); }
     } });

@@ -1,5 +1,5 @@
 // Owned releases/stores; acknowledged native startup and controlled stage faults.
-import test from 'node:test';
+import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFile, rm, access } from 'node:fs/promises';
@@ -13,6 +13,16 @@ import { gateContract, lookupEvidence, verifyLocalEvidence } from '../scripts/pr
 import { packedFixture, fixture, put, hash, runStage, retainFixture } from './helpers/release-pack-fixture.mjs';
 import { stageCases, assertStageRecovery } from './helpers/release-pack-stages.mjs';
 import { assertNativePackedStartup } from './helpers/release-pack-native.mjs';
+import { closeStageHost, stageFileController } from './helpers/release-pack-host.mjs';
+
+// One catastrophic file guard, not a per-case performance assertion. Normal
+// completion is acknowledged work plus exit; timestamps never decide success.
+let emergency;
+before(()=>{
+  emergency=setTimeout(()=>stageFileController.abort(Error('Release-pack file emergency guard: 10 minutes without file completion')),10*60*1000);
+  emergency.unref();
+});
+after(async()=>{try{await closeStageHost();}finally{clearTimeout(emergency);}});
 
 // Register the owner join before any fixture cleanup. Even a failed test
 // deadline cannot remove a store while its startup/probe operation is alive.
@@ -20,7 +30,13 @@ const owned = body => async t => {
   let finish;
   const closed = new Promise(resolve => { finish=resolve; });
   t.after(()=>closed);
-  try { return await body(t); }
+  const signal=AbortSignal.any([t.signal,stageFileController.signal]);
+  const context=new Proxy(t,{get(target,key){
+    if(key==='signal')return signal;
+    const value=Reflect.get(target,key,target);
+    return typeof value==='function'?value.bind(target):value;
+  }});
+  try { return await body(context); }
   catch(error) {
     // Native cancellation can replace the thrown error with a generic timeout.
     // stderr survives the stability runner's output transport in that case.
@@ -33,10 +49,10 @@ const owned = body => async t => {
 for(const rollback of [false,true]) for(const {point,crash} of stageCases) {
   if(point.startsWith('pending-')&&!rollback) continue;
   test(`${rollback?'rollback':'upgrade'} ${crash?'process-exit':'interruption'} ${point}: reconcile under ownership, preserve current save`,
-    {skip:process.platform!=='win32',timeout:30000},owned(t=>assertStageRecovery(t,{rollback,point,crash})));
+    {skip:process.platform!=='win32'},owned(t=>assertStageRecovery(t,{rollback,point,crash})));
 }
 
-test('compatibility uses separate packed startup processes, checks latest save both ways and refuses changed identity/binding', {timeout:30000},owned(async t=>{
+test('compatibility uses separate packed startup processes, checks latest save both ways and refuses changed identity/binding', owned(async t=>{
   const forward=await packedFixture(t);
   const output=path.join(forward.root,'compatibility.json');
   const check=async(f,extra={})=>{
@@ -111,7 +127,7 @@ test('compatibility uses separate packed startup processes, checks latest save b
 }));
 
 for(const target of ['old','new']) test(`owned synthetic ${target} pack opens the latest save through the actual server, store and process workers`,
-  {timeout:30000},owned(t=>assertNativePackedStartup(t,target)));
+  owned(t=>assertNativePackedStartup(t,target)));
 
 test('packed child completion bounds stderr drain after exit and retains original failures', owned(async t=>{
   const root=await fixture(t),output=path.join(root,'probe.json');
@@ -244,7 +260,7 @@ test('unjoined packed timeout preserves the scratch save and failure evidence', 
   }
 }));
 
-test('Windows watchdog terminates the owned descendant that holds stderr', {skip:process.platform!=='win32',timeout:30000}, owned(async t=>{
+test('Windows watchdog terminates the owned descendant that holds stderr', {skip:process.platform!=='win32'}, owned(async t=>{
  for(const exitBeforeTimeout of [false,true]) {
   const root=await fixture(t), script=path.join(root,'tree.mjs'), observerScript=path.join(root,'observe.ps1');
   await put(script,`
@@ -297,7 +313,7 @@ else {
     assert.ok(Number.isSafeInteger(leaf)&&leaf>0);
     await put(observerScript,`$ErrorActionPreference='Stop'\n$p=Get-Process -Id ${leaf}\n$null=$p.Handle\n[Console]::Out.WriteLine('observing')\n$null=[Console]::In.ReadLine()\nif($p.HasExited){throw 'Owned leaf did not survive until the watchdog'}\n[Console]::Out.WriteLine('alive')\n$p.WaitForExit()\n[Console]::Out.WriteLine('exited')\n$p.Dispose()\n`);
     observer=spawn('powershell.exe',['-NoProfile','-NonInteractive','-File',observerScript],{windowsHide:true,stdio:['pipe','pipe','pipe']});
-    const observed=joinChild(observer,{timeoutMs:30000,label:'Owned descendant exit observer'});
+    const observed=joinChild(observer,{setTimer:()=>undefined,signal:t.signal,label:'Owned descendant exit observer'});
     observed.catch(()=>{}); // retain the error for await, including during cancellation
     const [ready]=await once(observer.stdout,'data',{signal:t.signal});
     assert.match(ready.toString(),/observing/);
@@ -334,7 +350,7 @@ test('stage watchdog bounds an unjoined child and preserves its fixture at teard
         queueMicrotask(()=>{child.emit('exit',75,null);child.stderr.write('stage stderr still open');fire();});
         return child;
       },
-      setTimer(callback,delay){assert.equal(delay,30000);fire=callback;return timer;},
+      setTimer(callback,delay){assert.equal(delay,180000);fire=callback;return timer;},
       clearTimer(handle){assert.equal(handle,timer);}
     }),error=>{
       assert.equal(error.code,'CHILD_CLOSE_TIMEOUT');assert.equal(error.retainScratch,true);
@@ -364,7 +380,7 @@ test('case cancellation refuses an unclosed stage with its name, pid and live-de
         queueMicrotask(()=>{child.emit('exit',75,null);controller.abort(Error('synthetic case deadline'));});
         return child;
       },
-      setTimer(_callback,delay){assert.equal(delay,30000);return {};},clearTimer(){cleared++;},
+      setTimer(_callback,delay){assert.equal(delay,180000);return {};},clearTimer(){cleared++;},
       diagnose(endpoint){assert.equal(endpoint,child);queries++;return {descendantsAtFailure:[{pid:123,parentPid:0,name:'node.exe'}]};}
     }),error=>{
       assert.equal(error.code,'CHILD_ABORTED');assert.equal(error.retainScratch,true);

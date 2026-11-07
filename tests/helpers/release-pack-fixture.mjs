@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { bindingBytes, joinChild } from '../../scripts/private-companion/release-pack-check.mjs';
 import { hashTree } from '../../scripts/private-companion/release-identity.mjs';
+import { runHostedStage, stageLibrary, stageTrace } from './release-pack-host.mjs';
 
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 export const put = async (file, value) => {
@@ -29,16 +30,23 @@ export async function fixture(t) {
 
 // Exit plus a bounded stderr drain; inherited pipe EOF cannot hold a stage open.
 export async function runStage(root, body, expectedCode = 0, { spawnImpl = spawn, setTimer, clearTimer,
-  signal: abortSignal, stageName = 'controlled transition', diagnose } = {}) {
+  signal: abortSignal, stageName = 'controlled transition', diagnose, hosted = false, loadLibrary = false } = {}) {
   const file = path.join(root, 'stage-' + randomUUID() + '.ps1');
-  await put(file, "[Console]::Error.WriteLine(('Fixture script entered: '+[DateTime]::UtcNow.ToString('o')))\n" + body);
+  const prefix=loadLibrary?await stageLibrary(root):stageTrace;
+  await put(file, "[Console]::Error.WriteLine(('Fixture script entered: '+[DateTime]::UtcNow.ToString('o')))\n" + prefix + body);
   abortSignal?.throwIfAborted();
   try {
+    if(hosted) {
+      const result=await runHostedStage(file,abortSignal);
+      if(result.exitCode!==0)throw Error('Release stage '+stageName+' refused: '+result.stderrTail);
+      return result;
+    }
     const child = spawnImpl('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', file],
       { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    // Match the existing 30-second stage-case deadline; never wait forever in
-    // its owner-join teardown after the test has already been cancelled.
-    const result = await joinChild(child, { timeoutMs: 30000, setTimer, clearTimer, signal:abortSignal, diagnose, label: 'Release stage ' + stageName });
+    if(loadLibrary)child.stderr.on('data',bytes=>console.error('[release-stage pid='+child.pid+'] '+bytes.toString()));
+    // No stage wall-clock assertion: the file owner supplies the emergency
+    // cancellation signal. Lifecycle checks can still inject a controlled timer.
+    const result = await joinChild(child, { setTimer:setTimer??(()=>undefined), clearTimer, signal:abortSignal, diagnose, label: 'Release stage ' + stageName });
     if (!result.closed) retainFixture(root);
     const { exitCode, signal, original, stderrTail, stdout } = result;
     const acceptedCode = typeof expectedCode === 'function' ? expectedCode(exitCode) : exitCode === expectedCode;

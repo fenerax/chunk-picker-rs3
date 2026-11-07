@@ -149,13 +149,42 @@ native test cancellation can replace the thrown error with a generic timeout.
 
 ## Hosted Windows investigation after review
 
-The named diagnostics in run `42336759588`, job `128295358293`, identify all
-ten hung cases as the crash-injection (`process-exit`) stages. Every stuck
-PowerShell printed `Fixture script entered`, remained `exited=false` and
-`closed=false`, and had only `conhost.exe` beneath it. This is a test-harness
-defect: Windows PowerShell 5.1 can deadlock in `[Environment]::Exit(75)` when
-called from its pipeline thread with redirected stdio. An inherited calculator
-stderr pipe does not explain these ten cases.
+The earlier deadlock diagnosis was not established by the evidence. Run
+`42339076066`, job `128302665787`, at `918b01d` still failed after the hard-kill
+change, including the throw-only `upgrade interruption before-journal` case.
+Its script-entry marker is `04:36:05.7955856Z`; preflight is
+`04:36:32.5595241Z`: 26.764 seconds elapsed before preflight. The 30-second
+case deadline cancelled a still-running process. That is a test-harness timing
+defect; `exited=false` and `closed=false` do not prove a deadlock. Prior run
+`42336759588`, job `128295358293`, identified ten crash stages, but could not
+distinguish slowness from deadlock. The hard-kill injector remains to preserve
+unambiguous crash semantics.
+
+Stage execution now owns one reusable Windows PowerShell host per file for
+throw/recovery requests, with fresh function/script scope and an independent
+fixture for every request. Ten hard-crash injections retain separate processes.
+This reduces stage-host starts and common-library loads from 39 to 11 per file.
+The shared host acknowledges completion on both stderr and stdout before any
+fixture is released, and exits once at file teardown. An escaped fixture
+function is refused before another request. Source copies preserve the actual
+product functions; only timestamp statements around the nested Frozen-Bundle
+dot-source and tick-lock acquisition are added.
+
+Timestamped stderr markers delimit each explicit module import, each dot-source
+(including Frozen-Bundle), fixture override setup, helper/tick lock acquisition,
+every product phase, and request completion. Successful stage timing diagnostics
+are retained by the existing stability runner too. No new workflow is added.
+The old log cannot subdivide the observed 26.764 seconds; the next instrumented
+GitHub Windows run must provide that breakdown rather than attributing it to
+imports without measurement.
+
+Per-case 30-second deadlines and real stage timers are removed. A single
+10-minute emergency guard owns the whole file and reports/cleans up through the
+existing cancellation diagnostics. It is a catastrophic hang guard, not a
+performance assertion or a reset-on-progress poll. Requests are accepted only
+after their acknowledgements and assertions; crash processes still require
+nonzero exit plus their durable marker. Native packed startup and the existing
+checker watchdog remain intact; #164 still owns that checker lifecycle.
 
 The crash injector now writes its marker synchronously, then invokes
 `[System.Diagnostics.Process]::GetCurrentProcess().Kill()`. This preserves a
@@ -220,6 +249,17 @@ identified; the next ordinary Windows stability run must confirm the hard-kill
 correction with 50/50. A local pass does not replace that proof.
 
 ## Acceptance evidence
+
+The shared-host rebuild passed 41/41 in 110.415 seconds wall on Windows.
+Stability tooling passed 12/12; repository provenance passed 1/1. Each affected
+entry ran once under the heavy lock, BelowNormal, Node 24.20.0, one worker.
+The trace confirms 39 stage executions across 11 processes. Local median import
+times were 35 ms (Management) and 19 ms (Utility); dot-source medians were 24 ms
+(Operator), 53 ms (ReleaseV2, including Frozen-Bundle) and 17 ms (Frozen-Bundle).
+Fixture override setup median was 1 ms. These local measurements do not explain
+the hosted 26.764-second delay; the instrumented hosted breakdown is pending.
+
+Earlier hard-kill-only correction, retained as failed evidence:
 
 The hard-kill correction's one targeted Windows run took 216.021 seconds
 wall: 40 passed, one timeout/cancellation, exit 1. All ten crash-injection/recovery
