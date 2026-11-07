@@ -217,6 +217,19 @@ export function createTaskEngine(definitions, options = {}) {
     how(state, memberId, taskId, options) { return variantForMember(state, memberId).how(state, memberId, taskId, options); },
     evaluate(state, memberId, evaluateOptions) {
       return variantForMember(state, memberId).evaluate(state, memberId, evaluateOptions);
+    },
+    eligibilityProofKey(state, memberId, evaluateOptions) {
+      const compiled = variantForMember(state, memberId);
+      const variantKey = [...variants].find(([, value]) => value === compiled)[0];
+      return JSON.stringify([evaluateOptions?.eligibilityScope ?? null, variantKey, compiled.eligibilityProofKey(state, memberId, evaluateOptions)]);
+    },
+    exportEligibilityProof(key, maxBytes) {
+      try { const [, variantKey, inputKey] = JSON.parse(key); return variants.get(variantKey)?.exportEligibilityProof(inputKey, maxBytes); }
+      catch { /* Optional miss; exporting never compiles a variant. */ }
+    },
+    importEligibilityProof(key, proof) {
+      try { const [, variantKey, inputKey] = JSON.parse(key); return variants.get(variantKey)?.importEligibilityProof(inputKey, proof) ?? false; }
+      catch { return false; }
     } });
   baselineProvider = { definitions, engine };
   configureProviders();
@@ -1695,8 +1708,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   const eligibilityCache = createEligibilityCache({ limit: dataset ? 64 : 2, budget: eligibilityBudget });
   const computeProfiledEligibility = PROFILE_ENABLED ? (...args) => profile.span('eligibility', () => computeEligibility(...args)) : computeEligibility;
   const howInputs = new WeakMap();
+  const projectedState = state => ({ ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) });
   function evaluate(state, memberId, options) {
-    state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
+    state = projectedState(state);
     const result = eligibilityCache.evaluate(state, memberId, options, () => computeProfiledEligibility(state, memberId, options));
     if (result.metrics.processingFallbacks === 0) howInputs.set(result.processing, eligibilityInputKey(state, memberId));
     return result;
@@ -1709,5 +1723,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     try { return computeEligibility(state, memberId, { reuseEligibility: false, howRequest }).howProof; }
     catch (error) { if (error.proof) return error.proof; throw error; }
   }
-  return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate, how });
+  return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate, how,
+    eligibilityProofKey: (state, memberId, options) => eligibilityInputKey(projectedState(state), memberId, options),
+    exportEligibilityProof: (key, maxBytes) => eligibilityCache.exportProof(key, maxBytes),
+    importEligibilityProof: (key, proof) => eligibilityCache.importProof(key, proof) });
 }

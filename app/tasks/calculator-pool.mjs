@@ -228,7 +228,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         return;
       }
       const slot = this.slot;
-      if (message.type === 'cancel') {
+      if (message.type === 'cancel' || message.type === 'eligibility-seed') {
         if (slot?.originalId === message.id && slot.pickerId === message.pickerId) slot.worker.postMessage({ ...message, id: slot.id });
         return;
       }

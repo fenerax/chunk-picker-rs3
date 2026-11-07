@@ -155,6 +155,22 @@ export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLi
     get eligibilityByteLimit() { return eligibilityByteLimit; },
     get bytes() { return retainedBytes; },
     get size() { return retained.size; },
+    // Reserve every transient native/IPC copy before requesting a proof. This
+    // uses the existing eligibility partition and cannot displace any entry.
+    // Eight copies plus envelope slack cover both process relays, IPC buffers,
+    // the broker and the receiver's privately owned import buffer.
+    reserveHandoff() {
+      if (retained.size + 2 > entryLimit) return;
+      const available = Math.min(byteLimit - retainedBytes, eligibilityByteLimit - (owners.get('eligibility') ?? 0));
+      const maxBytes = Math.floor(available / 9) - 8192;
+      if (maxBytes < 1) return;
+      const token = {};
+      if (!this.admit(token, () => {}, { cost: 8 * (maxBytes + 8192), preserve: [...retained.keys()] })) return;
+      return { maxBytes, release: () => this.forget(token) };
+    },
+    admitWithoutEviction(bytes, onEvict) {
+      return this.admit(bytes, onEvict, { preserve: [...retained.keys()] });
+    },
     forget(bytes) {
       const entry = retained.get(bytes);
       if (!entry) return false;
@@ -233,6 +249,24 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
   return {
     get size() { return entries.size; },
     get bytes() { return retainedBytes; },
+    exportProof(key, maxBytes) {
+      const bytes = entries.get(key);
+      if (!bytes || !Number.isSafeInteger(maxBytes) || backingBytes(bytes) > maxBytes) return;
+      // The message boundary copies these existing bytes. Never serialize a
+      // graph, compute a miss, or expose this buffer to an in-process importer.
+      return { key, bytes, compressed: compressed.has(bytes) };
+    },
+    importProof(key, proof) {
+      if (limit === 0 || entries.size >= limit || entries.has(key) || proof?.key !== key
+        || !(proof.bytes instanceof Uint8Array) || typeof proof.compressed !== 'boolean') return false;
+      if (!budget.canAdmit({ cost: proof.bytes.byteLength })) return false;
+      const bytes = Buffer.allocUnsafeSlow(proof.bytes.byteLength);
+      bytes.set(proof.bytes);
+      if (proof.compressed) compressed.add(bytes);
+      if (!budget.admitWithoutEviction(bytes, () => discard(key, bytes))) return false;
+      entries.set(key, bytes); retainedBytes += backingBytes(bytes);
+      return true;
+    },
     evaluate(state, memberId, options, compute) {
       // Automatic travel owns its separate baseline. Do not retain the same
       // large capability proof twice. Zero bounds also explicitly disable reuse.
@@ -242,13 +276,15 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
         return applyCompletionOverlay(result, state, memberId);
       }
       const key = eligibilityInputKey(state, memberId, options);
-      const cached = entries.get(key);
+      let cached = entries.get(key);
       let result;
       if (cached) {
         entries.delete(key); entries.set(key, cached);
         if (!budget.touch(cached)) throw new Error('Eligibility cache accounting mismatch.');
-        result = copyResult(cached, budget.measuringResult);
-      } else {
+        try { result = copyResult(cached, budget.measuringResult); }
+        catch { discard(key, cached); cached = undefined; }
+      }
+      if (!cached) {
         // Release the oldest retained proof before computing its replacement.
         if (entries.size >= limit) evict();
         result = compute();

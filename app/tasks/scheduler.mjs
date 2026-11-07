@@ -74,20 +74,21 @@ function cachedPlayValue(value) {
 }
 function workerEvaluation(message) {
   const metadata = { evaluationMs: message.evaluationMs, timingMs: message.timingMs };
+  const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: !!message.eligibilitySeeded });
   if (message.sandboxJSON instanceof SharedArrayBuffer) {
     const sandboxJSON = Buffer.from(message.sandboxJSON);
     let result;
-    return { sandboxJSON, resultCache: message.resultCache, ...metadata,
-      get result() { return result ??= { ...JSON.parse(sandboxJSON.toString('utf8')), cache: message.resultCache }; } };
+    return observed({ sandboxJSON, resultCache: message.resultCache, ...metadata,
+      get result() { return result ??= { ...JSON.parse(sandboxJSON.toString('utf8')), cache: message.resultCache }; } });
   }
-  if (!(message.playJSON instanceof SharedArrayBuffer)) return { result: message.result, ...metadata };
+  if (!(message.playJSON instanceof SharedArrayBuffer)) return observed({ result: message.result, ...metadata });
   const resultJSON = message.resultJSON instanceof SharedArrayBuffer ? Buffer.from(message.resultJSON) : undefined;
   const playJSON = Buffer.from(message.playJSON);
   let result;
   const duoJSON = message.duoJSON instanceof SharedArrayBuffer ? Buffer.from(message.duoJSON) : undefined;
   const duoSidebarJSON = message.duoSidebarJSON instanceof SharedArrayBuffer ? Buffer.from(message.duoSidebarJSON) : undefined;
-  return { ...(resultJSON ? { resultJSON } : {}), ...(duoJSON ? { duoJSON } : {}), ...(duoSidebarJSON ? { duoSidebarJSON } : {}), playJSON, cancelled: !!message.cancelled, ...metadata,
-    get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } };
+  return observed({ ...(resultJSON ? { resultJSON } : {}), ...(duoJSON ? { duoJSON } : {}), ...(duoSidebarJSON ? { duoSidebarJSON } : {}), playJSON, cancelled: !!message.cancelled, ...metadata,
+    get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } });
 }
 function validStateInput(state, input, stateInput, type) {
   return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
@@ -101,7 +102,7 @@ function validStateInput(state, input, stateInput, type) {
 export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs = 120000, deathWorkerFactory,
   duoWorkerFactory, maxDuoQueue = 2, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
   predictionWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
-  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, residency, ...options } = {}) {
+  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, residency, eligibilityProofSeeding = true, ...options } = {}) {
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
@@ -197,6 +198,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       maxQueue: maxPredictionQueue, deadlineMs: predictionDeadlineMs, cacheLimit: predictionCacheLimit,
       cacheByteLimit: predictionCacheBytes - Math.floor(predictionCacheBytes / 2), maxPrewarmQueue, strictRevision: true, shareSnapshots: true,
       retainActivePrediction: true,
+      ...(eligibilityProofSeeding ? { onEligibilitySeedRequest: (entry, proof) => foreground.exportEligibilityProof(entry, proof) } : {}),
       onEvaluation(message, entry) {
         const picker = pickerState(entry.pickerId);
         if (picker.closed) return;
@@ -554,7 +556,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
 }
 
 /** One worker, bounded snapshots, and a bounded lifetime restart budget. */
-async function createWorkerLane({ workerData, workerPreparation, workerFactory = nativeWorker, includeReadyCatalogue = true, onCreated, onEvaluation, onSleep,
+async function createWorkerLane({ workerData, workerPreparation, workerFactory = nativeWorker, includeReadyCatalogue = true, onCreated, onEvaluation, onSleep, onEligibilitySeedRequest,
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
@@ -907,7 +909,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     entry.snapshotKey = snapshotKey;
     try { const workerMessage = { id: entry.id, pickerId: entry.pickerId, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
       ...(entry.residentOnly ? { residentOnly: true } : {}),
-      ...(entry.type === 'predict' ? { predictionProgress: true, previewProgress: true } : {}),
+      ...(entry.type === 'predict' ? { predictionProgress: true, previewProgress: true, seedEligibility: !!onEligibilitySeedRequest } : {}),
       ...(entry.type === 'roll-pool' && entry.chunkId !== undefined ? { draft: entry.chunkId } : {}), ...serialized,
       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
@@ -962,6 +964,27 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       }
       if (!active || message.id !== active.id) return;
       lastProgressAt = idleClock.now();
+      if (message.type === 'progress' && message.eligibilitySeedRequest && !active.seedRequested) {
+        const entry = active, recipient = worker;
+        entry.seedRequested = true;
+        const reply = proof => {
+          if (active !== entry || worker !== recipient) return;
+          if (entry.discarded) proof = undefined;
+          try { recipient.postMessage({ id: entry.id, pickerId: entry.pickerId, type: 'eligibility-seed', proof }); }
+          catch {
+            // A packet clone failure is an ordinary miss. A broken control
+            // channel is handled by the existing worker recovery path.
+            try { recipient.postMessage({ id: entry.id, pickerId: entry.pickerId, type: 'eligibility-seed' }); }
+            catch { failure('worker-send'); }
+          }
+        };
+        // The source API admits only an immediately idle resident calculator.
+        // Nothing joins its queue and no proof bytes enter a parent cache.
+        Promise.resolve().then(() => entry.discarded ? undefined
+          : onEligibilitySeedRequest?.(entry, message.eligibilitySeedRequest))
+          .then(reply, () => reply());
+        return;
+      }
       if (message.type === 'progress') return;
       // A display save can advance admission metadata while the immutable
       // worker snapshot retains its captured revision. Validate that origin
@@ -995,7 +1018,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return;
       }
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
-      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
+      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, eligibilitySeeded: !!message.eligibilitySeeded, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
       if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
@@ -1028,6 +1051,12 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     });
   }
   const scheduler = {
+    exportEligibilityProof(entry, proof) {
+      if (!canReadResident('eligibility-proof-export', entry.pickerId)) return;
+      return scheduler.evaluate({ revision: entry.sourceRevision }, entry.memberId, 'eligibility-proof-export', proof,
+        `eligibility-proof:${entry.id}`, undefined, undefined, [], 'full', undefined, false, entry.pickerId, true)
+        .then(value => value.result);
+    },
     yieldWhileStarting() {
       if (closed || active || queue.length) return false;
       scheduler.cancelPrewarm();
