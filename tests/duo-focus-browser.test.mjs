@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openChrome, sleep, until } from '../scripts/perf/cdp.mjs';
+import { openChrome } from '../scripts/perf/cdp.mjs';
 import { findChrome } from '../scripts/ci/gallery-support.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
@@ -13,8 +13,81 @@ const { createServer } = await import('../app/server.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 const { emptyMetadataDataset } = await import('./helpers/server-dataset.mjs');
 
-const evaluate = (page, fn, ...args) => page.evaluate(`(${fn})(...${JSON.stringify(args)})`);
-const wait = (page, fn, ...args) => until(() => evaluate(page, fn, ...args), 5000);
+const evaluate = async (page, fn, ...args) => {
+  const response = await page.send('Runtime.evaluate', { expression: `(${fn})(...${JSON.stringify(args)})`, returnByValue: true, awaitPromise: true });
+  if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+  return response.result?.value;
+};
+
+// Installed before the application: observe its existing paint acknowledgements
+// and hold real coordination JSON at the API boundary. No clock, polling, focus
+// repair, or fabricated metadata. Each revision is delivered only on release().
+function installSteps({ group }) {
+  const events = [], subscribers = new Set(), gates = new Map();
+  const emit = event => { events.push(event); for (const listener of [...subscribers]) listener(event); };
+  const event = (name, revision, after = 0) => {
+    const matches = row => row.name === name && row.revision === revision;
+    const prior = events.slice(after).find(matches);
+    return prior ? Promise.resolve(prior) : new Promise(resolve => {
+      const listener = row => { if (matches(row)) { subscribers.delete(listener); resolve(row); } };
+      subscribers.add(listener);
+    });
+  };
+  const describe = node => node ? { tag: node.tagName, id: node.id, task: node.closest('[data-task-id]')?.dataset.taskId,
+    control: node.dataset.taskControl, connected: node.isConnected } : null;
+  const snapshot = () => ({ revision: events.findLast(row => row.name === 'state-adopted')?.revision, active: describe(document.activeElement),
+    undo: { disabled: document.getElementById('undo')?.disabled, title: document.getElementById('undo')?.title },
+    saved: document.getElementById('save-status')?.dataset.status,
+    notice: document.getElementById('notice')?.textContent,
+    gates: [...gates].map(([revision, gate]) => ({ revision, released: !!gate.rendered })), events: events.slice(-12) });
+  const fetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const response = await fetch(...args);
+    if (new URL(args[0] instanceof Request ? args[0].url : args[0], location.href).pathname !== '/api/coordination') return response;
+    const json = response.json.bind(response);
+    response.json = async () => {
+      const value = await json(), revision = value.stateRevision;
+      // Redundant reads share the same delivery step; none can bypass a hold.
+      if (gates.has(revision)) { await gates.get(revision).held; return value; }
+      let deliver;
+      const held = new Promise(resolve => { deliver = resolve; });
+      gates.set(revision, { deliver, held });
+      emit({ name: 'coordination-arrived', revision });
+      await held;
+      return value;
+    };
+    return response;
+  };
+  window.__rs3Perf = { enabled: true, events: [] };
+  window.__rs3Perf.events.push = (...rows) => {
+    const length = Array.prototype.push.apply(window.__rs3Perf.events, rows);
+    rows.forEach(emit); return length;
+  };
+  window.__focusSteps = { event, snapshot, bookmark: () => events.length, async release(revision) {
+    const gate = gates.get(revision);
+    if (!gate) throw new Error(`No coordination response for revision ${revision}: ${JSON.stringify(snapshot())}`);
+    if (!gate.rendered) {
+      // accept() renders Undo synchronously after consuming this JSON. Observe
+      // that render, then assert its outcome; never wait for the desired focus.
+      gate.rendered = new Promise(resolve => {
+        const observer = new MutationObserver(() => { observer.disconnect(); resolve(snapshot()); });
+        observer.observe(document.getElementById('undo'), { attributes: true, childList: true });
+        gate.deliver();
+      });
+    }
+    return gate.rendered;
+  } };
+  localStorage.setItem('rs3:task-view', JSON.stringify({ groupView: group }));
+}
+
+const snapshot = page => evaluate(page, () => window.__focusSteps.snapshot());
+async function acknowledged(page, name, revision, after = 0) {
+  try { return await evaluate(page, (name, revision, after) => window.__focusSteps.event(name, revision, after), name, revision, after); }
+  catch (error) { throw new Error(`Missing ${name} acknowledgement at revision ${revision}: ${JSON.stringify(await snapshot(page))}`, { cause: error }); }
+}
+async function assertFocus(page, selector) {
+  assert.equal(await active(page, selector), true, JSON.stringify(await snapshot(page)));
+}
 const active = (page, selector) => evaluate(page, selector => {
   const node = document.querySelector(selector);
   return !!node && node === document.activeElement && !node.disabled && node.checkVisibility();
@@ -27,12 +100,12 @@ async function key(page, key) {
   await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: value, code, windowsVirtualKeyCode });
 }
 async function click(page, selector) {
-  await wait(page, selector => {
+  assert.equal(await evaluate(page, selector => {
     const node = document.querySelector(selector);
     return node && !node.disabled && node.checkVisibility();
-  }, selector);
-  await evaluate(page, selector => document.querySelector(selector).scrollIntoView({ block: 'center' }), selector);
-  await sleep(50);
+  }, selector), true, `Pointer target ${selector}: ${JSON.stringify(await snapshot(page))}`);
+  await evaluate(page, selector => document.querySelector(selector).scrollIntoView({ block: 'center', behavior: 'instant' }), selector);
+  await evaluate(page, () => new Promise(resolve => requestAnimationFrame(resolve)));
   const point = await evaluate(page, selector => {
     const r = document.querySelector(selector).getBoundingClientRect();
     return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -45,7 +118,7 @@ async function tabTo(page, selector) {
     if (await active(page, selector)) return;
     await key(page, 'Tab');
   }
-  assert.fail(`Unreachable keyboard target: ${selector}`);
+  assert.fail(`Unreachable keyboard target: ${selector}: ${JSON.stringify(await snapshot(page))}`);
 }
 
 test('owner filters and consecutive Undo retain browser focus', { timeout: 300000 }, async t => {
@@ -58,11 +131,11 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
   }
   async function fixture(t, { phone = false, group = true, hide = false } = {}) {
     const directory = await mkdtemp(path.join(tmpdir(), 'duo-focus-'));
-    let app, page, releaseCoordination = () => {};
-    const commands = [], errors = [], interceptions = new Set();
+    let app, page;
+    const commands = [], errors = [];
     t.after(async () => {
-      releaseCoordination();
-      await Promise.all([...interceptions]);
+      // Close the browser before its synthetic server, including on a failed
+      // step with metadata deliberately held in the renderer.
       try { await page?.close(); }
       finally {
         try { await app?.close(); }
@@ -86,24 +159,13 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
     const origin = new URL(app.inviteUrl).origin;
     const baselinePatterns = baseline ? ['duo-task-view', 'duo-coordination', 'screen-startup', 'screen-map']
       .map(name => ({ urlPattern: `${origin}/${name}.mjs*`, requestStage: 'Request' })) : [];
-    let coordinationGate;
-    const handlePaused = async ({ requestId, request, responseStatusCode, responseHeaders }) => {
+    const handlePaused = async ({ requestId, request }) => {
       const pathname = new URL(request.url).pathname;
-      if (pathname === '/api/coordination') {
-        // Pause the real response, like route.fetch()/fulfill(), so stale Undo
-        // metadata remains in flight while the user chooses a focus destination.
-        const response = await page.send('Fetch.getResponseBody', { requestId });
-        coordinationGate.arrived = true;
-        await coordinationGate.promise;
-        await page.send('Fetch.fulfillRequest', { requestId, responseCode: responseStatusCode, responseHeaders,
-          body: response.base64Encoded ? response.body : Buffer.from(response.body).toString('base64') });
-      } else {
-        // Load pre-fix modules from a scratch directory without changing this
-        // checkout. RS3_FOCUS_BASELINE_WEB must still make this regression fail.
-        const body = await readFile(path.join(baseline, pathname.slice(1)));
-        await page.send('Fetch.fulfillRequest', { requestId, responseCode: 200,
-          responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }], body: body.toString('base64') });
-      }
+      // Load pre-fix modules from a scratch directory without changing this
+      // checkout. RS3_FOCUS_BASELINE_WEB must still make this regression fail.
+      const body = await readFile(path.join(baseline, pathname.slice(1)));
+      await page.send('Fetch.fulfillRequest', { requestId, responseCode: 200,
+        responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }], body: body.toString('base64') });
     };
     page.listeners.add(({ method, params }) => {
       if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails.text);
@@ -111,51 +173,43 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
         commands.push(JSON.parse(params.request.postData));
       }
       if (method === 'Fetch.requestPaused') {
-        const pending = handlePaused(params).catch(error => errors.push(error.message));
-        interceptions.add(pending);
-        pending.finally(() => interceptions.delete(pending));
+        void handlePaused(params).catch(error => errors.push(error.message));
       }
     });
     if (baselinePatterns.length) await page.send('Fetch.enable', { patterns: baselinePatterns });
-    const holdCoordination = async () => {
-      coordinationGate = { arrived: false };
-      coordinationGate.promise = new Promise(resolve => { releaseCoordination = resolve; });
-      await page.send('Fetch.enable', { patterns: [...baselinePatterns, { urlPattern: `${origin}/api/coordination`, requestStage: 'Response' }] });
-      return {
-        arrived: () => until(() => coordinationGate.arrived, 5000),
-        release: () => releaseCoordination(),
-        stop: async () => {
-          releaseCoordination();
-          await Promise.all([...interceptions]);
-          if (baselinePatterns.length) await page.send('Fetch.enable', { patterns: baselinePatterns });
-          else await page.send('Fetch.disable');
-        },
-      };
+    await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `(${installSteps})(${JSON.stringify({ group })})` });
+    const tasksReady = async expected => {
+      // tasks-shown acknowledges completion of the foreground load and its
+      // current paint, beyond the first provisional duo-tasks-shown event.
+      await acknowledged(page, 'tasks-shown', expected);
+      if (group) await acknowledged(page, 'duo-tasks-shown', expected);
     };
-    // Observe the shipped paint boundary so a late task redraw cannot race the
-    // next setup keystroke. This does not alter focus or suppress any redraw.
-    await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `(${({ group }) => {
-      window.__rs3Perf = { enabled: true, events: [] };
-      localStorage.setItem('rs3:task-view', JSON.stringify({ groupView: group }));
-    }})(${JSON.stringify({ group })})` });
-    const tasksReady = expected => wait(page, ({ revision, group }) => window.__rs3Perf?.events.some(event =>
-      event.name === (group ? 'duo-tasks-shown' : 'tasks-shown') && event.revision === revision), { revision: expected, group });
+    const loaded = new Promise(resolve => {
+      const listener = ({ method }) => { if (method === 'Page.loadEventFired') { page.listeners.delete(listener); resolve(); } };
+      page.listeners.add(listener);
+    });
     await page.send('Page.navigate', { url: app.inviteUrl });
-    // Page.navigate returns before loading finishes, unlike Playwright goto.
-    // Give a cold Chrome process its own startup budget before probing focus.
-    await until(() => evaluate(page, () => document.readyState === 'complete' && !!document.getElementById('group-view')), 30000);
-    if (phone) await click(page, '#phone-tab-tasks');
+    await loaded;
     await tasksReady(0);
+    await acknowledged(page, 'coordination-arrived', 0);
+    await evaluate(page, () => window.__focusSteps.release(0));
+    if (phone) await click(page, '#phone-tab-tasks');
     assert.equal(await evaluate(page, () => document.getElementById('group-view').checked), group);
-    await wait(page, () => document.querySelector('#active-tasks [data-task-id="custom:a"]')?.checkVisibility());
+    assert.equal(await evaluate(page, () => document.querySelector('#active-tasks [data-task-id="custom:a"]')?.checkVisibility()), true);
     const revision = () => app.store.getState().revision;
     const completions = () => Object.values(app.store.getState().members[0].taskStatus ?? {}).filter(value => value.challengeCompleted).length;
-    const settle = async expected => {
-      await wait(page, () => document.getElementById('save-status').dataset.status === 'saved' && !document.getElementById('undo').disabled);
-      if (group) await tasksReady(expected);
+    const settle = async (expected, canUndo = true) => {
+      await acknowledged(page, 'coordination-arrived', expected);
+      let rendered;
+      try { rendered = await evaluate(page, revision => window.__focusSteps.release(revision), expected); }
+      catch (error) { throw new Error(`No coordination render at revision ${expected}: ${JSON.stringify(await snapshot(page))}`, { cause: error }); }
+      assert.equal(rendered.saved, 'saved', JSON.stringify(rendered));
+      assert.equal(rendered.undo.disabled, !canUndo, JSON.stringify(rendered));
+      await tasksReady(expected);
       assert.equal(revision(), expected); assert.deepEqual(errors, []);
+      return rendered;
     };
-    return { app, page, commands, revision, completions, settle, holdCoordination };
+    return { app, page, commands, revision, completions, settle, tasksReady };
   }
   async function completeTwo(h, pointer = false) {
     for (const [index, id] of ['a', 'b'].entries()) {
@@ -171,12 +225,17 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
       const h = await fixture(t, { phone, hide });
       for (const index of [2, 3, 4, 1]) {
         const chip = `.duo-task-chip:nth-child(${index})`;
-        await tabTo(h.page, chip); await key(h.page, 'Enter');
-        await wait(h.page, selector => document.querySelector(selector).getAttribute('aria-pressed') === 'true', chip);
-        assert.equal(await active(h.page, chip), true);
+        await tabTo(h.page, chip);
+        const after = await evaluate(h.page, () => window.__focusSteps.bookmark());
+        await key(h.page, 'Enter');
+        await acknowledged(h.page, 'duo-tasks-shown', 0, after);
+        assert.equal(await evaluate(h.page, selector => document.querySelector(selector).getAttribute('aria-pressed'), chip), 'true');
+        await assertFocus(h.page, chip);
       }
+      const after = await evaluate(h.page, () => window.__focusSteps.bookmark());
       await click(h.page, '.duo-task-chip:nth-child(2)');
-      assert.equal(await active(h.page, '.duo-task-chip:nth-child(2)'), true);
+      await acknowledged(h.page, 'duo-tasks-shown', 0, after);
+      await assertFocus(h.page, '.duo-task-chip:nth-child(2)');
       assert.equal(h.commands.length, 0); assert.equal(h.revision(), 0); assert.equal(h.completions(), 0);
     });
     for (const group of [false, true]) for (const pointer of [false, true]) {
@@ -191,13 +250,11 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
           if (pointer) await click(h.page, '#undo'); else await key(h.page, 'Enter');
           if (index === 0) {
             await h.settle(3);
-            assert.equal(await active(h.page, '#undo'), true);
+            await assertFocus(h.page, '#undo');
           } else {
-            await wait(h.page, () => document.getElementById('undo').disabled && document.getElementById('save-status').dataset.status === 'saved');
-            // Wait for current metadata, rather than the earlier stale-revision disable.
+            await h.settle(4, false);
             const fallback = phone ? '#phone-tab-map' : '#info-tools > summary';
-            await wait(h.page, selector => document.querySelector(selector) === document.activeElement, fallback);
-            assert.equal(await active(h.page, fallback), true);
+            await assertFocus(h.page, fallback);
             assert.equal(h.revision(), 4); assert.equal(h.completions(), 0);
           }
         }
@@ -208,8 +265,9 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
   }
   for (const action of ['none', 'Tab', 'pointer', 'focus', 'blur', 'early Enter']) await t.test(`delayed coordination: ${action}`, { timeout: 60000 }, async t => {
     const h = await fixture(t); await completeTwo(h);
-    const held = await h.holdCoordination();
-    await tabTo(h.page, '#undo'); await key(h.page, 'Enter'); await held.arrived();
+    await tabTo(h.page, '#undo'); await key(h.page, 'Enter');
+    await acknowledged(h.page, 'coordination-arrived', 3);
+    await h.tasksReady(3);
     assert.equal(await evaluate(h.page, () => document.getElementById('undo').disabled), true);
     assert.equal(h.revision(), 3); assert.equal(h.completions(), 1); assert.equal(h.commands.length, 3);
     if (action === 'Tab') await key(h.page, 'Tab');
@@ -219,14 +277,14 @@ test('owner filters and consecutive Undo retain browser focus', { timeout: 30000
     else if (action === 'early Enter') await key(h.page, 'Enter');
     // Record the user's destination, including BODY after an early key or blur.
     await evaluate(h.page, () => { window.__focusDestination = document.activeElement; });
-    held.release(); await h.settle(3);
-    if (action === 'none') assert.equal(await active(h.page, '#undo'), true);
-    else assert.equal(await evaluate(h.page, () => document.activeElement === window.__focusDestination), true);
+    await h.settle(3);
+    if (action === 'none') await assertFocus(h.page, '#undo');
+    else assert.equal(await evaluate(h.page, () => document.activeElement === window.__focusDestination), true, JSON.stringify(await snapshot(h.page)));
     assert.equal(h.commands.length, 3); assert.equal(h.completions(), 1);
     // Explicit recovery still executes exactly one command using fresh metadata.
-    await held.stop();
     await tabTo(h.page, '#undo'); await key(h.page, 'Enter');
-    await wait(h.page, () => document.querySelector('#info-tools > summary') === document.activeElement);
+    await h.settle(4, false);
+    await assertFocus(h.page, '#info-tools > summary');
     assert.equal(h.revision(), 4); assert.equal(h.completions(), 0); assert.equal(h.commands.length, 4);
   });
 });
