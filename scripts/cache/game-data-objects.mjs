@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { gunzipSync, createGzip, createGunzip } from 'node:zlib';
 import { once } from 'node:events';
 import { pipeline } from 'node:stream/promises';
+import { createHash } from 'node:crypto';
 import { openGameCache, loadTable, writeDataset, finishManifest, cliOptions } from './game-data-common.mjs';
 import { buildSurfaceLayout, sourceToSurface, mapsquareId, inCrop, unpackCoord } from './surface.mjs';
 import { plainLabel, morphInfo } from './pins.mjs';
@@ -196,11 +197,18 @@ export async function openArrayDataset(output,name,field,header,{createDestinati
   const prefix=`${encoded.slice(0,-1)},${JSON.stringify(field)}:[`;
   const path=resolve(output,name);mkdirSync(resolve(path,'..'),{recursive:true});if(existsSync(path))throw new Error('Use new filenames');
   const destination=createDestination(path,{flags:'wx'}),gzip=createGzip();
+  // Build the receipt as compressed bytes pass through. Reopening the file for
+  // hashing after closed would race a caller removing or reusing the directory.
+  const hash=createHash('sha256');let bytes=0;
+  gzip.on('data',chunk=>{bytes+=chunk.length;hash.update(chunk);});
   const closed=Promise.all([gzip,destination].map(stream=>new Promise(resolve=>stream.once('close',resolve)))).then(()=>{});
   let failure=null,parts=[],partBytes=0,count=0,ending=false;
   const remember=e=>{failure??=e;};gzip.on('error',remember);destination.on('error',remember);
   const done=pipeline(gzip,destination);
-  const completion=(async()=>{try{await done;}catch(e){remember(e);}await closed;if(failure)throw failure;})();
+  const completion=(async()=>{
+    try{await done;}catch(e){remember(e);}await closed;if(failure)throw failure;
+    return {path:path.replaceAll('\\','/'),bytes,sha256:hash.digest('hex')};
+  })();
   completion.catch(()=>{});
   const stop=e=>{remember(e);gzip.destroy(failure);destination.destroy(failure);return completion;};
   const assertWritable=()=>{
@@ -241,8 +249,7 @@ export async function openArrayDataset(output,name,field,header,{createDestinati
     finish:extra=>operation(async()=>{
       ending=true;
       await write(']');for(const [key,value]of Object.entries(extra??{}))await write(`,${JSON.stringify(key)}:${JSON.stringify(value)}`);
-      await write('}');await drainBuffer();gzip.end();await completion;
-      return {path:path.replaceAll('\\','/'),bytes:statSync(path).size,sha256:await fileSha256(path)};
+      await write('}');await drainBuffer();gzip.end();return completion;
     }),
     abort:(e=new Error('Object output aborted'))=>ending&&destination.closed?completion:stop(e),
   };

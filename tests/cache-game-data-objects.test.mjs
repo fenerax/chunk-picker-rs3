@@ -207,6 +207,7 @@ test('incremental destination failure mid-write rejects pending and subsequent o
   (await destination.opening.next())();
   await writer.append({id:1});
   const flushed=observeClosed(writer.flush(),destination);flushed.catch(()=>{});
+  (await destination.writing.next())(); // Acknowledge the gzip header first.
   const fail=await destination.writing.next(),error=new Error('destination failure');
   fail(error);
   const close=await destination.closing.next();
@@ -265,4 +266,16 @@ test('incremental exclusive open refuses a competing owner without overwriting i
   await writer.closed;await assert.rejects(completed,{code:'EEXIST'});
   assert.equal(readFileSync(destination.path,'utf8'),'competing owner');
   await assert.rejects(writer.append({id:1}),{code:'EEXIST'});
+});
+
+test('incremental closed permits immediate directory removal without racing receipt reads',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'objects-incremental-test-'));
+  const writer=await openArrayDataset(dir,'rows.json.gz','placements',{schemaVersion:1});
+  t.after(async()=>{await writer.abort().catch(()=>{});await writer.closed;if(existsSync(dir))rmSync(dir,{recursive:true});});
+  await writer.append({id:1});
+  const finished=writer.finish();
+  await writer.closed;
+  const bytes=readFileSync(join(dir,'rows.json.gz'));
+  rmSync(dir,{recursive:true});assert.equal(existsSync(dir),false);
+  assert.deepEqual(await finished,{path:join(dir,'rows.json.gz').replaceAll('\\','/'),bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});
 });
