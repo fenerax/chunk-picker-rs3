@@ -33,6 +33,13 @@ rollback limit preserves chunks, task ticks, History and Undo. Plugin decisions
 may be offered again by the frozen release; usable evidence is recovered when
 returning to the current release. See [the save schema](save-schema.md).
 
+The per-player `provenance.pluginTestingMode` switch uses preserved additive
+metadata, rather than a member preference unknown to the frozen validator.
+The frozen receiver ignores the switch. Current readers retain it through
+exports, mapped transfers and restores, including frozen restore archives.
+`plugin-testing-mode.test.mjs` opens a current synthetic save with the actual
+frozen runtime and verifies chunks, ticks, History and a real note Undo.
+
 `save-surface.test.mjs` builds synthetic feature saves using the actual store and
 sidecar writers. It walks `state.json`, which comes from `serializedDiskState`,
 and retained backup envelopes and observes successful filesystem writes so

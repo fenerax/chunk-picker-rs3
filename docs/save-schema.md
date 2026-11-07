@@ -13,6 +13,18 @@ rollback policies. CI runs the actual `06e15939` dependency graph. The retained
 `tests/fixtures/rollback-main/` fixture is a fast hybrid check: five of its 22
 live app imports changed after the pin, so it is not a frozen runtime.
 
+## Plugin testing mode
+
+Picker testing mode is an optional per-player boolean map in
+`state.provenance.pluginTestingMode`. Absence means off. Current writers change
+it atomically without a gameplay revision, History entry or Undo delta. Portable
+exports, whole-picker restores and member restores retain it; roster transfers
+map its player IDs. Readers also recover it from frozen restore provenance
+archives. Invalid optional values are ignored, never a startup/restore/export
+requirement. The frozen release preserves free-form provenance but does not
+enforce this switch. Synthetic save-surface and exact-frozen-runtime tests cover
+loading, tick/chunk/History preservation and Undo with the setting present.
+
 ## Plugin item journal retention
 
 The portable schema and `state.json` format are unchanged. Live item evidence

@@ -12,6 +12,7 @@ test('every synthetic feature writes only declared save paths, envelope keys and
   const writes = observeSaveWrites(t, path.join(root, '.local', 'save-surface-tests'));
   const controlWrites = observeSaveWrites(t, controlRoot);
   const corpus = await buildSaveCorpus(t);
+  assert.equal(corpus.snapshots.find(row => row.feature === 'plugin-testing-mode').state.provenance.pluginTestingMode['synthetic-one'], true);
   const documents = [];
   for (const snapshot of corpus.snapshots) {
     for (const document of snapshot.documents) { assertDeclared(document, snapshot.files); documents.push(document); }

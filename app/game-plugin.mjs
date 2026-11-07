@@ -9,6 +9,7 @@ import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, 
 import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginDoneLocations, rememberActiveLocations, PLUGIN_DONE_AGE_MS, pluginRollSummary } from './game-plugin-tasks.mjs';
 import { createPluginProgressSource } from './integrations/progress-sources.mjs';
 import { createGameCoordinates } from './core/game-coords.mjs';
+import { pluginTestingMode } from './core/plugin-testing.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
@@ -64,6 +65,18 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   let itemTasks;
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
+  const testingModes = new Map();
+  const testing = player => store.getPluginTestingMode?.(player) ?? pluginTestingMode(state(), player);
+  function refreshTestingModes() {
+    for (const owner of state().members) {
+      const enabled = testing(owner.id), previous = testingModes.get(owner.id);
+      testingModes.set(owner.id, enabled);
+      if (previous === undefined || previous === enabled) continue;
+      // No assembly, proposal, source cache or container may cross this boundary.
+      for (const cache of [pending, assemblies, completedSnapshots, achievementSummaries, itemMemory, itemAcks, bankAssemblies, bankAcks]) cache.delete(owner.id);
+      progressSource.clear(owner.id);
+    }
+  }
   const pendingHandled = new Map();
   let handledFlush, handledRetryAt = 0, handledFailure = false, closePromise;
   let statusRevision = -1; const statuses = new Map(); let closed = false, warming = false;
@@ -256,7 +269,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const results = [{ record, world }, ...others, ...retained.filter(row => row.world !== 'live')].sort((a, b) =>
       ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
-        task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live',
+        task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: autoTick && world === 'live' && !testing(player),
         // Fresh container and bank records do not carry retained decisions.
         // Literal handled IDs and committed automatic decisions remain authoritative.
         handled: id => record.handled.includes(id) || !!handledByWorld.get(world)?.has(id) || !!dismissed?.has(id)
@@ -297,7 +310,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const committed = () => journalCommits.get(player).journals.find(entry => entry.id === value.journal.id)?.committed;
     const ack = { snapshot: value.snapshot, journal: committed() === undefined ? itemAcks.get(player)?.journal ?? null : { id: value.journal.id, event: committed() } };
     // The first look needs both containers; until then only the snapshot is acknowledged.
-    if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
+    if (!testing(player) && !saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
     // Remember every unresolved event before any processing watermark can advance.
     // A delayed subset after restart must still cover this durable pending prefix.
     let intentSaved = false, intentValidated = false;
@@ -327,6 +340,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // their observation world, so retain them as unknown catch-up evidence. Qualified
     // events carry their observation environment, whatever world delivers them.
     const slotOf = event => {
+      if (testing(player)) return 'unknown';
       if (event.length < 4) return 'unknown';
       const scope = itemsBetaAsLive && event[3] === 'beta' ? 'live' : event[3];
       return scope === 'live' ? world === 'live' ? 'delivery' : 'live' : scope;
@@ -549,7 +563,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     }
   }
   rebuildRetainedReviews();
+  refreshTestingModes();
   const unsubscribe = store.subscribe?.(event => {
+    if (!closed) refreshTestingModes();
     if (!closed && event.restored) { rebuildRetainedReviews(event.restoredMemberIds); notify(); }
   });
   return {
@@ -581,12 +597,21 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         // Outside the mutation queue: parsing a saved list must not delay commands.
         keys.touch(credential.id); await json(request, response, 200, tasks(credential.player, from)); return true;
       }
-      const report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
+      let report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         credentialFor(request); member(credential.player);
+        refreshTestingModes();
         void flushHandled();
         if (report) {
+          if (testing(credential.player)) {
+            // The plugin's wire format is unchanged. Quarantine observation
+            // provenance before any source cache, journal intent or matcher sees it.
+            // Unknown cannot be elevated by the synthetic beta-as-live option.
+            report = { ...report, world: undefined, skills: undefined, quests: undefined,
+              ...(report.items ? { items: { ...report.items, journal: { ...report.items.journal,
+                events: report.items.journal.events.map(event => [event[0], event[1], event[2], 'unknown']) } } } : {}) };
+          }
           const currencyReport = report.items && itemWorld(report) === 'live';
           if (!currencyReport && report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
           sequences.set(credential.id, Math.max(sequences.get(credential.id) ?? -1, report.seq));
@@ -638,16 +663,24 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     list(identity) {
       const latest = [...positions.values()].filter(position => clock() - Date.parse(position.seenAt) < LIFETIME && store.getCalculationSnapshot().members.some(owner => owner.id === position.memberId));
       const visible = identity.readOnly || !identity.admin && !identity.memberId ? [] : keys.list(identity.admin ? undefined : identity.memberId);
-      return { keys: visible.map(record => ({ ...record, diagnostics: diagnostics.get(record.id) ?? null, bankSeenAt: bankSeenAt(record.player),
+      const modes = Object.fromEntries(state().members.map(owner => [owner.id, testing(owner.id)]));
+      return { ...(Object.values(modes).some(Boolean) ? { testingModes: modes } : {}), keys: visible.map(record => ({ ...record, diagnostics: diagnostics.get(record.id) ?? null, bankSeenAt: bankSeenAt(record.player),
         achievements: assemblies.has(record.player) ? { ...achievementStatus(record.player), completeCount: null, matchedTaskCount: null, lastTickedCount: 0, lastTickedAt: null, ...achievementSummaries.get(record.player) } : null })), positions: latest, active: latest.length > 0 };
     },
     review(identity, player) {
+      refreshTestingModes();
       member(player); const review = liveReview(player);
       if (!review) return { preview: null };
       if (!review.proposal || review.proposal.preview.stateRevision !== store.getInfo().revision) review.proposal = pluginProposal(state(), player, review.report, questMapping);
       return review.proposal.preview;
     },
-    progressSnapshot(owner) { return hasActiveKey(owner.id) ? progressSource.snapshot(owner) : null; },
+    progressSnapshot(owner) { refreshTestingModes(); return !testing(owner.id) && hasActiveKey(owner.id) ? progressSource.snapshot(owner) : null; },
+    async setTestingMode(identity, body) {
+      fields(body, ['memberId', 'enabled', 'expectedRevision'], 'testing mode'); authorize(identity, body.memberId);
+      if (typeof body.enabled !== 'boolean') throw fail(400, 'Turn plugin testing mode on or off.');
+      await store.setPluginTestingMode(body.memberId, body.enabled, body.expectedRevision);
+      refreshTestingModes(); notify(); return { enabled: testing(body.memberId) };
+    },
     async create(identity, body) {
       fields(body, ['memberId', 'label'], 'key'); authorize(identity, body.memberId);
       if (typeof body.label !== 'string' || !body.label.trim() || body.label.length > 80 || /[\x00-\x1f\x7f]/.test(body.label)) throw fail(400, 'Use a key label from 1 to 80 characters.');
@@ -685,6 +718,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const review = [...pending.keys()].map(liveReview).find(review => review?.proposal?.preview.previewId === body.previewId);
       if (!review) throw fail(410, 'This game progress review expired or changed. Review it again.');
       authorize(identity, review.proposal.preview.memberId);
+      if (apply && testing(review.proposal.preview.memberId)) throw fail(409, 'Plugin testing mode is on. Plugin progress is not applied.');
       if (apply && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision !== review.proposal.preview.stateRevision || body.expectedRevision !== store.getInfo().revision)) throw fail(409, 'The save changed. Review game progress again.');
       if (!apply) return review.proposal;
       // Skipping levels or quests leaves them out of the command; omitted means apply, as before.

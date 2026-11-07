@@ -15,6 +15,45 @@ progress. Each player can have three active keys. Copy a newly created key once
 and paste it into the plugin. Only SHA-256 hashes are stored in the separate
 key sidecar. Keys can be revoked. Never put them in URLs, logs, or saves.
 
+### Picker testing mode
+
+Before testing on a beta world, turn on **Plugin testing mode** in **More →
+Game plugin**. It defaults off and is saved separately for each player. That
+player or an administrator can change it. The picker shows its status both
+there and in Activity Info's plugin section, including when disconnected.
+This is picker-side behavior only: plugin 1.0.0's reports, status fields and
+capabilities are unchanged. The plugin's own beta checkbox may still say live.
+
+While testing mode is on, every incoming observation is treated as non-live,
+even `world.beta: false`. Achievement and item matches use the existing
+unknown-world review path and cannot tick automatically or be applied while
+the mode is on. Item journals are retained and acknowledged as unknown-world
+evidence, including events labelled `live` by the sender. Failed journal writes
+leave only non-live pending payloads, so retrying after testing cannot promote
+them. No automatic handled IDs, tick provenance or History entries are added.
+Existing live evidence also cannot auto-tick while the mode is on.
+
+Levels/XP and quests are excluded from both proposals and the plugin source
+cache. Worn equipment, backpack and toolbelt observations cannot change saved
+progress; current non-live containers and bank readings stay temporary. Bank
+coins and carried coins are not applied, including unknown-balance corrections,
+so the live save's previous currency facts remain intact. Positions and plugin
+diagnostics still show connection activity without changing progress.
+
+Changing the switch clears that player's temporary proposals, multipart sets,
+container acknowledgements and skill/quest source cache. Turning it off does
+not apply testing observations. Retained testing journals stay non-live through
+restart, export, restore and roster transfer. A fresh observation received after
+turning the switch off follows the normal live-world rules.
+
+The setting is additive schema-1 metadata in `provenance.pluginTestingMode`,
+mapped by player ID during transfer and member restore. It is outside gameplay
+Undo. Frozen rollback release `06e15939` loads and preserves the metadata but
+**ignores testing mode**; it does not protect beta testing. Chunks, ticks,
+History and Undo remain compatible. Optional plugin metadata never gates
+startup, restore or export; plugin decisions may be offered again after an
+emergency rollback. See [the frozen save contract](save-surface.md).
+
 All three routes require `Authorization: Bearer gpk_…` with a dedicated plugin key.
 Cookies, picker master/invite credentials and overlay keys cannot authorize
 them. A plugin key cannot authorize any other route, even alongside a valid
