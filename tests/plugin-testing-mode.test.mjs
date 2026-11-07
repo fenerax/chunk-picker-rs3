@@ -7,7 +7,7 @@ import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { createGroupState, importBackup } from '../app/core/state.mjs';
-import { pluginTestingMode, pluginTestingSettings, withPluginTestingMode, pluginTestingWatermarks } from '../app/core/plugin-testing.mjs';
+import { pluginTestingMode, pluginTestingSettings, withPluginTestingMode } from '../app/core/plugin-testing.mjs';
 import { GAME_ITEMS } from '../app/integrations/game-items.mjs';
 import { openPluginItems, openPluginJournalCommits } from '../app/plugin-items.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
@@ -72,32 +72,40 @@ async function fixture(t, { betaAsLive = false, beforeBody = async () => {}, bef
   };
 }
 
-test('testing mode quarantines live achievements, containers, toolbelt, bank and journals without ticks or live evidence', async t => {
+test('testing reports acknowledge each part and discard all progress, containers and review evidence', async t => {
   const f = await fixture(t, { betaAsLive: true });
   await f.toggle(true);
-  const before = f.state();
-  await f.send({ achievements: achievement() });
-  await f.send({ items: { ...items([[1, itemId, 'Synthetic journal item', 'live']], [[0, itemId, 1, 'Synthetic item'], [1, 995, 999, 'Synthetic coins']]), toolbelt: [] } });
-  await f.send({ bank: { snapshot, part: 1, parts: 1, age: 0, rows: [[itemId, 1], [995, 1000]] } });
-  await f.send({ skills: { ATTACK: { level: 50, xp: 101333 } }, quests: { finished: ['Synthetic quest'], started: [] } });
-  const after = f.state();
-  assert.deepEqual(after.members, before.members);
-  assert.deepEqual(after.history, before.history);
-  assert.equal(after.revision, before.revision);
-  assert.deepEqual(after.provenance.pluginAutoHandled ?? {}, {});
-  assert.equal(f.controller.progressSnapshot(after.members[0]), null);
-  const review = f.controller.review(admin, player);
-  assert.equal(review.achievements[0].world, 'unknown');
-  assert.ok(review.items.some(row => row.taskId === goal && row.world === 'unknown'));
-  assert.deepEqual(review.skills, []); assert.deepEqual(review.quests, []);
-  assert.throws(() => f.controller.findReview(admin, { previewId: review.previewId, expectedRevision: after.revision }, true), { status: 409 });
-  const backup = await f.store.backup();
-  const evidence = backup.optionalSidecarEvidence.entries.pluginItems.players[player];
-  assert.equal(evidence.records.live, undefined);
-  assert.deepEqual(evidence.records.unknown.handled, []);
-  assert.deepEqual(evidence.commits.journals, [{ id: journalId, committed: 1, pending: [] }]);
-  await assert.rejects(readFile(path.join(f.dataDir, 'plugin-achievements.json')), { code: 'ENOENT' });
+  const before = f.state(), disk = await readFile(path.join(f.dataDir, 'state.json'));
+  assert.deepEqual((await f.send({ achievements: achievement(1, 2) })).achievements, { snapshot, received: 1, parts: 2 });
+  assert.deepEqual((await f.send({ achievements: achievement(2, 2) })).achievements, { snapshot, received: 2, parts: 2 });
+  const reply = await f.send({ items: { ...items([
+    [1, itemId, 'Synthetic live journal', 'live'], [2, itemId, 'Synthetic beta journal', 'beta'],
+    [3, itemId, 'Synthetic unknown journal', 'unknown'], [4, itemId, 'Synthetic legacy journal'],
+  ], [[0, itemId, 1, 'Synthetic equipment'], [1, 995, 999, 'Synthetic coins']]),
+    worn: [[0, itemId, 1, 'Synthetic worn equipment']], toolbelt: [['HATCHET', 1]], pouch: [[0, 995, 999, 'Synthetic pouch']] } });
+  assert.deepEqual(reply.items, { snapshot, journal: { id: journalId, event: 4 } });
+  assert.equal((await f.send({ bank: { snapshot, part: 1, parts: 2, age: 0, rows: [[itemId, 1]] } })).bank, null);
+  assert.deepEqual((await f.send({ bank: { snapshot, part: 2, parts: 2, age: 0, rows: [[995, 1000]] } })).bank, { snapshot });
+  await f.send({ skills: { ATTACK: { level: 50, xp: 101333 } } });
+  await f.send({ quests: { finished: ['Synthetic quest'], started: [] } });
+  await f.send({ diagnostics: ['Synthetic testing diagnostic'] });
+  assert.deepEqual(f.state(), before, 'Only delivery bookkeeping changes, never the save');
+  assert.deepEqual(await readFile(path.join(f.dataDir, 'state.json')), disk);
+  assert.equal(f.controller.progressSnapshot(before.members[0]), null);
+  assert.deepEqual(f.controller.review(admin, player), { preview: null });
+  const backup = await f.store.backup(), evidence = backup.optionalSidecarEvidence.entries.pluginItems.players[player];
+  assert.deepEqual(evidence.records, {});
+  assert.deepEqual(evidence.commits.journals, [{ id: journalId, committed: 4, pending: [] }]);
+  for (const filename of ['plugin-achievements.json', 'plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json']) {
+    await assert.rejects(readFile(path.join(f.dataDir, filename)), { code: 'ENOENT' });
+  }
   assertDeclared(backup, []);
+  await f.toggle(false);
+  assert.deepEqual((await f.status()).achievements, { snapshot, received: 2, parts: 2 }, 'The plugin need not replay an acknowledged testing snapshot after disabling');
+  assert.deepEqual(f.controller.review(admin, player), { preview: null });
+  assert.equal(f.controller.progressSnapshot(f.state().members[0]), null);
+  await f.restart();
+  assert.deepEqual(f.controller.review(admin, player), { preview: null }, 'There is no saved testing evidence to recover or apply');
 });
 
 function acknowledgedHold() {
@@ -126,8 +134,7 @@ async function assertHeldTestingReport(t, phase, body) {
   const evidence = (await f.store.backup()).optionalSidecarEvidence?.entries.pluginItems?.players[player];
   assert.equal(evidence?.records.live, undefined);
   if (body.items) {
-    assert.ok(evidence.records.unknown.items[itemId]);
-    assert.deepEqual(evidence.records.unknown.handled, []);
+    assert.deepEqual(evidence.records, {});
     assert.deepEqual(evidence.commits.journals, [{ id: journalId, committed: 1, pending: [] }]);
   }
 }
@@ -148,209 +155,83 @@ test('a testing report held in the mutation queue stays quarantined after switch
   await assertHeldTestingReport(t, 'beforeMutation', { skills: { ATTACK: { level: 50, xp: 101333 } }, quests: { finished: ['Synthetic quest'], started: [] } });
 });
 
-test('turning testing mode off and restarting never replays testing journal evidence or incomplete assemblies', async t => {
+test('multipart testing sets finish with counters only after disabling; fresh live sets still apply', async t => {
   const f = await fixture(t);
   await f.toggle(true);
   await f.send({ achievements: achievement(1, 2) });
-  await f.send({ items: { ...items([[1, itemId, 'Synthetic journal item', 'live']]), worn: null, backpack: null } });
+  await f.send({ bank: { snapshot, part: 1, parts: 2, age: 0, rows: [[itemId, 1]] } });
   await f.toggle(false);
+  const before = f.state();
+  assert.equal((await f.send({ achievements: achievement(2, 2) })).achievements.received, 2);
+  assert.deepEqual((await f.send({ bank: { snapshot, part: 2, parts: 2, age: 0, rows: [[995, 999]] } })).bank, { snapshot });
+  assert.deepEqual(f.state(), before);
   assert.deepEqual(f.controller.review(admin, player), { preview: null });
-  await f.send({ achievements: achievement(2, 2) });
-  await f.restart();
-  const reply = await f.send({ items: items([[1, itemId, 'Synthetic journal item', 'live']], [[0, 995, 123, 'Synthetic coins']]) });
-  assert.equal(reply.items.journal.event, 1);
-  assert.deepEqual(f.state().members[0].completedTasks, []);
-  assert.deepEqual(f.state().history, []);
-  const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
-  assert.deepEqual(evidence.records.live?.items ?? {}, {});
-  assert.ok(evidence.records.unknown.items[itemId]);
-  assert.deepEqual(f.state().provenance.pluginAutoHandled ?? {}, {});
-});
-
-test('failed testing journal ledger writes remain quarantined after disabling, restart and restore', async t => {
-  const f = await fixture(t, { betaAsLive: true });
-  await f.toggle(true);
-  const before = f.state(), blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
-  await mkdir(blocked);
-  const report = { items: items([[1, itemId, 'Synthetic unacknowledged item', 'live']]) };
-  await assert.rejects(f.send(report), { status: 503 });
-  assert.deepEqual(f.state().members, before.members);
-  assert.deepEqual(f.state().history, before.history);
-  assert.equal(f.controller.review(admin, player).preview, null);
-  assert.equal((await f.status()).items?.journal?.event ?? 0, 0);
-  await assert.rejects(readFile(path.join(f.dataDir, 'plugin-item-journal-unknown.json')), { code: 'ENOENT' });
-  await assert.rejects(readFile(path.join(f.dataDir, 'plugin-items.json')), { code: 'ENOENT' });
-  const backup = await f.store.backup();
-  const retained = backup.state.provenance.pluginItemEvidence.players[player];
-  assert.deepEqual(retained.records, {});
-  assert.deepEqual(retained.commits.journals[0].pending, [[1, itemId, 'Synthetic unacknowledged item', 'unknown']]);
-  assertDeclared(backup, []);
-  assert.equal(f.store.getPluginTestingWatermark(player).journals[journalId], 1);
-  await f.toggle(false);
-  await f.restart();
-  assert.equal(f.store.getPluginTestingMode(player), false);
-  await rmdir(blocked);
-  await f.store.replace(backup, f.store.getInfo().revision);
-  await f.toggle(false);
-  const beforeRetry = f.state();
-  const reply = await f.send({ items: { ...report.items, backpack: [[0, 995, 999, 'Synthetic coins']] } });
-  assert.equal(reply.items.journal.event, 1);
-  assert.deepEqual(f.state().members, beforeRetry.members);
-  assert.deepEqual(f.state().history, beforeRetry.history);
-  assert.deepEqual(f.state().provenance.pluginAutoHandled ?? {}, {});
-  const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
-  assert.deepEqual(evidence.records.live?.items ?? {}, {});
-  assert.ok(evidence.records.unknown.items[itemId]);
-  assert.deepEqual(evidence.commits.journals[0].pending, []);
-  assert.deepEqual(f.state().provenance.pluginItemEvidence.players[player].commits.journals[0].pending, []);
-  await f.toggle(false);
-  await f.send({ items: { ...report.items, backpack: [[0, 995, 999, 'Synthetic coins']] } });
-  assert.deepEqual(f.state().members, beforeRetry.members, 'A remembered testing identity quarantines the entire retry after switching off');
-  assert.deepEqual(f.state().history, beforeRetry.history);
-  await f.send({ items: { ...items([[2, itemId, 'Synthetic fresh live item', 'live']], [[0, 995, 456, 'Synthetic coins']]), snapshot: freshSnapshot } });
-  assert.deepEqual(f.state().members[0].completedTasks, [goal]);
-  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456);
-  assert.equal(f.state().history.length, beforeRetry.history.length + 2);
-  assert.deepEqual(f.state().history.slice(beforeRetry.history.length).map(entry => entry.command.type), ['set-transport-facts', 'apply-game-progress']);
-});
-
-test('failed testing journal retention permits disabling while non-live pending events drain', async t => {
-  const f = await fixture(t);
-  await f.toggle(true);
-  const blocked = path.join(f.dataDir, 'plugin-item-journal-unknown.json');
-  await mkdir(blocked);
-  const reply = await f.send({ items: items([[1, itemId, 'Synthetic pending item', 'live']]) });
-  assert.equal(reply.items.journal?.event ?? 0, 0);
-  const pending = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-item-journal-commits.json'), 'utf8'));
-  assert.equal(pending.players[player].journals[0].pending[0][3], 'unknown');
-  await rmdir(blocked);
-  await f.toggle(false);
-  await f.restart();
-  await f.send({ items: items([[1, itemId, 'Synthetic pending item', 'live']], [[0, 995, 123, 'Synthetic coins']]) });
-  await f.toggle(false);
-  assert.deepEqual(f.state().members[0].completedTasks, []);
-  assert.deepEqual(f.state().history, []);
-  const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
-  assert.deepEqual(evidence.records.live?.items ?? {}, {});
-  assert.deepEqual(evidence.commits.journals[0].pending, []);
-});
-
-test('a failed journal intent save cannot lose the earlier testing watermark across restart', async t => {
-  let refuseIntent = false;
-  const f = await fixture(t, { beforeCommit({ operation }) {
-    if (refuseIntent && operation === 'plugin-item-intent') throw new Error('Synthetic plugin-item-intent write failure');
-  } });
-  await f.toggle(true);
-  const before = f.state();
-  refuseIntent = true;
-  const report = { items: items([[1, itemId, 'Synthetic failed intent', 'live']], [[0, itemId, 1, 'Synthetic equipment'], [1, 995, 999, 'Synthetic coins']]) };
-  await assert.rejects(f.send(report), { status: 503 });
-  assert.deepEqual(f.state().members, before.members);
-  assert.deepEqual(f.state().history, before.history);
-  assert.equal(f.state().provenance.pluginItemEvidence, undefined);
-  assert.equal(f.store.getPluginTestingWatermark(player).journals[journalId], 1);
-  await assert.rejects(readFile(path.join(f.dataDir, 'plugin-item-journal-commits.json')), { code: 'ENOENT' });
-  refuseIntent = false;
-  await f.restart(); await f.toggle(false);
-  await f.send(report);
-  assert.deepEqual(f.state().members, before.members);
-  assert.deepEqual(f.state().history, before.history);
-  const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
-  assert.equal(evidence.records.live, undefined);
-  assert.ok(evidence.records.unknown.items[itemId]);
-});
-
-test('acknowledged testing events and snapshots stay quarantined after disabling and restart', async t => {
-  const f = await fixture(t);
-  await f.toggle(true);
-  const before = f.state();
-  const report = { items: items([[1, itemId, 'Synthetic acknowledged item', 'live']], [[0, itemId, 1, 'Synthetic equipment'], [1, 995, 999, 'Synthetic coins']]) };
-  const reply = await f.send(report);
-  assert.equal(reply.items.journal.event, 1);
-  await f.toggle(false); await f.restart();
-  await f.send(report);
-  await f.send({ items: { ...report.items, journal: { id: journalId, events: [] } } });
-  await f.send({ items: { ...report.items, snapshot: freshSnapshot } });
-  assert.deepEqual(f.state().members, before.members);
-  assert.deepEqual(f.state().history, before.history);
-  assert.equal((await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player].records.live, undefined);
-  await f.send({ items: { ...items([[2, itemId, 'Synthetic fresh item', 'live']], [[0, 995, 456, 'Synthetic coins']]), snapshot: freshSnapshot } });
-  assert.deepEqual(f.state().members[0].completedTasks, [goal]);
-  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456);
-  assert.deepEqual(f.state().history.slice(before.history.length).map(entry => entry.command.type), ['set-transport-facts', 'apply-game-progress']);
-});
-
-test('mixed journal batches apply fresh live events while a testing snapshot keeps containers and coins quarantined', async t => {
-  const f = await fixture(t);
-  await f.toggle(true);
-  await f.send({ items: items([[1, 995, 'Synthetic old coins', 'live']]) });
-  await f.toggle(false); await f.restart();
-  const before = f.state();
-  await f.send({ items: items([[1, 995, 'Synthetic old coins', 'live'], [2, itemId, 'Synthetic fresh equipment', 'live']], [[0, 995, 999, 'Synthetic coins']]) });
-  assert.deepEqual(f.state().members[0].completedTasks, [goal]);
-  assert.equal(f.state().members[0].transportFacts.currencies.coins, 123);
-  assert.equal(f.state().history.length, before.history.length + 1);
-  assert.equal(f.state().history.at(-1).command.type, 'apply-game-progress');
-  const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
-  assert.ok(evidence.records.live.items[itemId]);
-  assert.equal(evidence.records.live.items['995'], undefined);
-  assert.ok(evidence.records.unknown.items['995']);
-});
-
-test('testing achievement and bank snapshots stay non-live after disabling and restart', async t => {
-  const f = await fixture(t);
-  await f.toggle(true);
-  const bank = { snapshot, part: 1, parts: 1, age: 0, rows: [[itemId, 1], [995, 999]] };
-  await f.send({ achievements: achievement() });
-  await f.send({ bank });
-  await f.toggle(false); await f.restart();
-  const before = f.state();
-  await f.send({ achievements: achievement() });
-  await f.send({ bank });
-  assert.deepEqual(f.state().members, before.members);
-  assert.deepEqual(f.state().history, before.history);
   await f.send({ achievements: { ...achievement(), snapshot: freshSnapshot } });
   assert.deepEqual(f.state().members[0].completedTasks, ['synthetic-diary']);
 });
 
-test('a full testing journal drains its 256 durable events before rejecting event 257 and retries without an empty report', async t => {
-  const f = await fixture(t);
-  await f.toggle(true); await f.close();
+test('failed testing acknowledgements stay dropped after disabling until a successful reply; fresh live events work', async t => {
+  for (const changedSnapshot of [false, true]) await t.test(changedSnapshot ? 'journal identity retry' : 'snapshot retry', async t => {
+    const f = await fixture(t);
+    await f.toggle(true);
+    const blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
+    await mkdir(blocked);
+    const report = { items: items([[1, itemId, 'Synthetic testing event', 'live']],
+      [[0, itemId, 1, 'Synthetic testing equipment'], [1, 995, 999, 'Synthetic testing coins']]) };
+    const before = f.state();
+    await assert.rejects(f.send(report), { status: 503 });
+    assert.deepEqual(f.state(), before);
+    assert.deepEqual(f.controller.review(admin, player), { preview: null });
+    await f.toggle(false);
+    await rmdir(blocked);
+    const beforeRetry = f.state();
+    if (changedSnapshot) report.items.snapshot = freshSnapshot;
+    assert.equal((await f.send(report)).items.journal.event, 1);
+    assert.deepEqual(f.state(), beforeRetry, 'Neither retry containers, journal nor coins become live');
+    assert.deepEqual(f.controller.review(admin, player), { preview: null });
+    const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
+    assert.deepEqual(evidence.records, {});
+    assert.deepEqual(evidence.commits.journals, [{ id: journalId, committed: 1, pending: [] }]);
+    await f.send({ items: { ...items([[2, itemId, 'Synthetic fresh live event', 'live']], [[0, 995, 456, 'Synthetic live coins']]), snapshot: 'bbbbbbbbbbbbbbbb' } });
+    const after = f.state();
+    assert.deepEqual(after.members[0].completedTasks, [goal]);
+    assert.equal(after.members[0].transportFacts.currencies.coins, 456);
+    assert.deepEqual(after.history.slice(beforeRetry.history.length).map(entry => entry.command.type), ['set-transport-facts', 'apply-game-progress']);
+  });
+});
+async function seedFullLedger(f) {
+  await f.close();
   const commits = await openPluginJournalCommits({ dataDir: f.dataDir, members: () => f.state().members });
   try { await commits.put(player, { journals: [{ id: journalId, committed: 0,
     pending: Array.from({ length: 256 }, (_, index) => [index + 1, 995, 'Synthetic pending coins', 'unknown']) }] }); }
   finally { await commits.close(); }
   await f.restart();
-  const before = f.state();
-  const report = { items: items([[257, itemId, 'Synthetic overflow item', 'live']], [[0, itemId, 1, 'Synthetic equipment'], [1, 995, 999, 'Synthetic coins']]) };
-  await assert.rejects(f.send(report), { status: 503 });
-  const drained = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-item-journal-commits.json'), 'utf8')).players[player].journals[0];
-  assert.equal(drained.committed, 256); assert.deepEqual(drained.pending, []);
-  assert.equal(f.store.getPluginTestingWatermark(player).journals[journalId], 257);
-  await f.toggle(false); await f.restart();
-  assert.equal((await f.send(report)).items.journal.event, 257);
-  assert.deepEqual(f.state().members, before.members);
-  assert.deepEqual(f.state().history, before.history);
-  assert.equal((await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player].records.live, undefined);
-  await f.send({ items: { ...items([[258, itemId, 'Synthetic fresh overflow successor', 'live']], [[0, 995, 456, 'Synthetic coins']]), snapshot: freshSnapshot } });
+}
+
+test('testing drops event 257 through the existing acknowledgement ledger without a capacity deadlock', async t => {
+  const f = await fixture(t);
+  await f.toggle(true); await seedFullLedger(f);
+  const before = f.state(), previousReview = f.controller.review(admin, player);
+  assert.equal((await f.send({ items: items([[257, itemId, 'Synthetic discarded suffix', 'live']]) })).items.journal.event, 257);
+  const entry = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-item-journal-commits.json'))).players[player].journals[0];
+  assert.deepEqual(entry, { id: journalId, committed: 257, pending: [] });
+  assert.deepEqual(f.state(), before);
+  assert.deepEqual(f.controller.review(admin, player), previousReview, 'The discarded report adds no evidence to the existing retention notice');
+  await f.toggle(false);
+  await f.send({ items: { ...items([[258, itemId, 'Synthetic live successor', 'live']]), snapshot: freshSnapshot } });
   assert.deepEqual(f.state().members[0].completedTasks, [goal]);
-  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456);
 });
 
-test('a failed watermark write rejects before processing any observation', async t => {
-  let refuseWatermark = false;
-  const f = await fixture(t, { beforeCommit({ operation }) {
-    if (refuseWatermark && operation === 'plugin-testing-watermark') throw new Error('Synthetic watermark write failure');
-  } });
-  await f.toggle(true);
-  const before = f.state();
-  refuseWatermark = true;
-  await assert.rejects(f.send({ items: items([[1, itemId, 'Synthetic rejected item', 'live']], [[0, 995, 999, 'Synthetic coins']]) }), { status: 503 });
-  assert.deepEqual(f.state(), before);
-  assert.equal(f.controller.list(admin).positions.length, 0);
-  assert.deepEqual(f.controller.review(admin, player), { preview: null });
-  await assert.rejects(readFile(path.join(f.dataDir, 'plugin-item-journal-commits.json')), { code: 'ENOENT' });
-  await f.toggle(false);
+test('a full live ledger drains its durable 256 events before accepting the overflow suffix on redelivery', async t => {
+  const f = await fixture(t);
+  await seedFullLedger(f);
+  const report = { items: items([[257, itemId, 'Synthetic queued suffix', 'live']]) };
+  assert.equal((await f.send(report)).items.journal.event, 256);
+  const entry = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-item-journal-commits.json'))).players[player].journals[0];
+  assert.deepEqual(entry, { id: journalId, committed: 256, pending: [] });
+  assert.deepEqual(f.state().members[0].completedTasks, [], 'The unaccepted suffix has not supplied evidence');
+  assert.equal((await f.send(report)).items.journal.event, 257);
+  assert.deepEqual(f.state().members[0].completedTasks, [goal]);
 });
 
 test('mode is per-player, defaults off, and mode off retains live ticks, currency and skill review', async t => {
@@ -521,38 +402,32 @@ test('whole-save testing settings survive disk, export and mapped transfer while
   const f = await fixture(t);
   const off = await f.store.backup();
   await f.toggle(true);
-  await f.send({ items: items([[1, itemId, 'Synthetic portable watermark', 'live']]) });
+  await f.send({ items: items([[1, itemId, 'Synthetic discarded portable event', 'live']]) });
   await f.restart();
   assert.equal(f.store.getPluginTestingMode(player), true);
   const backup = await f.store.backup();
-  const watermark = f.store.getPluginTestingWatermark(player);
   assertDeclared(backup, []);
   assert.equal(backup.schemaVersion, 1);
   assert.equal(pluginTestingMode(importBackup(backup), player), true);
   const mapped = mapTransferRoster(importBackup(backup), [{ id: 'target', name: 'Explorer' }, { id: 'other', name: 'Other' }],
     { [player]: 'target', [partner]: 'other' });
   assert.deepEqual(pluginTestingSettings(mapped), { target: true });
-  assert.deepEqual(pluginTestingWatermarks(mapped), { target: watermark });
   await f.toggle(false);
   await f.store.replace(backup, f.store.getInfo().revision);
   assert.equal(f.store.getPluginTestingMode(player), true);
-  assert.deepEqual(f.store.getPluginTestingWatermark(player), watermark);
-  await f.send({ items: { ...items([[2, itemId, 'Synthetic destination watermark', 'live']]), snapshot: freshSnapshot } });
-  const destinationWatermark = f.store.getPluginTestingWatermark(player);
+  await f.send({ items: { ...items([[2, itemId, 'Synthetic discarded destination event', 'live']]), snapshot: freshSnapshot } });
   await f.toggle(false);
   await f.toggle(true, admin, partner);
   const reviewed = await f.store.prepareTransfer(serialize({ backup, memberId: player, sourceMemberId: player }),
     { route: '/api/member-restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() } });
   await f.store.applyTransfer(reviewed.ticket, f.store.getInfo().revision);
   assert.equal(f.store.getPluginTestingMode(player), false, 'An enabled source must not turn on the destination setting');
-  assert.deepEqual(f.store.getPluginTestingWatermark(player), destinationWatermark, 'Member import must preserve the destination watermark');
   assert.equal(f.store.getPluginTestingMode(partner), true);
   await f.toggle(true);
   const disabledSource = await f.store.prepareTransfer(serialize({ backup: off, memberId: player, sourceMemberId: player }),
     { route: '/api/member-restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() } });
   await f.store.applyTransfer(disabledSource.ticket, f.store.getInfo().revision);
   assert.equal(f.store.getPluginTestingMode(player), true, 'A default-off source must not turn off the destination setting');
-  assert.deepEqual(f.store.getPluginTestingWatermark(player), destinationWatermark);
   assert.equal(f.store.getPluginTestingMode(partner), true);
 });
 
@@ -561,14 +436,13 @@ test('the exact frozen runtime preserves testing metadata, chunks, ticks, Histor
   await f.store.command({ type: 'set-chunk', memberId: player, chunkId: '100', status: 'unlocked' }, 0);
   await f.store.command({ type: 'complete-task', memberId: player, taskId: 'synthetic-diary', completed: true }, 1);
   await f.toggle(true);
-  await f.send({ items: items([[1, itemId, 'Synthetic frozen watermark', 'live']]) });
+  await f.send({ items: items([[1, itemId, 'Synthetic discarded frozen event', 'live']]) });
   await f.store.command({ type: 'set-note', memberId: player, chunkId: '100', note: 'Synthetic Undo sentinel' }, 2);
   const before = f.state(); await f.close();
   const old = await frozen.openStore({ dataDir: f.dataDir, retention: false, now: () => at });
   try {
     const loaded = old.getState();
     assert.equal(pluginTestingMode(loaded, player), true);
-    assert.deepEqual(pluginTestingWatermarks(loaded), pluginTestingWatermarks(before));
     assert.equal(old.getPluginTestingMode, undefined, 'The frozen receiver has no testing-mode enforcement');
     assert.deepEqual(loaded.members, before.members); assert.deepEqual(loaded.history, before.history);
     const undone = await old.command({ type: 'undo' }, loaded.revision);
@@ -576,35 +450,16 @@ test('the exact frozen runtime preserves testing metadata, chunks, ticks, Histor
     assert.deepEqual(undone.members[0].completedTasks, ['synthetic-diary']);
     assert.equal(undone.members[0].notes?.['100'], undefined);
     assert.equal(pluginTestingMode(frozen.core.importBackup(frozen.core.exportBackup(undone)), player), true);
-    assert.deepEqual(pluginTestingWatermarks(undone), pluginTestingWatermarks(before));
   } finally { await old.close(); }
 });
 
 test('malformed optional testing metadata never vetoes starting, restoring or exporting', async t => {
   const f = await fixture(t);
   const backup = await f.store.backup();
-  backup.state.provenance = { ...backup.state.provenance, pluginTestingMode: 'unusable optional data',
-    pluginTestingWatermarks: { [player]: { journals: { invalid: 5, [journalId]: 'unusable' }, snapshots: [null, 'unusable'] } } };
+  backup.state.provenance = { ...backup.state.provenance, pluginTestingMode: 'unusable optional data' };
   await f.store.replace(backup, f.store.getInfo().revision); await f.restart();
   assert.equal(f.store.getPluginTestingMode(player), false);
-  assert.deepEqual(f.store.getPluginTestingWatermark(player), { journals: {}, snapshots: [] });
   assert.equal((await f.store.backup()).schemaVersion, 1);
   const archived = { ...f.state(), provenance: { restore: { incomingProvenance: { pluginTestingMode: { [player]: true } } } } };
   assert.equal(pluginTestingMode(archived, player), true);
-});
-
-test('watermarks keep journal maxima and at most the last 32 snapshots without gameplay changes', async t => {
-  const f = await fixture(t);
-  await f.toggle(true);
-  const before = f.state(), snapshots = Array.from({ length: 33 }, (_, index) => index.toString(16).padStart(16, '0'));
-  await f.store.retainPluginTestingWatermark(player, { journal: { id: journalId, events: [[10, itemId, 'Synthetic bounded watermark', 'live']] }, snapshots });
-  await f.store.retainPluginTestingWatermark(player, { journal: { id: journalId, events: [[1, itemId, 'Synthetic older event', 'live']] }, snapshots: [snapshots[2]] });
-  await f.toggle(false); await f.restart();
-  const watermark = f.store.getPluginTestingWatermark(player);
-  assert.equal(watermark.journals[journalId], 10);
-  assert.equal(watermark.snapshots.length, 32);
-  assert.equal(watermark.snapshots.includes(snapshots[0]), false);
-  assert.equal(watermark.snapshots.at(-1), snapshots[2]);
-  assert.deepEqual(f.state().members, before.members);
-  assert.deepEqual(f.state().history, before.history);
 });

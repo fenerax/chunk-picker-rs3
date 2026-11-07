@@ -37,11 +37,10 @@ The per-player `provenance.pluginTestingMode` switch uses preserved additive
 metadata, rather than a member preference unknown to the frozen validator.
 The frozen receiver ignores the switch. Current readers retain it through
 whole-picker exports, mapped full-save transfers and restores, including frozen
-restore archives. The same preserved provenance surface holds
-`pluginTestingWatermarks`: per-player journal maxima and the last 32 testing
-snapshot IDs, written before processing observations and retained across toggles.
-Member restore and import keep the live picker's setting and watermark.
-Saves that have never enabled testing do not gain either metadata key.
+restore archives. Member restore and import keep the live picker's setting.
+Saves that have never enabled testing do not gain this metadata key. Testing
+reports write only delivery acknowledgements in the existing journal sidecar;
+no testing observations or replay watermark are added to the save.
 `plugin-testing-mode.test.mjs` opens a current synthetic save with the actual
 frozen runtime and verifies chunks, ticks, History and a real note Undo.
 

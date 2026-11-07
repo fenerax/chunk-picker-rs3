@@ -65,12 +65,20 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
   const testingModes = new Map();
+  // Only unacknowledged testing deliveries need retry protection. No facts or
+  // permanent replay history: successful acknowledgements retire these entries.
+  const pendingTestingItems = new Map();
   let testingModesDirty = true, pendingRestore;
   const retainedReviewRestores = new Set();
   const testing = player => store.getPluginTestingMode?.(player) ?? false;
-  function clearTestingCaches(player) {
+  function clearTestingCaches(player, restored = false) {
     // No assembly, proposal, source cache or container may cross this boundary.
-    for (const cache of [pending, assemblies, completedSnapshots, achievementSummaries, itemMemory, itemAcks, bankAssemblies, bankAcks]) cache.delete(player);
+    for (const cache of [pending, completedSnapshots, achievementSummaries, itemMemory]) cache.delete(player);
+    // Dropped multipart sets contain counters only. Preserve their delivery
+    // positions across toggles so the plugin can finish and discard the set.
+    if (restored || !assemblies.get(player)?.dropped) assemblies.delete(player);
+    if (restored || !bankAssemblies.get(player)?.dropped) bankAssemblies.delete(player);
+    if (restored) { itemAcks.delete(player); bankAcks.delete(player); }
     progressSource.clear(player);
   }
   function refreshTestingModes() {
@@ -79,7 +87,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const members = new Set(store.getCalculationSnapshot().members.map(owner => owner.id));
     const restored = pendingRestore === null ? members : pendingRestore;
     for (const player of testingModes.keys()) if (!members.has(player)) {
-      clearTestingCaches(player); testingModes.delete(player);
+      clearTestingCaches(player, true); testingModes.delete(player); pendingTestingItems.delete(player);
     }
     for (const player of members) {
       const enabled = testing(player), previous = testingModes.get(player);
@@ -87,7 +95,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (restored?.has(player)) retainedReviewRestores.add(player);
       // A restore boundary also clears caches when several restores return to
       // the original mode before the next plugin use.
-      if (restored?.has(player) || previous !== undefined && previous !== enabled) clearTestingCaches(player);
+      if (restored?.has(player) || previous !== undefined && previous !== enabled) clearTestingCaches(player, restored?.has(player));
     }
     testingModesDirty = false; pendingRestore = undefined;
   }
@@ -125,6 +133,51 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   function achievementStatus(player) {
     const assembly = assemblies.get(player);
     return assembly ? { snapshot: assembly.snapshot, received: assembly.received, parts: assembly.parts } : null;
+  }
+  function rememberTestingItems(player, value) {
+    if (!value) return;
+    const waiting = pendingTestingItems.get(player) ?? new Map();
+    const key = `${value.snapshot}:${value.journal.id}`, prior = waiting.get(key);
+    waiting.set(key, { snapshot: value.snapshot, id: value.journal.id, event: Math.max(prior?.event ?? 0, value.journal.events.at(-1)?.[0] ?? 0) });
+    pendingTestingItems.set(player, waiting);
+  }
+  function retryingTestingItems(player, value) {
+    const waiting = pendingTestingItems.get(player);
+    return value && [...(waiting?.values() ?? [])].some(entry => entry.snapshot === value.snapshot || entry.id === value.journal.id
+      && value.journal.events.some(event => event[0] <= entry.event));
+  }
+  function acknowledgeTestingItems(player, ack) {
+    const waiting = pendingTestingItems.get(player);
+    if (!waiting || !ack) return;
+    for (const [snapshot, entry] of waiting) if (entry.id === ack?.id && entry.event <= ack.event) waiting.delete(snapshot);
+    if (!waiting.size) pendingTestingItems.delete(player);
+  }
+  async function dropTestingReport(player, report) {
+    if (report.items) {
+      const value = report.items, ledger = journalCommits.get(player);
+      const event = value.journal.events.at(-1)?.[0] ?? 0;
+      let next;
+      try {
+        next = mergeJournalCommits(ledger, { journals: [{ id: value.journal.id, committed: event, pending: [] }] });
+        // Delivery bookkeeping only: no journal names, items or environments.
+        if (JSON.stringify(next) !== JSON.stringify(ledger)) await journalCommits.put(player, next);
+      } catch { throw fail(503, 'Testing report acknowledgement could not be saved. The plugin must retry.'); }
+      const entry = next.journals.find(entry => entry.id === value.journal.id);
+      itemAcks.set(player, { snapshot: value.snapshot, journal: { id: value.journal.id, event: entry?.committed ?? event } });
+    }
+    for (const [part, cache] of [[report.achievements, assemblies], [report.bank, bankAssemblies]]) {
+      if (!part) continue;
+      let assembly = cache.get(player);
+      if (assembly?.snapshot !== part.snapshot || assembly.parts !== part.parts || !assembly.dropped) {
+        if (part.part !== 1) { cache.delete(player); continue; }
+        assembly = { snapshot: part.snapshot, parts: part.parts, received: 0, dropped: true };
+        cache.set(player, assembly);
+      }
+      if (part.part === assembly.received + 1) assembly.received++;
+      if (part === report.bank && assembly.received === assembly.parts) {
+        bankAcks.set(player, { snapshot: part.snapshot }); bankAssemblies.delete(player);
+      }
+    }
   }
   function isHandled(player, id) { return handled.has(player, id) || pendingHandled.get(player)?.has(id) || store.isPluginHandled?.(player, 'achievements', id); }
   function flushHandled(force = false) {
@@ -303,8 +356,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     if (unmapped === null) { const prior = liveReview(player)?.report; result.unmapped = prior?.unmappedItems ?? []; result.unmappedMore = prior?.unmappedItemsMore ?? 0; }
     return result;
   }
-  async function matchItems(player, report, record, world, unmapped, others = [], autoTick = true) {
-    const result = itemMatches(player, record, world, unmapped, others, autoTick);
+  async function matchItems(player, report, record, world, unmapped, others = []) {
+    const result = itemMatches(player, record, world, unmapped, others);
     if (result.ticks.length) {
       try {
         // Live owned items tick their BiS goals. Already inside the server's mutation queue: the
@@ -322,14 +375,14 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     itemReview(player, report, result);
   }
   const coinCount = (rows, billions = false) => (rows ?? []).reduce((sum, [, id, count]) => sum + (id === COINS ? count : billions && id === COIN_BILLIONS ? count * 1e9 : 0), 0);
-  async function receiveItems(player, report, quarantined = false, autoTick = !quarantined) {
+  async function receiveItems(player, report) {
     const value = report.items, now = new Date(clock()).toISOString(), world = itemWorld(report);
     const saved = itemRecord(player, world);
     let ledger = journalCommits.get(player);
     const committed = () => journalCommits.get(player).journals.find(entry => entry.id === value.journal.id)?.committed;
     const ack = { snapshot: value.snapshot, journal: committed() === undefined ? itemAcks.get(player)?.journal ?? null : { id: value.journal.id, event: committed() } };
     // The first look needs both containers; until then only the snapshot is acknowledged.
-    if (!quarantined && !saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
+    if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
     // Remember every unresolved event before any processing watermark can advance.
     // A delayed subset after restart must still cover this durable pending prefix.
     let intentSaved = false, intentValidated = false;
@@ -341,19 +394,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // A failed write can still retain valid live evidence independently. A
       // conflicting retry must never replace the original event's provenance.
       events = next.journals.flatMap(entry => entry.pending);
-      // Persist testing decisions in the save before attempting optional sidecars.
-      // A failed ledger write must still be safe to retry after switching off or
-      // restarting, without retaining or acknowledging the event's evidence.
-      if (quarantined && value.journal.events.length) await store.retainPluginJournalCommits(player, next);
       if (JSON.stringify(next) !== JSON.stringify(ledger)) await journalCommits.put(player, next);
       ledger = next; intentSaved = true;
-    } catch {
-      log('Could not save the pending item journal; its prefix remains unacknowledged.');
-      if (quarantined && intentValidated) {
-        itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
-        throw fail(503, 'Testing journal quarantine could not be saved. The plugin must retry this report.');
-      }
-    }
+    } catch { log('Could not save the pending item journal; its prefix remains unacknowledged.'); }
     // A full ledger can drain its already durable work before accepting another
     // event or journal identity. The rejected incoming suffix remains retryable.
     let retained = intentSaved || !intentValidated;
@@ -409,27 +452,20 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         const next = { journals: ledger.journals.map(entry => ({ ...entry,
           committed: Math.max(entry.committed, entry.pending.at(-1)?.[0] ?? 0), pending: [] })) };
         if (JSON.stringify(next) !== JSON.stringify(ledger)) await journalCommits.put(player, next);
-        // Retire the save's pending copy too, so completed identities can age out.
-        if (store.getPluginItemEvidence?.()?.players[player]?.commits.journals.some(entry => entry.pending.length)) {
-          await store.retainPluginJournalCommits(player, next);
-        }
       } catch { retained = false; log('Could not commit the item journal acknowledgement; the plugin will retry.'); }
     }
     if (retained && intentSaved) itemRetentionIssues.delete(player);
     else itemRetentionIssues.set(player, ITEM_RETENTION_NOTICE);
     itemAcks.set(player, { snapshot: value.snapshot, journal: committed() === undefined ? ack.journal : { id: value.journal.id, event: committed() } });
-    // Capacity rejection must happen after draining the already-durable prefix.
-    // The receipt watermark still quarantines the unaccepted suffix on retry.
-    if (quarantined && !intentValidated) throw fail(503, 'The pending journal prefix was drained. The plugin must retry this report.');
     const record = records.get('delivery')?.record ?? saved ?? { items: {}, handled: [], journal: null };
     // Journal records reach the review through journalRecords; only a live record joins here.
     // Successful live writes are processed even when another scope or the commit fails.
     const live = world !== 'live' ? itemRecord(player, 'live') : null;
-    await matchItems(player, report, record, world, [...unmapped.values()], live ? [{ record: live, world: 'live' }] : [], autoTick);
+    await matchItems(player, report, record, world, [...unmapped.values()], live ? [{ record: live, world: 'live' }] : []);
   }
   // Bank parts arrive in order, part 1 first; a new part 1 replaces an unfinished set. Status
   // acknowledges the last complete snapshot only.
-  async function receiveBank(player, report, quarantined = false) {
+  async function receiveBank(player, report) {
     // A held set sent again in full is the bank seen open again: it only moves "bank as of" on.
     const part = report.bank, world = itemWorld(report);
     let assembly = bankAssemblies.get(player);
@@ -445,7 +481,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     record.bank = { snapshot: part.snapshot, seenAt, coins: Math.min(1e12, coinCount(assembly.rows.map(([id, count]) => [0, id, count]))) };
     if (!await keepItemRecord(player, world, record)) return;
     bankAcks.set(player, { snapshot: part.snapshot, world, seenAt });
-    await matchItems(player, report, record, world, null, [], !quarantined);
+    await matchItems(player, report, record, world, null);
   }
   async function rememberItemsHandled(player, rows, unmapped = []) {
     const dismissed = itemHandled.get(player) ?? new Set();
@@ -645,41 +681,32 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // Parsing and the mutation queue both yield: a later off-toggle must not
       // promote a report that arrived while testing was enabled.
       const testingAtReceipt = testing(credential.player);
-      let report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
+      const report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
+      if (testingAtReceipt) rememberTestingItems(credential.player, report?.items);
+      let dropped = false;
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         credentialFor(request); member(credential.player);
         refreshTestingModes();
         if (report) {
-          const journal = report.items?.journal;
-          const testingReport = testingAtReceipt || testing(credential.player);
-          const snapshots = [report.items?.snapshot, report.achievements?.snapshot, report.bank?.snapshot].filter(Boolean);
-          if (testingReport) {
-            try { await store.retainPluginTestingWatermark(credential.player, { journal, snapshots }); }
-            catch { throw fail(503, 'The testing watermark could not be saved. The plugin must retry this report.'); }
-          }
-          const watermark = store.getPluginTestingWatermark?.(credential.player) ?? { journals: {}, snapshots: [] };
-          const oldEvent = event => event[0] <= (watermark.journals[journal?.id] ?? -1);
-          const allOld = journal?.events.length > 0 && journal.events.every(oldEvent);
-          const quarantined = testingReport || allOld || snapshots.some(id => watermark.snapshots.includes(id));
-          // Mixed journal batches retain each event's own provenance. A known
-          // snapshot quarantines containers/coins, while a fresh event may be live.
-          const liveEvents = !testingReport && journal?.events.some(event => !oldEvent(event)
-            && (event[3] === 'live' || itemsBetaAsLive && event[3] === 'beta'));
-          if (journal) report = { ...report, items: { ...report.items, journal: { ...journal,
-            events: journal.events.map(event => testingReport || oldEvent(event) ? [event[0], event[1], event[2], 'unknown'] : event) } } };
-          if (quarantined) {
-            // The plugin's wire format is unchanged. Quarantine observation
-            // provenance before any source cache, journal intent or matcher sees it.
-            // Unknown cannot be elevated by the synthetic beta-as-live option.
-            report = { ...report, world: undefined, skills: undefined, quests: undefined };
+          const continuingDropped = report.achievements && assemblies.get(credential.player)?.dropped
+            && assemblies.get(credential.player).snapshot === report.achievements.snapshot
+            || report.bank && bankAssemblies.get(credential.player)?.dropped
+            && bankAssemblies.get(credential.player).snapshot === report.bank.snapshot;
+          if (testingAtReceipt || testing(credential.player) || retryingTestingItems(credential.player, report.items) || continuingDropped) {
+            rememberTestingItems(credential.player, report.items);
+            await dropTestingReport(credential.player, report);
+            dropped = true;
+            keys.touch(credential.id);
+            notify();
+            return status(credential.player);
           }
           refreshRetainedReviews(); void flushHandled();
           const currencyReport = report.items && itemWorld(report) === 'live';
           if (!currencyReport && report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
           sequences.set(credential.id, Math.max(sequences.get(credential.id) ?? -1, report.seq));
           const assembly = assemblies.get(credential.player);
-          if (report.world?.beta === false && assembly && assembly.received === assembly.parts && !assembly.live) {
+          if (report.world?.beta === false && assembly && assembly.received === assembly.parts && !assembly.live && !assembly.dropped) {
             // World is absent from the plugin's snapshot hash. Ordinary live
             // reports must also reset status so its next sync resends the set.
             assemblies.delete(credential.player);
@@ -709,23 +736,25 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
               const coins = Array.isArray(pouch) && Array.isArray(backpack) ? Math.min(1e12, coinCount(pouch, true) + coinCount(backpack)) : null;
               currencyRetry = (await store.observePluginCurrency({ memberId: credential.player, keyId: credential.id, seq: report.seq, sentAt: report.sentAt, coins })).currencyRetry;
             }
-            await receiveItems(credential.player, report, quarantined, !testingReport && (!quarantined || !!liveEvents));
+            await receiveItems(credential.player, report);
             if (currencyRetry && itemAcks.has(credential.player)) {
               // Request a fresh snapshot without losing the durable journal ack.
               itemAcks.set(credential.player, { ...itemAcks.get(credential.player), snapshot: null });
             }
           }
-          if (report.bank) await receiveBank(credential.player, report, quarantined);
+          if (report.bank) await receiveBank(credential.player, report);
           notify();
         } else {
-          // Status reads still drive background sidecar recovery. Reports wait
-          // until their testing watermark is durable before starting any writes.
-          refreshRetainedReviews(); void flushHandled();
+          // Status reads still drive sidecar recovery, including a completed
+          // retry that callers can observe without polling the filesystem.
+          refreshRetainedReviews(); await flushHandled();
         }
         keys.touch(credential.id, report?.world);
         return status(credential.player);
       });
-      await json(request, response, 200, result); return true;
+      await json(request, response, 200, result);
+      if (dropped) acknowledgeTestingItems(credential.player, result.items?.journal);
+      return true;
     },
     list(identity) {
       refreshTestingModes();
@@ -848,7 +877,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         itemRetentionIssues.clear();
         itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear();
         progressSource.clear(); itemTasks = undefined;
-        sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();
+        sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear(); pendingTestingItems.clear();
         rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); activeLocations.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
       })();
       return closePromise;

@@ -24,59 +24,52 @@ there and in Activity Info's plugin section, including when disconnected.
 This is picker-side behavior only: plugin 1.0.0's reports, status fields and
 capabilities are unchanged. The plugin's own beta checkbox may still say live.
 
-While testing mode is on, every incoming observation is treated as non-live,
-even `world.beta: false`. Achievement and item matches use the existing
-unknown-world review path and cannot tick automatically or be applied while
-the mode is on. A report received during testing stays non-live even if the
-switch is turned off while its body or queued mutation is waiting. Item journals
-are retained and acknowledged as unknown-world evidence, including events
-labelled `live` by the sender. Before processing a testing report, the mutation
-queue saves a per-player testing watermark: the highest event index seen for
-each journal and the last 32 snapshot IDs (items, achievements and bank). This
-single metadata update precedes observation caches, optional journal writes,
-currency updates and matching. A failed watermark write returns 503 and processes
-nothing. Already-durable identical watermarks need no additional write.
+While testing mode is on, incoming reports are acknowledged and discarded,
+even `world.beta: false`. Nothing from them ticks tasks, changes levels, XP,
+quests, equipment, bank or coins, enters the skill/quest source cache, or becomes
+review/Apply evidence. No testing journal facts, suppression or History entries
+are retained. Existing live evidence cannot auto-tick from a testing report either.
+A report received during testing is dropped even if the switch is turned off
+while its body or queued mutation is waiting.
 
-Toggling never clears the watermark and is never blocked by pending journal
-writes. After switching off or restarting, an item report containing only events
-at or below its journal watermark is quarantined entirely. Recorded snapshot IDs
-also quarantine containers and coins, including resends without journal events.
-In mixed reports, older events stay unknown-world and fresh events above the
-watermark retain their reported provenance; fresh live events can tick even when
-their containers come from a quarantined snapshot. Recorded achievement and bank
-snapshots remain non-live too. A full pending ledger drains its durable prefix
-before rejecting an overflowing suffix; the watermark protects that suffix until
-retry. Quarantined observations add no automatic handled IDs, tick provenance or
-History entries.
-Existing live evidence also cannot auto-tick while the mode is on.
+The only retained report state is delivery bookkeeping: snapshot/part counters
+in memory, and journal positions in the existing `plugin-item-journal-commits.json`
+sidecar. The journal prefix is deliberately acknowledged without retaining its
+observations. The plugin drops events through that index, stops sending completed
+snapshots, and sends the next live event normally. Testing multipart sets keep
+only counters, including a continuation received after switching off. This is
+an exception to the normal evidence-before-acknowledgement rule below.
+There is no testing watermark, durable snapshot replay set or save-format change
+for reports. Replaying reports the server has already acknowledged is outside
+the testing-mode contract, as for ordinary live deliveries.
 
-The one known limit is failure to write the watermark itself followed by a
-restart: the rejected report has left no durable record to identify its retry.
-The failed request processes nothing, but turning testing off after that restart
-can let the retry be treated as live. Keep testing on and let the plugin retry
-successfully before switching off. Failures after the watermark is saved,
-including journal intent or sidecar writes, do not have this gap.
+If the journal acknowledgement write fails, the request returns 503 without
+processing or retaining observations. The receiver remembers that delivery's
+snapshot and journal identities in memory until a successful acknowledgement.
+A retry after switching off is still dropped while that receiver remains running.
+Turning testing off is never blocked by pending acknowledgements; there is no
+409 gate. Normal live journal processing still drains a full durable pending
+prefix before leaving an overflowing suffix for redelivery. Current live
+containers continue independently of a blocked or conflicting journal retry.
 
-Levels/XP and quests are excluded from both proposals and the plugin source
-cache. Worn equipment, backpack and toolbelt observations cannot change saved
-progress; current non-live containers and bank readings stay temporary. Bank
-coins and carried coins are not applied, including unknown-balance corrections,
-so the live save's previous currency facts remain intact. Positions and plugin
-diagnostics still show connection activity without changing progress.
+Changing the switch clears temporary proposals, observed multipart rows and the
+skill/quest source cache. It preserves delivery counters for dropped testing
+sets so switching off does not itself request their replay. Fresh observations
+after switching off follow the normal live-world rules.
 
-Changing the switch clears that player's temporary proposals, multipart sets,
-container acknowledgements and skill/quest source cache. Turning it off does
-not apply testing observations. Retained testing journals stay non-live through
-restart, export, restore and roster transfer. A fresh observation received after
-turning the switch off follows the normal live-world rules.
+Two limits require care:
+
+- If the server crashes or restarts between receiving a testing report and
+  acknowledging it, then testing is turned off before its retry, the retry can
+  be treated as live. Keep testing on until the plugin sync succeeds.
+- Turning testing off while still logged into the test world makes subsequent
+  reports live. Leave the test world before turning testing off.
 
 Testing mode is a setting of the live picker, not part of a member backup.
 Member restore and member import keep the destination's current setting.
-Whole-picker backups and restores preserve existing settings and watermarks as
-additive schema-1 metadata in `provenance.pluginTestingMode` and
-`provenance.pluginTestingWatermarks`; full-save roster transfers map their player
-IDs. Member restore/import keeps the destination's watermark as well as its
-switch. These keys stay absent until testing is used. Unchanged
+Whole-picker backups and restores preserve the setting as additive schema-1
+metadata in `provenance.pluginTestingMode`; full-save roster transfers map its
+player IDs. This key stays absent until testing is used. Unchanged
 toggles do not write a save. Enabling testing requires plain-object provenance;
 other existing provenance is preserved and the change is refused with 409.
 The setting is outside gameplay Undo. Frozen rollback release `06e15939` loads

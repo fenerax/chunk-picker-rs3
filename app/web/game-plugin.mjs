@@ -142,7 +142,7 @@ export function createGamePlugin(c) {
         finally { busy = false; toggle.disabled = false; }
       });
       toggle.setAttribute('aria-pressed', String(testing()));
-      section.append(el('p', 'Testing mode is saved for this player. Levels, quests, equipment, bank and coins from testing are not applied. Turn it off when you return to live play; temporary testing proposals are cleared.', 'field-help'), toggle);
+      section.append(el('p', 'Testing mode is saved for this player. Levels, quests, equipment, bank and coins from testing are not applied. Testing reports are discarded without review. Turn it off only after leaving the test world.', 'field-help'), toggle);
       const label = el('input'); label.type = 'text'; label.maxLength = 80; label.placeholder = 'For example: home PC'; label.autocomplete = 'off';
       label.value = draftLabel; label.addEventListener('input', () => { draftLabel = label.value; });
       const create = button('Create plugin key', async () => {

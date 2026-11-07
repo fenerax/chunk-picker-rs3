@@ -13,8 +13,6 @@ test('every synthetic feature writes only declared save paths, envelope keys and
   const controlWrites = observeSaveWrites(t, controlRoot);
   const corpus = await buildSaveCorpus(t);
   assert.equal(corpus.snapshots.find(row => row.feature === 'plugin-testing-mode').state.provenance.pluginTestingMode['synthetic-one'], true);
-  assert.deepEqual(corpus.snapshots.find(row => row.feature === 'plugin-testing-mode').state.provenance.pluginTestingWatermarks['synthetic-one'],
-    { journals: { aaaaaaaaaaaaaaaa: 1 }, snapshots: ['0123456789abcdef'] });
   const documents = [];
   for (const snapshot of corpus.snapshots) {
     for (const document of snapshot.documents) { assertDeclared(document, snapshot.files); documents.push(document); }

@@ -1,5 +1,5 @@
 import { isMainThread } from 'node:worker_threads';
-import { pluginTestingMode, withPluginTestingMode, pluginTestingWatermarks, withPluginTestingWatermark } from '../core/plugin-testing.mjs';
+import { pluginTestingMode, withPluginTestingMode } from '../core/plugin-testing.mjs';
 import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
@@ -1382,7 +1382,6 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     getState: cloneCurrent,
     getPluginItemEvidence: () => structuredClone(current.provenance?.pluginItemEvidence),
     getPluginTestingMode: player => pluginTestingMode(current, player),
-    getPluginTestingWatermark: player => pluginTestingWatermarks(current)[player] ?? { journals: {}, snapshots: [] },
     getTaskClaimState() {
       const { schemaVersion, revision, rules, members, tasks, identityRegistry, taskClaims } = playProjection(current).state;
       // Select before cloning: History and private retained evidence can be large.
@@ -1481,26 +1480,6 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     getAccessToken: () => token,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     isPluginHandled: (player, kind, id) => hasPluginHandled(current, player, kind, id),
-    retainPluginJournalCommits(player, commits) {
-      const value = structuredClone(commits);
-      return enqueue(async () => {
-        if (!current.members.some(member => member.id === player)) throw new TypeError('Choose a player for the journal.');
-        const evidence = mergePluginItemEvidence(current.provenance?.pluginItemEvidence,
-          { v: 1, players: { [player]: { records: {}, commits: value } } });
-        if (isDeepStrictEqual(evidence, current.provenance?.pluginItemEvidence)) return;
-        const next = inheritStateMetadata(current, retainPluginItemEvidence(current, evidence));
-        return persist(next, 'plugin-item-intent', undefined, false, current, false, undefined, { cleanup: true });
-      });
-    },
-    retainPluginTestingWatermark(player, observation) {
-      const value = structuredClone(observation);
-      return enqueue(async () => {
-        if (!current.members.some(member => member.id === player)) throw new TypeError('Choose a player for the testing watermark.');
-        const next = withPluginTestingWatermark(current, player, value);
-        if (next === current) return;
-        return persist(inheritStateMetadata(current, next), 'plugin-testing-watermark', undefined, false, current, false, undefined, { cleanup: true });
-      });
-    },
     setPluginTestingMode(player, enabled, expectedRevision) {
       return enqueue(async () => {
         checkRevision(expectedRevision);
