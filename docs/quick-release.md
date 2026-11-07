@@ -4,8 +4,10 @@ GitHub runs every test suite. The release PC only builds, probes and swaps,
 in a few minutes, with no test suite of its own.
 
 1. Push the commit. Every GitHub Actions job on that exact commit must be
-   green, and these must all be among them: `test`, `windows`, `coverage` and
-   `secrets` (`test.yml`), `gallery` (`gallery.yml`), and
+   green, and these must all be among them: `test (shard 1/4)` to
+   `test (shard 4/4)`, `windows`, `coverage` and `secrets` (`test.yml`; the
+   shard count is `TEST_SHARDS` in `quick-build.mjs`, and a test keeps it equal
+   to the workflow's matrix), `gallery` (`gallery.yml`), and
    `rehearsal (ubuntu-latest)` and `rehearsal (windows-latest)`
    (`release-rehearsal.yml`). The build checks this through `gh api`.
 2. Build: `scripts/release/pc/Quick-Release.ps1 -Release <id> -Commit <sha>`.

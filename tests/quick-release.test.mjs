@@ -15,9 +15,29 @@ const run = (name, conclusion, id = 1, status = 'completed') => ({ id, name, sta
 const greenExcept = (name, replacement) => REQUIRED_CHECKS.flatMap((check, index) =>
   check !== name ? [run(check, 'success', 100 + index)] : replacement ? [replacement] : []);
 
-test('every GitHub job is required, including the coverage, gallery and rehearsal jobs', () => {
+test('every GitHub job is required, including every test shard and the coverage, gallery and rehearsal jobs', () => {
   assert.deepEqual([...REQUIRED_CHECKS].sort(), ['coverage', 'gallery', 'rehearsal (ubuntu-latest)',
-    'rehearsal (windows-latest)', 'secrets', 'test', 'windows']);
+    'rehearsal (windows-latest)', 'secrets', 'test (shard 1/4)', 'test (shard 2/4)', 'test (shard 3/4)',
+    'test (shard 4/4)', 'windows']);
+});
+
+// The release gate silently broke once when test.yml was sharded but this list
+// still named the old single `test` job. Tie the two together.
+test('the required shard checks match the test job name and shard matrix in test.yml', async () => {
+  const lines = (await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8')).split(/\r?\n/);
+  const start = lines.indexOf('  test:');
+  assert.ok(start >= 0, 'test.yml has a top-level test job');
+  // The job runs until the next line indented two spaces or less (or the end of the file).
+  const end = lines.findIndex((line, index) => index > start && /^ {0,2}\S/.test(line));
+  const job = lines.slice(start + 1, end < 0 ? undefined : end).join('\n');
+  // include/exclude change which shard checks GitHub emits; expand them here before using them.
+  assert.doesNotMatch(job, /^\s+(include|exclude):/m, 'test matrix uses include/exclude, which this check does not expand');
+  const shards = /^\s+shard:\s*\[([^\]]*)\]\s*$/m.exec(job)?.[1].split(',').map(value => Number(value.trim()));
+  assert.ok(shards?.length && shards.every(Number.isInteger), 'test matrix lists its shards inline, as integers: shard: [1, 2, ...]');
+  const name = /^ {4}name:\s*(["']?)(.+?)\1\s*$/m.exec(job)?.[2];
+  assert.ok(name?.includes('${{ matrix.shard }}'), 'test job has a per-shard name');
+  const expected = shards.map(shard => name.replaceAll('${{ matrix.shard }}', String(shard))).sort();
+  assert.deepEqual(REQUIRED_CHECKS.filter(check => check.startsWith('test (')).sort(), expected);
 });
 
 test('GitHub checks pass only when every required job is green', () => {
@@ -26,10 +46,12 @@ test('GitHub checks pass only when every required job is green', () => {
     const missing = evaluateChecks(greenExcept(name));
     assert.deepEqual([missing.ok, missing.missing], [false, [name]]);
   }
-  const failing = evaluateChecks(greenExcept('test', run('test', 'failure')));
-  assert.deepEqual([failing.ok, failing.failing], [false, ['test']]);
-  const pending = evaluateChecks(greenExcept('test', run('test', null, 1, 'in_progress')));
-  assert.deepEqual([pending.ok, pending.pending], [false, ['test']]);
+  const failing = evaluateChecks(greenExcept('test (shard 2/4)', run('test (shard 2/4)', 'failure')));
+  assert.deepEqual([failing.ok, failing.failing], [false, ['test (shard 2/4)']]);
+  const pending = evaluateChecks(greenExcept('test (shard 2/4)', run('test (shard 2/4)', null, 1, 'in_progress')));
+  assert.deepEqual([pending.ok, pending.pending], [false, ['test (shard 2/4)']]);
+  // A cancelled shard (fail-fast sibling) is not green.
+  assert.equal(evaluateChecks(greenExcept('test (shard 3/4)', run('test (shard 3/4)', 'cancelled'))).ok, false);
   // A required job may not be skipped; an extra workflow's job may.
   assert.equal(evaluateChecks(greenExcept('coverage', run('coverage', 'skipped'))).ok, false);
   assert.equal(evaluateChecks([...greenExcept(), run('extra', 'skipped')]).ok, true);
