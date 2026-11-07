@@ -60,7 +60,7 @@ function Stop-OperatorCore($Context,$TimeoutSeconds,[switch]$PreservePause,[IO.F
 }
 function Assert-OperatorStoreReleased { }
 $global:point=${q(effectivePoint==='uncertain-owner'?'during-start':['unknown-binding','failed-verification'].includes(effectivePoint)?'after-journal':effectivePoint)};$global:failedOnce=${crash?`(Test-Path -LiteralPath ${q(path.join(root,'crash-marker'))})`:'$false'}
-function Fail-Once([string]$At){if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[Environment]::Exit(75)`:`throw 'Injected interruption'`}}}
+function Fail-Once([string]$At){if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[System.Diagnostics.Process]::GetCurrentProcess().Kill()`:`throw 'Injected interruption'`}}}
 function Invoke-ReleaseV2PackCheck($Context,$Tool,$From,$To,$Transition,$Output) {
  if(-not(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused'))){throw 'Compatibility ran without pause'}
  Fail-Once 'before-journal';[IO.File]::WriteAllText($Output,'{"passed":true,"bothDirections":true}')
@@ -119,7 +119,12 @@ if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(rollback?oldB:newB))}){throw 
 `;
     const children=[];
     const options={signal:t.signal,stageName:`${rollback?'rollback':'upgrade'} ${point}`};
-    if(crash) children.push(await runStage(root,body,75,{...options,stageName:options.stageName+' crash'}));
+    if(crash) {
+      // Environment.Exit can deadlock PowerShell 5.1's pipeline thread with
+      // redirected stdio. Hard-kill after the durable marker, without finally.
+      children.push(await runStage(root,body,code=>Number.isInteger(code)&&code!==0,{...options,stageName:options.stageName+' crash'}));
+      assert.equal(await readFile(path.join(root,'crash-marker'),'utf8'),'interrupted','hard termination must reach the injected crash point');
+    }
     children.push(await runStage(root,body,0,{...options,stageName:options.stageName+' recovery'}));
     t.diagnostic(JSON.stringify({stage:{rollback,point,crash},children:children.map(child=>({
       pid:child.pid,wallMs:child.closedAt-child.startedAt,exitToCloseMs:child.closedAt-child.exitedAt,

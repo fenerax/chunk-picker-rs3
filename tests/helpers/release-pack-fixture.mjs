@@ -41,7 +41,8 @@ export async function runStage(root, body, expectedCode = 0, { spawnImpl = spawn
     const result = await joinChild(child, { timeoutMs: 30000, setTimer, clearTimer, signal:abortSignal, diagnose, label: 'Release stage ' + stageName });
     if (!result.closed) retainFixture(root);
     const { exitCode, signal, original, stderrTail, stdout } = result;
-    if (original || exitCode !== expectedCode || signal !== null) {
+    const acceptedCode = typeof expectedCode === 'function' ? expectedCode(exitCode) : exitCode === expectedCode;
+    if (original || !acceptedCode || signal !== null) {
       throw new Error(`Release stage refused: exit=${exitCode}; signal=${signal}; original=${original?.stack ?? 'none'}; stderr tail=${stderrTail}; stdout tail=${stdout.slice(-4096)}`, { cause: original });
     }
     return result;

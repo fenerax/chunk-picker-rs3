@@ -62,11 +62,11 @@ replaced by a model of the transition.
 | 6 | upgrade interruption unknown-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 7 | upgrade interruption uncertain-owner: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 8 | upgrade interruption failed-verification: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 9 | upgrade process-exit before-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 10 | upgrade process-exit after-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 11 | upgrade process-exit after-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 12 | upgrade process-exit after-pointer: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 13 | upgrade process-exit during-start: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 9 | upgrade process-exit before-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 10 | upgrade process-exit after-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 11 | upgrade process-exit after-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 12 | upgrade process-exit after-pointer: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 13 | upgrade process-exit during-start: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 14 | rollback interruption before-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 15 | rollback interruption after-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 16 | rollback interruption after-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
@@ -75,11 +75,11 @@ replaced by a model of the transition.
 | 19 | rollback interruption unknown-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 20 | rollback interruption uncertain-owner: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 21 | rollback interruption failed-verification: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 22 | rollback process-exit before-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 23 | rollback process-exit after-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 24 | rollback process-exit after-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 25 | rollback process-exit after-pointer: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
-| 26 | rollback process-exit during-start: reconcile under ownership, preserve current save | `assertStageRecovery`: real exit 75 + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 22 | rollback process-exit before-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 23 | rollback process-exit after-journal: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 24 | rollback process-exit after-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 25 | rollback process-exit after-pointer: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
+| 26 | rollback process-exit during-start: reconcile under ownership, preserve current save | `assertStageRecovery`: hard nonzero termination + crash marker + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 27 | rollback interruption pending-after-binding: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 28 | rollback interruption pending-after-pointer: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
 | 29 | rollback interruption pending-during-start: reconcile under ownership, preserve current save | `assertStageRecovery`: named fault + recovery; exact pointer/binding/save/runtime, lock and pause assertions |
@@ -149,6 +149,26 @@ native test cancellation can replace the thrown error with a generic timeout.
 
 ## Hosted Windows investigation after review
 
+The named diagnostics in run `42336759588`, job `128295358293`, identify all
+ten hung cases as the crash-injection (`process-exit`) stages. Every stuck
+PowerShell printed `Fixture script entered`, remained `exited=false` and
+`closed=false`, and had only `conhost.exe` beneath it. This is a test-harness
+defect: Windows PowerShell 5.1 can deadlock in `[Environment]::Exit(75)` when
+called from its pipeline thread with redirected stdio. An inherited calculator
+stderr pipe does not explain these ten cases.
+
+The crash injector now writes its marker synchronously, then invokes
+`[System.Diagnostics.Process]::GetCurrentProcess().Kill()`. This preserves a
+hard crash without running finally blocks. Before recovery, the test requires
+both a nonzero integer exit code and the exact crash marker. A startup failure
+before the injection cannot satisfy those checks. Recovery, ownership, pause,
+pointer, binding and save assertions are unchanged, as are all 33 original
+case names. Existing stage and process diagnostics remain.
+
+PR #164 owns the separate complete `runProbe` lifecycle fix. No lifecycle code
+changes in this follow-up; after #164 merges, this branch will rebase and keep
+its implementation as the base, with this PR's witnesses and injection seams.
+
 Run `42327351951`, attempt 1, tested merge
 `d68caac6c63c17a02865d0e03397e85bb3a9df7d` (PR head `1ce4198`). Seven Windows
 shards failed their first assigned repetition. Job `128265689653` is Windows-1;
@@ -188,26 +208,31 @@ remained permanently orphaned. The optional publisher memory-ceiling warning
 does not establish the cause of the shutdown delay. Fixtures and the failed
 first-attempt receipt were retained; the batch stopped without retry.
 
-The owner supplied a second hosted comparison: PR #164, run `42333821316`, has
-the same Windows timeout pattern after also switching `runProbe` from main's
-exit settlement to close settlement. Main settles on exit. The completion
-regression is coupling probe lifetime to inherited stderr EOF: process workers
-inherit that pipe, so close can lag or never arrive after probe exit. The owner
-therefore replaced the original stream-close success requirement with exit plus
-a short bounded stderr drain. Controlled tests now cover successful and failed
-exit without any subsequent close and preserve stderr arriving during the drain.
-The initiating hosted handle holder remains unobserved; the next ordinary
-Windows stability run must confirm whether this removes the timeout pattern.
+The earlier comparison with PR #164's run `42333821316` suggested a shared
+pipe-EOF completion issue. That is a separate release-checker risk covered by
+#164. The later named stage diagnostics above supersede it as the explanation
+for these ten hosted crash-injection hangs.
 
 The owner subsequently replaced the local-loop requirement: targeted files run
 once locally, while the existing GitHub Linux and Windows stability jobs are the
-proof of record. No further local repetition loop runs. The hosted cause and
-50/50 proof remain open; this push supplies bounded refusal and permanent
-diagnostics rather than claiming that a passing local run clears the hosted hang.
+proof of record. No further local repetition loop runs. The hosted cause is now
+identified; the next ordinary Windows stability run must confirm the hard-kill
+correction with 50/50. A local pass does not replace that proof.
 
 ## Acceptance evidence
 
-The final exit-plus-drain entry passed 41/41 on Windows in 162.193 seconds.
+The hard-kill correction's one targeted Windows run took 216.021 seconds
+wall: 40 passed, one timeout/cancellation, exit 1. All ten crash-injection/recovery
+cases passed. The separate existing Windows descendant-cleanup witness reached
+its 30-second deadline waiting for its independent PowerShell exit observer.
+Cancellation killed that observer (exitCode null); the log does not establish
+why it remained pending. The failed receipt is retained without retry. Lifecycle
+and real-process cleanup remain owned by #164, pending its merge and rebase.
+Repository provenance passed 1/1. Each targeted file ran once, under the heavy
+lock at BelowNormal priority, using Node 24.20.0 and one test worker.
+
+Before this correction, the exit-plus-drain entry passed 41/41 on Windows in
+162.193 seconds.
 A temporary mutation restoring close-only drain settlement failed on its first
 attempt in 0.340 seconds with `exit drain must settle without close`; the restored
 controlled lifecycle check passed 1/1 in 0.342 seconds. This uses injected timers
