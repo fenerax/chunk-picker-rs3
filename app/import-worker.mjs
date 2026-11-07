@@ -1,5 +1,4 @@
 import { normalizeOriginalPaste, ORIGINAL_PASTE_FORMAT } from './original-paste.mjs';
-import { pluginTestingMode, withPluginTestingMode } from './core/plugin-testing.mjs';
 import { assertWorkerHeapLimit } from './tasks/worker-limits.mjs';
 if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 import { parentPort, workerData } from 'node:worker_threads';
@@ -153,7 +152,7 @@ async function run(job) {
       // Guards describe the imported member's already-migrated fields. Install
       // them before preparing the command, so migration cannot resurrect cleared
       // values and make the newly authored Undo stale. Other members keep theirs.
-      const guarded = withPluginTestingMode(reconcileOptionalSidecarEvidence({ ...current }, mappedMember), owner.id, pluginTestingMode(mappedMember, owner.id));
+      const guarded = reconcileOptionalSidecarEvidence({ ...current }, mappedMember);
       if (pasted) guarded.provenance = { ...guarded.provenance, originalPasteImports: [
         ...(current.provenance?.originalPasteImports ?? []), { ...pasted.archive, memberId: owner.id } ] };
       for (const field of ['migratedMembers', 'journalMigratedMembers', 'taskStatusProvenance']) {

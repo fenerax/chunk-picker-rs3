@@ -36,7 +36,9 @@ returning to the current release. See [the save schema](save-schema.md).
 The per-player `provenance.pluginTestingMode` switch uses preserved additive
 metadata, rather than a member preference unknown to the frozen validator.
 The frozen receiver ignores the switch. Current readers retain it through
-exports, mapped transfers and restores, including frozen restore archives.
+whole-picker exports, mapped full-save transfers and restores, including frozen
+restore archives. Member restore and import keep the live picker's setting.
+Saves that have never enabled testing do not gain a testing-mode key.
 `plugin-testing-mode.test.mjs` opens a current synthetic save with the actual
 frozen runtime and verifies chunks, ticks, History and a real note Undo.
 

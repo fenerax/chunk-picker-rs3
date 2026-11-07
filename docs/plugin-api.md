@@ -51,9 +51,15 @@ not apply testing observations. Retained testing journals stay non-live through
 restart, export, restore and roster transfer. A fresh observation received after
 turning the switch off follows the normal live-world rules.
 
-The setting is additive schema-1 metadata in `provenance.pluginTestingMode`,
-mapped by player ID during transfer and member restore. It is outside gameplay
-Undo. Frozen rollback release `06e15939` loads and preserves the metadata but
+Testing mode is a setting of the live picker, not part of a member backup.
+Member restore and member import keep the destination's current setting.
+Whole-picker backups and restores preserve existing settings as additive schema-1
+metadata in `provenance.pluginTestingMode`; full-save roster transfers map its
+player IDs. The key stays absent until someone turns testing mode on. Unchanged
+toggles do not write a save. Enabling testing requires plain-object provenance;
+other existing provenance is preserved and the change is refused with 409.
+The setting is outside gameplay Undo. Frozen rollback release `06e15939` loads
+and preserves the metadata but
 **ignores testing mode**; it does not protect beta testing. Chunks, ticks,
 History and Undo remain compatible. Optional plugin metadata never gates
 startup, restore or export; plugin decisions may be offered again after an

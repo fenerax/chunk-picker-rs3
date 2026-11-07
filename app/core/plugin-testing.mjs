@@ -26,5 +26,11 @@ export function pluginTestingSettings(state) {
 export const pluginTestingMode = (state, player) => pluginTestingSettings(state)[player] === true;
 
 export function withPluginTestingMode(state, player, enabled) {
-  return { ...state, provenance: { ...state.provenance, pluginTestingMode: { ...pluginTestingSettings(state), [player]: enabled } } };
+  if (pluginTestingMode(state, player) === enabled) return state;
+  const provenance = state.provenance;
+  if (provenance !== undefined && (!provenance || typeof provenance !== 'object'
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(provenance)))) {
+    throw Object.assign(new Error('Plugin testing mode cannot be changed because this save\'s provenance is not a plain object.'), { status: 409 });
+  }
+  return { ...state, provenance: { ...(provenance ?? {}), pluginTestingMode: { ...pluginTestingSettings(state), [player]: enabled } } };
 }

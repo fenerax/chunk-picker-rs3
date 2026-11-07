@@ -7,7 +7,7 @@ import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { createGroupState, importBackup } from '../app/core/state.mjs';
-import { pluginTestingMode, pluginTestingSettings } from '../app/core/plugin-testing.mjs';
+import { pluginTestingMode, pluginTestingSettings, withPluginTestingMode } from '../app/core/plugin-testing.mjs';
 import { GAME_ITEMS } from '../app/integrations/game-items.mjs';
 import { openPluginItems } from '../app/plugin-items.mjs';
 import { mapTransferRoster } from '../app/save-transfer.mjs';
@@ -26,13 +26,14 @@ const tasks = [{ id: 'synthetic-diary', category: 'Diary', label: '~|Synthetic#E
 const achievement = (part = 1, parts = 1) => ({ snapshot, part, parts, complete: part === 1 ? [[1, 'Synthetic achievement', 0, 0]] : [] });
 const items = (events = [], backpack = []) => ({ snapshot, worn: [], backpack, pouch: [], journal: { id: journalId, events } });
 
-async function fixture(t, { betaAsLive = false, beforeBody = async () => {}, beforeMutation = async () => {} } = {}) {
+async function fixture(t, { betaAsLive = false, beforeBody = async () => {}, beforeMutation = async () => {}, provenance } = {}) {
   let store, controller, input, output, seq = 0;
   const close = async () => { try { await controller?.close(); } finally { await store?.close(); } };
   // Hooks run in registration order: close writers before scratch removes files.
   t.after(close);
   const dataDir = await scratch(t, 'testing-mode');
   const initialState = createGroupState([{ id: player, name: 'Explorer 1' }, { id: partner, name: 'Explorer 2' }]);
+  if (provenance !== undefined) initialState.provenance = provenance;
   initialState.tasks = tasks;
   initialState.members[0].transportFacts = { currencies: { coins: 123 } };
   let now = Date.parse(at);
@@ -344,8 +345,47 @@ test('restored testing-mode flips clear cached progress and partial reports lazi
   assert.deepEqual(f.state().history, before.history);
 });
 
-test('testing settings survive disk, export, mapped transfer, whole restore and member restore', async t => {
+test('unchanged testing settings do not write metadata, including untouched whole and member restores', async t => {
+  const f = await fixture(t), before = f.state(), backup = await f.store.backup();
+  assert.equal(withPluginTestingMode(before, player, false), before);
+  const enabled = withPluginTestingMode(before, player, true);
+  assert.equal(withPluginTestingMode(enabled, player, true), enabled);
+  assert.equal(withPluginTestingMode(enabled, partner, false), enabled);
+  const disk = await readFile(path.join(f.dataDir, 'state.json'));
+  let events = 0;
+  const unsubscribe = f.store.subscribe(() => { events++; });
+  try { await f.toggle(false); }
+  finally { unsubscribe(); }
+  assert.equal(events, 0);
+  assert.deepEqual(await readFile(path.join(f.dataDir, 'state.json')), disk);
+  assert.deepEqual(f.state(), before);
+  assert.doesNotMatch(JSON.stringify(backup), /"pluginTestingMode"/);
+  await f.store.replace(backup, f.store.getInfo().revision);
+  assert.doesNotMatch(JSON.stringify(await f.store.backup()), /"pluginTestingMode"/);
+  const reviewed = await f.store.prepareTransfer(serialize({ backup, memberId: player, sourceMemberId: player }),
+    { route: '/api/member-restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() } });
+  await f.store.applyTransfer(reviewed.ticket, f.store.getInfo().revision);
+  assert.doesNotMatch(JSON.stringify(await f.store.backup()), /"pluginTestingMode"/);
+});
+
+test('array and other non-plain provenance stay intact and enabling testing is refused with 409', async t => {
+  const f = await fixture(t, { provenance: ['synthetic'] }), before = f.state();
+  assert.deepEqual(before.provenance, ['synthetic']);
+  assert.equal(withPluginTestingMode(before, player, false), before);
+  assert.throws(() => withPluginTestingMode({ ...before, provenance: 'synthetic' }, player, true), { status: 409 });
+  const disk = await readFile(path.join(f.dataDir, 'state.json'));
+  await f.toggle(false);
+  await assert.rejects(f.toggle(true), error => error.status === 409 && /provenance.*plain object/i.test(error.message));
+  assert.deepEqual(f.state(), before);
+  assert.deepEqual(await readFile(path.join(f.dataDir, 'state.json')), disk);
+  assert.deepEqual((await f.store.backup()).state.provenance, ['synthetic']);
+  const mapped = mapTransferRoster(before, before.members, { [player]: player, [partner]: partner });
+  assert.deepEqual(mapped.provenance, ['synthetic']);
+});
+
+test('whole-save testing settings survive disk, export and mapped transfer while member imports keep destination settings', async t => {
   const f = await fixture(t);
+  const off = await f.store.backup();
   await f.toggle(true); await f.restart();
   assert.equal(f.store.getPluginTestingMode(player), true);
   const backup = await f.store.backup();
@@ -362,7 +402,13 @@ test('testing settings survive disk, export, mapped transfer, whole restore and 
   const reviewed = await f.store.prepareTransfer(serialize({ backup, memberId: player, sourceMemberId: player }),
     { route: '/api/member-restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() } });
   await f.store.applyTransfer(reviewed.ticket, f.store.getInfo().revision);
-  assert.equal(f.store.getPluginTestingMode(player), true);
+  assert.equal(f.store.getPluginTestingMode(player), false, 'An enabled source must not turn on the destination setting');
+  assert.equal(f.store.getPluginTestingMode(partner), true);
+  await f.toggle(true);
+  const disabledSource = await f.store.prepareTransfer(serialize({ backup: off, memberId: player, sourceMemberId: player }),
+    { route: '/api/member-restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() } });
+  await f.store.applyTransfer(disabledSource.ticket, f.store.getInfo().revision);
+  assert.equal(f.store.getPluginTestingMode(player), true, 'A default-off source must not turn off the destination setting');
   assert.equal(f.store.getPluginTestingMode(partner), true);
 });
 

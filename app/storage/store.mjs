@@ -1,5 +1,5 @@
 import { isMainThread } from 'node:worker_threads';
-import { pluginTestingMode, pluginTestingSettings, withPluginTestingMode } from '../core/plugin-testing.mjs';
+import { pluginTestingMode, withPluginTestingMode } from '../core/plugin-testing.mjs';
 import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
@@ -1215,7 +1215,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}),
       ...(evidence?.optionalSidecarEvidence ? { optionalSidecarEvidence: evidence.optionalSidecarEvidence } : {}),
       ...(evidence?.pluginItemEvidence ? { pluginItemEvidence: evidence.pluginItemEvidence, pluginItemEvidenceReconciled: 1 } : {}),
-      ...(pluginAutoHandled ? { pluginAutoHandled } : {}), pluginTestingMode: pluginTestingSettings(ready), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
+      ...(pluginAutoHandled ? { pluginAutoHandled } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
       ...(completeIncoming.provenance !== undefined ? { incomingProvenance: completeIncoming.provenance } : {}) } };
     ready.revision = revision;
     // A replacement establishes a new undo boundary. Earlier snapshots may
@@ -1495,8 +1495,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return enqueue(async () => {
         checkRevision(expectedRevision);
         if (!current.members.some(member => member.id === player) || typeof enabled !== 'boolean') throw new TypeError('Choose a player and turn testing mode on or off.');
-        const next = inheritStateMetadata(current, withPluginTestingMode(current, player, enabled));
-        return persist(next, 'plugin-settings', undefined, false, current, false, undefined, { cleanup: true });
+        const next = withPluginTestingMode(current, player, enabled);
+        if (next === current) return;
+        return persist(inheritStateMetadata(current, next), 'plugin-settings', undefined, false, current, false, undefined, { cleanup: true });
       });
     },
     command(command, expectedRevision, { actor, requestId, requestAck, pluginHandled } = {}) {
