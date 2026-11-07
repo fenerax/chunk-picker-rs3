@@ -870,10 +870,11 @@ export class ChunkMap {
     try {
       if (Math.max(1, window.devicePixelRatio || 1) !== (this.deviceDpr ?? this.dpr)) this.resize();
       this.applyPointer();
-      if (this.dirty.base) this.terrain?.setView(this.visibleBounds(), this.zoom, this.dpr);
-      if (this.mapAssetsPending || this.terrain?.coarseReady === false) { this.stage.dataset.mapTerrain = 'loading'; return; }
-      this.stage.dataset.mapTerrain = 'ready';
-      if (this.dirty.base) this.drawBase();
+      if (this.dirty.base) {
+        this.terrain?.setView(this.visibleBounds(), this.zoom, this.dpr);
+        this.stage.dataset.mapTerrain = this.terrainReady ? 'ready' : 'loading';
+        this.drawBase();
+      }
       const probe = globalThis.__rs3Perf;
       if (this.dirty.base && probe?.enabled && probe.events.length < 1000) {
         probe.terrainViewport = { bounds: this.visibleBounds(), zoom: this.zoom,
@@ -912,7 +913,12 @@ export class ChunkMap {
       bottom: clamp((this.height - this.offset.y) / this.zoom, 0, WORLD_HEIGHT) };
   }
 
+  get terrainReady() {
+    return (!this.mapAssetsPending || this.imageStatus === 'unused') && this.terrain?.coarseReady !== false;
+  }
+
   drawTerrain(context, left, top, right, bottom, desaturated = false) {
+    if (!this.terrainReady) return;
     if (this.terrain?.tiles.size) {
       this.terrain.draw(context, { left, top, right, bottom }, { offset: this.offset, zoom: this.zoom, dpr: this.dpr, desaturated,
         fallback: (ctx, l, t, r, b) => this.drawLegacyTerrain(ctx, l, t, r, b) });
@@ -961,7 +967,7 @@ export class ChunkMap {
     context.strokeStyle = palette.scheme === 'light' ? (preferences.highvis ? '#3a2e1a2e' : '#3a2e1a47') : preferences.highvis ? '#00000066' : '#0000008c';
     context.lineWidth = 1;
     if (!preferences.highvis || this.zoom > 0.3) context.stroke();
-    if (this.imageStatus !== 'ready' && !this.terrain?.committedKeys.size
+    if (!['ready', 'unused'].includes(this.imageStatus) && !this.terrain?.committedKeys.size
       && (!getArtStatus() || !['error', 'placeholder'].includes(this.imageStatus))) {
       context.fillStyle = '#0c131df2';
       context.fillRect(12, 74, Math.min(this.width - 24, 510), 48);

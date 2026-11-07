@@ -64,6 +64,10 @@ Deferred map construction remains unready while the terrain manifest is in
 flight, even if state/display and animation frames finish first. Manifest
 resolution to legacy fallback explicitly releases that gate; an optimized
 manifest keeps it closed through the compact image's decode acknowledgement.
+This gates terrain drawing only: grid, state, pins and hover still paint while
+terrain is loading. Artwork-free gallery samples (`imageStatus: unused`) settle
+without a manifest or a fallback-image download. Hover-only frames do not read
+or publish terrain readiness.
 
 Every new terrain export embeds `coarseOverview`. Building a `duo-art` pack
 from an older optimized export generates its compact companion automatically

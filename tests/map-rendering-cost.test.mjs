@@ -70,3 +70,21 @@ test('ordinary pointer motion paints hover only, without touching terrain/state/
   map.pointerMove({}); frame();
   assert.deepEqual(painted, ['hover']);
 });
+
+test('pending terrain leaves grid, state, pins and hover paintable', t => {
+  const priorWindow=globalThis.window;globalThis.window={devicePixelRatio:1};
+  t.after(()=>{globalThis.window=priorWindow;});
+  const painted=[],base=context();base.stroke=()=>painted.push('grid');
+  const map=Object.assign(Object.create(ChunkMap.prototype),{
+    disposed:false,frame:null,dpr:1,drag:null,pointer:null,hoverId:null,stage:{dataset:{}},
+    width:512,height:256,zoom:1,offset:{x:0,y:0},contexts:[base],
+    mapAssetsPending:true,imageStatus:'loading',
+    dirty:{base:true,state:true,pins:true,hover:true},
+    applyPointer:()=>{},
+    drawState:()=>painted.push('state'),drawPins:()=>painted.push('pins'),drawHover:()=>painted.push('hover'),
+  });
+  map.paint();
+  assert.equal(map.stage.dataset.mapTerrain,'loading');
+  assert.deepEqual(painted,['grid','state','pins','hover']);
+  assert.equal(base.calls.filter(call=>call[0]==='image').length,0,'Unready terrain cannot draw');
+});
