@@ -11,10 +11,11 @@
   .phone-layout .member-switch { min-width:0;max-width:100%; }
   .phone-layout .member-switch button { flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
   :is(#update-banner,#notice,#backup-status-notice,#sandbox-banner,#duo-catchup,#duo-live) { padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
-  /* Let the document scroll the bars away when they leave too little room for
-     map controls and results. Reserve the fixed tabs in native focus scrolling. */
-  :root.phone-layout { scroll-padding-bottom:calc(var(--phone-tabs-height) + .5rem); }
-  .phone-layout body { padding-bottom:var(--phone-tabs-height); }
+  /* Native focus scrolling must use the unobscured space above the fixed tabs.
+     Root scroll-padding alone can leave an already-in-viewport control behind
+     the tabs: Chromium need not scroll it again when focus moves to a sibling. */
+  :root.phone-layout { overflow:hidden; }
+  .phone-layout body { height:calc(100dvh - var(--phone-tabs-height));overflow-y:auto;scroll-padding-block:.5rem; }
   .phone-layout .workspace { display:block;height:max(28rem,calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height)));min-height:0; }
   .phone-layout .map-panel { height:100%; }
   .phone-layout .map-stage { position:absolute;inset:0;height:100%;min-height:0; }

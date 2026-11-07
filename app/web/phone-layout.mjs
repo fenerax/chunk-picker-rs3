@@ -5,8 +5,34 @@ const tabs = ['map', 'tasks', 'more'];
 // Every visible banner takes space above the workspace, including updates.
 export function observeScreenBars(document, Observer = globalThis.ResizeObserver) {
   const bars = [document.querySelector('.topbar'), ...['update-banner', 'notice', 'backup-status-notice', 'sandbox-banner', 'duo-catchup', 'duo-live'].map(id => document.getElementById(id))].filter(Boolean);
-  const observer = new Observer(() => document.documentElement.style.setProperty('--topbar-height', `${bars.reduce((height, bar) => height + bar.getBoundingClientRect().height, 0)}px`));
+  const view = document.defaultView;
+  let pending = false;
+  const revealFocusNow = () => {
+      const active = document.activeElement, body = document.body;
+      if (!document.documentElement.classList.contains('phone-layout') || !active || active === body
+        || active.closest('dialog[open], #phone-tabs') || !body.contains(active)) return;
+      const box = active.getBoundingClientRect(), port = body.getBoundingClientRect();
+      const top = port.top + body.clientTop, bottom = top + body.clientHeight;
+      // A status/banner can grow after native focus scrolling has finished.
+      // Reveal the whole target on focus or layout changes, never on a user's
+      // ordinary scroll, and leave top-layer dialogs to their own scrollport.
+      if (box.height <= body.clientHeight && box.bottom > bottom) body.scrollTop += box.bottom - bottom;
+      else if (box.top < top) body.scrollTop += box.top - top;
+  };
+  const revealFocus = () => {
+    if (pending || !view?.requestAnimationFrame) return;
+    pending = true;
+    view.requestAnimationFrame(() => { pending = false; revealFocusNow(); });
+  };
+  document.addEventListener?.('focusin', revealFocus);
+  const observer = new Observer(() => {
+    document.documentElement.style.setProperty('--topbar-height', `${bars.reduce((height, bar) => height + bar.getBoundingClientRect().height, 0)}px`);
+    // ResizeObserver runs after layout. Correct a displaced focus target in
+    // this delivery, before paint, rather than leaving it clipped for a frame.
+    if (view) revealFocusNow();
+  });
   for (const bar of bars) observer.observe(bar);
+  if (document.body) observer.observe(document.body);
   return observer;
 }
 

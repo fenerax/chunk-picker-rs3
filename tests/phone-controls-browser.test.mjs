@@ -37,6 +37,10 @@ function bounds(selector) {
       bottom = Math.min(bottom, box.top + parent.clientTop + parent.clientHeight);
     }
     ancestorScroll += Math.abs(parent.scrollLeft);
+    // The fixed tab bar escapes body overflow; its buttons are not clipped by
+    // the shorter content scrollport above it. Keep the bar's own clipping and
+    // the native hit-ownership checks, then stop at its viewport containing block.
+    if (parent === tabs && style.position === 'fixed') break;
   }
   const x = (left + right) / 2, y = (top + bottom) / 2;
   const owns = (x, y) => { const hit = document.elementFromPoint(x, y); return hit === node || node.contains(hit); };

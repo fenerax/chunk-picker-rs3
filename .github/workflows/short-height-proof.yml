@@ -1,0 +1,49 @@
+name: Short-height proof
+
+on:
+  pull_request:
+    paths:
+      - 'app/web/phone-layout.css'
+      - 'app/web/phone-layout.mjs'
+      - 'scripts/perf/short-height-*.mjs'
+      - 'scripts/perf/cdp.mjs'
+      - 'tests/short-height-browser.test.mjs'
+      - 'scripts/ci/short-height-proof.mjs'
+      - '.github/workflows/short-height-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: short-height-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    # The slow comparison is acceptance evidence for this rebuild. Later
+    # changes can request it explicitly without adding the old sleep budget
+    # to every ordinary PR touching phone layout.
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'test/rebuild-short-height'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        pair: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      - name: First-attempt proof and matched timing pair
+        run: node scripts/ci/short-height-proof.mjs "${{ runner.temp }}/short-height-proof" "${{ matrix.pair }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: short-height-proof-${{ matrix.pair }}
+          path: ${{ runner.temp }}/short-height-proof
+          retention-days: 14
