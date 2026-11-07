@@ -445,10 +445,15 @@ for (const stage of ['Profiler.start', 'Profiler.stop']) test(`picker ${stage} a
 for (const operation of ['start', 'stop']) test(`missing calculator ${operation} acknowledgement expires at the cleanup allowance`, async t => {
   const clock = manualClock();
   // Picker output exceeds this cap, so no filesystem phase precedes the worker allowance.
-  const profiles = await createDeepProfiles(await temporary(t), { clock, stopTimeoutMs: 20, caps: { count: 2, fileBytes: 64, totalBytes: 128 } });
+  const caps = { count: 2, fileBytes: 64, totalBytes: 128 };
+  const profiles = await createDeepProfiles(await temporary(t), { clock, stopTimeoutMs: 20, caps });
+  // The late worker result fits the caps, so only the timeout can keep it unpublished.
+  const late = { nodes: [], startTime: 1, endTime: 2 };
+  assert.ok(Buffer.byteLength(JSON.stringify(late)) <= caps.fileBytes);
+  assert.ok(Buffer.byteLength(JSON.stringify(profile)) > caps.fileBytes);
   const entered = Promise.withResolvers(), pending = Promise.withResolvers(), lateStopped = Promise.withResolvers();
   let stops = 0, otherStarts = 0;
-  const handle = { stop() { stops++; lateStopped.resolve(); return operation === 'stop' ? pending.promise : Promise.resolve(profile); } };
+  const handle = { stop() { stops++; lateStopped.resolve(); return operation === 'stop' ? pending.promise : Promise.resolve(late); } };
   const worker = new EventEmitter();
   worker.startCpuProfile = () => { entered.resolve(); return operation === 'start' ? pending.promise : handle; };
   profiles.attach(worker);
@@ -468,8 +473,8 @@ for (const operation of ['start', 'stop']) test(`missing calculator ${operation}
   assert.equal(otherStarts, 0); assert.equal(other.profileRetiring, undefined);
   assert.equal(profiles.status().stopping, false);
   assert.deepEqual(await profiles.list(), []);
-  pending.resolve(operation === 'start' ? handle : profile);
-  await lateStopped.promise; await checkpoint();
+  pending.resolve(operation === 'start' ? handle : late);
+  await lateStopped.promise; await checkpoint(); await profiles.close();
   assert.equal(stops, 1); assert.equal(clock.pending(), 0);
   assert.deepEqual(await profiles.list(), [], 'late cleanup cannot publish a timed-out capture');
 });
