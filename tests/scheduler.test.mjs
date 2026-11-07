@@ -49,6 +49,56 @@ async function fixture(t, options = {}) {
   return { ...f, scheduler, evaluate };
 }
 
+test('Preview seed progress is request-local metadata and never reaches UI observers', async t => {
+  let dispatch = Promise.withResolvers();
+  const events = [], timings = [];
+  const scheduler = await createTaskScheduler({ eligibilityProofSeeding: false,
+    timings: { record: (...args) => timings.push(args) },
+    workerFactory() {
+      const worker = new EventEmitter();
+      worker.postMessage = message => { if (message.type === 'predict') dispatch.resolve({ worker, message }); };
+      worker.terminate = async () => { worker.emit('exit', 0); };
+      queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [], supports: ['evaluate', 'predict'] }));
+      return worker;
+    },
+  });
+  t.after(() => scheduler.close());
+  scheduler.subscribe(event => events.push(event));
+  scheduler.subscribeResidency(event => events.push(event));
+  scheduler.subscribePredictions(event => events.push(event));
+  scheduler.subscribePrepared(event => events.push(event));
+  const state = { revision: 0, rules: {}, members: [{ id: 'actor1', unlocked: [], selected: [], pendingRoll: [] }] };
+  const request = key => scheduler.evaluate(state, 'actor1', 'predict', key, undefined, key);
+  const pending = request('first');
+  const { worker, message } = await dispatch.promise;
+  const before = events.length;
+  worker.emit('message', { id: message.id, type: 'progress', eligibilitySeeded: true });
+  assert.equal(events.length, before, 'control metadata does not notify browser-facing subscriptions');
+  const result = { delta: { tasksAdded: [] } }, timingMs = { engineMs: 1, totalMs: 2 };
+  worker.emit('message', { id: message.id, type: 'prediction-prepared', result, evaluationMs: 2, timingMs });
+  const first = await pending;
+  assert.equal(first.eligibilitySeeded, true, 'the first Preview observes metadata before owner preparation');
+  assert.equal(Object.keys(first).includes('eligibilitySeeded'), false);
+  assert.equal(Object.hasOwn(first.result, 'eligibilitySeeded'), false);
+  assert.deepEqual(first.timingMs, timingMs);
+  worker.emit('message', { id: message.id, result, evaluationMs: 2, timingMs });
+  const partnerTiming = timings.find(([action]) => action === 'preview-partner');
+  assert.ok(partnerTiming, 'the final reply records partner timing');
+  assert.equal(partnerTiming[2].eligibilitySeeded, true, 'final partner timing reads the entry, not the final reply');
+
+  dispatch = Promise.withResolvers();
+  const next = request('next');
+  const second = await dispatch.promise;
+  const afterDispatch = events.length;
+  second.worker.emit('message', { id: message.id, type: 'progress', eligibilitySeeded: true });
+  second.worker.emit('message', { id: second.message.id, type: 'progress', eligibilitySeeded: 'true' });
+  assert.equal(events.length, afterDispatch, 'late and malformed control messages are not UI progress');
+  second.worker.emit('message', { id: second.message.id, result, evaluationMs: 2, timingMs });
+  assert.equal((await next).eligibilitySeeded, false, 'missing boolean metadata cannot inherit a previous request flag');
+  assert.equal(first.eligibilitySeeded, true, 'a later request cannot mutate the first observation');
+  assert.ok(!JSON.stringify(events).includes('eligibilitySeeded'), 'browser-facing events contain no seed diagnostics');
+});
+
 test('Why reads use existing lanes and charge bounded successful responses, never misses', async t => {
   const { workers, scheduler } = await fixture(t, { supports: ['evaluate', 'why-task'], cacheByteLimit: 512 });
   const read = id => scheduler.evaluate({ revision: 0 }, 'actor1', 'why-task', id, `why:${id}`, 'same-input');

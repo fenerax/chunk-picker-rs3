@@ -32,7 +32,8 @@ import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { serialize } from 'node:v8';
-import { createWarmResults } from './warm-results.mjs';
+import { createWarmResults, warmResultNamespace } from './warm-results.mjs';
+import { eligibilityTransferList, releaseEligibilityChunk } from './eligibility-transfer.mjs';
 import { preparedCollectionKey, decodePreparedCollection, encodePreparedCollection, readPreparedCollectionFile } from './prepared-collection.mjs';
 
 const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
@@ -40,7 +41,10 @@ startupPhase('worker:modules');
 // Definitions compile once in this isolated worker. Evaluation never runs on
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
 if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
-const warmResults = createWarmResults(workerData);
+// Same conservative namespace as durable calculator results: dataset, complete
+// semantic worker inputs, runtime and all application sources.
+const proofNamespace = warmResultNamespace(workerData);
+const warmResults = createWarmResults(workerData, { namespace: proofNamespace });
 const collectPreparedCollection = workerData.collectPreparedCollection || !!workerData.preparedCollectionFile;
 const preparationKey = collectPreparedCollection || workerData.preparedCollection ? preparedCollectionKey(workerData) : undefined;
 let collectionEntry = workerData.preparedCollection, collectionFile = workerData.preparedCollectionFile;
@@ -114,10 +118,15 @@ function timed(timingMs, stage, operation) {
     }
   }
 }
-function evaluateCore(state, memberId, timingMs, cacheSizing = false) {
+function eligibilityOptions(state, memberId, pickerId = 'legacy-shared') {
+  const member = state.members.find(owner => owner.id === memberId);
+  const savedIds = [...new Set([...Object.keys(member?.taskStatus ?? {}), ...member?.completedTasks ?? []])];
+  return { ownItemQueries: savedIds.filter(id => equipmentById.has(id)).map(id => equipmentById.get(id)), eligibilityScope: pickerId };
+}
+function evaluateCore(state, memberId, timingMs, cacheSizing = false, pickerId) {
   const collectionEngine = getCollectionEngine();
   const member = state.members.find(owner => owner.id === memberId), savedIds = [...new Set([...Object.keys(member?.taskStatus ?? {}), ...member?.completedTasks ?? []])];
-  const evaluate = () => engine.evaluate(state, memberId, { ownItemQueries: savedIds.filter(id => equipmentById.has(id)).map(id => equipmentById.get(id)) });
+  const evaluate = () => engine.evaluate(state, memberId, eligibilityOptions(state, memberId, pickerId));
   const result = timed(timingMs, 'engineMs', () => cacheSizing ? snapshotBudget.measureResult(evaluate) : evaluate());
   if (cacheSizing) trackSnapshotCore(result);
   const collection = timed(timingMs, 'collectionMs', () => collectionEngine.evaluate(state, memberId, result, { obligationQueries: savedIds }));
@@ -138,8 +147,8 @@ function appendViews(result, timingMs) {
   viewContexts.delete(result);
   return result;
 }
-function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSizing = false } = {}) {
-  const result = evaluateCore(state, memberId, timingMs, cacheSizing);
+function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSizing = false, pickerId } = {}) {
+  const result = evaluateCore(state, memberId, timingMs, cacheSizing, pickerId);
   const equipment = timed(timingMs, 'equipmentMs', () => evaluateEquipment(result, state, memberId, definitions));
   const member = state.members.find(owner => owner.id === memberId);
   const legacyRules = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(state.legacy?.maps?.[member.sourceMapId]?.rules ?? {}).map(([key, value]) => [decodeLegacyText(key), value]));
@@ -195,7 +204,7 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true, pick
   const key = JSON.stringify(calculationKey(state, memberId, input));
   let snapshot = snapshots.get(key), hit = !!snapshot;
   if (!snapshot) {
-    snapshot = { baseline: evaluateFull(state, memberId, { includeViews, timingMs }), includeViews, estimates: new Map() };
+    snapshot = { baseline: evaluateFull(state, memberId, { includeViews, timingMs, pickerId }), includeViews, estimates: new Map() };
   }
   else if (includeViews && !snapshot.includeViews) {
     // Advisory lanes need the complete obligations, but not the separate BiS
@@ -227,9 +236,9 @@ function rollPoolFor(state, memberId, draft) {
     partnerConnections: partnerConnections(rollWorld, state, memberId, registry),
   });
 }
-function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = state) {
+function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = state, pickerId) {
   let evaluations = 0;
-  const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs }) };
+  const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs, pickerId }) };
   return timed(timingMs, 'predictionMs', () => {
     // A cached sandbox draft keeps its prediction but not its state; the caller's state carries the revision.
     if (!snapshot.predict || snapshot.predictionRevision !== source.revision) {
@@ -323,7 +332,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
   const detailed = normalized.previewChunkId !== undefined || normalized.planningChunkId !== undefined;
   if (!draftSnapshot || detailed && !draftSnapshot.baseline) {
     const hypothetical = applySandboxChanges(state, memberId, normalized.changes, getSandboxCatalogue(), taskIndex);
-    draftSnapshot = { ...draftSnapshot, whyIndex: undefined, state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs, cacheSizing: snapshotBudget.pickerOwners <= 1 }) };
+    draftSnapshot = { ...draftSnapshot, whyIndex: undefined, state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs, cacheSizing: snapshotBudget.pickerOwners <= 1, pickerId }) };
   }
   // Build all optional fields off-ledger. A rejected candidate must leave the
   // prior draft and baseline intact, including when a cached draft grows.
@@ -441,15 +450,39 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof }) => {
+  if (type === 'eligibility-seed') {
+    const reply = requests.get(id)?.pickerId === pickerId ? requests.get(id).seedReply : undefined;
+    if (reply) reply(proof); else releaseEligibilityChunk({ type, proof });
+    return;
+  }
   if (type === 'cancel') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), revision)); return; }
+  if (type === 'eligibility-proof-export') {
+    // A resident-only lookup never enters snapshotFor or computes a miss.
+    let result;
+    try {
+      if (!(cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0))
+        && proofNamespace && chunkId?.namespace === proofNamespace && JSON.parse(chunkId.key)[0] === pickerId) {
+        const proof = engine.exportEligibilityProofChunk(chunkId.key, chunkId.maxBytes, chunkId.offset, chunkId.proofId);
+        if (proof) result = { namespace: proofNamespace, key: chunkId.key, proof };
+      }
+    } catch { /* Optional export miss. */ }
+    const message = { id, result };
+    parentPort.postMessage(message, eligibilityTransferList(message)); return;
+  }
   const started = performance.now();
   // Fixed stage names and durations never expose personal state.
   const timingMs = { engineMs: 0, collectionMs: 0, equipmentMs: 0, presentationMs: 0, currentBiSMs: 0, activityMs: 0, predictionMs: 0, deathMs: 0, totalMs: 0 };
   if (reportProgress) progressRequests.set(timingMs, { id, at: started });
   const request = { pickerId, cancelled: false, get latestRevision() { return pickerRevision(pickerId); } };
   const abandoned = () => request.cancelled || cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0) !== 0;
+  let eligibilitySeeded = false;
+  // Native Preview observes this control message; final result envelopes and
+  // numeric stage durations keep the established calculator contract.
+  const notifyPredictionMetadata = () => {
+    if (eligibilitySeeded && type === 'predict' && (predictionProgress || seedEligibility)) parentPort.postMessage({ id, type: 'progress', eligibilitySeeded });
+  };
   requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
@@ -479,9 +512,13 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     if (restored && !abandoned() && state.revision >= pickerRevision(pickerId)) {
       timingMs.totalMs = performance.now() - started;
       if (type === 'predict' && predictionProgress) {
-        if (previewProgress) parentPort.postMessage({ id, type: 'prediction-prepared', result: restored.result, evaluationMs: timingMs.totalMs, timingMs });
+        if (previewProgress) {
+          notifyPredictionMetadata();
+          parentPort.postMessage({ id, type: 'prediction-prepared', result: restored.result, evaluationMs: timingMs.totalMs, timingMs });
+        }
         if (restored.unlockReuse) parentPort.postMessage({ id, type: 'prediction-prepared', unlockReuse: restored.unlockReuse });
       }
+      notifyPredictionMetadata();
       parentPort.postMessage({ id, ...restored, evaluationMs: timingMs.totalMs, timingMs });
       return;
     }
@@ -537,24 +574,59 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       }
     }
     else {
+      if (type === 'predict' && seedEligibility && proofNamespace && !abandoned()
+        && !snapshots.has(JSON.stringify(calculationKey(state, memberId, input)))) {
+        const key = engine.eligibilityProofKey(state, memberId, eligibilityOptions(state, memberId, pickerId));
+        const reservation = engine.exportEligibilityProof(key, Number.MAX_SAFE_INTEGER) ? undefined : snapshotBudget.reserveHandoff();
+        let importer;
+        if (reservation) try {
+          let offset = 0, proofId, totalBytes;
+          do {
+            let received = await new Promise(resolve => {
+              request.seedReply = resolve;
+              parentPort.postMessage({ id, type: 'progress', eligibilitySeedRequest: { namespace: proofNamespace, key,
+                maxBytes: reservation.maxBytes, offset, ...(proofId ? { proofId } : {}) } });
+            });
+            delete request.seedReply;
+            const packet = { type: 'eligibility-seed', proof: received };
+            try {
+              if (abandoned() || state.revision < pickerRevision(pickerId) || received?.namespace !== proofNamespace || received.key !== key
+                || received.proof?.totalBytes > reservation.maxBytes) break;
+              importer ??= engine.beginEligibilityImport(key, received.proof);
+              if (!importer?.append(received.proof)) break;
+              offset += received.proof.bytes.byteLength; proofId = received.proof.proofId; totalBytes = received.proof.totalBytes;
+            } finally { releaseEligibilityChunk(packet); received = undefined; }
+          } while (offset < totalBytes);
+          if (!abandoned() && offset === totalBytes) eligibilitySeeded = importer?.finish() === true;
+        } catch { /* Transfer/admission failure follows the ordinary baseline. */ }
+        finally { delete request.seedReply; importer?.abort(); reservation.release(); }
+      }
+      if (type === 'predict' && abandoned()) {
+        timingMs.totalMs = performance.now() - started;
+        notifyPredictionMetadata();
+        parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs }); return;
+      }
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
       const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
+      eligibilitySeeded &&= snapshot.baseline.metrics.eligibilityCacheHit === true;
       if (type === 'predict') {
         // Let panel closure cancel a completed baseline before starting the
         // separate hypothetical fixed point. Keep a normal final lane response.
         await yieldToRequests();
         if (abandoned()) {
           timingMs.totalMs = performance.now() - started;
+          notifyPredictionMetadata();
           parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs });
           return;
         }
       }
-      const prediction = type === 'predict' ? predictionFor(state, memberId, chunkId, snapshot, timingMs) : null;
+      const prediction = type === 'predict' ? predictionFor(state, memberId, chunkId, snapshot, timingMs, state, pickerId) : null;
       if (prediction && predictionProgress && previewProgress) {
         // Native Preview callers can display the completed delta before even
         // building reusable task projections. Ordinary/protocol clients retain
         // the existing owner-prepared and final response sequence.
         const elapsedMs = performance.now() - started;
+        notifyPredictionMetadata();
         parentPort.postMessage({ id, type: 'prediction-prepared',
           result: { delta: prediction.delta, coverage: prediction.result.coverage, metrics: prediction.result.metrics },
           evaluationMs: elapsedMs, timingMs: { ...timingMs, totalMs: elapsedMs } });
@@ -578,7 +650,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         if (!abandoned()) {
           const partner = prediction.state.members.find(owner => owner.id !== memberId);
           if (partner) {
-            const peer = evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs });
+            const peer = evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs, pickerId });
             const peerPlay = mapPlayResult(peer);
             const peerSidebarJSON = sharedJSON(projectDuoSidebarResult(peerPlay, prediction.state, registry, partner.id));
             partnerUnlockReuse = { taskInputKey: unlockReuse.taskInputKey, memberId: partner.id, sourceRevision: state.revision,
@@ -606,9 +678,11 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     timingMs.totalMs = performance.now() - started;
     const reply = { ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}) };
     if (!abandoned() && state.revision >= pickerRevision(pickerId)) warmResults?.put(warmKey, reply);
+    notifyPredictionMetadata();
     parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs });
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
+    notifyPredictionMetadata();
     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { requests.delete(id); }
 };
@@ -618,7 +692,7 @@ else parentPort.on('message', handleMessage);
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
-const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'resident-chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'prepare-rules', 'roll-pool'];
+const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'resident-chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'prepare-rules', 'roll-pool', 'eligibility-proof-export'];
 // The generated catalogue is large and shares completion families between rows.
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.

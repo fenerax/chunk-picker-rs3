@@ -1,0 +1,38 @@
+name: Preview proof sample
+
+on:
+  pull_request:
+    paths:
+      - 'app/tasks/**'
+      - 'scripts/perf/preview-proof-*.mjs'
+      - 'tests/preview-proof-seed.test.mjs'
+      - 'tests/helpers/preview-proof-worker.mjs'
+      - '.github/workflows/preview-proof-seed.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      - name: Check complete synthetic equivalence and path controls
+        env:
+          RS3_DATASET: open-f2p
+        run: node --test --test-concurrency=1 tests/preview-proof-seed.test.mjs
+      - name: Measure one synthetic first Preview per arm
+        env:
+          RS3_DATASET: open-f2p
+        run: node scripts/perf/preview-proof-seed.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-proof-seed-${{ github.sha }}
+          path: preview-proof-seed.json
