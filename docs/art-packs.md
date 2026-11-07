@@ -38,6 +38,16 @@ its tile receipts come from the current committed interior descriptor. The
 loader verifies those diagnostic bytes lazily without parsing them. It preserves
 the original nested JSON bytes and existing application descriptor contracts.
 
+Optimized terrain exports include a compact whole-map underlay. For older
+exports without it, the builder generates a source-hash-bound image and
+`<terrain-directory>/coarse-descriptor.json` inside the new pack. This offline
+build step needs Python with Pillow (`--python` selects the executable); runtime
+still needs only Node. An existing companion is copied instead. Generation
+failure leaves the previous selection intact. New exports embed `coarseOverview`
+and need no extra generation at packaging time. The existing selected terrain
+export is supported without rewriting its immutable manifest. See
+[terrain loading and budgets](terrain-performance.md#loading-and-fallback).
+
 `app/art-bindings.mjs` explicitly lists the current legacy top-level resource
 pictures, RS3 SVGs, two task PNGs, world/background and font routes. Missing
 individual source pictures are omitted, so a partial installation can fall back

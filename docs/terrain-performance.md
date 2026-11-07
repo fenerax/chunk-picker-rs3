@@ -60,9 +60,19 @@ pan or zoom therefore shows terrain even when every idle callback and every
 destination response is still held. World/asset replacement repeats readiness
 and cancels the old instance's requests.
 
-The optional compact companion is pinned to the verified overview manifest and
-served through the existing authenticated, integrity-checked terrain route.
-An installation without it composes the same small startup canvas from the
+Deferred map construction remains unready while the terrain manifest is in
+flight, even if state/display and animation frames finish first. Manifest
+resolution to legacy fallback explicitly releases that gate; an optimized
+manifest keeps it closed through the compact image's decode acknowledgement.
+
+Every new terrain export embeds `coarseOverview`. Building a `duo-art` pack
+from an older optimized export generates its compact companion automatically
+(offline Python/Pillow), or copies an existing verified companion. The pack
+includes both the image and `<terrain-directory>/coarse-descriptor.json`, bound
+to the original immutable manifest hash. Selection cannot publish a pack if
+generation fails. The server validates that binding and serves the image through
+the existing authenticated, integrity-checked terrain route.
+An older, unrepacked installation without it composes the same small startup canvas from the
 bounded existing overview pages before becoming ready. A failed compact fetch
 or decode takes that path too. Those temporary decoded pages are discarded;
 detail retains its existing viewport/idle demand. No whole-map native load or
@@ -147,7 +157,11 @@ verifies compact-underlay pixels on the first cold pan/zoom frame without
 running idle work or releasing destination responses. It also caches one native
 tile, warms that page's overview from a different view, then returns with new
 native responses held: existing detail stays sharp and unloaded regions show
-the newer overview. Further regressions cover foreground preemption/promotion,
+the newer overview. The manifest itself is also held while construction/model/
+viewport frames advance; readiness cannot publish before it resolves and the
+coarse image decodes. Cancelled image requests have distinct fixture identities,
+so returning to the same asset cannot deliver a stale interception; unexpected
+CDP delivery errors fail directly without retries. Further regressions cover foreground preemption/promotion,
 idle exhaustion, byte/cache caps and page-load listener removal on abort
 (including prior abort) or browser exit.
 
@@ -193,7 +207,7 @@ The exporter refuses an existing content-addressed directory and never changes
 source files. An already installed bundle therefore needs no rebuild. Use a
 separate empty output root for exact reproduction, then compare its descriptor.
 
-To derive the optional compact companion from an existing verified export:
+To derive the compact companion from an existing verified export:
 
 ```sh
 python scripts/build-terrain-underlay.py --source .local/map-assets --manifest terrain.optimized-2026-10-08-38129fc98c5adcd7/manifest.json --output .local/terrain-underlay
@@ -201,12 +215,20 @@ python scripts/build-terrain-underlay.py --source .local/map-assets --manifest t
 
 This checks every overview's size/hash, downsamples it with Pillow BILINEAR,
 composites over the current ocean and verifies lossless decoded pixels. The
-returned descriptor must match `TERRAIN_COARSE_BUNDLE` in
-`app/data/terrain-assets.mjs`. Install only the generated `coarse-*.webp` beside
-that export's existing overview directory; its immutable manifest stays intact.
+returned descriptor binds the source manifest's SHA-256. Install the generated
+`coarse-*.webp` and `coarse-descriptor.json` beside that export's existing
+overview directory; its immutable manifest stays intact.
 Restart the server to refresh catalogue selection. Without the companion, the
 same startup underlay uses the 2,109,044-byte overview page bundle instead of
 68,166 bytes; normal browser caching reuses those pages for later detail.
+
+Pack coverage: `duo-legacy` with `duo-art` uses the optimized terrain path,
+including the existing `38129fc98c5adcd7` export used by the current release.
+Rebuilding that art pack now supplies the companion automatically; new exports
+include it in their own manifests. `open-f2p` and `open-starter` inherit a null
+terrain bundle and use their authored map fallback, so they do not need a
+terrain companion. Existing installed packs are immutable and require a new
+pack build/selection at deployment; this change does not alter the live install.
 
 ## Options assessed
 

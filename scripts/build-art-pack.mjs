@@ -2,12 +2,15 @@ import path from 'node:path';
 import { mkdir, readdir, open, copyFile, writeFile, rename, lstat, realpath, readFile, unlink } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { ART_BINDINGS, TASK_ARTWORK_DIRECTORY } from '../app/art-bindings.mjs';
 import { loadArtPack, safeArtFile, packRelative, PACK_LIMITS, PACK_VERSION, validateArtPayload } from '../app/packs.mjs';
 import { ICON_BUNDLES } from '../app/data/icons.mjs';
 import { TERRAIN_BUNDLE } from '../app/data/terrain-assets.mjs';
 
 const defaultSource = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const runFile = promisify(execFile);
 async function hashFile(filename) {
   const handle = await open(filename, 'r');
   try {
@@ -30,10 +33,10 @@ async function checkExistingOutputAncestor(directory) {
   }
 }
 
-/** Byte-preserving, explicit manual installation. No download, save access, or live selection refresh. */
+/** Explicit offline installation; original files stay byte-identical. */
 export async function buildArtPack({ sourceRoot = defaultSource, packsDir, version = '1.0.0', select = true,
   selectionPath = packsDir && path.join(packsDir, 'selection.json'), mapAssetsDir, terrainAssetsDir, iconAssetsDir,
-  bindings = ART_BINDINGS, nestedManifestPaths = [] } = {}) {
+  bindings = ART_BINDINGS, nestedManifestPaths = [], python = 'python' } = {}) {
   if (!packsDir || !PACK_VERSION.test(version)) throw new TypeError('Provide packsDir and a semantic version.');
   mapAssetsDir ??= process.env.RS3_MAP_ASSETS_DIR || path.join(sourceRoot, '.local', 'map-assets');
   terrainAssetsDir ??= process.env.RS3_TERRAIN_ASSETS_DIR || mapAssetsDir;
@@ -114,7 +117,7 @@ export async function buildArtPack({ sourceRoot = defaultSource, packsDir, versi
     try { await copy(binding.component, binding.relative); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     selectedBindings.push({ route, component: binding.component, relative: binding.relative });
   }
-  const manifestPaths = new Set([TERRAIN_BUNDLE.manifestPath, ...ICON_BUNDLES.map(bundle => `icons-${bundle.kind}.${bundle.version}/manifest.json`), ...nestedManifestPaths]);
+  const manifestPaths = new Set([TERRAIN_BUNDLE?.manifestPath, ...ICON_BUNDLES.map(bundle => `icons-${bundle.kind}.${bundle.version}/manifest.json`), ...nestedManifestPaths].filter(Boolean));
   const interiorDescriptors = new Map();
   // The committed current interior descriptor remains owned by the legacy data
   // provider in milestone 1. Read its path only; never package its topology.
@@ -161,6 +164,34 @@ export async function buildArtPack({ sourceRoot = defaultSource, packsDir, versi
       for (const [key, child] of Object.entries(value)) if (!['raw', 'sources', 'inputs', 'baseManifest', 'provenance'].includes(key)) collect(child);
     }
     collect(manifest);
+    // Old immutable exports cannot be rewritten to add coarseOverview. Generate
+    // a source-hash-bound companion in the new pack instead. New exports embed it.
+    if (/^terrain\.optimized-[a-zA-Z0-9_-]+$/.test(manifest.directory ?? '') && Array.isArray(manifest.pages) && !manifest.coarseOverview) {
+      const output = path.join(destination, entry.root);
+      const descriptorPath = `${manifest.directory}/coarse-descriptor.json`;
+      let companion;
+      try { companion = JSON.parse(await readFile(await sourceFile(entry.source, descriptorPath), 'utf8')); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (companion) {
+        if (companion.sourceManifestSha256 !== await hashFile(filename)) throw new TypeError('Terrain companion source mismatch.');
+        await copy(component, descriptorPath);
+        await copy(component, companion.coarseOverview.path, companion.coarseOverview);
+      } else {
+        await runFile(python, ['-I', path.join(defaultSource, 'scripts/build-terrain-underlay.py'),
+          '--source', entry.source, '--manifest', relative, '--output', output], { windowsHide: true });
+        const descriptorBytes = await readFile(path.join(output, descriptorPath));
+        const descriptor = JSON.parse(descriptorBytes);
+        if (descriptor.sourceManifestSha256 !== await hashFile(filename)) throw new TypeError('Terrain companion source mismatch.');
+        const coarse = descriptor.coarseOverview, generated = await safeArtFile(output, packRelative(coarse.path));
+        const record = { path: `${entry.root}/${coarse.path}`, bytes: (await lstat(generated)).size, sha256: await hashFile(generated) };
+        if (record.bytes !== coarse.bytes || record.sha256 !== coarse.sha256 || record.bytes > 512 * 1024) throw new TypeError('Invalid terrain companion.');
+        await validateArtPayload(generated, record);
+        for (const extra of [record, { path: `${entry.root}/${descriptorPath}`, bytes: descriptorBytes.length, sha256: createHash('sha256').update(descriptorBytes).digest('hex') }]) {
+          if (total + extra.bytes > PACK_LIMITS.totalBytes || files.length >= PACK_LIMITS.files) throw new TypeError('Art pack resource limit.');
+          files.push(extra); copied.add(extra.path); total += extra.bytes;
+        }
+      }
+    }
     for (const [relativeArt, record] of records) {
       try { await copy(component, relativeArt, record); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
@@ -182,7 +213,7 @@ export async function buildArtPack({ sourceRoot = defaultSource, packsDir, versi
     files.push({ path: relative, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
   }
   await jsonPayload('indexes/art-bindings.json', { schemaVersion: 1, bindings: selectedBindings });
-  await jsonPayload('provenance.json', { schemaVersion: 1, distribution: 'private-local', method: 'byte-preserving-copy',
+  await jsonPayload('provenance.json', { schemaVersion: 1, distribution: 'private-local', method: 'byte-preserving-copy-with-derived-terrain-underlay',
     notice: 'Packaging does not establish acquisition, hosting or redistribution permission.', components: Object.keys(roots) });
   const manifest = { schemaVersion: 1, id: 'duo-art', kind: 'art', version,
     requires: { corePackApi: 1, datasetId: 'duo-legacy', datasetContractVersion: 1, coordinateSystem: 'surface-grid-v1' },
@@ -228,7 +259,7 @@ export async function selectArtPack({ packsDir, selectionPath = path.join(packsD
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const options = {};
-  const names = { '--source-root': 'sourceRoot', '--packs-dir': 'packsDir', '--version': 'version', '--selection': 'selectionPath', '--map-assets': 'mapAssetsDir', '--terrain-assets': 'terrainAssetsDir', '--icon-assets': 'iconAssetsDir' };
+  const names = { '--source-root': 'sourceRoot', '--packs-dir': 'packsDir', '--version': 'version', '--selection': 'selectionPath', '--map-assets': 'mapAssetsDir', '--terrain-assets': 'terrainAssetsDir', '--icon-assets': 'iconAssetsDir', '--python': 'python' };
   for (let index = 2; index < process.argv.length; index++) {
     const argument = process.argv[index];
     if (argument === '--no-select') options.select = false;

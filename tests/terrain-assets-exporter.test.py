@@ -70,10 +70,14 @@ class TerrainExporterTests(unittest.TestCase):
         descriptor = json.loads((bundle_path.parent / "descriptor.json").read_bytes())
         self.assertEqual(descriptor["manifestSha256"], exporter.digest(bundle_path.read_bytes()))
         self.assertEqual(bundle["provenance"]["inputs"][0]["sha256"], tile["sha256"])
-        for entry in bundle["tiles"] + bundle["pages"]:
+        for entry in bundle["tiles"] + bundle["pages"] + [bundle["coarseOverview"]]:
             data = (output / entry["path"]).read_bytes()
             self.assertEqual(entry["sha256"], exporter.digest(data))
             self.assertEqual(entry["bytes"], len(data))
+        coarse = bundle["coarseOverview"]
+        self.assertEqual((coarse["width"], coarse["height"], coarse["scale"]), (8, 8, 0.0625))
+        with Image.open(output / coarse["path"]) as decoded_coarse:
+            self.assertEqual(decoded_coarse.size, (8, 8))
         page = Image.open(output / bundle["pages"][0]["path"]).convert("RGBA")
         self.assertEqual(page.getpixel((128, 128)), (0, 0, 0, 0))
         self.assertEqual(page.getpixel((63, 20))[3], 0)
@@ -96,6 +100,7 @@ class TerrainExporterTests(unittest.TestCase):
         output.mkdir()
         self.addCleanup(lambda: shutil.rmtree(output))
         descriptor = underlay.build(self.root, manifest_path, output)
+        self.assertEqual(json.loads((output / directory / "coarse-descriptor.json").read_text()), descriptor)
         coarse = descriptor["coarseOverview"]
         self.assertEqual(descriptor["sourceManifestSha256"], exporter.digest(data))
         self.assertEqual((coarse["width"], coarse["height"], coarse["scale"]), (8, 8, 0.0625))

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -22,6 +23,8 @@ def build(root, manifest_path, output):
         raise ValueError("Unsafe manifest path")
     source = manifest_file.read_bytes()
     bundle = json.loads(source)
+    if not re.fullmatch(r"terrain\.optimized-[a-zA-Z0-9_-]+", bundle["directory"]):
+        raise ValueError("Unsafe terrain directory")
     grid = bundle["provenance"]["grid"]
     width, height = grid["columns"] * 8, grid["rows"] * 8
     image = Image.new("RGBA", (width, height), tuple(bundle["oceanColour"]) + (255,))
@@ -51,7 +54,8 @@ def build(root, manifest_path, output):
     descriptor = {"sourceManifestSha256": digest(source), "coarseOverview": {
         "path": relative, "bytes": len(data), "sha256": digest(data),
         "width": width, "height": height, "scale": 0.0625}}
-    (output / "coarse-descriptor.json").write_text(json.dumps(descriptor, indent=2) + "\n")
+    with (output / bundle["directory"] / "coarse-descriptor.json").open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(descriptor, indent=2) + "\n")
     return descriptor
 
 

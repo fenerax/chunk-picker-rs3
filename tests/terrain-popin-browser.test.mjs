@@ -28,7 +28,15 @@ test('cold first paint covers immediate pans and cached-page returns while desti
   try {
     const payload = await datasetBrowserPayload(selectedDataset), grid = payload.values['app/data/surface-grid.mjs#SURFACE_GRID'];
     const manifest = terrainFixture(grid);
-    browser = await openTerrainDelivery({ signal: controller.signal, payload, grid, manifest });
+    browser = await openTerrainDelivery({ signal: controller.signal, payload, grid, manifest, holdManifest: true });
+    // State/display already exist; the real manifest fetch is still held while
+    // construction, model and viewport frames run. None may publish readiness.
+    for (const view of ['terrainControl.drain()', 'terrainControl.view(0,0,4)', 'terrainControl.view(1,0,2)']) {
+      const waiting=await browser.evaluate(view);
+      assert.equal(waiting.painted,'loading');assert.equal(waiting.ready,false);
+      assert.equal(waiting.pending.length,0);
+    }
+    await browser.releaseManifest();
     const initial = await browser.evaluate('terrainControl.view(0,0,4)');
     assert.equal(initial.coarseReady, false); assert.equal(initial.painted, 'loading');
     assert.equal(initial.pending.length, 1); assert.equal(initial.idle, 0);
@@ -41,6 +49,17 @@ test('cold first paint covers immediate pans and cached-page returns while desti
     assert.deepEqual(await browser.evaluate(`terrainControl.pixel(${column+2},${row})`), [40,90,160,255], 'Immediate cold pan has the readiness underlay');
     await browser.evaluate(`terrainControl.view(${column},${row},2)`);
     assert.deepEqual(await browser.evaluate(`terrainControl.pixel(${column+1},${row})`), [40,90,160,255], 'Immediate zoom keeps terrain with all destination responses held');
+
+    const cancelled=(await browser.evaluate('terrainControl.view(8,0,4)')).pending[0];
+    await browser.acknowledge(cancelled);
+    await browser.evaluate('terrainControl.view(4,0,4)');
+    await browser.cancelled(cancelled);
+    const returned=(await browser.evaluate('terrainControl.view(8,0,4)')).pending[0];
+    assert.equal(new URL(returned.url).pathname,new URL(cancelled.url).pathname);
+    assert.notEqual(returned.url,cancelled.url,'Returning demand has its own image identity');
+    await browser.deliver(returned);
+    assert.ok(browser.requests.some(request=>request.url===cancelled.url&&request.cancelled));
+    assert.deepEqual(await browser.evaluate('terrainControl.pixel(8,0)'),[221,51,34,255]);
 
     // Cache just one native tile in A, leave before any overview warming, then
     // let A's overview arrive while B is visible. Return with new native held.

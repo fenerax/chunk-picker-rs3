@@ -41,14 +41,14 @@ const coarseFile = { path: `${directoryName}/coarse-${sha256(imageBytes).slice(0
   bytes: imageBytes.length, sha256: sha256(imageBytes), width: SURFACE_GRID.columns * 8, height: SURFACE_GRID.rows * 8, scale: 0.0625 };
 const coarseRoute = `/assets/map/${coarseFile.path}`;
 
-async function fixture(t, { installed = true, corrupt = false, malformed = false, stale = false } = {}) {
+async function fixture(t, { installed = true, corrupt = false, malformed = false, stale = false, companion = false, staleCompanion = false } = {}) {
   await mkdir(root, { recursive: true });
   const directory = await mkdtemp(path.join(root, 'test-terrain-assets-'));
   const mapAssetsDir = path.join(directory, 'original'), terrainAssetsDir = path.join(directory, 'optimized');
   await mkdir(mapAssetsDir);
   await writeFile(path.join(mapAssetsDir, 'manifest.json'), stale ? '{}' : sourceBytes);
   const bundle = bundleFixture();
-  bundle.coarseOverview = coarseFile;
+  if (!companion) bundle.coarseOverview = coarseFile;
   if (malformed) bundle.pages[0].regions.pop();
   const manifestBytes = Buffer.from(JSON.stringify(bundle));
   const terrainBundle = { directory: directoryName, manifestPath: `${directoryName}/manifest.json`, manifestSha256: sha256(manifestBytes) };
@@ -59,6 +59,8 @@ async function fixture(t, { installed = true, corrupt = false, malformed = false
     await writeFile(path.join(terrainAssetsDir, nativePath), imageBytes);
     await writeFile(path.join(terrainAssetsDir, pagePath), imageBytes);
     await writeFile(path.join(terrainAssetsDir, coarseFile.path), imageBytes);
+    if (companion) await writeFile(path.join(terrainAssetsDir, directoryName, 'coarse-descriptor.json'), JSON.stringify({
+      sourceManifestSha256: staleCompanion ? '0'.repeat(64) : terrainBundle.manifestSha256, coarseOverview: coarseFile }));
     await writeFile(path.join(terrainAssetsDir, directoryName, 'private.json'), 'private');
   }
   const app = await createServer({ dataDir: path.join(directory, 'state'), mapAssetsDir, terrainAssetsDir, terrainBundle,
@@ -78,6 +80,14 @@ async function fixture(t, { installed = true, corrupt = false, malformed = false
   });
   return { app, origin, get, raw, directory, terrainAssetsDir, terrainBundle };
 }
+
+test('immutable exports use the packaged source-bound coarse companion', async t => {
+  const { get }=await fixture(t,{companion:true});
+  assert.deepEqual((await (await get(TERRAIN_MANIFEST_PATH)).json()).coarseOverview,coarseFile);
+  assert.equal((await get(coarseRoute)).status,200);
+  const stale=await fixture(t,{companion:true,staleCompanion:true});
+  assert.equal((await (await stale.get(TERRAIN_MANIFEST_PATH)).json()).available,false);
+});
 
 test('optimized manifest, native and overview files use authentication before conditional/HEAD responses', async t => {
   const { origin, get } = await fixture(t);

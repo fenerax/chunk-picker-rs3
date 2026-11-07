@@ -185,6 +185,14 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       const bytes = await readFile(file);
       if (createHash('sha256').update(bytes).digest('hex') !== terrainBundle.manifestSha256) return { available: false, payload: unavailable };
       const bundle = JSON.parse(bytes.toString('utf8'));
+      if (!bundle.coarseOverview) {
+        const companion = await art.file('terrainAssets', `${terrainBundle.directory}/coarse-descriptor.json`);
+        if (companion) {
+          const descriptor = JSON.parse(await readFile(companion, 'utf8'));
+          if (descriptor.sourceManifestSha256 !== terrainBundle.manifestSha256) throw new TypeError('Terrain companion source mismatch.');
+          bundle.coarseOverview = descriptor.coarseOverview;
+        }
+      }
       if (!bundle.coarseOverview && terrainBundle.manifestSha256 === TERRAIN_COARSE_BUNDLE.sourceManifestSha256
         && await art.file('terrainAssets', TERRAIN_COARSE_BUNDLE.coarseOverview.path)) {
         bundle.coarseOverview = TERRAIN_COARSE_BUNDLE.coarseOverview;

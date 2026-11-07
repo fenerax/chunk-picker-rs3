@@ -222,6 +222,7 @@ export class ChunkMap {
     if (globalThis.document?.addEventListener) this.bind(document, 'visibilitychange', () => { if (document.hidden) this.cancelTouchGesture(); });
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(stage);
+    this.mapAssetsPending = deferFallback;
     this.resize();
     if (!deferFallback) this.loadWorldPicture();
   }
@@ -242,6 +243,7 @@ export class ChunkMap {
   }
 
   setMapAssets(manifest, dataset) {
+    this.mapAssetsPending = false;
     this.mapAssetManifest = manifest;
     this.terrain?.dispose();
     this.terrain = manifest ? new MapTerrain(manifest, { changed: () => this.invalidate(true, true, false),
@@ -869,7 +871,7 @@ export class ChunkMap {
       if (Math.max(1, window.devicePixelRatio || 1) !== (this.deviceDpr ?? this.dpr)) this.resize();
       this.applyPointer();
       if (this.dirty.base) this.terrain?.setView(this.visibleBounds(), this.zoom, this.dpr);
-      if (this.terrain?.coarseReady === false) { this.stage.dataset.mapTerrain = 'loading'; return; }
+      if (this.mapAssetsPending || this.terrain?.coarseReady === false) { this.stage.dataset.mapTerrain = 'loading'; return; }
       this.stage.dataset.mapTerrain = 'ready';
       if (this.dirty.base) this.drawBase();
       const probe = globalThis.__rs3Perf;

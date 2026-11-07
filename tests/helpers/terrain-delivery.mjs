@@ -37,7 +37,7 @@ export function waitForTerrainPageLoad(page, { signal, closed }) {
 
 // All image requests and decodes are acknowledged. Only the caller's one outer
 // file guard can abort; network delivery, idle callbacks and frames have no timer.
-export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'), payload, manifest, grid,
+export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'), payload, manifest, grid, holdManifest = false,
   imageBytes = route => route.includes('/coarse-') ? solidTerrainPng([40,90,160], grid.columns*8, grid.rows*8)
     : solidTerrainPng(route.includes('/overview/') ? [17,187,85] : [221,51,34]) }) {
   signal.throwIfAborted();
@@ -77,18 +77,17 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
     finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await removeScratch(directory, { signal }); }
   };
   try {
-    // Deterministically try only the authorized local-picker range.
-    for (let port = 8960; ; port++) {
-      if (port > 8999) throw Error('No free terrain fixture port');
-      try { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', () => { server.removeListener('error', reject); resolve(); }); }); break; }
-      catch (error) { if (error.code !== 'EADDRINUSE') throw error; }
-    }
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', () => { server.removeListener('error', reject); resolve(); }); });
     browser = await openAcknowledgedChrome(await findChrome(), path.join(directory, 'chrome'), { signal });
     browser.exited.then(() => { closedError = Error('Owned terrain browser closed'); emit({ type: 'closed' }); });
     page = await browser.page({ width: 512, height: 256, mobile: false });
     page.listeners.add(({ method, params }) => {
-      if (method === 'Fetch.requestPaused') { const row = { type: 'request', url: params.request.url, requestId: params.requestId }; requests.push(row); emit(row); }
-      if (method === 'Runtime.bindingCalled' && params.name === 'terrainEvent') emit(JSON.parse(params.payload));
+      if (method === 'Fetch.requestPaused') { const row = { type: 'request', url: params.request.url, requestId: params.requestId, cancelled: events.some(e=>e.type==='image-cancel'&&e.url===params.request.url) }; requests.push(row); emit(row); }
+      if (method === 'Runtime.bindingCalled' && params.name === 'terrainEvent') {
+        const row=JSON.parse(params.payload);
+        if(row.type==='image-cancel') for(const request of requests) if(request.url===row.url) request.cancelled=true;
+        emit(row);
+      }
       if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails);
     });
     const origin = `http://127.0.0.1:${server.address().port}`;
@@ -105,6 +104,13 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
       Object.defineProperty(performance,'now',{value:()=>clock});
       const NativeImage=window.Image;
       window.Image=function(){const image=new NativeImage(), decode=image.decode.bind(image);
+        const source=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');let current='';
+        const cancel=()=>{if(current)window.terrainEvent(JSON.stringify({type:'image-cancel',url:current}));current='';};
+        const remove=image.removeAttribute.bind(image);image.removeAttribute=name=>{if(name.toLowerCase()==='src')cancel();remove(name);};
+        Object.defineProperty(image,'src',{get:()=>source.get.call(image),set:value=>{
+          cancel();if(value){const url=new URL(value,location.href);url.searchParams.set('terrainRequest',++sequence);current=url.href;}
+          source.set.call(image,current);
+        }});
         image.addEventListener('error',()=>window.terrainEvent(JSON.stringify({type:'image-error',url:image.src})));
         image.decode=()=>decode().then(()=>new Promise(resolve=>{const id=++sequence;decodes.set(id,resolve);window.terrainEvent(JSON.stringify({type:'decoded',url:image.src,id}));}));return image;};
       const {ChunkMap}=await import('/app/web/map.mjs');
@@ -113,10 +119,10 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
       const map=new ChunkMap({stage:document.getElementById('stage'),baseCanvas:document.getElementById('base'),stateCanvas:document.getElementById('state'),pinCanvas:document.getElementById('pins'),hoverCanvas:document.getElementById('hover'),tooltip:document.getElementById('tooltip'),deferFallback:true});map.observer.disconnect();
       const chunks=manifest.cacheTerrain.tiles.map(tile=>{const id=String(tile.x*grid.stride+tile.y);return [id,{id,name:'Fixture'}];});
       map.setModel({world:{chunks:new Map(chunks),surface:new Set(chunks.map(([id])=>id))},state:{revision:0,members:[{id:'one',name:'Player 1',unlocked:chunks.map(([id])=>id),selected:[],pendingRoll:[]}]},memberId:'one',preferences:{ids:false,highvis:true},pool:{eligible:[],partnerConnections:{byChunk:{}}}});
-      map.setMapAssets(manifest,{pins:[]});
       const drain=()=>{let count=0;while(frames.size){if(++count>1000)throw Error('Unbounded terrain frames');const [id,cb]=frames.entries().next().value;frames.delete(id);cb(clock);}return count;};
       let peakImageBytes=0,peakCanvasBytes=0;const allocatedCanvases=new Set();
-      const snap=()=>{const t=map.terrain, images=new Set([...t.images.values(),...t.pending.values(),...t.overviewPending.values(),...t.chunkImages.values(),...(t.coarsePending?.values()??[]),...(t.coarseImage?.naturalWidth?[t.coarseImage]:[])]);
+      const snap=()=>{const t=map.terrain;if(!t)return {painted:map.stage.dataset.mapTerrain,ready:false,pending:[],idle:idle.size,peakImageBytes,peakCanvasBytes};
+        const images=new Set([...t.images.values(),...t.pending.values(),...t.overviewPending.values(),...t.chunkImages.values(),...(t.coarsePending?.values()??[]),...(t.coarseImage?.naturalWidth?[t.coarseImage]:[])]);
         const canvases=new Set([...allocatedCanvases,...t.previews.values(),...t.lockedImages.values(),...(t.coarseCanvas?[t.coarseCanvas]:[]),...[...t.levels.values(),...t.pages.values(),...t.stagedPages.values(),...t.stagedPreviews.values()].flatMap(p=>[p.colour,p.gray])]);
         const rgbaImageBytes=[...images].reduce((sum,image)=>sum+image.naturalWidth*image.naturalHeight*4,0),canvasBytes=[...canvases].reduce((sum,canvas)=>sum+canvas.width*canvas.height*4,0);
         peakImageBytes=Math.max(peakImageBytes,rgbaImageBytes);peakCanvasBytes=Math.max(peakCanvasBytes,canvasBytes);
@@ -125,8 +131,10 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
           pending:[...t.pending].map(([key,image])=>({key,url:image.src,background:t.backgroundImages?.has(image)??false})).concat([...t.overviewPending].map(([key,image])=>({key,url:image.src,background:t.backgroundImages?.has(image)??false})),[...(t.coarsePending??[])].map(([key,image])=>({key,url:image.src,background:false}))),
           coarseReady:t.coarseReady??true,painted:map.stage.dataset.mapTerrain,ready:t.coarseReady!==false&&t.viewLoaded()&&!t.pageQueue.size&&!t.previewQueue.size&&!t.pageWorkScheduled,background:t.backgroundImages?.size??0,idle:idle.size,
           bytes:t.backgroundBytes??{},rgbaImageBytes,canvasBytes,peakImageBytes,peakCanvasBytes};};
-      const allocate=map.terrain.canvasFactory;
-      map.terrain.canvasFactory=(...args)=>{const canvas=allocate(...args);if(canvas)allocatedCanvases.add(canvas);snap();return canvas;};
+      const install=manifest=>{map.setMapAssets(manifest,{pins:[]});const allocate=map.terrain?.canvasFactory;
+        if(allocate)map.terrain.canvasFactory=(...args)=>{const canvas=allocate(...args);if(canvas)allocatedCanvases.add(canvas);snap();return canvas;};
+        window.terrainEvent(JSON.stringify({type:'manifest-installed'}));};
+      if(${holdManifest})fetch('/assets/terrain-manifest.json').then(response=>response.json()).then(install);else install(manifest);
       window.terrainControl={snap,drain(){drain();return snap();},view(col,row,zoom){map.zoom=zoom;map.offset={x:-col*128*zoom,y:-row*128*zoom};map.invalidate(true,true,true);drain();return snap();},
         idle(){const first=idle.entries().next().value;if(first){const [id,callback]=first;idle.delete(id);callback({timeRemaining:()=>10});}drain();return snap();},
         release(id){const resolve=decodes.get(id);if(!resolve)throw Error('Missing decode');decodes.delete(id);resolve();},
@@ -136,11 +144,10 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
     const sample = snapshot => { peakImageBytes = Math.max(peakImageBytes, snapshot.peakImageBytes); peakCanvasBytes = Math.max(peakCanvasBytes, snapshot.peakCanvasBytes); return snapshot; };
     const snapshot = async () => sample(await evaluate('terrainControl.drain()'));
     const deliver = async pending => {
-      const request = await event(row => row.type === 'request' && row.url === pending.url && !row.used); request.used = true;
+      const request = await event(row => row.type === 'request' && row.url === pending.url && !row.used && !row.cancelled); request.used = true;
       const bytes = await imageBytes(new URL(pending.url).pathname);
-      try { await page.send('Fetch.fulfillRequest', { requestId: request.requestId, responseCode: 200,
-        responseHeaders: [{ name: 'Content-Type', value: bytes[0] === 137 ? 'image/png' : 'image/webp' }, { name: 'Cache-Control', value: 'no-store' }], body: bytes.toString('base64') }); }
-      catch (error) { if (!error.message.includes('Invalid InterceptionId')) throw error; return deliver(pending); }
+      await page.send('Fetch.fulfillRequest', { requestId: request.requestId, responseCode: 200,
+        responseHeaders: [{ name: 'Content-Type', value: bytes[0] === 137 ? 'image/png' : 'image/webp' }, { name: 'Cache-Control', value: 'no-store' }], body: bytes.toString('base64') });
       deliveredBytes += bytes.length;
       const decoded = await event(row => ['decoded','image-error'].includes(row.type) && row.url === pending.url && !row.used); decoded.used = true;
       sample(await evaluate('terrainControl.snap()'));
@@ -148,6 +155,13 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
       return snapshot();
     };
     return { evaluate, snapshot, deliver, requests, errors, close,
+      acknowledge: pending=>event(row=>row.type==='request'&&row.url===pending.url&&!row.cancelled),
+      cancelled: pending=>event(row=>row.type==='image-cancel'&&row.url===pending.url),
+      async releaseManifest() {
+        const request=await event(row=>row.type==='request'&&row.url.endsWith('/assets/terrain-manifest.json'));
+        await page.send('Fetch.fulfillRequest',{requestId:request.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify(manifest)).toString('base64')});
+        await event(row=>row.type==='manifest-installed');return snapshot();
+      },
       async finishVisible() { for (let count=0;count<4000;count++) { const s=await snapshot();const pending=s.pending.find(p=>!p.background);if(!pending){if(!s.ready)throw Error('Visible terrain stalled');return s;}await deliver(pending);}throw Error('Unbounded visible requests'); },
       async idleStep() { return sample(await evaluate('terrainControl.idle()')); },
       metrics: () => ({ deliveredBytes, peakImageBytes, peakCanvasBytes }) };
