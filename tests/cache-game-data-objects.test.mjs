@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { classifyObject, describeObject, inventoryObjectParams, morphAlternatives, compareRetainedObjects, joinDoorDiagnostics, writeObjectDataset, openArrayDataset, readObjectRecords } from '../scripts/cache/game-data-objects.mjs';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { ControlledDatasetDestination, observeClosed, assertPending } from './helpers/controlled-dataset-destination.mjs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -87,18 +90,192 @@ test('source-plane mismatch is excluded from a diagnostic join',()=>{
 test('streamed gzip reader retains Unicode, nested arrays, escapes and refuses overwrite',async t=>{
   const dir=mkdtempSync(join(tmpdir(),'objects-writer-test-'));
   t.after(()=>rmSync(dir,{recursive:true,force:true}));
-  const rows=[{name:'Player 1',extra:{values:['brace }', 'quote "', 'slash \\'],nested:[1,2]}},{id:2,name:'Iron rock'}];
+  const rows=[{name:'雪 🌲 é',extra:{values:['brace }', 'quote "', 'slash \\'],nested:[1,2]}},{id:2,name:'Iron rock'}];
   const file=await writeObjectDataset(dir,'stream.v1.json.gz',{schemaVersion:1,placements:rows,tail:'retained'});
   const read=[];for await(const row of readObjectRecords(join(dir,'stream.v1.json.gz'),'placements'))read.push(row);
   assert.deepEqual(read,rows);assert.equal(file.sha256.length,64);
   await assert.rejects(writeObjectDataset(dir,'stream.v1.json.gz',{placements:[]}),/already exists/);
 });
 
-test('incremental writer flushes region batches and rejects writes after destination failure',async t=>{
-  const dir=mkdtempSync(join(tmpdir(),'objects-incremental-test-')),writer=await openArrayDataset(dir,'complete.v1.json.gz','placements',{schemaVersion:1});
-  t.after(()=>rmSync(dir,{recursive:true,force:true}));
-  for(let i=0;i<3000;i++)await writer.append({id:i,name:'Player 1',nested:{value:'{} [ ] " \\'}});
-  await writer.flush();await writer.finish({count:3000});let count=0;for await(const row of readObjectRecords(join(dir,'complete.v1.json.gz'),'placements')){assert.equal(row.id,count++);assert.equal(row.name,'Player 1');}assert.equal(count,3000);
-  const broken=await openArrayDataset(dir,'broken.v1.json.gz','placements',{schemaVersion:1});broken.abort(new Error('destination failure'));
-  await new Promise(r=>setImmediate(r));await assert.rejects(broken.append({id:1}),/destination failure/);await assert.rejects(broken.flush(),/destination failure/);
+async function controlled(t) {
+  const dir=mkdtempSync(join(tmpdir(),'objects-incremental-test-'));
+  let destination;
+  const writer=await openArrayDataset(dir,'rows.json.gz','placements',{schemaVersion:1},{
+    createDestination:(...args)=>(destination=new ControlledDatasetDestination(...args)),
+  });
+  // On an assertion failure, still release owned resources through their protocol.
+  t.after(async()=>{
+    // Begin the cleanup join before permitting any delayed open/close. This
+    // makes deleting before close an observable contract violation on every run.
+    const removed=(async()=>{
+      await writer.closed;
+      destination.removeDirectory(dir);
+    })();
+    removed.catch(()=>{});
+    if(!destination.closed) {
+      const aborted=writer.abort(new Error('test ended'));aborted.catch(()=>{});
+      if(!destination.openAcknowledged) (destination.acknowledgeOpen??await destination.opening.next())();
+      (destination.acknowledgeClose??await destination.closing.next())();
+    }
+    await removed;
+  });
+  return {writer,destination,dir};
+}
+
+test('incremental real gzip round trip preserves region batches, Unicode, escapes, row order and count',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'objects-incremental-test-'));
+  const writer=await openArrayDataset(dir,'complete.json.gz','placements',{schemaVersion:1});
+  t.after(async()=>{await writer.abort().catch(()=>{});await writer.closed;rmSync(dir,{recursive:true});assert.equal(existsSync(dir),false);});
+  const rows=Array.from({length:3000},(_,id)=>({id,name:'雪 🌲 é',nested:{value:'{} [ ] " \\ \n'}}));
+  for(let region=0;region<3;region++) {
+    for(const row of rows.slice(region*1000,(region+1)*1000))await writer.append(row);
+    await writer.flush();
+  }
+  const receipt=await writer.finish({count:rows.length});await writer.completion;await writer.closed;
+  const bytes=readFileSync(receipt.path);
+  assert.equal(receipt.bytes,bytes.length);assert.equal(receipt.sha256,createHash('sha256').update(bytes).digest('hex'));
+  assert.deepEqual(JSON.parse(gunzipSync(bytes)),{schemaVersion:1,placements:rows,count:3000});
+  const read=[];for await(const row of readObjectRecords(receipt.path,'placements'))read.push(row);
+  assert.deepEqual(read,rows);
+  await writer.abort(new Error('too late'));
+  assert.deepEqual(readFileSync(receipt.path),bytes);
+  await assert.rejects(writer.append({id:3000}),/already closed/);
+});
+
+test('incremental flush waits for open and destination backpressure acknowledgements',async t=>{
+  const {writer,destination}=await controlled(t);
+  await writer.append({id:1});
+  const flushed=writer.flush();
+  await assertPending(flushed);
+  (await destination.opening.next())();
+  // gzip header, compressed region and the zero-byte destination barrier.
+  while(true) {
+    const ack=await destination.writing.next();
+    await assertPending(flushed);
+    const barrier=destination.chunks.at(-1).length===0;
+    ack();if(barrier)break;
+  }
+  await flushed;
+  assert.equal(destination.closed,false);
+  const aborted=observeClosed(writer.abort(new Error('finished region')),destination);
+  (await destination.closing.next())();
+  await assert.rejects(aborted,/finished region/);
+});
+
+test('incremental cleanup joins an aborted destination that has not opened yet',async t=>{
+  // Leave the controlled open unacknowledged. The cleanup owner must abort,
+  // acknowledge the late open/destruction, and join close before removing it.
+  const {writer,destination}=await controlled(t);
+  assert.equal(destination.openAcknowledged,undefined);
+  await assertPending(writer.closed);
+});
+
+for(const phase of ['before open','during write','during flush']) {
+  test(`incremental abort ${phase} joins open, destruction and close before rejecting`,async t=>{
+    const {writer,destination}=await controlled(t);
+    let pending;
+    if(phase!=='before open') {
+      (await destination.opening.next())();
+      if(phase==='during write') {
+        // Deterministic incompressible text exceeds both gzip buffers.
+        const text=Array.from({length:20000},(_,i)=>createHash('sha256').update(String(i)).digest('base64')).join('');
+        pending=observeClosed(writer.append({text}),destination);
+      }else pending=observeClosed(writer.flush(),destination);
+      pending.catch(()=>{});
+      await destination.writing.next(); // Deliberately withhold this write acknowledgement.
+    }
+    const error=new Error(`abort ${phase}`);
+    const aborted=observeClosed(writer.abort(error),destination);aborted.catch(()=>{});
+    const completed=observeClosed(writer.completion,destination);completed.catch(()=>{});
+    if(phase==='before open') {
+      await assertPending(aborted);
+      (await destination.opening.next())();
+    }
+    const close=await destination.closing.next();
+    await assertPending(writer.closed);await assertPending(aborted);
+    close();await writer.closed;
+    await assert.rejects(aborted,e=>e===error);await assert.rejects(completed,e=>e===error);
+    if(pending)await assert.rejects(pending,e=>e===error);
+    await assert.rejects(writer.append({id:2}),e=>e===error);
+    await assert.rejects(writer.flush(),e=>e===error);
+    await assert.rejects(writer.finish(),e=>e===error);
+  });
+}
+
+test('incremental destination failure mid-write rejects pending and subsequent operations only after close',async t=>{
+  const {writer,destination}=await controlled(t);
+  (await destination.opening.next())();
+  await writer.append({id:1});
+  const flushed=observeClosed(writer.flush(),destination);flushed.catch(()=>{});
+  (await destination.writing.next())(); // Acknowledge the gzip header first.
+  const fail=await destination.writing.next(),error=new Error('destination failure');
+  fail(error);
+  const close=await destination.closing.next();
+  const appended=observeClosed(writer.append({id:2}),destination);appended.catch(()=>{});
+  await assertPending(flushed);await assertPending(appended);await assertPending(writer.closed);
+  close();await writer.closed;
+  await assert.rejects(flushed,e=>e===error);await assert.rejects(appended,e=>e===error);
+  await assert.rejects(writer.append({id:3}),e=>e===error);
+  await assert.rejects(writer.flush(),e=>e===error);await assert.rejects(writer.finish(),e=>e===error);
+  await assert.rejects(writer.completion,e=>e===error);
+});
+
+test('incremental finish waits for final flush and close; abort after completion preserves output',async t=>{
+  const {writer,destination}=await controlled(t);
+  (await destination.opening.next())();await writer.append({id:1});
+  const finished=observeClosed(writer.finish({count:1}),destination);finished.catch(()=>{});
+  const completed=observeClosed(writer.completion,destination);completed.catch(()=>{});
+  const final=await destination.drainUntilFinal();
+  await assertPending(finished);await assertPending(completed);
+  final();const close=await destination.closing.next();
+  await assertPending(finished);await assertPending(completed);await assertPending(writer.closed);
+  close();await writer.closed;await completed;
+  const receipt=await finished,bytes=readFileSync(receipt.path);
+  assert.deepEqual(JSON.parse(gunzipSync(bytes)),{schemaVersion:1,placements:[{id:1}],count:1});
+  await writer.abort(new Error('after completion'));
+  assert.deepEqual(readFileSync(receipt.path),bytes);
+});
+
+test('incremental abort during destination final flush rejects finish only after close',async t=>{
+  const {writer,destination}=await controlled(t);
+  (await destination.opening.next())();await writer.append({id:1});
+  const finished=observeClosed(writer.finish(),destination);finished.catch(()=>{});
+  await destination.drainUntilFinal(); // Hold _final rather than a data write.
+  const error=new Error('abort final flush'),aborted=observeClosed(writer.abort(error),destination);aborted.catch(()=>{});
+  const close=await destination.closing.next();await assertPending(finished);await assertPending(aborted);
+  close();await writer.closed;
+  await assert.rejects(finished,e=>e===error);await assert.rejects(aborted,e=>e===error);
+});
+
+test('incremental writer refuses existing output without acquiring it',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'objects-incremental-test-')),path=join(dir,'owned.json.gz');
+  t.after(()=>{rmSync(dir,{recursive:true});assert.equal(existsSync(dir),false);});
+  writeFileSync(path,'other owner');
+  await assert.rejects(openArrayDataset(dir,'owned.json.gz','placements',{}, {
+    createDestination:()=>assert.fail('must not acquire existing output'),
+  }),/new filenames/);
+  assert.equal(readFileSync(path,'utf8'),'other owner');
+});
+
+test('incremental exclusive open refuses a competing owner without overwriting its file',async t=>{
+  const {writer,destination}=await controlled(t);
+  writeFileSync(destination.path,'competing owner');
+  const completed=observeClosed(writer.completion,destination);completed.catch(()=>{});
+  (await destination.opening.next())();
+  const close=await destination.closing.next();await assertPending(completed);close();
+  await writer.closed;await assert.rejects(completed,{code:'EEXIST'});
+  assert.equal(readFileSync(destination.path,'utf8'),'competing owner');
+  await assert.rejects(writer.append({id:1}),{code:'EEXIST'});
+});
+
+test('incremental closed permits immediate directory removal without racing receipt reads',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'objects-incremental-test-'));
+  const writer=await openArrayDataset(dir,'rows.json.gz','placements',{schemaVersion:1});
+  t.after(async()=>{await writer.abort().catch(()=>{});await writer.closed;if(existsSync(dir))rmSync(dir,{recursive:true});});
+  await writer.append({id:1});
+  const finished=writer.finish();
+  await writer.closed;
+  const bytes=readFileSync(join(dir,'rows.json.gz'));
+  rmSync(dir,{recursive:true});assert.equal(existsSync(dir),false);
+  assert.deepEqual(await finished,{path:join(dir,'rows.json.gz').replaceAll('\\','/'),bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});
 });

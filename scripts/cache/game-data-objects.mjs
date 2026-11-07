@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { gunzipSync, createGzip, createGunzip } from 'node:zlib';
 import { once } from 'node:events';
 import { pipeline } from 'node:stream/promises';
+import { createHash } from 'node:crypto';
 import { openGameCache, loadTable, writeDataset, finishManifest, cliOptions } from './game-data-common.mjs';
 import { buildSurfaceLayout, sourceToSurface, mapsquareId, inCrop, unpackCoord } from './surface.mjs';
 import { plainLabel, morphInfo } from './pins.mjs';
@@ -185,17 +186,73 @@ export function validateWikiObjects(apiResponses, definitions, placements) {
   return {method:'Direct RS3 MediaWiki API revision content; selected infobox fields and first six explicit map coordinates per page. No OSRS source used.',pages:results};
 }
 
-export async function openArrayDataset(output,name,field,header) {
+/** Own both streams until close, including a destination still opening on abort.
+ * closed always resolves; completion rejects on failure, but only after closed.
+ * flush acknowledges destination writes (not an fsync); finish also joins close.
+ * createDestination is a stream factory seam for acknowledged filesystem tests.
+ */
+export async function openArrayDataset(output,name,field,header,{createDestination=createWriteStream}={}) {
+  // Serialize before acquiring any stream so invalid headers cannot leak handles.
+  const encoded=JSON.stringify(header);
+  const prefix=`${encoded.slice(0,-1)},${JSON.stringify(field)}:[`;
   const path=resolve(output,name);mkdirSync(resolve(path,'..'),{recursive:true});if(existsSync(path))throw new Error('Use new filenames');
-  const gzip=createGzip(),destination=createWriteStream(path,{flags:'wx'}),done=pipeline(gzip,destination);let failure=null,parts=[],partBytes=0;
-  const remember=e=>{failure??=e;};gzip.on('error',remember);destination.on('error',remember);done.catch(remember);
-  const assertWritable=()=>{if(failure)throw failure;if(gzip.destroyed||gzip.writableEnded)throw new Error('Object output stream already closed');};
-  const failedDone=done.then(()=>{throw new Error('Object output stream ended before write finished');});failedDone.catch(()=>{});
-  const drainBuffer=async()=>{assertWritable();if(!partBytes)return;const text=parts.join('');parts=[];partBytes=0;if(!gzip.write(text))await Promise.race([once(gzip,'drain'),failedDone]);if(failure)throw failure;};
-  const write=async text=>{assertWritable();parts.push(text);partBytes+=Buffer.byteLength(text);if(partBytes>=256*1024)await drainBuffer();};
-  const encoded=JSON.stringify(header);await write(`${encoded.slice(0,-1)},${JSON.stringify(field)}:[`);let count=0;
-  return {append:async row=>{if(count++)await write(',');await write(JSON.stringify(row));},flush:async()=>{await drainBuffer();assertWritable();await Promise.race([new Promise((r,j)=>gzip.flush(e=>e?j(e):r())),failedDone]);if(failure)throw failure;},
-    finish:async extra=>{await write(']');for(const [key,value]of Object.entries(extra??{}))await write(`,${JSON.stringify(key)}:${JSON.stringify(value)}`);await write('}');await drainBuffer();gzip.end();await done;return {path:path.replaceAll('\\','/'),bytes:statSync(path).size,sha256:await fileSha256(path)};},abort:e=>{remember(e);destination.destroy(e);gzip.destroy(e);}};
+  const destination=createDestination(path,{flags:'wx'}),gzip=createGzip();
+  // Build the receipt as compressed bytes pass through. Reopening the file for
+  // hashing after closed would race a caller removing or reusing the directory.
+  const hash=createHash('sha256');let bytes=0;
+  gzip.on('data',chunk=>{bytes+=chunk.length;hash.update(chunk);});
+  const closed=Promise.all([gzip,destination].map(stream=>new Promise(resolve=>stream.once('close',resolve)))).then(()=>{});
+  let failure=null,parts=[],partBytes=0,count=0,ending=false;
+  const remember=e=>{failure??=e;};gzip.on('error',remember);destination.on('error',remember);
+  const done=pipeline(gzip,destination);
+  const completion=(async()=>{
+    try{await done;}catch(e){remember(e);}await closed;if(failure)throw failure;
+    return {path:path.replaceAll('\\','/'),bytes,sha256:hash.digest('hex')};
+  })();
+  completion.catch(()=>{});
+  const stop=e=>{remember(e);gzip.destroy(failure);destination.destroy(failure);return completion;};
+  const assertWritable=()=>{
+    // errored is set when destroy starts, before a delayed _destroy callback
+    // permits the error event. Refuse appends in that entire interval.
+    if(failure||destination.errored||gzip.errored)throw failure??destination.errored??gzip.errored;
+    if(ending||gzip.destroyed)throw new Error('Object output stream already closed');
+  };
+  // Pipeline failure can precede close. Every public rejection must join it.
+  const operation=async action=>{
+    try {
+      assertWritable();const result=await action();
+      if(failure||destination.errored||gzip.errored)throw failure??destination.errored??gzip.errored;
+      return result;
+    }catch(e){await stop(e).catch(()=>{});throw failure;}
+  };
+  const interrupted=completion.then(()=>{throw new Error('Object output stream ended before write finished');});interrupted.catch(()=>{});
+  const acknowledge=action=>Promise.race([new Promise((resolve,reject)=>action(e=>e?reject(e):resolve())),interrupted]);
+  const drainBuffer=async()=>{
+    if(failure)throw failure;if(!partBytes)return;
+    const text=parts.join('');parts=[];partBytes=0;
+    // The write callback is the explicit acknowledgement, including backpressure.
+    await acknowledge(callback=>gzip.write(text,callback));
+  };
+  const write=async text=>{parts.push(text);partBytes+=Buffer.byteLength(text);if(partBytes>=256*1024)await drainBuffer();};
+  await operation(()=>write(prefix));
+  return {
+    closed,completion,
+    append:row=>operation(async()=>{const text=JSON.stringify(row);if(count++)await write(',');await write(text);}),
+    flush:()=>operation(async()=>{
+      await drainBuffer();
+      await acknowledge(callback=>gzip.flush(callback));
+      // flush's callback means gzip emitted its output. A queued empty write
+      // joins all those destination callbacks, even while it is backpressured.
+      await acknowledge(callback=>destination.write('',callback));
+      if(failure)throw failure;
+    }),
+    finish:extra=>operation(async()=>{
+      ending=true;
+      await write(']');for(const [key,value]of Object.entries(extra??{}))await write(`,${JSON.stringify(key)}:${JSON.stringify(value)}`);
+      await write('}');await drainBuffer();gzip.end();return completion;
+    }),
+    abort:(e=new Error('Object output aborted'))=>ending&&destination.closed?completion:stop(e),
+  };
 }
 
 /** Stream full placement inventories; keep only compact review indexes in memory. */
@@ -244,7 +301,7 @@ export async function exportGameObjects(options={}) {
     if(wikiPaths.length)await save('objects.wiki-validation.v1.json',{inputHashes:wikiPaths.map(path=>({path,sha256:sha256(readFileSync(path))})),...validateWikiObjects(wikiResponses,definitions,wikiPlacements)});
     await save('objects.summary.v1.json',{summary,samples});if(options.input){for(const major of[16,23])for(const minor of cache.table(major).entries.keys())cache.file(major,minor);}
     await finishManifest(cache,context,output,{name:'objects.manifest.v1.json',summary});console.log(JSON.stringify({output,summary},null,2));return {output,summary};
-  }catch(e){sourceWriter?.abort(e);placementWriter?.abort(e);throw e;}finally{cache.close();}
+  }catch(e){await Promise.allSettled([sourceWriter?.abort(e),placementWriter?.abort(e)]);throw e;}finally{cache.close();}
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)exportGameObjects(cliOptions()).catch(e=>{console.error(e.message);process.exitCode=1;});
