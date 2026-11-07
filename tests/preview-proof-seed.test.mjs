@@ -31,6 +31,19 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
     const fixture = previewProofFixture();
     assert.ok(fixture.engine.catalogue.length >= 2048);
     assert.equal(Object.keys(fixture.definitions.chunks).length, 64);
+    // Exercise every semantic family in the fixture, including its complete
+    // dependency and cycle controls, rather than only the first few rows.
+    const evidenceLabels = ['Gather 0', 'Burn 0', 'Make 0', 'Use 0', 'First permit', 'Cycle left', 'Cycle right', 'Prepare', 'Finish'];
+    const evidenceIds = evidenceLabels.map(label => {
+      const task = fixture.engine.catalogue.find(row => row.label === label);
+      assert.ok(task, label); return task.id;
+    });
+    const evidenceEqual = async (fast, cold, input, memberId) => {
+      for (const taskId of evidenceIds) for (const type of ['how-task', 'why-task']) equal(
+        (await evaluate(fast, input, memberId, { type, chunkId: taskId })).result,
+        (await evaluate(cold, input, memberId, { type, chunkId: taskId })).result,
+        `${type}/${taskId}: complete ordered evidence`);
+    };
     let candidates = 0;
     for (const shared of [false, true]) {
       const state = structuredClone(fixture.state); state.rules['access.shared'] = shared;
@@ -53,6 +66,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
               equal(preview.result, coldPreview.result, 'entire Preview delta, coverage and public metrics');
               equal((await evaluate(seeded, state, owner.id)).result, before.result, 'entire seeded baseline with full views');
               equal((await evaluate(seeded, state, owner.id, { type: 'roll-pool' })).result, pool, 'baseline pools and partner connections');
+              await evidenceEqual(seeded, source, state, owner.id);
               // Like unlock-equivalence, compare both members after every pool
               // candidate, including the exact compact bytes and both sidebars.
               const after = structuredClone(state); after.revision++;
@@ -69,11 +83,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
                 for (const name of ['playJSON', 'duoJSON', 'duoSidebarJSON']) equal(json(fastCompact[name]), json(coldCompact[name]), name);
                 equal((await evaluate(seeded, after, member.id, { type: 'roll-pool' })).result,
                   (await evaluate(reference, after, member.id, { type: 'roll-pool' })).result, 'post-unlock pools');
-              }
-              for (const row of before.result.tasks.filter(row => row.obligation !== false).slice(0, 3)) {
-                for (const type of ['how-task', 'why-task']) equal(
-                  (await evaluate(seeded, state, owner.id, { type, chunkId: row.id })).result,
-                  (await evaluate(source, state, owner.id, { type, chunkId: row.id })).result, `${type}: complete ordered evidence`);
+                await evidenceEqual(seeded, reference, after, member.id);
               }
               for (const name of ['unlockReuse', 'partnerUnlockReuse']) {
                 assert.ok(preview[name]);
