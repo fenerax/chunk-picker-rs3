@@ -480,8 +480,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
   if (reportProgress) progressRequests.set(timingMs, { id, at: started });
   const request = { pickerId, cancelled: false, get latestRevision() { return pickerRevision(pickerId); } };
   const abandoned = () => request.cancelled || cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0) !== 0;
-  requests.set(id, request);
   let eligibilitySeeded = false;
+  requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
       if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
