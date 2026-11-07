@@ -276,6 +276,74 @@ test('only the player or an administrator can change testing mode; viewers and o
   assert.equal(f.controller.list(admin).testingModes?.[player] ?? false, false);
 });
 
+function observeCalculationReads(store) {
+  const original = store.getCalculationSnapshot;
+  let captures = 0, materializations = 0;
+  store.getCalculationSnapshot = () => {
+    captures++;
+    return new Proxy(original(), { get(target, key, receiver) {
+      if (key === 'state') { materializations++; throw new Error('Testing-mode refresh materialized calculation state.'); }
+      return Reflect.get(target, key, receiver);
+    } });
+  };
+  return { get captures() { return captures; }, get materializations() { return materializations; },
+    restore() { store.getCalculationSnapshot = original; } };
+}
+
+test('save subscribers capture nothing and lazy testing refresh uses only metadata before listing status or cached progress', async t => {
+  const f = await fixture(t);
+  await f.send({ skills: { ATTACK: { level: 2, xp: 90 } } });
+  const owner = f.state().members[0];
+  assert.equal(f.controller.progressSnapshot(owner).skills[0].level, 2);
+  const reads = observeCalculationReads(f.store);
+  try {
+    await f.store.command({ type: 'set-note', memberId: player, chunkId: '100', note: 'Synthetic metadata refresh' }, f.store.getInfo().revision);
+    assert.equal(reads.captures, 0);
+    await f.store.setPluginTestingMode(player, true, f.store.getInfo().revision);
+    assert.equal(reads.captures, 0);
+    assert.equal(f.controller.list(admin).testingModes[player], true);
+    assert.equal(reads.captures, 1);
+    assert.equal(f.controller.progressSnapshot(owner), null);
+    assert.equal(reads.captures, 1, 'A clean mode cache needs no further snapshots');
+    await f.store.setPluginTestingMode(player, false, f.store.getInfo().revision);
+    assert.equal(reads.captures, 1);
+    assert.equal(f.controller.list(admin).testingModes?.[player] ?? false, false);
+    assert.equal(reads.captures, 2);
+    assert.equal(f.controller.progressSnapshot(owner), null, 'Listing status cleared the prior skill observation');
+    assert.equal(reads.captures, 2);
+    assert.equal(reads.materializations, 0);
+  } finally { reads.restore(); }
+  assert.deepEqual(f.controller.review(admin, player), { preview: null });
+});
+
+test('restored testing-mode flips clear cached progress and partial reports lazily before the next report even when the final mode matches', async t => {
+  const f = await fixture(t), off = await f.store.backup();
+  await f.toggle(true);
+  const on = await f.store.backup();
+  await f.toggle(false);
+  await f.send({ skills: { ATTACK: { level: 2, xp: 90 } } });
+  await f.send({ achievements: achievement(1, 2) });
+  await f.send({ bank: { snapshot, part: 1, parts: 2, age: 0, rows: [[itemId, 1]] } });
+  assert.equal(f.controller.progressSnapshot(f.state().members[0]).skills[0].level, 2);
+  const reads = observeCalculationReads(f.store);
+  try {
+    await f.store.replace(on, f.store.getInfo().revision);
+    await f.store.replace(off, f.store.getInfo().revision);
+    assert.equal(reads.captures, 0, 'Restore subscribers must defer all calculation reads too');
+    assert.equal(reads.materializations, 0);
+  } finally { reads.restore(); }
+  assert.equal(f.store.getPluginTestingMode(player), false);
+  const before = f.state();
+  const achievementReply = await f.send({ achievements: achievement(2, 2) });
+  assert.equal(achievementReply.achievements, null, 'A pre-restore partial set cannot complete');
+  const bankReply = await f.send({ bank: { snapshot, part: 2, parts: 2, age: 0, rows: [[995, 999]] } });
+  assert.equal(bankReply.bank, null, 'A pre-restore bank assembly cannot complete');
+  assert.equal(f.controller.progressSnapshot(f.state().members[0]), null);
+  assert.deepEqual(f.controller.review(admin, player), { preview: null });
+  assert.deepEqual(f.state().members, before.members);
+  assert.deepEqual(f.state().history, before.history);
+});
+
 test('testing settings survive disk, export, mapped transfer, whole restore and member restore', async t => {
   const f = await fixture(t);
   await f.toggle(true); await f.restart();
