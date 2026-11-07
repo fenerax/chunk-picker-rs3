@@ -596,7 +596,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         finally { delete request.seedReply; importer?.abort(); reservation.release(); }
       }
       if (type === 'predict' && abandoned()) {
-        parentPort.postMessage({ id, result: { cancelled: true }, timingMs }); return;
+        timingMs.totalMs = performance.now() - started;
+        parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs }); return;
       }
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
       const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
