@@ -66,7 +66,7 @@ export function createGamePlugin(c) {
     if (inFlight) return inFlight;
     inFlight = (async () => {
       try { snapshot = await c.api('/api/game-plugin'); paint(); }
-      catch { paint(); /* Expire old markers even while the connection is down. */ }
+      catch (error) { paint(); return error; /* Expire old markers even while the connection is down. */ }
       finally { inFlight = undefined; schedule(); }
     })();
     return inFlight;
@@ -135,9 +135,10 @@ export function createGamePlugin(c) {
         if (!current() || busy || !writable(memberId)) return;
         busy = true; toggle.disabled = true;
         try {
-          await c.api('/api/game-plugin/testing-mode', { memberId, enabled: !testing(), expectedRevision: c.state.revision });
-          await refresh(); busy = false; renderedSignature = undefined;
-          if (current()) await update();
+          const value = await c.api('/api/game-plugin/testing-mode', { memberId, enabled: !testing(), expectedRevision: c.state.revision });
+          snapshot = { ...snapshot, testingModes: { ...snapshot.testingModes, [memberId]: value.enabled } };
+          const refreshError = await refresh(); busy = false; renderedSignature = undefined;
+          if (current()) { await update(); if (refreshError) report(`Testing mode was saved, but plugin status could not be refreshed. ${refreshError.message}`, true); }
         } catch (error) { if (current()) report(error.message, true); }
         finally { busy = false; toggle.disabled = false; }
       });

@@ -199,6 +199,54 @@ test('failed testing acknowledgements stay dropped after disabling until a succe
     assert.deepEqual(after.history.slice(beforeRetry.history.length).map(entry => entry.command.type), ['set-transport-facts', 'apply-game-progress']);
   });
 });
+test('a mixed retry drops only the original testing boundary and applies its new live journal suffix', async t => {
+  for (const changedSnapshot of [false, true]) await t.test(changedSnapshot ? 'new snapshot' : 'testing snapshot', async t => {
+    const f = await fixture(t);
+    await f.toggle(true);
+    const blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
+    await mkdir(blocked);
+    const testingEvent = [1, 995, 'Synthetic testing event', 'live'];
+    await assert.rejects(f.send({ items: items([testingEvent], [[0, 995, 999, 'Synthetic testing coins']]) }), { status: 503 });
+    await f.toggle(false); await rmdir(blocked);
+    const before = f.state();
+    const reply = await f.send({ items: { ...items([testingEvent, [2, itemId, 'Synthetic new live equipment', 'live']],
+      [[0, 995, 999, 'Synthetic retry coins']]), snapshot: changedSnapshot ? freshSnapshot : snapshot } });
+    assert.equal(reply.items.journal.event, 2, 'Only a processed live suffix may be acknowledged beyond the testing boundary');
+    assert.deepEqual(f.state().members[0].completedTasks, [goal]);
+    assert.equal(f.state().members[0].transportFacts.currencies.coins, 123, 'Retry containers cannot publish testing coins');
+    assert.deepEqual(f.state().history.slice(before.history.length).map(entry => entry.command.type), ['apply-game-progress']);
+    const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
+    assert.equal(evidence.records.live.items[995], undefined);
+    assert.ok(evidence.records.live.items[itemId].wornAt, 'The fresh journal event supplies the worn evidence');
+    assert.equal(evidence.records.unknown, undefined);
+    assert.deepEqual(evidence.commits.journals, [{ id: journalId, committed: 2, pending: [] }]);
+  });
+});
+
+test('filling the 32 unacknowledged testing snapshot slots fails closed until acknowledgement succeeds', async t => {
+  const f = await fixture(t);
+  await f.toggle(true);
+  const blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
+  await mkdir(blocked);
+  const event = [1, 995, 'Synthetic testing event', 'live'];
+  for (let index = 0; index < 32; index++) {
+    await assert.rejects(f.send({ items: { ...items([event]), snapshot: index.toString(16).padStart(16, '0') } }), { status: 503 });
+  }
+  await f.toggle(false);
+  const before = f.state();
+  await f.send({ skills: { ATTACK: { level: 50, xp: 101333 } }, quests: { finished: ['Synthetic quest'], started: [] } });
+  await assert.rejects(f.send({ items: { ...items([], [[0, itemId, 1, 'Synthetic unsafe equipment'], [1, 995, 999, 'Synthetic unsafe coins']]),
+    snapshot: freshSnapshot } }), { status: 503 });
+  assert.deepEqual(f.state(), before, 'Unrecorded snapshot IDs still cannot publish any non-journal progress');
+  assert.deepEqual(f.controller.review(admin, player), { preview: null });
+  assert.equal(f.controller.progressSnapshot(f.state().members[0]), null);
+  await rmdir(blocked);
+  assert.equal((await f.send({ items: items([event]) })).items.journal.event, 1);
+  await f.send({ items: { ...items([[2, itemId, 'Synthetic new live equipment', 'live']], [[0, 995, 456, 'Synthetic live coins']]), snapshot: freshSnapshot } });
+  assert.deepEqual(f.state().members[0].completedTasks, [goal]);
+  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456, 'Successful acknowledgement releases the overflow quarantine');
+});
+
 async function seedFullLedger(f) {
   await f.close();
   const commits = await openPluginJournalCommits({ dataDir: f.dataDir, members: () => f.state().members });

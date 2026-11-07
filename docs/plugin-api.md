@@ -46,7 +46,16 @@ the testing-mode contract, as for ordinary live deliveries.
 If the journal acknowledgement write fails, the request returns 503 without
 processing or retaining observations. The receiver remembers that delivery's
 snapshot and journal identities in memory until a successful acknowledgement.
-A retry after switching off is still dropped while that receiver remains running.
+Testing observations in a retry after switching off are still dropped while
+that receiver remains running.
+Only events through the highest index actually received during testing are
+dropped: a mixed retry processes new live journal events above that fixed
+boundary in the same request, without applying its containers or coins. Off-mode
+retries never extend the testing boundary. Memory coalesces one boundary per
+journal and holds at most 32 unacknowledged snapshot IDs per player. If that set
+fills, all non-journal parts stay quarantined until an acknowledgement
+succeeds; no unacknowledged snapshot ID is evicted to accept another. Successful
+acknowledgements retire the corresponding journal and snapshot entries.
 Turning testing off is never blocked by pending acknowledgements; there is no
 409 gate. Normal live journal processing still drains a full durable pending
 prefix before leaving an overflowing suffix for redelivery. Current live

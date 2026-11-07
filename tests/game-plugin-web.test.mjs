@@ -110,6 +110,24 @@ test('testing mode toggles in plugin settings and remains visible in Activity In
   assert.equal(button(root, 'Turn testing mode off'), undefined);
 });
 
+test('a saved testing toggle updates local controls and reports a failed status refresh', async t => {
+  const f = fixture(t), root = await f.open(), api = f.c.api;
+  f.c.api = async (path, body) => {
+    if (path === '/api/game-plugin') throw new Error('Synthetic status refresh failure.');
+    return api(path, body);
+  };
+  await button(root, 'Turn testing mode on').action();
+  assert.equal(button(root, 'Turn testing mode off').attributes['aria-pressed'], 'true');
+  const notice = all(root).find(node => node.textContent.startsWith('Plugin testing mode is on:'));
+  assert.equal(notice.hidden, false);
+  assert.match(text(root), /Testing mode was saved.*could not be refreshed.*Synthetic status refresh failure/);
+  await button(root, 'Turn testing mode off').action();
+  assert.equal(f.posts.at(-1).body.enabled, false, 'The next toggle uses the successfully saved local mode');
+  assert.equal(button(root, 'Turn testing mode on').attributes['aria-pressed'], 'false');
+  assert.equal(notice.hidden, true);
+  assert.match(text(root), /could not be refreshed/);
+});
+
 test('item retention failure is visible without blocking the progress review', async t => {
   const f = fixture(t), preview = f.proposal();
   preview.itemRetentionIssue = 'Item storage is full. The journal remains queued. '.repeat(4)

@@ -15,6 +15,7 @@ const LIFETIME = 10 * 60 * 1000;
 // Status also describes the block of map squares centred on the player (2 each way: 5x5).
 const NEARBY_RADIUS = 2;
 const COMPLETED_SNAPSHOT_LIMIT = 8;
+const TESTING_SNAPSHOT_LIMIT = 32;
 const HANDLED_RETRY_INTERVAL = 60 * 1000;
 const ITEM_RETENTION_NOTICE = 'Some catch-up item evidence could not be retained. The journal remains unacknowledged and queued in the game plugin. Item evidence stores hold at most 500 distinct IDs per world. If a store is full, ask the server operator to export and review retained evidence before clearing space. Live progress continues independently.';
 const positionGameId = latest => latest ? String(latest.position.x * 256 + latest.position.z) : null;
@@ -136,26 +137,33 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   }
   function rememberTestingItems(player, value) {
     if (!value) return;
-    const waiting = pendingTestingItems.get(player) ?? new Map();
-    const key = `${value.snapshot}:${value.journal.id}`, prior = waiting.get(key);
-    waiting.set(key, { snapshot: value.snapshot, id: value.journal.id, event: Math.max(prior?.event ?? 0, value.journal.events.at(-1)?.[0] ?? 0) });
+    const waiting = pendingTestingItems.get(player) ?? { journals: new Map(), snapshots: new Map(), overflow: false };
+    waiting.journals.set(value.journal.id, Math.max(waiting.journals.get(value.journal.id) ?? 0, value.journal.events.at(-1)?.[0] ?? 0));
+    if (waiting.snapshots.has(value.snapshot) || waiting.snapshots.size < TESTING_SNAPSHOT_LIMIT) waiting.snapshots.set(value.snapshot, value.journal.id);
+    else waiting.overflow = true;
+    if (waiting.snapshots.size === TESTING_SNAPSHOT_LIMIT) waiting.overflow = true;
     pendingTestingItems.set(player, waiting);
   }
   function retryingTestingItems(player, value) {
     const waiting = pendingTestingItems.get(player);
-    return value && [...(waiting?.values() ?? [])].some(entry => entry.snapshot === value.snapshot || entry.id === value.journal.id
-      && value.journal.events.some(event => event[0] <= entry.event));
+    return waiting?.overflow || value && (waiting?.snapshots.has(value.snapshot)
+      || value.journal.events.some(event => event[0] <= (waiting?.journals.get(value.journal.id) ?? 0)));
   }
-  function acknowledgeTestingItems(player, ack) {
+  function acknowledgeTestingItems(player, ack, value) {
     const waiting = pendingTestingItems.get(player);
-    if (!waiting || !ack) return;
-    for (const [snapshot, entry] of waiting) if (entry.id === ack?.id && entry.event <= ack.event) waiting.delete(snapshot);
-    if (!waiting.size) pendingTestingItems.delete(player);
+    if (!waiting || !ack || !value) return;
+    const boundary = waiting.journals.get(ack.id) ?? 0;
+    if (boundary <= ack.event) waiting.journals.delete(ack.id);
+    if (ack.id === value.journal.id && ack.event >= Math.max(boundary, value.journal.events.at(-1)?.[0] ?? 0)) {
+      for (const [snapshot, id] of waiting.snapshots) if (id === ack.id) waiting.snapshots.delete(snapshot);
+      waiting.overflow = false;
+    }
+    if (!waiting.journals.size && !waiting.snapshots.size && !waiting.overflow) pendingTestingItems.delete(player);
   }
-  async function dropTestingReport(player, report) {
+  async function dropTestingReport(player, report, boundary) {
     if (report.items) {
       const value = report.items, ledger = journalCommits.get(player);
-      const event = value.journal.events.at(-1)?.[0] ?? 0;
+      const event = boundary ?? value.journal.events.at(-1)?.[0] ?? 0;
       let next;
       try {
         next = mergeJournalCommits(ledger, { journals: [{ id: value.journal.id, committed: event, pending: [] }] });
@@ -375,14 +383,14 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     itemReview(player, report, result);
   }
   const coinCount = (rows, billions = false) => (rows ?? []).reduce((sum, [, id, count]) => sum + (id === COINS ? count : billions && id === COIN_BILLIONS ? count * 1e9 : 0), 0);
-  async function receiveItems(player, report) {
+  async function receiveItems(player, report, includeContainers = true) {
     const value = report.items, now = new Date(clock()).toISOString(), world = itemWorld(report);
     const saved = itemRecord(player, world);
     let ledger = journalCommits.get(player);
     const committed = () => journalCommits.get(player).journals.find(entry => entry.id === value.journal.id)?.committed;
     const ack = { snapshot: value.snapshot, journal: committed() === undefined ? itemAcks.get(player)?.journal ?? null : { id: value.journal.id, event: committed() } };
     // The first look needs both containers; until then only the snapshot is acknowledged.
-    if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
+    if (includeContainers && !saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
     // Remember every unresolved event before any processing watermark can advance.
     // A delayed subset after restart must still cover this durable pending prefix.
     let intentSaved = false, intentValidated = false;
@@ -400,11 +408,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // A full ledger can drain its already durable work before accepting another
     // event or journal identity. The rejected incoming suffix remains retryable.
     let retained = intentSaved || !intentValidated;
-    const entries = [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])];
+    const entries = includeContainers ? [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])] : [];
     // Toolbelt evidence goes after the delivery world's journal events, as before: the
     // first entry for an item names it, so a reported journal name wins over the tool name.
     const tools = [];
-    for (const [name, level] of value.toolbelt ?? []) {
+    for (const [name, level] of includeContainers ? value.toolbelt ?? [] : []) {
       const id = GAME_TOOLBELT.get(`${name}=${level}`);
       if (id !== undefined) tools.push([id, null, false]);
     }
@@ -681,9 +689,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // Parsing and the mutation queue both yield: a later off-toggle must not
       // promote a report that arrived while testing was enabled.
       const testingAtReceipt = testing(credential.player);
-      const report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
+      let report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
       if (testingAtReceipt) rememberTestingItems(credential.player, report?.items);
-      let dropped = false;
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         credentialFor(request); member(credential.player);
@@ -693,10 +700,24 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
             && assemblies.get(credential.player).snapshot === report.achievements.snapshot
             || report.bank && bankAssemblies.get(credential.player)?.dropped
             && bankAssemblies.get(credential.player).snapshot === report.bank.snapshot;
-          if (testingAtReceipt || testing(credential.player) || retryingTestingItems(credential.player, report.items) || continuingDropped) {
-            rememberTestingItems(credential.player, report.items);
-            await dropTestingReport(credential.player, report);
-            dropped = true;
+          const testingReport = testingAtReceipt || testing(credential.player);
+          const retry = retryingTestingItems(credential.player, report.items);
+          if (testingReport || retry || continuingDropped) {
+            // Only actual testing receipts extend the boundary. An off-mode
+            // retry may contain newly observed live events above it.
+            if (testingReport) rememberTestingItems(credential.player, report.items);
+            const boundary = testingReport ? undefined : pendingTestingItems.get(credential.player)?.journals.get(report.items?.journal.id) ?? 0;
+            await dropTestingReport(credential.player, report, boundary);
+            const suffix = !testingReport && report.items?.journal.events.filter(event => event[0] > boundary);
+            if (!suffix?.length) {
+              keys.touch(credential.id);
+              notify();
+              return status(credential.player);
+            }
+            report = { ...report, items: { ...report.items, journal: { ...report.items.journal, events: suffix } } };
+            // Only the fresh journal suffix is live. All non-journal parts
+            // of this quarantined delivery have already been discarded.
+            await receiveItems(credential.player, report, false);
             keys.touch(credential.id);
             notify();
             return status(credential.player);
@@ -753,7 +774,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         return status(credential.player);
       });
       await json(request, response, 200, result);
-      if (dropped) acknowledgeTestingItems(credential.player, result.items?.journal);
+      acknowledgeTestingItems(credential.player, result.items?.journal, report?.items);
       return true;
     },
     list(identity) {
