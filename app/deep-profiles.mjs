@@ -10,7 +10,10 @@ const validName = name => /^profile-\d+-\d+-(picker|calculator|relay)\.cpuprofil
 // enabled=false (the server default) keeps CPU sampling off entirely: no worker is
 // attached and start() is refused. Sampling slows calculations while it runs, so an
 // operator must opt in with RS3_DEEP_PROFILES=1 before an admin can start a capture.
-export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink }, enabled = true, stopTimeoutMs = 1000 } = {}) {
+export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOnOpen = true, fileIO = { writeFile, rename, unlink }, enabled = true, stopTimeoutMs = 1000,
+  clock = { now: () => Date.now(), setTimeout: (...args) => setTimeout(...args), clearTimeout: timer => clearTimeout(timer) },
+  openSession = async () => { const { Session } = await import('node:inspector'); const session = new Session(); session.connect(); return session; },
+} = {}) {
   const directory = path.join(dataDir, 'cpu-profiles');
   const workers = new Set(), online = new WeakMap(), nativeProfiles = new WeakMap();
   let current, closing = false, sequence = 0, failures = 0, retirements = 0, stopping;
@@ -18,9 +21,9 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     let timer;
     try {
       return await Promise.race([promise, new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('CPU profiler cleanup timed out.')), stopTimeoutMs);
+        timer = clock.setTimeout(() => reject(new Error('CPU profiler cleanup timed out.')), stopTimeoutMs);
       })]);
-    } finally { clearTimeout(timer); }
+    } finally { clock.clearTimeout(timer); }
   }
   async function files() {
     let names; try { names = await readdir(directory); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
@@ -56,7 +59,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       const length = Buffer.byteLength(bytes);
       if (length > caps.fileBytes || length > caps.totalBytes) { failures++; return; }
       await mkdir(directory, { recursive: true, mode: 0o700 }); await prune(length);
-      const name = `profile-${Date.now()}-${++sequence}-${kind}.cpuprofile`;
+      const name = `profile-${clock.now()}-${++sequence}-${kind}.cpuprofile`;
       const temporary = path.join(directory, `${name}.tmp`);
       try {
         await fileIO.writeFile(temporary, bytes, { mode: 0o600 });
@@ -79,11 +82,11 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     // before another calculator (including a replacement) can join it.
     const pending = Promise.race([run.admissions, run.cancel.promise]).then(async () => {
       await Promise.race([Promise.resolve(online.get(worker)), run.cancel.promise]);
-      if (current !== run || run.cancelled || Date.now() >= run.deadline) return;
+      if (current !== run || run.cancelled || clock.now() >= run.deadline) return;
       if (!(worker instanceof Worker)) return worker.startCpuProfile({ deadline: run.deadline });
       let profiles = nativeProfiles.get(worker);
       if (!profiles) {
-        profiles = createProcessProfiles({ worker, online: online.get(worker), captureRelay: false, stopTimeoutMs,
+        profiles = createProcessProfiles({ worker, online: online.get(worker), captureRelay: false, stopTimeoutMs, clock,
           retire() { worker.profileRetiring = true; worker.emit('profile-retiring'); },
           restore() { worker.profileRetiring = undefined; worker.emit('profile-cleaned'); } });
         nativeProfiles.set(worker, profiles);
@@ -113,7 +116,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
         workers.delete(worker); if (worker.profileRetiring) retirements++;
         if (current?.handles.delete(worker)) failCapture(current);
       });
-      if (current) void startWorker(current, worker);
+      if (current) return startWorker(current, worker);
     },
     status() { return { enabled, active: !!current, starting: !!current?.starting, deadline: current?.deadline ?? null, stopping: !!stopping, failures, retirements }; },
     async list() { return (await files()).filter(entry => validName(entry.name)); },
@@ -129,15 +132,15 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
       if (!Number.isFinite(seconds) || seconds < 0.01 || seconds > 600) throw Object.assign(new Error('Use a duration up to 600 seconds.'), { status: 400 });
       if (current || stopping || closing) throw Object.assign(new Error('A profile is already running or stopping.'), { status: 409 });
       // Reserve ownership synchronously, including admission and lazy imports.
-      const run = current = { starting: true, failures: 0, admissions: Promise.resolve(), handles: new Map(), cancel: Promise.withResolvers(), deadline: Date.now() + seconds * 1000 };
-      run.timer = setTimeout(() => { void this.stop(); }, seconds * 1000); run.timer.unref();
+      const run = current = { starting: true, failures: 0, admissions: Promise.resolve(), handles: new Map(), cancel: Promise.withResolvers(), deadline: clock.now() + seconds * 1000 };
+      run.timer = clock.setTimeout(() => { void this.stop(); }, seconds * 1000); run.timer.unref();
       run.ready = (async () => {
         try {
           await writes; if (run.cancelled) return;
           await prune(); if (run.cancelled) return;
         } catch { throw Object.assign(new Error('CPU profile storage is unavailable.'), { status: 503 }); }
-        const { Session } = await import('node:inspector'); if (run.cancelled) return;
-        const session = run.session = new Session(); session.connect();
+        const session = run.session = await openSession();
+        if (run.cancelled) { session.disconnect(); return; }
         run.post = method => new Promise((resolve, reject) => session.post(method, (error, result) => error ? reject(error) : resolve(result)));
         await run.post('Profiler.enable'); if (run.cancelled) return;
         run.pickerStarted = true;
@@ -154,7 +157,7 @@ export async function createDeepProfiles(dataDir, { caps = PROFILE_CAPS, pruneOn
     stop() {
       if (stopping) return stopping;
       const run = current; if (!run) return Promise.resolve();
-      clearTimeout(run.timer); run.cancelled = true; run.cancel.resolve(); current = undefined;
+      clock.clearTimeout(run.timer); run.cancelled = true; run.cancel.resolve(); current = undefined;
       stopping = (async () => {
         try {
           // Once start was issued, stop independently of its acknowledgement.
