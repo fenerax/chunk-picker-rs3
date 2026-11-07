@@ -111,8 +111,10 @@ delivery, before paint, rather than scheduling a later animation frame.
 Native focus scrolling can finish before a later banner moves the target down;
 the observer corrects that displacement without changing focus or reacting to
 ordinary user scrolling. A deterministic unit witness preserves the historical
-39.25/44 geometry and a subsequent 44 px banner growth. The hosted proof restores
-the old observer in an isolated checkout and requires this witness to fail once.
+39.25/44 geometry and a subsequent 44 px banner growth. At acceptance, a one-off hosted
+proof restored the old observer in an isolated checkout and required this witness
+to fail once; that proof workflow was retired after merge and its receipts remain
+on PR #157.
 
 Timing holds the fixed product constant and compares the old sleep-based harness
 against the replacement. Its old harness receives only the actual Own sword query

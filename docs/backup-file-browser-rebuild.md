@@ -61,15 +61,12 @@ cleanup. No retry or timeout increase was introduced.
 
 The ordinary Stability workflow automatically selects this edited entry for
 50 first attempts on hosted Linux. Its existing budget and runner are unchanged.
-An additional job in that same workflow runs `scripts/ci/backup-file-proof.mjs`
-only for the rebuild branch: four separate temporary product mutations and
-three alternating matched old/new file timings. No new workflow is required.
-The script records head/baseline source identity, runtime, first outcomes and
-wall times in `backup-file-proof/proof.json`; the baseline entry and all other
-inputs are pinned by the recorded commits. Both variants use the same product,
-starter dataset, Chrome discovery and disabled bytecode cache. A baseline failure
-is retained, never retried or accepted as a timing pass. Mutation patches are
-never committed. The script refuses non-Linux execution.
+At acceptance, a one-off job in that workflow ran four separate temporary
+product mutations and three alternating matched old/new file timings on the
+rebuild branch. Mutation patches were never committed, and no baseline failure
+was retried or accepted as a timing pass. The job and its script were retired
+after merge; their receipts remain on PR #159 (Stability run 42319853064 and
+its `backup-file-proof` artifact while retained).
 
 The PR body records the actual hosted receipts, local five-run proof, mutation
 results and measured times. Normal full CI remains required alongside this map.
