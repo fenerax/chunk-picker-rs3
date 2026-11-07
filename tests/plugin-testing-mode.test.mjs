@@ -27,7 +27,7 @@ const tasks = [{ id: 'synthetic-diary', category: 'Diary', label: '~|Synthetic#E
 const achievement = (part = 1, parts = 1) => ({ snapshot, part, parts, complete: part === 1 ? [[1, 'Synthetic achievement', 0, 0]] : [] });
 const items = (events = [], backpack = []) => ({ snapshot, worn: [], backpack, pouch: [], journal: { id: journalId, events } });
 
-async function fixture(t, { betaAsLive = false, beforeBody = async () => {}, beforeMutation = async () => {}, beforeCommit, provenance } = {}) {
+async function fixture(t, { betaAsLive = false, beforeBody = async () => {}, beforeMutation = async () => {}, beforeReply = async () => {}, beforeCommit, provenance } = {}) {
   let store, controller, input, output, seq = 0;
   const close = async () => { try { await controller?.close(); } finally { await store?.close(); } };
   // Hooks run in registration order: close writers before scratch removes files.
@@ -47,7 +47,7 @@ async function fixture(t, { betaAsLive = false, beforeBody = async () => {}, bef
       taskCatalogue: () => tasks, clock: () => now, itemsBetaAsLive: betaAsLive,
       serializeMutation: async operation => { await beforeMutation(); return operation(); },
       bodyJSON: async () => { await beforeBody(); return input; },
-      json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; },
+      json: async (_request, _response, status, value) => { assert.equal(status, 200); await beforeReply(); output = value; },
       checkRequestOrigin() {}, log() {},
     });
   }
@@ -223,7 +223,7 @@ test('a mixed retry drops only the original testing boundary and applies its new
   });
 });
 
-test('filling the 32 unacknowledged testing snapshot slots fails closed until acknowledgement succeeds', async t => {
+test('acknowledging journal A cannot release an empty-event testing retry on journal B', async t => {
   const f = await fixture(t);
   await f.toggle(true);
   const blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
@@ -232,19 +232,64 @@ test('filling the 32 unacknowledged testing snapshot slots fails closed until ac
   for (let index = 0; index < 32; index++) {
     await assert.rejects(f.send({ items: { ...items([event]), snapshot: index.toString(16).padStart(16, '0') } }), { status: 503 });
   }
+  const otherJournal = 'cccccccccccccccc';
+  const report = { items: { ...items([], [[0, itemId, 1, 'Synthetic testing equipment'], [1, 995, 999, 'Synthetic testing coins']]),
+    snapshot: freshSnapshot, journal: { id: otherJournal, events: [] } } };
+  await assert.rejects(f.send(report), { status: 503 });
   await f.toggle(false);
+  await rmdir(blocked);
   const before = f.state();
-  await f.send({ skills: { ATTACK: { level: 50, xp: 101333 } }, quests: { finished: ['Synthetic quest'], started: [] } });
-  await assert.rejects(f.send({ items: { ...items([], [[0, itemId, 1, 'Synthetic unsafe equipment'], [1, 995, 999, 'Synthetic unsafe coins']]),
-    snapshot: freshSnapshot } }), { status: 503 });
-  assert.deepEqual(f.state(), before, 'Unrecorded snapshot IDs still cannot publish any non-journal progress');
+  assert.equal((await f.send({ items: items([event]) })).items.journal.event, 1);
+  assert.deepEqual((await f.send(report)).items, { snapshot: freshSnapshot, journal: { id: otherJournal, event: 0 } });
+  assert.deepEqual(f.state(), before, 'Acknowledging A cannot publish B containers, equipment or coins');
   assert.deepEqual(f.controller.review(admin, player), { preview: null });
   assert.equal(f.controller.progressSnapshot(f.state().members[0]), null);
-  await rmdir(blocked);
-  assert.equal((await f.send({ items: items([event]) })).items.journal.event, 1);
-  await f.send({ items: { ...items([[2, itemId, 'Synthetic new live equipment', 'live']], [[0, 995, 456, 'Synthetic live coins']]), snapshot: freshSnapshot } });
+  const evidence = (await f.store.backup()).optionalSidecarEvidence.entries.pluginItems.players[player];
+  assert.deepEqual(evidence.records, {}, 'Both testing journals retain delivery positions only');
+  await f.send({ items: { ...report.items, snapshot: 'dddddddddddddddd',
+    backpack: [[0, itemId, 1, 'Synthetic live equipment'], [1, 995, 456, 'Synthetic live coins']] } });
   assert.deepEqual(f.state().members[0].completedTasks, [goal]);
-  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456, 'Successful acknowledgement releases the overflow quarantine');
+  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456, 'Acknowledging B releases its next full live container snapshot');
+});
+
+test('an empty-event retry stays quarantined on its pending journal until its own acknowledgement', async t => {
+  const f = await fixture(t);
+  await f.toggle(true);
+  const blocked = path.join(f.dataDir, 'plugin-item-journal-commits.json');
+  await mkdir(blocked);
+  await assert.rejects(f.send({ items: items([[1, itemId, 'Synthetic testing event', 'live']]) }), { status: 503 });
+  await f.toggle(false);
+  const before = f.state();
+  const retry = { items: { ...items([], [[0, itemId, 1, 'Synthetic retry equipment'], [1, 995, 999, 'Synthetic retry coins']]), snapshot: freshSnapshot } };
+  await assert.rejects(f.send(retry), { status: 503 });
+  assert.deepEqual(f.state(), before);
+  await rmdir(blocked);
+  assert.equal((await f.send(retry)).items.journal.event, 1);
+  assert.deepEqual(f.state(), before, 'An empty event list still drops containers and coins while the journal is pending');
+  await f.send({ items: { ...items([[2, itemId, 'Synthetic fresh live event', 'live']], [[0, 995, 456, 'Synthetic live coins']]), snapshot: 'dddddddddddddddd' } });
+  assert.deepEqual(f.state().members[0].completedTasks, [goal]);
+  assert.equal(f.state().members[0].transportFacts.currencies.coins, 456);
+});
+
+test('a journal-less testing reply failure is cleared only by a successful journal-less acknowledgement', async t => {
+  let rejectReply = false;
+  const f = await fixture(t, { beforeReply: () => { if (rejectReply) throw Object.assign(new Error('Synthetic reply failure'), { status: 503 }); } });
+  await f.toggle(true);
+  rejectReply = true;
+  const report = { skills: { ATTACK: { level: 50, xp: 101333 } }, quests: { finished: ['Synthetic quest'], started: [] } };
+  await assert.rejects(f.send(report), { status: 503 });
+  await f.toggle(false);
+  rejectReply = false;
+  await f.status();
+  await f.send({ items: items() });
+  const before = f.state();
+  await f.send(report);
+  assert.deepEqual(f.state(), before);
+  assert.deepEqual(f.controller.review(admin, player), { preview: null });
+  assert.equal(f.controller.progressSnapshot(f.state().members[0]), null, 'An item-journal reply cannot release the journal-less mark');
+  await f.send({ skills: { ATTACK: { level: 2, xp: 90 } } });
+  assert.equal(f.controller.review(admin, player).skills.length, 1);
+  assert.equal(f.controller.progressSnapshot(f.state().members[0]).skills[0].level, 2, 'A successful journal-less reply releases fresh live progress');
 });
 
 async function seedFullLedger(f) {

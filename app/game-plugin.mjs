@@ -15,7 +15,6 @@ const LIFETIME = 10 * 60 * 1000;
 // Status also describes the block of map squares centred on the player (2 each way: 5x5).
 const NEARBY_RADIUS = 2;
 const COMPLETED_SNAPSHOT_LIMIT = 8;
-const TESTING_SNAPSHOT_LIMIT = 32;
 const HANDLED_RETRY_INTERVAL = 60 * 1000;
 const ITEM_RETENTION_NOTICE = 'Some catch-up item evidence could not be retained. The journal remains unacknowledged and queued in the game plugin. Item evidence stores hold at most 500 distinct IDs per world. If a store is full, ask the server operator to export and review retained evidence before clearing space. Live progress continues independently.';
 const positionGameId = latest => latest ? String(latest.position.x * 256 + latest.position.z) : null;
@@ -68,7 +67,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const testingModes = new Map();
   // Only unacknowledged testing deliveries need retry protection. No facts or
   // permanent replay history: successful acknowledgements retire these entries.
-  const pendingTestingItems = new Map();
+  // One boundary per journal, plus a null-key mark for journal-less reports.
+  const pendingTestingReports = new Map();
   let testingModesDirty = true, pendingRestore;
   const retainedReviewRestores = new Set();
   const testing = player => store.getPluginTestingMode?.(player) ?? false;
@@ -88,7 +88,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const members = new Set(store.getCalculationSnapshot().members.map(owner => owner.id));
     const restored = pendingRestore === null ? members : pendingRestore;
     for (const player of testingModes.keys()) if (!members.has(player)) {
-      clearTestingCaches(player, true); testingModes.delete(player); pendingTestingItems.delete(player);
+      clearTestingCaches(player, true); testingModes.delete(player); pendingTestingReports.delete(player);
     }
     for (const player of members) {
       const enabled = testing(player), previous = testingModes.get(player);
@@ -135,30 +135,22 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const assembly = assemblies.get(player);
     return assembly ? { snapshot: assembly.snapshot, received: assembly.received, parts: assembly.parts } : null;
   }
-  function rememberTestingItems(player, value) {
-    if (!value) return;
-    const waiting = pendingTestingItems.get(player) ?? { journals: new Map(), snapshots: new Map(), overflow: false };
-    waiting.journals.set(value.journal.id, Math.max(waiting.journals.get(value.journal.id) ?? 0, value.journal.events.at(-1)?.[0] ?? 0));
-    if (waiting.snapshots.has(value.snapshot) || waiting.snapshots.size < TESTING_SNAPSHOT_LIMIT) waiting.snapshots.set(value.snapshot, value.journal.id);
-    else waiting.overflow = true;
-    if (waiting.snapshots.size === TESTING_SNAPSHOT_LIMIT) waiting.overflow = true;
-    pendingTestingItems.set(player, waiting);
+  function rememberTestingReport(player, report) {
+    if (!report) return;
+    const value = report.items, id = value?.journal.id ?? null;
+    const waiting = pendingTestingReports.get(player) ?? new Map();
+    waiting.set(id, Math.max(waiting.get(id) ?? 0, value?.journal.events.at(-1)?.[0] ?? 0));
+    pendingTestingReports.set(player, waiting);
   }
-  function retryingTestingItems(player, value) {
-    const waiting = pendingTestingItems.get(player);
-    return waiting?.overflow || value && (waiting?.snapshots.has(value.snapshot)
-      || value.journal.events.some(event => event[0] <= (waiting?.journals.get(value.journal.id) ?? 0)));
+  function retryingTestingReport(player, report) {
+    return pendingTestingReports.get(player)?.has(report.items?.journal.id ?? null);
   }
-  function acknowledgeTestingItems(player, ack, value) {
-    const waiting = pendingTestingItems.get(player);
-    if (!waiting || !ack || !value) return;
-    const boundary = waiting.journals.get(ack.id) ?? 0;
-    if (boundary <= ack.event) waiting.journals.delete(ack.id);
-    if (ack.id === value.journal.id && ack.event >= Math.max(boundary, value.journal.events.at(-1)?.[0] ?? 0)) {
-      for (const [snapshot, id] of waiting.snapshots) if (id === ack.id) waiting.snapshots.delete(snapshot);
-      waiting.overflow = false;
-    }
-    if (!waiting.journals.size && !waiting.snapshots.size && !waiting.overflow) pendingTestingItems.delete(player);
+  function acknowledgeTestingReport(player, ack, report) {
+    if (!report) return;
+    const waiting = pendingTestingReports.get(player), id = report.items?.journal.id ?? null;
+    if (!waiting?.has(id)) return;
+    if (id === null || ack?.id === id && ack.event >= waiting.get(id)) waiting.delete(id);
+    if (!waiting.size) pendingTestingReports.delete(player);
   }
   async function dropTestingReport(player, report, boundary) {
     if (report.items) {
@@ -690,7 +682,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // promote a report that arrived while testing was enabled.
       const testingAtReceipt = testing(credential.player);
       let report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
-      if (testingAtReceipt) rememberTestingItems(credential.player, report?.items);
+      if (testingAtReceipt) rememberTestingReport(credential.player, report);
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         credentialFor(request); member(credential.player);
@@ -701,12 +693,12 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
             || report.bank && bankAssemblies.get(credential.player)?.dropped
             && bankAssemblies.get(credential.player).snapshot === report.bank.snapshot;
           const testingReport = testingAtReceipt || testing(credential.player);
-          const retry = retryingTestingItems(credential.player, report.items);
+          const retry = retryingTestingReport(credential.player, report);
           if (testingReport || retry || continuingDropped) {
             // Only actual testing receipts extend the boundary. An off-mode
             // retry may contain newly observed live events above it.
-            if (testingReport) rememberTestingItems(credential.player, report.items);
-            const boundary = testingReport ? undefined : pendingTestingItems.get(credential.player)?.journals.get(report.items?.journal.id) ?? 0;
+            if (testingReport) rememberTestingReport(credential.player, report);
+            const boundary = testingReport ? undefined : pendingTestingReports.get(credential.player)?.get(report.items?.journal.id ?? null) ?? 0;
             await dropTestingReport(credential.player, report, boundary);
             const suffix = !testingReport && report.items?.journal.events.filter(event => event[0] > boundary);
             if (!suffix?.length) {
@@ -774,7 +766,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         return status(credential.player);
       });
       await json(request, response, 200, result);
-      acknowledgeTestingItems(credential.player, result.items?.journal, report?.items);
+      acknowledgeTestingReport(credential.player, result.items?.journal, report);
       return true;
     },
     list(identity) {
@@ -898,7 +890,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         itemRetentionIssues.clear();
         itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear();
         progressSource.clear(); itemTasks = undefined;
-        sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear(); pendingTestingItems.clear();
+        sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear(); pendingTestingReports.clear();
         rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); activeLocations.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
       })();
       return closePromise;

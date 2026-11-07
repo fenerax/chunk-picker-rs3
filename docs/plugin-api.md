@@ -44,18 +44,21 @@ for reports. Replaying reports the server has already acknowledged is outside
 the testing-mode contract, as for ordinary live deliveries.
 
 If the journal acknowledgement write fails, the request returns 503 without
-processing or retaining observations. The receiver remembers that delivery's
-snapshot and journal identities in memory until a successful acknowledgement.
+processing or retaining observations. The receiver keeps a pending mark and
+the testing event boundary for that journal in memory until its successful
+acknowledgement, including when its event list is empty.
 Testing observations in a retry after switching off are still dropped while
 that receiver remains running.
 Only events through the highest index actually received during testing are
 dropped: a mixed retry processes new live journal events above that fixed
 boundary in the same request, without applying its containers or coins. Off-mode
-retries never extend the testing boundary. Memory coalesces one boundary per
-journal and holds at most 32 unacknowledged snapshot IDs per player. If that set
-fills, all non-journal parts stay quarantined until an acknowledgement
-succeeds; no unacknowledged snapshot ID is evicted to accept another. Successful
-acknowledgements retire the corresponding journal and snapshot entries.
+retries never extend the testing boundary. While a journal is pending, all
+non-journal parts of reports carrying that journal are dropped. Acknowledging
+another journal cannot release it. After its acknowledgement, the next full
+live container snapshot can apply normally. Memory holds one boundary per
+journal, with no snapshot-ID set. Reports without items have no journal ID;
+they use one separate pending mark per player, cleared only by a successful
+acknowledgement of a journal-less report for that player.
 Turning testing off is never blocked by pending acknowledgements; there is no
 409 gate. Normal live journal processing still drains a full durable pending
 prefix before leaving an overflowing suffix for redelivery. Current live
