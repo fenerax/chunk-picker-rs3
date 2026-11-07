@@ -42,7 +42,7 @@ Every row applies independently to all three unchanged native case identities.
 | More → Export / Import | Pre-armed native toggle, dialog-open attribute and backup-health-render events, asserted details state and dialog title; independent centre-hit and press-focus checks |
 | Empty preview alert | Disabled lifecycle completion followed by one alert/no-Apply assertion |
 | Full backup contains bytes | Pre-input download listeners, real completion GUID, sole final filename, gzip magic/decompression and exact exported state equality |
-| Enter, pointer, Space chooser for invalid and valid files | Native Tab focus for keyboard modes; exactly one real key pair or mouse press/release per selection; fileChooserOpened backend node, selectSingle and DOM.setFileInputFiles |
+| Enter, pointer, Space chooser for invalid and valid files; no stale chooser | Native Tab focus for keyboard modes; exactly one real key pair or mouse press/release per selection; fileChooserOpened backend node, selectSingle and DOM.setFileInputFiles; exact event count before and after each selection |
 | Chosen filename updates | Pre-armed input change event, then exact visible filename |
 | Invalid preview refused | Preview completion, full-backup error, no Apply and invalid filename AX |
 | Valid preview reviews replacement, one Apply control | Preview completion, Review replacement heading, one Apply and no alert |

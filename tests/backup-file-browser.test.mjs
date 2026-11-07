@@ -101,6 +101,7 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
   const directory = await mkdtemp(path.join(tmpdir(), 'backup-file-browser-'));
   const dataDir = path.join(directory, 'save'), downloads = path.join(directory, 'downloads');
   let handle, application, page;
+  let chooserCount = 0, selections = 0;
   const errors = [];
   const start = async () => {
     const { startServer } = await import('../app/server.mjs');
@@ -112,6 +113,7 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
     page = await freshPage(browser);
     page.listeners.add(({ method, params }) => {
       if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails.exception?.description ?? params.exceptionDetails.text);
+      if (method === 'Page.fileChooserOpened') chooserCount++;
     });
     assert.deepEqual((await page.send('Network.getCookies', { urls: [handle.inviteUrl] })).cookies, [], 'Fresh context has no cookies');
     assert.equal((await fetch(`http://127.0.0.1:${handle.address().port}/api/state`)).status, 401);
@@ -171,10 +173,12 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
     const choose = async (filename, bytes) => {
       const file = path.join(directory, filename);
       await writeFile(file, bytes);
+      assert.equal(chooserCount, selections, 'No stale file chooser event');
       const chooser = event(page, 'Page.fileChooserOpened');
       try {
         await activate(page, fileButton, activation);
         const chosen = await chooser.promise;
+        assert.equal(chooserCount, ++selections, 'Exactly one chooser per native activation');
         assert.equal(chosen.mode, 'selectSingle');
         assert.ok(Number.isInteger(chosen.backendNodeId), 'Native input opens a real file chooser');
         await transition(page, 'change', "document.querySelector('#tool-dialog input[type=file]')", () =>
@@ -193,6 +197,7 @@ for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpos
     await accessibility(page, 'No file chosen');
     await close(page, 'Close');
     await unchanged('closed');
+    assert.equal(chooserCount, 2, 'No unsolicited file chooser events');
     assert.deepEqual(errors, [], 'No page errors');
   } catch (error) {
     t.diagnostic(`${error.name}: ${error.message}`); throw error;
