@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { releaseEligibilityChunk } from './eligibility-transfer.mjs';
 
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
@@ -48,9 +49,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     }
     if (slot.stopping) return slot.stopping;
     clock.clearTimeout(slot.timer); clearTimeout(slot.startupTimer);
-    slot.stopping = Promise.resolve().then(() => slot.worker.terminate({ force: !!slot.forceStop })).then(() => {
+    slot.stopping = Promise.resolve().then(() => slot.worker.terminate({ force: !!slot.forceStop })).catch(() => slot.exit).then(() => {
       slots.delete(slot); pump();
-    }, () => { /* An unproven exit still occupies the hard cap. */ });
+    }); // A failed termination remains charged until an actual exit event.
     return slot.stopping;
   }
   function idle(slot, reset = true) {
@@ -67,6 +68,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
   }
   function allocate(pendingOwner, cold = true) {
     const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, idleAt: clock.now(), cold: cold && !!pendingOwner, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
+    slot.exit = new Promise(resolve => { slot.resolveExit = resolve; });
     onWorker?.(slot.worker);
     slots.add(slot); peak = Math.max(peak, slots.size);
     slot.initial = new Promise((resolve, reject) => { slot.resolve = resolve; slot.reject = reject; });
@@ -77,7 +79,8 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       slot.reject(error);
       const owner = slot.owner ?? slot.pendingOwner; slot.owner = undefined;
       if (owner) { owner.slot = undefined; waiting.delete(owner); }
-      void retire(slot);
+      const termination = retire(slot);
+      if (owner) owner.termination = termination;
       if (owner && !owner.stopped) owner.emit(slot.worker.profileRetiring ? 'profile-retired' : 'error', error);
     }
     slot.fail = fail;
@@ -87,11 +90,12 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       if (slot.ready && !slot.owner) void retire(slot);
     });
     slot.worker.on('exit', () => {
+      slot.resolveExit();
       if (slot.stopping) { slots.delete(slot); pump(); }
       else fail(new Error('Calculator exited.'));
     });
     slot.worker.on('message', message => {
-      if (slot.stopping) return;
+      if (slot.stopping) { releaseEligibilityChunk(message); return; }
       if (message.type === 'ready') {
         if (ready?.datasetDigest !== undefined && message.datasetDigest !== ready.datasetDigest) { fail(new Error('Calculator dataset mismatch.')); return; }
         onReady?.(message);
@@ -105,7 +109,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         pump(); return;
       }
       const owner = slot.owner;
-      if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) return;
+      if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) { releaseEligibilityChunk(message); return; }
       const complete = !['progress', 'prediction-prepared'].includes(message.type);
       const response = { ...message, id: slot.originalId };
       if (complete) { owner.lastSlot = new WeakRef(slot); slot.owner = undefined; owner.slot = undefined; idle(slot); }
@@ -221,7 +225,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     schedule(peek, run, yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting) {
       Object.assign(this, { yieldToInteractive, isBackground, memoryPressure, yieldWhileStarting }); waiting.set(this, { peek, run }); pump();
     }
-    postMessage(message) {
+    postMessage(message, transferList) {
       if (this.stopped) throw new Error('Calculator lane has stopped.');
       if (message.type === 'supersede') {
         for (const slot of slots) if (!slot.stopping) slot.worker.postMessage(message);
@@ -229,12 +233,13 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       }
       const slot = this.slot;
       if (message.type === 'cancel' || message.type === 'eligibility-seed') {
-        if (slot?.originalId === message.id && slot.pickerId === message.pickerId) slot.worker.postMessage({ ...message, id: slot.id });
+        if (slot?.originalId === message.id && slot.pickerId === message.pickerId) slot.worker.postMessage({ ...message, id: slot.id }, transferList);
+        else releaseEligibilityChunk(message);
         return;
       }
       if (!slot || slot.stopping) throw new Error('Calculator slot was not acquired.');
       slot.id = ++sequence; slot.originalId = message.id; slot.pickerId = message.pickerId;
-      slot.worker.postMessage({ ...message, id: slot.id });
+      slot.worker.postMessage({ ...message, id: slot.id }, transferList);
     }
     terminate() {
       if (this.stopped) return this.termination;

@@ -39,9 +39,10 @@ export function warmResultKey(namespace, request) {
     return warmHash(JSON.stringify([1, namespace, request]));
   } catch { /* Optional miss. */ }
 }
-export function createWarmResults(data) {
+export function createWarmResults(data, options = {}) {
   if (!warmStoreAllowed() || typeof data.warmStoreDirectory !== 'string') return;
-  const namespace = warmResultNamespace(data), store = createWarmStore(path.join(data.warmStoreDirectory, 'results'), WARM_RESULT_LIMITS);
+  const namespace = Object.hasOwn(options, 'namespace') ? options.namespace : warmResultNamespace(data);
+  const store = createWarmStore(path.join(data.warmStoreDirectory, 'results'), WARM_RESULT_LIMITS);
   if (!namespace || !store) return;
   return {
     key: request => warmResultKey(namespace, request),

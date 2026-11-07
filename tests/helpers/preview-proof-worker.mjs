@@ -1,5 +1,6 @@
 import { Worker } from 'node:worker_threads';
 import { once } from 'node:events';
+import { eligibilityTransferList, releaseEligibilityChunk } from '../../app/tasks/eligibility-transfer.mjs';
 
 // No timers or polling: every step follows an actual worker message.
 export async function proofWorker(workerData, { broker, WorkerClass = Worker } = {}) {
@@ -10,12 +11,19 @@ export async function proofWorker(workerData, { broker, WorkerClass = Worker } =
   worker.on('error', error => { for (const request of pending.values()) request.reject(error); pending.clear(); });
   worker.on('message', message => {
     const request = pending.get(message.id);
-    if (!request) return;
+    if (!request) { releaseEligibilityChunk(message); return; }
     if (message.type === 'progress') {
       if (message.eligibilitySeedRequest) {
         exports.push(message.eligibilitySeedRequest);
         Promise.resolve().then(() => broker?.(message.eligibilitySeedRequest, message))
-          .then(proof => worker.postMessage({ id: message.id, pickerId: request.pickerId, type: 'eligibility-seed', proof }),
+          .then(proof => {
+            const packet = { id: message.id, pickerId: request.pickerId, type: 'eligibility-seed', proof };
+            try { worker.postMessage(packet, eligibilityTransferList(packet)); }
+            catch {
+              releaseEligibilityChunk(packet);
+              worker.postMessage({ id: message.id, pickerId: request.pickerId, type: 'eligibility-seed' });
+            }
+          },
             () => worker.postMessage({ id: message.id, pickerId: request.pickerId, type: 'eligibility-seed' }));
       }
       return;

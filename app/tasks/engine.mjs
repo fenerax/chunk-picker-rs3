@@ -227,6 +227,14 @@ export function createTaskEngine(definitions, options = {}) {
       try { const [, variantKey, inputKey] = JSON.parse(key); return variants.get(variantKey)?.exportEligibilityProof(inputKey, maxBytes); }
       catch { /* Optional miss; exporting never compiles a variant. */ }
     },
+    exportEligibilityProofChunk(key, maxBytes, offset, proofId) {
+      try { const [, variantKey, inputKey] = JSON.parse(key); return variants.get(variantKey)?.exportEligibilityProofChunk(inputKey, maxBytes, offset, proofId); }
+      catch { /* Optional resident-only miss. */ }
+    },
+    beginEligibilityImport(key, proof) {
+      try { const [, variantKey, inputKey] = JSON.parse(key); return variants.get(variantKey)?.beginEligibilityImport(inputKey, proof); }
+      catch { /* Optional admission miss. */ }
+    },
     importEligibilityProof(key, proof) {
       try { const [, variantKey, inputKey] = JSON.parse(key); return variants.get(variantKey)?.importEligibilityProof(inputKey, proof) ?? false; }
       catch { return false; }
@@ -1726,5 +1734,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate, how,
     eligibilityProofKey: (state, memberId, options) => eligibilityInputKey(projectedState(state), memberId, options),
     exportEligibilityProof: (key, maxBytes) => eligibilityCache.exportProof(key, maxBytes),
+    exportEligibilityProofChunk: (key, maxBytes, offset, proofId) => eligibilityCache.exportProofChunk(key, maxBytes, offset, proofId),
+    beginEligibilityImport: (key, proof) => eligibilityCache.beginImport(key, proof),
     importEligibilityProof: (key, proof) => eligibilityCache.importProof(key, proof) });
 }

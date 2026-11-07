@@ -12,6 +12,7 @@ import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 import { hasRandomStartChoices } from '../core/state.mjs';
 import { createWorkerPreparation } from './prepared-collection.mjs';
+import { eligibilityTransferList, releaseEligibilityChunk } from './eligibility-transfer.mjs';
 
 // The server's compatibility context has one protocol identity.
 export function pickerJobId(pickerId = 'legacy-shared') {
@@ -74,7 +75,7 @@ function cachedPlayValue(value) {
 }
 function workerEvaluation(message) {
   const metadata = { evaluationMs: message.evaluationMs, timingMs: message.timingMs };
-  const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: !!message.eligibilitySeeded });
+  const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: message.timingMs?.eligibilitySeeded === true });
   if (message.sandboxJSON instanceof SharedArrayBuffer) {
     const sandboxJSON = Buffer.from(message.sandboxJSON);
     let result;
@@ -705,8 +706,16 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   function terminate(target) {
     if (!target) return;
     target.unref?.();
-    const operation = Promise.resolve().then(() => target.terminate()).catch(() => {}).finally(() => { terminating.delete(operation); announce(); });
+    const operation = Promise.resolve().then(() => target.terminate()).then(() => drainSource(target), () => {}).finally(() => { terminating.delete(operation); announce(); });
     terminating.add(operation);
+  }
+  // Metadata only. A rejected waiter does not prove its native export drained.
+  const sourceDrains = new Map();
+  function drainSource(target, id) {
+    const drains = sourceDrains.get(target);
+    if (!drains) return;
+    for (const [key, resolve] of drains) if (id === undefined || key === id) { drains.delete(key); resolve(); }
+    if (!drains.size) sourceDrains.delete(target);
   }
   // A producer that already answered Preview still prepares its partner. It is
   // requested work until it finishes or is cancelled (discarded), never idle warm-up.
@@ -873,6 +882,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (wakeStarted !== undefined) { liveTimings?.record('calculator-wake', idleClock.now() - wakeStarted, { source: 'computed', calculatorStarted: !calculatorPool || !!worker.startedCalculator }); wakeStarted = undefined; }
     entry.calculatorStarted ||= !!worker.startedCalculator;
     active = entry; entry.startedAt = idleClock.now(); entry.id = ++sequence;
+    if (entry.sourceDrain) {
+      entry.sourceDrain.dispatched = true;
+      if (!sourceDrains.has(worker)) sourceDrains.set(worker, new Map());
+      sourceDrains.get(worker).set(entry.id, entry.sourceDrain.resolve);
+    }
     if (PROFILE_ENABLED) profile.dispatch(entry);
     entry.cancellation = new SharedArrayBuffer(4);
     entry.sourceRevision = entry.state.revision;
@@ -939,15 +953,21 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         ? nativeWorkerInput(includeReadyCatalogue || workerPreparation?.persistent ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
     if (!calculatorPool) onWorker?.(worker);
+    const launchedWorker = worker;
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', error => { if (ownGeneration === generation) failure(worker.profileRetiring ? 'profile-retired'
       : error?.code === 'ERR_WORKER_OUT_OF_MEMORY' ? 'worker-memory' : 'worker-error'); });
-    worker.on('exit', () => { if (ownGeneration === generation && !closed) failure(worker.profileRetiring ? 'profile-retired' : 'worker-exit'); });
+    worker.on('exit', () => { drainSource(launchedWorker); if (ownGeneration === generation && !closed) failure(launchedWorker.profileRetiring ? 'profile-retired' : 'worker-exit'); });
     worker.on('profile-retiring', () => { if (ownGeneration === generation && !closed) pump(); });
     worker.on('profile-retired', () => { if (ownGeneration === generation && !closed) failure('profile-retired'); });
     worker.on('message', message => {
-      if (ownGeneration !== generation || closed) return;
+      const final = !['ready', 'progress', 'prediction-prepared'].includes(message.type);
+      if (ownGeneration !== generation || closed || !active || message.id !== active.id) {
+        releaseEligibilityChunk(message);
+        if (final) drainSource(launchedWorker, message.id);
+        if (ownGeneration !== generation || closed || message.type !== 'ready') return;
+      }
       if (PROFILE_ENABLED && (message._rs3ProfileReply || message._rs3ProfileRelayReply)) return;
       if (message.type === 'ready') {
         if (PROFILE_ENABLED) { profile.workerReady(profileLane, worker); profile.attach(worker); }
@@ -962,18 +982,22 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         compileMs = Number.isFinite(message.compileMs) ? message.compileMs : 0;
         initialResolve(message); announce(); armSleep(); pump(); return;
       }
-      if (!active || message.id !== active.id) return;
+      if (final && active.discarded) releaseEligibilityChunk(message);
+      if (final) drainSource(launchedWorker, message.id);
       lastProgressAt = idleClock.now();
-      if (message.type === 'progress' && message.eligibilitySeedRequest && !active.seedRequested) {
+      if (message.type === 'progress' && message.eligibilitySeedRequest && !active.seedPending) {
         const entry = active, recipient = worker;
-        entry.seedRequested = true;
+        entry.seedPending = true;
         const reply = proof => {
-          if (active !== entry || worker !== recipient) return;
-          if (entry.discarded) proof = undefined;
-          try { recipient.postMessage({ id: entry.id, pickerId: entry.pickerId, type: 'eligibility-seed', proof }); }
+          const packet = { id: entry.id, pickerId: entry.pickerId, type: 'eligibility-seed', proof };
+          entry.seedPending = false;
+          if (active !== entry || worker !== recipient) { releaseEligibilityChunk(packet); return; }
+          if (entry.discarded) { releaseEligibilityChunk(packet); packet.proof = undefined; }
+          try { recipient.postMessage(packet, eligibilityTransferList(packet)); }
           catch {
             // A packet clone failure is an ordinary miss. A broken control
             // channel is handled by the existing worker recovery path.
+            releaseEligibilityChunk(packet);
             try { recipient.postMessage({ id: entry.id, pickerId: entry.pickerId, type: 'eligibility-seed' }); }
             catch { failure('worker-send'); }
           }
@@ -1018,7 +1042,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return;
       }
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
-      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, eligibilitySeeded: !!message.eligibilitySeeded, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
+      if (entry.previewServed) liveTimings?.record('preview-partner', idleClock.now() - entry.queuedAt, { source: 'computed', calculatorStarted: entry.calculatorStarted, eligibilitySeeded: message.timingMs?.eligibilitySeeded === true, failed: !!message.error, stages: message.timingMs?.stages ?? message.timingMs });
       if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
@@ -1053,9 +1077,13 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   const scheduler = {
     exportEligibilityProof(entry, proof) {
       if (!canReadResident('eligibility-proof-export', entry.pickerId)) return;
+      const sourceDrain = Promise.withResolvers();
       return scheduler.evaluate({ revision: entry.sourceRevision }, entry.memberId, 'eligibility-proof-export', proof,
-        `eligibility-proof:${entry.id}`, undefined, undefined, [], 'full', undefined, false, entry.pickerId, true)
-        .then(value => value.result);
+        `eligibility-proof:${entry.id}`, undefined, undefined, [], 'full', undefined, false, entry.pickerId, true, sourceDrain)
+        .then(value => value.result, async error => {
+          if (sourceDrain.dispatched) await sourceDrain.promise;
+          throw error;
+        });
     },
     yieldWhileStarting() {
       if (closed || active || queue.length) return false;
@@ -1183,7 +1211,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     preemptResidentPlanning() {
       if (active?.residentOnly && !active.discarded) cancel(active, residentPlanningUnavailable());
     },
-    evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false, pickerId = 'legacy-shared', residentOnly = false) {
+    evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false, pickerId = 'legacy-shared', residentOnly = false, sourceDrain) {
       if (!residentOnly) scheduler.preemptResidentPlanning();
       counts.requested++;
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
@@ -1232,7 +1260,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         }
         const releaseFair = admitFair(pickerId, { interactive: !residentOnly });
         if (!releaseFair) { if (residentOnly) return Promise.reject(residentPlanningUnavailable()); counts.rejected++; return Promise.reject(queueFull()); }
-        entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, residentOnly, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
+        entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, residentOnly, sourceDrain, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
         entry.calculatorStarted = !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status));
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry);

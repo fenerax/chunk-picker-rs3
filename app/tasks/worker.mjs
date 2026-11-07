@@ -33,6 +33,7 @@ import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { serialize } from 'node:v8';
 import { createWarmResults, warmResultNamespace } from './warm-results.mjs';
+import { eligibilityTransferList, releaseEligibilityChunk } from './eligibility-transfer.mjs';
 import { preparedCollectionKey, decodePreparedCollection, encodePreparedCollection, readPreparedCollectionFile } from './prepared-collection.mjs';
 
 const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
@@ -40,10 +41,10 @@ startupPhase('worker:modules');
 // Definitions compile once in this isolated worker. Evaluation never runs on
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
 if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
-const warmResults = createWarmResults(workerData);
 // Same conservative namespace as durable calculator results: dataset, complete
 // semantic worker inputs, runtime and all application sources.
 const proofNamespace = warmResultNamespace(workerData);
+const warmResults = createWarmResults(workerData, { namespace: proofNamespace });
 const collectPreparedCollection = workerData.collectPreparedCollection || !!workerData.preparedCollectionFile;
 const preparationKey = collectPreparedCollection || workerData.preparedCollection ? preparedCollectionKey(workerData) : undefined;
 let collectionEntry = workerData.preparedCollection, collectionFile = workerData.preparedCollectionFile;
@@ -450,7 +451,11 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
 }
 const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
   stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof }) => {
-  if (type === 'eligibility-seed') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).seedReply?.(proof); return; }
+  if (type === 'eligibility-seed') {
+    const reply = requests.get(id)?.pickerId === pickerId ? requests.get(id).seedReply : undefined;
+    if (reply) reply(proof); else releaseEligibilityChunk({ type, proof });
+    return;
+  }
   if (type === 'cancel') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), revision)); return; }
   if (type === 'eligibility-proof-export') {
@@ -459,15 +464,19 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     try {
       if (!(cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0))
         && proofNamespace && chunkId?.namespace === proofNamespace && JSON.parse(chunkId.key)[0] === pickerId) {
-        const proof = engine.exportEligibilityProof(chunkId.key, chunkId.maxBytes);
+        const proof = engine.exportEligibilityProofChunk(chunkId.key, chunkId.maxBytes, chunkId.offset, chunkId.proofId);
         if (proof) result = { namespace: proofNamespace, key: chunkId.key, proof };
       }
     } catch { /* Optional export miss. */ }
-    parentPort.postMessage({ id, result }); return;
+    const message = { id, result };
+    parentPort.postMessage(message, eligibilityTransferList(message)); return;
   }
   const started = performance.now();
   // Fixed stage names and durations never expose personal state.
   const timingMs = { engineMs: 0, collectionMs: 0, equipmentMs: 0, presentationMs: 0, currentBiSMs: 0, activityMs: 0, predictionMs: 0, deathMs: 0, totalMs: 0 };
+  // Observability belongs to the existing transport timing envelope. Unknown
+  // top-level fields are calculator results to protocol/differential clients.
+  if (type === 'predict') timingMs.eligibilitySeeded = false;
   if (reportProgress) progressRequests.set(timingMs, { id, at: started });
   const request = { pickerId, cancelled: false, get latestRevision() { return pickerRevision(pickerId); } };
   const abandoned = () => request.cancelled || cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0) !== 0;
@@ -563,24 +572,36 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         && !snapshots.has(JSON.stringify(calculationKey(state, memberId, input)))) {
         const key = engine.eligibilityProofKey(state, memberId, eligibilityOptions(state, memberId, pickerId));
         const reservation = engine.exportEligibilityProof(key, Number.MAX_SAFE_INTEGER) ? undefined : snapshotBudget.reserveHandoff();
+        let importer;
         if (reservation) try {
-          let received = await new Promise(resolve => {
-            request.seedReply = resolve;
-            parentPort.postMessage({ id, type: 'progress', eligibilitySeedRequest: { namespace: proofNamespace, key, maxBytes: reservation.maxBytes } });
-          });
-          delete request.seedReply;
-          if (!abandoned() && state.revision >= pickerRevision(pickerId) && received?.namespace === proofNamespace && received.key === key
-            && received.proof?.bytes?.byteLength <= reservation.maxBytes) eligibilitySeeded = engine.importEligibilityProof(key, received.proof);
-          received = undefined;
+          let offset = 0, proofId, totalBytes;
+          do {
+            let received = await new Promise(resolve => {
+              request.seedReply = resolve;
+              parentPort.postMessage({ id, type: 'progress', eligibilitySeedRequest: { namespace: proofNamespace, key,
+                maxBytes: reservation.maxBytes, offset, ...(proofId ? { proofId } : {}) } });
+            });
+            delete request.seedReply;
+            const packet = { type: 'eligibility-seed', proof: received };
+            try {
+              if (abandoned() || state.revision < pickerRevision(pickerId) || received?.namespace !== proofNamespace || received.key !== key
+                || received.proof?.totalBytes > reservation.maxBytes) break;
+              importer ??= engine.beginEligibilityImport(key, received.proof);
+              if (!importer?.append(received.proof)) break;
+              offset += received.proof.bytes.byteLength; proofId = received.proof.proofId; totalBytes = received.proof.totalBytes;
+            } finally { releaseEligibilityChunk(packet); received = undefined; }
+          } while (offset < totalBytes);
+          if (!abandoned() && offset === totalBytes) eligibilitySeeded = importer?.finish() === true;
         } catch { /* Transfer/admission failure follows the ordinary baseline. */ }
-        finally { delete request.seedReply; reservation.release(); }
+        finally { delete request.seedReply; importer?.abort(); reservation.release(); }
       }
       if (type === 'predict' && abandoned()) {
-        parentPort.postMessage({ id, result: { cancelled: true }, eligibilitySeeded: false }); return;
+        parentPort.postMessage({ id, result: { cancelled: true }, timingMs }); return;
       }
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
       const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
       eligibilitySeeded &&= snapshot.baseline.metrics.eligibilityCacheHit === true;
+      if (type === 'predict') timingMs.eligibilitySeeded = eligibilitySeeded;
       if (type === 'predict') {
         // Let panel closure cancel a completed baseline before starting the
         // separate hypothetical fixed point. Keep a normal final lane response.
@@ -599,7 +620,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         const elapsedMs = performance.now() - started;
         parentPort.postMessage({ id, type: 'prediction-prepared',
           result: { delta: prediction.delta, coverage: prediction.result.coverage, metrics: prediction.result.metrics },
-          evaluationMs: elapsedMs, timingMs: { ...timingMs, totalMs: elapsedMs }, eligibilitySeeded });
+          evaluationMs: elapsedMs, timingMs: { ...timingMs, totalMs: elapsedMs } });
       }
       if (prediction && !state.members.find(owner => owner.id === memberId).unlocked.includes(chunkId)) {
         // Reuse only this exact hypothetical task input after a durable save.
@@ -648,7 +669,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     timingMs.totalMs = performance.now() - started;
     const reply = { ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}) };
     if (!abandoned() && state.revision >= pickerRevision(pickerId)) warmResults?.put(warmKey, reply);
-    parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs, ...(type === 'predict' ? { eligibilitySeeded } : {}) });
+    parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs });
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
