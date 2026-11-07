@@ -1,4 +1,5 @@
 import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -141,7 +142,7 @@ test('eager, lazy and restarted worker lanes retain the pinned descriptor after 
   const options = await fixture(t), digest = 'a'.repeat(64), selection = { schemaVersion: 1, data: { id: 'duo-data', version: '1.0.0', sha256: 'c'.repeat(64) }, rulesText: { id: 'duo-rules-text', version: '1.0.0', sha256: 'd'.repeat(64) } };
   await writeFile(options.selectionPath, encode(selection));
   const workerData = { datasetDigest: digest, datasetSelection: { root, packsDir: options.packsDir, selection, digest } }, factory = fakeFactory(digest);
-  const scheduler = await createTaskScheduler({ workerData, workerFactory: factory.create, maxRestarts: 0, deadlineMs: 1000, startupDeadlineMs: 1000 }); t.after(() => scheduler.close());
+  const scheduler = await createTaskScheduler({ workerData, workerFactory: factory.create, deadlineClock: createManualClock(), maxRestarts: 0, deadlineMs: 1000, startupDeadlineMs: 1000 }); t.after(() => scheduler.close());
   await writeFile(options.selectionPath, encode({ schemaVersion: 1, data: null }));
   await scheduler.evaluate({ revision: 0 }, 'fixture', 'evaluate', undefined, 'lazy-fixture', 'lazy-input', undefined, [], 'full', undefined, 'side');
   assert.equal(factory.workers.length, 2);
@@ -154,7 +155,7 @@ test('eager, lazy and restarted worker lanes retain the pinned descriptor after 
 test('wrong worker ready digest is rejected before ready and cannot change synthetic storage', async t => {
   const options = await fixture(t), dataDir = await storageFixture(options.directory), before = await storageBytes(dataDir), factory = fakeFactory('b'.repeat(64));
   await assert.rejects(createTaskScheduler({ workerData: { datasetDigest: 'a'.repeat(64), datasetSelection: { selection: { schemaVersion: 1, data: null } } }, workerFactory: factory.create,
-    maxRestarts: 0, deadlineMs: 1000, startupDeadlineMs: 1000 }), /restart|digest|dataset/i);
+    deadlineClock: createManualClock(), maxRestarts: 0, deadlineMs: 1000, startupDeadlineMs: 1000 }), /restart|digest|dataset/i);
   assert.equal(factory.workers.length, 1); assert.equal(factory.workers[0].terminated, true);
   assert.deepEqual(await storageBytes(dataDir), before);
 });

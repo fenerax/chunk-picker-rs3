@@ -10,6 +10,10 @@ const detectorLanes = new Map([
   ['tests/y03-fuzz-ci-integration.test.mjs', 'differential-only'],
   ['tests/q2-diff-engine-integration.test.mjs', 'engine-differential-only'],
 ]);
+// Full installation/recovery entries perform many independent filesystem cases.
+// One first attempt per job fits the existing job budget; never lengthen it or
+// shrink the requested proof to accommodate several copies in one shard.
+const isolatedEntries = new Set(['tests/linux-multi-picker.test.mjs', 'tests/linux-tools-install.test.mjs']);
 // These entries exercise native Windows contracts and have no Linux cases.
 // Report their proof on Windows; an all-skipped Linux run is never proof.
 export const WINDOWS_ONLY = new Set([
@@ -69,12 +73,16 @@ export function planStability({ changed = [], inventory, windows = [], files, re
   const systems = [...new Set(targets.map(pair => pair.os))];
   const include = [];
   for (const os of systems) for (const lane of ['ordinary', 'detector']) {
-    const attempts = targets.filter(pair => pair.os === os && requireSupportedLane(pair.file, classify) === lane).flatMap(({ file, repetitions }) =>
+    const planned = targets.filter(pair => pair.os === os && requireSupportedLane(pair.file, classify) === lane).flatMap(({ file, repetitions }) =>
       Array.from({ length: repetitions }, (_, i) => ({ file, repetition: i + 1, total: repetitions })));
+    const attempts = planned.filter(attempt => !isolatedEntries.has(attempt.file));
     const count = Math.min(10, attempts.length);
     const shards = Array.from({ length: count }, (_, i) => ({ id: `${lane === 'detector' ? 'detector-' : ''}${os}-${i + 1}`, os,
       ...(lane === 'detector' ? { lane } : {}), runner: os === 'linux' ? 'ubuntu-latest' : 'windows-latest', attempts: [] }));
     attempts.forEach((attempt, i) => shards[i % count].attempts.push(attempt));
+    for (const attempt of planned.filter(attempt => isolatedEntries.has(attempt.file))) shards.push({
+      id: `${os}-${shards.length + 1}`, os, runner: os === 'linux' ? 'ubuntu-latest' : 'windows-latest', attempts: [attempt],
+    });
     include.push(...shards);
   }
   return { schema: 'rs3-stability-plan-v1', targets, reduced: targets.some(t => t.repetitions < t.requested), matrix: { include } };

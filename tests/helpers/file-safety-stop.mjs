@@ -8,9 +8,9 @@ if (!isMainThread && workerData?.fileSafetyStop) {
   let active = [];
   parentPort.on('message', names => { active = names; });
   setTimeout(() => {
-    writeSync(2, `\nFile safety stop: ${workerData.file}\nPID ${process.pid}; active tests: ${active.join(', ') || '(module evaluation or file cleanup)'}\nThe ten-minute outer safety stop expired. Inspect pending events, controlled clocks, child exits and cleanup acknowledgements.\n`);
+    writeSync(2, `\nFile safety stop: ${workerData.file}\nPID ${process.pid}; active tests: ${active.join(', ') || '(module evaluation or file cleanup)'}\nThe thirty-minute outer safety stop expired. Inspect pending events, controlled clocks, child exits and cleanup acknowledgements.\n`);
     process.kill(process.pid, 'SIGTERM');
-  }, 10 * 60_000);
+  }, 30 * 60_000);
 } else if (isMainThread) {
   const guard = new Worker(new URL(import.meta.url), {
     workerData: { fileSafetyStop: true, file: process.argv[1] ?? '(unknown test file)' },

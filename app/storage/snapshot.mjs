@@ -40,18 +40,19 @@ export function snapshotPath(dataDir, id) {
 // allocation in the Linux write hold. Retention may unlink pinned files.
 // Windows cannot replace an open file reliably: keep its barrier through copying
 // and descriptor close, subject to the same cooperative deadline.
-export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 4096 } = {}) {
+export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 4096,
+  clock = { now: () => performance.now(), setTimeout, clearTimeout } } = {}) {
   const target = snapshotPath(dataDir, id);
   const state = barrier(dataDir);
   if (state.snapshotBusy) throw Object.assign(new Error('A snapshot is already being captured.'), { status: 503 });
   state.snapshotBusy = true;
   let release;
   state.gate = new Promise(resolve => { release = resolve; });
-  const started = performance.now(), handles = [], directories = [];
+  const started = clock.now(), handles = [], directories = [];
   let heldMs, holding = true, created = false;
   const unlock = () => { if (holding) { holding = false; state.gate = null; release(); } };
   const budget = () => {
-    if (performance.now() - started > maxHoldMs || handles.length >= maxFiles) throw new Error('Snapshot capture budget exceeded.');
+    if (clock.now() - started > maxHoldMs || handles.length >= maxFiles) throw new Error('Snapshot capture budget exceeded.');
   };
   try {
     // A deadline abandons capture, never an in-flight write. Those writes keep
@@ -59,9 +60,9 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
     let timer;
     try {
       await Promise.race([(async () => { while (state.active.size) await Promise.all([...state.active]); })(), new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Snapshot writer drain timed out.')), maxHoldMs);
+        timer = clock.setTimeout(() => reject(new Error('Snapshot writer drain timed out.')), maxHoldMs);
       })]);
-    } finally { clearTimeout(timer); }
+    } finally { clock.clearTimeout(timer); }
     async function pin(file, relative) {
       budget();
       const info = await lstat(file);
@@ -92,7 +93,7 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
       });
       await walk(); await pin(dataDir + '.dataset.json', 'store.dataset.json'); budget();
     }
-    finally { if (process.platform !== 'win32') { heldMs = performance.now() - started; unlock(); } }
+    finally { if (process.platform !== 'win32') { heldMs = clock.now() - started; unlock(); } }
     await mkdir(snapshotRoot(dataDir), { recursive: true, mode: 0o700 });
     if (!(await lstat(snapshotRoot(dataDir))).isDirectory()) throw new Error('Invalid snapshot spool.');
     const disk = await statfs(snapshotRoot(dataDir), { bigint: true });
@@ -118,7 +119,7 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
         await output.sync();
       } finally { await output.close(); await handle.close(); row.closed = true; }
     }
-    if (holding) { heldMs = performance.now() - started; unlock(); }
+    if (holding) { heldMs = clock.now() - started; unlock(); }
     await writeFile(path.join(target, 'complete.json'), JSON.stringify({ id, heldMs }) + '\n', { flag: 'wx', mode: 0o600 });
     return { id, heldMs };
   } catch (error) {
@@ -132,7 +133,7 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
 
 // Additive service checkpoint. Reserve all gates synchronously before draining
 // any writer; single-directory snapshotStore and its callers are unchanged.
-export async function withDirectoryBarriers(dataDirs, work, { maxDrainMs = 30000 } = {}) {
+export async function withDirectoryBarriers(dataDirs, work, { maxDrainMs = 30000, clock = { setTimeout, clearTimeout } } = {}) {
   if (!Number.isSafeInteger(maxDrainMs) || maxDrainMs < 1) throw new TypeError('Invalid checkpoint deadline.');
   const states = [...new Set(dataDirs.map(dir => path.resolve(dir)))].sort().map(barrier);
   if (states.some(state => state.snapshotBusy || state.gate)) throw Object.assign(new Error('A snapshot is already being captured.'), { status: 503 });
@@ -145,9 +146,9 @@ export async function withDirectoryBarriers(dataDirs, work, { maxDrainMs = 30000
   try {
     await Promise.race([
       (async () => { for (const state of states) while (state.active.size) await Promise.all([...state.active]); })(),
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Service checkpoint writer drain timed out.')), maxDrainMs); }),
+      new Promise((_, reject) => { timer = clock.setTimeout(() => reject(new Error('Service checkpoint writer drain timed out.')), maxDrainMs); }),
     ]);
-    clearTimeout(timer);
+    clock.clearTimeout(timer);
     return await work();
-  } finally { clearTimeout(timer); for (const release of releases.reverse()) release(); }
+  } finally { clock.clearTimeout(timer); for (const release of releases.reverse()) release(); }
 }

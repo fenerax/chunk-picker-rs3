@@ -1,4 +1,5 @@
 import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test, { after } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
@@ -157,8 +158,10 @@ test('service checkpoints, recovery copies and resumed identity checks never tra
 test('cross-directory deadline and thrown capture release every gate without abandoning accepted writes', async t => {
   const f = await fixture(t), dirs = f.pickers.map(f.dir), finish = Promise.withResolvers();
   const writing = withStoreWrite(dirs[0], () => finish.promise);
-  await assert.rejects(withDirectoryBarriers(dirs, stopped, { maxDrainMs: 5 }), /timed out/);
-  finish.resolve(); await writing;
+  const clock = createManualClock();
+  const rejected = assert.rejects(withDirectoryBarriers(dirs, stopped, { maxDrainMs: 5, clock }), /timed out/);
+  try { await clock.advance(5); await clock.settled(rejected); }
+  finally { finish.resolve(); await writing; }
   await assert.rejects(withDirectoryBarriers(dirs, async () => { throw new Error('Synthetic capture failure'); }), /capture failure/);
   await Promise.all(dirs.map(dir => withStoreWrite(dir, stopped)));
 });
@@ -166,7 +169,7 @@ test('cross-directory deadline and thrown capture release every gate without aba
 test('single-directory snapshots keep their original exclusion, independent directories and raw byte contract', async t => {
   const f = await fixture(t), dir = f.dir(f.pickers[0]), finish = Promise.withResolvers();
   const id = randomUUID(), writing = withStoreWrite(dir, () => finish.promise);
-  const snapshot = snapshotStore(dir, id, { maxHoldMs: 30000 });
+  const snapshot = snapshotStore(dir, id, { maxHoldMs: 30000, clock: createManualClock() });
   await assert.rejects(snapshotStore(dir, randomUUID()), /already being captured/);
   await withStoreWrite(f.dir(f.pickers[1]), stopped);
   finish.resolve(); await writing; await snapshot;

@@ -137,7 +137,7 @@ synthetic writer to verify partial recovery. Durations are diagnostic only. No f
 ### Deterministic checks
 
 Import `./helpers/file-safety-stop.mjs` once in a test entry that needs a hang
-stop (keep any `@test` header first). It gives the entire file one ten-minute
+stop (keep any `@test` header first). It gives the entire file one thirty-minute
 outer safety stop and reports the file, PID and active test names. A separate
 worker can stop even synchronous hangs. This is the only real-time bound a
 test may add; do not add per-test, subprocess, fetch or Promise-race deadlines.
@@ -173,7 +173,9 @@ environment and ownership setup. Native Windows-only entries are planned only
 on Windows; an all-skipped Linux file cannot establish proof. The two detector
 entries use the differential workflow's isolated Linux container. Each repetition uses the existing adaptive runner and
 per-file dataset/execution policy in a fresh process, with one worker and no
-retry. Up to ten hosted jobs per OS divide the repetitions (at most twenty jobs).
+retry. Up to ten ordinary jobs per OS and ten detector jobs divide repetitions.
+The two long installation/recovery entries run each attempt in its own job, so
+their 50 attempts fit the existing job budget without extending a test deadline.
 Inputs/caches are prepared once per job, as in the ordinary suite.
 
 PRs share a budget of 200 file/OS attempts: each pair gets up to

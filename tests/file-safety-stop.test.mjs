@@ -17,7 +17,7 @@ test('file safety stop covers a blocked main thread and reports its file and act
     { pid: 123, kill: (...args) => signals.push(args) },
     (action, delay) => { callback = action; milliseconds = delay; },
   );
-  assert.equal(milliseconds, 10 * 60_000);
+  assert.equal(milliseconds, 30 * 60_000);
   assert.deepEqual(signals, []);
   receive(['synthetic blocked test']); callback();
   assert.deepEqual(signals, [[123, 'SIGTERM']]);

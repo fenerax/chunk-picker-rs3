@@ -1,4 +1,5 @@
 import './helpers/file-safety-stop.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -38,7 +39,7 @@ test('concurrent real commands and sidecar writes yield a consistent full snapsh
     await new Promise(resolve => setImmediate(resolve));
     await atomic(path.join(dataDir, 'sidecar-b.json'), 'before');
   });
-  const snapshot = snapshotStore(dataDir, id, { maxHoldMs: 30000 });
+  const snapshot = snapshotStore(dataDir, id, { maxHoldMs: 30000, clock: createManualClock() });
   await assert.rejects(snapshotStore(dataDir, randomUUID()), /already being captured/);
   const command = store.command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 0);
   const next = withStoreWrite(dataDir, async () => {
@@ -53,7 +54,7 @@ test('concurrent real commands and sidecar writes yield a consistent full snapsh
   assert.equal(JSON.parse(await readFile(path.join(copy, 'state.json'))).state.revision, 0);
   assert.equal(store.getInfo().revision, 1);
   assert(!(await inventory(copy)).some(row => row.path.startsWith('store.lock')));
-  assert(result.heldMs < 30000);
+  assert.ok(Number.isFinite(result.heldMs));
 });
 
 test('snapshot timeout/invalid ID releases writes and never removes existing snapshots', async t => {
@@ -61,8 +62,11 @@ test('snapshot timeout/invalid ID releases writes and never removes existing sna
   await writeFile(path.join(dataDir, 'state.json'), '{}'); await writeFile(dataDir + '.dataset.json', '{}');
   await assert.rejects(snapshotStore(dataDir, '../bad'), /ID/);
   let finish; const writing = withStoreWrite(dataDir, () => new Promise(resolve => { finish = resolve; }));
-  await assert.rejects(snapshotStore(dataDir, randomUUID(), { maxHoldMs: 5 }), /timed out/);
-  finish(); await writing;
+  const clock = createManualClock();
+  const rejected = assert.rejects(snapshotStore(dataDir, randomUUID(), { maxHoldMs: 5, clock }), /timed out/);
+  try {
+    await clock.advance(5); await clock.settled(rejected);
+  } finally { finish(); await writing; }
   const id = randomUUID(); await snapshotStore(dataDir, id);
   await assert.rejects(snapshotStore(dataDir, id), { code: 'EEXIST' });
   assert.equal(await readFile(path.join(snapshotPath(dataDir, id), 'store/state.json'), 'utf8'), '{}');

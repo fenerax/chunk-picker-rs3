@@ -80,7 +80,7 @@ export function timingViolations(source, file, { allowlist = timingAllowlist } =
     && (testNames.has(tokens[i - 1].value) || ['only', 'skip', 'todo'].includes(tokens[i - 1].value) && testNames.has(tokens[i - 3]?.value))) {
     for (let at = i + 1, argument = 0, first = true; at < pairs.get(i); at++) {
       if (tokens[at].value === ',') { argument++; first = true; continue; }
-      if (argument === 1 && first) {
+      if (argument <= 1 && first) {
         if (tokens[at].value === '{') optionObjects.add(at);
         else if (namedObjects.has(tokens[at].value)) optionObjects.add(namedObjects.get(tokens[at].value));
       }
@@ -148,7 +148,7 @@ export function timingViolations(source, file, { allowlist = timingAllowlist } =
           // Math.abs/every and other assertion expressions remains visible.
           if (tokens[at].value === '{') { at = pairs.get(at) ?? at; continue; }
           if (tokens[at].value === '(' && tokens[at - 1]?.type === 'word'
-            && !['now', 'some', 'every'].includes(tokens[at - 1].value) && tokens[at - 3]?.value !== 'Math') {
+            && !['now', 'some', 'every'].includes(tokens[at - 1].value) && !clockFunctions.has(tokens[at - 1].value) && tokens[at - 3]?.value !== 'Math') {
             at = pairs.get(at) ?? at; continue;
           }
           if (code(tokens[at])) args.push(tokens[at]);
@@ -157,7 +157,7 @@ export function timingViolations(source, file, { allowlist = timingAllowlist } =
         const comparisonCall = ['equal', 'strictEqual', 'notEqual', 'notStrictEqual'].includes(before?.value)
           || assertionNames.has(before?.value) && before?.value !== 'assert';
         const returnedDurationBudget = args.some(item => ['<', '<='].includes(item.value))
-          && args.some(item => item.type === 'word' && /^(?:elapsed(?:Ms)?|duration(?:Ms)?|wallMs|took|ms)$/.test(item.value));
+          && args.some(item => item.type === 'word' && /^(?:elapsed(?:Ms)?|duration(?:Ms)?|wallMs|heldMs|took|ms)$/.test(item.value));
         const measuredBound = hasClock(args) && args.some(item => item.type === 'number' || ['+', '-'].includes(item.value) || derived.has(item.value));
         if (measuredBound && (operator || comparisonCall) || returnedDurationBudget) report(before, 'elapsed');
       }

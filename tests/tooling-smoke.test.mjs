@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdir, mkdtemp, rm, lstat, readFile, writeFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
+import { execFile, fork } from 'node:child_process';
+import { once } from 'node:events';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { runNativeRunnerSmoke, assertToolingSmokeResult, toolingSmokeChecks, toolingSmokeScope, runToolingSmoke, gallerySupervisorSource, assertScratchGalleryPorts, prepareToolingSmokeSource } from '../scripts/private-companion/tooling-smoke.mjs';
@@ -123,9 +124,16 @@ test('gallery deadline terminates its exact owned child and records verified cle
   const worker = path.join(root, 'worker.mjs'), gallery = path.join(root, 'synthetic-gallery.mjs'), envelope = path.join(root, 'envelope.json');
   const cleanup = path.join(root, 'cleanup.json'), pidFile = path.join(root, 'owned-child.json');
   await writeFile(worker, gallerySupervisorSource, { flag: 'wx' });
-  await writeFile(gallery, "import {spawn} from 'node:child_process';import {writeFile} from 'node:fs/promises';const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true});await writeFile(new URL('./owned-child.json',import.meta.url),JSON.stringify({pid:child.pid}));await new Promise(()=>{});\n", { flag: 'wx' });
+  await writeFile(gallery, "import {spawn} from 'node:child_process';import {writeFile} from 'node:fs/promises';const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true});await writeFile(new URL('./owned-child.json',import.meta.url),JSON.stringify({pid:child.pid}));process.send('owned-child-ready');await new Promise(()=>{});\n", { flag: 'wx' });
   await writeFile(envelope, JSON.stringify({ gallery, cleanup, stopModule: path.join(source, 'scripts/perf/cdp.mjs'), args: [], timeoutMs: 3000 }), { flag: 'wx' });
-  await assert.rejects(promisify(execFile)(process.execPath, [worker, envelope], { cwd: root, env: sanitizeExecutionEnvironment(), windowsHide: true}), error => error.code === 1);
+  const child = fork(worker, [envelope], { cwd: root, env: sanitizeExecutionEnvironment(), windowsHide: true, silent: true,
+    execArgv: ['--import', new URL('./fixtures/gallery-deadline-clock.mjs', import.meta.url).href] });
+  child.stdout.resume(); child.stderr.resume();
+  const exited = once(child, 'exit');
+  const [ready] = await Promise.race([once(child, 'message'), exited.then(() => assert.fail('Gallery exited before acknowledging its owned child'))]);
+  assert.equal(ready, 'owned-child-ready');
+  child.send('expire-gallery-deadline');
+  assert.equal((await exited)[0], 1);
   const proof = JSON.parse(await readFile(cleanup, 'utf8')), { pid } = JSON.parse(await readFile(pidFile, 'utf8'));
   assert.equal(proof.passed, false);
   assert.equal(proof.cleanupVerified, true);

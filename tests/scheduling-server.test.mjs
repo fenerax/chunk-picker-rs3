@@ -67,7 +67,7 @@ async function fixture(t, { serializedStateInput = false, predictionPrewarm = fa
   t.after(async () => { try { await application?.close(); } finally { application = undefined; await rm(directory, { recursive: true, force: true }); } });
   application = await createServer({ dataset: fixtureDataset, definitions, taskMap: {}, initialState, webRoot, dataDir, port: 0, predictionPrewarm, shutdownDeadlineMs: 500, schedulingClock: clock,
     taskWorkerOptions: { workerFactory: foreground.create, duoWorkerFactory: peer.create, predictionWorkerFactory: side.create,
-      deathWorkerFactory: death.create, serializedStateInput, deadlineMs: 3000, predictionDeadlineMs: 3000, deathDeadlineMs: 3000 } });
+      deathWorkerFactory: death.create, serializedStateInput, deadlineClock: createManualClock(), deadlineMs: 3000, predictionDeadlineMs: 3000, deathDeadlineMs: 3000 } });
   await application.listen();
   const origin = `http://127.0.0.1:${application.address().port}`;
   let waiting;

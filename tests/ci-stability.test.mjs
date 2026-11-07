@@ -25,6 +25,17 @@ const emitCounts = (onEvent, native, file) => {
   }
 };
 
+test('long installation and recovery entries retain all 50 first attempts in separate jobs', () => {
+  for (const file of ['tests/linux-multi-picker.test.mjs', 'tests/linux-tools-install.test.mjs']) {
+    const result = planStability({ files: file, inventory: [file] });
+    assert.equal(result.targets[0].repetitions, 50);
+    assert.equal(result.matrix.include.length, 50);
+    assert.equal(new Set(result.matrix.include.map(task => task.id)).size, 50);
+    assert.ok(result.matrix.include.every(task => task.attempts.length === 1));
+    assert.equal(all(result).length, 50);
+  }
+});
+
 test('direct entry selection ignores deleted files, nested helpers and unrelated edits; tooling gets a canary', () => {
   assert.deepEqual(plan({ changed: ['README.md', 'tests/helper.mjs', 'tests/nested/a.test.mjs'] }).targets, []);
   assert.throws(() => plan({ changed: ['tests/missing.test.mjs'] }), /Unknown test entry file.*missing/);
