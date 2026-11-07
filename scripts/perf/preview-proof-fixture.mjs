@@ -22,7 +22,13 @@ export function previewProofFixture({ taskCount = 2048 } = {}) {
   challenges.Nonskill = { 'First permit': { Chunks: [ids[0]], Output: 'Permit' },
     'Cycle left': { Items: ['Cycle right'], Output: 'Cycle left' }, 'Cycle right': { Items: ['Cycle left'], Output: 'Cycle right' } };
   challenges.Quest = { Prepare: { Items: ['Permit'], Output: 'Medal' }, Finish: { Tasks: { Prepare: 'Quest' }, QuestPoints: 2 } };
-  const definitions = { chunks, challenges, walkableChunks: ids, walkableChunksF2P: ids,
+  // Walkable terrain alone supplies no accessible boundary. Give every cell
+  // one verified section with reciprocal cardinal connections in this grid.
+  const sections = Object.fromEntries(ids.map((id, index) => [id, { 0: [
+    ...(index % 8 ? [ids[index - 1]] : []), ...(index % 8 < 7 ? [ids[index + 1]] : []),
+    ...(index >= 8 ? [ids[index - 8]] : []), ...(index < 56 ? [ids[index + 8]] : []),
+  ] }]));
+  const definitions = { chunks, sections, challenges, walkableChunks: ids, walkableChunksF2P: ids,
     drops: { Creature: { Loot: { 1: '1/2' } } }, shopItems: { Supplies: { 'Material 0': true, 'Material 1': true } },
     equipment: {}, codeItems: {}, objectItems: { 'Tree 0': { 'Material 0': true } } };
   const datasetOptions = { cacheWalking: false, cacheResources: false, cacheArchaeology: false, cacheShops: false,
