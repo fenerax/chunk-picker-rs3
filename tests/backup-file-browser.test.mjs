@@ -1,197 +1,206 @@
-// Native Chromium input against the production starter and disposable saves.
-// node --test tests/backup-file-browser.test.mjs (no npm/browser dependency)
-import test from 'node:test';
+// Real Chromium input, chooser, download and AX against disposable starter saves.
+import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openChrome, until } from '../scripts/perf/cdp.mjs';
+import { gunzipSync } from 'node:zlib';
+import { openChrome } from '../scripts/perf/cdp.mjs';
 import { findChrome } from '../scripts/ci/gallery-support.mjs';
+import { activate, arm, button, evaluate, event, fileButton, freshPage, key, navigate, settle } from './helpers/backup-file-browser.mjs';
 
-const evaluate = (page, fn, ...args) => page.evaluate(`(${fn})(...${JSON.stringify(args)})`);
-const wait = (page, fn, ...args) => until(() => evaluate(page, fn, ...args), 10000);
-const element = selector => `document.querySelector(${JSON.stringify(selector)})`;
-const dialogButton = name => `[...document.querySelectorAll('#tool-dialog button')].find(node => node.textContent === ${JSON.stringify(name)})`;
-async function key(page, key) {
-  const [value, code, windowsVirtualKeyCode, text] = {
-    Enter: ['Enter', 'Enter', 13, '\r'], Space: [' ', 'Space', 32, ' '], Escape: ['Escape', 'Escape', 27],
-  }[key];
-  await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: value, code, windowsVirtualKeyCode,
-    ...(text ? { text, unmodifiedText: text } : {}) });
-  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: value, code, windowsVirtualKeyCode });
-}
-async function click(page, expression) {
-  await until(() => page.evaluate(`(() => { const node = ${expression}; return node && !node.disabled && node.checkVisibility(); })()`), 10000);
-  const point = await until(() => page.evaluate(`(async () => {
-    const node = ${expression};
-    if (!node || node.disabled || !node.checkVisibility()) return false;
-    node.scrollIntoView({ block: 'center', behavior: 'instant' });
-    // Wait for layout/paint rather than assuming the runner rendered in 50 ms.
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const r = node.getBoundingClientRect();
-    const x = r.x + r.width / 2, y = r.y + r.height / 2, hit = document.elementFromPoint(x, y);
-    return node.isConnected && (hit === node || node.contains(hit)) ? { x, y } : false;
-  })()`), 10000);
-  const { x, y } = point;
-  await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-  await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
-}
-
-async function navigate(page, url) {
-  let loaded = false;
-  const listener = ({ method }) => { if (method === 'Page.loadEventFired') loaded = true; };
-  page.listeners.add(listener);
-  try {
-    await page.send('Page.navigate', { url });
-    // Join navigation before probing a document whose execution context may
-    // still be replaced. Keep the existing 10-second readiness backstop.
-    await until(() => loaded, 10000);
-  } finally { page.listeners.delete(listener); }
-}
-
-async function diagnose(t, work) {
-  try { await work(); }
-  catch (error) {
-    // The aggregate runner can reduce Error objects to {}. Preserve the actual
-    // failure in TAP diagnostics without logging save/session data.
-    t.diagnostic(`${error.name}: ${error.message}`);
-    throw error;
-  }
-}
-
-for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpose and filename in Chromium (${activation})`, {
-  timeout: 60000,
-}, async t => diagnose(t, async () => {
+let browser, browserDirectory, unavailable;
+before(async () => {
   let executable;
   try { executable = await findChrome(); } catch (error) {
     if (error.message !== 'CHROME_UNAVAILABLE') throw error;
-    t.skip('Chrome not found'); return;
+    unavailable = true; return;
   }
   process.env.RS3_DATASET = 'open-starter';
   process.env.RS3_TASK_WORKER_MODE = 'process';
   for (const name of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_GAME_DEFAULTS_FILE', 'RS3_GAME_DATA_DIR',
     'RS3_DATASET_PROFILE', 'RS3_DATASET_PROFILE_SHA256', 'RS3_PRIVATE_ADDON', 'RS3_PRIVATE_ADDON_SHA256',
     'RS3_MAP_ASSETS_DIR', 'RS3_TERRAIN_ASSETS_DIR', 'RS3_ICON_ASSETS_DIR', 'RS3_PUBLIC_ORIGIN',
-    'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN']) delete process.env[name];
-  const { startServer } = await import('../app/server.mjs');
+    'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_SCRATCH_CDP_PORT']) delete process.env[name];
+  browserDirectory = await mkdtemp(path.join(tmpdir(), 'backup-file-chrome-'));
+  browser = await openChrome(executable, path.join(browserDirectory, 'profile'), {
+    browser: true, port: 0,
+    extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
+  });
+});
+after(async () => {
+  // Contexts close before joining the owned Chrome process and removing its profile.
+  await browser?.close();
+  if (browserDirectory) await rm(browserDirectory, { recursive: true, force: true });
+});
+
+const dialog = "document.getElementById('tool-dialog')";
+const menu = "document.getElementById('more-tools')";
+const launcher = "document.getElementById('backup-open')";
+
+async function transition(page, kind, expression, action) {
+  const pending = await arm(page, kind, expression);
+  try { await action(); await pending.promise; await settle(page); }
+  finally { pending.cancel(); }
+}
+async function open(page) {
+  assert.equal(await page.evaluate(`${dialog}.open`), false, 'No existing modal before opening More');
+  assert.equal(await page.evaluate(`${menu}.open`), false, 'More starts closed');
+  // Opening More and the backup dialog each refresh backup health. Join that
+  // asynchronous render too, so a late status line cannot move a pointer target
+  // between measuring its centre and dispatching the one permitted input.
+  const refresh = action => transition(page, 'status', "document.getElementById('backup-status-menu')", action);
+  await refresh(() => transition(page, 'toggle', menu, () => activate(page, `${menu}.querySelector('summary')`)));
+  assert.equal(await page.evaluate(`${menu}.open`), true, 'Native summary activation opens More');
+  await refresh(() => transition(page, 'dialog', dialog, () => activate(page, launcher)));
+  assert.equal(await page.evaluate(`${dialog}.open`), true, 'Launcher opens the real dialog');
+  assert.equal(await page.evaluate("document.getElementById('dialog-title').textContent"), 'Export / Import');
+}
+async function preview(page, expected) {
+  await transition(page, 'preview', button('Preview restore'), () => activate(page, button('Preview restore')));
+  const result = await evaluate(page, () => ({
+    alerts: [...document.querySelectorAll('#tool-dialog [role="alert"]')].filter(n => n.checkVisibility()).map(n => n.textContent),
+    headings: [...document.querySelectorAll('#tool-dialog h3')].filter(n => n.checkVisibility()).map(n => n.textContent),
+    apply: [...document.querySelectorAll('#tool-dialog button')].filter(n => n.textContent === 'Apply reviewed replacement').length,
+  }));
+  if (expected === 'valid') {
+    assert.deepEqual(result.alerts, []);
+    assert.ok(result.headings.includes('Review replacement'), 'Successful preview presents its review');
+    assert.equal(result.apply, 1);
+  } else {
+    assert.equal(result.apply, 0);
+    assert.match(result.alerts.join(' '), expected === 'empty' ? /Choose/ : /full backup/);
+  }
+}
+async function accessibility(page, filename) {
+  const { nodes } = await page.send('Accessibility.getFullAXTree');
+  const matches = nodes.filter(n => !n.ignored && n.role?.value === 'button' && n.name?.value.includes('Choose file'));
+  assert.equal(matches.length, 1, 'Exactly one accessible file control');
+  assert.match(matches[0].name.value, /Choose file.*Choose a full backup/);
+  assert.equal(matches[0].description?.value, filename);
+  const relation = await evaluate(page, () => {
+    const n = document.querySelector('#tool-dialog .file-picker button');
+    return { type: n.type, label: [...n.labels].some(l => l.control === n && l.textContent === 'Choose a full backup'),
+      described: (n.getAttribute('aria-describedby') || '').split(/\s+/).map(id => document.getElementById(id)?.textContent).join(' ') };
+  });
+  assert.deepEqual(relation, { type: 'button', label: true, described: filename });
+}
+async function close(page, mode) {
+  await transition(page, 'close', dialog, () => mode === 'Escape' ? key(page, 'Escape')
+    : activate(page, "document.querySelector('#tool-dialog [aria-label=\"Close dialog\"]')"));
+  assert.equal(await page.evaluate(`${dialog}.open`), false);
+  // Assert once after close, which includes application focus restoration.
+  assert.equal(await page.evaluate(`document.activeElement === (${menu}.open ? ${launcher} : ${menu}.querySelector('summary'))`), true,
+    `${mode} restores focus to the launcher or its visible summary`);
+}
+
+for (const activation of ['Enter', 'pointer', 'Space']) test(`backup file purpose and filename in Chromium (${activation})`, {
+  timeout: 60000,
+}, async t => {
+  if (unavailable) { t.skip('Chrome not found'); return; }
   const directory = await mkdtemp(path.join(tmpdir(), 'backup-file-browser-'));
   const dataDir = path.join(directory, 'save'), downloads = path.join(directory, 'downloads');
-  let handle, page, application;
-  t.after(async () => {
-    try { await page?.close(); }
-    finally {
-      try { await handle?.close(); }
-      finally { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
-    }
-  });
+  let handle, application, page;
+  const errors = [];
   const start = async () => {
+    const { startServer } = await import('../app/server.mjs');
     handle = await startServer({ dataDir, host: '127.0.0.1', port: 0, predictionPrewarm: false });
     application = await handle.ready;
   };
-  await start();
-  const origin = `http://127.0.0.1:${handle.address().port}`;
-  assert.equal((await fetch(origin + '/api/state')).status, 401);
-  page = await openChrome(executable, path.join(directory, 'chrome'), {
-    extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
-  });
-  await page.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
-  const errors = [], choosers = [];
-  page.listeners.add(({ method, params }) => {
-    if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails.exception?.description ?? params.exceptionDetails.text);
-    if (method === 'Page.fileChooserOpened') choosers.push(params);
-  });
-  await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
-  await mkdir(downloads);
-  await page.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
-  await navigate(page, handle.inviteUrl);
-  await click(page, dialogButton('Skip setup'));
-  await wait(page, () => !document.getElementById('tool-dialog').open);
-  await wait(page, () => document.getElementById('save-status').dataset.status === 'saved');
-  // Restart through normal startup: the setup preference and admin session persist.
-  await handle.close(); await start();
-  const restartedOrigin = `http://127.0.0.1:${handle.address().port}`;
-  await navigate(page, restartedOrigin + '/');
-  await wait(page, origin => location.origin === origin && document.readyState === 'complete'
-    && document.getElementById('save-status')?.textContent === 'Saved', restartedOrigin);
-  assert.equal(await page.evaluate(`!!(${dialogButton('Skip setup')})`), false);
-  const savedRevision = application.store.getInfo().revision;
-  const savedBytes = await readFile(path.join(dataDir, 'state.json'));
-  const open = async () => {
-    if (!await page.evaluate("document.getElementById('backup-open').closest('details').open")) {
-      await click(page, "document.getElementById('backup-open').closest('details').querySelector('summary')");
-    }
-    await click(page, element('#backup-open'));
-    await wait(page, () => document.getElementById('tool-dialog').open && document.getElementById('dialog-title').textContent === 'Export / Import');
-  };
-  await open();
-  const button = element('#tool-dialog .file-picker button'), preview = dialogButton('Preview restore');
-  const alert = text => wait(page, text => [...document.querySelectorAll('#tool-dialog [role="alert"]')]
-    .some(node => node.checkVisibility() && node.textContent.includes(text)), text);
-  await click(page, preview);
-  await alert('Choose');
-  await click(page, dialogButton('Full picker backup'));
-  // Chrome renames its .crdownload only after the actual download completes.
-  const downloaded = await until(async () => (await readdir(downloads)).find(name => name.endsWith('.json.gz')), 10000);
-  const backup = await readFile(path.join(downloads, downloaded));
-  assert.ok(backup.length > 0, 'Full backup download contains bytes');
-  const choose = async (name, buffer) => {
-    const filename = path.join(directory, name);
-    await writeFile(filename, buffer);
-    assert.equal(choosers.length, 0, 'No stale file chooser event');
-    if (activation === 'pointer') await click(page, button);
-    else {
-      await page.evaluate(`(${button}).focus()`);
-      assert.equal(await page.evaluate(`document.activeElement === (${button})`), true);
-      await key(page, activation);
-    }
-    const chooser = await until(() => choosers.shift(), 10000);
-    assert.equal(chooser.mode, 'selectSingle');
-    assert.ok(Number.isInteger(chooser.backendNodeId), 'Native activation opened the file input');
-    await page.send('DOM.setFileInputFiles', { backendNodeId: chooser.backendNodeId, files: [filename] });
-    await wait(page, name => document.querySelector('#tool-dialog .file-picker-name')?.textContent === name, name);
-  };
-  await choose('invalid-backup.json', Buffer.from('{invalid'));
-  await click(page, preview);
-  await alert('full backup');
-  const description = async () => {
-    const { nodes } = await page.send('Accessibility.getFullAXTree');
-    return nodes.find(node => !node.ignored && node.role?.value === 'button' && node.name?.value.includes('Choose file'));
-  };
-  // Collect before choosing again, so a stale filename relationship cannot pass.
-  const invalidAX = await description();
-  await choose('selected-backup.json.gz', backup);
-  await click(page, preview);
-  await wait(page, () => [...document.querySelectorAll('#tool-dialog h3')].some(node => node.textContent === 'Review replacement' && node.checkVisibility()));
-  assert.equal(await page.evaluate(`[...document.querySelectorAll('#tool-dialog button')].filter(node => node.textContent === 'Apply reviewed replacement').length`), 1);
-  const validAX = await description();
-  const relation = await evaluate(page, () => {
-    const node = document.querySelector('#tool-dialog .file-picker button');
-    return {
-      labelControl: [...node.labels].some(label => label.control === node && label.textContent === 'Choose a full backup'),
-      described: (node.getAttribute('aria-describedby') || '').split(/\s+/).map(id => document.getElementById(id)?.textContent).join(' '),
-      type: node.type,
+  try {
+    await start();
+    page = await freshPage(browser);
+    page.listeners.add(({ method, params }) => {
+      if (method === 'Runtime.exceptionThrown') errors.push(params.exceptionDetails.exception?.description ?? params.exceptionDetails.text);
+    });
+    assert.deepEqual((await page.send('Network.getCookies', { urls: [handle.inviteUrl] })).cookies, [], 'Fresh context has no cookies');
+    assert.equal((await fetch(`http://127.0.0.1:${handle.address().port}/api/state`)).status, 401);
+    await page.send('Page.setInterceptFileChooserDialog', { enabled: true });
+    await mkdir(downloads);
+    await browser.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads,
+      browserContextId: page.browserContextId, eventsEnabled: true });
+    await navigate(page, handle.inviteUrl);
+    assert.equal(await page.evaluate('localStorage.getItem("backup-browser-contamination")'), null);
+    await page.evaluate('localStorage.setItem("backup-browser-contamination", "synthetic")');
+    await transition(page, 'close', dialog, () => activate(page, button('Skip setup')));
+    assert.equal(await page.evaluate("document.getElementById('save-status').dataset.status"), 'saved');
+    const persistedRevision = application.store.getInfo().revision;
+    const persistedBytes = await readFile(path.join(dataDir, 'state.json'));
+    const persistedState = structuredClone(application.store.getState());
+    await handle.close(); await start();
+    assert.equal(application.store.getInfo().revision, persistedRevision, 'Restart retains the saved revision');
+    assert.deepEqual(application.store.getState(), persistedState, 'Restart retains the complete synthetic save');
+    assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), persistedBytes, 'Restart retains exact state bytes');
+    await navigate(page, `http://127.0.0.1:${handle.address().port}/`);
+    assert.equal(await page.evaluate(`${dialog}.open`), false, 'Persisted setup dismissal survives server restart');
+    assert.equal(await page.evaluate(`!!(${button('Skip setup')})`), false);
+    const savedRevision = application.store.getInfo().revision;
+    const savedBytes = await readFile(path.join(dataDir, 'state.json'));
+    const unchanged = async phase => {
+      assert.equal(application.store.getInfo().revision, savedRevision, `${phase}: preview must not change revision`);
+      assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), savedBytes, `${phase}: preview must not write state.json`);
     };
-  });
-  const closedAndFocused = () => wait(page, () => {
-    const launcher = document.getElementById('backup-open'), menu = launcher.closest('details');
-    return !document.getElementById('tool-dialog').open && document.activeElement === (menu.open ? launcher : menu.querySelector('summary'));
-  });
-  await key(page, 'Escape');
-  await closedAndFocused();
-  await open();
-  const emptyAX = await description();
-  await click(page, element('#tool-dialog [aria-label="Close dialog"]'));
-  await closedAndFocused();
-  assert.equal(application.store.getInfo().revision, savedRevision, 'Preview must not apply a restore');
-  assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), savedBytes);
-  assert.deepEqual(errors, []);
-  assert.equal(relation.type, 'button');
-  assert.equal(relation.labelControl, true, 'Purpose label must target the operable button');
-  assert.equal(relation.described, 'selected-backup.json.gz');
-  assert.match(invalidAX?.name?.value || '', /Choose file.*Choose a full backup/);
-  assert.equal(invalidAX?.description?.value, 'invalid-backup.json');
-  assert.match(validAX?.name?.value || '', /Choose file.*Choose a full backup/);
-  assert.equal(validAX?.description?.value, 'selected-backup.json.gz');
-  assert.match(emptyAX?.name?.value || '', /Choose file.*Choose a full backup/);
-  assert.equal(emptyAX?.description?.value, 'No file chosen');
-}));
+    await open(page);
+    await accessibility(page, 'No file chosen');
+    await preview(page, 'empty'); await unchanged('empty');
+    // Both listeners precede input, including a completion which can arrive in
+    // the same CDP batch as downloadWillBegin for a small compressed save.
+    const begun = event(browser, 'Browser.downloadWillBegin');
+    const completions = new Map();
+    const collect = ({ method, params }) => {
+      if (method === 'Browser.downloadProgress' && ['completed', 'canceled'].includes(params.state)) completions.set(params.guid, params);
+    };
+    browser.listeners.add(collect);
+    let backup;
+    try {
+      await activate(page, button('Full picker backup'));
+      const download = await begun.promise;
+      assert.match(download.suggestedFilename, /\.json\.gz$/);
+      const completed = event(browser, 'Browser.downloadProgress', p => p.guid === download.guid && ['completed', 'canceled'].includes(p.state));
+      try {
+        const result = completions.get(download.guid) ?? await completed.promise;
+        assert.equal(result.state, 'completed', 'Real compressed download completes');
+      } finally { completed.cancel(); }
+      assert.deepEqual(await readdir(downloads), [download.suggestedFilename], 'No partial or unexpected downloads');
+      backup = await readFile(path.join(downloads, download.suggestedFilename));
+      assert.deepEqual([...backup.subarray(0, 2)], [0x1f, 0x8b], 'Downloaded bytes are gzip');
+      const decoded = JSON.parse(gunzipSync(backup));
+      assert.equal(decoded.format, 'rs3-chunk-picker');
+      assert.deepEqual(decoded.state, persistedState, 'Downloaded backup contains the exact saved state');
+    } finally { begun.cancel(); browser.listeners.delete(collect); }
+    const choose = async (filename, bytes) => {
+      const file = path.join(directory, filename);
+      await writeFile(file, bytes);
+      const chooser = event(page, 'Page.fileChooserOpened');
+      try {
+        await activate(page, fileButton, activation);
+        const chosen = await chooser.promise;
+        assert.equal(chosen.mode, 'selectSingle');
+        assert.ok(Number.isInteger(chosen.backendNodeId), 'Native input opens a real file chooser');
+        await transition(page, 'change', "document.querySelector('#tool-dialog input[type=file]')", () =>
+          page.send('DOM.setFileInputFiles', { backendNodeId: chosen.backendNodeId, files: [file] }));
+        assert.equal(await page.evaluate("document.querySelector('#tool-dialog .file-picker-name').textContent"), filename);
+      } finally { chooser.cancel(); }
+    };
+    await choose('invalid-backup.json', Buffer.from('{invalid'));
+    await preview(page, 'invalid');
+    await accessibility(page, 'invalid-backup.json'); await unchanged('invalid');
+    await choose('selected-backup.json.gz', backup);
+    await preview(page, 'valid');
+    await accessibility(page, 'selected-backup.json.gz'); await unchanged('valid');
+    await close(page, 'Escape');
+    await open(page);
+    await accessibility(page, 'No file chosen');
+    await close(page, 'Close');
+    await unchanged('closed');
+    assert.deepEqual(errors, [], 'No page errors');
+  } catch (error) {
+    t.diagnostic(`${error.name}: ${error.message}`); throw error;
+  } finally {
+    try { await page?.close(); }
+    finally {
+      try { await handle?.close(); }
+      finally { await rm(directory, { recursive: true, force: true }); }
+    }
+  }
+});
