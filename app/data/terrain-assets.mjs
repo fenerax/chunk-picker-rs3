@@ -7,6 +7,17 @@ export const TERRAIN_MANIFEST_PATH = datasetValue("app/data/terrain-assets.mjs#T
 // its manifest last. Selecting a bundle requires this reviewed descriptor.
 export const TERRAIN_BUNDLE = datasetValue("app/data/terrain-assets.mjs#TERRAIN_BUNDLE");
 
+// Optional companion for the existing immutable export. Its source manifest
+// must match exactly; older installations use the overview-page readiness path.
+export const TERRAIN_COARSE_BUNDLE = Object.freeze({
+  sourceManifestSha256: '84e32362fd581ec824438ec380a231b933e28bb3cbf4edd8ee8f7de1589d04a6',
+  coarseOverview: Object.freeze({
+    path: 'terrain.optimized-2026-10-08-38129fc98c5adcd7/coarse-55817e6debd3e524.webp',
+    bytes: 68166, sha256: '55817e6debd3e524ead7dc7ebb1c3d482b769ae1fd89bb324df5fc9b8dc76e0d',
+    width: 376, height: 400, scale: 0.0625,
+  }),
+});
+
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const minX = Math.floor(SURFACE_GRID.startId / SURFACE_GRID.stride);
 const maxY = SURFACE_GRID.startId % SURFACE_GRID.stride;
@@ -68,6 +79,12 @@ export function createTerrainAssetCatalogue(bundle, descriptor) {
   }
   if (pages.size !== Math.ceil(SURFACE_GRID.columns / 4) * Math.ceil(SURFACE_GRID.rows / 4)) {
     throw new TypeError('Incomplete terrain overview coverage.');
+  }
+  const coarse = bundle.coarseOverview;
+  if (coarse) {
+    if (coarse.scale !== 0.0625 || coarse.width !== SURFACE_GRID.columns * 8 || coarse.height !== SURFACE_GRID.rows * 8
+      || coarse.bytes > 512 * 1024 || !hash(coarse.sha256)) throw new TypeError('Invalid terrain coarse overview.');
+    addFile(coarse, `${directory}/coarse-${coarse.sha256.slice(0, 16)}.webp`);
   }
   return { files, directory, manifest: { relative: descriptor.manifestPath, sha256: descriptor.manifestSha256 } };
 }

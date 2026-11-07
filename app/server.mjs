@@ -41,7 +41,7 @@ const trainingCatalogue = await datasetJSON("app/data/training/methods.f2p.json"
 const membersStartBanks = await datasetJSON("app/data/members-start-banks.2026-10-12.v1.json");
 import { createIconCatalogue, ICON_BUNDLES } from './data/icons.mjs';
 import { createInteriorAssetCatalogue } from './data/interior-assets.mjs';
-import { createTerrainAssetCatalogue, validateTerrainDescriptor, TERRAIN_BUNDLE } from './data/terrain-assets.mjs';
+import { createTerrainAssetCatalogue, validateTerrainDescriptor, TERRAIN_BUNDLE, TERRAIN_COARSE_BUNDLE } from './data/terrain-assets.mjs';
 import { buildInteriorMapIndex } from './core/interior-maps.mjs';
 import { loadChunkSectionIndex, buildChunkSectionIndex } from './core/chunk-sections.mjs';
 import { createRepresentation, createResponseCache } from './http-response.mjs';
@@ -185,6 +185,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       const bytes = await readFile(file);
       if (createHash('sha256').update(bytes).digest('hex') !== terrainBundle.manifestSha256) return { available: false, payload: unavailable };
       const bundle = JSON.parse(bytes.toString('utf8'));
+      if (!bundle.coarseOverview && terrainBundle.manifestSha256 === TERRAIN_COARSE_BUNDLE.sourceManifestSha256
+        && await art.file('terrainAssets', TERRAIN_COARSE_BUNDLE.coarseOverview.path)) {
+        bundle.coarseOverview = TERRAIN_COARSE_BUNDLE.coarseOverview;
+      }
       const assets = createTerrainAssetCatalogue(bundle, terrainBundle);
       // A previously installed export must not override a refreshed PNG source.
       const sourceManifest = await readFile(await art.required('mapAssets', 'manifest.json'));

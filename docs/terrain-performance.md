@@ -49,14 +49,32 @@ callbacks check request identity before publishing. Native pages remain bounded;
 other visible regions use overview pages. Explicit open chunk panels retain
 their independent native-image demand. Completed terrain publishes atomically.
 
-After the first visible paint has finished loading/composing, an idle callback
-starts warming the whole-map coarse underlay from the existing overview pages.
-Previously, the mip canvases contained only ocean outside visited regions; a
-first pan to land therefore briefly showed ocean until its requested images
-arrived. Warming the overview fills the existing colour/gray mip chain, so an
-unvisited pan or zoom uses scaled overview terrain while native detail loads.
-There is no second atlas, extra full-size world image, or whole-map native load.
-Until a particular overview response arrives, its terrain cannot be displayed.
+Initial terrain readiness includes a compact whole-map colour underlay at
+**1/16 logical density**, the smallest existing mip level. For the production
+grid this is **376 × 400**, **68,166 WebP body bytes** and **601,600 decoded RGBA
+bytes** added at startup. It preserves recognisable land/coastlines for a blurry
+placeholder; visible overview/native responses provide detail. The renderer
+loads and decodes it at foreground priority before the first terrain paint or
+detail requests, then seeds the existing colour/gray mip chain. An immediate
+pan or zoom therefore shows terrain even when every idle callback and every
+destination response is still held. World/asset replacement repeats readiness
+and cancels the old instance's requests.
+
+The optional compact companion is pinned to the verified overview manifest and
+served through the existing authenticated, integrity-checked terrain route.
+An installation without it composes the same small startup canvas from the
+bounded existing overview pages before becoming ready. A failed compact fetch
+or decode takes that path too. Those temporary decoded pages are discarded;
+detail retains its existing viewport/idle demand. No whole-map native load or
+full-resolution world atlas is added.
+
+Once visible loading/composition settles, idle work warms the regular overview
+previews and nearby native detail. Native page canvases contain fine tiles only;
+unloaded regions remain transparent over the current mip. A cached page can no
+longer cover a newer overview with the ocean it contained when first composed.
+Completed overview/native tiles replace the coarse coastline with certified
+ocean under their alpha pixels, so the blurry placeholder cannot leak through
+finished transparent-water artwork.
 
 Background work uses `requestIdleCallback` (a yielding task where unavailable),
 low image fetch priority, and **one request at a time**, within the shared six.
@@ -69,6 +87,10 @@ foreground retry or download unpriced PNG fallback sources.
 
 Budgets per terrain instance, including reservations for cancelled requests:
 
+- Readiness underlay: **512 KiB** maximum advertised body bytes and one image at
+  the smallest mip dimensions. It adds 601,600 retained decoded bytes on the
+  production grid; the page fallback retains that amount as canvas backing
+  instead. The six-request pool also bounds that fallback's transient decodes.
 - Whole-map overview: **4 MiB** maximum advertised body bytes. The installed
   2,109,044-byte page bundle fits. Unpriced/oversized bundles disable speculation;
   their visible-demand loading still works. Already available previews are reused.
@@ -96,25 +118,38 @@ internet benchmarks. Terrain body bytes exclude headers and unrelated UI data.
 
 | First controlled minute | Before | After |
 | --- | ---: | ---: |
-| Downloaded terrain body bytes | 291,038 | 3,309,152 |
+| Downloaded terrain body bytes | 291,038 | 3,377,318 |
+| Startup compact underlay body bytes | 0 | 68,166 |
+| Added startup decoded underlay bytes | 0 | 601,600 |
 | Reserved background overview bytes | 0 | 1,970,180 |
 | Reserved background native bytes | 0 | 1,047,934 |
-| Peak retained decoded image RGBA bytes | 2,097,152 | 14,155,776 |
-| Peak terrain canvas backing bytes | 119,704,576 | 138,923,008 |
+| Peak retained decoded image RGBA bytes | 2,097,152 | 14,757,376 |
+| Peak terrain canvas backing bytes | 120,753,152 | 147,311,616 |
 | Retained native images at 60 s / cap | 8 / 256 | 54 / 256 |
 | Retained native pages at 60 s / cap | 2 / 16 | 2 / 16 |
-| Initial visible completion, model ms / requests | 268.382 / 2 | 268.382 / 2 |
+| Initial visible detail completion, model ms / requests | 268.382 / 2 | 402.465 / 3 |
 | Native pan completion, model ms / requests | 877.137 / 8 | 877.137 / 8 |
 
+The corrected comparison remeasures both sides with canvas allocations sampled
+before transient staging is released; the previous table missed those peaks.
 Image memory counts unique retained image objects at four bytes per pixel,
 including decoded in-flight images; canvas memory counts mips, previews and
 retained/staged terrain pages. Browser HTTP/decoder/GPU caches are not measured.
+The compact whole-map first paint is ready after 134.083 model ms. Its one
+foreground request adds 134.083 model ms to initial detail completion; subsequent
+native-demand completion is unchanged. These are explicit startup costs of
+guaranteeing terrain coverage before interaction, rather than idle warm-up.
 The native image ceiling remains 64 MiB plus the existing bounded in-flight
-pool. Whole-map preview warming accounts for the canvas increase; the grid's
-per-region preview ceiling is unchanged. A separate real-PNG held-response
-probe verified exact overview-colour pixels on the first unvisited pan frame,
-then exact native-colour pixels after fine delivery. Deterministic regressions
-cover zoom, foreground preemption/promotion, idle exhaustion and byte/cache caps.
+pool and the 601,600-byte startup image. Whole-map preview warming and transient
+page replacement account for the canvas peak increase; the grid's
+per-region preview ceiling is unchanged. A real-PNG held-response regression
+verifies compact-underlay pixels on the first cold pan/zoom frame without
+running idle work or releasing destination responses. It also caches one native
+tile, warms that page's overview from a different view, then returns with new
+native responses held: existing detail stays sharp and unloaded regions show
+the newer overview. Further regressions cover foreground preemption/promotion,
+idle exhaustion, byte/cache caps and page-load listener removal on abort
+(including prior abort) or browser exit.
 
 A complete modern layout does not fetch the unused 8.08 MB legacy world PNG.
 Older/partial manifests and absent local assets still load that fallback. Missing
@@ -157,6 +192,21 @@ npm test
 The exporter refuses an existing content-addressed directory and never changes
 source files. An already installed bundle therefore needs no rebuild. Use a
 separate empty output root for exact reproduction, then compare its descriptor.
+
+To derive the optional compact companion from an existing verified export:
+
+```sh
+python scripts/build-terrain-underlay.py --source .local/map-assets --manifest terrain.optimized-2026-10-08-38129fc98c5adcd7/manifest.json --output .local/terrain-underlay
+```
+
+This checks every overview's size/hash, downsamples it with Pillow BILINEAR,
+composites over the current ocean and verifies lossless decoded pixels. The
+returned descriptor must match `TERRAIN_COARSE_BUNDLE` in
+`app/data/terrain-assets.mjs`. Install only the generated `coarse-*.webp` beside
+that export's existing overview directory; its immutable manifest stays intact.
+Restart the server to refresh catalogue selection. Without the companion, the
+same startup underlay uses the 2,109,044-byte overview page bundle instead of
+68,166 bytes; normal browser caching reuses those pages for later detail.
 
 ## Options assessed
 

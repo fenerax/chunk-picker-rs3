@@ -17,6 +17,8 @@ export const TERRAIN_BACKGROUND_CONCURRENCY = 1;
 export const TERRAIN_OVERVIEW_BYTES = 4 * 1024 * 1024;
 export const TERRAIN_PREFETCH_BYTES = 1024 * 1024;
 export const TERRAIN_PREFETCH_IMAGES = 64;
+export const TERRAIN_COARSE_SCALE = TERRAIN_LEVELS[0];
+export const TERRAIN_COARSE_BYTES = 512 * 1024;
 
 /** Prefer one composed overview through intermediate scale, then native detail. */
 export function terrainLevelForZoom(zoom, dpr = 1) {
@@ -84,6 +86,7 @@ export class MapTerrain {
     this.requestIdle = requestIdle; this.cancelIdle = cancelIdle; this.idleFrame = null;
     this.backgroundImages = new Set(); this.backgroundAttempted = new Set();
     this.backgroundBytes = { overview: 0, native: 0 };
+    this.coarseReady = true; this.coarsePending = new Map(); this.coarseQueue = new Map();
     const current = manifest?.cacheTerrain;
     const baseColour = current?.oceanColour ?? (/^#[0-9a-f]{6}$/i.test(current?.oceanColor ?? '')
       ? [1, 3, 5].map(index => parseInt(current.oceanColor.slice(index, index + 2), 16)) : null);
@@ -137,11 +140,21 @@ export class MapTerrain {
         for (const region of regions) this.overviewByTile.set(region, key);
       }
     }
-    // Reuse the installed overview pages; no second atlas or native whole-map
-    // download. Unknown sizes disable speculation rather than guessing a budget.
+    // Bound both startup page fallback and speculation by advertised body bytes.
     this.backgroundAvailable = this.modernBase && this.overviewPages.size > 0
       && [...this.overviewPages.values()].every(page => Number.isSafeInteger(page.bytes) && page.bytes > 0)
       && [...this.overviewPages.values()].reduce((sum, page) => sum + page.bytes, 0) <= TERRAIN_OVERVIEW_BYTES;
+    const coarse = optimized?.coarseOverview;
+    if (this.backgroundAvailable) {
+      this.coarseReady = false;
+      if (coarse?.scale === TERRAIN_COARSE_SCALE && coarse.width === WIDTH * TERRAIN_COARSE_SCALE
+        && coarse.height === HEIGHT * TERRAIN_COARSE_SCALE && Number.isSafeInteger(coarse.bytes)
+        && coarse.bytes > 0 && coarse.bytes <= TERRAIN_COARSE_BYTES
+        && coarse.path?.startsWith(`${optimized.directory}/coarse-`)
+        && /^coarse-[a-f0-9]{16}\.webp$/.test(coarse.path.slice(optimized.directory.length + 1))) {
+        this.coarseQueue.set('compact', coarse);
+      } else this.queueCoarsePages();
+    }
     this.oceanKeys = new Set();
     const ocean = manifest?.oceanFallback, cache = manifest?.cacheTerrain;
     if (!this.modernBase && ocean?.version === 1 && ocean.mapId === 28 && ocean.plane === 0
@@ -165,7 +178,40 @@ export class MapTerrain {
     else if (this.modernBase) { this.waitForFallback = false; this.composeBase(); }
   }
 
-  get baseReady() { return !!this.fallbackImage || this.modernBase; }
+  get baseReady() { return this.coarseReady && (!!this.fallbackImage || this.modernBase); }
+
+  queueCoarsePages() {
+    this.coarseCanvas = this.canvasFactory(WIDTH * TERRAIN_COARSE_SCALE, HEIGHT * TERRAIN_COARSE_SCALE);
+    if (!this.coarseCanvas) { this.coarseReady = true; return; }
+    const ctx = this.coarseCanvas.getContext('2d'); ctx.fillStyle = this.oceanColour;
+    ctx.fillRect(0, 0, this.coarseCanvas.width, this.coarseCanvas.height);
+    this.coarseQueue = new Map(this.overviewPages);
+  }
+
+  pumpCoarse() {
+    while (!this.disposed && this.coarseQueue.size && this.coarsePending.size < this.concurrency) {
+      const [key, source] = this.coarseQueue.entries().next().value; this.coarseQueue.delete(key);
+      const image = this.imageFactory(); this.coarsePending.set(key, image);
+      image.decoding = 'async'; image.fetchPriority = 'high';
+      const finish = ready => {
+        if (this.disposed || this.coarsePending.get(key) !== image) return;
+        image.onload = image.onerror = null; this.coarsePending.delete(key);
+        ready &&= image.naturalWidth === (key === 'compact' ? source.width : source.pixelWidth)
+          && image.naturalHeight === (key === 'compact' ? source.height : source.pixelHeight);
+        if (key === 'compact') {
+          if (ready) this.coarseImage = image;
+          else this.queueCoarsePages();
+        } else if (ready) this.coarseCanvas.getContext('2d').drawImage(image,
+          source.left * TERRAIN_COARSE_SCALE, source.top * TERRAIN_COARSE_SCALE,
+          PAGE * TERRAIN_COARSE_SCALE, PAGE * TERRAIN_COARSE_SCALE);
+        if (this.coarseQueue.size || this.coarsePending.size) { this.pumpCoarse(); return; }
+        this.coarseImage ??= this.coarseCanvas;
+        this.coarseReady = true; this.composeBase(); this.pump(); this.prepareView();
+      };
+      image.onload = () => typeof image.decode === 'function' ? image.decode().then(() => finish(true), () => finish(false)) : finish(true);
+      image.onerror = () => finish(false); image.src = `/assets/map/${source.path}`;
+    }
+  }
 
   setFallback(image) {
     if (this.disposed || !image || image === this.fallbackImage) return;
@@ -360,6 +406,7 @@ export class MapTerrain {
   }
 
   pump() {
+    if (!this.coarseReady) { this.pumpCoarse(); return; }
     while (!this.disposed && this.pending.size + this.overviewPending.size < this.concurrency
       && (this.overviewQueue.size || this.queue.size)) {
       if (this.overviewQueue.size && (!this.queue.size
@@ -451,7 +498,7 @@ export class MapTerrain {
   }
 
   scheduleBackground() {
-    if (this.disposed || !this.backgroundAvailable || !this.viewBounds || this.idleFrame !== null
+    if (this.disposed || !this.coarseReady || !this.backgroundAvailable || !this.viewBounds || this.idleFrame !== null
       || this.backgroundImages.size >= TERRAIN_BACKGROUND_CONCURRENCY || !this.viewLoaded()
       || this.pending.size || this.overviewPending.size || this.queue.size || this.overviewQueue.size
       || this.pageQueue.size || this.previewQueue.size || this.pageWorkScheduled || this.unpublishedKeys.size) return;
@@ -526,6 +573,10 @@ export class MapTerrain {
       for (const [canvas, filter] of [[level.colour, 'none'], [level.gray, 'grayscale(0.6)']]) {
         const ctx = canvas.getContext('2d');
         ctx.filter = filter;
+        if (this.modernBase) {
+          ctx.fillStyle = this.oceanColour;
+          ctx.fillRect(left * scale, top * scale, CELL * scale, CELL * scale);
+        }
         // Each preview is painted once. The fallback was already composed by
         // setFallback; leave it underneath the tile's transparent pixels.
         ctx.drawImage(image, left * scale, top * scale, CELL * scale, CELL * scale); ctx.filter = 'none';
@@ -684,8 +735,11 @@ export class MapTerrain {
     ctx.drawImage(base, left * density, top * density, pixels, pixels, 0, 0, pixels, pixels);
     for (const tileKey of this.unpublishedKeys) if (this.pageKey(tileKey) === key) {
       const [x, y] = tileKey.split(',').map(Number);
-      ctx.drawImage(this.previews.get(tileKey), ((x - MIN_REGION_X) * CELL - left) * density,
-        ((MAX_REGION_Y - y) * CELL - top) * density, CELL * density, CELL * density);
+      const dx = ((x - MIN_REGION_X) * CELL - left) * density, dy = ((MAX_REGION_Y - y) * CELL - top) * density;
+      if (this.modernBase) {
+        ctx.fillStyle = this.oceanColour; ctx.fillRect(dx, dy, CELL * density, CELL * density);
+      }
+      ctx.drawImage(this.previews.get(tileKey), dx, dy, CELL * density, CELL * density);
     }
     const grayContext = gray.getContext('2d'); grayContext.filter = 'grayscale(0.6)';
     grayContext.drawImage(colour, 0, 0); grayContext.filter = 'none';
@@ -698,15 +752,9 @@ export class MapTerrain {
     if (!colour || !gray) return null;
     const [column, row] = key.split(',').map(Number), left = column * PAGE, top = row * PAGE;
     const page = { colour, gray, left, top, version: this.pageVersions.get(key) ?? 0, nativeKeys: new Set() };
-    const colourContext = colour.getContext('2d');
-    this.paintLegacyRegion(colourContext, left, top, PAGE, PAGE, 0, 0, PAGE * NATIVE_DENSITY, PAGE * NATIVE_DENSITY);
-    for (let row = 0; row < PAGE_CELLS; row++) for (let column = 0; column < PAGE_CELLS; column++) {
-      const preview = this.previews.get(`${MIN_REGION_X + column + left / CELL},${MAX_REGION_Y - row - top / CELL}`);
-      if (preview) colourContext.drawImage(preview, column * CELL * NATIVE_DENSITY, row * CELL * NATIVE_DENSITY,
-        CELL * NATIVE_DENSITY, CELL * NATIVE_DENSITY);
-    }
-    const grayContext = gray.getContext('2d'); grayContext.filter = 'grayscale(0.6)';
-    grayContext.drawImage(colour, 0, 0); grayContext.filter = 'none';
+    // Regions without retained native pixels stay transparent. The current mip
+    // already supplies their underlay, including previews warmed after this
+    // page was cached. Never paint stale ocean over that newer terrain.
     for (const [tileKey, image] of this.images) if (this.pageKey(tileKey) === key) {
       this.paintNativeTile(tileKey, image, page); page.nativeKeys.add(tileKey);
     }
@@ -722,19 +770,24 @@ export class MapTerrain {
     const dx = (left - page.left) * NATIVE_DENSITY, dy = (top - page.top) * NATIVE_DENSITY;
     const colour = page.colour.getContext('2d'), gray = page.gray.getContext('2d'), pixels = CELL * NATIVE_DENSITY;
     colour.clearRect(dx, dy, pixels, pixels);
-    this.paintLegacyRegion(colour, left, top, CELL, CELL, dx, dy, pixels, pixels);
+    // A completed tile's alpha is certified water, not missing fine terrain.
+    // Do not leave a blurred coarse coastline underneath its transparent pixels.
+    this.paintLegacyRegion(colour, left, top, CELL, CELL, dx, dy, pixels, pixels, false);
     colour.drawImage(image, dx, dy, pixels, pixels);
     gray.clearRect(dx, dy, pixels, pixels); gray.filter = 'grayscale(0.6)';
     gray.drawImage(page.colour, dx, dy, pixels, pixels, dx, dy, pixels, pixels); gray.filter = 'none';
   }
 
-  paintLegacyRegion(ctx, left, top, width, height, dx, dy, dw, dh) {
+  paintLegacyRegion(ctx, left, top, width, height, dx, dy, dw, dh, coarse = true) {
     // Exact map-28 pastes are the display authority. The baked image predates
     // those transforms (notably Anachronia), so its missing/alpha pixels would
     // reintroduce shifted islands and a second water colour at every scale.
     if (this.modernBase) {
       ctx.fillStyle = this.oceanColour;
       ctx.fillRect(dx, dy, dw, dh);
+      if (coarse && this.coarseImage && this.coarseReady) ctx.drawImage(this.coarseImage,
+        left * TERRAIN_COARSE_SCALE, top * TERRAIN_COARSE_SCALE, width * TERRAIN_COARSE_SCALE, height * TERRAIN_COARSE_SCALE,
+        dx, dy, dw, dh);
       return;
     }
     if (!this.fallbackImage) return;
@@ -832,6 +885,10 @@ export class MapTerrain {
   dispose() {
     this.disposed = true;
     this.cancelBackground();
+    for (const [key, image] of this.coarsePending) this.cancelLoad(this.coarsePending, key, image);
+    this.coarseQueue.clear(); this.coarseImage = null;
+    if (this.coarseCanvas) this.coarseCanvas.width = this.coarseCanvas.height = 0;
+    this.coarseCanvas = null;
     this.chunkListeners.clear();
     this.chunkImages.clear();
     if (this.updateFrame !== null) this.cancelFrame(this.updateFrame);

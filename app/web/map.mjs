@@ -869,6 +869,8 @@ export class ChunkMap {
       if (Math.max(1, window.devicePixelRatio || 1) !== (this.deviceDpr ?? this.dpr)) this.resize();
       this.applyPointer();
       if (this.dirty.base) this.terrain?.setView(this.visibleBounds(), this.zoom, this.dpr);
+      if (this.terrain?.coarseReady === false) { this.stage.dataset.mapTerrain = 'loading'; return; }
+      this.stage.dataset.mapTerrain = 'ready';
       if (this.dirty.base) this.drawBase();
       const probe = globalThis.__rs3Perf;
       if (this.dirty.base && probe?.enabled && probe.events.length < 1000) {

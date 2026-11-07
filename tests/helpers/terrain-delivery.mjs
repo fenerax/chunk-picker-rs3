@@ -6,22 +6,41 @@ import { crc32, deflateSync } from 'node:zlib';
 import { openAcknowledgedChrome, removeScratch } from './acknowledged-chrome.mjs';
 import { findChrome } from '../../scripts/ci/gallery-support.mjs';
 
-export function solidTerrainPng(rgb) {
+export function solidTerrainPng(rgb, width = 256, height = 256) {
   const chunk = (type, bytes) => {
     const name = Buffer.from(type), size = Buffer.alloc(4), check = Buffer.alloc(4);
     size.writeUInt32BE(bytes.length); check.writeUInt32BE(crc32(Buffer.concat([name, bytes])));
     return Buffer.concat([size, name, bytes, check]);
   };
-  const header = Buffer.alloc(13); header.writeUInt32BE(256); header.writeUInt32BE(256, 4); header[8] = 8; header[9] = 2;
-  const pixels = Buffer.alloc(256 * (256 * 3 + 1));
-  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) for (let c = 0; c < 3; c++) pixels[y * 769 + 1 + x * 3 + c] = rgb[c];
+  const header = Buffer.alloc(13); header.writeUInt32BE(width); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2;
+  const stride = width * 3 + 1, pixels = Buffer.alloc(height * stride);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) for (let c = 0; c < 3; c++) pixels[y * stride + 1 + x * 3 + c] = rgb[c];
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', header), chunk('IDAT', deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+export function waitForTerrainPageLoad(page, { signal, closed }) {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = error => {
+      if (settled) return; settled = true;
+      page.listeners.delete(listener); signal.removeEventListener('abort', abort);
+      error ? reject(error) : resolve();
+    };
+    const abort = () => finish(signal.reason ?? Error('Terrain page aborted'));
+    const listener = ({ method }) => { if (method === 'Page.loadEventFired') finish(); };
+    page.listeners.add(listener); signal.addEventListener('abort', abort, { once: true });
+    closed.then(() => finish(Error('Owned browser closed before page readiness')), error => finish(error));
+    if (signal.aborted) abort();
+  });
 }
 
 // All image requests and decodes are acknowledged. Only the caller's one outer
 // file guard can abort; network delivery, idle callbacks and frames have no timer.
 export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'), payload, manifest, grid,
-  imageBytes = route => solidTerrainPng(route.includes('/overview/') ? [17,187,85] : [221,51,34]) }) {
+  imageBytes = route => route.includes('/coarse-') ? solidTerrainPng([40,90,160], grid.columns*8, grid.rows*8)
+    : solidTerrainPng(route.includes('/overview/') ? [17,187,85] : [221,51,34]) }) {
+  signal.throwIfAborted();
   const directory = await mkdtemp(path.join(tmpdir(), 'terrain-delivery-'));
   const server = createServer(async (request, response) => {
     try {
@@ -38,11 +57,13 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
   let browser, page;
   const requests = [], events = [], waiters = new Set(), errors = [];
   const emit = event => { events.push(event); for (const listener of [...waiters]) listener(event); };
+  let closedError;
   const event = matches => {
+    if (signal.aborted || closedError) return Promise.reject(signal.reason ?? closedError);
     const found = events.find(matches); if (found) return Promise.resolve(found);
     return new Promise((resolve, reject) => {
-      const abort = () => { waiters.delete(listener); reject(Error('Outer terrain browser guard')); };
-      const listener = row => { if (matches(row)) { waiters.delete(listener); signal.removeEventListener('abort', abort); resolve(row); } };
+      const abort = () => { waiters.delete(listener); signal.removeEventListener('abort', abort); reject(signal.reason ?? closedError); };
+      const listener = row => { if (closedError) abort(); else if (matches(row)) { waiters.delete(listener); signal.removeEventListener('abort', abort); resolve(row); } };
       waiters.add(listener); signal.addEventListener('abort', abort, { once: true });
     });
   };
@@ -52,7 +73,7 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
     return result.result.value;
   };
   const close = async () => {
-    try { if (page && !signal.aborted) await page.close(); await browser?.close(); }
+    try { try { if (page && !signal.aborted) await page.close(); } finally { await browser?.close(); } }
     finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await removeScratch(directory, { signal }); }
   };
   try {
@@ -63,6 +84,7 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
       catch (error) { if (error.code !== 'EADDRINUSE') throw error; }
     }
     browser = await openAcknowledgedChrome(await findChrome(), path.join(directory, 'chrome'), { signal });
+    browser.exited.then(() => { closedError = Error('Owned terrain browser closed'); emit({ type: 'closed' }); });
     page = await browser.page({ width: 512, height: 256, mobile: false });
     page.listeners.add(({ method, params }) => {
       if (method === 'Fetch.requestPaused') { const row = { type: 'request', url: params.request.url, requestId: params.requestId }; requests.push(row); emit(row); }
@@ -74,8 +96,8 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
     await page.send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' });
     await page.send('Runtime.addBinding', { name: 'terrainEvent' });
     await page.send('Fetch.enable', { patterns: [{ urlPattern: '*/assets/*', requestStage: 'Request' }] });
-    const loaded = new Promise(resolve => { const listener = ({ method }) => { if (method === 'Page.loadEventFired') { page.listeners.delete(listener); resolve(); } }; page.listeners.add(listener); });
-    await page.send('Page.navigate', { url: origin }); await loaded;
+    const loaded = waitForTerrainPageLoad(page, { signal, closed: browser.exited });
+    await Promise.all([page.send('Page.navigate', { url: origin }), loaded]);
     await evaluate(`(async () => {
       let clock=0, sequence=0; const frames=new Map(), idle=new Map(), decodes=new Map();
       window.requestAnimationFrame=callback=>{frames.set(++sequence,callback);return sequence;}; window.cancelAnimationFrame=id=>frames.delete(id);
@@ -93,19 +115,25 @@ export async function openTerrainDelivery({ signal, appRoot = path.resolve('app'
       map.setModel({world:{chunks:new Map(chunks),surface:new Set(chunks.map(([id])=>id))},state:{revision:0,members:[{id:'one',name:'Player 1',unlocked:chunks.map(([id])=>id),selected:[],pendingRoll:[]}]},memberId:'one',preferences:{ids:false,highvis:true},pool:{eligible:[],partnerConnections:{byChunk:{}}}});
       map.setMapAssets(manifest,{pins:[]});
       const drain=()=>{let count=0;while(frames.size){if(++count>1000)throw Error('Unbounded terrain frames');const [id,cb]=frames.entries().next().value;frames.delete(id);cb(clock);}return count;};
-      const snap=()=>{const t=map.terrain, images=new Set([...t.images.values(),...t.pending.values(),...t.overviewPending.values(),...t.chunkImages.values()]);
-        const canvases=new Set([...t.previews.values(),...t.lockedImages.values(),...[...t.levels.values(),...t.pages.values(),...t.stagedPages.values(),...t.stagedPreviews.values()].flatMap(p=>[p.colour,p.gray])]);
+      let peakImageBytes=0,peakCanvasBytes=0;const allocatedCanvases=new Set();
+      const snap=()=>{const t=map.terrain, images=new Set([...t.images.values(),...t.pending.values(),...t.overviewPending.values(),...t.chunkImages.values(),...(t.coarsePending?.values()??[]),...(t.coarseImage?.naturalWidth?[t.coarseImage]:[])]);
+        const canvases=new Set([...allocatedCanvases,...t.previews.values(),...t.lockedImages.values(),...(t.coarseCanvas?[t.coarseCanvas]:[]),...[...t.levels.values(),...t.pages.values(),...t.stagedPages.values(),...t.stagedPreviews.values()].flatMap(p=>[p.colour,p.gray])]);
+        const rgbaImageBytes=[...images].reduce((sum,image)=>sum+image.naturalWidth*image.naturalHeight*4,0),canvasBytes=[...canvases].reduce((sum,canvas)=>sum+canvas.width*canvas.height*4,0);
+        peakImageBytes=Math.max(peakImageBytes,rgbaImageBytes);peakCanvasBytes=Math.max(peakCanvasBytes,canvasBytes);
         return {clock,visible:[...t.visibleKeys],committed:[...t.committedKeys],nativeImages:t.images.size,nativePages:t.pages.size,pageLimit:t.pageLimit,cacheLimit:t.cacheLimit,
-          pending:[...t.pending].map(([key,image])=>({key,url:image.src,background:t.backgroundImages?.has(image)??false})).concat([...t.overviewPending].map(([key,image])=>({key,url:image.src,background:t.backgroundImages?.has(image)??false}))),
-          ready:t.viewLoaded()&&!t.pageQueue.size&&!t.previewQueue.size&&!t.pageWorkScheduled,background:t.backgroundImages?.size??0,idle:idle.size,
-          bytes:t.backgroundBytes??{},rgbaImageBytes:[...images].reduce((sum,image)=>sum+image.naturalWidth*image.naturalHeight*4,0),canvasBytes:[...canvases].reduce((sum,canvas)=>sum+canvas.width*canvas.height*4,0)};};
+          pages:[...t.pages].map(([key,page])=>({key,version:page.version,currentVersion:t.pageVersions.get(key),nativeKeys:[...page.nativeKeys]})),
+          pending:[...t.pending].map(([key,image])=>({key,url:image.src,background:t.backgroundImages?.has(image)??false})).concat([...t.overviewPending].map(([key,image])=>({key,url:image.src,background:t.backgroundImages?.has(image)??false})),[...(t.coarsePending??[])].map(([key,image])=>({key,url:image.src,background:false}))),
+          coarseReady:t.coarseReady??true,painted:map.stage.dataset.mapTerrain,ready:t.coarseReady!==false&&t.viewLoaded()&&!t.pageQueue.size&&!t.previewQueue.size&&!t.pageWorkScheduled,background:t.backgroundImages?.size??0,idle:idle.size,
+          bytes:t.backgroundBytes??{},rgbaImageBytes,canvasBytes,peakImageBytes,peakCanvasBytes};};
+      const allocate=map.terrain.canvasFactory;
+      map.terrain.canvasFactory=(...args)=>{const canvas=allocate(...args);if(canvas)allocatedCanvases.add(canvas);snap();return canvas;};
       window.terrainControl={snap,drain(){drain();return snap();},view(col,row,zoom){map.zoom=zoom;map.offset={x:-col*128*zoom,y:-row*128*zoom};map.invalidate(true,true,true);drain();return snap();},
         idle(){const first=idle.entries().next().value;if(first){const [id,callback]=first;idle.delete(id);callback({timeRemaining:()=>10});}drain();return snap();},
         release(id){const resolve=decodes.get(id);if(!resolve)throw Error('Missing decode');decodes.delete(id);resolve();},
         time(value){clock=value;},pixel(col,row){const x=Math.floor((map.offset.x+(col+.4)*128*map.zoom)*map.dpr),y=Math.floor((map.offset.y+(row+.4)*128*map.zoom)*map.dpr);return [...document.getElementById('state').getContext('2d').getImageData(x,y,1,1).data];},dispose(){map.dispose();}};
     })()`);
     let deliveredBytes = 0, peakImageBytes = 0, peakCanvasBytes = 0;
-    const sample = snapshot => { peakImageBytes = Math.max(peakImageBytes, snapshot.rgbaImageBytes); peakCanvasBytes = Math.max(peakCanvasBytes, snapshot.canvasBytes); return snapshot; };
+    const sample = snapshot => { peakImageBytes = Math.max(peakImageBytes, snapshot.peakImageBytes); peakCanvasBytes = Math.max(peakCanvasBytes, snapshot.peakCanvasBytes); return snapshot; };
     const snapshot = async () => sample(await evaluate('terrainControl.drain()'));
     const deliver = async pending => {
       const request = await event(row => row.type === 'request' && row.url === pending.url && !row.used); request.used = true;
@@ -133,6 +161,8 @@ export function terrainFixture(grid) {
   const nativeBytes=solidTerrainPng([221,51,34]).length,overviewBytes=solidTerrainPng([17,187,85]).length;
   for(let y=0;y<rows;y++)for(let x=0;x<columns;x++)tiles.push({x:minX+x,y:maxY-y,width:256,height:256,status:'rendered',bytes:nativeBytes,path:cache+'/0_'+(minX+x)+'_'+(maxY-y)+'.png'});
   return {schemaVersion:1,categories:[],terrain:{mapId:28,plane:0,zoom:2,tiles:[]},cacheTerrain:{mapId:28,plane:0,zoom:2,iconFree:true,layoutComplete:true,transparentWater:true,oceanColour:[96,118,154],directory:cache,tiles},
-    optimizedTerrain:{schemaVersion:1,mapId:28,plane:0,tileSize:256,directory,tiles:tiles.map(t=>({...t,path:directory+'/native/0_'+t.x+'_'+t.y+'.webp'})),
+    optimizedTerrain:{schemaVersion:1,mapId:28,plane:0,tileSize:256,directory,
+      coarseOverview:{path:directory+'/coarse-0123456789abcdef.webp',scale:.0625,width:grid.columns*8,height:grid.rows*8,bytes:solidTerrainPng([40,90,160],grid.columns*8,grid.rows*8).length},
+      tiles:tiles.map(t=>({...t,path:directory+'/native/0_'+t.x+'_'+t.y+'.webp'})),
       pages:Array.from({length:Math.ceil(rows/4)},(_,y)=>Array.from({length:Math.ceil(columns/4)},(_,x)=>({x,y,left:x*512,top:y*512,width:512,height:512,pixelWidth:256,pixelHeight:256,bytes:overviewBytes,path:directory+'/overview/'+x+'_'+y+'.webp',regions:tiles.filter(t=>Math.floor((t.x-minX)/4)===x&&Math.floor((maxY-t.y)/4)===y).map(({x,y})=>({x,y}))}))).flat()}};
 }

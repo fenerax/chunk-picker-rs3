@@ -15,7 +15,7 @@ const canvasFactory = (width, height) => {
   return { width, height, calls, getContext: () => ctx };
 };
 function fixture(t, { columns = defaultColumns, concurrency = 1, optimized = true, cacheLimit = 256,
-  background = false, tileBytes = 1000, pageBytes = 100 } = {}) {
+  background = false, tileBytes = 1000, pageBytes = 100, primeCoarse = true } = {}) {
   const regions = Array.from({ length: columns }, (_, index) => ({ x: regionX + index, y: regionY }));
   const manifest = { schemaVersion: 1, terrain: { mapId: 28, zoom: 2, plane: 0, tiles: [] },
     cacheTerrain: { mapId: 28, zoom: 2, plane: 0, directory: 'terrain.cache-test/28/2',
@@ -26,6 +26,10 @@ function fixture(t, { columns = defaultColumns, concurrency = 1, optimized = tru
     pages: Array.from({ length: Math.ceil(columns / 4) }, (_, x) => ({ x, y: 0,
       left: x * 512, top: 0, width: 512, height: 512, pixelWidth: 256, pixelHeight: 256,
       ...(background ? { bytes: pageBytes } : {}), path: `${directory}/overview/${x}_0.webp`, regions: regions.slice(x * 4, x * 4 + 4) })) };
+  if (background && optimized) manifest.optimizedTerrain.coarseOverview = {
+    path: `${directory}/coarse-0123456789abcdef.webp`, bytes: 100,
+    width: SURFACE_GRID.columns * 8, height: SURFACE_GRID.rows * 8, scale: 0.0625,
+  };
   const idle = new Map(); let idleId = 0;
   const images = [], terrain = new MapTerrain(manifest, { concurrency, cacheLimit, canvasFactory,
     requestIdle: callback => { idle.set(++idleId, callback); return idleId; }, cancelIdle: id => idle.delete(id),
@@ -33,6 +37,14 @@ function fixture(t, { columns = defaultColumns, concurrency = 1, optimized = tru
       removeAttribute(name) { assert.equal(name, 'src'); this.cancelled = true; this.src = ''; } };
     images.push(image); return image; } });
   t.after(() => terrain.dispose());
+  // Existing viewport cases begin at startup readiness. Separate cases below
+  // hold this foreground dependency and verify both readiness delivery paths.
+  if (primeCoarse && !terrain.coarseReady) {
+    terrain.pumpCoarse();
+    images[0].naturalWidth = SURFACE_GRID.columns * 8;
+    images[0].naturalHeight = SURFACE_GRID.rows * 8;
+    images[0].onload(); images.length = 0;
+  }
   return { terrain, images, manifest, idle, stepIdle(timeRemaining = 10) {
     const [id, callback] = idle.entries().next().value ?? [];
     assert.ok(callback, 'An idle callback was requested'); idle.delete(id);
@@ -40,6 +52,37 @@ function fixture(t, { columns = defaultColumns, concurrency = 1, optimized = tru
   } };
 }
 const view = (left, right) => ({ left, right, top: 0, bottom: 128 });
+
+test('compact whole-map underlay is foreground readiness, including a zoom during decode', async t => {
+  const { terrain, images, idle } = fixture(t, { background: true, primeCoarse: false });
+  terrain.setView(view(0, 128), 0.5);
+  assert.equal(terrain.baseReady, false); assert.equal(idle.size, 0);
+  assert.equal(images.length, 1); assert.ok(images[0].src.includes('/coarse-'));
+  let release;
+  images[0].decode = () => new Promise(resolve => { release = resolve; });
+  images[0].naturalWidth = SURFACE_GRID.columns * 8; images[0].naturalHeight = SURFACE_GRID.rows * 8;
+  images[0].onload();
+  terrain.setView(view(128, 256), 4);
+  assert.equal(images.length, 1, 'No detail or idle work competes with the readiness image');
+  release(); await Promise.resolve();
+  assert.equal(terrain.baseReady, true); assert.equal(images.length, 2);
+  assert.ok(images[1].src.includes(`/native/0_${regionX+1}_${regionY}.webp`));
+  assert.ok(terrain.levels.get(0.5).colour.calls.some(args => args[0] === images[0]));
+});
+
+test('missing compact asset fills a small startup canvas from overview pages before detail', t => {
+  const { terrain, images } = fixture(t, { background: true, primeCoarse: false });
+  terrain.setView(view(0, 128), 4); images[0].onerror();
+  const pages = terrain.overviewPages.size;
+  for (let index=1;index<=pages;index++) {
+    assert.equal(terrain.baseReady, false); assert.ok(images[index].src.includes('/overview/'));
+    images[index].onload();
+  }
+  assert.equal(terrain.baseReady, true);
+  assert.equal(terrain.coarseCanvas.width * terrain.coarseCanvas.height * 4, SURFACE_GRID.columns * SURFACE_GRID.rows * 256);
+  assert.equal(terrain.coarseCanvas.calls.length, pages);
+  assert.ok(images.at(-1).src.includes('/native/'));
+});
 
 test('overview requests visible pages centre-first with one bounded shared load pool', t => {
   const { terrain, images } = fixture(t);

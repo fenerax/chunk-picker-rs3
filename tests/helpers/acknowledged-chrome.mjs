@@ -123,7 +123,7 @@ export async function openAcknowledgedChrome(executable, profile, { signal, repo
     });
     connection = acknowledgedConnection(socket, { signal });
     phase = 'browser journeys';
-    return { diagnostics,
+    return { diagnostics, exited,
       async page({ width, height, mobile }) {
         const { browserContextId } = await connection.send('Target.createBrowserContext');
         contexts++;
