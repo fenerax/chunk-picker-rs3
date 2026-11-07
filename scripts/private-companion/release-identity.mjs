@@ -5,6 +5,12 @@ import { lstat, open, readdir, mkdir, rename, unlink } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// A process adapter can supply synthetic executable bytes without replacing
+// environment, argument, policy or receipt decisions.
+const executableLayers = new AsyncLocalStorage();
+export const withExecutableIdentityLayer = (capture, action) => executableLayers.run(capture, action);
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const hex = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -139,6 +145,7 @@ export function sanitizeExecutionEnvironment(inherited = process.env, { override
 // Windows system executables may be hardlinked to WinSxS. This exception is
 // restricted to execution binaries; authored inputs and receipts stay single-link.
 async function captureExecutableIdentity(components) {
+  if (executableLayers.getStore()) return executableLayers.getStore()(components);
   const records = [];
   for (const { name, file } of components) records.push(await safeRead(async () => {
     if (typeof file !== 'string' || !path.isAbsolute(file)) fail('Identity executable path is invalid.');

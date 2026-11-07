@@ -143,7 +143,9 @@ async function fixture(t) {
   // Synthetic core/intake contract, as above. Actual prepare-time drift refusal
   // and its ordering are covered independently in release-freeze.test.mjs.
   await put(path.join(kit,'tools/check-private-drift.mjs'),'export const assertPrivateDriftForStaging=async()=>{};');
-  await put(path.join(kit, 'kit.json'), { schemaVersion: 2, concurrency: 6, browser: { path: process.execPath } });
+  const syntheticBinary = path.join(root, 'synthetic-executable');
+  await put(syntheticBinary, 'synthetic executable identity bytes');
+  await put(path.join(kit, 'kit.json'), { schemaVersion: 2, concurrency: 6, browser: { path: syntheticBinary } });
   // Only the practice guard boundary is stubbed; its real acceptance checks have
   // separate audit fixtures. The lifecycle test still uses the actual gate orchestrator.
   await put(path.join(kit,'tools/release-practice.mjs'),'export const assertPracticeAcceptance=async()=>{};');
@@ -183,7 +185,7 @@ async function fixture(t) {
   await put(path.join(kit, 'operator/with-heavy.ps1'), heavy.replace("Join-Path $PSScriptRoot 'fixture-owner'", "Join-Path (Split-Path $PSScriptRoot -Parent) '.local/fixture-owner'"));
   await put(path.join(kit, 'operator/with-light.ps1'), 'param([Parameter(Position=0)][string]$Command,[Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest)\n& $Command @Rest\nexit $LASTEXITCODE');
   const input = path.join(root, 'request.json'); await put(input, { releaseId: 'fixture', changelog: { date: '2026-01-02', title: 'New entry', items: ['New item'] }, roadmap: { id: 'A1', note: 'New note' } });
-  const f = { root, kit, repo, revision, previous, input, cli: path.join(kit, 'tools/release-v2.mjs'), release: path.join(kit, 'releases/fixture') };
+  const f = { root, kit, repo, revision, previous, input, syntheticBinary, cli: path.join(kit, 'tools/release-v2.mjs'), release: path.join(kit, 'releases/fixture') };
   await pipelineApi(f); return f;
 }
 test('prepare exports exact commit; one inherited owner gates both fixture runners; exact reuse and mutation refusal', {}, async t => {
@@ -280,15 +282,19 @@ else process.exitCode=1;`);
 });
 test('bounded text assembly retains exact private inputs without copying pack payloads', {}, async t=>{
   const f=await fixture(t),checker=path.join(f.kit,'tools/companion-check.mjs');
+  await put(path.join(f.repo,'app/data/changelog.json'),'{"synthetic":"old core text"}\n');
   await cp(path.join(scripts,'companion-check.mjs'),checker);
   await cp(path.join(scripts,'core-overlay-guard.mjs'),path.join(f.kit,'tools/core-overlay-guard.mjs'));
   const inventory=await hashTree(path.join(f.kit,'checks/private-source'));
   const receipt=path.join(f.kit,'releases/text-receipt.json');
-  await put(receipt,{schemaVersion:1,coreRoot:f.repo,privateFiles:inventory.files.map(({path:filename,sha256})=>({path:filename,sha256})),packs:await json(path.join(f.kit,'packs/selection.json'))});
+  const textSource=path.join(f.kit,'releases/exact-text.json'), textBytes='{"synthetic":"exact retained text"}\n';
+  await put(textSource,textBytes);
+  await put(receipt,{schemaVersion:1,coreRoot:f.repo,privateFiles:inventory.files.map(({path:filename,sha256})=>({path:filename,sha256})),packs:await json(path.join(f.kit,'packs/selection.json')),textOverrides:[{path:'app/data/changelog.json',source:textSource,sha256:hash(textBytes)}]});
   const output=path.join(f.kit,'.local/text-assembly');
   const result=await invoke(checker,['--core',f.repo,'--receipt',receipt,'--lane','prepare-text','--output',output]);
   assert.equal(result.code,0,result.output);
   assert.equal(await readFile(path.join(output,'scripts/secret-scan/scan.mjs'),'utf8'),await readFile(path.join(f.kit,'checks/private-source/scripts/secret-scan/scan.mjs'),'utf8'));
+  assert.equal(await readFile(path.join(output,'app/data/changelog.json'),'utf8'),textBytes);
   assert.ok(!(await readdir(output)).includes('packs'));
   assert.ok(!(await readdir(output)).includes('.local'));
 });
@@ -333,7 +339,7 @@ test('a new kit prepares a changed-pack release with its own packs, bidirectiona
     await cp(path.join(old.kit,'operator/with-'+lane+'.ps1'),wrapper);
     locks[lane]={path:wrapper,sha256:hash(await readFile(wrapper))};
   }
-  await put(path.join(old.kit,'kit.json'),{schemaVersion:2,locks,concurrency:6,browser:{path:process.execPath}});
+  await put(path.join(old.kit,'kit.json'),{schemaVersion:2,locks,concurrency:6,browser:{path:old.syntheticBinary}});
   const oldApi=await pipelineApi(old);
   await oldApi.prepare({kit:old.kit,repo:old.repo,ref:revision,base:revision,'previous-config':old.previous,input:old.input});
   const oldOptions=await oldApi.parseArgs(['--kit',old.kit,'--release',old.release,'--gates-only']);

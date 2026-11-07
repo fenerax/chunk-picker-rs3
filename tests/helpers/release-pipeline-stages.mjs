@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir, cp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, cp, rm, access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
@@ -15,8 +15,11 @@ async function environment(env, action) {
 export async function pipelineApi(f) {
   if (f.api) return f.api;
   const api = await import(pathToFileURL(f.cli));
+  const identity = await import(pathToFileURL(path.join(f.kit, 'tools/release-identity.mjs')));
   const events = [];
-  const layer = f.layer = { powerShell: process.execPath, events, async run(command, args, options) {
+  const layer = f.layer = { powerShell: process.execPath, nodeIdentityPath: f.syntheticBinary, events,
+    captureExecutables: components => identity.captureInputIdentity({ components: components.map(({ name }) => ({ name, file: f.syntheticBinary })) }),
+    async run(command, args, options) {
     const fileIndex = args.indexOf('-File');
     if (fileIndex !== -1) {
       const wrapper = args[fileIndex + 1];
@@ -72,7 +75,10 @@ export async function pipelineApi(f) {
         const a = Object.fromEntries(Array.from({ length: (rest.length - 1) / 2 }, (_, i) => [rest[i * 2 + 1].slice(2), rest[i * 2 + 2]]));
         await environment({ ...process.env }, () => syntheticStartup(a));
       }
-    } else assert.ok(['verify-install.mjs', 'gallery-check.mjs'].includes(name), 'Unexpected fake process ' + name);
+    } else if (name === 'gallery-check.mjs') {
+      // Retain the old native fixture's Chrome-home prerequisite assertion.
+      if (process.platform === 'win32') for (const folder of ['Local', 'Roaming']) await access(path.join(options.env.USERPROFILE, 'AppData', folder));
+    } else assert.equal(name, 'verify-install.mjs', 'Unexpected fake process ' + name);
     return 0;
   } };
   f.api = new Proxy(api, { get(target, key) { const value = target[key]; return typeof value === 'function' ? (...args) => api.withReleaseStageLayer(layer, () => value(...args)) : value; } });
