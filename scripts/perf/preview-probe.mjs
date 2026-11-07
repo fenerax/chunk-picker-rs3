@@ -7,7 +7,7 @@ registerHooks({ load(url, context, next) {
   const replace = (from, to) => { if (!source.includes(from)) throw Error('ProbeAnchorError'); source = source.replace(from, to); };
   replace("const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);",
     "const { snapshot } = timed(timingMs, 'baselineMs', () => snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId));");
-  replace('evaluateFull(input, member, { includeViews: false, timingMs })', "timed(timingMs, 'hypotheticalMs', () => evaluateFull(input, member, { includeViews: false, timingMs }))");
+  replace('evaluateFull(input, member, { includeViews: false, timingMs, pickerId })', "timed(timingMs, 'hypotheticalMs', () => evaluateFull(input, member, { includeViews: false, timingMs, pickerId }))");
   replace('evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs, pickerId })', "timed(timingMs, 'partnerMs', () => evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs, pickerId }))");
   replace('const play = mapPlayResult(prediction.result);', "const play = timed(timingMs, 'projectionMs', () => mapPlayResult(prediction.result));");
   replace('const peerPlay = mapPlayResult(peer);', "const peerPlay = timed(timingMs, 'projectionMs', () => mapPlayResult(peer));");
