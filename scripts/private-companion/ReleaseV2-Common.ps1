@@ -506,6 +506,9 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
     $driver.StartInfo.FileName = $candidate.context.config.nodePath
     $policy = Join-Path $PSScriptRoot 'release-transition.mjs'
     if (-not (Test-Path -LiteralPath $policy)) { $policy = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools/release-transition.mjs' }
+    # Installed helper snapshots contain operator scripts; release tooling stays
+    # in the explicitly supplied companion kit, also for retained-target rollback.
+    if (-not (Test-Path -LiteralPath $policy)) { $policy = Join-Path $companion 'tools/release-transition.mjs' }
     $null = Assert-OperatorPath $policy
     if ($null -ne $FrozenBundle) { Assert-ReleaseV2FrozenPin $FrozenBundle ([pscustomobject]@{path=$policy;sha256=(Get-ReleaseV2Hash $policy)}) }
     $initial = @{packUpgrade=[bool]$packUpgrade;recover=[bool]$Recover;reversePending=[bool]$reversePending;rollback=[bool]$Rollback} | ConvertTo-Json -Compress

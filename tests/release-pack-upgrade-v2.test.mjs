@@ -8,7 +8,7 @@ safety.unref(); after(async () => { try { await closeNativeHost(); } finally { c
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
-import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, cp } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -96,10 +96,14 @@ async function nativeStage(t, rollback, point, crash) {
     const save=path.join(local,'data/state.json'); await put(save,{revision:41,completedTasks:['kept-current-progress']});
     for(const name of ['release-v2.mjs','verify-install.mjs']) await put(path.join(kit,'tools',name),'process.exit(0);');
     await put(path.join(kit,'tools/release-pack-check.mjs'),'// synthetic check overridden in fixture');
+    // Exercise the installed operator-only layout: decisions come from the kit.
+    await mkdir(path.join(kit,'operator'),{recursive:true});
+    await cp(path.join(scripts,'ReleaseV2-Common.ps1'),path.join(kit,'operator/ReleaseV2-Common.ps1'));
+    await cp(path.join(scripts,'release-transition.mjs'),path.join(kit,'tools/release-transition.mjs'));
     const target=firstRollback?old:next;
     const body=`$ErrorActionPreference='Stop'
 . ${q(path.join(scripts,'Operator-Common.ps1'))}
-. ${q(path.join(scripts,'ReleaseV2-Common.ps1'))}
+. ${q(path.join(kit,'operator/ReleaseV2-Common.ps1'))}
 $global:local=${q(local)}
 function Read-OperatorConfig([string]$Path,[switch]$ForStop) {
  $id=(Read-OperatorJson $Path).id;$root=Split-Path -Parent $Path
