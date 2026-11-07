@@ -3,8 +3,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
+import fsPromises from 'node:fs/promises';
 import { mkdtemp, mkdir, readFile, writeFile, cp, rm, readdir, symlink } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
+import childProcess, { execFileSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { syncBuiltinESMExports } from 'node:module';
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hashTree } from '../scripts/private-companion/release-identity.mjs';
@@ -14,7 +17,7 @@ const scripts = fileURLToPath(new URL('../scripts/private-companion/', import.me
 import { stageReleaseKit } from '../scripts/private-companion/stage-release-v2.mjs';
 import { pipelineTests, orderedEarly, earlyBudgetMs } from '../scripts/private-companion/release-early.mjs';
 import { literalModuleReferences } from '../scripts/private-companion/tooling-module-graph.mjs';
-import { fixture, invoke, hash, json, put, git } from './helpers/release-pipeline.mjs';
+import { fixture, invoke, hash, json, put, git, waitForStage } from './helpers/release-pipeline.mjs';
 test('every module copied flat into a PC kit resolves its literal imports inside the kit layout', async () => {
   // stageReleaseKit copies every top-level companion module into kit/tools.
   // Check the complete inventory, rather than this lifecycle fixture's subset.
@@ -279,9 +282,9 @@ test('changed-pack new kit earns fresh pack keys while retaining the current sav
 test('incomplete acknowledged file stage cannot publish gates or release the owner early', windows, async t => {
   const f = await fixture(t); await f.prepare();
   const held = f.control.hold();
-  const gating = f.gates();
+  const gating = f.ownProducer(f.gates());
   const outcome = gating.then(() => null, error => error);
-  const stage = await held;
+  const stage = await waitForStage(held, gating);
   try {
     assert(stage.files.length > 1);
     assert.equal((await json(path.join(f.release, 'release-gate/latest-attempt.json'))).pending, true);
@@ -296,6 +299,90 @@ test('incomplete acknowledged file stage cannot publish gates or release the own
   assert(!(await readdir(path.join(f.kit, '.local'))).includes('fixture-owner'));
 });
 
+test('stage waiting reports producer failure or premature completion before any POST', async () => {
+  const absentStage = new Promise(() => {}), failure = Error('synthetic gallery failure before POST');
+  await assert.rejects(waitForStage(absentStage, Promise.reject(failure)), error => error === failure);
+  await assert.rejects(waitForStage(absentStage, Promise.resolve()), /completed without announcing its stage/);
+});
+
+async function controlledProbe(t) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'probe-watchdog-'));
+  let child, outcome;
+  t.after(async () => {
+    // Release only the fake pipe so a broken implementation also joins and
+    // cleans up after the intended assertion has failed.
+    child?.emit('close', child.exitCode, child.signalCode);
+    await outcome;
+    t.mock.restoreAll(); syncBuiltinESMExports();
+    await rm(root, { recursive: true, force: true });
+  });
+  const descriptor = { datasetId: 'synthetic', datasetContractVersion: 1, digest: '1'.repeat(64) };
+  const binding = bindingBytes(descriptor), dataDir = path.join(root, 'save');
+  const pin = async (name, value) => {
+    const file = path.join(root, name); await put(file, value);
+    return { path: file, sha256: hash(await readFile(file)) };
+  };
+  await put(path.join(dataDir, 'state.json'), { synthetic: true });
+  await put(dataDir + '.dataset.json', binding);
+  const profile = await pin('profile.json', { datasetId: descriptor.datasetId, datasetDigest: descriptor.digest, ruleContractHash: 'a'.repeat(64) });
+  const pack = await pin('pack.json', { requires: descriptor, datasetDigest: descriptor.digest, ruleContractHash: 'a'.repeat(64) });
+  const selection = await pin('selection.json', {});
+  const config = await pin('config.json', { profile, selection, packs: { data: pack }, dataDir,
+    nodePath: process.execPath, coreRoot: root, packsDir: root, addons: selection });
+  const declared = { ...descriptor, bindingSha256: hash(binding) };
+  const transition = { schemaVersion: 1, oldConfig: config, newConfig: config, old: declared, new: declared,
+    oldBindingBase64: binding.toString('base64'), newBindingBase64: binding.toString('base64') };
+  child = new EventEmitter(); child.stderr = new EventEmitter(); child.exitCode = null; child.signalCode = null;
+  let announceSpawn, scratch, cleanupStarted = false, kills = 0;
+  const spawned = new Promise(resolve => { announceSpawn = resolve; });
+  child.kill = () => { kills++; child.signalCode = 'SIGTERM'; child.emit('exit', null, 'SIGTERM'); return true; };
+  const originalRemove = fsPromises.rm;
+  t.mock.method(childProcess, 'spawn', (_command, args) => {
+    scratch = path.dirname(args.at(-1)); announceSpawn(); return child;
+  });
+  t.mock.method(fsPromises, 'rm', (target, options) => {
+    if (target === scratch) cleanupStarted = true;
+    return originalRemove(target, options);
+  });
+  syncBuiltinESMExports();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  outcome = checkPackTransition({ fromConfig: config.path, toConfig: config.path, transition }).then(
+    () => ({ error: null }), error => ({ error }));
+  return { child, spawned, outcome, get scratch() { return scratch; }, get cleanupStarted() { return cleanupStarted; }, get kills() { return kills; } };
+}
+
+test('compatibility watchdog rejects even when kill never closes inherited stderr', async t => {
+  const probe = await controlledProbe(t); await probe.spawned;
+  probe.child.stderr.emit('data', Buffer.from('synthetic inherited stderr remains open'));
+  t.mock.timers.tick(180000);
+  // Drain rejection microtasks, not a wall-clock wait for an assertion. The
+  // rm observer acknowledges entry to finally before its real IO completes.
+  await new Promise(setImmediate);
+  assert.equal(probe.kills, 1);
+  assert.equal(probe.cleanupStarted, true, 'watchdog must reject and enter scratch cleanup without close');
+  const { error } = await probe.outcome;
+  assert.equal(error.childResult.timedOut, true);
+  assert.equal(error.childResult.exitCode, null); assert.equal(error.childResult.signal, 'SIGTERM');
+  assert.equal(error.childResult.error, null);
+  assert.match(error.childResult.stderrTail, /inherited stderr remains open/);
+  assert.equal(existsSync(probe.scratch), false);
+});
+
+test('compatibility exit settles after a bounded stderr drain even without close', async t => {
+  const probe = await controlledProbe(t); await probe.spawned;
+  probe.child.exitCode = 7;
+  probe.child.emit('exit', 7, null);
+  probe.child.stderr.emit('data', Buffer.from('synthetic stderr delivered after exit'));
+  t.mock.timers.tick(100);
+  await new Promise(setImmediate);
+  assert.equal(probe.cleanupStarted, true, 'exit must settle within the bounded stderr drain without close');
+  const { error } = await probe.outcome;
+  assert.equal(probe.kills, 0); assert.equal(error.childResult.timedOut, false);
+  assert.equal(error.childResult.exitCode, 7); assert.equal(error.childResult.signal, null);
+  assert.match(error.childResult.stderrTail, /stderr delivered after exit/);
+  assert.equal(existsSync(probe.scratch), false);
+});
+
 test('native compatibility atomically owns port zero and closes before returning its save witness', async t => {
   const f = await fixture(t), report = path.join(f.root, 'probe.json');
   await put(path.join(f.repo, 'app/server.mjs'), git(f.repo, 'show', f.revision + ':app/server.mjs'));
@@ -307,7 +394,7 @@ test('native compatibility atomically owns port zero and closes before returning
   assert.deepEqual(await readFile(path.join(f.dataDir, 'state.json')), before);
 });
 
-test('failed compatibility retains the original child error, exit, signal and stderr after close', async t => {
+test('failed compatibility retains the original child error, exit, signal and bounded stderr', async t => {
   const old = await fixture(t), next = await fixture(t, { version: '1.0.1', digit: '2' });
   const pin = async file => ({ path: file, sha256: hash(await readFile(file)) });
   for (const f of [old, next]) {
@@ -328,7 +415,8 @@ test('failed compatibility retains the original child error, exit, signal and st
 });
 
 test('corrupt evidence is retained byte for byte before a fresh observation is published', async t => {
-  const f = await fixture(t), directory = path.join(f.root, 'evidence');
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'release-evidence-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
   const { gateContract, publishEvidence, lookupEvidence } = await import('../scripts/private-companion/release-evidence.mjs');
   const contract = gateContract('gallery', { synthetic: true }, { digest: 'a'.repeat(64) });
   const first = await publishEvidence(directory, contract, { startedAt: new Date().toISOString() });

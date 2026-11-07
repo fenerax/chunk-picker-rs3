@@ -73,16 +73,23 @@ async function runProbe(config, dataDir, output) {
     const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
     let detail = '', spawnError, timedOut = false;
     child.stderr.on('data', bytes => { detail = (detail + bytes.toString()).slice(-4096); });
-    const timer = setTimeout(() => { timedOut = true; child.kill(); }, 180000);
-    child.once('error', error => { spawnError = error; });
-    // exit does not join stderr or release all native handles. Retain the first
-    // failure only after close, before the caller can remove probe scratch.
-    child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      if (!spawnError && !timedOut && code === 0 && signal === null) return resolve();
+    const failure = (code = child.exitCode, signal = child.signalCode) => {
       const childResult = { error: spawnError ? { name: spawnError.name, code: spawnError.code, message: refusalMessage(spawnError.message) } : null,
-        exitCode: code, signal, timedOut, stderrTail: refusalMessage(detail.trim()) };
-      reject(Object.assign(new Error('Packed save check refused: ' + JSON.stringify(childResult)), { childResult }));
+        exitCode: code ?? null, signal: signal ?? null, timedOut, stderrTail: refusalMessage(detail.trim()) };
+      return Object.assign(new Error('Packed save check refused: ' + JSON.stringify(childResult)), { childResult });
+    };
+    // A descendant can keep stderr open after kill, so the watchdog must settle
+    // failure itself. Exit also gets only a bounded drain of inherited stderr.
+    const timer = setTimeout(() => { timedOut = true; child.kill(); reject(failure()); }, 180000);
+    child.once('error', error => { spawnError = error; clearTimeout(timer); reject(failure()); });
+    const settle = (code, signal) => {
+      if (!spawnError && !timedOut && code === 0 && signal === null) return resolve();
+      reject(failure(code, signal));
+    };
+    child.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      const drain = setTimeout(() => settle(code, signal), 25);
+      child.once('close', () => { clearTimeout(drain); settle(code, signal); });
     });
   });
   return json(output);

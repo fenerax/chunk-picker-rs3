@@ -31,6 +31,9 @@ export async function invoke(file, args = [], env = process.env) {
   const [code, signal] = await new Promise(resolve => child.once('close', (...values) => resolve(values)));
   return { code, signal, error, stderr, output };
 }
+export function waitForStage(arrival, producer) {
+  return Promise.race([arrival, producer.then(() => { throw Error('Gate producer completed without announcing its stage.'); })]);
+}
 
 // Each case owns this listener. Producers announce a completed synthetic stage
 // and cannot return until the test has acknowledged its exact file/owner set.
@@ -64,7 +67,13 @@ async function stageController() {
 export async function fixture(t, { version = '1.0.0', digit = '1' } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'pipeline-owned-'));
   const control = await stageController();
-  t.after(async () => { await control.close(); await rm(root, { recursive: true, force: true }); });
+  const producers = [];
+  const ownProducer = producer => { producers.push(producer); return producer; };
+  t.after(async () => {
+    await control.close();
+    await Promise.allSettled(producers);
+    await rm(root, { recursive: true, force: true });
+  });
   const kit = path.join(root, 'kit'), repo = path.join(root, 'repo'), release = path.join(kit, 'releases/fixture');
   for (const directory of ['tools', 'operator', 'releases', 'release-gate/corpus', 'checks/private-source/scripts/secret-scan'])
     await mkdir(path.join(kit, directory), { recursive: true });
@@ -159,5 +168,5 @@ export async function fixture(t, { version = '1.0.0', digit = '1' } = {}) {
       throw new Error(error.message + '\nClosed stage diagnostics: ' + JSON.stringify(logs), { cause: error });
     }
   };
-  return { root, kit, browser, repo, release, previous, input, dataDir, descriptor: { ...descriptor, bindingSha256: hash(bindingBytes(descriptor)) }, cli, api, revision, prepare, gates, control };
+  return { root, kit, browser, repo, release, previous, input, dataDir, descriptor: { ...descriptor, bindingSha256: hash(bindingBytes(descriptor)) }, cli, api, revision, prepare, gates, control, ownProducer };
 }
