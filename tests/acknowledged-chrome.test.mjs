@@ -87,6 +87,38 @@ test('acknowledged browser lifecycle has only its file hang guard', { timeout: 3
     child.emit('close', 0, null);
     await closing; assert.equal(finished, true);
   });
+  await t.test('an outer abort during final exit stops the owned Chrome handle and reports its state', async () => {
+    const child = Object.assign(childProcess(), { pid: 424242, killed: false });
+    const controller = new AbortController(), signals = [], reports = [];
+    child.kill = signal => {
+      signals.push(signal); child.killed = true;
+      queueMicrotask(() => {
+        child.signalCode = signal; child.emit('exit', null, signal); child.emit('close', null, signal);
+      });
+      return true;
+    };
+    class BrowserSocket extends Socket {
+      constructor() { super(); queueMicrotask(() => this.dispatchEvent(new Event('open'))); }
+      send(bytes) { super.send(bytes); this.reply(this.requests.at(-1)); }
+    }
+    const browser = await openAcknowledgedChrome('synthetic-chrome', 'C:/synthetic-profile', {
+      signal: controller.signal, report: state => reports.push(state),
+    }, {
+      spawn: () => { queueMicrotask(() => child.stderr.write('DevTools listening on ws://127.0.0.1:8947/devtools/browser/synthetic\n')); return child; },
+      WebSocket: BrowserSocket,
+    });
+    const closing = browser.close();
+    assert.equal(browser.diagnostics().phase, 'Chrome process exit');
+    assert.equal(browser.diagnostics().handle.exitObserved, false);
+    controller.abort();
+    await closing;
+    assert.deepEqual(signals, ['SIGKILL']);
+    assert.equal(reports[0].pid, 424242);
+    assert.equal(reports[0].handle.exitObserved, false);
+    assert.deepEqual(browser.diagnostics().handle, {
+      exitCode: null, signalCode: 'SIGKILL', killed: true, exitObserved: true, stdioClosed: true,
+    });
+  });
   await t.test('socket failure and the one outer abort reject pending acknowledgements', async () => {
     const socket = new Socket(), controller = new AbortController();
     const connection = acknowledgedConnection(socket, { signal: controller.signal });
@@ -121,6 +153,12 @@ test('acknowledged browser lifecycle has only its file hang guard', { timeout: 3
       if (++attempts <= 8) throw Object.assign(new Error('Synthetic sharing violation'), { code: 'EPERM' });
     } });
     assert.equal(attempts, 9);
+    const controller = new AbortController(), reports = [];
+    await removeScratch('synthetic-busy-scratch', { signal: controller.signal, report: state => reports.push(state), remove: async () => {
+      controller.abort();
+      throw Object.assign(new Error('Synthetic sharing violation'), { code: 'EBUSY' });
+    } });
+    assert.deepEqual(reports, [{ pendingCleanup: 'synthetic-busy-scratch', code: 'EBUSY' }, { retainedScratch: 'synthetic-busy-scratch' }]);
     await assert.rejects(removeScratch('synthetic-owned-scratch', { remove: async () => {
       throw Object.assign(new Error('Broken filesystem'), { code: 'EIO' });
     } }), /Broken filesystem/);

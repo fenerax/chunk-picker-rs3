@@ -1,4 +1,4 @@
-import { spawn, execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { setImmediate as yieldTurn } from 'node:timers/promises';
@@ -92,17 +92,18 @@ export async function openAcknowledgedChrome(executable, profile, { signal, repo
   const { args } = chromeLaunchConfiguration(profile, { port: 0, env: {}, extraArgs });
   const child = launch(executable, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
   let connection, phase = 'Chrome stderr readiness', contexts = 0;
-  let exitCode, exitSignal;
-  const exited = new Promise(resolve => child.once('exit', (code, signal) => { exitCode = code; exitSignal = signal; resolve(); }));
+  let exitCode, exitSignal, exitObserved = false, stdioClosed = false;
+  const exited = new Promise(resolve => child.once('exit', (code, signal) => { exitCode = code; exitSignal = signal; exitObserved = true; resolve(); }));
   // close also acknowledges closure of inherited stdio, after actual exit.
-  const closed = new Promise(resolve => child.once('close', resolve));
+  const closed = new Promise(resolve => child.once('close', () => { stdioClosed = true; resolve(); }));
+  const diagnostics = () => ({ phase, pid: child.pid, launches: 1, contexts, pending: connection?.pending() ?? [],
+    handle: { exitCode: child.exitCode, signalCode: child.signalCode, killed: child.killed, exitObserved, stdioClosed } });
   const terminate = () => {
-    report({ phase, pid: child.pid, pending: connection?.pending() });
+    report(diagnostics());
     if (child.exitCode !== null || child.signalCode !== null || !child.pid) return;
-    if (process.platform === 'win32') execFile('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }, error => {
-      if (error && child.exitCode === null && child.signalCode === null) report({ retainedChrome: child.pid, error: error.message });
-    });
-    else child.kill('SIGKILL');
+    // Stop the exact owned process through its handle; abort must not depend
+    // on launching a second process on a starved runner.
+    if (!child.kill('SIGKILL')) report({ retainedChrome: child.pid, ...diagnostics() });
   };
   signal?.addEventListener('abort', terminate, { once: true });
   try {
@@ -122,7 +123,7 @@ export async function openAcknowledgedChrome(executable, profile, { signal, repo
     });
     connection = acknowledgedConnection(socket, { signal });
     phase = 'browser journeys';
-    return { diagnostics: () => ({ phase, pid: child.pid, launches: 1, contexts, pending: connection.pending() }),
+    return { diagnostics,
       async page({ width, height, mobile }) {
         const { browserContextId } = await connection.send('Target.createBrowserContext');
         contexts++;
