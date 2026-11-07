@@ -6,7 +6,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
-import { hashTree, captureInputIdentity, captureExecutionIdentity, sanitizeExecutionEnvironment, deriveLaneKey, readSuccessReceipt, writeSuccessReceipt, digestValue } from './release-identity.mjs';
+import { hashTree, captureInputIdentity, captureExecutionIdentity, sanitizeExecutionEnvironment, deriveLaneKey, readSuccessReceipt, writeSuccessReceipt, digestValue, withExecutableIdentityLayer } from './release-identity.mjs';
 import { validateReleaseTextInput, applyTextEntries, copyPreviousTextSource, verifyTextDelta, runTextEndpointCheck } from './release-text.mjs';
 import { scanPublicCandidate } from './public-core-gate.mjs';
 import { configDescriptor, checkPackTransition, bindingBytes } from './release-pack-check.mjs';
@@ -29,8 +29,9 @@ const defaultKit = path.resolve(path.dirname(here), '..');
 const policy = { version: 'release-v2.1', public: 'independent-full', private: 'complete-overlay-full', gallery: 'plain-and-framed', text: 'exact-prose-contract-v1' };
 const nativePowerShell = process.platform === 'win32' ? path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe') : 'pwsh';
 const stageLayers = new AsyncLocalStorage();
-export const withReleaseStageLayer = (layer, action) => stageLayers.run(layer, action);
+export const withReleaseStageLayer = (layer, action) => stageLayers.run(layer, () => withExecutableIdentityLayer(layer.captureExecutables, action));
 const powerShell = () => stageLayers.getStore()?.powerShell ?? nativePowerShell;
+const nodeIdentityPath = config => stageLayers.getStore()?.nodeIdentityPath ?? config.nodePath;
 async function lockScript(kit,lane) {
   const pin = (await json(path.join(kit,'kit.json'))).locks?.[lane];
   if (!pin) return path.join(kit,'operator/with-'+lane+'.ps1'); // Synthetic/old kit compatibility.
@@ -122,7 +123,7 @@ export async function candidateIdentity(kit, release, includePlan = true, histor
     { name: 'text', root: path.join(release, 'text') }, { name: 'profile', file: path.join(release, 'profile.json') },
     { name: 'receipt', file: path.join(release, 'companion.json') }, { name: 'config', file: path.join(release, 'config.json') },
     { name: 'pointer', file: path.join(release, 'pointer.json') }, { name: 'request', file: path.join(release, 'request.json') },
-    { name: 'nodeExecutable', file: config.nodePath },
+    { name: 'nodeExecutable', file: nodeIdentityPath(config) },
     { name: 'runtimeOrigin', file: config.publicOriginFile }, { name: 'runtimePacks', root: config.packsDir },
     ...(!historical ? [{ name: 'heavyWrapper',file:await lockScript(kit,'heavy') }, { name: 'lightWrapper',file:await lockScript(kit,'light') }] : []),
     { name: 'kit', file: path.join(kit, 'kit.json') }, { name: 'corpus', root: path.join(kit, 'release-gate/corpus') },
@@ -703,10 +704,10 @@ async function frozenInputs(kit,release,manifest,{retained=false}={}) {
   const trees=[path.join(release,'core'),path.join(kit,'checks/private-source'),path.join(kit,'tools'),path.join(kit,'operator'),path.join(kit,'packs'),path.join(release,'addons'),path.join(release,'text'),config.packsDir,path.join(kit,'release-gate/corpus')];
   if(receipt.packsDir)trees.push(receipt.packsDir);
   const files=['profile.json','companion.json','config.json','pointer.json','request.json','release-plan.json','release.json'].map(name=>path.join(release,name));
-  files.push(config.nodePath,config.publicOriginFile,path.join(kit,'kit.json'));
+  files.push(nodeIdentityPath(config),config.publicOriginFile,path.join(kit,'kit.json'));
   if(!retained)for(const lane of ['heavy','light'])files.push(await lockScript(kit,lane));
   if(await exists(path.join(release,'pack-transition.json')))files.push(path.join(release,'pack-transition.json'));
-  const roots={core:path.join(release,'core'),privateSource:path.join(kit,'checks/private-source'),tools:path.join(kit,'tools'),operator:path.join(kit,'operator'),packs:path.join(kit,'packs'),releasePacks:receipt.packsDir,packTransition:path.join(release,'pack-transition.json'),addon:path.join(release,'addons'),text:path.join(release,'text'),profile:path.join(release,'profile.json'),receipt:path.join(release,'companion.json'),config:path.join(release,'config.json'),pointer:path.join(release,'pointer.json'),request:path.join(release,'request.json'),nodeExecutable:config.nodePath,runtimeOrigin:config.publicOriginFile,runtimePacks:config.packsDir,kit:path.join(kit,'kit.json'),corpus:path.join(kit,'release-gate/corpus'),plan:path.join(release,'release-plan.json')};
+  const roots={core:path.join(release,'core'),privateSource:path.join(kit,'checks/private-source'),tools:path.join(kit,'tools'),operator:path.join(kit,'operator'),packs:path.join(kit,'packs'),releasePacks:receipt.packsDir,packTransition:path.join(release,'pack-transition.json'),addon:path.join(release,'addons'),text:path.join(release,'text'),profile:path.join(release,'profile.json'),receipt:path.join(release,'companion.json'),config:path.join(release,'config.json'),pointer:path.join(release,'pointer.json'),request:path.join(release,'request.json'),nodeExecutable:nodeIdentityPath(config),runtimeOrigin:config.publicOriginFile,runtimePacks:config.packsDir,kit:path.join(kit,'kit.json'),corpus:path.join(kit,'release-gate/corpus'),plan:path.join(release,'release-plan.json')};
   if(!retained)for(const lane of ['heavy','light'])roots[lane+'Wrapper']=await lockScript(kit,lane);
   const expectedFiles=manifest.identity.components.flatMap(component=>{
     const root=roots[component.name];if(!root){if(retained&&['heavyWrapper','lightWrapper'].includes(component.name))return [];throw Error('Unknown frozen identity component.');}
