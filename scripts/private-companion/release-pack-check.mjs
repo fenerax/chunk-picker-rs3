@@ -66,18 +66,85 @@ export async function saveIdentity(dataDir) {
   }
   return files;
 }
-async function runProbe(config, dataDir, output) {
+export async function runProbe(config, dataDir, output, {
+  spawnImpl = spawn, setTimer = setTimeout, clearTimer = clearTimeout, readReport = json, signal,
+} = {}) {
   const env = sanitizeExecutionEnvironment(process.env, { overrides: { RS3_DATASET: 'duo-legacy', RS3_PACKS_DIR: config.packsDir,
     RS3_PACK_SELECTION: config.selection.path, RS3_DATASET_PROFILE: config.profile.path, RS3_DATASET_PROFILE_SHA256: config.profile.sha256,
     RS3_PRIVATE_ADDON: config.addons.path, RS3_PRIVATE_ADDON_SHA256: config.addons.sha256, RS3_TASK_WORKER_MODE: 'process' } });
+  const childResult = { stage: 'probe:' + path.basename(output, '.json'), pid: null,
+    exitObserved: false, closeObserved: false, exitCode: null, signal: null, stderrTail: '', termination: null };
   await new Promise((resolve, reject) => {
-    const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
-    let detail = ''; child.stderr.on('data', bytes => { detail = (detail + bytes.toString()).slice(-4096); });
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Packed save check timed out.')); }, 180000);
-    child.once('error', () => { clearTimeout(timer); reject(new Error('Packed save check failed.')); });
-    child.once('exit', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('Packed save check refused: ' + refusalMessage(detail.trim()))); });
+    let child, primary, done = false, stopping = false, watchdog, drain, cleanup;
+    const cleanupFailures = [];
+    const attempt = fn => { try { return fn(); } catch (error) { cleanupFailures.push(error); } };
+    const finish = () => {
+      if (done) return;
+      done = true;
+      for (const timer of [watchdog, drain, cleanup]) attempt(() => clearTimer(timer));
+      attempt(() => signal?.removeEventListener('abort', onAbort));
+      for (const pipe of [child?.stdout, child?.stderr]) {
+        // Pipe EOF is not an ownership acknowledgement: a descendant can inherit it.
+        attempt(() => pipe?.off('data', onData));
+        attempt(() => pipe?.destroy());
+      }
+      if (child) {
+        attempt(() => child.off('exit', onExit));
+        attempt(() => child.off('close', onClose));
+        // Keep the error listener to absorb a late asynchronous spawn/kill error.
+        attempt(() => child.unref());
+      }
+      if (cleanupFailures.length) {
+        primary ??= new Error('Packed save check cleanup failed.');
+        primary.cleanupFailure = new AggregateError(cleanupFailures, 'Probe cleanup failed.');
+      }
+      if (primary) reject(Object.assign(primary, { childResult })); else resolve();
+    };
+    const stop = cause => {
+      if (done || stopping) return;
+      primary = cause; stopping = true;
+      attempt(() => clearTimer(watchdog)); attempt(() => clearTimer(drain));
+      if (!child || childResult.exitObserved || childResult.closeObserved || !child.pid) return finish();
+      childResult.termination = { strategy: 'child-handle', joined: false, killAccepted: false };
+      // Never address a numeric PID or traverse a process tree on the shared PC.
+      // Arm the budget before kill(), which can synchronously emit exit in a seam.
+      cleanup = setTimer(() => {
+        cleanupFailures.push(new Error('Direct probe exit was not acknowledged; retain its scratch store.'));
+        finish();
+      }, 15000);
+      attempt(() => { childResult.termination.killAccepted = child.kill('SIGKILL'); });
+    };
+    const onData = bytes => { childResult.stderrTail = refusalMessage((childResult.stderrTail + bytes.toString()).slice(-4096)); };
+    const onError = error => stop(error);
+    const onAbort = () => stop(signal.reason instanceof Error ? signal.reason : new Error('Packed save check aborted.', { cause: signal.reason }));
+    const recordExit = (code, reason) => { childResult.exitCode = code; childResult.signal = reason ?? null; };
+    const onExit = (code, reason) => {
+      childResult.exitObserved = true; recordExit(code, reason);
+      if (stopping) { childResult.termination && (childResult.termination.joined = true); return finish(); }
+      attempt(() => clearTimer(watchdog));
+      if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + childResult.stderrTail);
+      // Retain late stderr without making inherited pipe closure a prerequisite.
+      drain = setTimer(finish, 25);
+    };
+    const onClose = (code, reason) => {
+      childResult.closeObserved = true; recordExit(code, reason);
+      if (stopping) { childResult.termination && (childResult.termination.joined = true); }
+      else if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + childResult.stderrTail);
+      finish();
+    };
+    if (signal?.aborted) return onAbort();
+    try {
+      child = spawnImpl(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+      childResult.pid = child.pid ?? null;
+      child.stderr?.on('data', onData);
+      child.on('error', onError); child.once('exit', onExit); child.once('close', onClose);
+      watchdog = setTimer(() => stop(new Error('Packed save check timed out.')), 180000);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+    } catch (error) { stop(error); }
   });
-  return json(output);
+  try { return await readReport(output); }
+  catch (error) { throw Object.assign(error, { childResult }); }
 }
 export function datasetAuthoredIdentities(definitions) {
   const datasetAuthored = {}, datasetAuthoredKeys = {};
@@ -152,6 +219,15 @@ export function assertPreserved(a, b) {
     throw new Error('Saved progress or tasks changed during compatibility check: fields=' + changed.join(',') + '; missingTasks=' + a.taskIds.filter(id => !present.has(id)).length);
   }
 }
+export async function cleanupProbeScratch(scratch, primary, remove = rm) {
+  try {
+    if (primary?.childResult?.termination?.joined === false) throw new Error('Unjoined probe scratch retained: ' + scratch);
+    await remove(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch (error) {
+    if (!primary) throw error;
+    primary.cleanupFailure = new AggregateError([primary.cleanupFailure, error].filter(Boolean), 'Scratch cleanup failed.');
+  }
+}
 export async function checkPackTransition({ fromConfig, toConfig, transition, output }) {
   const plan = typeof transition === 'string' ? await json(transition) : transition;
   const from = await configDescriptor(fromConfig), to = await configDescriptor(toConfig);
@@ -172,7 +248,7 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
   if (![plan.old.bindingSha256, plan.new.bindingSha256].includes(actual)) throw new Error('Current binding differs.');
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'rs3-pack-compat-'));
   const before = await saveIdentity(from.config.dataDir);
-  const reports = [];
+  const reports = []; let primary;
   try {
     // Rollback needs the retained target to open the latest save. It must not
     // depend on successfully starting code that the operator is replacing.
@@ -209,10 +285,13 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
     if (output) await writeFile(output, encode(result), { flag: 'wx' });
     return result;
   } catch (error) {
-    if (output) await writeFile(output + '.failure.json', encode({ passed: false, cause: refusalMessage(error),
-      probes: reports.map(r => ({ savedCount: Object.keys(r.saved).length, taskCount: r.taskIds.length, historyCount: r.historyEvents.length, progressDigest: r.progressDigest, migration: r.migrationSummary })) }), { flag: 'wx' });
+    primary = error;
+    try {
+      if (output) await writeFile(output + '.failure.json', encode({ passed: false, cause: refusalMessage(error), childResult: error.childResult,
+        probes: reports.map(r => ({ savedCount: Object.keys(r.saved).length, taskCount: r.taskIds.length, historyCount: r.historyEvents.length, progressDigest: r.progressDigest, migration: r.migrationSummary })) }), { flag: 'wx' });
+    } catch (failure) { error.failureReportFailure = failure; }
     throw error;
-  } finally { await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+  } finally { await cleanupProbeScratch(scratch, primary); }
 }
 export async function probe(core, dataDir, output, { retention } = {}) {
   const { authoredIdentityRegistry, resolveIdentity } = await import(pathToFileURL(path.join(core, 'app/tasks/identity.mjs')));
