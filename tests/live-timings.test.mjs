@@ -5,15 +5,19 @@ import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { openLiveTimings, noteTiming, actions, TIMING_FILE_CAP } from '../app/live-timings.mjs';
-import { createDeepProfiles } from '../app/deep-profiles.mjs';
+import { openLiveTimings as openCollector, noteTiming, actions, TIMING_FILE_CAP } from '../app/live-timings.mjs';
+import { createDeepProfiles as nativeDeepProfiles } from '../app/deep-profiles.mjs';
+import { controlledProfiles as createDeepProfiles, inspectorControls, checkpoint, manualClock, nativeClock, profile, dispatchedWorker } from './helpers/deep-profile-controls.mjs';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 import { ProcessWorker } from '../app/tasks/process-worker.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 
+const fixedNow = 1800000000000;
+const openLiveTimings = (dir, options = {}) => openCollector(dir, { now: () => fixedNow, ...options });
+
 async function temporary(t) { const dir = await mkdtemp(path.join(tmpdir(), 'live-timings-unit-')); t.after(() => rm(dir, { recursive: true, force: true })); return dir; }
 test('bounded summaries, numeric stages, windows, restart and private-byte allowlist', async t => {
-  const dir = await temporary(t); let now = Date.now();
+  const dir = await temporary(t); let now = 1800000000000;
   let timings = await openLiveTimings(dir, { now: () => now });
   const poison = 'SECRET-MEMBER-TASK-CHUNK';
   for (let i = 0; i < 3000; i++) timings.record('how', i, { source: i % 2 ? 'cache' : 'computed', coalesced: i % 3 === 0, calculatorStarted: true, stages: { engineMs: 3, [poison]: 50 }, memberId: poison });
@@ -46,18 +50,85 @@ test('disabled collector does not write', async t => {
   const dir = await temporary(t), timings = await openLiveTimings(dir, { enabled: false }); timings.record('how', 1); await timings.close();
   await assert.rejects(stat(`${dir}/live-timings.json`), { code: 'ENOENT' });
 });
+
+test('concurrent HTTP task collection records scheduler coalescence before worker reply', async t => {
+  const timings = await openLiveTimings(await temporary(t));
+  const workers = [];
+  const scheduler = await createTaskScheduler({ workerFactory() { const worker = dispatchedWorker(); workers.push(worker); return worker; } });
+  t.after(async () => { await scheduler.close(); await timings.close(); });
+  const dispatch = workers[0].nextDispatch();
+  const request = () => {
+    const response = new EventEmitter(); response.statusCode = 200; response.writableFinished = true;
+    return timings.request({ url: '/api/tasks' }, response, async () => {
+      const result = await scheduler.evaluate({ revision: 0 }, 'synthetic', 'evaluate', undefined, 'same', 'same');
+      noteTiming({ source: 'computed', coalesced: result.coalesced }); response.emit('finish');
+    });
+  };
+  const first = request(), second = request();
+  const { worker, message } = await dispatch;
+  worker.emit('message', { id: message.id, result: {} });
+  await Promise.all([first, second]);
+  const row = timings.summary().windows['24h'].find(row => row.action === 'tasks-full');
+  assert.equal(row.count, 2); assert.equal(row.coalesced, 1);
+});
+
+test('profile publication is complete and every write respects file, count and total disk caps', async t => {
+  const dir = await temporary(t), observations = [];
+  // Exactly one complete fixture fits; two must exceed aggregate bytes even
+  // though both still fit the file and count limits.
+  const caps = { count: 2, fileBytes: 256, totalBytes: Buffer.byteLength(JSON.stringify(profile)) + 1 };
+  const directory = path.join(dir, 'cpu-profiles');
+  const snapshot = async phase => {
+    const names = await readdir(directory);
+    observations.push({ phase, names, sizes: await Promise.all(names.map(async name => (await stat(path.join(directory, name))).size)) });
+  };
+  const profiles = await createDeepProfiles(dir, { caps, fileIO: { unlink,
+    async writeFile(...args) { await writeFile(...args); await snapshot('temporary'); },
+    async rename(...args) { await rename(...args); await snapshot('published'); },
+  } });
+  t.after(() => profiles.close());
+  const worker = new EventEmitter(); worker.startCpuProfile = async () => ({ stop: async () => profile }); profiles.attach(worker);
+  for (let i = 0; i < 6; i++) {
+    await profiles.start(60); await profiles.stop();
+    const files = await profiles.list(); assert.ok(files.length > 0);
+    for (const file of files) assert.deepEqual(JSON.parse(await profiles.download(file.name)), profile);
+    assert.ok(!(await readdir(directory)).some(name => name.endsWith('.tmp')));
+  }
+  assert.equal(observations.length, 24);
+  for (const { sizes, phase, names } of observations) {
+    assert.ok(sizes.length <= caps.count, phase); assert.ok(sizes.every(size => size <= caps.fileBytes), phase);
+    assert.ok(sizes.reduce((sum, size) => sum + size, 0) <= caps.totalBytes, phase);
+    assert.equal(names.some(name => name.endsWith('.tmp')), phase === 'temporary');
+  }
+  assert.equal(profiles.status().failures, 0);
+});
+
+test('50 controlled admission/expiry orders never admit after the deadline', async t => {
+  for (let i = 0; i < 50; i++) {
+    const clock = manualClock(), stage = i % 2 ? 'Profiler.enable' : 'Profiler.start', durationMs = 10 + i;
+    const inspector = inspectorControls([stage]);
+    const profiles = await createDeepProfiles(await temporary(t), { clock, openSession: inspector.openSession, stopTimeoutMs: 20 });
+    let starts = 0;
+    const worker = new EventEmitter(); worker.startCpuProfile = async () => { starts++; return { stop: async () => profile }; };
+    profiles.attach(worker);
+    const started = profiles.start(durationMs / 1000); await inspector.gates[stage].entered;
+    const admitted = i % 3 === 0;
+    if (admitted) { await clock.advance(durationMs - 1); inspector.gates[stage].ack(); await started; assert.equal(starts, 1); await clock.advance(1); }
+    else { await clock.advance(durationMs); if (i % 3 === 2) await clock.advance(1); inspector.gates[stage].ack(); }
+    await started; await profiles.stop(); await profiles.close();
+    assert.equal(starts, Number(admitted), `schedule ${i}`); assert.equal(profiles.status().active, false);
+    assert.equal(clock.pending(), 0); assert.equal(inspector.disconnected(), 1);
+  }
+});
 test('CPU profiles cover process calculators, deadline, close, downloads and caps', { timeout: 30000 }, async t => {
-  const dir = await temporary(t), profiles = await createDeepProfiles(dir, { caps: { count: 3, fileBytes: 4 * 1024 * 1024, totalBytes: 12 * 1024 * 1024 } });
+  const dir = await temporary(t), clock = nativeClock(), profiles = await nativeDeepProfiles(dir, { clock, caps: { count: 3, fileBytes: 4 * 1024 * 1024, totalBytes: 12 * 1024 * 1024 } });
   const worker = new ProcessWorker(genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }));
   t.after(async () => { await profiles.close(); await worker.terminate(); });
   await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
-  // Native profiler admission can exceed 500 ms on a busy runner. Wait for
-  // both process profilers to acknowledge startup before firing the picker
-  // deadline, rather than making successful admission race a wall-clock sleep.
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // Native admission must acknowledge before expiry advances.
   profiles.attach(worker); await profiles.start(60);
   assert.equal(profiles.status().active, true);
-  t.mock.timers.tick(60000);
+  await clock.advance(60000);
   assert.equal(profiles.status().active, false, 'The deadline stops capture without an explicit stop');
   await profiles.stop(); // Join the deadline-triggered cleanup and profile writes.
   assert.equal(profiles.status().active, false);
@@ -69,7 +140,7 @@ test('CPU profiles cover process calculators, deadline, close, downloads and cap
 });
 test('persisted unknown fields never get reflected into summaries', async t => {
   const dir = await temporary(t);
-  await writeFile(`${dir}/live-timings.json`, JSON.stringify({ version: 1, hours: [[Math.floor(Date.now() / 3600000), { SECRET: { count: 1 }, how: { count: 1, max: 1, histogram: { 1: 1, SECRET: 50 }, SECRET: 'SECRET' } }]], recent: [] }));
+  await writeFile(`${dir}/live-timings.json`, JSON.stringify({ version: 1, hours: [[Math.floor(fixedNow / 3600000), { SECRET: { count: 1 }, how: { count: 1, max: 1, histogram: { 1: 1, SECRET: 50 }, SECRET: 'SECRET' } }]], recent: [] }));
   const timings = await openLiveTimings(dir); assert.ok(!JSON.stringify(timings.summary()).includes('SECRET')); await timings.close();
 });
 
@@ -89,15 +160,15 @@ test('each task view and picker-prefixed route has a fixed action name', async t
 });
 test('calculator wake is recorded after a sleeping lane gets a ready worker', async t => {
   const { createTaskScheduler } = await import('../app/tasks/scheduler.mjs');
-  const records = [], workers = [];
-  const scheduler = await createTaskScheduler({ idleMs: 20, timings: { record: (...args) => records.push(args) }, workerFactory() {
+  const records = [], workers = [], clock = manualClock();
+  const scheduler = await createTaskScheduler({ idleClock: clock, idleMs: 20, timings: { record: (...args) => records.push(args) }, workerFactory() {
     const worker = new EventEmitter(); workers.push(worker);
     worker.terminate = async () => { worker.emit('exit', 0); };
     worker.postMessage = message => { if (message.type !== 'evaluate') return; queueMicrotask(() => worker.emit('message', { id: message.id, result: {}, evaluationMs: 1 })); };
     queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
   } });
   t.after(() => scheduler.close());
-  await new Promise(resolve => setTimeout(resolve, 60)); assert.equal(scheduler.getHealth().status, 'sleeping');
+  await clock.advance(20); assert.equal(scheduler.getHealth().status, 'sleeping');
   const result = await scheduler.evaluate({ revision: 0 }, 'synthetic', 'evaluate', undefined, 'key', 'input');
   assert.equal(result.calculatorStarted, true); assert.equal(workers.length, 2);
   assert.equal(records.length, 1); assert.equal(records[0][0], 'calculator-wake'); assert.ok(records[0][1] >= 0);
@@ -124,8 +195,9 @@ test('VPS runner rejects the live directory and aliases before creating a scratc
 });
 
 test('oversized CPU captures are discarded within byte caps', async t => {
-  const profiles = await createDeepProfiles(await temporary(t), { caps: { count: 1, fileBytes: 64, totalBytes: 128 } });
-  await profiles.start(0.02); await new Promise(resolve => setTimeout(resolve, 80)); await profiles.stop();
+  const clock = manualClock(), profiles = await createDeepProfiles(await temporary(t), { clock, caps: { count: 1, fileBytes: 64, totalBytes: 128 } });
+  await profiles.start(0.02); await clock.advance(19); assert.equal(profiles.status().active, true);
+  await clock.advance(1); assert.equal(profiles.status().active, false); await profiles.stop();
   assert.equal(profiles.status().active, false); assert.equal((await profiles.list()).length, 0); assert.ok(profiles.status().failures > 0);
   await profiles.close();
 });
@@ -180,7 +252,7 @@ test('temporary profiles count toward caps and failed cleanup refuses capture ad
 });
 
 test('a calculator crash during capture releases handles and leaves no partial files', async t => {
-  const dir = await temporary(t), profiles = await createDeepProfiles(dir);
+  const dir = await temporary(t), profiles = await nativeDeepProfiles(dir, { clock: nativeClock() });
   const worker = new ProcessWorker(genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }));
   t.after(async () => { await profiles.close(); await worker.terminate(); });
   await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
@@ -196,12 +268,12 @@ test('a calculator crash during capture releases handles and leaves no partial f
 });
 
 test('a calculator created during an active profile joins without a restart flag', async t => {
-  const profiles = await createDeepProfiles(await temporary(t)); await profiles.start(60);
+  const profiles = await nativeDeepProfiles(await temporary(t), { clock: nativeClock() }); await profiles.start(60);
   const worker = new ProcessWorker(genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }));
   t.after(async () => { await profiles.close(); await worker.terminate(); });
-  profiles.attach(worker);
+  const admitted = profiles.attach(worker);
   await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
-  await new Promise(resolve => setTimeout(resolve, 20)); await profiles.stop();
+  await admitted; await profiles.stop();
   const files = await profiles.list();
   assert.ok(files.some(file => file.name.endsWith('-calculator.cpuprofile'))); assert.ok(files.some(file => file.name.endsWith('-relay.cpuprofile')));
   assert.equal(profiles.status().failures, 0);
@@ -215,8 +287,8 @@ test('public administrator connections cannot read or switch profiles', async ()
 
 test('pooled warm use does not claim a calculator start; a retired pool starts one', async t => {
   const { createTaskScheduler } = await import('../app/tasks/scheduler.mjs');
-  const workers = [];
-  const scheduler = await createTaskScheduler({ maxCalculators: 1, idleMs: 30, workerFactory() {
+  const workers = [], clock = manualClock();
+  const scheduler = await createTaskScheduler({ idleClock: clock, maxCalculators: 1, idleMs: 30, workerFactory() {
     const worker = new EventEmitter(); workers.push(worker);
     worker.terminate = async () => { worker.emit('exit', 0); };
     worker.postMessage = message => { if (message.type === 'evaluate') queueMicrotask(() => worker.emit('message', { id: message.id, result: {}, evaluationMs: 1 })); };
@@ -224,18 +296,18 @@ test('pooled warm use does not claim a calculator start; a retired pool starts o
   } });
   t.after(() => scheduler.close());
   assert.equal((await scheduler.evaluate({ revision: 0 }, 'synthetic', 'evaluate', undefined, 'first', 'first')).calculatorStarted, false);
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await clock.advance(30);
   assert.equal((await scheduler.evaluate({ revision: 1 }, 'synthetic', 'evaluate', undefined, 'second', 'second')).calculatorStarted, true);
   assert.equal(workers.length, 2);
 });
 
 test('thread calculators created during capture wait for online and produce a profile', async t => {
   const { Worker } = await import('node:worker_threads');
-  const profiles = await createDeepProfiles(await temporary(t)); await profiles.start(60);
+  const profiles = await nativeDeepProfiles(await temporary(t), { clock: nativeClock() }); await profiles.start(60);
   const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), { workerData: genericWorkerData({ definitions: { chunks: {}, challenges: {}, walkableChunks: [], walkableChunksF2P: [] } }) });
-  t.after(async () => { await profiles.close(); await worker.terminate(); }); profiles.attach(worker);
+  t.after(async () => { await profiles.close(); await worker.terminate(); }); const admitted = profiles.attach(worker);
   await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); });
-  await profiles.stop(); assert.ok((await profiles.list()).some(file => file.name.endsWith('-calculator.cpuprofile'))); assert.equal(profiles.status().failures, 0);
+  await admitted; await profiles.stop(); assert.ok((await profiles.list()).some(file => file.name.endsWith('-calculator.cpuprofile'))); assert.equal(profiles.status().failures, 0);
 });
 
 test('promoted peer cache hits discard the producer and follower timing flags', async t => {
@@ -324,22 +396,20 @@ test('one failed admission disables the capture before replacements or other wor
 
 test('a failed capture retires at most one calculator and replacements finish foreground work', async t => {
   const profiles = await createDeepProfiles(await temporary(t)), workers = [];
-  let starts = 0;
+  let starts = 0, dispatch;
   const scheduler = await createTaskScheduler({ maxRestarts: 0, onWorker: worker => profiles.attach(worker), workerFactory() {
-    const worker = new EventEmitter(); worker.messages = [];
-    worker.postMessage = message => worker.messages.push(message);
-    worker.terminate = async () => { worker.terminated = true; worker.emit('exit', 0); };
+    const worker = dispatchedWorker(value => dispatch?.resolve(value));
     worker.startCpuProfile = async () => {
       starts++; worker.profileRetiring = true; worker.emit('profile-retiring'); throw new Error('Synthetic native failure.');
     };
-    workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
+    workers.push(worker); return worker;
   } });
   t.after(async () => { await profiles.close(); await scheduler.close(); });
   for (let index = 0; index < 6; index++) {
+    dispatch = Promise.withResolvers();
     const request = scheduler.evaluate({ revision: index }, 'synthetic-member', 'evaluate', undefined, String(index), String(index));
-    const deadline = Date.now() + 3000;
-    while (!workers.at(-1).messages.some(message => message.id) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
-    const worker = workers.at(-1), message = worker.messages.find(message => message.id); assert.ok(message);
+    // Retirement can synchronously replace the worker after the previous reply.
+    const { worker, message } = await dispatch.promise; assert.ok(message);
     if (!index) await profiles.start(60);
     assert.ok(!worker.terminated);
     worker.messages.splice(worker.messages.indexOf(message), 1);
@@ -352,59 +422,59 @@ test('a failed capture retires at most one calculator and replacements finish fo
 });
 
 for (const stage of ['Profiler.start', 'Profiler.stop']) test(`picker ${stage} acknowledgement cannot block stop or close`, async t => {
-  const { Session } = await import('node:inspector');
-  const original = Session.prototype.post, entered = Promise.withResolvers();
-  let release;
-  Session.prototype.post = function(method, ...args) {
-    if (method !== stage) return original.call(this, method, ...args);
-    const callback = args.pop();
-    return original.call(this, method, ...args, (...result) => {
-      release = () => callback(...result); entered.resolve();
-    });
-  };
-  const profiles = await createDeepProfiles(await temporary(t), { stopTimeoutMs: 20 });
+  const clock = manualClock(), inspector = inspectorControls([stage]);
+  const profiles = await createDeepProfiles(await temporary(t), { clock, openSession: inspector.openSession, stopTimeoutMs: 20 });
   const started = profiles.start(60);
-  if (stage === 'Profiler.stop') await started;
-  const stopping = stage === 'Profiler.stop' ? profiles.stop() : undefined;
-  await entered.promise;
-  const closed = profiles.close();
-  try {
-    const completed = await Promise.race([Promise.all([started, stopping, closed]).then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 150))]);
-    assert.equal(completed, true, 'stop and close must finish without an inspector acknowledgement');
-    assert.equal(profiles.status().stopping, false);
-    assert.equal(profiles.status().active, false);
-  } finally {
-    Session.prototype.post = original; release();
-    await started; await stopping; await closed;
+  if (stage === 'Profiler.stop') { await started; profiles.stop(); }
+  await inspector.gates[stage].entered;
+  let completed = false;
+  const closed = profiles.close().then(() => { completed = true; });
+  await checkpoint();
+  if (stage === 'Profiler.stop') {
+    assert.equal(clock.pending(), 1, 'cleanup must arm a deadline');
+    await clock.advance(19); assert.equal(completed, false);
+    await clock.advance(1);
   }
+  await closed; await started;
+  assert.equal(profiles.status().stopping, false); assert.equal(profiles.status().active, false);
+  assert.equal(inspector.disconnected(), 1);
+  inspector.gates[stage].ack(); await checkpoint();
+  assert.equal(clock.pending(), 0);
 });
 
-test('a missing calculator start acknowledgement bounds close and retires uncertain cleanup', async t => {
-  const profiles = await createDeepProfiles(await temporary(t), { stopTimeoutMs: 20 });
-  const entered = Promise.withResolvers(), pending = Promise.withResolvers(); let stopped = 0;
+for (const operation of ['start', 'stop']) test(`missing calculator ${operation} acknowledgement expires at the cleanup allowance`, async t => {
+  const clock = manualClock();
+  // Picker output exceeds this cap, so no filesystem phase precedes the worker allowance.
+  const caps = { count: 2, fileBytes: 64, totalBytes: 128 };
+  const profiles = await createDeepProfiles(await temporary(t), { clock, stopTimeoutMs: 20, caps });
+  // The late worker result fits the caps, so only the timeout can keep it unpublished.
+  const late = { nodes: [], startTime: 1, endTime: 2 };
+  assert.ok(Buffer.byteLength(JSON.stringify(late)) <= caps.fileBytes);
+  assert.ok(Buffer.byteLength(JSON.stringify(profile)) > caps.fileBytes);
+  const entered = Promise.withResolvers(), pending = Promise.withResolvers(), lateStopped = Promise.withResolvers();
+  let stops = 0, otherStarts = 0;
+  const handle = { stop() { stops++; lateStopped.resolve(); return operation === 'stop' ? pending.promise : Promise.resolve(late); } };
   const worker = new EventEmitter();
-  worker.startCpuProfile = () => { entered.resolve(); return pending.promise; };
+  worker.startCpuProfile = () => { entered.resolve(); return operation === 'start' ? pending.promise : handle; };
   profiles.attach(worker);
-  let otherStarts = 0;
   const other = new EventEmitter();
-  other.startCpuProfile = async () => { otherStarts++; return { stop: async () => ({ nodes: [1] }) }; };
-  profiles.attach(other);
+  other.startCpuProfile = async () => { otherStarts++; return { stop: async () => profile }; };
+  if (operation === 'start') profiles.attach(other);
   const started = profiles.start(60); await entered.promise;
-  const closeStart = performance.now();
-  const closed = profiles.close();
-  try {
-    const completed = await Promise.race([closed.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 250))]);
-    assert.equal(completed, true);
-    // A delayed timer callback must not let synchronous profile/file stalls
-    // win the race after the wall-clock ceiling has already elapsed.
-    assert.ok(performance.now() - closeStart < 250, 'calculator close must finish below 250 ms of real time');
-    assert.equal(worker.profileRetiring, true);
-    assert.equal(otherStarts, 0);
-    assert.equal(other.profileRetiring, undefined, 'an unissued admission must not retire another calculator');
-    assert.equal(profiles.status().stopping, false);
-  } finally {
-    pending.resolve({ stop: async () => { stopped++; return { nodes: [1] }; } });
-    await started; await closed; await new Promise(resolve => setImmediate(resolve));
-    assert.equal(stopped, 1);
-  }
+  if (operation === 'stop') await started;
+  let completed = false;
+  const closed = profiles.close().then(() => { completed = true; });
+  await checkpoint();
+  assert.equal(clock.pending(), 1, 'unacknowledged cleanup must arm its deadline');
+  await clock.advance(19); assert.equal(completed, false); assert.equal(worker.profileRetiring, undefined);
+  await clock.advance(1);
+  assert.equal(worker.profileRetiring, true, 'deadline retires uncertain cleanup on its first firing');
+  await closed; await started;
+  assert.equal(otherStarts, 0); assert.equal(other.profileRetiring, undefined);
+  assert.equal(profiles.status().stopping, false);
+  assert.deepEqual(await profiles.list(), []);
+  pending.resolve(operation === 'start' ? handle : late);
+  await lateStopped.promise; await checkpoint(); await profiles.close();
+  assert.equal(stops, 1); assert.equal(clock.pending(), 0);
+  assert.deepEqual(await profiles.list(), [], 'late cleanup cannot publish a timed-out capture');
 });
