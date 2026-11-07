@@ -58,7 +58,7 @@ export const toolingContractSupportScripts = Object.freeze([
   'ReleaseV2-Common.ps1', 'Resource-Admission.ps1', 'Restore-CoreTasks.ps1', 'Rollback-Core.ps1',
   'Rollback-Live.ps1', 'Ship-Core.ps1', 'Start-Core.ps1', 'Stop-Core.ps1', 'Task-Common.ps1',
   'Watch-Core.ps1', 'Watchdog-Common.ps1', 'with-heavy.ps1', 'with-light.ps1',
-  'companion-check.mjs', 'release-worker.mjs',
+  'companion-check.mjs', 'release-worker.mjs', 'release-transition.mjs',
 ]);
 async function rawSupportInputs(source) {
   const directory = path.join(source, 'scripts/private-companion');
