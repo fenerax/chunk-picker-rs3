@@ -115,21 +115,36 @@ export async function runProbe(config, dataDir, output, {
       attempt(() => { childResult.termination.killAccepted = child.kill('SIGKILL'); });
     };
     const onData = bytes => { detail = (detail + bytes.toString()).slice(-4096); };
-    const onError = error => stop(error);
-    const onAbort = () => stop(signal.reason instanceof Error ? signal.reason : new Error('Packed save check aborted.', { cause: signal.reason }));
-    const recordExit = (code, reason) => { childResult.exitCode = code; childResult.signal = reason ?? null; };
+    const onError = error => {
+      if (done) return;
+      if (stopping || childResult.exitObserved || childResult.closeObserved) cleanupFailures.push(error);
+      else stop(error);
+    };
+    const onAbort = () => {
+      const cause = signal.reason instanceof Error ? signal.reason : new Error('Packed save check aborted.', { cause: signal.reason });
+      // Exit is the probe's outcome. Cancellation during diagnostic drain cannot
+      // replace either its refusal or its success.
+      if (childResult.exitObserved || childResult.closeObserved) {
+        (childResult.secondaryNotes ??= []).push(cause);
+        return;
+      }
+      stop(cause);
+    };
+    const recordExit = (code, reason) => {
+      if (childResult.exitObserved || childResult.closeObserved) return;
+      childResult.exitCode = code; childResult.signal = reason ?? null;
+      if (!stopping && (code !== 0 || reason)) primary = new Error('Packed save check refused: ' + refusalMessage(detail.trim()));
+    };
     const onExit = (code, reason) => {
-      childResult.exitObserved = true; recordExit(code, reason);
+      recordExit(code, reason); childResult.exitObserved = true;
       if (stopping) { childResult.termination && (childResult.termination.joined = true); return finish(); }
       attempt(() => clearTimer(watchdog));
-      if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + refusalMessage(detail.trim()));
       // Retain late stderr without making inherited pipe closure a prerequisite.
       drain = setTimer(finish, 25);
     };
     const onClose = (code, reason) => {
-      childResult.closeObserved = true; recordExit(code, reason);
+      recordExit(code, reason); childResult.closeObserved = true;
       if (stopping) { childResult.termination && (childResult.termination.joined = true); }
-      else if (code !== 0 || reason) primary = new Error('Packed save check refused: ' + refusalMessage(detail.trim()));
       finish();
     };
     if (signal?.aborted) return onAbort();
