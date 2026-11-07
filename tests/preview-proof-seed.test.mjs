@@ -242,7 +242,7 @@ test('exact Preview eligibility proof handoff', { timeout: 600000 }, async t => 
 
   await t.test('native process transport seeds the scheduler and a warm advisory baseline skips export', async () => {
     const { state, workerData } = previewProofFixture({ taskCount: 32 });
-    const scheduler = await createTaskScheduler({ workerData, maxCalculators: 2 });
+    const scheduler = await createTaskScheduler({ workerData, maxCalculators: 2, shareSnapshots: true });
     try {
       const input = inputFor(state);
       await scheduler.evaluate(state, 'one', 'evaluate', undefined, 'baseline', input);

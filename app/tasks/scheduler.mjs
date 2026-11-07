@@ -892,7 +892,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     // rebinds its equivalent state instead of receiving it again. Predictions
     // read roll bookkeeping for reuse priority, and without a fingerprint only
     // the revision proves equivalence.
-    const snapshotInput = entry.type === 'prepare-rules' ? undefined : entry.stateInput ? entry.stateInput.inputKey
+    const snapshotInput = entry.type === 'prepare-rules' || entry.type === 'eligibility-proof-export' ? undefined : entry.stateInput ? entry.stateInput.inputKey
       : !shareSnapshots ? undefined : entry.input === undefined ? JSON.stringify([entry.state.revision, predictionInput(entry.state)])
       : predictionInput(entry.state, [entry.input, entry.state.members?.map(member => [member.selected, member.pendingRoll])]);
     const snapshotKey = snapshotInput === undefined ? undefined : JSON.stringify([entry.state.revision, snapshotInput]);
