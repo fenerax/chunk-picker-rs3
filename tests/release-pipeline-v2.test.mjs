@@ -346,9 +346,9 @@ async function controlledProbe(t) {
   });
   syncBuiltinESMExports();
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  outcome = checkPackTransition({ fromConfig: config.path, toConfig: config.path, transition }).then(
-    () => ({ error: null }), error => ({ error }));
-  return { child, spawned, outcome, get scratch() { return scratch; }, get cleanupStarted() { return cleanupStarted; }, get kills() { return kills; } };
+  const producer = checkPackTransition({ fromConfig: config.path, toConfig: config.path, transition });
+  outcome = producer.then(() => ({ error: null }), error => ({ error }));
+  return { child, spawned: waitForStage(spawned, producer), outcome, get scratch() { return scratch; }, get cleanupStarted() { return cleanupStarted; }, get kills() { return kills; } };
 }
 
 test('compatibility watchdog rejects even when kill never closes inherited stderr', async t => {
