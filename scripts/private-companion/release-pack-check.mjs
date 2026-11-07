@@ -1,7 +1,6 @@
 // Read-only source storage; packed startup is exercised only on disposable copies.
 import path from 'node:path';
 import os from 'node:os';
-import net from 'node:net';
 import { realpathSync } from 'node:fs';
 import { readFile, writeFile, mkdir, mkdtemp, cp, rm, lstat, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -66,18 +65,39 @@ export async function saveIdentity(dataDir) {
   }
   return files;
 }
-async function runProbe(config, dataDir, output) {
+export async function runProbe(config, dataDir, output, { spawnImpl = spawn, readReport = json } = {}) {
   const env = sanitizeExecutionEnvironment(process.env, { overrides: { RS3_DATASET: 'duo-legacy', RS3_PACKS_DIR: config.packsDir,
     RS3_PACK_SELECTION: config.selection.path, RS3_DATASET_PROFILE: config.profile.path, RS3_DATASET_PROFILE_SHA256: config.profile.sha256,
     RS3_PRIVATE_ADDON: config.addons.path, RS3_PRIVATE_ADDON_SHA256: config.addons.sha256, RS3_TASK_WORKER_MODE: 'process' } });
   await new Promise((resolve, reject) => {
-    const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
-    let detail = ''; child.stderr.on('data', bytes => { detail = (detail + bytes.toString()).slice(-4096); });
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Packed save check timed out.')); }, 180000);
-    child.once('error', () => { clearTimeout(timer); reject(new Error('Packed save check failed.')); });
-    child.once('exit', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('Packed save check refused: ' + refusalMessage(detail.trim()))); });
+    const child = spawnImpl(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+    let detail = '', original, timedOut = false;
+    const phases = ['spawned'];
+    child.stderr.on('data', bytes => { detail = (detail + bytes.toString()).slice(-4096); });
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, 180000);
+    child.on('message', message => {
+      const expected = ['ready', 'probe', 'closed'][phases.length - 1];
+      if (message?.type !== expected) {
+        original = new Error('Packed probe protocol differs.'); return;
+      }
+      phases.push(message.type);
+      if (message.type === 'ready') child.send({ type: 'probe' }, error => {
+        if (error) { original = error; child.kill(); }
+      });
+    });
+    child.once('error', error => { original = error; });
+    // `exit` can precede stderr EOF. Retain its tail and join stream close
+    // before reading output or removing any disposable store.
+    child.once('close', (code, signal) => {
+      clearTimeout(timer);
+      if (!original && !timedOut && code === 0 && signal === null && phases.join() === 'spawned,ready,probe,closed') resolve();
+      else reject(new Error('Packed save check refused: ' + refusalMessage(JSON.stringify({
+        exitCode: code, signal, timedOut, phases, original: original ? { name: original.name, code: original.code, message: original.message } : null,
+        stderrTail: detail.trim()
+      })), { cause: original }));
+    });
   });
-  return json(output);
+  return readReport(output);
 }
 export function datasetAuthoredIdentities(definitions) {
   const datasetAuthored = {}, datasetAuthoredKeys = {};
@@ -212,24 +232,19 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
     if (output) await writeFile(output + '.failure.json', encode({ passed: false, cause: refusalMessage(error),
       probes: reports.map(r => ({ savedCount: Object.keys(r.saved).length, taskCount: r.taskIds.length, historyCount: r.historyEvents.length, progressDigest: r.progressDigest, migration: r.migrationSummary })) }), { flag: 'wx' });
     throw error;
-  } finally { await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+  } finally { await rm(scratch, { recursive: true, force: true }); }
 }
-export async function probe(core, dataDir, output, { retention } = {}) {
+export async function probe(core, dataDir, output, { retention, ready = async () => {}, notify = () => {} } = {}) {
   const { authoredIdentityRegistry, resolveIdentity } = await import(pathToFileURL(path.join(core, 'app/tasks/identity.mjs')));
   const { loadDatasetInputs } = await import(pathToFileURL(path.join(core, 'app/dataset-bootstrap.mjs')));
   const { prepareTaskDefinitions } = await import(pathToFileURL(path.join(core, 'app/dataset-pipeline.mjs')));
-  let port;
-  for (let candidate = 8900; candidate <= 8999; candidate++) {
-    const free = await new Promise(resolve => { const socket = net.createServer(); socket.once('error', () => resolve(false)); socket.listen(candidate, '127.0.0.1', () => socket.close(() => resolve(true))); });
-    if (free) { port = candidate; break; }
-  }
-  if (!port) throw new Error('No scratch compatibility port available.');
   const { createServer } = await import(pathToFileURL(path.join(core, 'app/server.mjs')));
-  const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false, retention, taskWorkerOptions: { warmStoreDirectory: false },
+  const app = await createServer({ dataDir, host: '127.0.0.1', port: 0, loopbackPort: undefined, predictionPrewarm: false, retention, taskWorkerOptions: { warmStoreDirectory: false },
     runeMetrics: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } },
     originalSync: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } } });
   try {
     await app.listen();
+    await ready();
     const state = app.store.getState();
     const invite = new URL(app.inviteUrl);
     const response = await fetch(invite.origin + '/api/tasks?view=play-v1&memberId=' + encodeURIComponent(state.members[0].id), { headers: { Authorization: 'Bearer ' + invite.pathname.slice('/join/'.length) }, signal: AbortSignal.timeout(120000) });
@@ -272,7 +287,8 @@ export async function probe(core, dataDir, output, { retention } = {}) {
     const registry = authoredIdentityRegistry();
     const authored = { ids: Object.keys(registry.entries).sort(), aliases: registry.aliases };
     await writeFile(output, encode({ authored, saved, datasetAuthored, datasetAuthoredKeys, ...preserved, progressFields: Object.fromEntries(Object.entries(progress).map(([key, value]) => [key, digestValue(value)])), registryDigest: digestValue(state.identityRegistry ?? {}), progressDigest: digestValue(progress), progressSnapshotRows: (state.progressSnapshots?.days ?? []).map(row => [row[0], digestValue(row)]), progressSnapshotMeta: state.progressSnapshots ? digestValue(Object.fromEntries(Object.entries(state.progressSnapshots).filter(([key]) => key !== 'days'))) : null, taskIds: state.tasks.map(t => t.id).sort(), tasksServed: true }), { flag: 'wx' });
-  } finally { await app.close(); }
+    notify('probe');
+  } finally { await app.close(); notify('closed'); }
 }
 // Self-contained: this module is also copied flat into PC kits.
 // Eval imports are never CLI entrypoints, even when eval has positional args.
@@ -283,8 +299,16 @@ function isCliEntry() {
 }
 if (isCliEntry()) {
   try {
-    if (process.argv[2] === 'probe') await probe(...process.argv.slice(3));
+    if (process.argv[2] === 'probe') {
+      const notify = type => process.send?.({ type });
+      const ready = process.send ? () => new Promise((resolve, reject) => {
+        process.once('message', message => message?.type === 'probe' ? resolve() : reject(new Error('Packed probe command refused.')));
+        notify('ready');
+      }) : undefined;
+      try { await probe(...process.argv.slice(3, 6), { ready, notify }); }
+      finally { if (process.connected) process.disconnect(); }
+    }
     else if (process.argv[2] === 'check') await checkPackTransition({ fromConfig: process.argv[3], toConfig: process.argv[4], transition: process.argv[5], output: process.argv[6] });
     else throw new Error('Pack check command refused.');
-  } catch (error) { console.error('Pack compatibility refused; storage unchanged. Cause: ' + refusalMessage(error)); process.exitCode = 1; }
+  } catch (error) { console.error('Pack compatibility refused; storage unchanged. Cause: ' + refusalMessage(error) + (error.code ? '; code=' + error.code : '')); process.exitCode = 1; }
 }
