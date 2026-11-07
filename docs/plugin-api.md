@@ -30,16 +30,32 @@ unknown-world review path and cannot tick automatically or be applied while
 the mode is on. A report received during testing stays non-live even if the
 switch is turned off while its body or queued mutation is waiting. Item journals
 are retained and acknowledged as unknown-world evidence, including events
-labelled `live` by the sender. Quarantine decisions are saved in portable journal
-metadata before optional ledger writes. If that write fails, the request returns
-503 without acknowledging or retaining the event's evidence. Journal identities
-are remembered before queueing or writing, so retries stay unknown-world even
-after a mode change. Turning testing off returns 409 ("Testing reports are still
-being saved; try again shortly") until the pending quarantine has been saved and
-acknowledged. Restart reconstructs pending quarantine from the save and sidecar;
-the plugin's successful retry releases the switch. No automatic handled IDs, tick provenance
-or History entries are added.
+labelled `live` by the sender. Before processing a testing report, the mutation
+queue saves a per-player testing watermark: the highest event index seen for
+each journal and the last 32 snapshot IDs (items, achievements and bank). This
+single metadata update precedes observation caches, optional journal writes,
+currency updates and matching. A failed watermark write returns 503 and processes
+nothing. Already-durable identical watermarks need no additional write.
+
+Toggling never clears the watermark and is never blocked by pending journal
+writes. After switching off or restarting, an item report containing only events
+at or below its journal watermark is quarantined entirely. Recorded snapshot IDs
+also quarantine containers and coins, including resends without journal events.
+In mixed reports, older events stay unknown-world and fresh events above the
+watermark retain their reported provenance; fresh live events can tick even when
+their containers come from a quarantined snapshot. Recorded achievement and bank
+snapshots remain non-live too. A full pending ledger drains its durable prefix
+before rejecting an overflowing suffix; the watermark protects that suffix until
+retry. Quarantined observations add no automatic handled IDs, tick provenance or
+History entries.
 Existing live evidence also cannot auto-tick while the mode is on.
+
+The one known limit is failure to write the watermark itself followed by a
+restart: the rejected report has left no durable record to identify its retry.
+The failed request processes nothing, but turning testing off after that restart
+can let the retry be treated as live. Keep testing on and let the plugin retry
+successfully before switching off. Failures after the watermark is saved,
+including journal intent or sidecar writes, do not have this gap.
 
 Levels/XP and quests are excluded from both proposals and the plugin source
 cache. Worn equipment, backpack and toolbelt observations cannot change saved
@@ -56,9 +72,11 @@ turning the switch off follows the normal live-world rules.
 
 Testing mode is a setting of the live picker, not part of a member backup.
 Member restore and member import keep the destination's current setting.
-Whole-picker backups and restores preserve existing settings as additive schema-1
-metadata in `provenance.pluginTestingMode`; full-save roster transfers map its
-player IDs. The key stays absent until someone turns testing mode on. Unchanged
+Whole-picker backups and restores preserve existing settings and watermarks as
+additive schema-1 metadata in `provenance.pluginTestingMode` and
+`provenance.pluginTestingWatermarks`; full-save roster transfers map their player
+IDs. Member restore/import keeps the destination's watermark as well as its
+switch. These keys stay absent until testing is used. Unchanged
 toggles do not write a save. Enabling testing requires plain-object provenance;
 other existing provenance is preserved and the change is refused with 409.
 The setting is outside gameplay Undo. Frozen rollback release `06e15939` loads

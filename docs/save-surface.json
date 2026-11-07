@@ -38,6 +38,16 @@
   ],
   "json": [
     {
+      "path": "/state/provenance/pluginTestingWatermarks/*/journals/*",
+      "frozen": "preserved",
+      "reason": "Per-player journal high-water indices recorded before testing observations. Frozen readers preserve free-form provenance without enforcing quarantine; current readers recover archived metadata and map roster IDs."
+    },
+    {
+      "path": "/state/provenance/pluginTestingWatermarks/*/snapshots/[]",
+      "frozen": "preserved",
+      "reason": "Last 32 testing snapshot IDs per player, outside gameplay Undo and never cleared by toggling. Frozen readers preserve but ignore these optional identifiers."
+    },
+    {
       "path": "/state/provenance/pluginTestingMode/*",
       "frozen": "preserved",
       "reason": "Per-player boolean picker setting, outside gameplay Undo. The frozen release preserves free-form provenance but ignores the switch; its receiver does not enforce testing mode. Current readers recover settings through frozen restore archives and map roster IDs."

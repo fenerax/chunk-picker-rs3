@@ -124,6 +124,9 @@ export async function buildSaveCorpus(t) {
   };
   await capture('initialize-static');
   await store.setPluginTestingMode(roster[0].id, true, store.getInfo().revision);
+  await store.retainPluginTestingWatermark(roster[0].id, {
+    journal: { id: 'aaaaaaaaaaaaaaaa', events: [[1, 857, 'Synthetic testing watermark', 'live']] }, snapshots: ['0123456789abcdef'],
+  });
   await capture('plugin-testing-mode', true);
   await command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 'rules');
   await command({ type: 'update-task', taskId: tasks[0].id, task: { label: 'Synthetic edited task', memberIds: [roster[0].id] } }, 'task-edits');

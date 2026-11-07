@@ -29,6 +29,18 @@ requirement. The frozen release preserves free-form provenance but does not
 enforce this switch. Synthetic save-surface and exact-frozen-runtime tests cover
 loading, tick/chunk/History preservation and Undo with the setting present.
 
+`state.provenance.pluginTestingWatermarks` is optional per-player metadata with
+`journals` (journal ID to highest testing event index) and `snapshots` (last 32
+testing snapshot IDs). A testing report updates it atomically before observation
+processing; existing durable coverage may make the update a no-op. It changes no
+gameplay revision, History or Undo. Toggling never clears it. Whole-picker backups,
+restores and full-save roster mapping preserve it, including frozen restore
+archives; member import/restore keeps the destination's watermark. Malformed
+optional values are ignored on reading and never block startup, restore or export.
+The frozen release preserves this metadata but does not enforce it. A save-write
+failure before a watermark becomes durable cannot identify the rejected report
+after restart; see the known limit in [the plugin API](plugin-api.md#picker-testing-mode).
+
 ## Plugin item journal retention
 
 The portable schema and `state.json` format are unchanged. Live item evidence
