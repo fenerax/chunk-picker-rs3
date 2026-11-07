@@ -1,7 +1,6 @@
 // Read-only source storage; packed startup is exercised only on disposable copies.
 import path from 'node:path';
 import os from 'node:os';
-import net from 'node:net';
 import { realpathSync } from 'node:fs';
 import { readFile, writeFile, mkdir, mkdtemp, cp, rm, lstat, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -72,10 +71,19 @@ async function runProbe(config, dataDir, output) {
     RS3_PRIVATE_ADDON: config.addons.path, RS3_PRIVATE_ADDON_SHA256: config.addons.sha256, RS3_TASK_WORKER_MODE: 'process' } });
   await new Promise((resolve, reject) => {
     const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
-    let detail = ''; child.stderr.on('data', bytes => { detail = (detail + bytes.toString()).slice(-4096); });
-    const timer = setTimeout(() => { child.kill(); reject(new Error('Packed save check timed out.')); }, 180000);
-    child.once('error', () => { clearTimeout(timer); reject(new Error('Packed save check failed.')); });
-    child.once('exit', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('Packed save check refused: ' + refusalMessage(detail.trim()))); });
+    let detail = '', spawnError, timedOut = false;
+    child.stderr.on('data', bytes => { detail = (detail + bytes.toString()).slice(-4096); });
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, 180000);
+    child.once('error', error => { spawnError = error; });
+    // exit does not join stderr or release all native handles. Retain the first
+    // failure only after close, before the caller can remove probe scratch.
+    child.once('close', (code, signal) => {
+      clearTimeout(timer);
+      if (!spawnError && !timedOut && code === 0 && signal === null) return resolve();
+      const childResult = { error: spawnError ? { name: spawnError.name, code: spawnError.code, message: refusalMessage(spawnError.message) } : null,
+        exitCode: code, signal, timedOut, stderrTail: refusalMessage(detail.trim()) };
+      reject(Object.assign(new Error('Packed save check refused: ' + JSON.stringify(childResult)), { childResult }));
+    });
   });
   return json(output);
 }
@@ -212,20 +220,14 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
     if (output) await writeFile(output + '.failure.json', encode({ passed: false, cause: refusalMessage(error),
       probes: reports.map(r => ({ savedCount: Object.keys(r.saved).length, taskCount: r.taskIds.length, historyCount: r.historyEvents.length, progressDigest: r.progressDigest, migration: r.migrationSummary })) }), { flag: 'wx' });
     throw error;
-  } finally { await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+  } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 export async function probe(core, dataDir, output, { retention } = {}) {
   const { authoredIdentityRegistry, resolveIdentity } = await import(pathToFileURL(path.join(core, 'app/tasks/identity.mjs')));
   const { loadDatasetInputs } = await import(pathToFileURL(path.join(core, 'app/dataset-bootstrap.mjs')));
   const { prepareTaskDefinitions } = await import(pathToFileURL(path.join(core, 'app/dataset-pipeline.mjs')));
-  let port;
-  for (let candidate = 8900; candidate <= 8999; candidate++) {
-    const free = await new Promise(resolve => { const socket = net.createServer(); socket.once('error', () => resolve(false)); socket.listen(candidate, '127.0.0.1', () => socket.close(() => resolve(true))); });
-    if (free) { port = candidate; break; }
-  }
-  if (!port) throw new Error('No scratch compatibility port available.');
   const { createServer } = await import(pathToFileURL(path.join(core, 'app/server.mjs')));
-  const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false, retention, taskWorkerOptions: { warmStoreDirectory: false },
+  const app = await createServer({ dataDir, host: '127.0.0.1', port: 0, loopbackPort: undefined, predictionPrewarm: false, retention, taskWorkerOptions: { warmStoreDirectory: false },
     runeMetrics: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } },
     originalSync: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } } });
   try {

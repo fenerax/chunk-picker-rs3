@@ -4,25 +4,17 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, readFile, writeFile, cp, rm, readdir, symlink } from 'node:fs/promises';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createHash } from 'node:crypto';
-import { hashTree, digestValue } from '../scripts/private-companion/release-identity.mjs';
-import { bindingBytes } from '../scripts/private-companion/release-pack-check.mjs';
+import { hashTree } from '../scripts/private-companion/release-identity.mjs';
+import { bindingBytes, checkPackTransition } from '../scripts/private-companion/release-pack-check.mjs';
 import { prune } from '../scripts/private-companion/release-v2.mjs';
 const scripts = fileURLToPath(new URL('../scripts/private-companion/', import.meta.url));
 import { stageReleaseKit } from '../scripts/private-companion/stage-release-v2.mjs';
 import { pipelineTests, orderedEarly, earlyBudgetMs } from '../scripts/private-companion/release-early.mjs';
 import { literalModuleReferences } from '../scripts/private-companion/tooling-module-graph.mjs';
-const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const json = async file => JSON.parse(await readFile(file, 'utf8'));
-const put = async (file, value) => { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)); };
-const invoke = (file, args, env = process.env) => new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, [file, ...args], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }); let output = '';
-  child.stdout.on('data', bytes => output += bytes); child.stderr.on('data', bytes => output += bytes);
-  child.on('error', reject); child.on('close', code => resolve({ code, output }));
-});
+import { fixture, invoke, hash, json, put, git } from './helpers/release-pipeline.mjs';
 test('every module copied flat into a PC kit resolves its literal imports inside the kit layout', async () => {
   // stageReleaseKit copies every top-level companion module into kit/tools.
   // Check the complete inventory, rather than this lifecycle fixture's subset.
@@ -128,238 +120,239 @@ test('staging accepts an isolated pack build and hashes every copied payload int
   const legacy=path.join(root,'legacy-kit');await stageReleaseKit({...options,packs:undefined,output:legacy});
   assert.deepEqual((await json(path.join(legacy,'kit.json'))).selection,{version:'old'});
 });
-async function fixture(t) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'release-pipeline-fixture-')); t.after(() => rm(root, { recursive: true, force: true }));
-  const kit = path.join(root, 'kit'), repo = path.join(root, 'repo');
-  for (const name of ['tools', 'operator', 'packs', 'release-gate/corpus', 'checks/private-source/scripts/secret-scan', 'releases']) await mkdir(path.join(kit, name), { recursive: true });
-  await mkdir(repo);
-  for (const name of ['release-v2.mjs', 'frozen-release.mjs', 'release-pack-check.mjs', 'release-identity.mjs', 'release-text.mjs', 'release-legacy-rollback.mjs', 'public-core-gate.mjs', 'release-idle.mjs', 'release-evidence.mjs', 'retry-policy.mjs', 'file-test-evidence.mjs', 'module-scan.mjs', 'file-test-lane.mjs', 'lane-test-evidence.mjs', 'release-lane-status.mjs', 'retry-failed-files.mjs', 'release-early.mjs']) await cp(path.join(scripts, name), path.join(kit, 'tools', name));
-  // This lifecycle fixture already supplies synthetic scanner/suite/gallery producers.
-  // Preflight's real data contracts have their own independent tests.
-  await put(path.join(kit,'tools/release-preflight.mjs'),'export const releasePreflight=async()=>({passed:true,synthetic:true});');
-  // Synthetic core/intake contract, as above. Actual prepare-time drift refusal
-  // and its ordering are covered independently in release-freeze.test.mjs.
-  await put(path.join(kit,'tools/check-private-drift.mjs'),'export const assertPrivateDriftForStaging=async()=>{};');
-  await put(path.join(kit, 'kit.json'), { schemaVersion: 2, concurrency: 6, browser: { path: process.execPath } });
-  // Only the practice guard boundary is stubbed; its real acceptance checks have
-  // separate audit fixtures. The lifecycle test still uses the actual gate orchestrator.
-  await put(path.join(kit,'tools/release-practice.mjs'),'export const assertPracticeAcceptance=async()=>{};');
-  await put(path.join(kit,'checks/private-source/scripts/adaptive-test-runner.mjs'),`export async function runAdaptive({files}){return {passed:true,files:files.map(file=>({file,passed:true,processWallMs:10,fileWallMs:9,bodyMs:2,summary:{}}))};}`);
-  await put(path.join(kit,'checks/private-source/tests/fixtures/original-sync/capture.json'),{synthetic:true,records:[{task:'fixture-task',completed:true}]});
-  await put(path.join(kit,'checks/private-source/scripts/perf/cdp.mjs'),'export const syntheticBrowserTransport = true;');
-  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/scan.mjs'), 'export function scanEntries(entries) { return {status:"clean",files:entries.length,findings:[]}; }\nexport function loadReviewed() { return {hosts:[],placeholders:new Set(),lines:new Set()}; }\nimport { execFileSync } from "node:child_process";\nexport function treeEntries(repo, ref) { return execFileSync("git", ["-C", repo, "ls-tree", "-r", "--name-only", ref]).toString().split("\\n").filter(Boolean).map(path => ({ path, bytes: Buffer.alloc(0) })); }');
-  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/fingerprints.mjs'), 'export async function loadCorpus(){ return {}; }');
-  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/reviewed.json'), {});
-  const packBytes = JSON.stringify({ schemaVersion: 1, files: [] });
-  await put(path.join(kit,'packs/fixture/1.0.0/pack.json'),packBytes);
-  const choice = { id: 'fixture', version: '1.0.0', sha256: hash(packBytes) }, selection = { schemaVersion: 1, data: choice, rulesText: choice, art: choice };
-  await put(path.join(kit, 'packs/selection.json'), selection);
-  const log = { schemaVersion: 1, entries: [{ date: '2026-01-01', title: 'Earlier', items: ['Earlier item'] }] };
-  const map = { schemaVersion: 1, updated: '2026-01-01', themes: [{ id: 'a', items: [{ id: 'A1', title: 'A task', note: 'Earlier' }] }] };
-  const addon = path.join(root, 'old-addon/addon.json'), files = [];
-  for (const [name, data] of [['changelog.json', log], ['roadmap.json', map]]) { const bytes = JSON.stringify(data); await put(path.join(path.dirname(addon), 'app/data', name), bytes); files.push({ path: 'app/data/' + name, sha256: hash(bytes) }); }
-  await put(addon, { schemaVersion: 1, features: { projectUpdates: true }, files });
-  const previous = path.join(root, 'old-config.json');
-  const origin = path.join(root,'origin'); await put(origin,'fixture origin bytes');
-  await put(previous, { schemaVersion: 1, coreRoot: repo, nodePath: process.execPath, publicOriginFile:origin, packsDir:path.join(kit,'packs'), addons: { path: addon, sha256: hash(await readFile(addon)) }, packs: { data: choice, rulesText: choice, art: choice } });
-  await put(path.join(repo, 'scripts/test.mjs'), '// fixture per-file runner is supplied by the isolated kit');
-  await put(path.join(repo,'scripts/test-selection.mjs'),"import {readdir} from 'node:fs/promises';export async function discoverTests(directory){return (await readdir(directory)).filter(name=>name.endsWith('.test.mjs')).sort();}");
-  for(const name of [...pipelineTests,'state.test.mjs'])await put(path.join(repo,'tests',name),"import test from 'node:test';test('synthetic lifecycle fixture',()=>{});");
-  await put(path.join(repo,'tests/browser-screen-harness.mjs'),'// independent synthetic public fixture');
-  await put(path.join(repo, 'app/server.mjs'), `export const marker = "committed core";import {mkdir,readFile,writeFile} from 'node:fs/promises';import path from 'node:path';export async function createServer({dataDir}){await mkdir(dataDir,{recursive:true});let state;try{state=JSON.parse(await readFile(path.join(dataDir,'state.json')));}catch{state={revision:1,members:[],tasks:[]};await writeFile(path.join(dataDir,'state.json'),JSON.stringify(state));}return {store:{getState:()=>state},close:async()=>{}};}`);
-  const git = (...args) => execFileSync('git', ['-C', repo, ...args], { windowsHide: true, stdio: 'pipe' }).toString().trim();
-  git('init'); git('config', 'user.email', 'fenerax@users.noreply.github.com'); git('config', 'user.name', 'Fixture'); git('add', '.'); git('commit', '-m', 'Fixture committed core'); const revision = git('rev-parse', 'HEAD');
-  await put(path.join(repo, 'app/server.mjs'), 'export const marker = "uncommitted core";');
-  await put(path.join(repo, 'untracked-private.txt'), 'must never export');
-  await put(path.join(kit, 'tools/companion-check.mjs'), `import {mkdir,writeFile,readFile,cp} from 'node:fs/promises'; import path from 'node:path'; const a=Object.fromEntries(Array.from({length:(process.argv.length-2)/2},(_,i)=>[process.argv[2+i*2],process.argv[3+i*2]])); const out=a['--output']; if(a['--lane']==='addon'){await mkdir(out); await writeFile(path.join(out,'addon.json'),'{}');} else if(a['--lane']==='profile'){await writeFile(out,'{}');} else if(a['--lane']==='prepare'){await cp(a['--core'],out,{recursive:true});await mkdir(path.join(out,'.local/game-data'),{recursive:true});await mkdir(path.join(out,'.local/map-assets'),{recursive:true});} else {process.exitCode=1;}`);
-  for (const name of ['verify-install.mjs', 'gallery-browser-check.mjs']) await put(path.join(kit, 'tools', name), 'console.log(JSON.stringify({passed:true}));');
-  // Windows Chrome resolves these known folders before enabling scratch CDP.
-  await put(path.join(kit, 'tools/gallery-check.mjs'), `import {access} from 'node:fs/promises'; import path from 'node:path'; if(process.platform==='win32')for(const name of ['Local','Roaming'])await access(path.join(process.env.USERPROFILE,'AppData',name)); console.log(JSON.stringify({passed:true}));`);
-  const heavy = `param([Parameter(Position=0)][string]$Command,[Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest)\n$ErrorActionPreference='Stop'\n$dir=Join-Path $PSScriptRoot 'fixture-owner'\nNew-Item -ItemType Directory -Path $dir -ErrorAction Stop | Out-Null\n$token=[Guid]::NewGuid().ToString('N')\n@{pid=$PID;token=$token}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $dir 'owner.json')\n$env:RS3_HEAVY_LOCK_PATH=$dir;$env:RS3_HEAVY_LOCK_PID=[string]$PID;$env:RS3_HEAVY_LOCK_TOKEN=$token\ntry { & $Command @Rest; $result=$LASTEXITCODE } finally { Remove-Item -LiteralPath $dir -Recurse -Force }\nexit $result\n`;
-  // Fixture owner location is mutable evidence, outside every frozen kit component.
-  await put(path.join(kit, 'operator/with-heavy.ps1'), heavy.replace("Join-Path $PSScriptRoot 'fixture-owner'", "Join-Path (Split-Path $PSScriptRoot -Parent) '.local/fixture-owner'"));
-  await put(path.join(kit, 'operator/with-light.ps1'), 'param([Parameter(Position=0)][string]$Command,[Parameter(ValueFromRemainingArguments=$true)][string[]]$Rest)\n& $Command @Rest\nexit $LASTEXITCODE');
-  const input = path.join(root, 'request.json'); await put(input, { releaseId: 'fixture', changelog: { date: '2026-01-02', title: 'New entry', items: ['New item'] }, roadmap: { id: 'A1', note: 'New note' } });
-  return { root, kit, repo, revision, previous, input, cli: path.join(kit, 'tools/release-v2.mjs'), release: path.join(kit, 'releases/fixture') };
-}
-test('prepare exports exact commit; one inherited owner gates both fixture runners; exact reuse and mutation refusal', { skip: process.platform !== 'win32', timeout: 240000 }, async t => {
-  const f = await fixture(t);
-  const { prepare,releaseCandidate,inspectFullLaneReuse,parseArgs } = await import(pathToFileURL(f.cli));
-  await prepare({kit:f.kit,repo:f.repo,ref:f.revision,base:f.revision,'previous-config':f.previous,input:f.input});
-  assert.equal((await json(path.join(f.release,'companion.json'))).packsDir,path.join(f.release,'packs'));
-  assert.equal((await json(path.join(f.release,'config.json'))).packsDir,path.join(f.release,'packs'));
-  assert.equal((await hashTree(path.join(f.release,'packs'))).digest,(await hashTree(path.join(f.kit,'packs'))).digest);
-  let result;
-  assert.match(await readFile(path.join(f.release, 'core/app/server.mjs'), 'utf8'), /committed core/);
-  assert.ok(!(await readdir(path.join(f.release, 'core'))).includes('untracked-private.txt'));
-  const args = ['release', '--kit', f.kit, '--release', f.release, '--gates-only'];
-  // Programmatic callers share the CLI's resolved kit policy; raw execution
-  // helpers deliberately require explicit options rather than choosing policy.
-  const releaseOptions=await parseArgs(args.slice(1));
-  try { await releaseCandidate(releaseOptions); } catch(e) { throw new Error(e.message + await readFile(path.join(f.release,'.local/heavy-worker.log'),'utf8')); }
-  assert.equal((await json(path.join(f.release, 'release-gate/gates.json'))).passed, true);
-  result = await invoke(f.cli, args); assert.equal(result.code, 0, result.output);
-  const timing = (await json(path.join(f.release, 'release-gate/gates.json'))).timings;
-  for (const name of ['public-full', 'private-full']) { const row=timing.find(row=>row.stage===name);assert.equal(row.fresh,0);assert.equal(row.reused,pipelineTests.length+1); }
-  const inspection=await inspectFullLaneReuse({...releaseOptions,retryOnceInIsolation:releaseOptions['retry-once-in-isolation']});
-  for(const lane of ['public-full','private-full']){assert.equal(inspection.lanes[lane].accepted,true);assert.equal(inspection.lanes[lane].fresh,0);}
-  // The oldest retained accepted root can outlive its original predecessor.
-  // Rollback validates its own exact evidence; forward validation still needs
-  // the historical previous configuration, even without --current.
+
+const windows = { skip: process.platform !== 'win32', timeout: 240000 };
+async function accepted(f) {
   const manifest = await json(path.join(f.release, 'release.json'));
   await put(path.join(f.release, 'release-gate/accepted.json'), { schemaVersion: 2, inputDigest: manifest.identity.digest, completedAt: new Date().toISOString() });
-  // Both CI and the effective child PATH are pinned independently of the launcher.
-  const pathKey=Object.keys(process.env).find(key=>key.toUpperCase()==='PATH')??'PATH';
-  const changedShell={...process.env,[pathKey]:process.env[pathKey]+path.delimiter+f.root};
-  result=await invoke(f.cli,['assert-identity','--kit',f.kit,'--release',f.release,'--rollback'],changedShell);assert.equal(result.code,0,result.output);
-  result=await invoke(f.cli,['assert-identity','--kit',f.kit,'--release',f.release],changedShell);assert.equal(result.code,0,'deterministic child PATH ignores harmless launcher PATH additions');
-  await rm(f.previous);
-  result = await invoke(f.cli, ['assert-identity', '--kit', f.kit, '--release', f.release, '--rollback']); assert.equal(result.code, 0, result.output);
-  result = await invoke(f.cli, ['assert-identity', '--kit', f.kit, '--release', f.release]); assert.notEqual(result.code, 0);
-  await put(path.join(f.release, 'core/app/server.mjs'), 'changed after gates');
-  result = await invoke(f.cli, ['assert-identity', '--kit', f.kit, '--release', f.release]); assert.notEqual(result.code, 0);
-  result = await invoke(f.cli, args); assert.notEqual(result.code, 0);
-});
-test('failed preparation never publishes a releasable manifest', { timeout: 120000 }, async t => {
+  return manifest;
+}
+async function identity(f, extra = [], env) {
+  return invoke(f.cli, ['assert-identity', '--kit', f.kit, '--release', f.release, ...extra], env);
+}
+async function unchanged(files, action) {
+  const before = await Promise.all(files.map(file => readFile(file)));
+  const result = await action();
+  for (const [i, file] of files.entries()) assert.deepEqual(await readFile(file), before[i], file);
+  return result;
+}
+
+test('committed export and closed PowerShell owners earn exact reusable gates; mutations refuse', windows, async t => {
   const f = await fixture(t);
-  await put(path.join(f.kit, 'tools/companion-check.mjs'), 'process.exitCode=1;');
-  const result = await invoke(f.cli, ['prepare', '--kit', f.kit, '--repo', f.repo, '--ref', f.revision, '--base', f.revision, '--previous-config', f.previous, '--input', f.input]);
-  assert.notEqual(result.code, 0);
-  assert.match(result.output,/Release child exited with code 1/,result.output);
-  assert.ok(!(await readdir(f.release)).includes('release.json'));
-  const failure=await json(path.join(f.release,'.local/prepare-failure.json'));
-  assert.match(failure.cause.message,/Release child exited with code 1/);
-  assert.match(result.output,/Release child exited with code 1/);
-});
-test('checked freeze binds retained rollback and runs dry runs once before sealed admission', {skip: process.platform !== 'win32', timeout:180000},async t=>{
-  const f=await fixture(t);
-  // Retained releases need actual private text bytes and their addon pins, so
-  // the second preparation can prove retention from the first release.
-  await put(path.join(f.kit,'tools/companion-check.mjs'),`import {mkdir,writeFile,readFile,cp} from 'node:fs/promises';import path from 'node:path';import {createHash} from 'node:crypto';
-const a=Object.fromEntries(Array.from({length:(process.argv.length-2)/2},(_,i)=>[process.argv[2+i*2],process.argv[3+i*2]])),out=a['--output'];
-if(a['--lane']==='addon'){await mkdir(out);const files=[];for(const row of JSON.parse(await readFile(a['--receipt'])).textOverrides){const bytes=await readFile(row.source);await mkdir(path.dirname(path.join(out,row.path)),{recursive:true});await writeFile(path.join(out,row.path),bytes);files.push({path:row.path,sha256:createHash('sha256').update(bytes).digest('hex')});}await writeFile(path.join(out,'addon.json'),JSON.stringify({schemaVersion:1,features:{projectUpdates:true},files}));}
-else if(a['--lane']==='profile'){await writeFile(out,'{}');}
-else if(a['--lane']==='prepare'){await cp(a['--core'],out,{recursive:true});await mkdir(path.join(out,'.local/game-data'),{recursive:true});await mkdir(path.join(out,'.local/map-assets'),{recursive:true});}
-else process.exitCode=1;`);
-  // This test exercises freeze orchestration; the actual managed Windows
-  // boundary and real picker startup have separate operator/scratch coverage.
-  await put(path.join(f.kit,'operator/Managed-ReleaseV2.ps1'),`param([string]$CurrentRelease,[string]$CandidatePointer,[string]$CompanionRoot,[string]$Receipt,[string]$ReleaseRoot,[switch]$DryRun,[switch]$Rollback)\nif(-not $DryRun){throw 'Fixture permits dry runs only'}\nAdd-Content -LiteralPath (Join-Path $CompanionRoot '.local/dry-runs.txt') -Value ([bool]$Rollback)\n`);
-  const api=await import(pathToFileURL(f.cli));
-  await api.prepare({kit:f.kit,repo:f.repo,ref:f.revision,base:f.revision,'previous-config':f.previous,input:f.input});
-  await api.releaseCandidate({kit:f.kit,release:f.release,'gates-only':true});
-  const old=await json(path.join(f.release,'release.json'));
-  await put(path.join(f.release,'release-gate/accepted.json'),{inputDigest:old.identity.digest,completedAt:new Date().toISOString()});
-  const current=path.join(f.root,'current.json');await cp(path.join(f.release,'pointer.json'),current);
-  // Advance only the tracked core module, preserving its startup factory and
-  // leaving the fixture's untracked private file outside the exported commit.
-  const git=(...args)=>execFileSync('git',['-C',f.repo,...args],{windowsHide:true,stdio:'pipe'}).toString().trim();
-  await put(path.join(f.repo,'app/server.mjs'),git('show',f.revision+':app/server.mjs').replace('committed core','second committed core'));
-  git('add','app/server.mjs');git('commit','-m','Second synthetic core revision');const nextRevision=git('rev-parse','HEAD');
-  await put(f.input,{releaseId:'next',changelog:{date:'2026-01-03',title:'Second',items:['Second item']},roadmap:{id:'A1',note:'Second note'}});
-  const next=await api.prepare({kit:f.kit,repo:f.repo,ref:nextRevision,current,input:f.input});
-  assert.equal((await json(path.join(next,'release.json'))).lane,'full');
-  await api.releaseCandidate({kit:f.kit,release:next,current,'gates-only':true});
-  const frozen=await api.freezeCandidate({kit:f.kit,release:next,current});
-  assert.equal(frozen.seal.prepared,false);assert.equal(frozen.seal.rollback.release,f.release);
-  assert.deepEqual((await readFile(path.join(f.kit,'.local/dry-runs.txt'),'utf8')).trim().split(/\r?\n/),['False','True']);
-  const {readFrozenSeal}=await import(pathToFileURL(path.join(f.kit,'tools/frozen-release.mjs')));
-  await readFrozenSeal({filename:frozen.filename,kit:f.kit,release:next,current,identityDigest:frozen.seal.identityDigest,verifyBytes:true});
-  await put(path.join(next,'core/app/server.mjs'),'changed after freeze');
-  await assert.rejects(readFrozenSeal({filename:frozen.filename,kit:f.kit,release:next,current,identityDigest:frozen.seal.identityDigest,verifyBytes:true}),/bytes changed/);
-});
-test('bounded text assembly retains exact private inputs without copying pack payloads', {timeout:120000}, async t=>{
-  const f=await fixture(t),checker=path.join(f.kit,'tools/companion-check.mjs');
-  await cp(path.join(scripts,'companion-check.mjs'),checker);
-  await cp(path.join(scripts,'core-overlay-guard.mjs'),path.join(f.kit,'tools/core-overlay-guard.mjs'));
-  const inventory=await hashTree(path.join(f.kit,'checks/private-source'));
-  const receipt=path.join(f.kit,'releases/text-receipt.json');
-  await put(receipt,{schemaVersion:1,coreRoot:f.repo,privateFiles:inventory.files.map(({path:filename,sha256})=>({path:filename,sha256})),packs:await json(path.join(f.kit,'packs/selection.json'))});
-  const output=path.join(f.kit,'.local/text-assembly');
-  const result=await invoke(checker,['--core',f.repo,'--receipt',receipt,'--lane','prepare-text','--output',output]);
-  assert.equal(result.code,0,result.output);
-  assert.equal(await readFile(path.join(output,'scripts/secret-scan/scan.mjs'),'utf8'),await readFile(path.join(f.kit,'checks/private-source/scripts/secret-scan/scan.mjs'),'utf8'));
-  assert.ok(!(await readdir(output)).includes('packs'));
-  assert.ok(!(await readdir(output)).includes('.local'));
+  await f.prepare();
+  const receipt = await json(path.join(f.release, 'companion.json'));
+  assert.equal(receipt.packsDir, path.join(f.release, 'packs'));
+  assert.equal((await json(path.join(f.release, 'config.json'))).packsDir, receipt.packsDir);
+  assert.equal((await hashTree(receipt.packsDir)).digest, (await hashTree(path.join(f.kit, 'packs'))).digest);
+  assert.match(await readFile(path.join(f.release, 'core/app/server.mjs'), 'utf8'), /committed core/);
+  assert(!(await readdir(path.join(f.release, 'core'))).includes('untracked-private.txt'));
+  await f.gates();
+  const first = await json(path.join(f.release, 'release-gate/gates.json'));
+  assert.equal(first.passed, true); assert.equal(first.flakeRetryEnabled, false);
+  assert.equal(first.startup.record.cleanupVerified, true);
+  assert.equal(f.control.observations.length, 3);
+  const owners = f.control.observations.map(row => row.owner);
+  assert.deepEqual(owners[1], owners[2], 'both full suites inherit one live PowerShell owner');
+  assert.notEqual(owners[0].token, owners[1].token, 'early owner closes before the full owner starts');
+  assert(!(await readdir(path.join(f.kit, '.local'))).includes('fixture-owner'));
+  const observations = f.control.observations.length;
+  await f.gates();
+  assert.equal(f.control.observations.length, observations, 'exact evidence reuse starts no producer');
+  const reused = await json(path.join(f.release, 'release-gate/gates.json'));
+  for (const lane of ['public-full', 'private-full']) {
+    const row = reused.timings.find(row => row.stage === lane);
+    assert.equal(row.fresh, 0); assert.equal(row.reused, pipelineTests.length + 1);
+  }
+  const inspection = await f.api.inspectFullLaneReuse({ kit: f.kit, release: f.release, retryOnceInIsolation: false });
+  for (const lane of ['public-full', 'private-full']) { assert.equal(inspection.lanes[lane].accepted, true); assert.equal(inspection.lanes[lane].fresh, 0); }
+  await accepted(f);
+  const pathKey = Object.keys(process.env).find(key => key.toUpperCase() === 'PATH') ?? 'PATH';
+  const env = { ...process.env, [pathKey]: process.env[pathKey] + path.delimiter + f.root };
+  for (const args of [[], ['--rollback']]) {
+    const result = await identity(f, args, env); assert.equal(result.code, 0, JSON.stringify(result));
+  }
+  await rm(f.previous);
+  assert.equal((await identity(f, ['--rollback'])).code, 0);
+  assert.notEqual((await identity(f)).code, 0);
+  await put(path.join(f.release, 'core/app/server.mjs'), 'changed after gates');
+  assert.notEqual((await identity(f, ['--rollback'])).code, 0);
+  await assert.rejects(f.gates(), /changed/i);
 });
 
-// This fixture performs several complete input captures for two deployments.
-// The observed busy-PC run took 119 seconds alone (131 s on 2026-10-20) and over
-// 180 s inside the sequential tooling contracts; keep headroom for those captures.
-test('a new kit prepares a changed-pack release with its own packs, bidirectional evidence and fresh full/gallery keys', {skip: process.platform !== 'win32', timeout:360000}, async t=>{
-  const old=await fixture(t),next=await fixture(t);
-  // This scenario deliberately installs its own HTTP save/endpoint adapter below.
-  // Keep that adapter unchanged and substitute only the unrelated startup CLI
-  // boundary; the factory and independent audit fixtures cover real copied startup.
-  for(const f of [old,next]){const file=path.join(f.kit,'tools/release-early.mjs'),source=await readFile(file,'utf8');assert.match(source,/await syntheticStartup\(options\)/);await put(file,source.replace('await syntheticStartup(options)','{passed:true,syntheticFixtureBoundary:true}'));}
-  const dataDir=path.join(old.root,'synthetic-save');await put(path.join(dataDir,'state.json'),{revision:9});
-  const stateBefore=await readFile(path.join(dataDir,'state.json'));
-  const git=(...args)=>execFileSync('git',['-C',old.repo,...args],{windowsHide:true,stdio:'pipe'}).toString().trim();
-  await put(path.join(old.repo,'app/dataset-bootstrap.mjs'),'export const loadDatasetInputs=async()=>({definitionBytes:Buffer.from(JSON.stringify({challenges:{}}))});');
-  await put(path.join(old.repo,'app/dataset-pipeline.mjs'),'export const prepareTaskDefinitions=x=>x;');
-  await put(path.join(old.repo,'app/server.mjs'),`import http from 'node:http';import {readFile} from 'node:fs/promises'; export async function createServer({dataDir,port}){const state=JSON.parse(await readFile(dataDir+'/state.json'));if(state.revision!==9)throw Error('wrong save');const server=http.createServer((q,r)=>{r.setHeader('Content-Type','application/json');r.end(JSON.stringify({tasks:[{id:'rs3:task:1'}]}));});return {dataset:{},store:{getState:()=>({members:[{id:'one',completedTasks:[],taskStatus:{}}],tasks:[{id:'rs3:task:1'}]}),backup:async()=>({})},listen:()=>new Promise(ok=>server.listen(port,'127.0.0.1',ok)),get inviteUrl(){return 'http://127.0.0.1:'+port+'/join/synthetic';},close:()=>new Promise(ok=>server.close(ok))};}`);
-  await put(path.join(old.repo,'app/tasks/identity.mjs'),`export const authoredIdentityRegistry=()=>({entries:{'rs3:task:1':{}},aliases:{}});export const resolveIdentity=id=>({status:'resolved',id});`);
-  git('add','app');git('commit','-m','Synthetic packed startup contract');const revision=git('rev-parse','HEAD');
-  const checker=`import {mkdir,writeFile,readFile,cp} from 'node:fs/promises';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';const a=Object.fromEntries(Array.from({length:(process.argv.length-2)/2},(_,i)=>[process.argv[2+i*2],process.argv[3+i*2]]));const out=a['--output'],kit=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),r=JSON.parse(await readFile(a['--receipt']));if(a['--lane']==='addon'){await mkdir(out);const files=[];for(const row of r.textOverrides){const b=await readFile(row.source);await mkdir(path.dirname(path.join(out,row.path)),{recursive:true});await writeFile(path.join(out,row.path),b);files.push({path:row.path,sha256:createHash('sha256').update(b).digest('hex')});}await writeFile(path.join(out,'addon.json'),JSON.stringify({schemaVersion:1,features:{projectUpdates:true},files}));}else if(a['--lane']==='profile'){const sel=JSON.parse(await readFile(kit+'/packs/selection.json'));const m=JSON.parse(await readFile(path.join(kit,'packs',sel.data.id,sel.data.version,'pack.json')));await writeFile(out,JSON.stringify({datasetId:m.requires.datasetId,datasetDigest:m.datasetDigest,ruleContractHash:m.ruleContractHash}));}else if(a['--lane']==='prepare'){await cp(a['--core'],out,{recursive:true});await mkdir(out+'/.local/game-data',{recursive:true});await mkdir(out+'/.local/map-assets',{recursive:true});}else process.exit(1);`;
-  const descriptors=[];
-  for(const [f,version,digit] of [[old,'1.0.0','1'],[next,'1.0.1','2']]) {
-    await put(path.join(f.kit,'tools/companion-check.mjs'),checker);
-    const descriptor={datasetId:'duo-legacy',datasetContractVersion:1,digest:digit.repeat(64)};
-    descriptors.push({...descriptor,bindingSha256:hash(bindingBytes(descriptor))});
-    const packs={}; const selection={schemaVersion:1};
-    for(const [kind,id] of [['data','duo-data'],['rulesText','duo-rules-text'],['art','duo-art']]) {
-      const file=path.join(f.kit,'packs',id,version,'pack.json');
-      await put(file,{requires:{datasetId:descriptor.datasetId,datasetContractVersion:1},datasetDigest:descriptor.digest,ruleContractHash:'a'.repeat(64),files:[]});
-      packs[kind]={path:file,sha256:hash(await readFile(file))};selection[kind]={id,version,sha256:packs[kind].sha256};
-    }
-    await put(path.join(f.kit,'packs/selection.json'),selection);
-    if(f===old){const config=await json(f.previous);await put(f.previous,{...config,dataDir,packs,selection:{path:path.join(f.kit,'packs/selection.json'),sha256:hash(await readFile(path.join(f.kit,'packs/selection.json')))}});}
+test('a failed build closes its child, retains the cause, and never publishes a release', { timeout: 120000 }, async t => {
+  const f = await fixture(t);
+  await put(path.join(f.kit, 'tools/companion-check.mjs'), "console.error('synthetic build failure');process.exitCode=1;");
+  const result = await invoke(f.cli, ['prepare', '--kit', f.kit, '--repo', f.repo, '--ref', f.revision, '--base', f.revision, '--previous-config', f.previous, '--input', f.input]);
+  assert.equal(result.code, 1, JSON.stringify(result)); assert.equal(result.signal, null); assert.equal(result.error, undefined);
+  assert.match(result.output, /Release child exited with code 1/);
+  const failure = await json(path.join(f.release, '.local/prepare-failure.json'));
+  assert.match(failure.cause.message, /Release child exited with code 1/);
+  assert.match(await readFile(path.join(f.release, '.local/prepare.log'), 'utf8'), /synthetic build failure/);
+  assert(!(await readdir(f.release)).includes('release.json'));
+  assert(!(await readdir(path.join(f.kit, '.local'))).includes('release.lock'));
+});
+
+test('freeze seals current and retained startup evidence after both acknowledged dry runs', { ...windows, timeout: 180000 }, async t => {
+  const f = await fixture(t);
+  await f.prepare(); await f.gates(); await accepted(f);
+  const current = path.join(f.root, 'current.json'); await cp(path.join(f.release, 'pointer.json'), current);
+  const previousGates = path.join(f.release, 'release-gate/gates.json');
+  await put(path.join(f.repo, 'app/server.mjs'), git(f.repo, 'show', f.revision + ':app/server.mjs') + '\n// second committed core\n');
+  git(f.repo, 'add', 'app/server.mjs'); git(f.repo, 'commit', '-m', 'Second synthetic core');
+  await put(f.input, { releaseId: 'next', changelog: { date: '2026-01-03', title: 'Second', items: ['Second item'] }, roadmap: { id: 'A1', note: 'Second note' } });
+  await unchanged([current, previousGates, path.join(f.dataDir, 'state.json')], async () => {
+    const next = await f.prepare({ ref: git(f.repo, 'rev-parse', 'HEAD'), current });
+    assert.equal((await json(path.join(next, 'release.json'))).lane, 'full');
+    await f.gates(next, { current });
+    const frozen = await f.api.freezeCandidate({ kit: f.kit, release: next, current });
+    assert.equal(frozen.seal.prepared, false); assert.equal(frozen.seal.rollback.release, f.release);
+    assert.deepEqual((await readFile(path.join(f.kit, '.local/dry-runs.txt'), 'utf8')).trim().split(/\r?\n/), ['False', 'True']);
+    const { readFrozenSeal } = await import(pathToFileURL(path.join(f.kit, 'tools/frozen-release.mjs')));
+    await readFrozenSeal({ filename: frozen.filename, kit: f.kit, release: next, current, identityDigest: frozen.seal.identityDigest, verifyBytes: true });
+    await put(path.join(next, 'core/app/server.mjs'), 'changed after freeze');
+    await assert.rejects(readFrozenSeal({ filename: frozen.filename, kit: f.kit, release: next, current, identityDigest: frozen.seal.identityDigest, verifyBytes: true }), /bytes changed/);
+  });
+});
+
+test('bounded text assembly copies exact private text without packs or scratch', { timeout: 120000 }, async t => {
+  const f = await fixture(t), checker = path.join(f.kit, 'tools/companion-check.mjs');
+  await cp(path.join(scripts, 'companion-check.mjs'), checker);
+  await cp(path.join(scripts, 'core-overlay-guard.mjs'), path.join(f.kit, 'tools/core-overlay-guard.mjs'));
+  const inventory = await hashTree(path.join(f.kit, 'checks/private-source'));
+  const receipt = path.join(f.kit, 'releases/text-receipt.json');
+  await put(receipt, { schemaVersion: 1, coreRoot: f.repo, privateFiles: inventory.files.map(({ path, sha256 }) => ({ path, sha256 })), packs: await json(path.join(f.kit, 'packs/selection.json')) });
+  const output = path.join(f.kit, '.local/text-assembly');
+  const result = await invoke(checker, ['--core', f.repo, '--receipt', receipt, '--lane', 'prepare-text', '--output', output]);
+  assert.equal(result.code, 0, JSON.stringify(result));
+  assert.deepEqual(await readFile(path.join(output, 'scripts/secret-scan/scan.mjs')), await readFile(path.join(f.kit, 'checks/private-source/scripts/secret-scan/scan.mjs')));
+  for (const name of ['packs', '.local']) assert(!(await readdir(output)).includes(name));
+});
+
+test('changed-pack new kit earns fresh pack keys while retaining the current save, frozen packs and exact evidence', { ...windows, timeout: 360000 }, async t => {
+  const old = await fixture(t), next = await fixture(t, { version: '1.0.1', digit: '2' });
+  // Shared wrappers are immutable inputs, and their later policy change must
+  // refuse forward reuse without invalidating retained rollback evidence.
+  const shared = path.join(old.root, 'shared'), locks = {};
+  for (const lane of ['heavy', 'light']) {
+    const file = path.join(shared, lane + '.ps1'); await mkdir(shared, { recursive: true });
+    await cp(path.join(old.kit, 'operator/with-' + lane + '.ps1'), file);
+    locks[lane] = { path: file, sha256: hash(await readFile(file)) };
   }
-  await put(dataDir+'.dataset.json',bindingBytes(descriptors[0]));
-  const shared = path.join(old.root,'shared'); await mkdir(shared);
-  const locks={};
-  for (const lane of ['heavy','light']) {
-    const wrapper=path.join(shared,lane+'.ps1');
-    await cp(path.join(old.kit,'operator/with-'+lane+'.ps1'),wrapper);
-    locks[lane]={path:wrapper,sha256:hash(await readFile(wrapper))};
+  await put(path.join(old.kit, 'kit.json'), { schemaVersion: 2, locks, concurrency: 1, browser: { path: process.execPath } });
+  await old.prepare(); await old.gates(); await accepted(old);
+  await writeFile(locks.heavy.path, '\n# changed shared policy\n', { flag: 'a' });
+  await assert.rejects(old.gates(), /wrapper changed/i);
+  let retained = await invoke(next.cli, ['assert-identity', '--kit', next.kit, '--release', old.release, '--rollback']);
+  assert.equal(retained.code, 0, JSON.stringify(retained));
+  const prior = await json(path.join(old.release, 'release-gate/gates.json'));
+  const receiptFile = prior.suites.private.filename, receiptBytes = await readFile(receiptFile);
+  for (const change of [value => ({ ...value, inputDigest: 'f'.repeat(64) }), value => ({ ...value, startedAt: new Date(Date.parse(value.startedAt) - 1000).toISOString() })]) {
+    await put(receiptFile, change(JSON.parse(receiptBytes)));
+    try { retained = await invoke(next.cli, ['assert-identity', '--release', old.release, '--rollback']); assert.notEqual(retained.code, 0); }
+    finally { await writeFile(receiptFile, receiptBytes); }
   }
-  await put(path.join(old.kit,'kit.json'),{schemaVersion:2,locks,concurrency:6,browser:{path:process.execPath}});
-  const oldApi=await import(pathToFileURL(old.cli));
-  await oldApi.prepare({kit:old.kit,repo:old.repo,ref:revision,base:revision,'previous-config':old.previous,input:old.input});
-  const oldOptions=await oldApi.parseArgs(['--kit',old.kit,'--release',old.release,'--gates-only']);
-  await oldApi.releaseCandidate(oldOptions);
-  const baseline=await json(path.join(old.release,'release.json'));
-  await put(path.join(old.release,'release-gate/accepted.json'),{accepted:true,inputDigest:baseline.identity.digest,completedAt:new Date().toISOString(),synthetic:true});
-  // The new release still requires today's exact shared wrapper bytes.
-  await writeFile(locks.heavy.path,'\n# later shared backoff policy\n',{flag:'a'});
-  await assert.rejects(oldApi.releaseCandidate(oldOptions),/wrapper changed/);
-  let retained=await invoke(next.cli,['assert-identity','--kit',next.kit,'--release',old.release,'--rollback']);
-  assert.equal(retained.code,0,retained.output);
-  const oldGates=await json(path.join(old.release,'release-gate/gates.json'));
-  const receiptFile=oldGates.suites.private.filename, receiptBytes=await readFile(receiptFile);
-  const tampered=JSON.parse(receiptBytes);tampered.inputDigest='f'.repeat(64);await put(receiptFile,tampered);
-  retained=await invoke(next.cli,['assert-identity','--release',old.release,'--rollback']);assert.notEqual(retained.code,0,'tampered retained receipt refused');
-  await writeFile(receiptFile,receiptBytes);
-  const timestampTamper=JSON.parse(receiptBytes);timestampTamper.startedAt=new Date(Date.parse(timestampTamper.startedAt)-1000).toISOString();await put(receiptFile,timestampTamper);
-  retained=await invoke(next.cli,['assert-identity','--release',old.release,'--rollback']);assert.notEqual(retained.code,0,'tampered receipt timing refused');
-  await writeFile(receiptFile,receiptBytes);
-  const oldPackDigest=(await hashTree(path.join(old.release,'packs'))).digest;
-  const current=path.join(old.root,'current.json');await put(current,await readFile(path.join(old.release,'pointer.json'),'utf8'));
-  const request=await json(next.input);request.releaseId='upgrade';request.changelog={date:'2026-01-03',title:'Upgrade packs',items:['New pack selection']};request.roadmap.note='Pack upgrade checked';request.packTransition={old:descriptors[0],new:descriptors[1]};await put(next.input,request);
-  const api=await import(pathToFileURL(next.cli));
-  const release=await api.prepare({kit:next.kit,repo:old.repo,ref:revision,current,input:next.input});
-  const manifest=await json(path.join(release,'release.json')),transition=await json(path.join(release,'pack-transition.json'));
-  assert.equal(manifest.packUpgrade,true);assert.equal(manifest.lane,'full');assert.equal(manifest.previousRelease,old.release);
-  assert.equal(transition.compatibility.bothDirections,true);
-  assert.equal((await json(path.join(release,'config.json'))).packsDir,path.join(release,'packs'));
-  await api.releaseCandidate(await api.parseArgs(['--kit',next.kit,'--release',release,'--current',current,'--gates-only']));
-  const gates=await json(path.join(release,'release-gate/gates.json')),prior=await json(path.join(old.release,'release-gate/gates.json'));
-  // Relnext public authority is keyed to the core, independently of private packs.
-  assert.equal(gates.suites.public.record.key,prior.suites.public.record.key);
-  assert.notEqual(gates.suites.private.record.key,prior.suites.private.record.key);
-  for(const lane of ['public','private']) assert.notEqual(gates.suites[lane].reused,true); // separate evidence roots each earn their own proof
-  assert.notEqual(gates.gallery.record.key,prior.gallery.record.key);
-  assert.equal((await hashTree(path.join(old.release,'packs'))).digest,oldPackDigest);
-  assert.deepEqual(await readFile(path.join(dataDir,'state.json')),stateBefore);
+  const current = path.join(old.root, 'current.json'); await cp(path.join(old.release, 'pointer.json'), current);
+  const request = await json(next.input);
+  await put(next.input, { ...request, releaseId: 'upgrade',
+    changelog: { date: '2026-01-03', title: 'Upgrade packs', items: ['New pack selection'] },
+    roadmap: { id: 'A1', note: 'Pack upgrade checked' },
+    packTransition: { old: old.descriptor, new: next.descriptor } });
+  const oldPacks = (await hashTree(path.join(old.release, 'packs'))).digest;
+  await unchanged([current, receiptFile, path.join(old.dataDir, 'state.json'), old.dataDir + '.dataset.json'], async () => {
+    const release = await next.prepare({ repo: old.repo, ref: old.revision, current });
+    const manifest = await json(path.join(release, 'release.json')), transition = await json(path.join(release, 'pack-transition.json'));
+    assert.equal(manifest.packUpgrade, true); assert.equal(manifest.lane, 'full'); assert.equal(manifest.previousRelease, old.release);
+    assert.equal(transition.compatibility.bothDirections, true); assert.equal(transition.compatibility.forwardAfterRollback, true);
+    assert.equal(transition.compatibility.probes.length, 4); assert.equal(transition.compatibility.tasksServed, true);
+    assert.equal((await json(path.join(release, 'config.json'))).packsDir, path.join(release, 'packs'));
+    await next.gates(release, { current });
+    const gates = await json(path.join(release, 'release-gate/gates.json'));
+    assert.equal(gates.suites.public.record.key, prior.suites.public.record.key);
+    assert.notEqual(gates.suites.private.record.key, prior.suites.private.record.key);
+    assert.notEqual(gates.gallery.record.key, prior.gallery.record.key);
+    for (const lane of ['public', 'private']) assert.notEqual(gates.suites[lane].reused, true);
+    assert.equal(gates.startup.record.cleanupVerified, true);
+    assert.equal((await hashTree(path.join(old.release, 'packs'))).digest, oldPacks);
+  });
+});
+
+test('incomplete acknowledged file stage cannot publish gates or release the owner early', windows, async t => {
+  const f = await fixture(t); await f.prepare();
+  const held = f.control.hold();
+  const gating = f.gates();
+  const outcome = gating.then(() => null, error => error);
+  const stage = await held;
+  try {
+    assert(stage.files.length > 1);
+    assert.equal((await json(path.join(f.release, 'release-gate/latest-attempt.json'))).pending, true);
+    assert(!(await readdir(path.join(f.release, 'release-gate'))).includes('gates.json'));
+    assert.equal((await json(path.join(stage.owner.path, 'owner.json'))).token, stage.owner.token);
+    f.control.complete(stage.files.slice(1));
+  } catch (error) { f.control.complete(stage.files); await outcome; throw error; }
+  const error = await outcome;
+  assert(error, 'a successful process exit cannot acknowledge an incomplete file set');
+  assert.equal((await json(path.join(f.release, 'release-gate/latest-attempt.json'))).passed, false);
+  assert(!(await readdir(path.join(f.release, 'release-gate'))).includes('gates.json'));
+  assert(!(await readdir(path.join(f.kit, '.local'))).includes('fixture-owner'));
+});
+
+test('native compatibility atomically owns port zero and closes before returning its save witness', async t => {
+  const f = await fixture(t), report = path.join(f.root, 'probe.json');
+  await put(path.join(f.repo, 'app/server.mjs'), git(f.repo, 'show', f.revision + ':app/server.mjs'));
+  const before = await readFile(path.join(f.dataDir, 'state.json'));
+  const result = await invoke(path.join(scripts, 'release-pack-check.mjs'), ['probe', f.repo, f.dataDir, report]);
+  assert.equal(result.code, 0, JSON.stringify(result));
+  assert.equal(result.signal, null); assert.equal(result.error, undefined);
+  assert.equal((await json(report)).tasksServed, true);
+  assert.deepEqual(await readFile(path.join(f.dataDir, 'state.json')), before);
+});
+
+test('failed compatibility retains the original child error, exit, signal and stderr after close', async t => {
+  const old = await fixture(t), next = await fixture(t, { version: '1.0.1', digit: '2' });
+  const pin = async file => ({ path: file, sha256: hash(await readFile(file)) });
+  for (const f of [old, next]) {
+    const profile = path.join(f.root, 'profile.json');
+    await put(profile, { datasetId: f.descriptor.datasetId, datasetDigest: f.descriptor.digest, ruleContractHash: 'a'.repeat(64) });
+    await put(f.previous, { ...await json(f.previous), dataDir: old.dataDir, profile: await pin(profile) });
+  }
+  await put(path.join(old.repo, 'app/server.mjs'), "export const createServer=async()=>{throw Error('synthetic original startup failure');};");
+  const transition = { schemaVersion: 1, old: old.descriptor, new: next.descriptor, oldConfig: await pin(old.previous), newConfig: await pin(next.previous), oldBindingBase64: bindingBytes(old.descriptor).toString('base64'), newBindingBase64: bindingBytes(next.descriptor).toString('base64') };
+  const error = await checkPackTransition({ fromConfig: old.previous, toConfig: next.previous, transition }).then(() => null, error => error);
+  assert.equal(error.childResult.exitCode, 1); assert.equal(error.childResult.signal, null);
+  assert.equal(error.childResult.error, null); assert.equal(error.childResult.timedOut, false);
+  assert.match(error.childResult.stderrTail, /synthetic original startup failure/);
+  await put(old.previous, { ...await json(old.previous), nodePath: path.join(old.root, 'missing-node.exe') });
+  transition.oldConfig = await pin(old.previous);
+  const missing = await checkPackTransition({ fromConfig: old.previous, toConfig: next.previous, transition }).then(() => null, error => error);
+  assert.equal(missing.childResult.error.code, 'ENOENT'); assert.equal(missing.childResult.signal, null);
+});
+
+test('corrupt evidence is retained byte for byte before a fresh observation is published', async t => {
+  const f = await fixture(t), directory = path.join(f.root, 'evidence');
+  const { gateContract, publishEvidence, lookupEvidence } = await import('../scripts/private-companion/release-evidence.mjs');
+  const contract = gateContract('gallery', { synthetic: true }, { digest: 'a'.repeat(64) });
+  const first = await publishEvidence(directory, contract, { startedAt: new Date().toISOString() });
+  await put(first.filename, { ...first.record, cleanupVerified: false });
+  const corrupt = await readFile(first.filename), expanded = await readFile(first.filename + '.identity.json');
+  assert.equal(await lookupEvidence(directory, contract), null);
+  const second = await publishEvidence(directory, contract, { startedAt: new Date().toISOString() });
+  assert.equal(second.reused, false); assert.equal(second.record.cleanupVerified, true);
+  const names = await readdir(directory);
+  const rejected = names.filter(name => name.startsWith(path.basename(first.filename) + '.rejected-'));
+  assert.equal(rejected.length, 1); assert.deepEqual(await readFile(path.join(directory, rejected[0])), corrupt);
+  const identities = names.filter(name => name.startsWith(path.basename(first.filename) + '.identity.json.rejected-'));
+  assert.equal(identities.length, 1); assert.deepEqual(await readFile(path.join(directory, identities[0])), expanded);
+});
+
+test('pack-only identity changes invalidate private and gallery keys while preserving the public core key', windows, async t => {
+  const f = await fixture(t); await f.prepare();
+  const manifest = await json(path.join(f.release, 'release.json'));
+  const before = await f.api.stableSpecs(f.kit, f.release, manifest);
+  const changed = structuredClone(manifest);
+  for (const component of changed.identity.components) if (['packs', 'releasePacks'].includes(component.name)) component.digest = 'f'.repeat(64);
+  const after = await f.api.stableSpecs(f.kit, f.release, changed);
+  assert.equal(before.public.key, after.public.key);
+  for (const lane of ['private', 'gallery', 'startup', 'install']) assert.notEqual(before[lane].key, after[lane].key, lane);
 });
 
 test('pruning retains both endpoints and evidence of an unaccepted upgrade after later code releases', async t=>{
