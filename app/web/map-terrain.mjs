@@ -810,8 +810,8 @@ export class MapTerrain {
     const point = surfaceCoordinates(chunkId);
     if (!point || this.disposed) return false;
     const key = `${MIN_REGION_X + point.x},${MAX_REGION_Y - point.y}`;
-    this.paintLegacyRegion(context, point.x * CELL, point.y * CELL, CELL, CELL, 0, 0, size, size);
     const image = this.chunkImages.get(key) ?? this.images.get(key) ?? this.previews.get(key);
+    this.paintLegacyRegion(context, point.x * CELL, point.y * CELL, CELL, CELL, 0, 0, size, size, !image);
     if (image) context.drawImage(image, 0, 0, size, size);
     return !!image || this.modernBase || !!this.fallbackImage;
   }

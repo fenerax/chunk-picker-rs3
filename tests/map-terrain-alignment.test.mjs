@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MapTerrain, TERRAIN_LEVELS } from '../app/web/map-terrain.mjs';
+import { SURFACE_GRID } from '../app/data/surface-grid.mjs';
 
 const source = () => ({ mapId: 28, plane: 0, zoom: 2, iconFree: true,
   directory: 'terrain.cache-alignment-v1/28/2', layoutComplete: true,
@@ -53,6 +54,27 @@ test('transparent cache terrain reveals identical water in native pages and nati
   assert.deepEqual(patch.colour.fills, [{ colour: 'rgb(96,118,154)', args: [192, 192, 64, 64] }]);
   assert.equal(patch.colour.calls.at(-1)[0], preview);
   terrain.releasePage(patch);
+});
+
+test('chunk panels use coarse terrain only until a tile image is available', t => {
+  const terrain = new MapTerrain({ cacheTerrain: source() }, { canvasFactory: canvas });
+  t.after(() => terrain.dispose());
+  const key = '64,68', chunkId = String(64 * SURFACE_GRID.stride + 68);
+  const coarse = canvas(376, 400), image = { naturalWidth: 256, naturalHeight: 256 };
+  terrain.coarseImage = coarse;
+  terrain.pending.set(key, { naturalWidth: 0, naturalHeight: 0 });
+  const loading = canvas(256, 256);
+  assert.equal(terrain.drawChunk(loading.getContext('2d'), chunkId), true);
+  assert.deepEqual(loading.calls.map(args => args[0]), [coarse], 'Loading panels retain the coarse coastline');
+  terrain.pending.delete(key);
+  for (const cache of [terrain.chunkImages, terrain.images, terrain.previews]) {
+    cache.set(key, image);
+    const loaded = canvas(256, 256);
+    assert.equal(terrain.drawChunk(loaded.getContext('2d'), chunkId), true);
+    assert.deepEqual(loaded.calls.map(args => args[0]), [image], 'Loaded alpha artwork cannot reveal a coarse coastline');
+    assert.deepEqual(loaded.fills, [{ colour: 'rgb(96,118,154)', args: [0, 0, 256, 256] }], 'Transparent water reveals the certified ocean');
+    cache.delete(key);
+  }
 });
 
 test('partial or unsafe cache manifests retain the original image fallback', t => {
