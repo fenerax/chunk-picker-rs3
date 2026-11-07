@@ -25,11 +25,19 @@ if (process.argv[2] === 'descendant') {
   const { checkPackTransition } = await import('../../scripts/private-companion/release-pack-check.mjs');
   const options = JSON.parse(await readFile(process.argv[3], 'utf8'));
   const events = {};
+  const probes = [];
+  process.once('disconnect', () => {
+    for (const child of probes) {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      for (const stream of [child.stdout, child.stderr]) if (stream) { stream.destroy(); stream.removeAllListeners(); }
+    }
+  });
   const launch = childProcess.spawn, schedule = globalThis.setTimeout;
   let watchdog;
   childProcess.spawn = (...args) => {
     const child = launch(...args);
     if (args[1].includes('probe')) {
+      probes.push(child);
       events.pid = child.pid;
       child.once('exit', () => { events.exit = true; });
       child.once('close', () => { events.close = true; });

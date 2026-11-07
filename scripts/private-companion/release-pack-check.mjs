@@ -96,31 +96,28 @@ async function windowsDescendants(parents, milliseconds) {
 }
 async function terminateProbe(child, exited, hasExited) {
   const deadline = Date.now() + 15000, remaining = cap => Math.max(1, Math.min(cap, deadline - Date.now()));
-  let tree, before, surviving;
-  if (Number.isSafeInteger(child.pid) && process.platform === 'win32') {
-    before = await windowsDescendants([child.pid], remaining(4000));
-    const targets = [...new Set([child.pid, ...before.processes.map(row => row.pid)])];
-    tree = await boundedCommand(path.join(process.env.SystemRoot ?? 'C:/Windows', 'System32/taskkill.exe'), [...targets.flatMap(pid => ['/PID', String(pid)]), '/T', '/F'], remaining(5000));
-    if (!hasExited() && tree.code !== 0) child.kill('SIGKILL');
-  } else if (Number.isSafeInteger(child.pid)) {
-    try { process.kill(-child.pid, 'SIGKILL'); tree = { code: 0 }; }
-    catch (error) { tree = { error: errorDetail(error) }; if (!hasExited()) child.kill('SIGKILL'); }
-  } else { child.kill('SIGKILL'); tree = { code: 0 }; } // A failed spawn has no owned PID.
+  let killAccepted = false, killError, descendants;
+  const killRequested = !hasExited();
+  // Only this ChildProcess handle proves ownership. Parent PID matches can be
+  // stale after PID reuse, so neither taskkill nor numeric PID kills are safe.
+  if (killRequested) try { killAccepted = child.kill('SIGKILL'); }
+  catch (error) { killError = errorDetail(error); }
   let timer;
   const joined = await Promise.race([exited.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), remaining(5000)); })]);
   clearTimeout(timer);
   if (process.platform === 'win32' && Number.isSafeInteger(child.pid)) {
-    surviving = await windowsDescendants([child.pid, ...(before?.processes ?? []).map(row => row.pid)], remaining(4000));
+    descendants = await windowsDescendants([child.pid], remaining(4000));
   }
-  return { strategy: process.platform === 'win32' ? 'taskkill-tree' : 'process-group', joined, tree,
-    descendantsBeforeKill: before, survivingDescendants: surviving?.processes ?? [], descendantQuery: surviving?.query ?? null };
+  return { strategy: 'child-handle', joined, killRequested, killAccepted, killError,
+    observedDescendants: descendants?.processes ?? [], descendantQuery: descendants?.query ?? null,
+    descendantOwnership: 'Unverified parent-PID matches; diagnostic only.' };
 }
 async function runProbe(config, dataDir, output) {
   const env = sanitizeExecutionEnvironment(process.env, { overrides: { RS3_DATASET: 'duo-legacy', RS3_PACKS_DIR: config.packsDir,
     RS3_PACK_SELECTION: config.selection.path, RS3_DATASET_PROFILE: config.profile.path, RS3_DATASET_PROFILE_SHA256: config.profile.sha256,
     RS3_PRIVATE_ADDON: config.addons.path, RS3_PRIVATE_ADDON_SHA256: config.addons.sha256, RS3_TASK_WORKER_MODE: 'process' } });
   await new Promise((resolve, reject) => {
-    const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(config.nodePath, ['--max-old-space-size=2048', fileURLToPath(import.meta.url), 'probe', config.coreRoot, dataDir, output], { env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
     let detail = '', spawnError, timedOut = false, exitSeen = false, closeSeen = false, stopping = false, done = false, drain, termination, timeoutObservation;
     let code = null, signal = null, acknowledgeExit;
     const exited = new Promise(resolve => { acknowledgeExit = resolve; });
@@ -131,8 +128,8 @@ async function runProbe(config, dataDir, output) {
         error: spawnError ? errorDetail(spawnError) : null, exitCode: code, signal, timedOut,
         exitObserved: exitSeen, closeObserved: closeSeen, exitWithoutClose: exitSeen && !closeSeen,
         stderrTail: refusalMessage(detail.trim()), activeResources: process.getActiveResourcesInfo(), termination, timeoutObservation,
-        survivingDescendants: termination?.survivingDescendants ?? [] };
-      disposePipe(child.stderr); child.unref?.();
+        observedDescendants: termination?.observedDescendants ?? [] };
+      disposePipe(child.stdout); disposePipe(child.stderr); child.unref?.();
       child.off('exit', onExit); child.off('close', onClose);
       if (!spawnError && !timedOut && code === 0 && signal === null) return resolve();
       reject(Object.assign(new Error('Packed save check refused: ' + JSON.stringify(childResult)), { childResult }));
@@ -303,7 +300,7 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
     throw error;
   } finally {
     try {
-      if (primaryError?.childResult?.termination?.joined === false || primaryError?.childResult?.survivingDescendants?.length) throw Object.assign(Error('Owned probe termination was not joined or descendants survive; scratch retained.'), { code: 'TERMINATION_UNVERIFIED' });
+      if (primaryError?.childResult?.termination?.joined === false) throw Object.assign(Error('Direct probe termination was not joined; scratch retained.'), { code: 'TERMINATION_UNVERIFIED' });
       await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     } catch (error) {
       if (!primaryError) throw error;

@@ -325,7 +325,7 @@ async function probeInputs(root) {
   return { config, transition };
 }
 
-async function controlledProbe(t, { deferExit = false, failCleanup = false } = {}) {
+async function controlledProbe(t, { deferExit = false, failCleanup = false, diagnosticRows } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'probe-watchdog-'));
   let child, outcome, scratch, cleanupOptions;
   t.after(async () => {
@@ -338,14 +338,20 @@ async function controlledProbe(t, { deferExit = false, failCleanup = false } = {
     await rm(root, { recursive: true, force: true });
   });
   const { config, transition } = await probeInputs(root);
-  child = new EventEmitter(); child.stderr = new EventEmitter(); child.exitCode = null; child.signalCode = null;
-  child.stderr.destroy = () => { child.stderr.destroyed = true; };
+  const pipe = () => { const stream = new EventEmitter(); stream.destroy = () => { stream.destroyed = true; }; return stream; };
+  child = new EventEmitter(); child.stdout = pipe(); child.stderr = pipe(); child.exitCode = null; child.signalCode = null;
+  if (diagnosticRows) child.pid = 123456;
   let announceSpawn, cleanupStarted = false, kills = 0;
   const spawned = new Promise(resolve => { announceSpawn = resolve; });
   child.kill = () => { kills++; if (!deferExit) { child.signalCode = 'SIGTERM'; child.emit('exit', null, 'SIGTERM'); } return true; };
   const originalRemove = fsPromises.rm;
-  t.mock.method(childProcess, 'spawn', (_command, args) => {
-    scratch = path.dirname(args.at(-1)); announceSpawn(); return child;
+  t.mock.method(childProcess, 'spawn', (command, args) => {
+    if (args.includes('probe')) { scratch = path.dirname(args.at(-1)); announceSpawn(); return child; }
+    assert.equal(path.basename(command).toLowerCase(), 'powershell.exe', 'only read-only diagnostics may spawn after the probe');
+    assert.match(args.at(-1), /Get-CimInstance/);
+    const query = new EventEmitter(); query.stdout = pipe(); query.stderr = pipe(); query.unref = () => {};
+    queueMicrotask(() => { query.stdout.emit('data', Buffer.from(JSON.stringify(diagnosticRows))); query.emit('close', 0, null); });
+    return query;
   });
   t.mock.method(fsPromises, 'rm', (target, options) => {
     if (target === scratch) {
@@ -376,6 +382,21 @@ test('compatibility watchdog rejects even when kill never closes inherited stder
   assert.equal(error.childResult.error, null);
   assert.match(error.childResult.stderrTail, /inherited stderr remains open/);
   assert.equal(probe.child.stderr.destroyed, true); assert.equal(probe.child.stderr.eventNames().length, 0);
+  assert.equal(probe.child.stdout.destroyed, true); assert.equal(probe.child.stdout.eventNames().length, 0);
+  assert.equal(existsSync(probe.scratch), false);
+});
+
+test('probe timeout kills only its child handle; parent-PID matches remain read-only diagnostics', async t => {
+  const rows = [{ pid: 123457, parentPid: 123456, name: 'synthetic-unverified-process.exe' }];
+  const probe = await controlledProbe(t, { diagnosticRows: rows }); await probe.spawned;
+  t.mock.method(process, 'kill', () => { assert.fail('numeric PID or process-group termination is forbidden'); });
+  t.mock.timers.tick(180000);
+  const { error } = await probe.outcome;
+  assert.equal(probe.kills, 1); assert.equal(error.childResult.termination.strategy, 'child-handle', JSON.stringify(error.childResult));
+  assert.equal(error.childResult.termination.killAccepted, true);
+  if (process.platform === 'win32') assert.deepEqual(error.childResult.observedDescendants, rows);
+  assert.match(error.childResult.termination.descendantOwnership, /diagnostic only/);
+  assert.equal(error.cleanupFailure, undefined, 'unverified PID matches must not decide scratch ownership');
   assert.equal(existsSync(probe.scratch), false);
 });
 
@@ -441,7 +462,7 @@ async function realProbe(t, mode) {
   await put(input, { fromConfig: config.path, toConfig: config.path, transition });
   const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
   const child = childProcess.spawn(process.execPath, [fileURLToPath(fixtureUrl), 'runner', input, mode], {
-    env, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+    env, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
   });
   let stderr = ''; child.stderr.on('data', bytes => { stderr = (stderr + bytes).slice(-4096); });
   const exit = new Promise((resolve, reject) => { child.once('exit', (code, signal) => resolve({ code, signal })); child.once('error', reject); });
@@ -452,13 +473,9 @@ async function realProbe(t, mode) {
     try { descendant = await json(witness); await fetch(`http://127.0.0.1:${descendant.port}/stop`, { signal: AbortSignal.timeout(3000) }); }
     catch (error) { if (error.code !== 'ENOENT' && !descendant) throw error; }
     if (child.exitCode === null && child.signalCode === null) {
-      if (process.platform === 'win32') {
-        try { execFileSync(path.join(process.env.SystemRoot, 'System32/taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 }); } catch {}
-      } else {
-        for (const pid of [descendant?.probePid, child.pid].filter(Boolean)) {
-          try { process.kill(-pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
-        }
-      }
+      // The fixture runner retains its probe's ChildProcess handle. Disconnect
+      // asks it to stop that child without trusting any recorded PID.
+      if (child.connected) child.disconnect();
     }
     await bounded(close, 5000, 'owned regression runner did not close during teardown');
     await rm(root, { recursive: true, force: true });
@@ -476,7 +493,7 @@ test('real inherited stderr cannot keep a settled release CLI alive', async t =>
   assert.equal(await (await fetch(`http://127.0.0.1:${witness.port}/status`)).text(), 'owned descendant');
 });
 
-test('real probe watchdog terminates its owned tree and reports bounded process diagnostics', async t => {
+test('real probe watchdog joins its direct child, leaves descendants alone and reports bounded diagnostics', async t => {
   const { message, result, witness } = await realProbe(t, 'timeout');
   assert.equal(message.passed, false); assert.equal(result.code, 1);
   const report = message.childResult;
@@ -484,12 +501,9 @@ test('real probe watchdog terminates its owned tree and reports bounded process 
   assert.equal(typeof report.exitWithoutClose, 'boolean'); assert(Array.isArray(report.activeResources));
   assert.equal(report.termination.joined, true); assert.equal(message.events.destroyed, true);
   assert.equal(message.cleanupFailure, undefined);
-  if (process.platform === 'win32') {
-    assert.equal(report.termination.strategy, 'taskkill-tree');
-    assert(report.termination.descendantQuery);
-    if (report.termination.descendantQuery.code === 0) assert.deepEqual(report.survivingDescendants, []);
-  } else assert.equal(report.termination.strategy, 'process-group');
-  await assert.rejects(fetch(`http://127.0.0.1:${witness.port}/status`, { signal: AbortSignal.timeout(3000) }));
+  assert.equal(report.termination.strategy, 'child-handle'); assert.equal(report.termination.killAccepted, true);
+  if (process.platform === 'win32') assert(report.termination.descendantQuery);
+  assert.equal(await (await fetch(`http://127.0.0.1:${witness.port}/status`, { signal: AbortSignal.timeout(3000) })).text(), 'owned descendant');
 });
 
 test('native compatibility atomically owns port zero and closes before returning its save witness', async t => {

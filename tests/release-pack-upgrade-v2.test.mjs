@@ -1,5 +1,5 @@
 // Disposable native journal/ownership contracts with cancellation diagnostics.
-import nativeTest from 'node:test';
+import nativeTest, { after as afterFile } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
@@ -13,16 +13,29 @@ import { bindingBytes, checkPackTransition, assertStableIdentities, assertPreser
 const scripts = fileURLToPath(new URL('../scripts/private-companion/', import.meta.url));
 const observations = new AsyncLocalStorage();
 const childObservations = new WeakMap();
+const activeCases = new Set(), hangAbort = new AbortController();
+// Completion is acknowledged by the script and its process exit. This single
+// file guard diagnoses a lost protocol/child, rather than grading case latency.
+const hangGuard = setTimeout(() => {
+  console.error('PACK-UPGRADE OUTER HANG GUARD ' + JSON.stringify({ activeResources: process.getActiveResourcesInfo(), cases: [...activeCases].map(row => ({ name: row.name, stage: row.stage })) }));
+  hangAbort.abort(Error('Release-pack file lost completion; outer hang guard fired.'));
+  for (const context of activeCases) for (const row of context.children) {
+    if (!row.exitObserved) row.child.kill('SIGKILL');
+    for (const pipe of [row.child.stdout, row.child.stderr]) if (pipe) { pipe.destroy(); pipe.removeAllListeners(); }
+  }
+}, 600000);
+hangGuard.unref(); afterFile(() => clearTimeout(hangGuard));
 function stage(value) { const context = observations.getStore(); if (context) context.stage = value; }
 function test(name, options, body) {
   if (typeof options === 'function') { body = options; options = {}; }
-  return nativeTest(name, options, t => observations.run({ name, stage: 'setup', children: [] }, async () => {
+  return nativeTest(name, { ...options, signal: hangAbort.signal }, t => observations.run({ name, stage: 'setup', children: [], diagnostic: message => t.diagnostic(message) }, async () => {
     const context = observations.getStore(); let finished = false;
+    activeCases.add(context);
     const launch = childProcess.spawn;
     t.mock.method(childProcess, 'spawn', (command, args, options) => {
       const child = launch(command, args, options);
       const entry = args.find(value => /\.(?:mjs|ps1)$/i.test(value)) ?? command;
-      const row = { pid: child.pid, stage: path.basename(entry), command: path.basename(command), exitObserved: false, closeObserved: false };
+      const row = { pid: child.pid, stage: path.basename(entry), command: path.basename(command), startedAt: new Date().toISOString(), markers: [], exitObserved: false, closeObserved: false };
       Object.defineProperty(row, 'child', { value: child });
       context.children.push(row); childObservations.set(child, row); stage(row.stage);
       child.once('exit', (code, signal) => { row.exitObserved = true; row.exitCode = code; row.signal = signal; });
@@ -52,7 +65,7 @@ function test(name, options, body) {
     try { return await body(t); }
     finally {
       context.stage = 'teardown';
-      t.after(() => { finished = true; t.signal.removeEventListener('abort', cancelled); t.mock.restoreAll(); syncBuiltinESMExports(); });
+      t.after(() => { finished = true; activeCases.delete(context); t.signal.removeEventListener('abort', cancelled); t.mock.restoreAll(); syncBuiltinESMExports(); });
     }
   }));
 }
@@ -65,16 +78,20 @@ async function fixture(t) {
   t.after(()=>rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   return root;
 }
-async function run(root, body, { crashMarker } = {}) {
+async function run(root, body, { crashMarker, crashStage } = {}) {
   const file=path.join(root,'fixture.ps1'); await put(file,body);
   return new Promise((resolve,reject)=>{
     stage('PowerShell:launch');
     const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-File',file],{windowsHide:true,stdio:['ignore','pipe','pipe']});
     const row = childObservations.get(child);
-    let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>{
-      output+=b;
-      const marks = [...output.slice(-4096).matchAll(/FIXTURE_STAGE:([^\r\n]+)/g)];
-      if (marks.length) { row.stage = marks.at(-1)[1]; stage(row.stage); }
+    let output='', pending='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>{
+      output+=b; pending+=b;
+      let newline;
+      while ((newline=pending.indexOf('\n')) >= 0) {
+        const line=pending.slice(0,newline).trim(); pending=pending.slice(newline+1);
+        const mark=/^FIXTURE_STAGE:(.+) @ (\S+)$/.exec(line);
+        if (mark) { row.stage=mark[1]; row.markers.push({ stage:mark[1], at:mark[2] }); stage(row.stage); }
+      }
     });
     child.once('error',reject);child.once('close',async (code,signal)=>{
       try {
@@ -82,7 +99,13 @@ async function run(root, body, { crashMarker } = {}) {
           assert.notEqual(code, null, `Crash did not report an exit code: ${signal}`);
           assert.notEqual(code, 0, 'Crash injection exited successfully');
           assert.equal(await readFile(crashMarker, 'utf8'), 'interrupted', 'Crash injection marker missing');
-        } else assert.equal(code, 0, output || `Unexpected fixture exit ${code}`);
+          assert(output.includes('FIXTURE_CRASH:'+crashStage+' @ '), 'Crash stage acknowledgement missing');
+        } else {
+          assert.equal(code, 0, output || `Unexpected fixture exit ${code}`);
+          assert.equal(output.split('FIXTURE_ACK:complete').length-1, 1, 'Successful script completion acknowledgement missing');
+        }
+        // The Stability runner surfaces deadline diagnostics even on success.
+        observations.getStore().diagnostic('PACK-UPGRADE completion acknowledged, no case deadline: ' + JSON.stringify({ case:observations.getStore().name, pid:child.pid, crash:!!crashMarker, startedAt:row.startedAt, closedAt:new Date().toISOString(), markers:row.markers }));
         resolve(output);
       } catch (error) { reject(error); }
     });
@@ -96,7 +119,7 @@ for (const rollback of [false,true]) for (const {point,crash} of cases) {
   const pending=point.startsWith('pending-');
   if(pending&&!rollback) continue;
   const firstRollback=rollback&&!pending, effectivePoint=pending?point.slice('pending-'.length):point;
-  test(`${rollback?'rollback':'upgrade'} ${crash?'process-exit':'interruption'} ${point}: reconcile under ownership, preserve current save`, {skip:process.platform!=='win32',timeout:30000},async t=>{
+  test(`${rollback?'rollback':'upgrade'} ${crash?'process-exit':'interruption'} ${point}: reconcile under ownership, preserve current save`, {skip:process.platform!=='win32'},async t=>{
     const root=await fixture(t), local=path.join(root,'local'), kit=path.join(root,'kit');
     const old=path.join(kit,'releases/old'), next=path.join(kit,'releases/new');
     const current=path.join(root,'current.json'), binding=path.join(local,'data.dataset.json');
@@ -116,13 +139,24 @@ for (const rollback of [false,true]) for (const {point,crash} of cases) {
     for(const name of ['release-v2.mjs','verify-install.mjs']) await put(path.join(kit,'tools',name),'process.exit(0);');
     await put(path.join(kit,'tools/release-pack-check.mjs'),'// synthetic check overridden in fixture');
     const target=firstRollback?old:next;
-    // Environment.Exit can deadlock redirected PowerShell 5.1 shutdown.
     // Kill preserves an abrupt crash without running PowerShell finally blocks.
     const body=`$ErrorActionPreference='Stop'
-[Console]::Error.WriteLine('FIXTURE_STAGE:load-operator-common')
+function Write-FixtureStage([string]$Name) { [Console]::Error.WriteLine('FIXTURE_STAGE:'+$Name+' @ '+[DateTime]::UtcNow.ToString('o')) }
+Write-FixtureStage 'script-entered'
+# Avoid command discovery and module-analysis scans of the synthetic home.
+# The production functions below need only these two inbox cmdlet modules.
+$PSModuleAutoLoadingPreference='None'
+Write-FixtureStage 'import-management'
+Import-Module ([IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Management','Microsoft.PowerShell.Management.psd1')) -ErrorAction Stop
+Write-FixtureStage 'import-utility'
+Import-Module ([IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Utility.psd1')) -ErrorAction Stop
+Write-FixtureStage 'load-operator-common'
 . ${q(path.join(scripts,'Operator-Common.ps1'))}
-[Console]::Error.WriteLine('FIXTURE_STAGE:load-release-common')
+Write-FixtureStage 'load-release-common'
 . ${q(path.join(scripts,'ReleaseV2-Common.ps1'))}
+Write-FixtureStage 'install-fixture-adapters'
+$script:realPhase=(Get-Item Function:Set-ReleaseV2Phase).ScriptBlock
+function Set-ReleaseV2Phase($Clock,[string]$Name) { Write-FixtureStage ('managed-phase-'+$Name); & $script:realPhase $Clock $Name }
 $global:local=${q(local)}
 function Read-OperatorConfig([string]$Path,[switch]$ForStop) {
  $id=(Read-OperatorJson $Path).id;$root=Split-Path -Parent $Path
@@ -135,15 +169,15 @@ function Assert-FixtureOwnership($Context,$LockOwner) {
  $blocked=$false;try{$other=[IO.File]::Open((Join-Path $global:local 'watchdog-tick.lock'),'OpenOrCreate','ReadWrite','None');$other.Dispose()}catch{$blocked=$true};if(-not $blocked){throw 'Tick owner missing'}
 }
 function Stop-OperatorCore($Context,$TimeoutSeconds,[switch]$PreservePause,[IO.FileStream]$LockOwner) {
- [Console]::Error.WriteLine('FIXTURE_STAGE:stop-operator-core')
+ Write-FixtureStage 'stop-operator-core'
  Assert-FixtureOwnership $Context $LockOwner
  if(Test-Path -LiteralPath $Context.runtimeFile){if([IO.File]::ReadAllText($Context.runtimeFile) -cne $Context.configHash){throw 'Uncertain runtime owner'};Remove-Item -LiteralPath $Context.runtimeFile}
 }
 function Assert-OperatorStoreReleased { }
 $global:point=${q(effectivePoint==='uncertain-owner'?'during-start':['unknown-binding','failed-verification'].includes(effectivePoint)?'after-journal':effectivePoint)};$global:failedOnce=${crash?`(Test-Path -LiteralPath ${q(path.join(root,'crash-marker'))})`:'$false'}
-function Fail-Once([string]$At){[Console]::Error.WriteLine('FIXTURE_STAGE:boundary-'+$At);if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[System.Diagnostics.Process]::GetCurrentProcess().Kill()`:`throw 'Injected interruption'`}}}
+function Fail-Once([string]$At){Write-FixtureStage ('boundary-'+$At);if($global:point -eq $At -and -not $global:failedOnce){$global:failedOnce=$true;${crash?`[IO.File]::WriteAllText(${q(path.join(root,'crash-marker'))},'interrupted');[Console]::Error.WriteLine('FIXTURE_CRASH:'+$At+' @ '+[DateTime]::UtcNow.ToString('o'));[System.Diagnostics.Process]::GetCurrentProcess().Kill()`:`throw 'Injected interruption'`}}}
 function Invoke-ReleaseV2PackCheck($Context,$Tool,$From,$To,$Transition,$Output) {
- [Console]::Error.WriteLine('FIXTURE_STAGE:synthetic-pack-check')
+ Write-FixtureStage 'synthetic-pack-check'
  if(-not(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused'))){throw 'Compatibility ran without pause'}
  Fail-Once 'before-journal';[IO.File]::WriteAllText($Output,'{"passed":true,"bothDirections":true}')
 }
@@ -154,17 +188,19 @@ function Set-ReleaseV2Binding($Path,$Expected,$Bytes,$Target){ & $script:realBin
 $script:realPointer=(Get-Item Function:Set-ReleaseV2Pointer).ScriptBlock
 function Set-ReleaseV2Pointer($Previous,$Candidate){ & $script:realPointer $Previous $Candidate;Fail-Once 'after-pointer' }
 function Start-OperatorCore($Context,$TimeoutSeconds,[switch]$PreservePause,[IO.FileStream]$LockOwner,[switch]$PackTransitionReady) {
- [Console]::Error.WriteLine('FIXTURE_STAGE:start-operator-core')
+ Write-FixtureStage 'start-operator-core'
  Assert-FixtureOwnership $Context $LockOwner
  Assert-OperatorPackJournal $Context -PackTransitionReady:$PackTransitionReady -LockOwner $LockOwner
  [IO.File]::WriteAllText($Context.runtimeFile,$Context.configHash);Fail-Once 'during-start'
 }
 $args=@{CurrentRelease=${q(current)};CandidatePointer=${q(path.join(target,'pointer.json'))};CompanionRoot=${q(kit)};Receipt=${q(path.join(target,'companion.json'))};ReleaseRoot=${q(target)};Rollback=$${firstRollback}}
 $failed=$false
-[Console]::Error.WriteLine('FIXTURE_STAGE:invoke-managed')
+Write-FixtureStage 'invoke-managed'
 if(${crash?`(Test-Path -LiteralPath ${q(path.join(root,'crash-marker'))})`:'$false'}){$failed=$true}else{try{Invoke-ReleaseV2Managed @args}catch{$failed=$true}}
+Write-FixtureStage 'assert-interruption-and-pause'
 if(-not $failed -or -not $global:failedOnce){Get-ChildItem -LiteralPath ${q(path.join(kit,'.local'))} -Filter '*.failure.txt'|ForEach-Object{Get-Content -LiteralPath $_.FullName};throw 'Interruption not reached'}
 if(-not(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused'))){throw 'Failure did not retain pause'}
+Write-FixtureStage 'assert-partial-pair'
 if(${q(effectivePoint)} -in @('before-journal','after-journal','unknown-binding','failed-verification')) {
  if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(firstRollback?newB:oldB))} -or (Read-ReleaseV2Pointer ${q(current)} -ForStop).pointer.releaseId -cne ${q(firstRollback?'new':'old')}){throw 'Original pair changed too early'}
 }elseif(${q(effectivePoint)} -eq 'after-binding'){
@@ -173,10 +209,12 @@ if(${q(effectivePoint)} -in @('before-journal','after-journal','unknown-binding'
  if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(firstRollback?oldB:newB))} -or (Read-ReleaseV2Pointer ${q(current)} -ForStop).pointer.releaseId -cne ${q(firstRollback?'old':'new')}){throw 'Wrong promoted pair'}
 }
 $journalPath=Join-Path $global:local 'release-pack-transition.json'
+Write-FixtureStage 'validate-pending-journal'
 if(Test-Path -LiteralPath $journalPath){
  $context=(Read-ReleaseV2Pointer ${q(current)} -ForStop).context
  $failed=$false;try{Assert-OperatorPackJournal $context}catch{$failed=$true};if(-not $failed){throw 'Ordinary Start admitted a pending pair'}
  if(${q(point)} -in @('unknown-binding','uncertain-owner','failed-verification')) {
+  Write-FixtureStage 'assert-uncertain-recovery-refusal'
   $savedBinding=[IO.File]::ReadAllBytes(${q(binding)})
   if(${q(point)} -eq 'unknown-binding'){[IO.File]::WriteAllText(${q(binding)},'foreign binding')}
   if(${q(point)} -eq 'uncertain-owner'){[IO.File]::WriteAllText((Join-Path $global:local 'runtime'),'foreign owner')}
@@ -188,27 +226,32 @@ if(Test-Path -LiteralPath $journalPath){
   if(${q(point)} -eq 'failed-verification'){[IO.File]::WriteAllText(${q(path.join(kit,'tools/verify-install.mjs'))},'process.exit(0);')}
  }
  if($${pending}) {
+  Write-FixtureStage 'reverse-pending-transition'
   $args.CandidatePointer=${q(path.join(old,'pointer.json'))};$args.ReleaseRoot=${q(old)};$args.Receipt=${q(path.join(old,'companion.json'))};$args.Rollback=$true
   $global:point='after-journal';$global:failedOnce=$false
   $failed=$false;try{Invoke-ReleaseV2Managed @args}catch{$failed=$true}
   $reverse=Read-OperatorJson $journalPath
   if(-not $failed -or -not $global:failedOnce -or -not $reverse.rollback -or -not $reverse.allowInversePartial -or $reverse.state -cne 'journaled'){throw 'Reverse intent was not durably journaled'}
  }
+ Write-FixtureStage 'recover-managed'
  Invoke-ReleaseV2Managed @args -Recover
  if((Read-OperatorJson $journalPath).state -cne 'ready'){throw 'Recovery did not commit readiness'}
-}else{Invoke-ReleaseV2Managed @args}
+}else{Write-FixtureStage 'complete-managed';Invoke-ReleaseV2Managed @args}
+Write-FixtureStage 'assert-final-pause-pointer-binding'
 if(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused')){throw 'Successful readiness left pause'}
 if((Read-ReleaseV2Pointer ${q(current)}).pointer.releaseId -cne ${q(rollback?'old':'new')}){throw 'Wrong pointer'}
 if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(rollback?oldB:newB))}){throw 'Wrong binding'}
+Write-FixtureStage 'completed'
+[Console]::Out.WriteLine('FIXTURE_ACK:complete')
 `;
-    if(crash) await run(root,body,{crashMarker:path.join(root,'crash-marker')});
+    if(crash) await run(root,body,{crashMarker:path.join(root,'crash-marker'),crashStage:effectivePoint});
     await run(root,body);
     assert.deepEqual(JSON.parse(await readFile(save)),{revision:41,completedTasks:['kept-current-progress']});
     assert.equal(await readFile(path.join(local,'runtime'),'utf8'),rollback?'old':'new');
   });
 }
 
-test('compatibility uses separate packed startup processes, checks latest save both ways and refuses changed identity/binding', {timeout:30000},async t=>{
+test('compatibility uses separate packed startup processes, checks latest save both ways and refuses changed identity/binding', async t=>{
   const root=await fixture(t),data=path.join(root,'data');
   await put(path.join(data,'state.json'),{revision:9});
   const descriptors=[],configs=[];
