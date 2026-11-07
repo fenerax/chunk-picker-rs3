@@ -13,6 +13,10 @@ const MAX_REGION_Y = SURFACE_GRID.startId % SURFACE_GRID.stride;
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 export const TERRAIN_LEVELS = Object.freeze([0.0625, 0.125, 0.25, 0.5]);
 export const TERRAIN_OVERVIEW_MAX_ZOOM = 0.75;
+export const TERRAIN_BACKGROUND_CONCURRENCY = 1;
+export const TERRAIN_OVERVIEW_BYTES = 4 * 1024 * 1024;
+export const TERRAIN_PREFETCH_BYTES = 1024 * 1024;
+export const TERRAIN_PREFETCH_IMAGES = 64;
 
 /** Prefer one composed overview through intermediate scale, then native detail. */
 export function terrainLevelForZoom(zoom, dpr = 1) {
@@ -32,6 +36,9 @@ const defaultRequestFrame = callback => {
 const defaultCancelFrame = id => {
   if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id);
 };
+const defaultRequestIdle = callback => typeof requestIdleCallback === 'function'
+  ? requestIdleCallback(callback) : setTimeout(() => callback({ timeRemaining: () => 1 }), 0);
+const defaultCancelIdle = id => typeof cancelIdleCallback === 'function' ? cancelIdleCallback(id) : clearTimeout(id);
 
 /** Reject near-empty source placeholders, preserving normal dark roofs/walls. */
 export function isBlankTerrainPixels(pixels) {
@@ -51,7 +58,8 @@ export function isBlankTerrainPixels(pixels) {
 export class MapTerrain {
   constructor(manifest, { changed = () => {}, imageFactory = () => new Image(), canvasFactory = defaultCanvas,
     cacheLimit = 256, concurrency = 6, fallbackImage = null, waitForFallback = false,
-    requestFrame = defaultRequestFrame, cancelFrame = defaultCancelFrame, now = () => performance.now() } = {}) {
+    requestFrame = defaultRequestFrame, cancelFrame = defaultCancelFrame, now = () => performance.now(),
+    requestIdle = defaultRequestIdle, cancelIdle = defaultCancelIdle } = {}) {
     this.changed = changed; this.imageFactory = imageFactory; this.canvasFactory = canvasFactory;
     this.cacheLimit = cacheLimit; this.concurrency = concurrency;
     this.waitForFallback = waitForFallback;
@@ -73,6 +81,9 @@ export class MapTerrain {
     this.unreadyVisible = new Set(); this.unreadyNative = new Set();
     this.previewQueue = new Set(); this.stagedPreviews = new Map();
     this.previewWorkUnits = new Map(); this.previewUnitCosts = []; this.publishUnitCosts = [];
+    this.requestIdle = requestIdle; this.cancelIdle = cancelIdle; this.idleFrame = null;
+    this.backgroundImages = new Set(); this.backgroundAttempted = new Set();
+    this.backgroundBytes = { overview: 0, native: 0 };
     const current = manifest?.cacheTerrain;
     const baseColour = current?.oceanColour ?? (/^#[0-9a-f]{6}$/i.test(current?.oceanColor ?? '')
       ? [1, 3, 5].map(index => parseInt(current.oceanColor.slice(index, index + 2), 16)) : null);
@@ -126,6 +137,11 @@ export class MapTerrain {
         for (const region of regions) this.overviewByTile.set(region, key);
       }
     }
+    // Reuse the installed overview pages; no second atlas or native whole-map
+    // download. Unknown sizes disable speculation rather than guessing a budget.
+    this.backgroundAvailable = this.modernBase && this.overviewPages.size > 0
+      && [...this.overviewPages.values()].every(page => Number.isSafeInteger(page.bytes) && page.bytes > 0)
+      && [...this.overviewPages.values()].reduce((sum, page) => sum + page.bytes, 0) <= TERRAIN_OVERVIEW_BYTES;
     this.oceanKeys = new Set();
     const ocean = manifest?.oceanFallback, cache = manifest?.cacheTerrain;
     if (!this.modernBase && ocean?.version === 1 && ocean.mapId === 28 && ocean.plane === 0
@@ -195,6 +211,9 @@ export class MapTerrain {
   }
 
   setView(bounds, zoom, dpr = 1) {
+    const identity = [bounds.left, bounds.top, bounds.right, bounds.bottom, zoom, dpr].join(',');
+    const moved = identity !== this.viewIdentity;
+    this.viewIdentity = identity; this.viewBounds = bounds; this.viewZoom = zoom; this.viewDpr = dpr;
     const visible = [];
     const native = terrainLevelForZoom(zoom, dpr) === null;
     this.eachTile(bounds, (key, left, top) => {
@@ -242,10 +261,14 @@ export class MapTerrain {
     this.requestDistances = new Map(visible.map(({ key, distance }) => [key, distance]));
     this.overviewWanted = new Set(visible.filter(({ key }) => !this.nativeKeys.has(key) && !this.previews.has(key)
       && !this.overviewFailed.has(this.overviewByTile.get(key))).map(({ key }) => this.overviewByTile.get(key)).filter(Boolean));
-    for (const [key, image] of this.pending) if (!this.chunkListeners.has(key)
+    if (moved) {
+      this.cancelBackground();
+    }
+    for (const [key, image] of this.pending) if (!this.backgroundImages.has(image) && !this.chunkListeners.has(key)
       && (!this.visibleKeys.has(key) || (!this.nativeKeys.has(key)
         && (this.previews.has(key) || this.overviewWanted.has(this.overviewByTile.get(key)))))) this.cancelLoad(this.pending, key, image);
-    for (const [key, image] of this.overviewPending) if (!this.overviewWanted.has(key)) this.cancelLoad(this.overviewPending, key, image);
+    for (const [key, image] of this.overviewPending) if (!this.backgroundImages.has(image)
+      && !this.overviewWanted.has(key)) this.cancelLoad(this.overviewPending, key, image);
     // The original is the first complete base. Do not compete with its decode
     // or expose individual tiles over an empty canvas while it is loading.
     if (!this.waitForFallback) {
@@ -277,26 +300,34 @@ export class MapTerrain {
   }
 
   request(key, pump = true) {
+    const loading = this.pending.get(key);
+    if (loading && (this.nativeKeys.has(key) || this.chunkListeners.has(key)) && this.backgroundImages.delete(loading)) {
+      loading.fetchPriority = 'high';
+    }
     if (this.disposed || !this.tiles.has(key) || this.failed.has(key) || this.pending.has(key)
       || this.images.has(key) || (!this.nativeKeys.has(key) && this.chunkImages.has(key))
       || (this.previews.has(key) && !this.nativeKeys.has(key) && !this.chunkListeners.has(key))) return;
+    if (this.backgroundImages.size) this.cancelBackground();
     if (this.nativeKeys.has(key)) this.unreadyNative.add(key);
     this.queue.set(key, this.tiles.get(key)); if (pump) this.pump();
   }
 
   cancelLoad(pending, key, image) {
     image.onload = image.onerror = null; pending.delete(key);
+    if (this.backgroundImages.delete(image)) this.backgroundAttempted.delete(`${pending === this.pending ? 'native' : 'overview'}:${key}`);
     // Removing the source aborts the browser image request. A decode already
     // underway also checks its pending identity before publishing anything.
     if (typeof image.removeAttribute === 'function') image.removeAttribute('src');
     else image.src = '';
   }
 
-  loadOverview(key, page) {
+  loadOverview(key, page, background = false) {
     const image = this.imageFactory(); image.decoding = 'async'; this.overviewPending.set(key, image);
+    if (background) { image.fetchPriority = 'low'; this.backgroundImages.add(image); }
     const finish = ready => {
       if (this.disposed || this.overviewPending.get(key) !== image) return;
       image.onload = image.onerror = null; this.overviewPending.delete(key);
+      const speculative = this.backgroundImages.delete(image);
       if (ready && image.naturalWidth === page.pixelWidth && image.naturalHeight === page.pixelHeight) {
         for (const region of page.regions) {
           if (this.previews.has(region)) continue;
@@ -309,7 +340,7 @@ export class MapTerrain {
           this.pageVersions.set(key, (this.pageVersions.get(key) ?? 0) + 1);
         }
       } else ready = false;
-      if (!ready) {
+      if (!ready && !speculative) {
         this.overviewFailed.add(key); this.overviewWanted.delete(key);
         for (const region of page.regions) if (this.visibleKeys.has(region)) this.request(region, false);
         this.prioritizeTiles();
@@ -339,10 +370,17 @@ export class MapTerrain {
         continue;
       }
       const [key, tile] = this.queue.entries().next().value; this.queue.delete(key);
+      if (!this.pending.has(key)) this.loadTile(key, tile);
+    }
+  }
+
+  loadTile(key, tile, background = false) {
       const image = this.imageFactory(); image.decoding = 'async'; this.pending.set(key, image);
+      if (background) { image.fetchPriority = 'low'; this.backgroundImages.add(image); }
       const finish = ready => {
         if (this.disposed || this.pending.get(key) !== image) return;
         image.onload = image.onerror = null; this.pending.delete(key);
+        const speculative = this.backgroundImages.delete(image);
         if (this.disposed) return;
         if (ready && image.naturalWidth === 256 && image.naturalHeight === 256) {
           const certified = tile.certified || tile.path.startsWith('terrain.cache-');
@@ -354,16 +392,19 @@ export class MapTerrain {
               this.chunkImages.delete(key); this.chunkImages.set(key, image);
               while (this.chunkImages.size > 8) this.chunkImages.delete(this.chunkImages.keys().next().value);
             }
-            if (this.nativeKeys.has(key)) {
+            if (this.nativeKeys.has(key) || speculative) {
               this.images.delete(key); this.images.set(key, image); this.lockedImages.delete(key);
               while (this.images.size > this.cacheLimit) {
-                const evicted = this.images.keys().next().value; this.images.delete(evicted); this.lockedImages.delete(evicted);
+                const evicted = [...this.images.keys()].find(key => !this.nativeKeys.has(key));
+                if (evicted === undefined) break;
+                this.images.delete(evicted); this.lockedImages.delete(evicted);
               }
             }
             const pageKey = this.pageKey(key);
             this.pageVersions.set(pageKey, (this.pageVersions.get(pageKey) ?? 0) + 1);
           }
         } else ready = false;
+        if (!ready && speculative) { this.pump(); this.prepareView(); return; }
         if (!ready) {
           const next = (this.sourceIndexes.get(key) ?? 0) + 1;
           const replacement = this.tileSources.get(key)?.[next];
@@ -395,7 +436,69 @@ export class MapTerrain {
         else finish(true);
       };
       image.onerror = () => finish(false); image.src = `/assets/map/${tile.path}`;
+  }
+
+  cancelBackground() {
+    if (this.idleFrame !== null) this.cancelIdle(this.idleFrame);
+    this.idleFrame = null;
+    for (const pending of [this.pending, this.overviewPending]) for (const [key, image] of pending) {
+      if (!this.backgroundImages.has(image)) continue;
+      // Promote identical demand without cancelling/re-downloading it.
+      if (pending === this.pending ? this.nativeKeys.has(key) || this.chunkListeners.has(key) : this.overviewWanted.has(key)) {
+        this.backgroundImages.delete(image); image.fetchPriority = 'high';
+      } else this.cancelLoad(pending, key, image);
     }
+  }
+
+  scheduleBackground() {
+    if (this.disposed || !this.backgroundAvailable || !this.viewBounds || this.idleFrame !== null
+      || this.backgroundImages.size >= TERRAIN_BACKGROUND_CONCURRENCY || !this.viewLoaded()
+      || this.pending.size || this.overviewPending.size || this.queue.size || this.overviewQueue.size
+      || this.pageQueue.size || this.previewQueue.size || this.pageWorkScheduled || this.unpublishedKeys.size) return;
+    this.idleFrame = this.requestIdle(deadline => {
+      this.idleFrame = null;
+      if (this.disposed) return;
+      if (deadline.timeRemaining() <= 0) { this.scheduleBackground(); return; }
+      if (!this.viewLoaded()
+        || this.pending.size || this.overviewPending.size || this.queue.size || this.overviewQueue.size
+        || this.pageWorkScheduled) return;
+      const bounds = this.viewBounds;
+      const distance = key => {
+        const [x, y] = key.split(',').map(Number);
+        return Math.hypot((x - MIN_REGION_X + 0.5) * CELL - (bounds.left + bounds.right) / 2,
+          (MAX_REGION_Y - y + 0.5) * CELL - (bounds.top + bounds.bottom) / 2);
+      };
+      const overview = [...this.overviewPages].filter(([key, page]) => !this.backgroundAttempted.has(`overview:${key}`)
+        && !this.overviewFailed.has(key) && page.regions.some(key => !this.previews.has(key)))
+        .sort(([, a], [, b]) => distance(a.regions[0]) - distance(b.regions[0]))[0];
+      if (overview) {
+        const [key, page] = overview;
+        if (this.backgroundBytes.overview + page.bytes > TERRAIN_OVERVIEW_BYTES) return;
+        this.backgroundAttempted.add(`overview:${key}`); this.backgroundBytes.overview += page.bytes;
+        this.loadOverview(key, page, true); return;
+      }
+      // All overview mip levels share the same source. Only the top overview
+      // tier has a different adjacent source (native); never fetch it map-wide.
+      const level = terrainLevelForZoom(this.viewZoom, this.viewDpr);
+      if (level !== null && level !== 0.5) return;
+      const spare = Math.min(TERRAIN_PREFETCH_IMAGES, this.cacheLimit - this.nativeKeys.size);
+      if ([...this.images.keys()].filter(key => !this.nativeKeys.has(key)).length >= spare) return;
+      const candidates = [];
+      this.eachTile({ left: bounds.left - CELL, top: bounds.top - CELL, right: bounds.right + CELL, bottom: bounds.bottom + CELL }, key => {
+        if (level === null && this.visibleKeys.has(key)) return;
+        const tile = this.tiles.get(key);
+        if (!tile?.certified || !Number.isSafeInteger(tile.bytes) || tile.bytes <= 0 || this.images.has(key)
+          || this.failed.has(key) || this.backgroundAttempted.has(`native:${key}`)
+          || this.backgroundBytes.native + tile.bytes > TERRAIN_PREFETCH_BYTES) return;
+        candidates.push(key);
+      });
+      candidates.sort((a, b) => distance(a) - distance(b));
+      const key = candidates[0];
+      if (key === undefined) return;
+      const tile = this.tiles.get(key);
+      this.backgroundAttempted.add(`native:${key}`); this.backgroundBytes.native += tile.bytes;
+      this.loadTile(key, tile, true);
+    });
   }
 
   preview(image, cache = false) {
@@ -464,6 +567,7 @@ export class MapTerrain {
     }
     if (this.pageQueue.size || this.previewQueue.size) this.schedulePageWork();
     else this.publishView();
+    this.scheduleBackground();
   }
 
   publishView() {
@@ -504,6 +608,7 @@ export class MapTerrain {
     this.unpublishedKeys.clear();
     if (changed) this.changed();
     rememberCost(this.publishUnitCosts, this.now() - started, workUnits);
+    this.scheduleBackground();
   }
 
   publicationWorkUnits() {
@@ -726,6 +831,7 @@ export class MapTerrain {
 
   dispose() {
     this.disposed = true;
+    this.cancelBackground();
     this.chunkListeners.clear();
     this.chunkImages.clear();
     if (this.updateFrame !== null) this.cancelFrame(this.updateFrame);

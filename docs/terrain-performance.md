@@ -42,12 +42,79 @@ compressed; the full installed manifest remains the audit record.
 
 ## Loading and fallback
 
-Only intersecting overview pages are requested. The loader starts nearest the
-viewport centre, shares a six-request cap across overview and native images,
-and cancels requests and queued work made unnecessary by pan/zoom. Decode
+Visible demand starts nearest the viewport centre and shares a six-request cap
+across overview and native images. Requests and queued work made unnecessary
+by pan/zoom are cancelled. Decode
 callbacks check request identity before publishing. Native pages remain bounded;
 other visible regions use overview pages. Explicit open chunk panels retain
 their independent native-image demand. Completed terrain publishes atomically.
+
+After the first visible paint has finished loading/composing, an idle callback
+starts warming the whole-map coarse underlay from the existing overview pages.
+Previously, the mip canvases contained only ocean outside visited regions; a
+first pan to land therefore briefly showed ocean until its requested images
+arrived. Warming the overview fills the existing colour/gray mip chain, so an
+unvisited pan or zoom uses scaled overview terrain while native detail loads.
+There is no second atlas, extra full-size world image, or whole-map native load.
+Until a particular overview response arrives, its terrain cannot be displayed.
+
+Background work uses `requestIdleCallback` (a yielding task where unavailable),
+low image fetch priority, and **one request at a time**, within the shared six.
+It starts only after foreground requests and composition settle. View changes
+cancel obsolete work before pumping visible demand; a matching request is
+promoted without restarting its download. Chunk-panel requests also preempt or
+promote speculation. Cancellation/disposal retains the existing identity guard
+against late fetch/decode callbacks. Failed speculative requests do not poison
+foreground retry or download unpriced PNG fallback sources.
+
+Budgets per terrain instance, including reservations for cancelled requests:
+
+- Whole-map overview: **4 MiB** maximum advertised body bytes. The installed
+  2,109,044-byte page bundle fits. Unpriced/oversized bundles disable speculation;
+  their visible-demand loading still works. Already available previews are reused.
+- Native prefetch: **1 MiB**, at most **64 spare decoded images**, inside the
+  existing **256-image** cache. It warms the one-region ring near native views;
+  at the top overview tier it also warms nearby visible native detail. Lower
+  overview tiers and their adjacent levels share the overview source and need
+  no additional downloads. Fine prefetch never traverses the entire map.
+- Native page limits remain **16**, or **8 active pages** above DPR 1. Existing
+  composition frame limits and mip draw counts are unchanged. Background warming
+  retains the same bounded per-region previews a full zoom-out already retained,
+  rather than adding a second image cache. Budgets reset on terrain replacement.
+
+### Controlled cold-delivery comparison (2026-11-07)
+
+Real installed WebP/PNG terrain was served only from an isolated local fixture,
+without a real save. Both versions used fresh Chrome contexts with HTTP cache
+disabled and all origin storage cleared. CDP held every image response and each
+decode acknowledgement; idle callbacks, animation frames and the clock were
+advanced explicitly. Baseline was core `0aedba5`. A 512 × 256 synthetic view
+started at zoom 0.5, idled, then panned to new native terrain at model time 30 s
+and idled until 60 s. Each release consumed a modelled 100 ms plus body bytes at
+2,000,000 bytes/s; these are deterministic delivery measurements, not wall-clock
+internet benchmarks. Terrain body bytes exclude headers and unrelated UI data.
+
+| First controlled minute | Before | After |
+| --- | ---: | ---: |
+| Downloaded terrain body bytes | 291,038 | 3,309,152 |
+| Reserved background overview bytes | 0 | 1,970,180 |
+| Reserved background native bytes | 0 | 1,047,934 |
+| Peak retained decoded image RGBA bytes | 2,097,152 | 14,155,776 |
+| Peak terrain canvas backing bytes | 119,704,576 | 138,923,008 |
+| Retained native images at 60 s / cap | 8 / 256 | 54 / 256 |
+| Retained native pages at 60 s / cap | 2 / 16 | 2 / 16 |
+| Initial visible completion, model ms / requests | 268.382 / 2 | 268.382 / 2 |
+| Native pan completion, model ms / requests | 877.137 / 8 | 877.137 / 8 |
+
+Image memory counts unique retained image objects at four bytes per pixel,
+including decoded in-flight images; canvas memory counts mips, previews and
+retained/staged terrain pages. Browser HTTP/decoder/GPU caches are not measured.
+The native image ceiling remains 64 MiB plus the existing bounded in-flight
+pool. Whole-map preview warming accounts for the canvas increase; the grid's
+per-region preview ceiling is unchanged. A separate real-PNG held-response
+probe verified exact overview-colour pixels on the first unvisited pan frame,
+then exact native-colour pixels after fine delivery. Deterministic regressions
+cover zoom, foreground preemption/promotion, idle exhaustion and byte/cache caps.
 
 A complete modern layout does not fetch the unused 8.08 MB legacy world PNG.
 Older/partial manifests and absent local assets still load that fallback. Missing
