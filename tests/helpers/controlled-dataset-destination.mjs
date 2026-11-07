@@ -72,5 +72,6 @@ export function observeClosed(promise,destination) {
 export async function assertPending(promise) {
   // A microtask sentinel only inspects settlement at an acknowledged phase.
   // It never joins a writer or authorizes filesystem cleanup.
-  assert.equal(await Promise.race([promise.then(()=> 'resolved',()=> 'rejected'),Promise.resolve('pending')]),'pending');
+  const pending=Symbol('pending');
+  assert.equal(await Promise.race([promise,Promise.resolve(pending)]),pending);
 }
