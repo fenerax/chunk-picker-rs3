@@ -26,10 +26,14 @@ import { parseArgs } from 'node:util';
 import { assertCompatibleStep } from '../../private-companion/release-compatibility.mjs';
 
 export const REPOSITORY = 'fenerax/chunk-picker-rs3';
-// Every job GitHub runs for a commit: tests (test.yml), the coverage gate over
-// both test lanes, the gallery screens and the release rehearsal on each OS.
-export const REQUIRED_CHECKS = Object.freeze(['test', 'windows', 'coverage', 'secrets', 'gallery',
-  'rehearsal (ubuntu-latest)', 'rehearsal (windows-latest)']);
+// Every job GitHub runs for a commit: each full-suite shard (test.yml's `test`
+// matrix; TEST_SHARDS must equal its `shard` list, which a test enforces), the
+// Windows lane, the coverage gate over all shards and Windows, the gallery
+// screens and the release rehearsal on each OS.
+export const TEST_SHARDS = 4;
+export const REQUIRED_CHECKS = Object.freeze([
+  ...Array.from({ length: TEST_SHARDS }, (_, index) => `test (shard ${index + 1}/${TEST_SHARDS})`),
+  'windows', 'coverage', 'secrets', 'gallery', 'rehearsal (ubuntu-latest)', 'rehearsal (windows-latest)']);
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = async file => JSON.parse((await readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
 const encode = value => Buffer.from(JSON.stringify(value, null, 2) + '\n');

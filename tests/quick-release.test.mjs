@@ -15,9 +15,23 @@ const run = (name, conclusion, id = 1, status = 'completed') => ({ id, name, sta
 const greenExcept = (name, replacement) => REQUIRED_CHECKS.flatMap((check, index) =>
   check !== name ? [run(check, 'success', 100 + index)] : replacement ? [replacement] : []);
 
-test('every GitHub job is required, including the coverage, gallery and rehearsal jobs', () => {
+test('every GitHub job is required, including every test shard and the coverage, gallery and rehearsal jobs', () => {
   assert.deepEqual([...REQUIRED_CHECKS].sort(), ['coverage', 'gallery', 'rehearsal (ubuntu-latest)',
-    'rehearsal (windows-latest)', 'secrets', 'test', 'windows']);
+    'rehearsal (windows-latest)', 'secrets', 'test (shard 1/4)', 'test (shard 2/4)', 'test (shard 3/4)',
+    'test (shard 4/4)', 'windows']);
+});
+
+// The release gate silently broke once when test.yml was sharded but this list
+// still named the old single `test` job. Tie the two together.
+test('the required shard checks match the test job name and shard matrix in test.yml', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8');
+  const job = /^ {2}test:\r?\n([\s\S]*?)(?=^ {2}[a-z-]+:\r?\n)/m.exec(workflow)?.[1];
+  assert.ok(job, 'test.yml has a top-level test job');
+  const shards = /^\s+shard: \[([0-9, ]+)\]\s*$/m.exec(job)?.[1].split(',').map(Number);
+  const name = /^\s+name: (.+?)\s*$/m.exec(job)?.[1];
+  assert.ok(shards?.length && name?.includes('${{ matrix.shard }}'), 'test job declares a shard matrix and a per-shard name');
+  const expected = shards.map(shard => name.replaceAll('${{ matrix.shard }}', String(shard)));
+  assert.deepEqual(REQUIRED_CHECKS.filter(check => check.startsWith('test (')), expected);
 });
 
 test('GitHub checks pass only when every required job is green', () => {
@@ -26,10 +40,12 @@ test('GitHub checks pass only when every required job is green', () => {
     const missing = evaluateChecks(greenExcept(name));
     assert.deepEqual([missing.ok, missing.missing], [false, [name]]);
   }
-  const failing = evaluateChecks(greenExcept('test', run('test', 'failure')));
-  assert.deepEqual([failing.ok, failing.failing], [false, ['test']]);
-  const pending = evaluateChecks(greenExcept('test', run('test', null, 1, 'in_progress')));
-  assert.deepEqual([pending.ok, pending.pending], [false, ['test']]);
+  const failing = evaluateChecks(greenExcept('test (shard 2/4)', run('test (shard 2/4)', 'failure')));
+  assert.deepEqual([failing.ok, failing.failing], [false, ['test (shard 2/4)']]);
+  const pending = evaluateChecks(greenExcept('test (shard 2/4)', run('test (shard 2/4)', null, 1, 'in_progress')));
+  assert.deepEqual([pending.ok, pending.pending], [false, ['test (shard 2/4)']]);
+  // A cancelled shard (fail-fast sibling) is not green.
+  assert.equal(evaluateChecks(greenExcept('test (shard 3/4)', run('test (shard 3/4)', 'cancelled'))).ok, false);
   // A required job may not be skipped; an extra workflow's job may.
   assert.equal(evaluateChecks(greenExcept('coverage', run('coverage', 'skipped'))).ok, false);
   assert.equal(evaluateChecks([...greenExcept(), run('extra', 'skipped')]).ok, true);
