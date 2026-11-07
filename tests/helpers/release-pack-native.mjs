@@ -3,12 +3,12 @@
 // generated synthetic data, never downloaded or taken from an operator save.
 import path from 'node:path';
 import os from 'node:os';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { bindingBytes, checkPackTransition, saveIdentity } from '../../scripts/private-companion/release-pack-check.mjs';
 import { hashTree } from '../../scripts/private-companion/release-identity.mjs';
-import { put, pin, hash } from './release-pack-fixture.mjs';
+import { put, pin, hash, cleanupFixture, retainFixture } from './release-pack-fixture.mjs';
 
 export async function assertNativePackedStartup(t, target) {
   const started = performance.now();
@@ -16,7 +16,7 @@ export async function assertNativePackedStartup(t, target) {
   const repo = fileURLToPath(new URL('../../', import.meta.url)), data = path.join(root, 'store');
   let finish;
   const completed = new Promise(resolve => { finish = resolve; });
-  t.after(async () => { await completed; await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { await completed; await cleanupFixture(t, root); });
   try {
     const { writeScaledCompanion } = await import('../../scripts/perf/scale-dataset.mjs');
     const { createGroupState } = await import('../../app/core/state.mjs');
@@ -64,7 +64,8 @@ export async function createServer(options) {
       oldBindingBase64: bindingBytes(descriptors[selected]).toString('base64'), newBindingBase64: bindingBytes(descriptors[other]).toString('base64') };
     const frozen = await Promise.all(['old', 'new'].map(name => hashTree(path.join(root, name))));
     const prepared = performance.now();
-    const result = await checkPackTransition({ fromConfig: configs[other], toConfig: configs[selected], transition: plan });
+    const result = await checkPackTransition({ fromConfig: configs[other], toConfig: configs[selected], transition: plan, signal:t.signal });
+    if (result.retainedScratchDirectory) retainFixture(root);
     assert.equal(result.rollbackTargetOpened, true);
     assert.equal(result.probes.length, 1);
     assert.ok(result.probes.every(report => report.tasksServed && report.taskCount > 0));
@@ -72,5 +73,8 @@ export async function createServer(options) {
     assert.deepEqual(await readFile(data + '.dataset.json'), sourceBinding);
     assert.deepEqual(await Promise.all(['old', 'new'].map(name => hashTree(path.join(root, name)))), frozen);
     t.diagnostic(JSON.stringify({ target, preparationMs: Math.round(prepared-started), startupProbeCloseMs: Math.round(performance.now()-prepared) }));
+  } catch (error) {
+    if (error.retainScratch) retainFixture(root);
+    throw error;
   } finally { finish(); }
 }

@@ -6,7 +6,7 @@ import os from 'node:os';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { bindingBytes } from '../../scripts/private-companion/release-pack-check.mjs';
+import { bindingBytes, joinChild } from '../../scripts/private-companion/release-pack-check.mjs';
 import { hashTree } from '../../scripts/private-companion/release-identity.mjs';
 
 export const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -15,36 +15,47 @@ export const put = async (file, value) => {
   await writeFile(file, typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value));
 };
 export const pin = async file => ({ path: file, sha256: hash(await readFile(file)) });
+const retainedFixtures = new Set();
+export const retainFixture = root => retainedFixtures.add(root);
+export async function cleanupFixture(t, root) {
+  if (retainedFixtures.has(root)) t.diagnostic('Retained fixture with unjoined child: ' + root);
+  else await rm(root, { recursive: true, force: true });
+}
 export async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'pack-upgrade-owned-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => cleanupFixture(t, root));
   return root;
 }
 
-// Completion is the close event, which joins exit AND both output streams.
-// Unexpected exits retain their original stderr instead of [object Object].
-export async function runStage(root, body, expectedCode = 0) {
+// Exit plus a bounded stderr drain; inherited pipe EOF cannot hold a stage open.
+export async function runStage(root, body, expectedCode = 0, { spawnImpl = spawn, setTimer, clearTimer,
+  signal: abortSignal, stageName = 'controlled transition', diagnose } = {}) {
   const file = path.join(root, 'stage-' + randomUUID() + '.ps1');
-  await put(file, body);
-  return new Promise((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', file],
+  await put(file, "[Console]::Error.WriteLine(('Fixture script entered: '+[DateTime]::UtcNow.ToString('o')))\n" + body);
+  abortSignal?.throwIfAborted();
+  try {
+    const child = spawnImpl('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', file],
       { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '', stderr = '', original;
-    child.stdout.on('data', bytes => { stdout += bytes; });
-    child.stderr.on('data', bytes => { stderr = (stderr + bytes).slice(-8192); });
-    child.once('error', error => { original = error; });
-    child.once('close', (code, signal) => {
-      if (!original && code === expectedCode && signal === null) resolve(stdout);
-      else reject(new Error(`Release stage refused: exit=${code}; signal=${signal}; original=${original?.stack ?? 'none'}; stderr tail=${stderr}; stdout tail=${stdout.slice(-4096)}`, { cause: original }));
-    });
-  });
+    // Match the existing 30-second stage-case deadline; never wait forever in
+    // its owner-join teardown after the test has already been cancelled.
+    const result = await joinChild(child, { timeoutMs: 30000, setTimer, clearTimer, signal:abortSignal, diagnose, label: 'Release stage ' + stageName });
+    if (!result.closed) retainFixture(root);
+    const { exitCode, signal, original, stderrTail, stdout } = result;
+    if (original || exitCode !== expectedCode || signal !== null) {
+      throw new Error(`Release stage refused: exit=${exitCode}; signal=${signal}; original=${original?.stack ?? 'none'}; stderr tail=${stderrTail}; stdout tail=${stdout.slice(-4096)}`, { cause: original });
+    }
+    return result;
+  } catch (error) {
+    if (error.retainScratch) retainFixture(root);
+    throw error;
+  }
 }
 
 export async function packedFixture(t, { failNew = false, incompatible = false, changedIdentity = false } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'pack-startup-owned-')), data = path.join(root, 'store'), releases = path.join(root, 'releases');
   // Register cleanup immediately, but run the integrity checks before removal.
   const verify = [];
-  t.after(async () => { try { for (const check of verify) await check(); } finally { await rm(root, { recursive: true, force: true }); } });
+  t.after(async () => { try { for (const check of verify) await check(); } finally { await cleanupFixture(t, root); } });
   await put(path.join(data, 'state.json'), { revision: incompatible ? 10 : 9, completedTasks: ['rs3:quest:1'] });
   const descriptors = [], configs = [];
   for (const [name, digit] of [['old', '1'], ['new', '2']]) {

@@ -38,6 +38,11 @@ export async function assertStageRecovery(t,{rollback,point,crash}) {
     const body=`$ErrorActionPreference='Stop'
 . ${q(path.join(scripts,'Operator-Common.ps1'))}
 . ${q(path.join(scripts,'ReleaseV2-Common.ps1'))}
+$script:fixturePhase=(Get-Item Function:Set-ReleaseV2Phase).ScriptBlock
+function Set-ReleaseV2Phase($Clock,$Name) {
+ [Console]::Error.WriteLine(('Fixture phase: '+$Name+' at '+[DateTime]::UtcNow.ToString('o')))
+ & $script:fixturePhase $Clock $Name
+}
 $global:local=${q(local)}
 function Read-OperatorConfig([string]$Path,[switch]$ForStop) {
  $id=(Read-OperatorJson $Path).id;$root=Split-Path -Parent $Path
@@ -112,8 +117,15 @@ if(Test-Path -LiteralPath (Join-Path $global:local 'picker-paused')){throw 'Succ
 if((Read-ReleaseV2Pointer ${q(current)}).pointer.releaseId -cne ${q(rollback?'old':'new')}){throw 'Wrong pointer'}
 if((Get-ReleaseV2Hash ${q(binding)}) -cne ${q(hash(rollback?oldB:newB))}){throw 'Wrong binding'}
 `;
-    if(crash) await runStage(root,body,75);
-    await runStage(root,body);
+    const children=[];
+    const options={signal:t.signal,stageName:`${rollback?'rollback':'upgrade'} ${point}`};
+    if(crash) children.push(await runStage(root,body,75,{...options,stageName:options.stageName+' crash'}));
+    children.push(await runStage(root,body,0,{...options,stageName:options.stageName+' recovery'}));
+    t.diagnostic(JSON.stringify({stage:{rollback,point,crash},children:children.map(child=>({
+      pid:child.pid,wallMs:child.closedAt-child.startedAt,exitToCloseMs:child.closedAt-child.exitedAt,
+      scriptEntryMs:Date.parse(child.stderrTail.match(/Fixture script entered: ([^\r\n]+)/)?.[1])-child.startedAt,
+      phases:[...child.stderrTail.matchAll(/Fixture phase: (\S+) at ([^\r\n]+)/g)].map(([,phase,at])=>({phase,elapsedMs:Date.parse(at)-child.startedAt}))
+    }))}));
     assert.deepEqual(JSON.parse(await readFile(save)),{revision:41,completedTasks:['kept-current-progress']});
     assert.equal(await readFile(path.join(local,'runtime'),'utf8'),rollback?'old':'new');
 

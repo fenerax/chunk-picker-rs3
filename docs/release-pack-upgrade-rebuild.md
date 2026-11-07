@@ -4,7 +4,7 @@ Baseline: `6c521a1` (current origin/main when branched). All 33 original native
 case names remain unchanged, each with duplicate-name occurrence **1**, kind
 **test**. The 29 PowerShell cases remain Windows pass / Linux platform skip;
 the four portable cases remain pass on both OSes. Dataset inputs are authored
-synthetic releases, digests and saves. No additional skip is introduced.
+synthetic releases, digests and saves. No original case gains a skip.
 The entry retains its full-suite, shared-execution, inherited-dataset policy;
 compatibility children explicitly select their owned synthetic `duo-legacy`
 packs. The native witnesses generate scale-1, seed-1 packs at versions
@@ -31,15 +31,15 @@ Neither historical receipt retains the child exception. They do **not** prove
 one historical cause. The old implementation contains a product defect in the
 compatibility/startup checker: free-port discovery relinquishes ownership before
 the actual listen. Concurrent probes can select the same port. The product
-checker and test stage runner also used exit before output-stream close.
+checker and test stage runner also discarded stderr arriving after exit.
 The test harness additionally rewrote an already-used release to make its
 negative startup case and retried filesystem cleanup. The replacement removes
 each of these defects without attributing every receipt to one of them.
 
 The checker binds port 0 once, acknowledges spawned → ready → probe → closed,
-then joins the child's close event. Errors retain exit code, signal, original
+then joins exit with a bounded stderr drain (or earlier close). Errors retain exit code, signal, original
 spawn exception and stderr tail. Controlled lifecycle tests place stderr after
-exit and refuse report reads before close. A native witness executes the actual
+exit and refuse report reads before close or the controlled drain bound. A native witness executes the actual
 current server/store/process-worker modules through owned release entrypoints,
 with unique generated synthetic packs and a revision-17 save containing
 synthetic progress. The checkout source stays immutable; fresh processes
@@ -90,11 +90,128 @@ replaced by a model of the transition.
 
 Three additional portable cases exercise authentic packed server/store/process
 workers under each pack and controlled child exit/stream-close/error order. The resulting
-entry has 36 cases: 36 execute on Windows; seven execute and the original 29 skip
-on Linux. The existing release-pipeline HTTP adapter now derives its invitation
+entry initially had 36 cases. Five watchdog regressions bring it to 41 cases:
+41 execute on Windows; eleven execute and 30 skip on Linux (the original 29 stage
+cases and the new Windows process-tree witness). The existing release-pipeline HTTP adapter now derives its invitation
 port from the bound address, so it remains valid when the checker uses port 0.
 
+## Bounded failure after review
+
+Review found a product regression in the rebuilt watchdog: killing the direct
+child did not settle its promise if a descendant kept stderr open. A controlled
+regression first failed against `1ce4198` because completion remained pending
+after the watchdog fired, without any real-time delay.
+
+`joinChild` now records exit code/signal independently and completes on exit,
+allowing at most 100 ms for late stderr or earlier close. Inherited stderr EOF
+is never a prerequisite for completion. The existing 180-second probe watchdog
+also rejects independently of close. Windows timeout invokes bounded `taskkill /T /F`; POSIX probes use an
+owned process group. Timeout also attempts a direct kill, destroys owned stdio, disconnects IPC and
+unrefs the direct child even when kill fails or throws. It retains original
+stderr and shutdown errors. A timeout cannot establish ownership release:
+`checkPackTransition` preserves its scratch store and records its path in the
+error and failure evidence. Test fixture teardown also preserves release inputs
+when their child cannot be joined. If the stderr drain expires after a successful
+acknowledged exit, remaining owned handles/processes are shut down and scratch
+is retained; the report is still checked normally. The result/evidence names the
+retained scratch directory. Pipe EOF alone cannot invalidate a successful probe.
+
+The PowerShell stage executor was the only other newly introduced close-only
+child waiter. It shares `joinChild` with a deadline matching its existing
+30-second case deadline. Controlled tests cover no subsequent close, zero/nonzero
+exit, signal exit, missing exit, failed/throwing kill, late close, retained scratch
+save/failure evidence, and retained stage fixture teardown. No deadline increases
+or real-time timeout waits are used for these regressions. The Windows tree
+witness launches a synthetic parent and stderr-inheriting descendant, opens an
+observer handle on that descendant, fires the injected watchdog, and joins the
+descendant's actual exit. It covers both a live root and an already-exited root.
+The leaf is explicitly detached and an observer confirms it is still alive after
+root exit and before the controlled watchdog. The exited-root variant withholds
+close through the endpoint seam. Descendant exit is
+still verified through the actual process handle; closing the parent's pipe
+alone cannot satisfy it.
+
+`taskkill` can refuse an already-absent root. Cleanup also stops recorded
+descendants through held process handles after checking their creation times,
+so a recycled PID cannot address another session's process. Query and shutdown
+commands have independent hard bounds. Their outcomes remain in the failure;
+timeout/cancellation still fails with retained storage. A successful probe whose
+stderr drain expires also retains storage conservatively.
+
+Case cancellation now reaches both stage children and packed probes. An overall
+case deadline stops its active child immediately instead of waiting for a later
+per-child deadline. A controlled cancellation test verifies stage name, PID,
+exit-without-close metadata and the descendant snapshot in its refusal.
+Windows failures collect only the child parent chain using bounded
+`Get-CimInstance Win32_Process -Filter 'ParentProcessId = ...'` queries. A failed
+query is recorded explicitly. Original failure details also go to stderr because
+native test cancellation can replace the thrown error with a generic timeout.
+
+## Hosted Windows investigation after review
+
+Run `42327351951`, attempt 1, tested merge
+`d68caac6c63c17a02865d0e03397e85bb3a9df7d` (PR head `1ce4198`). Seven Windows
+shards failed their first assigned repetition. Job `128265689653` is Windows-1;
+job `128265689612` is Windows-8. The latter's first timeout occurs approximately
+33 seconds after file admission. The first 29 cases exercise stages without
+starting a picker or calculator; the log cannot identify the timed-out case.
+Its receipt reports 805082 ms, invalid/missing native counts
+and timeout errors. It does not prove an inherited calculator pipe caused the
+hosted failure. The uploaded receipts redact child details and the job log does
+not include failed case names or stage/process phases.
+Both logs contain two groups of five timeouts approximately 40–45 seconds apart,
+matching the number and ordering of the ten crash cases, each of which launches
+PowerShell twice. This is a diagnostic lead, not proof of the responsible case
+or of module loading, antivirus, file locks or a surviving descendant.
+
+A local run through the same adaptive runner and `laneEnvironment`, including
+isolated home, temp and compile cache, passed 39/39 in 266.4 seconds before the
+additional process-tree witness. The direct local run passed 39/39 in 198.8
+seconds. This does not establish the hosted cause or a 50-repetition proof.
+Stage stderr now retains named product phases; child diagnostics independently
+record PID, exit time, close time, exit status, signal and tree-shutdown result.
+The case owner emits original failures even when native case cancellation would
+otherwise obscure them. Packed-probe errors also include acknowledged protocol
+phases and timestamps.
+
+The exact Windows workflow entrypoint (`.github/windows-slice/run.ps1
+-Stability`, piped output, repository-root cwd with no spaces, Node 24.20.0 and
+the isolated lane environment) reproduced a local failure before the final
+descendant-cleanup change. Repetition 1 passed 41/41 in 261.296 seconds;
+repetition 2 failed on its first attempt in 246.342 seconds. The old-pack native
+witness reached its existing 30-second case deadline. Its completed report and
+saved timing file show successful task serving followed by incomplete shutdown.
+The diagnostic found a calculator child and console host; the root disappeared
+before taskkill ran, and neither descendant remained alive when inspected later.
+This proves that taskkill of an absent root is insufficient, not that a worker
+remained permanently orphaned. The optional publisher memory-ceiling warning
+does not establish the cause of the shutdown delay. Fixtures and the failed
+first-attempt receipt were retained; the batch stopped without retry.
+
+The owner supplied a second hosted comparison: PR #164, run `42333821316`, has
+the same Windows timeout pattern after also switching `runProbe` from main's
+exit settlement to close settlement. Main settles on exit. The completion
+regression is coupling probe lifetime to inherited stderr EOF: process workers
+inherit that pipe, so close can lag or never arrive after probe exit. The owner
+therefore replaced the original stream-close success requirement with exit plus
+a short bounded stderr drain. Controlled tests now cover successful and failed
+exit without any subsequent close and preserve stderr arriving during the drain.
+The initiating hosted handle holder remains unobserved; the next ordinary
+Windows stability run must confirm whether this removes the timeout pattern.
+
+The owner subsequently replaced the local-loop requirement: targeted files run
+once locally, while the existing GitHub Linux and Windows stability jobs are the
+proof of record. No further local repetition loop runs. The hosted cause and
+50/50 proof remain open; this push supplies bounded refusal and permanent
+diagnostics rather than claiming that a passing local run clears the hosted hang.
+
 ## Acceptance evidence
+
+The final exit-plus-drain entry passed 41/41 on Windows in 162.193 seconds.
+A temporary mutation restoring close-only drain settlement failed on its first
+attempt in 0.340 seconds with `exit drain must settle without close`; the restored
+controlled lifecycle check passed 1/1 in 0.342 seconds. This uses injected timers
+and one controlled event turn, not a real-time timeout or condition poll.
 
 See the PR body for measured before/after file times, three independent
 temporary mutation outcomes and immutable-head hosted stability receipts.
