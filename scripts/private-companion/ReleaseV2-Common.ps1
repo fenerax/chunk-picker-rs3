@@ -544,7 +544,10 @@ function Invoke-ReleaseV2ManagedCore([string]$CurrentRelease, [string]$Candidate
         Write-Output 'Managed release is ready; current pointer and runtime agree.'
     } finally {
         # Only the directly retained handle is an owned termination target.
-        try { if ($driverStarted -and -not $driver.HasExited) { $driver.Kill(); $driver.WaitForExit() } } finally { $driver.Dispose() }
-        if ($null -ne $owner) { $owner.Dispose() }; if ($null -ne $tick) { $tick.Dispose() }
+        try {
+            try { if ($driverStarted -and -not $driver.HasExited) { $driver.Kill(); $driver.WaitForExit() } } finally { $driver.Dispose() }
+        } finally {
+            try { if ($null -ne $owner) { $owner.Dispose() } } finally { if ($null -ne $tick) { $tick.Dispose() } }
+        }
     }
 }
