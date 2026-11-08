@@ -14,8 +14,18 @@ export function arrivals(stages, seed, streams) {
   }
   return events.sort((a,b)=>a.atMs-b.atMs);
 }
-export async function dispatch(events, run, { now=()=>performance.now(), timer=setTimeout, maxInFlight=10000, onDrop=()=>{} }={}) {
-  const start=now(), pending=new Set(); let index=0;
+// A resource window is eligible only when it lies wholly inside one stage.
+export function stageWindow(stages, start, from, to=from) {
+  let boundary=start;
+  for(const [stage,s] of stages.entries()) {
+    const end=boundary+s.seconds*1000;
+    if(to>=boundary && to<end) return {stage,classification:s.classification,measured:!!s.measured && from>=boundary};
+    boundary=end;
+  }
+  return {stage:null,classification:null,measured:false};
+}
+export async function dispatch(events, run, { now=()=>performance.now(), startAt=now(), timer=setTimeout, maxInFlight=10000, onDrop=()=>{} }={}) {
+  const start=startAt, pending=new Set(); let index=0;
   while(index<events.length) {
     const wait=events[index].atMs-(now()-start);
     if(wait>0) { await new Promise(resolve=>timer(resolve,Math.min(wait,1000))); continue; }

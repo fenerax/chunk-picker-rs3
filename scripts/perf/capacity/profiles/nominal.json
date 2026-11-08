@@ -12,10 +12,10 @@
   "osReserveBytes": 2147483648,
   "upstreamScenarios": ["ok"],
   "stages": [
-    {"name": "ramp-25", "seconds": 30, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 0, "measured": false},
-    {"name": "ramp-50", "seconds": 30, "users": 50, "activeGroups": 25, "browserPerSecond": 5, "pluginPerSecond": 25, "syncPerMinute": 0, "measured": false},
-    {"name": "ramp-100", "seconds": 30, "users": 100, "activeGroups": 50, "browserPerSecond": 10, "pluginPerSecond": 50, "syncPerMinute": 0, "measured": false},
-    {"name": "warmup-200", "seconds": 30, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "measured": false},
-    {"name": "nominal", "seconds": 3600, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "measured": true}
+    {"name": "ramp-25", "seconds": 30, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 0, "classification": "nominal", "measured": false},
+    {"name": "ramp-50", "seconds": 30, "users": 50, "activeGroups": 25, "browserPerSecond": 5, "pluginPerSecond": 25, "syncPerMinute": 0, "classification": "nominal", "measured": false},
+    {"name": "ramp-100", "seconds": 30, "users": 100, "activeGroups": 50, "browserPerSecond": 10, "pluginPerSecond": 50, "syncPerMinute": 0, "classification": "nominal", "measured": false},
+    {"name": "warmup-200", "seconds": 30, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "classification": "nominal", "measured": false},
+    {"name": "nominal", "seconds": 3600, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "classification": "nominal", "measured": true}
   ]
 }

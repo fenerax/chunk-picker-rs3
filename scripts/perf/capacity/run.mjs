@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { processTree, diskBytes } from './telemetry.mjs';
 import { drive } from './driver.mjs';
 import { evaluate, markdown } from './report.mjs';
+import { stageWindow } from './scheduler.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const {values:args}=parseArgs({options:{profile:{type:'string',default:'smoke'},output:{type:'string'},host:{type:'string',default:'127.0.0.1'}}});
@@ -26,6 +27,7 @@ integer(profile.diskSampleSeconds,1,3600,'diskSampleSeconds');
 if(!Number.isFinite(profile.fixture.unlockFraction)||profile.fixture.unlockFraction<0||profile.fixture.unlockFraction>1)throw new Error('Invalid unlockFraction.');
 if(!Array.isArray(profile.upstreamScenarios)||!profile.upstreamScenarios.length||profile.upstreamScenarios.some(s=>!['ok','private','unknown','malformed','oversized','timeout','429'].includes(s)))throw new Error('Invalid fake upstream scenarios.');
 for(const stage of profile.stages) {
+  if(!['nominal','overload','recovery'].includes(stage.classification))throw new Error('Stage classification must be nominal, overload or recovery.');
   integer(stage.users,1,400,'users');integer(stage.activeGroups,1,profile.fixture.groups,'active groups');
   if(!Number.isFinite(stage.seconds)||stage.seconds<=0||stage.seconds>86400||['browserPerSecond','pluginPerSecond','syncPerMinute'].some(k=>!Number.isFinite(stage[k])||stage[k]<0))throw new Error('Invalid stage.');
 }
@@ -74,26 +76,28 @@ try {
   const setupSeconds=(Date.now()-started)/1000;
   console.log(`Fixture ready: ${fixture.groups.length} groups, ${fixture.characters} slots. Starting measured server.`);
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
-  let id=0,busy=false,telemetryErrors=0,lastCpu,lastAt,lastDisk=0,disk=null;
-  const samples=[],pending=new Map(),runStart=performance.now();
+  let id=0,busy=false,telemetryErrors=0,lastCpu,lastAt,lastWindowAt,lastDisk=0,disk=null,runStart;
+  const samples=[],pending=new Map();
   server.on('message',m=>{if(m.type==='sample'||m.type==='sample-error'){const request=pending.get(m.id);if(request){pending.delete(m.id);request(m);}}});
   const sample=async client=>{
     if(busy)return;busy=true;
     try {
-      const request=++id;
+      const request=++id,windowAt=performance.now();
       const data=await new Promise(resolve=>{const timer=setTimeout(()=>{pending.delete(request);resolve(null);},5000);pending.set(request,m=>{clearTimeout(timer);resolve(m);});if(server.connected)server.send({type:'sample',id:request});});
       const at=performance.now(),tree=await processTree(server.pid);
       if(tree.supported && !tree.processes)telemetryErrors++;
       if(!disk||at-lastDisk>=profile.diskSampleSeconds*1000){disk=await diskBytes(directory);lastDisk=at;}
       if(!data||data.type==='sample-error')telemetryErrors++;
-      let boundary=0,stage=0;for(const [i,s] of profile.stages.entries()){boundary+=s.seconds*1000;if(at-runStart<boundary){stage=i;break;}stage=i;}
-      const row={elapsedMs:at-runStart,stage,measured:profile.stages[stage].measured,tree,disk,client,server:data?.type==='sample'?data:null,
+      const windowEnd=performance.now(),window=stageWindow(profile.stages,runStart,lastWindowAt??windowAt,windowEnd);
+      const row={elapsedMs:runStart===undefined?null:windowEnd-runStart,...window,measured:client.phase?false:window.measured,
+        windowStartElapsedMs:runStart===undefined?null:(lastWindowAt??windowAt)-runStart,tree,disk,client,server:data?.type==='sample'?data:null,
         treeCpuPercent:lastCpu!==undefined&&tree.cpuSeconds!==null?Math.max(0,(tree.cpuSeconds-lastCpu)/((at-lastAt)/1000)/cpus().length*100):null};
-      lastCpu=tree.cpuSeconds??undefined;lastAt=at;samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
+      lastCpu=tree.cpuSeconds??undefined;lastAt=at;if(data?.type==='sample')lastWindowAt=windowAt;
+      samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
     } catch(error) {telemetryErrors++;throw error;} finally {busy=false;}
   };
   await sample({phase:'before'});
-  const load=await drive({base:ready.base,profile,fixture,directory,onSample:sample});
+  const load=await drive({base:ready.base,profile,fixture,directory,onSample:sample,startWorkload:()=>runStart=performance.now()});
   while(busy)await new Promise(resolve=>setTimeout(resolve,10));
   await sample({phase:'after'});
   const shutdown=await stop(server);server=undefined;

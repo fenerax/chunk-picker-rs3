@@ -12,13 +12,13 @@
   "osReserveBytes": 2147483648,
   "upstreamScenarios": ["ok"],
   "stages": [
-    {"name": "warmup", "seconds": 120, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 0, "measured": false},
-    {"name": "25-users", "seconds": 120, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 2, "measured": true},
-    {"name": "50-users", "seconds": 120, "users": 50, "activeGroups": 25, "browserPerSecond": 5, "pluginPerSecond": 25, "syncPerMinute": 4, "measured": true},
-    {"name": "100-users", "seconds": 120, "users": 100, "activeGroups": 50, "browserPerSecond": 10, "pluginPerSecond": 50, "syncPerMinute": 6, "measured": true},
-    {"name": "200-users", "seconds": 120, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "measured": true},
-    {"name": "300-users-heavy-plugin", "seconds": 120, "users": 300, "activeGroups": 150, "browserPerSecond": 30, "pluginPerSecond": 200, "syncPerMinute": 10, "measured": true},
-    {"name": "400-users-overload", "seconds": 60, "users": 400, "activeGroups": 200, "browserPerSecond": 40, "pluginPerSecond": 800, "syncPerMinute": 10, "measured": true},
-    {"name": "nominal-recovery", "seconds": 300, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "measured": true}
+    {"name": "warmup", "seconds": 120, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 0, "classification": "nominal", "measured": false},
+    {"name": "25-users", "seconds": 120, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 2, "classification": "nominal", "measured": true},
+    {"name": "50-users", "seconds": 120, "users": 50, "activeGroups": 25, "browserPerSecond": 5, "pluginPerSecond": 25, "syncPerMinute": 4, "classification": "nominal", "measured": true},
+    {"name": "100-users", "seconds": 120, "users": 100, "activeGroups": 50, "browserPerSecond": 10, "pluginPerSecond": 50, "syncPerMinute": 6, "classification": "nominal", "measured": true},
+    {"name": "200-users", "seconds": 120, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "classification": "nominal", "measured": true},
+    {"name": "300-users-heavy-plugin", "seconds": 120, "users": 300, "activeGroups": 150, "browserPerSecond": 30, "pluginPerSecond": 200, "syncPerMinute": 10, "classification": "overload", "measured": true},
+    {"name": "400-users-overload", "seconds": 60, "users": 400, "activeGroups": 200, "browserPerSecond": 40, "pluginPerSecond": 800, "syncPerMinute": 10, "classification": "overload", "measured": true},
+    {"name": "nominal-recovery", "seconds": 300, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "classification": "recovery", "measured": true}
   ]
 }

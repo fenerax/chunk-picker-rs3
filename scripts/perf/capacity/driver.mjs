@@ -7,14 +7,24 @@ export function percentile(values,p) {
   const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.max(0,Math.ceil(sorted.length*p)-1)] : null;
 }
 const distribution=values=>({count:values.length,p50Ms:percentile(values,.5),p95Ms:percentile(values,.95),p99Ms:percentile(values,.99),maxMs:values.length?values.reduce((a,b)=>Math.max(a,b),0):null});
-export async function drive({base,profile,fixture,directory,onSample}) {
+export function outcomeCounts(outcome) {
+  const requests=outcome.requests??[], intentional=r=>r.status===409 && outcome.intentionalConflict;
+  const unexpected=status=>status==='network-error'||typeof status==='number'&&status>=400&&![429,503].includes(status);
+  const unexpectedRequests=requests.filter(r=>unexpected(r.status)&&!intentional(r)).length;
+  return {httpRequests:requests.length,httpRejects:requests.filter(r=>[429,503].includes(r.status)).length,
+    rejectsWithoutRetryAfter:requests.filter(r=>[429,503].includes(r.status)&&!r.retryAfter).length,
+    timeouts:requests.filter(r=>r.status==='timeout').length,
+    unexpectedFailures:unexpectedRequests||Number(unexpected(outcome.status)&&!(outcome.status===409&&outcome.intentionalConflict)),
+    intentionalConflicts:requests.filter(intentional).length,unsupported:outcome.status==='unsupported'?1:0};
+}
+export async function drive({base,profile,fixture,directory,onSample,startWorkload=()=>performance.now()}) {
   base=loopback(base,{assigned:profile.port===0});
   const rng=random(profile.seed+'-actions'), chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
   const events=arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
     pluginStatus:stage.pluginPerSecond*.4,pluginTasks:stage.pluginPerSecond*.2,sync:stage.syncPerMinute/60,session:stage.users/5}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
     rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0},
-    streams=[],streamJobs=new Set(),stageStreams=profile.stages.map(()=>({opened:0,rejected:0,unexpectedEnds:0})),seq=new Map();
+    streams=[],streamJobs=new Set(),stageStreams=profile.stages.map(()=>({opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,statuses:{}})),seq=new Map();
   let streamShutdown=false, active=0, maxActive=0, eventId=0;
   const clients=(stage,rotation=0)=>{
     const groups=Array.from({length:stage.activeGroups},(_,i)=>fixture.groups[(i+rotation*stage.activeGroups)%fixture.groups.length]), list=[];
@@ -35,7 +45,7 @@ export async function drive({base,profile,fixture,directory,onSample}) {
     try {text=await res.text();}catch(error){observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.wallMs=performance.now()-requestStart;stats.httpErrors++;throw error;}
     stats.httpBytes+=Buffer.byteLength(text);
     let value;try{value=JSON.parse(text);}catch{value=null;}
-    Object.assign(observation,{status:res.status,wallMs:performance.now()-requestStart,
+    Object.assign(observation,{status:res.status,retryAfter:res.headers.get('retry-after'),wallMs:performance.now()-requestStart,
       cacheHit:typeof value?.cache?.hit==='boolean'?value.cache.hit:null,evaluationMs:value?.cache?.evaluationMs??null,timingMs:value?.cache?.timingMs??null});
     if(!res.ok) {
       stats.httpErrors++; if([429,503].includes(res.status)) stats.rejects++;if(res.status===409)stats.conflicts++;
@@ -51,7 +61,13 @@ export async function drive({base,profile,fixture,directory,onSample}) {
       const job=(async()=>{
         try {
           const response=await fetch(base+'/api/events',{headers:{Cookie:client.cookie},signal:controller.signal,redirect:'error'});
-          if(!response.ok){stats.streamRejected++;counters.rejected++;return;}
+          counters.statuses[response.status]=(counters.statuses[response.status]??0)+1;
+          if(!response.ok){
+            stats.streamRejected++;counters.rejected++;
+            if([429,503].includes(response.status)){if(!response.headers.get('retry-after'))counters.rejectsWithoutRetryAfter++;}
+            else counters.unexpectedFailures++;
+            return;
+          }
           stats.streamOpened++;counters.opened++;
           for await(const bytes of response.body) { stats.httpBytes+=bytes.length; }
           if(!streamShutdown && !controller.signal.aborted){stats.streamUnexpectedEnds++;counters.unexpectedEnds++;}
@@ -60,14 +76,15 @@ export async function drive({base,profile,fixture,directory,onSample}) {
       streamJobs.add(job);job.finally(()=>streamJobs.delete(job));
     }
   }
-  const timing=[], sampleTimer=setInterval(()=>{void onSample({active,maxActive,completed:stats.completed,clientMemory:process.memoryUsage(),clientCpu:process.cpuUsage()}).catch(()=>{});},profile.sampleSeconds*1000);
+  const timing=[];
   const record=(action,event,start,end,outcome)=>{
     const row={id:event.id,stage:event.stage,action,scheduledMs:event.atMs,startLagMs:start-event.scheduledAt,latencyMs:end-event.scheduledAt,httpWallMs:end-start,...outcome};
-    const group=records[`${event.stage}:${action}`]??={stage:event.stage,action,all:[],success:[],lag:[],statuses:{},httpRequests:0,httpRejects:0,timeouts:0,cacheHits:0,cacheMisses:0};
+    const group=records[`${event.stage}:${action}`]??={stage:event.stage,action,all:[],valid:[],success:[],lag:[],statuses:{},httpRequests:0,httpRejects:0,timeouts:0,
+      rejectsWithoutRetryAfter:0,unexpectedFailures:0,intentionalConflicts:0,unsupported:0,cacheHits:0,cacheMisses:0};
     group.all.push(row.latencyMs);group.lag.push(row.startLagMs);if(outcome.status===200)group.success.push(row.latencyMs);
+    if(!outcome.intentionalConflict&&outcome.status!=='unsupported')group.valid.push(row.latencyMs);
     group.statuses[outcome.status]=(group.statuses[outcome.status]??0)+1;
-    group.httpRequests+=(outcome.requests??[]).length;group.httpRejects+=(outcome.requests??[]).filter(r=>[429,503].includes(r.status)).length;
-    group.timeouts+=(outcome.requests??[]).filter(r=>r.status==='timeout').length;
+    for(const [key,count] of Object.entries(outcomeCounts(outcome)))group[key]+=count;
     group.cacheHits+=(outcome.requests??[]).filter(r=>r.cacheHit===true).length;group.cacheMisses+=(outcome.requests??[]).filter(r=>r.cacheHit===false).length;
     writeSync(log,JSON.stringify(row)+'\n');stats.completed++;
   };
@@ -146,9 +163,11 @@ export async function drive({base,profile,fixture,directory,onSample}) {
       record(action,event,start,performance.now(),{status,intentionalConflict:status===409&&intentional,retryAfter:error.retryAfter??null,requests:client.observations});
     } finally { active--; }
   };
+  const workloadStart=startWorkload();
+  const sampleTimer=setInterval(()=>{void onSample({active,maxActive,completed:stats.completed,clientMemory:process.memoryUsage(),clientCpu:process.cpuUsage()}).catch(()=>{});},profile.sampleSeconds*1000);
   try {
-    await dispatch(events,run,{maxInFlight:profile.maxClientInFlight,onDrop:event=>{event.id=++eventId;stats.clientDrops++;record('client-drop',event,performance.now(),performance.now(),{status:'client-drop'});}});
+    await dispatch(events,run,{startAt:workloadStart,maxInFlight:profile.maxClientInFlight,onDrop:event=>{event.id=++eventId;stats.clientDrops++;record('client-drop',event,performance.now(),performance.now(),{status:'client-drop'});}});
     timing.push({maxActive});
   } finally {clearInterval(sampleTimer);streamShutdown=true;for(const controller of streams)controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
-  return {stats,stageStreams,operations:Object.values(records).map(({all,success,lag,...rest})=>({...rest,latency:distribution(all),successfulLatency:distribution(success),clientDispatchLag:distribution(lag)})),timing};
+  return {workloadStart,stats,stageStreams,operations:Object.values(records).map(({all,valid,success,lag,...rest})=>({...rest,latency:distribution(all),validLatency:distribution(valid),successfulLatency:distribution(success),clientDispatchLag:distribution(lag)})),timing};
 }

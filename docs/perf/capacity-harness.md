@@ -70,8 +70,11 @@ The full resolved profile and its digest are recorded. Fields:
   do not establish equivalence to a private graph; calibrate against permitted
   aggregate measurements before interpreting this as a production target.
 - `stages`: seconds, distinct logins (`users`), `activeGroups`, browser actions/s,
-  plugin requests/s, sync previews/minute and whether to include the stage in
-  measured gates. Active groups must have enough distinct roster logins.
+  plugin requests/s, sync previews/minute, `measured` and a required
+  `classification`: `nominal`, `overload` or `recovery`. `measured: false`
+  excludes warm-up regardless of classification. Active groups must have enough
+  distinct roster logins. The step-up profile classifies 300/400 users as overload
+  and the final five minutes as recovery.
 - `rotationSeconds` (optional, default 300): replace the active cohort with the
   next population slice and reopen its streams. It is login/group churn, not an
   implementation of the missing picker-switch product operation.
@@ -148,6 +151,8 @@ Reports carry synthetic skill/position observations, not an item journal replay.
 | `httpWallMs` | Actual action start to terminal completion; the difference from latency is client dispatch wait. |
 | `requests[]` | Each underlying route, HTTP status, wall duration and available cache/evaluation/stage timing metadata. No response bodies or credentials. |
 | `latency` / `successfulLatency` | Per-stage, per-operation empirical percentiles for all terminal outcomes / successes only. Sample counts accompany tails. |
+| `validLatency` | Gate percentiles excluding intentional stale conflicts and explicitly unsupported actions; all unexpected failures remain included. |
+| `unexpectedFailures` | Per-stage/action count of network errors and unexpected HTTP errors (including 500/502/504). 429/503, timeouts, deliberate 409s and unsupported actions have separate counters. Unintentional 409s are unexpected failures. |
 | Cache counts | Observed response `cache.hit`, not an inference from route names. Unavailable cache classes stay unknown. |
 | Server `memory` / `calculatorHeaps` | Writer RSS/heap/external bytes plus available calculator host/thread heap probes. RSS is not summed across threads. |
 | Tree RSS/PSS | Linux process descendants' sampled resident/proportional bytes; PSS is null if unavailable. Windows has writer metrics only. |
@@ -159,8 +164,12 @@ Reports carry synthetic skill/position observations, not an item journal replay.
 
 Telemetry uses two private operator HTTP reads and calculator heap probes per
 sample, separately from offered product requests. Disk walks are less frequent
-and never overlap. The measurement-only worker preload reads heap usage without
-forcing GC. `samples.jsonl` includes generator CPU/heap and active requests
+and never overlap. Arrivals and telemetry share one monotonic workload start,
+captured after initial telemetry and driver preparation. Resource windows that
+span stage boundaries, pre-run sampling and post-run sampling are retained but
+excluded from gates. `elapsedMs` and `windowStartElapsedMs` describe that shared
+clock; pre-run timestamps are null. The measurement-only worker preload reads
+heap usage without forcing GC. `samples.jsonl` includes generator CPU/heap and active requests
 to expose co-located load-generator contention. Telemetry failures are counted.
 Cgroup files describe the containing cgroup, which may include the generator.
 
@@ -180,10 +189,23 @@ gate statuses, not just shell success.
 the disposable directory; do not publish it. Results omit their values. No output
 is committed automatically and no process is aimed at an existing server.
 
-Latency gates use measured stages only; warm-up remains visible in raw/global
-counts. Admission uses measured HTTP requests as its denominator; stream refusals
-and unexpected endings fail it independently. Overload rows retain failures and
-do not assert nominal latency is required at overload.
+Warm latency, admission, CPU and event-loop gates use measured **nominal** stages
+only; warm-up remains visible in raw/global counts. Any unexpected failure fails
+admission and its applicable latency gate, even with fast responses. Admission
+requires 429/503/timeouts below 0.1% of valid HTTP requests; intentional stale
+409s are excluded from that denominator and from latency gates. Unsupported
+actions are reported separately. Stream refusals and unexpected endings fail
+admission independently.
+
+`overloadObservations` reports overload counts and streams separately. Observed
+429/503 are allowed with Retry-After; missing headers, unexpected errors,
+timeouts, unplanned stream endings or an unclean server exit fail this check.
+Overload latency and resource samples do not affect nominal gates. This check
+does not establish fairness or bounded memory/disk/queues. `recoveryHTTP` applies
+the nominal admission and cheap/expensive latency limits to recovery stages
+alone; absent operation classes remain unmeasured. It does not measure the
+instant nominal service returns. The full `overloadRecovery` gate remains
+unmeasured pending five-minute time-to-recovery, fairness and fault experiments.
 
 Every report remains **INCOMPLETE** or **FAIL** overall. Today's APIs do not
 represent durable characters, multi-character logins, picker switching, the new
@@ -203,10 +225,13 @@ The fast pure checks are `tests/capacity-harness.test.mjs`, classified quick wit
 the first-line metadata consumed by `scripts/test-selection.mjs`. They use a
 logical clock and held promises, not elapsed-time assertions, servers or retries.
 
-Local verification on Node 24.21.0: both focused tests passed. The final Windows
-smoke completed 139/139 arrivals and 156 HTTP requests, with two warm-up
-rejections, zero measured-interval rejections, zero timeouts/client drops/stream
-failures and a clean shutdown. Setup took 4.9 seconds; the complete run took
-36.5 seconds. Measured HTTP latency and event-loop gates passed; the overall
-report remained INCOMPLETE. Nominal, step-up and Linux `/proc` telemetry were
-not run on the shared PC. Hosted stability/full-suite checks remain CI work.
+Review-fix verification on Node 24.21.0: all five focused tests passed in one
+run. One Windows smoke completed 139/139 arrivals and 156 HTTP requests, with
+two warm-up rejections, zero measured 429/503s, zero timeouts/client drops/stream
+failures and a clean shutdown. One intentional edit conflict was excluded;
+one unintentional 409 from a Why request correctly failed `expensiveWarm` and
+`nominalAdmission`, so the report was FAIL. Cheap latency and event-loop gates
+passed. Setup took 4.1 seconds; the complete run took 33.9 seconds. No rerun or
+application change was made to remove that observed conflict. Nominal, step-up
+and Linux `/proc` telemetry were not run on the shared PC. Hosted stability and
+full-suite checks remain CI work.

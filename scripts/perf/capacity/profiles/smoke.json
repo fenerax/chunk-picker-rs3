@@ -12,7 +12,7 @@
   "osReserveBytes": 2147483648,
   "upstreamScenarios": ["ok", "private", "unknown", "malformed", "oversized", "429", "timeout"],
   "stages": [
-    {"name": "warmup", "seconds": 5, "users": 4, "activeGroups": 2, "browserPerSecond": 4, "pluginPerSecond": 2, "syncPerMinute": 0, "measured": false},
-    {"name": "smoke", "seconds": 15, "users": 4, "activeGroups": 2, "browserPerSecond": 4, "pluginPerSecond": 2, "syncPerMinute": 12, "measured": true}
+    {"name": "warmup", "seconds": 5, "users": 4, "activeGroups": 2, "browserPerSecond": 4, "pluginPerSecond": 2, "syncPerMinute": 0, "classification": "nominal", "measured": false},
+    {"name": "smoke", "seconds": 15, "users": 4, "activeGroups": 2, "browserPerSecond": 4, "pluginPerSecond": 2, "syncPerMinute": 12, "classification": "nominal", "measured": true}
   ]
 }
