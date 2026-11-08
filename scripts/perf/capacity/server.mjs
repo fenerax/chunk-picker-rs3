@@ -1,0 +1,78 @@
+// Runs only as the scratch runner's IPC child. Never consumes inherited secrets/config.
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
+if(!process.send) throw new Error('Use run.mjs.');
+const [directory,profileFile,mode]=process.argv.slice(2);
+const profile=JSON.parse(await readFile(profileFile,'utf8'));
+for(const key of Object.keys(process.env)) if(key.startsWith('RS3_')) delete process.env[key];
+process.env.RS3_DATASET='duo-legacy'; process.env.RS3_TASK_WORKER_MODE='process';
+process.env.RS3_PACKS_DIR=path.join(directory,'no-packs');
+process.env.RS3_GAME_DATA_DIR=path.join(directory,'no-game-data');
+process.env.RS3_MAP_ASSETS_DIR=path.join(directory,'no-assets');
+process.env.RS3_WORKER_MEMORY_PROBE_IMPORT=new URL('./heap-probe.mjs',import.meta.url).href;
+if(mode==='fixture') {
+  try { await (await import('./fixture.mjs')).generate(profile,directory); process.send({type:'generated'}); }
+  catch(error) { process.send({type:'failure',name:error.name,message:error.message}); process.exitCode=1; }
+  process.disconnect();
+} else {
+  let app, stopping=false, calls=0;
+  const upstreamCounts={};
+  // Injected at the Platform client's transport boundary: no DNS/network request can escape.
+  const fake=async(url,{signal}={})=>{
+    const parsed=new URL(url), name=parsed.searchParams.get('player')??decodeURIComponent(parsed.pathname.split('/').at(-1));
+    if(!/^S\d+M\d+$/.test(name)) throw new Error('Non-synthetic upstream name refused.');
+    const scenario=profile.upstreamScenarios[Math.floor(calls++/2)%profile.upstreamScenarios.length];
+    upstreamCounts[scenario]=(upstreamCounts[scenario]??0)+1;
+    if(scenario==='timeout') return new Promise((resolve,reject)=>{const abort=()=>reject(new Error('Synthetic abort')); if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});});
+    if(scenario==='429') return new Response('',{status:429,headers:{'Retry-After':'1'}});
+    if(scenario==='private') return new Response('',{status:403});
+    if(scenario==='unknown') return new Response('',{status:404});
+    if(scenario==='malformed') return new Response('{');
+    if(scenario==='oversized') return new Response(' '.repeat(3*1024*1024));
+    return Response.json(parsed.searchParams.has('player') ? {name,skills:[{id:1,name:'Attack',level:20,xp:4470}]} : {name,qp:0,qp_max:1,quests:{}});
+  };
+  const loop=monitorEventLoopDelay({resolution:10}); loop.enable();
+  const admission={},workers=new Set();let coldQueue={};
+  const stop=async()=>{if(stopping)return;stopping=true;loop.disable();await app?.close();process.disconnect();};
+  try {
+    const {createServer}=await import('../../../app/server.mjs');
+    const data=catalogue(profile.catalogue);
+    const {buildWorld}=await import('../../../app/data/world.mjs');
+    const {createGroupState}=await import('../../../app/core/state.mjs');
+    app=await createServer({dataDir:path.join(directory,'legacy'),host:'127.0.0.1',port:profile.port,
+      loopbackPort:undefined,publicOrigin:undefined,definitions:data,world:syntheticWorld(data,buildWorld),taskMap:{},
+      initialState:createGroupState([{id:'legacy1',name:'Synthetic legacy 1'},{id:'legacy2',name:'Synthetic legacy 2'}]),
+      packsDir:path.join(directory,'no-packs'),packSelection:undefined,gameDataDir:path.join(directory,'no-game-data'),mapAssetsDir:path.join(directory,'no-assets'),
+      signIn:'off',random:random(profile.seed),runeMetrics:{fetchImpl:fake},
+      progressSources:{hiscores:{snapshot:async()=>({available:false}),close(){}}},
+      originalSync:{fetchImpl:async()=>{throw new Error('Disabled synthetic upstream');}},
+      taskWorkerOptions:{onWorker(worker){workers.add(worker);worker.once('exit',()=>workers.delete(worker));}},
+      multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),
+        caps:profile.entityCaps,onAdmission:event=>{const kind=event.kind??event.type??event.event??'event';admission[kind]=(admission[kind]??0)+1;
+          coldQueue={pending:event.pending,active:event.active,accounts:event.accounts,waitMs:event.waitMs,serviceMs:event.serviceMs};}},
+    });
+    await app.listen();
+    const base=loopback(`http://127.0.0.1:${app.address().port}`,{assigned:profile.port===0});
+    process.send({type:'ready',base});
+    process.on('message',async message=>{
+      try {
+        if(message.type==='stop') return await stop();
+        if(message.type==='sample') {
+          const headers={Authorization:'Bearer '+app.store.getAccessToken()};
+          const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw new Error('Telemetry HTTP failure');return res.json();};
+          const [health,diagnostics]=await Promise.all([get('/api/health'),get('/api/diagnostics')]);
+          const calculatorHeaps=await Promise.all([...workers].filter(worker=>typeof worker.getMemoryUsage==='function').map(async worker=>{
+            try {const value=await worker.getMemoryUsage();return {pid:value.pid,hostHeapUsed:value.main?.heapUsed,threadHeapUsed:value.workers?.length?value.workers.reduce((n,w)=>n+(w.memoryUsage?.heapUsed??0),0):null};}catch{return null;}
+          }));
+          process.send({type:'sample',id:message.id,memory:process.memoryUsage(),cpu:process.cpuUsage(),
+            eventLoop:{p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6},health,diagnostics,calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
+          loop.reset();
+        }
+      } catch { process.send({type:'sample-error',id:message.id}); }
+    });
+    process.once('disconnect',()=>{void stop();});
+    process.once('SIGTERM',()=>{void stop();});
+  } catch(error) { process.send({type:'failure',name:error.name,message:error.message}); await app?.close(); process.disconnect();process.exitCode=1; }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "smoke",
+  "seed": "capacity-1729",
+  "port": 0,
+  "entityCaps": {"accounts": 3000, "pickers": 3500, "capabilities": 20000},
+  "catalogue": {"chunks": 8, "tasks": 32, "dependencyDepth": 4, "crossLinks": 2},
+  "fixture": {"groups": 2, "rosterMix": [0, 1, 0, 0, 0], "freshFraction": 0.5, "unlockFraction": 0.5, "historyEvents": 8, "snapshots": 3, "keysPerMember": 1},
+  "requestDeadlineMs": 30000,
+  "maxClientInFlight": 100,
+  "sampleSeconds": 2,
+  "diskSampleSeconds": 5,
+  "osReserveBytes": 2147483648,
+  "upstreamScenarios": ["ok", "private", "unknown", "malformed", "oversized", "429", "timeout"],
+  "stages": [
+    {"name": "warmup", "seconds": 5, "users": 4, "activeGroups": 2, "browserPerSecond": 4, "pluginPerSecond": 2, "syncPerMinute": 0, "measured": false},
+    {"name": "smoke", "seconds": 15, "users": 4, "activeGroups": 2, "browserPerSecond": 4, "pluginPerSecond": 2, "syncPerMinute": 12, "measured": true}
+  ]
+}

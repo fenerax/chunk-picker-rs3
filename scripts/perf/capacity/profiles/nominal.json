@@ -1,0 +1,21 @@
+{
+  "name": "nominal",
+  "seed": "capacity-1729",
+  "port": 0,
+  "entityCaps": {"accounts": 3000, "pickers": 3500, "capabilities": 20000},
+  "catalogue": {"chunks": 4096, "tasks": 200000, "dependencyDepth": 16, "crossLinks": 8},
+  "fixture": {"groups": 500, "rosterMix": [0, 0, 0, 1, 0], "freshFraction": 0.25, "unlockFraction": 0.5, "historyEvents": 1000, "snapshots": 300, "keysPerMember": 3},
+  "requestDeadlineMs": 30000,
+  "maxClientInFlight": 10000,
+  "sampleSeconds": 5,
+  "diskSampleSeconds": 60,
+  "osReserveBytes": 2147483648,
+  "upstreamScenarios": ["ok"],
+  "stages": [
+    {"name": "ramp-25", "seconds": 30, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 0, "measured": false},
+    {"name": "ramp-50", "seconds": 30, "users": 50, "activeGroups": 25, "browserPerSecond": 5, "pluginPerSecond": 25, "syncPerMinute": 0, "measured": false},
+    {"name": "ramp-100", "seconds": 30, "users": 100, "activeGroups": 50, "browserPerSecond": 10, "pluginPerSecond": 50, "syncPerMinute": 0, "measured": false},
+    {"name": "warmup-200", "seconds": 30, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "measured": false},
+    {"name": "nominal", "seconds": 3600, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "measured": true}
+  ]
+}
