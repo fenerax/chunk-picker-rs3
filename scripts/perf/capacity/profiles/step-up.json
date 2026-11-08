@@ -1,0 +1,24 @@
+{
+  "name": "step-up",
+  "seed": "capacity-1729",
+  "port": 0,
+  "entityCaps": {"accounts": 3000, "pickers": 3500, "capabilities": 20000},
+  "catalogue": {"chunks": 4096, "tasks": 200000, "dependencyDepth": 16, "crossLinks": 8},
+  "fixture": {"groups": 500, "rosterMix": [0, 0, 0, 1, 0], "freshFraction": 0.25, "unlockFraction": 0.5, "historyEvents": 1000, "snapshots": 300, "keysPerMember": 3},
+  "requestDeadlineMs": 30000,
+  "maxClientInFlight": 10000,
+  "sampleSeconds": 5,
+  "diskSampleSeconds": 60,
+  "osReserveBytes": 2147483648,
+  "upstreamScenarios": ["ok"],
+  "stages": [
+    {"name": "warmup", "seconds": 120, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 0, "classification": "nominal", "measured": false},
+    {"name": "25-users", "seconds": 120, "users": 25, "activeGroups": 13, "browserPerSecond": 2.5, "pluginPerSecond": 12.5, "syncPerMinute": 2, "classification": "nominal", "measured": true},
+    {"name": "50-users", "seconds": 120, "users": 50, "activeGroups": 25, "browserPerSecond": 5, "pluginPerSecond": 25, "syncPerMinute": 4, "classification": "nominal", "measured": true},
+    {"name": "100-users", "seconds": 120, "users": 100, "activeGroups": 50, "browserPerSecond": 10, "pluginPerSecond": 50, "syncPerMinute": 6, "classification": "nominal", "measured": true},
+    {"name": "200-users", "seconds": 120, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "classification": "nominal", "measured": true},
+    {"name": "300-users-heavy-plugin", "seconds": 120, "users": 300, "activeGroups": 150, "browserPerSecond": 30, "pluginPerSecond": 200, "syncPerMinute": 10, "classification": "overload", "measured": true},
+    {"name": "400-users-overload", "seconds": 60, "users": 400, "activeGroups": 200, "browserPerSecond": 40, "pluginPerSecond": 800, "syncPerMinute": 10, "classification": "overload", "measured": true},
+    {"name": "nominal-recovery", "seconds": 300, "users": 200, "activeGroups": 100, "browserPerSecond": 20, "pluginPerSecond": 100, "syncPerMinute": 10, "classification": "recovery", "measured": true}
+  ]
+}
