@@ -62,6 +62,14 @@ Checkpoints sequence work; they do not narrow the final feature scope.
 - Keep the Node/file-store architecture unless measurements justify a different engine or storage design. Isolate per-picker state and share bounded calculation resources.
 - The official-game plugin supplies observations. In live play, automatic ticks are the intended default with easy Undo; beta observations remain unable to tick live progress. Requiring confirmation for every live tick is not the product direction.
 
+## Capacity and groups (2026-11-08)
+
+- Design target: about 2,000 player characters in 500–1,000 groups, up to about 200 people online at once, on one server, with immutable game data stored once. A load test on disposable hardware must prove it before public launch; public sign-up remains a separate decision.
+- Groups hold 1–5 characters. First sign-in creates a picker; its owner invites friends by link.
+- One Discord or Google login holds up to 10 RuneScape characters, each in exactly one group, with one switcher between their maps. Several of a login's characters may share a group.
+- A character that changes group takes on the destination's map; its previous map stays as a read-only past map, never merged or deleted.
+- [Groups and accounts](docs/groups-and-accounts.md) is the full contract.
+
 ## Sources of decisions
 
 - This chat: full recreation, from scratch, GIM/special rules, extensibility and speed; personal teleport eligibility.
