@@ -14,7 +14,7 @@ function latency(ops,actions,p95,p99) {
 function admission(ops,streams) {
   const total=counts(ops);
   return {status:total.unexpectedFailures||
-    (total.httpRejects+total.timeouts)/Math.max(1,total.validHttpRequests)>=.001||streams.some(s=>s.rejected||s.unexpectedEnds)?'fail':!total.validHttpRequests?'not-measured':'pass',
+    (total.httpRejects+total.timeouts)/Math.max(1,total.validHttpRequests)>=.001||streams.some(s=>s.rejected||s.unexpectedEnds||s.establishmentFailures)?'fail':!total.validHttpRequests?'not-measured':'pass',
     ...total,unexpectedRejects:total.httpRejects,limitFraction:.001};
 }
 export function evaluate(result) {
@@ -29,20 +29,21 @@ export function evaluate(result) {
   const measured=result.samples.filter(row=>row.measured&&inClass(row.stage,'nominal')), cpu=measured.map(row=>row.treeCpuPercent).filter(Number.isFinite),
     peak=measured.reduce((n,row)=>Math.max(n,row.tree.rssBytes??row.server?.memory.rss??0),0),
     loop=measured.reduce((n,row)=>Math.max(n,row.server?.eventLoop.p99Ms??0),0);
+  const treeUnavailable=measured.some(row=>row.tree.availability==='unavailable');
   const gates={
     cheapWarm:latency(ops,cheap,1000,2000),
     expensiveWarm:latency(ops,expensive,3000,8000),
     cold:{status:'not-measured',reason:'No browser readiness or certified cold cache class; HTTP arrivals remain in action records.'},
     eventPropagation:{status:'not-measured',reason:'Streams are consumed and disconnects counted; no browser ack-to-render probe.'},
     nominalAdmission:admission(ops,streams('nominal')),
-    cpu:{status:cpu.length?(cpu.reduce((a,b)=>a+b,0)/cpu.length<=65?'pass':'fail'):'not-measured',averagePercent:cpu.length?cpu.reduce((a,b)=>a+b,0)/cpu.length:null,limitPercent:65},
+    cpu:{status:treeUnavailable?'unavailable':cpu.length?(cpu.reduce((a,b)=>a+b,0)/cpu.length<=65?'pass':'fail'):'not-measured',averagePercent:treeUnavailable?null:cpu.length?cpu.reduce((a,b)=>a+b,0)/cpu.length:null,limitPercent:65},
     eventLoop:{status:measured.some(row=>row.server)?(loop<=50?'pass':'fail'):'not-measured',worstWindowP99Ms:loop,limitMs:50},
-    memory:{status:peak>=.8*(result.hardware.ramBytes-result.profile.osReserveBytes)?'fail':'not-measured',peakServiceRssBytes:peak,
+    memory:{status:treeUnavailable?'unavailable':peak>=.8*(result.hardware.ramBytes-result.profile.osReserveBytes)?'fail':'not-measured',peakServiceRssBytes:treeUnavailable?null:peak,
       reason:'80% threshold after OS reserve checked for service; backup overlap, sustained swap, OOM and memory-guard audit still required.'},
     client:{status:stats.clientDrops||result.telemetryErrors||result.shutdown?.forced?'fail':'pass',droppedArrivals:stats.clientDrops,telemetryErrors:result.telemetryErrors,forcedShutdown:result.shutdown?.forced??false},
     isolationDurability:{status:'not-measured',reason:'Cross-tenant/fault/restart assertions belong to acceptance/recovery experiments.'},
     overloadObservations:{status:!overload.length?'not-measured':!noCrash||overloadCounts.unexpectedFailures||overloadCounts.timeouts||overloadCounts.rejectsWithoutRetryAfter||
-      overloadStreams.some(s=>s.unexpectedEnds||s.unexpectedFailures||s.rejectsWithoutRetryAfter)?'fail':'pass',...overloadCounts,
+      overloadStreams.some(s=>s.unexpectedEnds||s.unexpectedFailures||s.rejectsWithoutRetryAfter||s.establishmentFailures)?'fail':'pass',...overloadCounts,
       streams:overloadStreams,noCrash:noCrash??null,
       scope:'Observed HTTP/stream outcomes only: 429/503 require Retry-After; unexpected errors, timeouts and unplanned disconnects fail. Fairness and bounded resources are not established.'},
     recoveryHTTP:{status:!recovery.length?'not-measured':[recoveryAdmission,recoveryCheap,recoveryExpensive].some(g=>g.status==='fail')?'fail':

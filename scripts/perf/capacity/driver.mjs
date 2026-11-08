@@ -17,27 +17,58 @@ export function outcomeCounts(outcome) {
     unexpectedFailures:unexpectedRequests||Number(unexpected(outcome.status)&&!(outcome.status===409&&outcome.intentionalConflict)),
     intentionalConflicts:requests.filter(intentional).length,unsupported:outcome.status==='unsupported'?1:0};
 }
-export async function drive({base,profile,fixture,directory,onSample,startWorkload=()=>performance.now()}) {
+export function prepareCohorts(profile,fixture) {
+  const cohorts=new Map(),rotationMs=(profile.rotationSeconds??300)*1000;let startMs=0;
+  if(!Number.isFinite(rotationMs)||rotationMs<=0)throw new Error('Invalid cohort rotation interval.');
+  for(const [stageIndex,stage] of profile.stages.entries()) {
+    const endMs=startMs+stage.seconds*1000;
+    for(let rotation=Math.floor(startMs/rotationMs);rotation<Math.ceil(endMs/rotationMs);rotation++) {
+      const groups=Array.from({length:stage.activeGroups},(_,i)=>fixture.groups[(i+rotation*stage.activeGroups)%fixture.groups.length]),list=[];
+      for(let slot=0;slot<5;slot++)for(const group of groups)if(group.members[slot])list.push({...group.members[slot],group:group.index,taskIds:group.taskIds,peers:group.members.map(m=>m.memberId)});
+      if(list.length<stage.users)throw new Error(`Stage ${stageIndex} (${stage.name??'unnamed'}), cohort ${rotation}: requested ${stage.users} users but selected groups provide ${list.length} synthetic logins.`);
+      cohorts.set(`${stageIndex}:${rotation}`,list.slice(0,stage.users));
+    }
+    startMs=endMs;
+  }
+  return cohorts;
+}
+export async function consumeStream({base,client,controller,counters,stats,planned,headerDeadlineMs=5000,fetchRequest=fetch,timer=setTimeout,cancelTimer=clearTimeout}) {
+  let headersReceived=false;
+  counters.attempted++;
+  const deadline=timer(()=>controller.abort(new Error('SSE header deadline expired.')),headerDeadlineMs);
+  try {
+    const response=await fetchRequest(base+'/api/events',{headers:{Cookie:client.cookie},signal:controller.signal,redirect:'error'});
+    headersReceived=true;cancelTimer(deadline);
+    counters.statuses[response.status]=(counters.statuses[response.status]??0)+1;
+    if(!response.ok){
+      stats.streamRejected++;counters.rejected++;
+      if([429,503].includes(response.status)){if(!response.headers.get('retry-after'))counters.rejectsWithoutRetryAfter++;}
+      else counters.unexpectedFailures++;
+      return;
+    }
+    stats.streamOpened++;counters.opened++;
+    for await(const bytes of response.body)stats.httpBytes+=bytes.length;
+    if(!planned()){stats.streamUnexpectedEnds++;counters.unexpectedEnds++;}
+  } catch {
+    if(!headersReceived){stats.streamEstablishmentFailures++;counters.establishmentFailures++;}
+    else if(!planned()){stats.streamUnexpectedEnds++;counters.unexpectedEnds++;}
+  } finally {cancelTimer(deadline);}
+}
+export async function drive({base,profile,fixture,directory,onSample,startWorkload=()=>performance.now(),fetchRequest=fetch,schedule=dispatch}) {
   base=loopback(base,{assigned:profile.port===0});
-  const rng=random(profile.seed+'-actions'), chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
+  const cohorts=prepareCohorts(profile,fixture),chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
   const events=arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
-    pluginStatus:stage.pluginPerSecond*.4,pluginTasks:stage.pluginPerSecond*.2,sync:stage.syncPerMinute/60,session:stage.users/5}));
+    pluginStatus:stage.pluginPerSecond*.4,pluginTasks:stage.pluginPerSecond*.2,sync:stage.syncPerMinute/60,session:stage.users/5})).map((event,i)=>({...event,id:i+1}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
-    rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0},
-    streams=[],streamJobs=new Set(),stageStreams=profile.stages.map(()=>({opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,statuses:{}})),seq=new Map();
-  let streamShutdown=false, active=0, maxActive=0, eventId=0;
-  const clients=(stage,rotation=0)=>{
-    const groups=Array.from({length:stage.activeGroups},(_,i)=>fixture.groups[(i+rotation*stage.activeGroups)%fixture.groups.length]), list=[];
-    for(let slot=0;slot<5;slot++) for(const group of groups) if(group.members[slot]) list.push({...group.members[slot],group:group.index,taskIds:group.taskIds,peers:group.members.map(m=>m.memberId)});
-    if(list.length<stage.users) throw new Error('Profile needs more distinct synthetic logins in active groups.');
-    return list.slice(0,stage.users);
-  };
+    rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
+    streams=[],streamJobs=new Set(),stageStreams=profile.stages.map(()=>({attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{}})),seq=new Map();
+  let streamShutdown=false, active=0, maxActive=0;
   const call=async(client,route,body,extra={})=>{
     stats.httpRequests++;
     const requestStart=performance.now();
     const observation={route:route.split('?')[0],status:'pending'};client.observations?.push(observation);
     let res;
-    try {res=await fetch(base+route,{method:body===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.timeout(profile.requestDeadlineMs),
+    try {res=await fetchRequest(base+route,{method:body===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.timeout(profile.requestDeadlineMs),
       headers:{...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),...(body===undefined?{}:{'Content-Type':'application/json',Origin:base})},
       ...(body===undefined?{}:{body:JSON.stringify(body)})});
     } catch(error) {observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.wallMs=performance.now()-requestStart;stats.httpErrors++;throw error;}
@@ -58,21 +89,8 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
     for(const client of pool) {
       const controller=new AbortController(); streams.push(controller);
       // Do not wait for one group's stream before offering the next connection.
-      const job=(async()=>{
-        try {
-          const response=await fetch(base+'/api/events',{headers:{Cookie:client.cookie},signal:controller.signal,redirect:'error'});
-          counters.statuses[response.status]=(counters.statuses[response.status]??0)+1;
-          if(!response.ok){
-            stats.streamRejected++;counters.rejected++;
-            if([429,503].includes(response.status)){if(!response.headers.get('retry-after'))counters.rejectsWithoutRetryAfter++;}
-            else counters.unexpectedFailures++;
-            return;
-          }
-          stats.streamOpened++;counters.opened++;
-          for await(const bytes of response.body) { stats.httpBytes+=bytes.length; }
-          if(!streamShutdown && !controller.signal.aborted){stats.streamUnexpectedEnds++;counters.unexpectedEnds++;}
-        } catch {if(!streamShutdown && !controller.signal.aborted){stats.streamUnexpectedEnds++;counters.unexpectedEnds++;}}
-      })();
+      const job=consumeStream({base,client,controller,counters,stats,fetchRequest,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
+        planned:()=>streamShutdown||controller.signal.aborted});
       streamJobs.add(job);job.finally(()=>streamJobs.delete(job));
     }
   }
@@ -90,11 +108,12 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
   };
   let currentStage=-1,currentRotation=-1,pool=[];
   const run=async event=>{
-    event.id=++eventId;
+    const rng=random(`${profile.seed}-actions-${event.id}`);
     const rotation=Math.floor(event.atMs/((profile.rotationSeconds??300)*1000));
     if(event.stage!==currentStage||rotation!==currentRotation) {
-      currentStage=event.stage;
-      currentRotation=rotation;pool=clients(profile.stages[event.stage],rotation);
+      const nextPool=cohorts.get(`${event.stage}:${rotation}`);
+      if(!nextPool)throw new Error('Unvalidated workload cohort.');
+      currentStage=event.stage;currentRotation=rotation;pool=nextPool;
       for(const controller of streams)controller.abort();streams.length=0;
       openStreams(currentStage,pool);
     }
@@ -166,7 +185,7 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
   const workloadStart=startWorkload();
   const sampleTimer=setInterval(()=>{void onSample({active,maxActive,completed:stats.completed,clientMemory:process.memoryUsage(),clientCpu:process.cpuUsage()}).catch(()=>{});},profile.sampleSeconds*1000);
   try {
-    await dispatch(events,run,{startAt:workloadStart,maxInFlight:profile.maxClientInFlight,onDrop:event=>{event.id=++eventId;stats.clientDrops++;record('client-drop',event,performance.now(),performance.now(),{status:'client-drop'});}});
+    await schedule(events,run,{startAt:workloadStart,maxInFlight:profile.maxClientInFlight,onDrop:event=>{stats.clientDrops++;record('client-drop',event,performance.now(),performance.now(),{status:'client-drop'});}});
     timing.push({maxActive});
   } finally {clearInterval(sampleTimer);streamShutdown=true;for(const controller of streams)controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
   return {workloadStart,stats,stageStreams,operations:Object.values(records).map(({all,valid,success,lag,...rest})=>({...rest,latency:distribution(all),validLatency:distribution(valid),successfulLatency:distribution(success),clientDispatchLag:distribution(lag)})),timing};

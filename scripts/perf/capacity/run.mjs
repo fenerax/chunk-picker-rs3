@@ -17,6 +17,7 @@ if(!['127.0.0.1','localhost','::1'].includes(args.host))throw new Error('Scratch
 if(Number(process.versions.node.split('.')[0])!==24)throw new Error('Use Node 24.');
 const profilePath=['smoke','nominal','step-up'].includes(args.profile)?new URL(`./profiles/${args.profile}.json`,import.meta.url):path.resolve(args.profile);
 const profile=JSON.parse(await readFile(profilePath,'utf8'));
+profile.streamHeaderDeadlineMs??=5000;
 if(process.platform==='win32' && profile.name!=='smoke')throw new Error('Only smoke is allowed on the shared PC.');
 planFixture(profile);
 integer(profile.catalogue.chunks,2,10000,'chunks');integer(profile.catalogue.tasks,1,200000,'tasks');
@@ -24,6 +25,7 @@ integer(profile.catalogue.dependencyDepth,1,32,'dependencyDepth');integer(profil
 integer(profile.port,0,8999,'port');if(profile.port!==0&&profile.port<8900)throw new Error('Use port 0 or 8900–8999.');
 integer(profile.requestDeadlineMs,1,120000,'client deadline'); integer(profile.maxClientInFlight,1,20000,'client in-flight cap');integer(profile.sampleSeconds,1,60,'sampleSeconds');
 integer(profile.diskSampleSeconds,1,3600,'diskSampleSeconds');
+integer(profile.streamHeaderDeadlineMs,1,120000,'stream header deadline');
 if(!Number.isFinite(profile.fixture.unlockFraction)||profile.fixture.unlockFraction<0||profile.fixture.unlockFraction>1)throw new Error('Invalid unlockFraction.');
 if(!Array.isArray(profile.upstreamScenarios)||!profile.upstreamScenarios.length||profile.upstreamScenarios.some(s=>!['ok','private','unknown','malformed','oversized','timeout','429'].includes(s)))throw new Error('Invalid fake upstream scenarios.');
 for(const stage of profile.stages) {

@@ -25,8 +25,9 @@ export function stageWindow(stages, start, from, to=from) {
   return {stage:null,classification:null,measured:false};
 }
 export async function dispatch(events, run, { now=()=>performance.now(), startAt=now(), timer=setTimeout, maxInFlight=10000, onDrop=()=>{} }={}) {
-  const start=startAt, pending=new Set(); let index=0;
+  const start=startAt, pending=new Set(); let index=0,failure;
   while(index<events.length) {
+    if(failure)break;
     const wait=events[index].atMs-(now()-start);
     if(wait>0) { await new Promise(resolve=>timer(resolve,Math.min(wait,1000))); continue; }
     do {
@@ -36,9 +37,10 @@ export async function dispatch(events, run, { now=()=>performance.now(), startAt
         let job;
         try { job=Promise.resolve(run(event)); } catch(error) { job=Promise.reject(error); }
         pending.add(job);
-        job.then(()=>pending.delete(job),()=>pending.delete(job));
+        job.then(()=>pending.delete(job),error=>{pending.delete(job);failure??={error};});
       }
     } while(index<events.length && events[index].atMs<=now()-start);
   }
   await Promise.allSettled(pending);
+  if(failure)throw failure.error;
 }

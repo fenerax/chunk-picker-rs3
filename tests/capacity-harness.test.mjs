@@ -3,7 +3,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planFixture, catalogue, loopback, digest } from '../scripts/perf/capacity/model.mjs';
 import { arrivals, dispatch, stageWindow } from '../scripts/perf/capacity/scheduler.mjs';
-import { outcomeCounts } from '../scripts/perf/capacity/driver.mjs';
+import { outcomeCounts, drive, prepareCohorts, consumeStream } from '../scripts/perf/capacity/driver.mjs';
+import { processTree } from '../scripts/perf/capacity/telemetry.mjs';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { testRunPolicy, classifyTest } from '../scripts/test-selection.mjs';
 import { evaluate } from '../scripts/perf/capacity/report.mjs';
 
@@ -117,4 +121,81 @@ test('open-loop scheduler dispatches scheduled work while earlier work is unfini
   now=0;let finish;const blocked=new Promise(resolve=>{finish=resolve;});
   await dispatch([{atMs:0},{atMs:10},{atMs:20}],()=>blocked,{now:()=>now,timer:(fn,ms)=>{now+=ms;fn();},maxInFlight:1,onDrop:event=>{drops.push(event.atMs);if(event.atMs===20)finish();}});
   assert.deepEqual(drops,[10,20]);
+});
+
+test('missing Linux children discovery preserves root readings and makes tree gates unavailable',async()=>{
+  const fields=Array(22).fill('0');fields[11]='100';fields[12]='200';fields[19]='1';
+  const files={'/proc/7/stat':`7 (synthetic) ${fields.join(' ')}`,'/proc/7/status':'VmRSS: 4096 kB\nVmSwap: 0 kB',
+    '/proc/7/io':'read_bytes: 100\nwrite_bytes: 200'};
+  const tree=await processTree(7,{platform:'linux',ticksPerSecond:100,read:async filename=>{
+    if(filename in files)return files[filename];
+    throw Object.assign(new Error('Synthetic missing proc file'),{code:'ENOENT'});
+  }});
+  assert.equal(tree.availability,'unavailable');assert.equal(tree.processes,null);
+  assert.equal(tree.rssBytes,null);assert.equal(tree.cpuSeconds,null);assert.equal(tree.observedProcesses,1);
+  assert.equal(tree.root.rssBytes,4096*1024);assert.equal(tree.root.cpuSeconds,3);assert.equal(tree.root.writeBytes,200);
+  const result=fakeResult([{measured:true,classification:'nominal'}],[operation(0,'session',200)]);
+  result.samples=[{stage:0,measured:true,tree,treeCpuPercent:0}];
+  assert.equal(evaluate(result).cpu.status,'unavailable');assert.equal(evaluate(result).cpu.averagePercent,null);
+  assert.equal(evaluate(result).memory.status,'unavailable');
+});
+
+test('oversized stage and rotated cohorts refuse before workload start, and initialization errors propagate',async()=>{
+  const fixture={groups:[{index:0,members:[{memberId:'owner'}],taskIds:['synthetic-task']}]};
+  const profile={port:8955,stages:[{name:'fits',seconds:1,users:1,activeGroups:1},{name:'oversized',seconds:1,users:2,activeGroups:1}]};
+  let started=false;
+  await assert.rejects(drive({base:'http://127.0.0.1:8955',profile,fixture,startWorkload:()=>{started=true;}}),
+    /Stage 1 \(oversized\).*requested 2 users.*provide 1 synthetic logins/);
+  assert.equal(started,false);
+  const mixed={groups:[{index:0,members:[{},{}]},{index:1,members:[{}]}]};
+  assert.throws(()=>prepareCohorts({rotationSeconds:1,stages:[{seconds:2,users:2,activeGroups:1}]},mixed),/cohort 1.*requested 2 users/);
+  await assert.rejects(dispatch([{atMs:0}],async()=>{throw new Error('Synthetic initialization failure');}),/Synthetic initialization failure/);
+});
+
+test('the same seed offers identical actions and clients with fast and slow fake responses',async t=>{
+  const scratch=new URL('../.local/',import.meta.url);await mkdir(scratch,{recursive:true});
+  const directory=await mkdtemp(new URL('capacity-unit-',scratch));
+  // Only remove this test's newly created directory, inside the checkout's ignored scratch area.
+  assert.equal(path.dirname(directory),path.resolve(fileURLToPath(scratch)));
+  t.after(()=>rm(directory,{recursive:true,force:true}));
+  const profile={seed:'synthetic-response-order',port:8955,catalogue:{chunks:8,tasks:12,dependencyDepth:4,crossLinks:2},
+    requestDeadlineMs:30000,sampleSeconds:60,maxClientInFlight:1000,stages:[{seconds:1,users:2,activeGroups:1,browserPerSecond:100,pluginPerSecond:0,syncPerMinute:0}]};
+  const fixture={groups:[{index:0,taskIds:['synthetic-task'],members:[{memberId:'owner',cookie:'synthetic-one'},
+    {memberId:'member2',cookie:'synthetic-two'}]}]};
+  const snapshot={state:{revision:10,rules:{'access.shared':false}},pools:{owner:{eligible:[{id:'1'},{id:'2'}]},member2:{eligible:[{id:'1'},{id:'2'}]}}};
+  const experiment=async slow=>{
+    const output=directory+(slow?'/slow':'/fast');await mkdir(output);const requests=[];
+    const load=await drive({base:'http://127.0.0.1:8955',profile,fixture,directory:output,onSample:async()=>{},
+      fetchRequest:async(url,options)=>{
+        if(url.endsWith('/api/events'))return {ok:false,status:429,headers:{get:()=> '1'}};
+        requests.push(JSON.stringify({route:url,cookie:options.headers.Cookie,body:options.body}));
+        if(slow)await Promise.resolve();
+        return {ok:true,status:200,headers:{get:()=>null},text:async()=>JSON.stringify(snapshot)};
+      },schedule:async(events,run)=>{
+        const offer=event=>run({...event,scheduledAt:performance.now()});
+        if(slow)await Promise.all(events.map(offer));else for(const event of events)await offer(event);
+      }});
+    const offered=(await readFile(output+'/events.jsonl','utf8')).trim().split('\n').map(line=>JSON.parse(line))
+      .sort((a,b)=>a.id-b.id).map(row=>({id:row.id,action:row.action,intentionalConflict:row.intentionalConflict,requests:row.requests.map(r=>r.route)}));
+    assert.equal(load.stats.completed,100);
+    return {offered,requests:requests.sort()};
+  };
+  const fast=await experiment(false),slow=await experiment(true);
+  assert.deepEqual(slow,fast);
+  assert.ok(fast.offered.some(row=>row.action==='edit'));
+});
+
+test('a stream that never returns headers fails admission even when aborted as planned',async()=>{
+  const result=fakeResult([{measured:true,classification:'nominal'}],[operation(0,'session',200)]);
+  const counters={attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{}};
+  result.load.stageStreams=[counters];
+  const stats={streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0,httpBytes:0};
+  let expire;
+  const controller=new AbortController();
+  const job=consumeStream({base:'http://127.0.0.1:8955',client:{cookie:'synthetic-stream'},controller,counters,stats,
+    planned:()=>controller.signal.aborted,headerDeadlineMs:5000,timer:fn=>{expire=fn;return 1;},cancelTimer:()=>{},
+    fetchRequest:async(_url,{signal})=>new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}))});
+  expire();await job;
+  assert.equal(counters.attempted,1);assert.equal(counters.opened,0);assert.equal(counters.establishmentFailures,1);
+  assert.equal(stats.streamEstablishmentFailures,1);assert.equal(evaluate(result).nominalAdmission.status,'fail');
 });
