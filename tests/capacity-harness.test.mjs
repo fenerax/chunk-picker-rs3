@@ -142,7 +142,7 @@ test('missing Linux children discovery preserves root readings and makes tree ga
 
 test('oversized stage and rotated cohorts refuse before workload start, and initialization errors propagate',async()=>{
   const fixture={groups:[{index:0,members:[{memberId:'owner'}],taskIds:['synthetic-task']}]};
-  const profile={port:8955,stages:[{name:'fits',seconds:1,users:1,activeGroups:1},{name:'oversized',seconds:1,users:2,activeGroups:1}]};
+  const profile={port:0,stages:[{name:'fits',seconds:1,users:1,activeGroups:1},{name:'oversized',seconds:1,users:2,activeGroups:1}]};
   let started=false;
   await assert.rejects(drive({base:'http://127.0.0.1:8955',profile,fixture,startWorkload:()=>{started=true;}}),
     /Stage 1 \(oversized\).*requested 2 users.*provide 1 synthetic logins/);
@@ -158,7 +158,7 @@ test('the same seed offers identical actions and clients with fast and slow fake
   // Only remove this test's newly created directory, inside the checkout's ignored scratch area.
   assert.equal(path.dirname(directory),path.resolve(fileURLToPath(scratch)));
   t.after(()=>rm(directory,{recursive:true,force:true}));
-  const profile={seed:'synthetic-response-order',port:8955,catalogue:{chunks:8,tasks:12,dependencyDepth:4,crossLinks:2},
+  const profile={seed:'synthetic-response-order',port:0,catalogue:{chunks:8,tasks:12,dependencyDepth:4,crossLinks:2},
     requestDeadlineMs:30000,sampleSeconds:60,maxClientInFlight:1000,stages:[{seconds:1,users:2,activeGroups:1,browserPerSecond:100,pluginPerSecond:0,syncPerMinute:0}]};
   const fixture={groups:[{index:0,taskIds:['synthetic-task'],members:[{memberId:'owner',cookie:'synthetic-one'},
     {memberId:'member2',cookie:'synthetic-two'}]}]};
