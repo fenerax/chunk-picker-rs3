@@ -756,8 +756,10 @@ fields are evicted and oversized fields never enter the cache.
 
 All three review regressions failed against `e5d9651` before their fixes. The
 size regressions also cover envelope overhead and exact-limit packs through
-the actual frozen `06e1593` index and `readBackup(..., { forImport: true })`,
-with the same reduced limit in both readers. No new performance run was made
+the current bounded `readBackup(..., { forImport: true })` with a reduced limit.
+The actual frozen `06e1593` index and `readBackup` read the same packs as a
+format-compatibility check; that release has no portable-limit import, so no
+reduced limit applies there. No new performance run was made
 for these review fixes; the measurements above describe the earlier measured
 source, before the History clone, cache budget and pack-size guard.
 Round-1 focused verification passed all 166 cases across the same twelve files,

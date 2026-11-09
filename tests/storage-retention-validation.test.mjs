@@ -91,8 +91,12 @@ async function limitedStore({ portableBytes, staticCacheBytes, frozenSource } = 
     let source = frozenSource ?? String(next(target, context).source);
     // Exercise the real byte comparisons with small synthetic documents. Only
     // constants change; publication, compression, import and parsing stay real.
-    if (portableBytes) {
-      source = source.replace('MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL', 'MAX_PORTABLE_BACKUP_BYTES as productionLimit, BACKUP_LIMIT_LABEL');
+    // The frozen release has no portable-limit import and its readBackup ignores
+    // forImport, so frozen runs are format-compatibility checks only.
+    if (portableBytes && !frozenSource) {
+      const limitImport = 'MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL';
+      assert.equal(source.split(limitImport).length, 2);
+      source = source.replace(limitImport, 'MAX_PORTABLE_BACKUP_BYTES as productionLimit, BACKUP_LIMIT_LABEL');
       source = `const MAX_PORTABLE_BACKUP_BYTES = ${portableBytes};\n${source}`;
     }
     if (staticCacheBytes) {
