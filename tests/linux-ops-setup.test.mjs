@@ -305,3 +305,26 @@ test('installer emits only the allowlisted failing stage and publishes only veri
   let installed = false; await installRestic({ ...base, publish: async value => { assert.deepEqual(value, binary); installed = true; } });
   assert(installed);
 });
+
+test('installer reads a local archive without fetching and refuses unverified or missing bytes', async t => {
+  const archive = Buffer.from('synthetic cached archive'), binary = Buffer.from('synthetic cached binary');
+  const archiveFile = await fixture(t, archive);
+  let downloads = 0, decompressions = 0, publications = 0;
+  const options = { platform: 'linux', uid: 0, arch: 'x64', archiveFile,
+    fetchImpl: () => { downloads++; throw Error('unexpected download'); },
+    decompress: bytes => { decompressions++; assert.deepEqual(bytes, archive); return binary; },
+    publish: async bytes => { publications++; assert.deepEqual(bytes, binary); },
+    pins: { x64: { archive: sha(archive), binary: sha(binary) } } };
+  await installRestic(options);
+  assert.equal(publications, 1); assert.equal(decompressions, 1);
+  await writeFile(archiveFile, 'corrupt synthetic archive');
+  await assert.rejects(installRestic(options), { message: 'Restic installation refused: archive checksum.' });
+  assert.equal(decompressions, 1);
+  await writeFile(archiveFile, archive);
+  await assert.rejects(installRestic({ ...options, decompress: () => Buffer.from('wrong binary') }),
+    { message: 'Restic installation refused: binary checksum.' });
+  for (const file of [archiveFile + '-missing', '']) {
+    await assert.rejects(installRestic({ ...options, archiveFile: file }), { message: 'Restic installation refused: archive read.' });
+  }
+  assert.equal(publications, 1); assert.equal(downloads, 0);
+});

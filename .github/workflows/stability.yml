@@ -69,6 +69,7 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
       has-work: ${{ steps.plan.outputs.has-work }}
+      restic-key: ${{ steps.restic.outputs.key }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -79,6 +80,45 @@ jobs:
           node-version: 24.20.0
       - id: plan
         run: node scripts/ci/stability-plan.mjs
+      # Populate one checksum-pinned archive before Linux jobs fan out.
+      - name: Identify restic archive
+        if: steps.plan.outputs.has-work == 'true' && contains(steps.plan.outputs.matrix, 'ubuntu-latest')
+        id: restic
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { resticPin } from './scripts/linux/restic.mjs';
+          const cpu = process.arch, pin = resticPin[cpu];
+          if (!['x64', 'arm64'].includes(cpu) || !pin) throw Error('Unsupported restic architecture.');
+          const arch = cpu === 'x64' ? 'amd64' : 'arm64';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, [
+            'key=restic-linux-' + cpu + '-' + resticPin.version + '-' + pin.archive,
+            'url=https://github.com/restic/restic/releases/download/v' + resticPin.version + '/restic_' + resticPin.version + '_linux_' + arch + '.bz2',
+            'sha256=' + pin.archive, '',
+          ].join('\n'));
+          NODE
+      - name: Restore restic archive
+        if: steps.plan.outputs.has-work == 'true' && contains(steps.plan.outputs.matrix, 'ubuntu-latest')
+        id: resticcache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/restic-archive.bz2
+          key: ${{ steps.restic.outputs.key }}
+      - name: Download and verify restic archive
+        if: steps.plan.outputs.has-work == 'true' && contains(steps.plan.outputs.matrix, 'ubuntu-latest') && steps.resticcache.outputs.cache-hit != 'true'
+        env:
+          RESTIC_URL: ${{ steps.restic.outputs.url }}
+          RESTIC_SHA256: ${{ steps.restic.outputs.sha256 }}
+          RESTIC_ARCHIVE: ${{ runner.temp }}/restic-archive.bz2
+        run: |
+          curl --fail --location --output "$RESTIC_ARCHIVE" "$RESTIC_URL"
+          printf '%s  %s\n' "$RESTIC_SHA256" "$RESTIC_ARCHIVE" | sha256sum --check --status
+      - name: Save restic archive
+        if: steps.plan.outputs.has-work == 'true' && contains(steps.plan.outputs.matrix, 'ubuntu-latest') && steps.resticcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/restic-archive.bz2
+          key: ${{ steps.restic.outputs.key }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: stability-plan
@@ -154,12 +194,19 @@ jobs:
         with:
           path: .local/gh-coverage/wiki-open-f2p
           key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Restore required restic archive
+        if: runner.os == 'Linux'
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/restic-archive.bz2
+          key: ${{ needs.plan.outputs.restic-key }}
+          fail-on-cache-miss: true
       - name: Install checksum-pinned restic for the local encrypted restore test
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y bzip2 util-linux
-          sudo "$(command -v node)" scripts/ops/install-restic.mjs
+          sudo "$(command -v node)" scripts/ops/install-restic.mjs --archive-file "${{ runner.temp }}/restic-archive.bz2"
       - name: Linux first attempts
         if: runner.os == 'Linux'
         run: node scripts/ci/stability-run.mjs
