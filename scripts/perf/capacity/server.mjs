@@ -22,7 +22,7 @@ if(mode==='fixture') {
     } else await (await import('./fixture.mjs')).generate(profile,directory,{workers:Number(workers)});
     process.send({type:'generated'});
   }
-  catch(error) { process.send({type:'failure',name:error.name,message:error.message}); process.exitCode=1; }
+  catch(error) { process.stderr.write(`${error?.stack ?? error}\n`); process.send({type:'failure',name:error.name,message:error.message}); process.exitCode=1; }
   process.off('disconnect',lostParent); process.disconnect();
 } else {
   let app, stopping=false, calls=0;
@@ -82,5 +82,5 @@ if(mode==='fixture') {
     });
     process.once('disconnect',()=>{void stop();});
     process.once('SIGTERM',()=>{void stop();});
-  } catch(error) { process.send({type:'failure',name:error.name,message:error.message}); await app?.close(); process.disconnect();process.exitCode=1; }
+  } catch(error) { process.stderr.write(`${error?.stack ?? error}\n`); process.send({type:'failure',name:error.name,message:error.message}); await app?.close(); process.disconnect();process.exitCode=1; }
 }
