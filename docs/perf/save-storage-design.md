@@ -3,10 +3,12 @@
 Study of `ad0e89817fef99f50df4969ce819876f9d484b79`. Measured on 2026-11-09.
 No application changes. All inputs were synthetic. No real save was opened.
 
-Recommend keeping the file backend. First, make restore points share immutable
-History segments and make retention process only new bytes. Keep every restore
-point. Then remove old History from ordinary state writes. An event log can
-follow if measurements still justify the larger migration.
+Recommend keeping the file backend. First, remove redundant stored-state
+imports from packing and cold archive indexing. Cache validated immutable
+dependencies within a pass. Keep every restore point. Archived History already
+uses shared segments. Consider sharing the active tail and restore provenance
+only after measuring the smaller maintenance fix at nominal catalogue size.
+Section 5 measures the nominal capacity shape.
 
 ## 1. Current storage and measured costs
 
@@ -21,7 +23,7 @@ mutex between arbitrary filesystem writers.
 | Stored data | When it is written | Source |
 | --- | --- | --- |
 | `state.json` | Initialization and each accepted gameplay command. Also some same-revision settings, cleanup and observation writes. Contains current gameplay, active History/Undo and private receipt/coordination/currency metadata. | `app/storage/store.mjs:299`, `:1084`, `:1489`, `:1512` |
-| `backups/<revision>-<random>.json.gz` | The **preceding** state is retained before every ordinary gameplay publication. A failed commit can leave an additional preimage. This is not a timer-based snapshot policy. | `app/storage/store.mjs:597`, `:1095` |
+| `backups/<revision>-<random>.json.gz` | The **preceding** state is retained before every ordinary gameplay publication. Startup progress observation and catalogue refresh can also retain it. A failed commit can leave an additional preimage. This is not a timer-based snapshot policy. | `app/storage/store.mjs:597`, `:965`, `:1001`, `:1095` |
 | Pinned preimages and optional label metadata | Whole-save replacement and catalogue refresh pin the preceding save. A members transition makes a full portable, labelled pinned preimage. | `app/storage/store.mjs:603`, `:616`, `:1188` |
 | `history/history-*.json.gz` | When active History exceeds twice `historyEntries`, default 1,000. Usually keeps the newest 1,000 events. Pending rolls, the latest Undo and linked Undo markers can require a longer tail. Old events and later overrides are preserved in immutable segments. | `app/storage/store.mjs:75`, `:665`, `:707` |
 | `static/static-<sha256>.json.gz` | Changed `tasks`, `identityRegistry`, `legacy` or `provenance` fields at least 256 KiB. A reference replaces the field in disk documents. Unchanged immutable field objects reuse bytes and hashes. Portable exports hydrate them. | `app/storage/store.mjs:74`, `:262`, `:380`, `:394` |
@@ -46,9 +48,12 @@ New packing does expensive repeated work. Each candidate is imported before
 batching (`:854`), after writing and rereading the pack (`:824`), and again
 before unlink (`:842`). History is then hydrated and validated (`:845`, `:703`).
 This is three full stored-state imports plus one History validation per newly
-packed snapshot. Static dependencies can also be loaded repeatedly. The
-History hydration cache is bounded to 8 MiB. Successful packing removes the
-standalone file only after these checks.
+packed snapshot. Static dependencies are loaded repeatedly in writable stores.
+The static-field read cache is enabled only for read-only stores (`:308-317`).
+An imported field is also serialized and hashed again after normalization
+(`:368-376`). The History hydration cache is bounded to 8 MiB. Successful
+packing removes the standalone file only after these checks. One undecodable
+candidate aborts the pass; the error becomes `retention.failure` (`:854`, `:863`).
 
 Retention runs at writable open, every 50 ordinary writes, explicit
 `prepareSnapshot`, and close (`app/storage/store.mjs:1020`, `:1120`, `:1434`,
@@ -63,20 +68,21 @@ distinction matters when attributing fixture time.
 
 Let R be roster size. Let H be active History entries, and E their average
 encoded size, including inverses. Let G(R) be other mutable gameplay bytes.
-Let T be inline catalogue/evidence bytes. The hot document has roughly
-S = G(R) + H*E + T bytes. Large immutable fields may already be external.
-Let V(H,R,T) be full validation cost. It includes shape checks, inverses and
+Let T be inline catalogue/evidence bytes and C the complete hydrated catalogue.
+The hot document has roughly S = G(R) + H*E + T bytes. Large immutable fields
+may already be external. Externalizing C saves disk writes, not validation.
+Let V(H,R,C) be full validation cost. It includes shape checks, inverses and
 reverse replay. Bulk map replacements can have much larger inverses than notes.
 There is no measured universal constant per History entry or player.
 
 | Operation | CPU and bytes from the implementation | Sync operations on Linux |
 | --- | --- | --- |
-| Ordinary command and preimage | Trusted command copies members and the History array. Serialization reuses immutable field and History-prefix encodings. It still assembles/writes S bytes and gzip-compresses the preceding S bytes at best speed. Cost remains dependent on R and H. | Normally two file syncs plus two parent-directory syncs. One atomic publication per preimage and state. |
+| Ordinary command and preimage | Trusted command copies members and the History array. Serialization reuses immutable field and History-prefix encodings. It still assembles/writes S bytes and gzip-compresses the preceding S bytes at best speed. A full-state return also clones hydrated C and provenance; serialized replies differ. | Normally two file syncs plus two parent-directory syncs. One atomic publication per preimage and state. |
 | History compaction | Serialize/compress newly archived events, write a segment, then publish the referencing state. Dependency rules can extend H beyond the nominal tail. | One additional file and directory sync per new segment. |
 | New static field | Serialize/hash/compress changed large field once. Later documents refer to it. | One additional file and directory sync per new field. |
-| New retention batch | Read candidate gzip files. Import each candidate three times and validate hydrated History once. Serialize/compress the pack, reread it twice, compare exact documents, then unlink the standalone copies. Work grows with the sum of candidate histories and dependency bytes. | One file and directory sync per pack. Unlinks have no separate directory sync here. |
+| New retention batch | Read candidate gzip files. Import each candidate three times and validate hydrated History once. Serialize/compress the pack, reread it twice, compare exact documents, then unlink the standalone copies. Work includes repeated O(C) catalogue hydration/validation as well as History and dependency bytes. | One file and directory sync per pack. Unlinks have no separate directory sync here. |
 | Unchanged warm retention | Enumerate/stat remaining standalone files, sort them and select daily tiers. Cached archive index. Normally no payload reads or writes. Pinned non-daily candidates can still be opened and parsed before being skipped. | None. |
-| Cold archive index | Read/decompress every pack and import every contained state. Work grows with all archived snapshot histories. | None for indexing. Store open separately publishes its lock record. |
+| Cold archive index | Read/decompress every pack and import every contained state just to check its revision. Work includes O(N*C) catalogue processing and the archived states' History validation. | None for indexing. Store open separately publishes its lock record. |
 
 Publication uses an exclusive temporary file, file sync, rename, then parent
 directory sync. This checkout has stronger directory durability than the old
@@ -93,15 +99,29 @@ It copies members, shallow-copies History and validates affected gameplay.
 Older or complex Undo can cross the full validation path. See
 `app/core/state.mjs:634`, `:649`, `:821`, `:876`, `:1414`, `:1431`, `:2324` and
 `app/storage/store.mjs:1146`. Changing fixture code to skip public validation
-would improve setup time. It would not fix retained snapshot costs.
+would affect preliminary growth only. The capacity fixture already uses
+`store.command` for all 1,300 durable notes (`scripts/perf/capacity/fixture-group.mjs:39`).
+It would not fix that loop or retained snapshot costs.
 
-With N successive actions and histories H_i approximately i, retaining and
-revalidating full prefixes costs proportional to sum(H_i), or quadratic work
-before compaction. Packing each snapshot only once does not remove that term.
-The hot state and preimage bytes also grow with those prefixes. Compaction
-bounds common active-tail cases, but full-history restore/export still grows.
+Before compaction, active-prefix storage and validation can cost sum(H_i).
+Archived events are already shared by reference in preimages after compaction
+(`app/storage/store.mjs:707-738`). Ordinary disk writes do not contain every
+old event. The usual active tail is about 1,000-2,000 events, with exceptions
+for pending rolls and Undo. Packing's `hydrateHistory` still materializes and
+validates the complete prefix for each point. This repeats full-history work
+even when old bytes are already shared. Nominal catalogue work is a separate,
+larger term in the follow-up measurements.
 
-### Probe and limits
+Whole-save replacement has another growth path. It hydrates both complete
+Histories, folds prior `restore.previousHistory` into the preceding chain, and
+stores `incomingHistory`, `previousHistory` and incoming provenance under
+`provenance.restore` (`app/storage/store.mjs:1205-1219`). Active-tail compaction
+does not trim those arrays. Repeated restores accumulate this evidence. A large
+provenance field can leave `state.json` through static storage, but changing it
+still serializes, hashes and writes a new field. Any later History redesign
+must cover this path and preserve the restore Undo boundary.
+
+### Original 500-task probe and limits
 
 Run `scripts/perf/save-storage-probe.mjs` from this worktree with Node 24.
 The measured run used the task's supplied Node 24.20.0 executable. The machine
@@ -198,8 +218,9 @@ seconds process CPU. Of the wall time, stored-state imports took 17.65 seconds,
 History hydration 4.63 seconds, gzip 1.49 seconds and gunzip 3.60 seconds.
 Other work includes JSON parsing/string comparison and unlink. Existing pack
 hashes stayed identical after the later pass. All packs stayed identical after
-the unchanged pass. This result supports removing repeated History validation;
-it does not support claiming that every pass repacks all old archives.
+the unchanged pass. This result supports reducing redundant imports and replay.
+It does not establish History as the dominant cost at nominal catalogue shape,
+or show that every pass repacks all old archives.
 
 Sizes below are actual file lengths after the aged pass. They exclude allocation
 rounding and the transient owner record. The probe writes no feedback, registry,
@@ -270,13 +291,28 @@ all History, including archived events. Numbers below are **planning guesses**.
 No redesigned backend was implemented or benchmarked. Disk formulas are more
 reliable than numeric speed guesses.
 
-### A. Shared History segments and incremental immutable restore points
+### A. Cheaper maintenance, then optional active-tail sharing
 
-Keep atomic file publication. Each new restore point records gameplay plus a
-reference to an immutable History prefix. Write each event/inverse once into
-bounded segments. Keep later Undo overrides as committed records. Reference
-unchanged catalogue and evidence fields as storage already does for large
-fields. A persistent index records restore-point metadata, blob hashes,
+Keep atomic file publication. First, stop using repeated semantic imports as
+physical-copy verification. Use shallow archive metadata for listing. Verify
+new pack bytes and all required dependencies before unlinking a source. Cache
+static-field hydration/validation by content hash within the pass. Untrusted
+or unqualified legacy data still needs semantic validation. Portable imports
+and actual restores keep their validation boundary.
+Cache keys must include schema, rules and roster context where checks depend
+on them. Per-state member/task references still need validation.
+
+This first step changes no gameplay or portable save format. A persistent,
+rebuildable metadata index can follow separately if shallow pack reads remain
+too costly. It must never authorize deletion without verifying the pack.
+
+If needed next, each new restore point records gameplay plus a reference to an
+immutable History prefix. Existing archived segments already provide part of
+this sharing. Extend it to the active tail and restore-provenance Histories.
+Keep later Undo projections as versioned committed records; a historical root
+must not pick up a future Undo override. Preserve same-revision backup IDs.
+Reference unchanged catalogue and evidence fields as storage already does for
+large fields. A persistent index records restore-point metadata, blob hashes,
 dependency hashes and segment ranges. It is a rebuildable cache, not the
 authority for gameplay or deletion.
 
@@ -295,18 +331,19 @@ Random notes and exact inverse/actor data remain available for export and Undo.
 
 | A estimate | Expected cost |
 | --- | --- |
-| Per action, first stage | Current hot-state write still costs S. Preimage adds roughly compressed gameplay plus D and a small root record, rather than another full History prefix. File syncs remain ordered; new segment/index roots add publication syncs. |
-| Retention pass | O(M metadata + newly sealed bytes + unique new dependency checks). Unchanged passes read no History. Cold listing uses the persistent metadata index. Legacy conversion can still cost the sum of old histories once. |
-| Disk | One retained History stream + gameplay per restore point + index + hot state. Roughly H_total*E + sum(compressed G_i) + metadata, with shared static fields. All restore points remain. |
-| Grown probe layout guess | About 1-3 MiB/group, versus measured 8.07 MiB now. Compression and root layout need measurement. At 500/1,000 identical groups, about 0.52-1.57 / 1.05-3.15 GB. |
+| Per action, maintenance step | Same S-byte state and preimage publication as today. No new foreground format or sync. Maintenance CPU falls; foreground catalogue response cloning remains. |
+| Per action, optional sharing step | Roughly compressed gameplay plus D and a small root record per preimage. Current disk state may also reference the tail. File syncs remain ordered; new segment/index roots add publication syncs. |
+| Retention pass | O(M metadata + newly sealed bytes + unique dependency checks), after qualifying legacy data. No repeated semantic replay for byte-identical copies. Shallow cold indexing still parses pack payloads; a persistent metadata index removes that dependency. |
+| Disk | Maintenance alone leaves size essentially unchanged. Optional sharing removes repeated active-tail and restore-provenance copies. Archived History and large static fields are already shared. Gameplay copies remain. |
+| Original 500-task layout guess after sharing | About 1-3 MiB/group, versus measured 8.07 MiB now. This is an untested optimistic range, not a nominal-catalogue forecast. At 500/1,000 identical probe groups, about 0.52-1.57 / 1.05-3.15 GB. |
 | Scale implication | Per-write cost does not include all retained restore points. At an assumed 20 actual saves/second, a 5 ms CPU budget for maintenance amortized per save would use 0.1 CPU core. This is a proposed acceptance budget, not a prediction. |
 | Migration and rollback | Keep reading old packs. Convert lazily into new immutable objects under the group lock. Journal progress; verify every logical restore point and portable export before releasing its old copy. Preserve originals through rollout. Before downgrade, materialize legacy storage with the new reader and verify it with the frozen binary. |
-| Risk / work guess | Medium. Undo overrides, segment dependencies, export allowlists and interrupted migration are the hard parts. About 3-5 developer weeks including focused compatibility/crash coverage. |
+| Risk / work guess | Maintenance: small, roughly 3-5 developer days, with corruption/dependency checks. Optional sharing: medium, another 3-5 developer weeks. Versioned Undo, restore provenance, export allowlists and interrupted migration are the hard parts. |
 
-This option removes the quadratic full-History term from **new retention work**.
-It does not immediately remove the whole-History hot-state write term.
-Changing only scheduling or adding a cached archive index would leave both
-new-snapshot prefix storage and much of the first-packing cost in place.
+The maintenance step removes redundant catalogue and complete-History replay
+from copy verification. The optional format step reduces repeated active-tail
+bytes. It does not introduce archived-History sharing for the first time.
+Neither step promises a constant-size gameplay state or free portable exports.
 
 ### B. Append-only committed transitions with periodic checkpoints
 
@@ -351,23 +388,24 @@ member after a note edit would still copy all that member's accumulated notes.
 
 ## 4. Recommendation and independently shippable stages
 
-Choose A. It keeps the existing ownership and atomic-publication model and
-targets the measured imports/History work. B offers the best eventual write
-cost. Its log transaction and capture protocol are a larger recovery change.
+Choose A, starting with its small maintenance step. It keeps the existing
+ownership and atomic-publication model and targets the nominal catalogue cost.
+B offers the best eventual write cost. Its log transaction and capture protocol
+are a larger recovery change.
 C adds block and GC complexity before this workload has justified it.
 
-The first implementation stage must include shared History prefixes **and**
-incremental packing. A scheduling-only change is not completion. Existing
-packs already stay immutable. Do not describe that existing property as a new
-optimization. The stage removes repeated full-prefix validation from new
-maintenance work. The separate hot-state write term remains explicit.
+The first stage does not need a new History format. Existing packs already
+stay immutable, and archived History already shares segments. Remove repeated
+imports, catalogue validation and full-history replay from maintenance first.
+A scheduling-only change leaves that work outstanding. Keep all restore points;
+expiry would change the contract and is outside this recommendation.
 
 | Stage | Shippable result | Acceptance evidence before enabling it |
 | --- | --- | --- |
-| 1. Share restore-point History and process only new retention work | Add immutable History prefix roots and a persistent restore-point index. Dual-read old preimages/packs. New restore points preserve every revision without repeating full History in each copy. Seal packs once and verify new bytes/dependencies before removing their source. Keep the current authoritative `state.json` publication. | Repeat-pass pack hashes and zero payload writes. One new note must not import every old snapshot. Compare all logical restore points and portable History/Undo to the old writer on synthetic histories, including selected Undo and pinned restores. Fault before/after dependency, index, pack and state publication. Missing/corrupt dependency leaves the source copy. Test the actual server export and service restore paths with the new allowlist/manifest. |
-| 2. Remove archived History from hot disk writes | Store the current History prefix through the same private roots and keep only the required active tail in `state.json`. Readers materialize the existing gameplay/portable shape. Preserve complete hooks and archive-aware Undo. This bounds common writes by gameplay plus the active tail and new events. | Hold roster/gameplay fixed and compare synthetic histories of increasing length. Doubling total old History must not double ordinary note-write bytes or CPU. Run existing compaction, archived Undo, hook isolation and migration tests. Round-trip every existing save representation and verify downgrade materialization with the frozen reader. |
+| 1. Remove redundant maintenance imports | Build a shallow archive index. Verify synced/reread pack records with exact bytes or recorded hashes plus format/ID/revision and dependency checks. Avoid three imports and a full-history replay for every new physical copy. Qualify untrusted/legacy states once; cache immutable static validation within a pass. Keep the existing writer and formats. | Rerun section 5 at nominal shape and a bounded Linux fixture. Corrupt/truncated packs, bad revisions, missing/corrupt static or History dependencies and interrupted writes must preserve the source. Every point still restores/exports through validated readers. Unchanged passes preserve pack hashes. Cold listing must not semantically import each point. Existing retention/static/durability tests remain gates. |
+| 2. Measure, then share active History and restore provenance if needed | Reuse existing archived segments. Add roots for the active tail and `restore.incomingHistory`/`previousHistory`, including accumulated provenance. Version later Undo projections by the historical view. Preserve same-revision backup IDs. Start new-format writes with dual readers; keep schema-1 portable output. A persistent metadata index is a separately testable substep if shallow cold scans still hurt. | Compare every logical restore point and full portable History/Undo to the old writer. Include chained restores, selected Undo, pending rolls, compaction, same-revision writes and frozen-reader materialization. Hold gameplay fixed while growing total History and restore chains. Fault every dependency/root/state boundary. Test server export and service restore with the new dependency inventory. |
 | 3. Convert old storage incrementally | Convert one group in bounded resumable batches. Keep original files until inventory, portable export and per-restore-point digests agree. Export tools support mixed old/new storage throughout. Publish progress and bytes so an operator can pause between batches. | Interrupt every conversion boundary and reopen. Missing index rebuilds safely. Compare retained IDs/times/labels and event/Undo meaning, not just counts. Service backup/restore works halfway through conversion. Disk reserve covers old and new copies together. |
-| 4. Re-measure before choosing a transition log | Run the same focused probe, then a separate Linux target-scale synthetic run. Only pursue B if hot gameplay writes, fsyncs or backup volume still miss budgets after A. | Separate browser requests, plugin polls and actual durable writes. Measure command CPU, event-loop delay, retention backlog, cold opens, export latency and backup/restore size. Use the intended roster mix for about 2,000 players and 500-1,000 groups. Concurrency and overlapping backups remain unmeasured here. |
+| 4. Re-measure before choosing a transition log | Only pursue B if hot gameplay writes, fsyncs or backup volume still miss budgets after the smaller steps. Check full-state command-return cloning separately; it is visible in the fixture. | Separate browser requests, plugin polls and actual durable writes. Measure command CPU, event-loop delay, retention backlog, cold opens, export latency and backup/restore size on Linux. Use the intended roster mix for about 2,000 players and 500-1,000 groups. Concurrency and overlapping backups remain unmeasured here. |
 
 Proposed performance gates are guesses until tested on the Linux server class:
 
@@ -376,9 +414,242 @@ Proposed performance gates are guesses until tested on the Linux server class:
 | Unchanged warm retention | No old payload decompression, semantic replay, recompression or writes. Metadata enumeration may remain until the index is authoritative for scheduling. |
 | New retention work | CPU and bytes scale with newly sealed bytes and unique dependencies. No sum of every retained History prefix on each pass or cold open. |
 | Amortized retention CPU | Aim below 5 ms per actual durable action on the target dataset. Report backlog and errors independently of command success. |
-| Storage growth | With fixed gameplay size, events and restore roots grow linearly. Document the separate growth from changed gameplay and Undo payloads. |
+| Storage growth after optional sharing | With fixed gameplay size, new events and restore roots grow linearly. Document active-tail, restore-provenance, changed-gameplay and Undo payloads separately. Maintenance alone does not reduce retained bytes. |
 | Durability and compatibility | No acknowledged loss, missing restore point or weaker dependency check. Same plugin wire format and schema-1 portable exports. Explicit downgrade proof for private storage. |
 
 The server can have many dormant groups. Their history should cost disk and
 explicit restore/export work, without forcing repeated semantic replay whenever
 a picker is opened or retention runs. That is the first storage change to ship.
+
+## 5. Attribution at nominal catalogue shape
+
+### Method and fixture parity
+
+The original probe cannot attribute the reported Linux fixture time. Its small
+catalogue misses repeated hydration and validation of the nominal task field.
+The follow-up uses `scripts/perf/save-storage-attribution.mjs`. It changes only
+in-memory module loading and records nested spans plus exclusive CPU categories.
+Application source files stay unchanged.
+
+Use the supplied Node 24.20.0 executable from this worktree:
+
+```text
+node scripts/perf/save-storage-attribution.mjs --catalogue-shape nominal
+node scripts/perf/save-storage-fixture-model.mjs .local/save-storage-attribution-<run>/results.json
+```
+
+`--catalogue-shape smoke` selects a small check. `--history-points` and `--copies`
+bound the work. `--control` disables module, JSON, clone and filesystem probes.
+There is no input-save option. Every run creates a fresh synthetic directory.
+The process sets BelowNormal priority and uses one worker. No server starts.
+An 18-minute deadline terminates a probe that overruns. The final nominal run
+finished in about 127 seconds. The full fixture would exceed 20 minutes here,
+so its command and packing counts were reduced and then extrapolated.
+
+The probe uses the capacity harness's `catalogue`, `createTaskEngine` projection,
+`planFixture` and `growthCommands`. See `scripts/perf/capacity/fixture.mjs:29`,
+`scripts/perf/capacity/fixture-group.mjs:18` and `:30-47`, and
+`scripts/perf/capacity/profiles/nominal.json:6-7`. A worker matches the fixture's
+local replacement path. It performs the actual pinned replacement first.
+It then generates anchor states in memory through the trusted command path.
+The last 300 notes restart their chunk sequence, as the fixture does.
+
+| Shape or sampling choice | Value |
+| --- | ---: |
+| Players in the nominal grown group | 4 |
+| Chunks / unlocked chunks per member | 4,096 / 2,048 |
+| Synthetic task definitions / dependency depth / cross-links | 200,000 / 16 / 8 |
+| Actual saved task rows, including engine defaults and 12 growth tasks | 200,079 |
+| Expanded saved task JSON / compressed shared task field | 18,986,921 / 1,049,076 bytes |
+| Completed durable notes at anchors | 0, 560, 1,120, 1,300 |
+| Active History entries at those anchors | 1, 561, 1,121, 1,301 |
+| Actual durable commands per anchor | 6 |
+| Newly packed points / new packs per anchor | 2 / 1 |
+
+Each anchor opens a new store, performs six actual `store.command` calls with
+12-hour clock steps, and ages the clock by 400 days. Daily/first/latest rules
+then select two points for packing. The probe checks a repeat pass and a cold
+writable reopen. Here, cold means a new store and empty archive/static caches;
+the OS file cache remains warm. This measures marginal packing and indexing,
+not a complete 1,301-point directory. No History segment compaction fires at
+these active-tail lengths. Restore provenance from the initial growth remains.
+Anchor counts are before the six measured writes. Cold open sees six additional
+History entries.
+
+### Measured command, packing and open costs
+
+CPU is process CPU, including zlib and GC threads. It can exceed wall time.
+Windows accounting is coarse for short spans. Async gzip/gunzip spans can
+include GC CPU while awaiting the codec. Their CPU is not isolated codec CPU.
+JSON and catalogue probes add overhead. Parallel metadata stats also make
+nested wall spans unsuitable for additive accounting. CPU categories conserve
+the total; they are an operational attribution, not a sampling-profiler trace.
+
+| Milliseconds, CPU / wall | 0 notes | 560 notes | 1,120 notes | 1,300 notes |
+| --- | ---: | ---: | ---: | ---: |
+| Mean durable command, including returned state clone | 534 / 646 | 451 / 483 | 563 / 550 | 417 / 406 |
+| Packing per newly packed point | 6,227 / 6,112 | 5,859 / 4,714 | 7,438 / 6,679 | 5,071 / 4,164 |
+| Whole cold writable open, two archived points | 4,922 / 3,844 | 4,563 / 3,883 | 5,406 / 4,431 | 4,156 / 3,299 |
+| Archive-index portion per archived point | 1,711 / 1,267 | 1,625 / 1,185 | 1,805 / 1,511 | 1,539 / 1,134 |
+| Unchanged warm pass, wall only | 3.82 | 1.70 | 0.82 | 0.80 |
+
+The samples are noisy and do not increase monotonically with History. A control
+at 560 notes, with instrumentation disabled, took 14,374 CPU ms for two packed
+points and 5,672 CPU ms for cold open. The instrumented equivalents above are
+11,718 and 4,563 CPU ms. Separate runs cannot establish a precise probe-overhead
+percentage. They do show that the multi-second packing/import cost survives
+without instrumentation.
+
+At 1,120 notes, one measured durable command took 548 CPU ms and 617.82 wall ms.
+Its returned-state `structuredClone` took 391 CPU ms and 405.15 wall ms. It wrote
+735,796 bytes through two file writes and two renames, with four sync attempts.
+The six-command mean clone cost was 456.5 CPU ms. No full catalogue validation
+or static-field hydration occurred in those ordinary notes. The returned clone
+still includes the large catalogue. This is the fixture's `store.command` API;
+the live server's serialized response path has different return work
+(`app/storage/store.mjs:1128-1130`). Do not project that clone cost onto every
+live command.
+
+Packing two points made six stored-state imports, six task-field loads and two
+`hydrateHistory` calls. It read 6,625,816 bytes, wrote a 97,276-byte pack, made
+two sync attempts and unlinked two standalone files. Cold open imported the
+current state plus both archived points. It read 3,912,533 bytes and wrote the
+180-byte owner record. Disk measurements describe API calls and bytes, not
+uncached device traffic. After the six commands, `state.json` was 667,985 bytes
+at the 1,120 anchor and 739,445 bytes at the 1,300 anchor. These small-window
+directories are not measurements of full nominal fixture disk usage.
+Each packed point decompresses/parses about 57 MB of task JSON across its three
+imports. Across 560 points that is about 31.9 GB of expanded task JSON, although
+the shared compressed field occupies only about 1 MB on disk.
+
+The next table partitions CPU at the 1,120-note anchor. Rows are exclusive and
+add to the total. Catalogue work includes JSON shape checks, task row validation
+and catalogue maps/sets, including those built inside History replay. History
+checks exclude that catalogue work and separately timed JSON/clone operations.
+Static self work includes field checksums and post-validation normalization
+hashing; its JSON, gunzip and disk costs appear in their own rows.
+
+| Exclusive CPU milliseconds | Packing per point | Whole cold open |
+| --- | ---: | ---: |
+| Task-catalogue validation and indexes | 3,507.5 | 2,157 |
+| Static hydration/normalization self work | 491.0 | 609 |
+| History validation and replay self work | 1,641.0 | 1,045 |
+| Other state validation, including inside `hydrateHistory` | 110.0 | 16 |
+| JSON parse | 358.5 | 407 |
+| JSON stringify | 469.0 | 329 |
+| JSON equality self work, excluding its stringifies | 0 | 0 |
+| Gunzip spans | 758.0 | 749 |
+| Gzip spans | 8.0 | 0 |
+| Structured clone | 63.0 | 47 |
+| Filesystem calls | 31.5 | 31 |
+| History assembly and remaining work | 0 | 16 |
+| Total | 7,437.5 | 5,406 |
+
+Zero CPU means below accounting resolution. For example, pack comparison still
+took 8.90 wall ms per point, including its stringifies. The following nested
+table locates the import work. **Do not add nested rows to their parent.**
+The cold-open column covers three imports; packing covers three per point.
+
+| Inclusive path, CPU / wall ms | Packing per point | Whole cold open |
+| --- | ---: | ---: |
+| Stored-state import | 5,539.0 / 5,121.7 | 5,343 / 4,381.5 |
+| Static-field hydration within import, including read/gunzip/parse/hash | 1,398.5 / 895.8 | 1,624 / 754.3 |
+| Post-validation static normalization/hash within import | 367.0 / 423.8 | 329 / 360.5 |
+| Catalogue checks/indexes within import, exclusive of other work | 2,328.5 / 2,466.6 | 2,157 / 2,143.6 |
+| History checks within import, exclusive of catalogue/JSON/clone | 1,194.5 / 893.1 | 1,045 / 764.8 |
+| Other validation within import | 102.0 / 42.3 | 16 / 17.4 |
+| Additional `hydrateHistory`, outside the imports | 1,835.5 / 1,480.5 | No call |
+
+Of that additional `hydrateHistory` CPU per point, catalogue processing took
+1,179 ms, History checks 446.5 ms, JSON 202 ms and other validation 8 ms.
+Thus a span called History hydration is not a measure of History-only work.
+
+The repeated paths are visible at `app/storage/store.mjs:354-376`, `:777-791`
+and `:824`, `:842`, `:845`, `:854`. Static bytes are checksum-verified at
+`app/storage/static-field.mjs:15-29`. Catalogue traversal/index construction is
+at `app/core/state.mjs:604-632`, `:683-687`, `:778` and `:878-879`.
+Other History validation is at `:767-910`. JSON costs also include restored
+provenance and gameplay. The probe does not assign every JSON byte to tasks.
+
+### Applying the samples to one fixture build
+
+`save-storage-fixture-model.mjs` models the actual timestamps and retention
+selection. It interpolates the six-command means and packing CPU per point
+between anchors. Packing uses each preimage's completed-note count, not its age
+at the later pass. It also checks that delaying all packing to the final pass
+selects the same points. It does not execute the full fixture.
+
+| Timeline result | Count or time |
+| --- | ---: |
+| Growth ticks / expected ticks in the fixture clock formula | 8,218 / 9,517 |
+| Replacement preimage clock | 2024-12-20 12:00 UTC |
+| Final clock | 2026-10-01 12:00 UTC |
+| Pinned replacement plus durable-note preimages | 1 + 1,300 = 1,301 |
+| Newly packed points / remaining standalone points | 560 / 741 |
+| Packed preimages' completed-note positions | 0, 2, ..., 1,118 |
+| Scheduled selection passes plus final explicit pass | 26 + 1 |
+| First packing pass | Note 199, packing 9 points |
+| Modeled standalone stat visits in those passes | 12,319 |
+
+The replacement increments the 50-write maintenance counter. Selection passes
+therefore occur after notes 49, 99, and so on. Close adds an unchanged pass.
+Background scheduling can change intermediate scan counts and pack batches.
+The model uses two-point measured batches; normal batches allow 32 points or
+about 8 MiB. Larger batches amortize codec/pack overhead. Repeated per-point
+imports remain. These are limits on the extrapolation.
+
+| Fixture operation, interpolated PC CPU | Minutes | Share |
+| --- | ---: | ---: |
+| 1,300 durable commands | 10.79 | 15.4% |
+| Packing 560 distinct points once | 59.22 | 84.3% |
+| Preliminary growth, initial open and pinned replacement | 0.25 | 0.4% |
+| Total | 70.26 | 100% |
+
+| Exclusive cost across that estimate | CPU minutes | Share |
+| --- | ---: | ---: |
+| Task-catalogue validation and indexes | 30.54 | 43.5% |
+| Static hydration/normalization self work | 4.63 | 6.6% |
+| History checks/replay self work | 7.49 | 10.7% |
+| Other validation, including inside History hydration | 0.37 | 0.5% |
+| JSON parse/stringify/compare | 8.55 | 12.2% |
+| Gunzip spans | 7.71 | 11.0% |
+| Gzip spans | 0.19 | 0.3% |
+| Structured clone, mostly the command return | 9.36 | 13.3% |
+| Filesystem calls | 0.84 | 1.2% |
+| History assembly and remaining work | 0.58 | 0.8% |
+| Total | 70.26 | 100% |
+
+Cold opens are excluded: `fixture-group.mjs` never cold-reopens the group.
+The combined catalogue generation/engine/world setup took 25.77 CPU seconds.
+Catalogue generation and engine compilation are shared setup; only world
+construction belongs to each group. That combined phase is excluded rather
+than charged to every group. Catalogue-array preparation, registry/key setup,
+final state digests and metadata-only pass overhead are also excluded.
+Those omissions, batch size, GC and scheduling prevent an exact full-build
+prediction. Initial public-command growth took 0.87 CPU seconds. It cannot explain tens of
+CPU-minutes in this run.
+
+The PC estimate exceeds the reported 25 CPU-minutes by about 2.8 times.
+Replacing interpolation with sampled minimum/maximum costs gives roughly
+55-86 CPU-minutes. This is a sensitivity envelope, not a confidence interval.
+The measurement supplies enough repeated work to explain tens of CPU-minutes;
+it does **not** reproduce the Linux result or establish its exact percentages.
+There is no same-hardware Linux calibration. Do not invent a correction factor
+to force the result to 25 minutes.
+
+The largest measured cost is catalogue validation and index construction,
+amplified by repeated stored-state imports. Static reread/gunzip/parse/hash work
+adds to it. History is a secondary cost here. Moving History alone would leave
+the dominant catalogue work in place. First ship the bounded maintenance fix
+from stage 1, then rerun this probe and a bounded Linux fixture before choosing
+the active-tail format change.
+
+Final raw results and arithmetic remain locally under
+`.local/save-storage-attribution-1794206133868-e40cc38a/`.
+The uninstrumented control is under
+`.local/save-storage-attribution-1794205478949-071ac147/`.
+The scripts are committed; generated saves/results remain ignored. Assertions
+check retention success, CPU-category totals, repeat-pass writes, archive hash
+stability on reopen, retained timeline counts and delayed-packing selection.
+The smoke, nominal and control probes ran. Existing application tests were
+inspected only. No full suite or server was run.
