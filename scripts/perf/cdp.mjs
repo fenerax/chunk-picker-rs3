@@ -3,10 +3,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-export async function until(action, timeoutMs = 30000, interval = 50) {
+export async function until(action, timeoutMs = 30000, interval = 50, label = 'condition') {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) { const result = await action(); if (result) return result; await sleep(interval); }
-  throw new Error('Timed out waiting for the scratch benchmark.');
+  throw new Error(`Timed out waiting for ${label}.`);
 }
 // Browser.close acknowledges the request before Chrome finishes profile writes.
 // Give that owned process a chance to exit before the signal-based fallback.
@@ -62,7 +62,7 @@ export async function openChrome(executable, profile, options = {}, dependencies
     const port = requestedPort || await until(async () => {
       if (child.exitCode !== null) throw new Error('Chrome exited during startup.');
       try { return Number((await read(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); } catch { return false; }
-    });
+    }, 30000, 50, 'Chrome DevTools port file');
     if (!Number.isInteger(port) || port < 1024 || port > 65535 || [8788, 8789, 8790, 8791].includes(port)) throw new Error('Unsafe Chrome port.');
     const target = await until(async () => {
       if (child.exitCode !== null) throw new Error('Chrome exited during startup.');
@@ -70,7 +70,7 @@ export async function openChrome(executable, profile, options = {}, dependencies
         if (options.browser) return await (await request(`http://127.0.0.1:${port}/json/version`)).json();
         return (await (await request(`http://127.0.0.1:${port}/json`)).json()).find(item => item.type === 'page');
       } catch { return false; }
-    });
+    }, 30000, 50, 'Chrome debugger target');
     const endpoint = new URL(target.webSocketDebuggerUrl);
     if (endpoint.protocol !== 'ws:' || endpoint.hostname !== '127.0.0.1' || Number(endpoint.port) !== port
       || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new Error('Chrome debugger target escaped its owned loopback port.');
