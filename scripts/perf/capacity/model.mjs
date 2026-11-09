@@ -61,5 +61,6 @@ export const knownGaps = [
   'Default registry account/picker ceilings cannot hold every target layout. Profiles explicitly use proposed entity caps (3000/3500); runtime traffic/residency/deadline limits stay unchanged.',
   'Stored keys are issued offline through existing key/index APIs, bypassing setup rate/key admission. Runtime admission is unchanged and may reject the target.',
   'Every real durable command retains a preimage. A pinned replacement followed by 1000 History commands and 300 extra snapshots retains at least 1301 snapshots, rather than exactly 300; retention is not disabled or hand-edited.',
+  'Initial grown unlocks use one real replace-member command per member. Gameplay matches individual set-chunk commands, but initial History/Undo records batch map replacement rather than a separate action per chunk. All requested durable History/snapshot writes still run independently.',
   'Synthetic graph counts are configurable, not calibrated equivalence to a private full catalogue. Browser rendering, backup overlap, recovery/fault injection, near-import-limit state and multi-trial/soak acceptance need separate experiments.'
 ];

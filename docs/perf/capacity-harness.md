@@ -41,11 +41,18 @@ dataset's geographic crop.
 | step-up | Same stored population | 18 min: warm-up, 25/50/100/200/300/400 users, five-minute nominal return |
 
 Allow up to the 30-second client deadline for draining, plus server startup and
-shutdown. **Large-fixture generation time is not yet measured**; budget hours
-for the first scratch attempt. The nominal fixture performs roughly 0.5 million
+shutdown. Large-fixture generation remains a scratch-host measurement; the
+reduced Windows measurement and extrapolation below are planning estimates.
+The nominal fixture performs roughly 0.5 million
 durable History/snapshot writes, plus initial growth, key and registry writes.
 Its 200,000-task dependency graph and recovery preimages can need substantial
-RAM and disk. `fixture-progress.json` reports completed groups; `setupSeconds`
+RAM and disk. `fixture-progress.json` reports completed groups and the current
+group, roster, phase, completed/total operations, command type when starting an
+operation, timestamp, sequence and elapsed time. It publishes before slow work,
+on phase/group boundaries and at least once per second between operations.
+A synchronous command cannot emit a heartbeat while blocked; an unchanged
+timestamp identifies its last known phase. Writes are awaited and atomically
+renamed, so readers never see a partially written document. `setupSeconds`
 reports actual generation cost. A setup failure is preserved in `failure.json`;
 it is a failure envelope observation, not an invitation to change app limits.
 
@@ -106,6 +113,155 @@ ordinary retention can pack old preimages. Actual History/archive/snapshot count
 are recorded per group. A command's preimage is a retained snapshot: 1,000 History
 commands plus 300 extra writes produces **at least 1,301 snapshots**, not exactly
 300. Production retention (90 days and 1,000 active History entries) stays enabled.
+
+### Bounded initial growth and realism trade
+
+Initial unlocks use the existing real `replace-member` map-restore command,
+once per member, followed by the same skill, custom-task, completion, plugin
+observation and rule commands. Every command still crosses public `applyCommand`
+validation. The harness adds its synthetic catalogue as before; `openStore`
+fully validates the resulting seed before writing. There is no hand-authored
+History, validator bypass, shared mutable group template or app change.
+
+This bounds initial growth to `7 * rosterSize + 2` commands, at most 37,
+independent of unlocked-chunk count. The supplied nominal/step-up shape uses
+30 rather than 8,218 commands per grown group. Each batch and its inverse still
+grow with chunk count, but the harness no longer replays an expanding chain of
+thousands of unlock inverses on every unlock. A fresh group uses zero growth
+commands. Reuse/re-keying is unnecessary with this existing command.
+
+The trade is the initial action history: one batch map replacement and its Undo
+per member replaces thousands of individual unlock actions and inverses. The
+member progress, task catalogue, rule variants and observation dates match the
+individual-command recipe. Logical fixture dates still advance by the original
+unlock count. Initial revision numbers, History/archive content, preimage bytes
+and state digests change. This fixture models imported grown maps followed by
+normal edits, not a lifetime of individual manual unlocks. It therefore provides
+no evidence for the cost of retaining/replaying that older unlock history.
+The pinned replacement and all configured History/snapshot commands still run
+independently through the real store with unchanged retention. Registry,
+membership, sessions and keys still use their real APIs.
+
+Fast deterministic tests compare gameplay against individual unlocks across
+rosters 1–5 and all four variants, check batch Undo and rejection of malformed
+batch state, and exercise progress boundaries/throttling/write failures with an
+injected clock. They contain no elapsed-time assertions.
+
+### Command CPU probe
+
+```sh
+node scripts/perf/capacity/command-cost.mjs --profile smoke --output /tmp/rs3-command-smoke
+node scripts/perf/capacity/command-cost.mjs --profile nominal --output /tmp/rs3-command-nominal
+```
+
+The output directory must be new. `command-cost.json` contains every sample,
+state byte size, roster size, catalogue count and actual History count;
+`command-cost.md` is a short endpoint table. Three samples per cell follow one
+untimed warm-up; `--iterations` accepts 1–10. There are no timing assertions,
+server, network requests or durable writes. Every input has a genuine command
+History/Undo chain and crosses the real validator with the complete catalogue.
+Setup builds History before appending the inert catalogue to avoid charging
+catalogue cloning to each setup action. The measured calls include it fully.
+
+The matrix covers rosters 1–5, zero/half/maximum profile unlocks and
+zero/half/maximum configured History events. `historyEntries` includes batch
+growth events too. Each command changes a fresh copy of the same baseline;
+samples do not grow that baseline. The commands are `set-chunk`, `set-note` and
+`complete-task`. The script measures public `applyCommand` and the existing
+storage-owned `applyValidatedCommand` boundary separately. **Live
+`store.command` already uses `applyValidatedCommand`**, not the harness's public
+full-clone entry point (`app/storage/store.mjs`, command execution). Its input
+was validated at load, and it validates new gameplay/inverses. Public command
+cost alone cannot establish live save latency. Neither CPU column includes
+store serialization, retention, snapshot IO, hooks or HTTP/calculation work.
+
+On Windows the probe permits only a tiny `smoke` profile (at most 64 chunks,
+500 tasks and 20 History writes); use the same heavy-lock, priority and lease
+rules as the runner. The checked-in `profiles/smoke-fixture.json` is a reduced
+four-player shape, with 4 groups, 64 chunks, 500 tasks, 20 History writes and
+10 additional snapshot writes. Pass its path to either CLI. Nominal/step-up
+have identical fixture shapes; full-size command-cost and fixture estimates
+must be calibrated on Linux before making live-capacity claims.
+
+### Reduced measurement and generation estimate (2026-11-08)
+
+One Windows run used Node 24.21.0 at BelowNormal priority under the shared
+heavy lock, with `smoke-fixture.json`. The command probe and smoke ran
+sequentially; each lock lease stayed below ten minutes. No full suite,
+nominal/step-up fixture or repeated workload was run on the PC.
+[The measurement JSON](capacity-smoke-measurement.json) retains all CPU samples,
+resolved profile, source digests, per-group setup costs and the projection.
+The source is base `15c6b86` with the batching/progress changes, identified by
+the recorded working-tree digest. No capabilities or saves are published.
+
+The probe covers 45 baselines and 270 command/boundary cells. It compiled 567
+task rows from 500 synthetic challenges plus generated rows. Means below are
+for the grown endpoint (32 unlocks per member, 20 note History events plus
+one batch event per member); each cell has three samples after one warm-up.
+
+| Roster | State KiB | Public chunk / note / task ms | Storage chunk / note / task ms |
+| --- | --- | --- | --- |
+| 1 | 60.0 | 5.157 / 5.672 / 5.439 | 0.248 / 0.122 / 0.155 |
+| 2 | 61.0 | 5.781 / 6.148 / 5.823 | 0.278 / 0.271 / 0.221 |
+| 3 | 62.0 | 9.872 / 8.263 / 5.759 | 0.289 / 0.246 / 0.231 |
+| 4 | 62.9 | 6.875 / 5.275 / 4.766 | 0.308 / 0.432 / 0.206 |
+| 5 | 63.9 | 4.352 / 5.114 / 4.542 | 0.411 / 0.194 / 0.262 |
+
+These small-state results are noisy and non-monotonic. They show the cost of
+the public validation boundary, but do **not** establish a save-size growth
+rate or live capacity at 2,048 unlocks/member and 1,000 active History entries.
+The Linux profile matrix is required to answer whether per-action CPU grows
+materially at those sizes. The existing live storage boundary is substantially
+cheaper in this reduced sample; optimizing public `applyCommand` alone could
+miss the live bottleneck.
+
+Fixture setup took **24.312 seconds**; the whole smoke took 58.919 seconds.
+The fresh group took 1.612 seconds. Three grown groups took 4.453, 7.075 and
+4.864 seconds, including 0.551, 1.162 and 0.093 seconds of in-memory growth.
+Their durable phases (open, pinned replacement, 30 note writes, snapshot
+preparation) took 3.275, 4.426 and 4.191 seconds. Each used 30 growth commands,
+retained 31 real snapshots and finished with 31 active History entries.
+The initial grown saves were about 106.3 KiB, versus 52.4 KiB fresh.
+
+For **both nominal and step-up's 500-group fixture**, a write-count projection
+is **17.54 hours**, with **14.53–19.56 hours** from the observed durable-phase
+rate spread. The calculation uses 125 fresh and 375 grown groups, carries the
+measured non-durable group overhead, and scales each grown durable phase by
+`1301 / 31` (replacement plus configured note writes). Initialization is small
+at this reduced size and excluded from that formula.
+
+This is an optimistic **fixed-save-size scenario**, not a measured full-size
+completion time or an upper bound. Nominal has 400 times the input challenges,
+64 times the unlocked chunks and roughly 43 times the durable commands per
+grown group. Serialization, gzip preimages, registry/file-count growth and
+History packing can increase its per-write cost; the host/OS also differs.
+For sensitivity, assigning *all* durable-phase cost the 400-fold challenge
+increase produces about 289 days. That is not a forecast: the reduced sample
+does not separate fixed filesystem latency from byte-dependent CPU/IO well
+enough to choose between those models. Plan for at least day-scale setup,
+then measure a full-shape fresh/grown subset on Linux before scheduling all
+500 groups. Batching removes the observed unlock-chain blocker; it does not
+remove the approximately 488,000 real durable writes or certify a short run.
+
+The smoke drained 155/155 offered actions, with zero timeouts, client drops or
+stream failures and a clean shutdown. Five rejections occurred during warm-up.
+One measured Why action received an unintentional HTTP 409, correctly failing
+`expensiveWarm` and `nominalAdmission`. Cheap latency and event-loop gates
+passed. This observation is preserved without retry or an application change.
+All 12 focused harness tests passed; complete CI and hosted stability remain
+required before landing.
+
+### Save-path follow-up proposal (requires owner approval)
+
+Run the full command matrix and a full-shape grown-store subset on Linux,
+separating command CPU, retained-inverse validation, serialization, gzip,
+fsync and retention packing. Compare public `applyCommand` with the already
+optimized storage-owned path before attributing live latency to full-state
+validation. If the live path materially grows with save size, propose a
+separate save-path change scoped to the measured work, preserving full
+validation at load/import and equivalent validation/Undo/recovery guarantees
+for writes. Obtain the owner's approval for that design before implementing
+it. This PR changes no app code, limits, validation or retention.
 
 Seeds reproduce catalogue/roster/progress/action shapes. Application-issued UUIDs,
 session/key entropy and backup filenames remain intentionally random. The run

@@ -107,6 +107,8 @@ try {
     profile,profileDigest:digest(profile),setupSeconds,elapsedSeconds:(Date.now()-started)/1000,
     fixture:{groups:fixture.groups.length,characters:fixture.characters,logins:fixture.logins,keys:fixture.keys,gaps:fixture.gaps,planDigest:fixture.planDigest,
       catalogueDigest:fixture.catalogueDigest,catalogueBytes:fixture.catalogueBytes,engineCatalogueTasks:fixture.engineCatalogueTasks,
+      growthMode:fixture.growthMode,initializationMs:fixture.initializationMs,
+      setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,growthCommands,stateBytes})=>({index,grown,setupMs,growthMs,durableMs,growthCommands,stateBytes})),
       datasetDigest:fixture.datasetDigest,retention:fixture.groups.map(g=>({index:g.index,stateDigest:g.stateDigest,...g.retention,snapshots:g.retainedSnapshots}))},
     load,samples,telemetryErrors,shutdown};
   result.gates=evaluate(result);
