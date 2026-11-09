@@ -15,9 +15,10 @@ node scripts/perf/capacity/run.mjs --profile nominal --output /tmp/rs3-capacity-
 node scripts/perf/capacity/run.mjs --profile step-up --output /tmp/rs3-capacity-step-up
 ```
 
-Each output directory must be new; its parent must exist. Every command generates
-its own fixture before starting the timed server. Commands are independent, not
-an instruction to run them concurrently. The runner never accepts a server URL.
+Each output directory must be new; its parent must exist. A command generates
+its fixture before starting the timed server unless `--fixture-from` supplies
+a completed fixture. Commands are independent, not an instruction to run them
+concurrently. The runner never accepts a server URL.
 It binds its own child to loopback on port 0 (or a configured 8900–8999 port).
 `--host` accepts only literal loopback names; redirects are refused. Ports
 8788/8789 and arbitrary remote targets are refused. Inherited `RS3_*`, provider
@@ -41,13 +42,23 @@ dataset's geographic crop.
 | step-up | Same stored population | 18 min: warm-up, 25/50/100/200/300/400 users, five-minute nominal return |
 
 Allow up to the 30-second client deadline for draining, plus server startup and
-shutdown. **Large-fixture generation time is not yet measured**; budget hours
-for the first scratch attempt. The nominal fixture performs roughly 0.5 million
+shutdown. Large-fixture generation remains a scratch-host measurement; the
+reduced Windows measurement and extrapolation below are planning estimates.
+The nominal fixture performs roughly 0.5 million
 durable History/snapshot writes, plus initial growth, key and registry writes.
 Its 200,000-task dependency graph and recovery preimages can need substantial
-RAM and disk. `fixture-progress.json` reports completed groups; `setupSeconds`
-reports actual generation cost. A setup failure is preserved in `failure.json`;
-it is a failure envelope observation, not an invitation to change app limits.
+RAM and disk. `fixture-progress.json` reports fully completed `groups`,
+durably built `builtGroups`, and an `active` entry for each worker with its
+group, roster, phase, completed/total operations, command type when starting an
+operation, timestamp and sequence. The parent adds a global sequence and elapsed
+time. Workers publish before slow work, on phase/group boundaries and at least
+once per second between operations.
+A synchronous command cannot emit a heartbeat while blocked; an unchanged
+timestamp identifies its last known phase. Writes are awaited and atomically
+renamed, so readers never see a partially written document. `setupSeconds`
+reports actual generation or verified-copy cost. A setup failure is preserved
+in `failure.json`; it is a failure envelope observation, not an invitation to
+change app limits.
 
 On the shared Windows PC, run **only smoke**, at BelowNormal priority under
 the shared heavy lock from [testing](../testing.md), releasing within ten
@@ -106,6 +117,271 @@ ordinary retention can pack old preimages. Actual History/archive/snapshot count
 are recorded per group. A command's preimage is a retained snapshot: 1,000 History
 commands plus 300 extra writes produces **at least 1,301 snapshots**, not exactly
 300. Production retention (90 days and 1,000 active History entries) stays enabled.
+
+### Bounded initial growth and realism trade
+
+Initial unlocks use the existing real `replace-member` map-restore command,
+once per member, followed by the same skill, custom-task, completion, plugin
+observation and rule commands. Every command still crosses public `applyCommand`
+validation. The harness adds its synthetic catalogue as before; `openStore`
+fully validates the resulting seed before writing. There is no hand-authored
+History, validator bypass, shared mutable group template or app change.
+
+This bounds initial growth to `7 * rosterSize + 2` commands, at most 37,
+independent of unlocked-chunk count. The supplied nominal/step-up shape uses
+30 rather than 8,218 commands per grown group. Each batch and its inverse still
+grow with chunk count, but the harness no longer replays an expanding chain of
+thousands of unlock inverses on every unlock. A fresh group uses zero growth
+commands. Reuse/re-keying is unnecessary with this existing command.
+
+The trade is the initial action history: one batch map replacement and its Undo
+per member replaces thousands of individual unlock actions and inverses. The
+member progress, task catalogue, rule variants and observation dates match the
+individual-command recipe. Logical fixture dates still advance by the original
+unlock count. Initial revision numbers, History/archive content, preimage bytes
+and state digests change. This fixture models imported grown maps followed by
+normal edits, not a lifetime of individual manual unlocks. It therefore provides
+no evidence for the cost of retaining/replaying that older unlock history.
+The pinned replacement and all configured History/snapshot commands still run
+independently through the real store with unchanged retention. Registry,
+membership, sessions and keys still use their real APIs.
+
+Fast deterministic tests compare gameplay against individual unlocks across
+rosters 1–5 and all four variants, check batch Undo and rejection of malformed
+batch state, and exercise progress boundaries/throttling/write failures with an
+injected clock. They contain no elapsed-time assertions.
+
+### Parallel generation and fixture reuse
+
+Linux generation uses a bounded worker-thread pool, defaulting to
+`max(1, availableParallelism() - 2)` workers, capped by group count. Override it
+with `--fixture-workers 14` (1–256). Windows requires exactly one worker.
+The parent compiles the catalogue once and shares immutable task-row bytes;
+workers do not compile separate copies of the dependency graph. Each worker
+still owns its parsed rows, state and store allocations, so reduce the pool if
+the full fixture exceeds the scratch host's memory or disk throughput.
+
+The parent first provisions accounts, pickers and memberships in plan order
+through the real registry. Workers then build and durably write disjoint picker
+directories, each seeded by profile seed and group index. After all workers
+close, the parent issues sessions and keys and indexes capabilities in plan
+order through the real APIs. Workers never open the shared registry or invite
+store. Shared-file writes remain serialized; durable picker writes retain the
+application's History, snapshot and retention behavior. Parallelism changes
+setup scheduling, with no additional gameplay or History realism trade.
+
+Results stay in plan order. `fixtureDigest` covers configuration, catalogue and
+ordered logical group states, revisions and retained History/snapshot counts.
+It is independent of worker count. Application-generated credentials, UUIDs,
+backup names and archive names remain random; archive contents replace archive
+names in the logical digest. It does not promise byte-identical regenerated
+credentials. Exact file hashes separately protect fixture reuse.
+
+For nominal and step-up on the same host, generate a pristine source once and
+copy it into each independent output:
+
+```sh
+node scripts/perf/capacity/run.mjs --profile nominal --fixture-workers 14 --fixture-only --output /tmp/rs3-fixture
+node scripts/perf/capacity/run.mjs --profile step-up --fixture-from /tmp/rs3-fixture --output /tmp/rs3-step-up
+node scripts/perf/capacity/run.mjs --profile nominal --fixture-from /tmp/rs3-fixture --output /tmp/rs3-nominal
+```
+
+`--fixture-only` closes all stores and writes `fixture-complete.json` with
+configuration/code digests and a SHA-256 inventory of fixture-owned files.
+`--fixture-from` requires that seal, matches the selected dataset and fixture
+configuration, and hashes every copied byte before publishing completion.
+Traffic stages and profile name may differ; seed, catalogue, fixture, entity
+caps and code must match. Incomplete, changed or incompatible sources fail
+setup. Logs and earlier results are excluded. Backup mtimes are preserved
+because retention uses historical age. Copy progress reports files and bytes.
+Keep the pristine source unused by a server: runtime writes invalidate its
+seal. Each output copy consumes its own disk space; copy/hash cost is additional
+to generation and has not been measured at the full shape.
+
+`tests/capacity-fixture.test.mjs` checks sealed reuse, tampering, incomplete
+sources, worker failure and the real Why contract. Its Linux case compares
+one versus three real workers on the same tiny profile, without timing
+assertions. That case is explicitly skipped on Windows to respect its
+one-worker limit; Linux CI must supply the parallel proof.
+
+### Command CPU probe
+
+```sh
+node scripts/perf/capacity/command-cost.mjs --profile smoke --output /tmp/rs3-command-smoke
+node scripts/perf/capacity/command-cost.mjs --profile nominal --output /tmp/rs3-command-nominal
+```
+
+The output directory must be new. `command-cost.json` contains every sample,
+state byte size, roster size, catalogue count and actual History count;
+`command-cost.md` is a short endpoint table. Three samples per cell follow one
+untimed warm-up; `--iterations` accepts 1–10. There are no timing assertions,
+server, network requests or durable writes. Every input has a genuine command
+History/Undo chain and crosses the real validator with the complete catalogue.
+Setup builds History before appending the inert catalogue to avoid charging
+catalogue cloning to each setup action. The measured calls include it fully.
+
+The matrix covers rosters 1–5, zero/half/maximum profile unlocks and
+zero/half/maximum configured History events. `historyEntries` includes batch
+growth events too. Each command changes a fresh copy of the same baseline;
+samples do not grow that baseline. The commands are `set-chunk`, `set-note` and
+`complete-task`. The script measures public `applyCommand` and the existing
+storage-owned `applyValidatedCommand` boundary separately. **Live
+`store.command` already uses `applyValidatedCommand`**, not the harness's public
+full-clone entry point (`app/storage/store.mjs`, command execution). Its input
+was validated at load, and it validates new gameplay/inverses. Public command
+cost alone cannot establish live save latency. Neither CPU column includes
+store serialization, retention, snapshot IO, hooks or HTTP/calculation work.
+
+On Windows the probe permits only a tiny `smoke` profile (at most 64 chunks,
+500 tasks and 20 History writes); use the same heavy-lock, priority and lease
+rules as the runner. The checked-in `profiles/smoke-fixture.json` is a reduced
+four-player shape, with 4 groups, 64 chunks, 500 tasks, 20 History writes and
+10 additional snapshot writes. Pass its path to either CLI. Nominal/step-up
+have identical fixture shapes; full-size command-cost and fixture estimates
+must be calibrated on Linux before making live-capacity claims.
+
+### Reduced measurement and generation estimate (2026-11-08)
+
+One Windows run used Node 24.21.0 at BelowNormal priority under the shared
+heavy lock, with `smoke-fixture.json`. The command probe and smoke ran
+sequentially; each lock lease stayed below ten minutes. No full suite,
+nominal/step-up fixture or repeated workload was run on the PC.
+[The measurement JSON](capacity-smoke-measurement.json) retains all CPU samples,
+resolved profile, source digests, per-group setup costs and the projection.
+The source is base `15c6b86` with the batching/progress changes, identified by
+the recorded working-tree digest. No capabilities or saves are published.
+
+The probe covers 45 baselines and 270 command/boundary cells. It compiled 567
+task rows from 500 synthetic challenges plus generated rows. Means below are
+for the grown endpoint (32 unlocks per member, 20 note History events plus
+one batch event per member); each cell has three samples after one warm-up.
+
+| Roster | State KiB | Public chunk / note / task ms | Storage chunk / note / task ms |
+| --- | --- | --- | --- |
+| 1 | 60.0 | 5.157 / 5.672 / 5.439 | 0.248 / 0.122 / 0.155 |
+| 2 | 61.0 | 5.781 / 6.148 / 5.823 | 0.278 / 0.271 / 0.221 |
+| 3 | 62.0 | 9.872 / 8.263 / 5.759 | 0.289 / 0.246 / 0.231 |
+| 4 | 62.9 | 6.875 / 5.275 / 4.766 | 0.308 / 0.432 / 0.206 |
+| 5 | 63.9 | 4.352 / 5.114 / 4.542 | 0.411 / 0.194 / 0.262 |
+
+These small-state results are noisy and non-monotonic. They show the cost of
+the public validation boundary, but do **not** establish a save-size growth
+rate or live capacity at 2,048 unlocks/member and 1,000 active History entries.
+The Linux profile matrix is required to answer whether per-action CPU grows
+materially at those sizes. The existing live storage boundary is substantially
+cheaper in this reduced sample; optimizing public `applyCommand` alone could
+miss the live bottleneck.
+
+Fixture setup took **24.312 seconds**; the whole smoke took 58.919 seconds.
+The fresh group took 1.612 seconds. Three grown groups took 4.453, 7.075 and
+4.864 seconds, including 0.551, 1.162 and 0.093 seconds of in-memory growth.
+Their durable phases (open, pinned replacement, 30 note writes, snapshot
+preparation) took 3.275, 4.426 and 4.191 seconds. Each used 30 growth commands,
+retained 31 real snapshots and finished with 31 active History entries.
+The initial grown saves were about 106.3 KiB, versus 52.4 KiB fresh.
+
+The original **serial** write-count projection for nominal and step-up's
+500-group fixture was **17.54 hours**, with **14.53–19.56 hours** from the
+observed durable-phase rate spread. It uses 125 fresh and 375 grown groups and
+scales each grown durable phase by `1301 / 31` (replacement plus configured
+note writes). The dominant phase is the real durable History/snapshot writes.
+
+At **14 workers**, the same measured rate gives **about 87 minutes of setup**:
+
+```text
+grown durable cost = mean(3.275, 4.426, 4.191) seconds * 1301 / 31
+                   = 166.346 seconds per full-write-count grown group
+parallel durable work = 166.346 * 375 grown groups / 14 / 60 = 74.262 minutes
+other work = original 17.540011 hours * 60 - 74.261789 * 14 = 12.736 minutes
+setup estimate = 74.262 + 12.736 = 86.997 minutes
+```
+
+All other measured group work, including fresh groups and in-memory growth,
+is conservatively left serial in this model. Dividing everything by 14 would
+give 75.171 minutes. The implementation also parallelizes fresh-group stores
+and growth; shared registry/session/key work stays serial. Initialization,
+completion hashing and copying are additional costs. One generation plus the
+62-minute nominal run and 18-minute step-up would consume about **167 minutes**
+before those additional costs. The three-hour scratch budget is therefore a
+planning target that still needs full-shape calibration, not a proven fit.
+
+This is an optimistic **fixed-save-size scenario**, not a measured full-size
+completion time or an upper bound. Nominal has 400 times the input challenges,
+64 times the unlocked chunks and roughly 43 times the durable commands per
+grown group. Serialization, gzip preimages, registry/file-count growth and
+History packing can increase its per-write cost; the host/OS also differs.
+The reduced sample does not separate fixed filesystem latency from
+byte-dependent CPU/IO well enough to estimate full-shape scaling. Fourteen
+workers may also contend for disk and memory. Measure a full-shape fresh/grown
+subset on Linux before scheduling all 500 groups. Batching removes the observed
+unlock-chain blocker and the pool distributes independent stores; both retain
+the approximately 488,000 real durable writes.
+
+The smoke drained 155/155 offered actions, with zero timeouts, client drops or
+stream failures and a clean shutdown. Five rejections occurred during warm-up.
+One measured Why action received an unintentional HTTP 409, correctly failing
+`expensiveWarm` and `nominalAdmission`. Cheap latency and event-loop gates
+passed. This observation is preserved without retry or an application change.
+All 12 focused harness tests passed at that earlier checkpoint. The follow-up
+below diagnoses that Why failure; the original observation stays recorded.
+
+### Why 409 verdict and follow-up verification
+
+The recurring Why 409 was a **driver prerequisite error**, reproducible with no
+concurrent writer. The old driver selected an arbitrary catalogue ID after
+reading state. Why reads bounded saved evidence and deliberately does not
+compute an arbitrary task's results on a cache miss. The UI first calculates a
+task list, then asks Why for a returned row at that list's `stateRevision`.
+See `app/task-why-http.mjs`, the Why route in `app/picker-context.mjs`, and the
+`why-task` operation in `app/tasks/worker.mjs`.
+
+Minimal synthetic reproduction, also covered by the new real HTTP test:
+
+1. Start an isolated synthetic server on port 0, without prediction prewarming
+   or any writers; observe revision 0.
+2. Request `/api/task-why?memberId=owner&taskId=<catalogue-id>&revision=0&view=display-v1`.
+   It returns 409 `TASK_WHY_UNAVAILABLE`; the store is still at revision 0.
+3. Request `/api/tasks?memberId=owner&view=play-v1`; use a returned task ID and
+   its `stateRevision` for Why. It returns 200 at the same revision.
+4. Advance the store with a real note edit, then reuse the previous revision
+   for Why. It returns a genuine stale-revision 409.
+
+The driver now follows the list/row/revision flow for How and Why, without
+retries. Empty task lists are explicit outcomes. Error observations retain
+safe codes and request/response revisions. Only the deliberately stale edit
+request to `/api/command` is marked intentional. Other 409s, including Why
+unavailability and a real concurrent revision race, remain unexpected and fail
+the relevant gates. No app contract, app code or admission limit changed.
+
+One subsequent Windows verification used the same reduced profile, one worker,
+BelowNormal priority and the shared heavy lock. A pristine fixture completed
+in **14.346 seconds**; copying and verifying it for the smoke took **2.902
+seconds**. Its logical fixture digest matched, and all four saved-state digests
+matched the earlier smoke. The single offered Why succeeded at revision 3.
+All 155 arrivals completed, with no timeout, drop, stream failure or forced
+shutdown. Five warm-up rejections and three other unexpected 409s remained
+visible (Preview, task-miss and group-task-view). The two measured conflicts
+failed expensive latency/admission; event-loop p99 also failed at 60.031 ms.
+This functional smoke does not recalibrate full-size generation throughput or
+establish capacity. [Follow-up evidence](capacity-followup-measurement.json)
+records the source digest, phase timings, conflicts and estimate inputs.
+
+The focused tests passed **17 cases, with one Linux parallel case skipped on
+Windows**. Linux parallel execution, complete CI and hosted stability remain
+required before landing. No full suite, nominal/step-up workload or repeated
+benchmark loop was run on the shared PC.
+
+### Save-path follow-up proposal (requires owner approval)
+
+Run the full command matrix and a full-shape grown-store subset on Linux,
+separating command CPU, retained-inverse validation, serialization, gzip,
+fsync and retention packing. Compare public `applyCommand` with the already
+optimized storage-owned path before attributing live latency to full-state
+validation. If the live path materially grows with save size, propose a
+separate save-path change scoped to the measured work, preserving full
+validation at load/import and equivalent validation/Undo/recovery guarantees
+for writes. Obtain the owner's approval for that design before implementing
+it. This PR changes no app code, limits, validation or retention.
 
 Seeds reproduce catalogue/roster/progress/action shapes. Application-issued UUIDs,
 session/key entropy and backup filenames remain intentionally random. The run

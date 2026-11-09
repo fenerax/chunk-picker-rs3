@@ -1,15 +1,119 @@
 // @test quick shared dataset=open-f2p
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planFixture, catalogue, loopback, digest } from '../scripts/perf/capacity/model.mjs';
+import { planFixture, catalogue, loopback, digest, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
 import { arrivals, dispatch, stageWindow } from '../scripts/perf/capacity/scheduler.mjs';
-import { outcomeCounts, drive, prepareCohorts, consumeStream } from '../scripts/perf/capacity/driver.mjs';
+import { outcomeCounts, measuredOutcome, drive, prepareCohorts, consumeStream, explainAction } from '../scripts/perf/capacity/driver.mjs';
+import { fixtureWorkers } from '../scripts/perf/capacity/fixture-pool.mjs';
 import { processTree } from '../scripts/perf/capacity/telemetry.mjs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testRunPolicy, classifyTest } from '../scripts/test-selection.mjs';
 import { evaluate } from '../scripts/perf/capacity/report.mjs';
+import { growthCommands, fixtureProgress, alternateNeighborMode } from '../scripts/perf/capacity/growth.mjs';
+import { probeLimits } from '../scripts/perf/capacity/command-cost.mjs';
+import { createGroupState, applyCommand, validateState } from '../app/core/state.mjs';
+import { createRuleRegistry } from '../app/core/rules.mjs';
+import { buildWorld } from '../app/data/world.mjs';
+
+test('fixture worker defaults respect the host and explicit limits', () => {
+  assert.equal(fixtureWorkers(undefined, { platform: 'linux', cores: 16 }), 14);
+  assert.equal(fixtureWorkers(undefined, { platform: 'linux', cores: 1 }), 1);
+  assert.equal(fixtureWorkers(undefined, { platform: 'win32', cores: 16 }), 1);
+  assert.equal(fixtureWorkers(14, { platform: 'linux', groups: 2 }), 2);
+  assert.throws(() => fixtureWorkers(2, { platform: 'win32' }), /one worker/);
+  assert.throws(() => fixtureWorkers(0, { platform: 'linux' }), /workers/);
+});
+
+test('explanations select a calculated row and its revision; unknown and raced 409s stay unexpected', async () => {
+  const calls = [], client = { memberId: 'owner' };
+  await explainAction(async (_, route) => {
+    calls.push(route);
+    return { tasks: [{ id: 'synthetic-current-task' }], stateRevision: 42 };
+  }, client, 'why', 9);
+  assert.equal(calls[0], '/api/tasks?memberId=owner&view=play-v1');
+  assert.match(calls[1], /taskId=synthetic-current-task&revision=42&view=display-v1$/);
+  await assert.rejects(explainAction(async () => ({ tasks: [], stateRevision: 42 }), client, 'why', 9), error => error.status === 'empty-task-list');
+  for (const code of ['TASK_WHY_UNAVAILABLE', undefined]) {
+    let count = 0;
+    await assert.rejects(explainAction(async () => {
+      if (++count === 1) return { tasks: [{ id: 'synthetic-current-task' }], stateRevision: 42 };
+      throw Object.assign(new Error('Synthetic conflict'), { status: 409, code });
+    }, client, 'why', 0), error => error.status === 409);
+    assert.equal(count, 2, 'explanations never retry');
+    const outcome = { status: 409, intentionalConflict: true, requests: [{ route: '/api/task-why', status: 409, errorCode: code, intentionalConflict: false }] };
+    assert.equal(outcomeCounts(outcome).unexpectedFailures, 1);
+    assert.equal(outcomeCounts(outcome).intentionalConflicts, 0);
+  }
+  assert.equal(outcomeCounts({ status: 409, intentionalConflict: true,
+    requests: [{ route: '/api/command', status: 409, intentionalConflict: true }] }).intentionalConflicts, 1);
+});
+
+test('batched unlocks match individual-command gameplay for every roster and rule variant', () => {
+  const data = catalogue({ chunks: 8, tasks: 1, dependencyDepth: 1, crossLinks: 1 });
+  const world = syntheticWorld(data, buildWorld), registry = createRuleRegistry(), chunks = Object.keys(data.chunks);
+  for (let size = 1; size <= 5; size++) for (let variant = 0; variant < 4; variant++) {
+    const members = Array.from({ length: size }, (_, i) => ({ id: i ? `member${i + 1}` : 'owner', name: `Synthetic ${i + 1}` }));
+    const initial = createGroupState(members, registry), before = structuredClone(initial);
+    let batched = initial, reference = initial, tick = 0, referenceTick = 0, commands = 0;
+    const base = Date.UTC(2026, 9, 1), at = value => base + value * 12 * 3600000;
+    for (const { command, ticks = 1 } of growthCommands(initial, { index: 42, variant }, chunks, { unlockFraction: .5 }, () => at(tick), registry)) {
+      tick += ticks; commands++;
+      batched = applyCommand(batched, command, { world, registry, now: at(tick) });
+      if (command.type === 'replace-member') {
+        for (const chunkId of command.member.unlocked) reference = applyCommand(reference,
+          { type: 'set-chunk', memberId: command.memberId, chunkId, status: 'unlocked' }, { world, registry, now: at(++referenceTick) });
+      } else reference = applyCommand(reference, command, { world, registry, now: at(++referenceTick) });
+    }
+    const gameplay = ({ history, revision, ...state }) => state;
+    assert.deepEqual(gameplay(batched), gameplay(reference));
+    assert.deepEqual(initial, before);
+    assert.equal(tick, referenceTick);
+    assert.equal(commands, size * 7 + 2);
+    assert.equal(batched.history.filter(event => event.type === 'replace-member').length, size);
+    assert.deepEqual(validateState(batched, registry), batched);
+    const undone = applyCommand(batched, { type: 'undo', undoRevision: 1 }, { world, registry, now: base });
+    assert.deepEqual(undone.members[0].unlocked, []);
+    assert.deepEqual(undone.members.slice(1), batched.members.slice(1));
+    assert.deepEqual(undone.members[0].completedTasks, batched.members[0].completedTasks);
+  }
+  const initial = createGroupState([{ id: 'owner', name: 'Synthetic invalid batch' }], registry);
+  const command = growthCommands(initial, { index: 0, variant: 0 }, [chunks[0], chunks[0]], { unlockFraction: 1 }, () => 0).next().value.command;
+  assert.throws(() => applyCommand(initial, command, { world, registry }), /duplicate/i);
+  assert.equal([...growthCommands(initial, { index: 0, variant: 0 }, Array(2048).fill(chunks[0]), { unlockFraction: 1 }, () => 0)].length, 9);
+});
+
+test('fixture progress exposes in-group work, endpoints and stalls with serialized bounded writes', async () => {
+  let now = 0, release;
+  const writes = [];
+  const progress = fixtureProgress(async value => { writes.push(value); if (value.phase === 'open-store') await new Promise(resolve => { release = resolve; }); }, { now: () => now });
+  const update = { groups: 125, characters: 500, groupIndex: 125, phase: 'growth', completed: 0, total: 30 };
+  await progress(update);
+  await progress({ ...update, completed: 1 });
+  assert.equal(writes.length, 1);
+  now = 1000;
+  await progress({ ...update, completed: 10 });
+  await progress({ ...update, completed: 30 });
+  const pending = progress({ ...update, phase: 'open-store', completed: 0, total: 1 });
+  assert.equal(writes.at(-1).phase, 'open-store');
+  assert.equal(writes.at(-1).groups, 125);
+  assert.equal(writes.at(-1).completed, 0);
+  release(); await pending;
+  await progress({ ...update, groupIndex: 126, completed: 1 });
+  await progress({ groups: 500, characters: 2000, phase: 'complete', completed: 500, total: 500 });
+  assert.deepEqual(writes.map(row => row.sequence), [1, 2, 3, 4, 5, 6]);
+  assert.equal(writes[1].updatedAt, new Date(1000).toISOString());
+  await assert.rejects(fixtureProgress(async () => { throw new Error('Synthetic progress write failure'); })(update), /progress write failure/);
+});
+
+test('command CPU probe refuses large Windows fixtures and unbounded samples', () => {
+  const smoke = { name: 'smoke', catalogue: { chunks: 64, tasks: 500 }, fixture: { historyEvents: 20, unlockFraction: .5 } };
+  assert.doesNotThrow(() => probeLimits(smoke, 3, 'win32'));
+  for (const large of [{ ...smoke, name: 'nominal' }, { ...smoke, catalogue: { chunks: 4096, tasks: 200000 } },
+    { ...smoke, fixture: { ...smoke.fixture, historyEvents: 1000 } }]) assert.throws(() => probeLimits(large, 3, 'win32'), /tiny smoke/);
+  assert.throws(() => probeLimits(smoke, 11, 'linux'), /iterations/);
+});
 
 test('capacity shapes reproduce the mixed 2000-slot contract and refuse unsafe targets',()=>{
   const profile={seed:'synthetic-42',fixture:{groups:500,rosterMix:[1,1,1,1,6],freshFraction:.25}};
@@ -60,6 +164,24 @@ test('fast unexpected HTTP and network failures fail measured latency and admiss
   assert.equal(gates.nominalAdmission.intentionalConflicts,1);assert.equal(gates.nominalAdmission.unsupported,1);
   assert.equal(gates.nominalAdmission.validHttpRequests,1);
   assert.equal(outcomeCounts({status:409,requests:[{status:409}]}).unexpectedFailures,1);
+});
+
+test('grown variants pick a neighbour mode the selected dataset accepts',()=>{
+  const registry=createRuleRegistry(), options=registry.get('roll.neighborMode').options;
+  assert.ok(options.includes(alternateNeighborMode(registry)));
+  assert.notEqual(alternateNeighborMode(registry),'accessible');
+  assert.equal(alternateNeighborMode({get:()=>({options:['accessible','frontier','manual']})}),'frontier');
+  assert.equal(alternateNeighborMode({get:()=>({options:['accessible','geometric','manual']})}),'geometric');
+});
+
+test('explanations without a task row fail visibly and never count as measured latency',()=>{
+  const empty={status:'empty-task-list',requests:[{status:200,route:'/api/tasks'}]};
+  assert.equal(outcomeCounts(empty).unexpectedFailures,1);
+  assert.equal(measuredOutcome(empty),false);
+  const noPool={status:'empty-pool',requests:[{status:200,route:'/api/tasks'}]};
+  assert.equal(outcomeCounts(noPool).unexpectedFailures,0);
+  assert.equal(measuredOutcome(noPool),false);
+  assert.equal(measuredOutcome({status:200,requests:[{status:200}]}),true);
 });
 
 test('arrivals and telemetry share the post-sample start and exclude boundary-spanning resource windows',async()=>{

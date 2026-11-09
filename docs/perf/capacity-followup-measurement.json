@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "baseCommit": "ad5f99594d021016047b0081f0df1a9416a94625",
+    "uncommittedHarnessChanges": true,
+    "sourceTreeDigest": "c87e8dee86beb61deccc460fb4a9f4cf231b9b1eeefb8d023788fe6f397990d9",
+    "fixtureImplementationDigest": "1488ad14765ae916203984417894cb9a21db5cb43df98d6a91a017ced30611e5"
+  },
+  "conditions": "One functional Windows verification, Node 24.21.0, BelowNormal, shared heavy lock, one fixture worker; focused tests then pristine generation then one reused smoke, all sequential within one lease. Synthetic reduced smoke only; shared-host scheduling and GC are uncontrolled.",
+  "profile": {
+    "name": "smoke",
+    "seed": "capacity-1729",
+    "port": 0,
+    "entityCaps": {
+      "accounts": 3000,
+      "pickers": 3500,
+      "capabilities": 20000
+    },
+    "catalogue": {
+      "chunks": 64,
+      "tasks": 500,
+      "dependencyDepth": 4,
+      "crossLinks": 2
+    },
+    "fixture": {
+      "groups": 4,
+      "rosterMix": [
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "freshFraction": 0.25,
+      "unlockFraction": 0.5,
+      "historyEvents": 20,
+      "snapshots": 10,
+      "keysPerMember": 3
+    },
+    "requestDeadlineMs": 30000,
+    "maxClientInFlight": 100,
+    "sampleSeconds": 2,
+    "diskSampleSeconds": 5,
+    "osReserveBytes": 2147483648,
+    "upstreamScenarios": [
+      "ok"
+    ],
+    "stages": [
+      {
+        "name": "warmup",
+        "seconds": 5,
+        "users": 8,
+        "activeGroups": 2,
+        "browserPerSecond": 4,
+        "pluginPerSecond": 2,
+        "syncPerMinute": 0,
+        "classification": "nominal",
+        "measured": false
+      },
+      {
+        "name": "smoke",
+        "seconds": 15,
+        "users": 8,
+        "activeGroups": 2,
+        "browserPerSecond": 4,
+        "pluginPerSecond": 2,
+        "syncPerMinute": 12,
+        "classification": "nominal",
+        "measured": true
+      }
+    ],
+    "streamHeaderDeadlineMs": 5000
+  },
+  "generation": {
+    "setupSeconds": 14.346,
+    "workers": 1,
+    "fixtureDigest": "13a703ee43a357c6d4e4c84e6cbc9ad5ea42dbdbdfeea103086ef223253496ca",
+    "initializationMs": 2486.76,
+    "files": 116,
+    "bytes": 1356401,
+    "setup": [
+      {
+        "index": 0,
+        "grown": false,
+        "setupMs": 1078.4706000000006,
+        "growthMs": 0.0009000000000014552,
+        "durableMs": 712.6574,
+        "registryMs": 97.29230000000007,
+        "capabilitiesMs": 230.61419999999998,
+        "growthCommands": 0,
+        "stateBytes": 53663
+      },
+      {
+        "index": 1,
+        "grown": true,
+        "setupMs": 1803.4982000000005,
+        "growthMs": 116.55319999999938,
+        "durableMs": 1286.2994999999992,
+        "registryMs": 113.7772,
+        "capabilitiesMs": 241.1278000000002,
+        "growthCommands": 30,
+        "stateBytes": 108855
+      },
+      {
+        "index": 2,
+        "grown": true,
+        "setupMs": 2327.004800000002,
+        "growthMs": 99.51279999999952,
+        "durableMs": 1734.5837000000001,
+        "registryMs": 112.77190000000019,
+        "capabilitiesMs": 329.47360000000117,
+        "growthCommands": 30,
+        "stateBytes": 108850
+      },
+      {
+        "index": 3,
+        "grown": true,
+        "setupMs": 1960.6489000000015,
+        "growthMs": 107.96300000000156,
+        "durableMs": 1315.3804,
+        "registryMs": 177.83069999999998,
+        "capabilitiesMs": 312.3051000000014,
+        "growthCommands": 30,
+        "stateBytes": 108855
+      }
+    ],
+    "retention": [
+      {
+        "index": 0,
+        "stateDigest": "a83ce866fb350fde42ef75052ad771e9f69feac5db0acab93b7b75734fdc82d7",
+        "policy": {
+          "backupDays": 90,
+          "historyEntries": 1000
+        },
+        "activeHistoryEntries": 0,
+        "historyArchives": 0,
+        "snapshots": 0
+      },
+      {
+        "index": 1,
+        "stateDigest": "a8f0f35df36883a0f145ea315978d2cfca9dd060083ba42d0966d4ed5b25e2a8",
+        "policy": {
+          "backupDays": 90,
+          "historyEntries": 1000
+        },
+        "activeHistoryEntries": 31,
+        "historyArchives": 0,
+        "snapshots": 31
+      },
+      {
+        "index": 2,
+        "stateDigest": "777b35047ef483778e8a9769f86fd7020e4e2369b1fef2cc3a6e142dc45e7742",
+        "policy": {
+          "backupDays": 90,
+          "historyEntries": 1000
+        },
+        "activeHistoryEntries": 31,
+        "historyArchives": 0,
+        "snapshots": 31
+      },
+      {
+        "index": 3,
+        "stateDigest": "84744e9b10d4c477aa0bf504adc0cf8b20ed73df1699f9332c90cccc6b445cd1",
+        "policy": {
+          "backupDays": 90,
+          "historyEntries": 1000
+        },
+        "activeHistoryEntries": 31,
+        "historyArchives": 0,
+        "snapshots": 31
+      }
+    ]
+  },
+  "reuse": {
+    "setupSeconds": 2.902,
+    "fixtureDigest": "13a703ee43a357c6d4e4c84e6cbc9ad5ea42dbdbdfeea103086ef223253496ca",
+    "reused": true
+  },
+  "smoke": {
+    "stats": {
+      "offered": 155,
+      "completed": 155,
+      "httpRequests": 179,
+      "httpBytes": 5287824,
+      "httpErrors": 8,
+      "rejects": 5,
+      "timeouts": 0,
+      "conflicts": 3,
+      "intentionalConflicts": 0,
+      "unsupported": 4,
+      "clientDrops": 0,
+      "streamOpened": 16,
+      "streamRejected": 0,
+      "streamUnexpectedEnds": 0,
+      "streamEstablishmentFailures": 0
+    },
+    "gates": {
+      "cheapWarm": "pass",
+      "expensiveWarm": "fail",
+      "cold": "not-measured",
+      "eventPropagation": "not-measured",
+      "nominalAdmission": "fail",
+      "cpu": "unavailable",
+      "eventLoop": "fail",
+      "memory": "unavailable",
+      "client": "pass",
+      "isolationDurability": "not-measured",
+      "overloadObservations": "not-measured",
+      "recoveryHTTP": "not-measured",
+      "overloadRecovery": "not-measured",
+      "backupRecovery": "not-measured",
+      "workloadCoverage": "incomplete"
+    },
+    "eventLoopWorstWindowP99Ms": 60.030975,
+    "shutdown": {
+      "forced": false,
+      "exitCode": 0,
+      "signal": null
+    },
+    "explanationsAndConflicts": [
+      {
+        "id": 4,
+        "stage": 0,
+        "action": "preview",
+        "status": 409,
+        "intentionalConflict": false,
+        "requests": [
+          {
+            "route": "/api/state",
+            "status": 200,
+            "responseRevision": 62
+          },
+          {
+            "route": "/api/predict",
+            "status": 409,
+            "intentionalConflict": false
+          }
+        ]
+      },
+      {
+        "id": 67,
+        "stage": 1,
+        "action": "why",
+        "status": 200,
+        "intentionalConflict": false,
+        "requests": [
+          {
+            "route": "/api/tasks",
+            "status": 200,
+            "responseRevision": 3
+          },
+          {
+            "route": "/api/task-why",
+            "status": 200,
+            "requestRevision": 3,
+            "responseRevision": 3
+          }
+        ]
+      },
+      {
+        "id": 90,
+        "stage": 1,
+        "action": "task-miss",
+        "status": 409,
+        "intentionalConflict": false,
+        "requests": [
+          {
+            "route": "/api/state",
+            "status": 200,
+            "responseRevision": 68
+          },
+          {
+            "route": "/api/command",
+            "status": 200,
+            "requestRevision": 68,
+            "responseRevision": 69
+          },
+          {
+            "route": "/api/tasks",
+            "status": 409,
+            "intentionalConflict": false
+          }
+        ]
+      },
+      {
+        "id": 99,
+        "stage": 1,
+        "action": "group-task-view",
+        "status": 409,
+        "intentionalConflict": false,
+        "requests": [
+          {
+            "route": "/api/state",
+            "status": 200,
+            "responseRevision": 69
+          },
+          {
+            "route": "/api/tasks",
+            "status": 409,
+            "requestRevision": 69,
+            "intentionalConflict": false
+          }
+        ]
+      }
+    ]
+  },
+  "whyReproduction": {
+    "concurrentWriters": 0,
+    "beforeRevision": 0,
+    "afterRevision": 0,
+    "beforeTaskList": {
+      "status": 409,
+      "code": "TASK_WHY_UNAVAILABLE"
+    },
+    "taskList": {
+      "status": 200,
+      "tasks": 32,
+      "stateRevision": 0
+    },
+    "whyReturnedRow": {
+      "status": 200
+    },
+    "verdict": "Driver omitted the calculated task-list prerequisite; no concurrent writer is needed. A separate test advances the store and preserves the genuine stale-revision 409."
+  },
+  "focusedTests": {
+    "passed": 17,
+    "failed": 0,
+    "skipped": 1,
+    "skip": "Real 1-versus-3-worker digest comparison runs on Linux; Windows generation requires one worker."
+  },
+  "projection": {
+    "targetGroups": 500,
+    "freshGroups": 125,
+    "grownGroups": 375,
+    "workers": 14,
+    "basis": "Historical reduced measurement in capacity-smoke-measurement.json; fixed save bytes, scale grown durable writes 31 -> 1301. Preserve other measured group work as serial overhead. This functional smoke does not recalibrate throughput.",
+    "meanReducedDurableMs": 3963.6730333333326,
+    "grownDurableSeconds": 166.34640697956988,
+    "parallelDurableMinutes": 74.26178883016513,
+    "serialOtherMinutes": 12.735622291666687,
+    "setupMinutes": 86.99741112183182,
+    "nominalAndStepUpOfferedMinutes": 80,
+    "combinedMinutesBeforeAdditionalCosts": 166.99741112183182,
+    "exclusions": "Full-size byte scaling, parallel disk/memory contention, catalogue initialization scaling, completion hashing and copying remain unmeasured."
+  }
+}
