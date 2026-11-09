@@ -17,17 +17,22 @@ export const logicalFixtureDigest = manifest => digest({ config: manifest.config
   catalogue: manifest.catalogueDigest, groups: manifest.groups.map(group => ({ index: group.index,
     state: group.logicalStateDigest, revision: group.revision, snapshots: group.retainedSnapshots, retention: group.retention })) });
 
-async function files(directory, prefix = '') {
+// Appends one entry at a time. A sealed full-size fixture holds hundreds of
+// thousands of files; spreading them into push() overflows the call stack.
+export async function fixtureInventory(directory, { list = readdir, status = lstat } = {}) {
   const output = [];
-  for (const name of (await readdir(path.join(directory, prefix))).sort()) {
-    if (!prefix && !managed(name)) continue;
-    const relative = prefix ? `${prefix}/${name}` : name;
-    const stat = await lstat(path.join(directory, relative));
-    if (stat.isSymbolicLink()) throw new Error('Fixture contains a symbolic link.');
-    if (stat.isDirectory()) output.push(...await files(directory, relative));
-    else if (stat.isFile()) output.push({ path: relative, bytes: stat.size, modifiedMs: stat.mtime.getTime() });
-    else throw new Error('Fixture contains a non-regular file.');
-  }
+  const walk = async prefix => {
+    for (const name of (await list(path.join(directory, prefix))).sort()) {
+      if (!prefix && !managed(name)) continue;
+      const relative = prefix ? `${prefix}/${name}` : name;
+      const stat = await status(path.join(directory, relative));
+      if (stat.isSymbolicLink()) throw new Error('Fixture contains a symbolic link.');
+      if (stat.isDirectory()) await walk(relative);
+      else if (stat.isFile()) output.push({ path: relative, bytes: stat.size, modifiedMs: stat.mtime.getTime() });
+      else throw new Error('Fixture contains a non-regular file.');
+    }
+  };
+  await walk('');
   return output;
 }
 async function fileDigest(filename) {
@@ -49,7 +54,7 @@ export async function fixtureImplementationDigest() {
   return hash.digest('hex');
 }
 export async function sealFixture(directory, manifest) {
-  const inventory = await files(directory);
+  const inventory = await fixtureInventory(directory);
   for (const entry of inventory) entry.digest = await fileDigest(path.join(directory, entry.path));
   const seal = { schemaVersion: 1, complete: true, configDigest: manifest.configDigest,
     fixtureDigest: manifest.fixtureDigest, implementationDigest: await fixtureImplementationDigest(), files: inventory };
@@ -62,7 +67,7 @@ async function inspect(directory, profile, datasetDigest) {
   if (seal.schemaVersion !== 1 || seal.complete !== true || seal.configDigest !== fixtureConfigDigest(profile, datasetDigest)
     || seal.implementationDigest !== await fixtureImplementationDigest() || seal.inventoryDigest !== digest(seal.files)) throw new Error('Fixture completion/configuration/code digest mismatch.');
   // Compare with an actual directory walk before trusting paths from the seal.
-  const inventory = await files(directory);
+  const inventory = await fixtureInventory(directory);
   if (JSON.stringify(inventory) !== JSON.stringify(seal.files.map(({ path, bytes, modifiedMs }) => ({ path, bytes, modifiedMs })))) throw new Error('Fixture file inventory mismatch.');
   const manifest = JSON.parse(await readFile(path.join(directory, 'fixture.json'), 'utf8'));
   if (manifest.configDigest !== seal.configDigest || manifest.fixtureDigest !== seal.fixtureDigest
