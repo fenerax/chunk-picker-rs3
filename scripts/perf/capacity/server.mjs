@@ -4,7 +4,7 @@ import path from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
-const [directory,profileFile,mode]=process.argv.slice(2);
+const [directory,profileFile,mode,workers,fixtureFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
 for(const key of Object.keys(process.env)) if(key.startsWith('RS3_')) delete process.env[key];
 process.env.RS3_DATASET='duo-legacy'; process.env.RS3_TASK_WORKER_MODE='process';
@@ -13,9 +13,17 @@ process.env.RS3_GAME_DATA_DIR=path.join(directory,'no-game-data');
 process.env.RS3_MAP_ASSETS_DIR=path.join(directory,'no-assets');
 process.env.RS3_WORKER_MEMORY_PROBE_IMPORT=new URL('./heap-probe.mjs',import.meta.url).href;
 if(mode==='fixture') {
-  try { await (await import('./fixture.mjs')).generate(profile,directory); process.send({type:'generated'}); }
+  const lostParent=()=>process.exit(1);
+  process.once('disconnect',lostParent);
+  try {
+    if(fixtureFrom) {
+      const {selectedDataset}=await import('../../../app/dataset-runtime.mjs');
+      await (await import('./fixture-cache.mjs')).copyFixture(fixtureFrom,directory,profile,selectedDataset.digest);
+    } else await (await import('./fixture.mjs')).generate(profile,directory,{workers:Number(workers)});
+    process.send({type:'generated'});
+  }
   catch(error) { process.send({type:'failure',name:error.name,message:error.message}); process.exitCode=1; }
-  process.disconnect();
+  process.off('disconnect',lostParent); process.disconnect();
 } else {
   let app, stopping=false, calls=0;
   const upstreamCounts={};

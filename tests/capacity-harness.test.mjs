@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planFixture, catalogue, loopback, digest, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
 import { arrivals, dispatch, stageWindow } from '../scripts/perf/capacity/scheduler.mjs';
-import { outcomeCounts, drive, prepareCohorts, consumeStream } from '../scripts/perf/capacity/driver.mjs';
+import { outcomeCounts, drive, prepareCohorts, consumeStream, explainAction } from '../scripts/perf/capacity/driver.mjs';
+import { fixtureWorkers } from '../scripts/perf/capacity/fixture-pool.mjs';
 import { processTree } from '../scripts/perf/capacity/telemetry.mjs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -15,6 +16,39 @@ import { probeLimits } from '../scripts/perf/capacity/command-cost.mjs';
 import { createGroupState, applyCommand, validateState } from '../app/core/state.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
 import { buildWorld } from '../app/data/world.mjs';
+
+test('fixture worker defaults respect the host and explicit limits', () => {
+  assert.equal(fixtureWorkers(undefined, { platform: 'linux', cores: 16 }), 14);
+  assert.equal(fixtureWorkers(undefined, { platform: 'linux', cores: 1 }), 1);
+  assert.equal(fixtureWorkers(undefined, { platform: 'win32', cores: 16 }), 1);
+  assert.equal(fixtureWorkers(14, { platform: 'linux', groups: 2 }), 2);
+  assert.throws(() => fixtureWorkers(2, { platform: 'win32' }), /one worker/);
+  assert.throws(() => fixtureWorkers(0, { platform: 'linux' }), /workers/);
+});
+
+test('explanations select a calculated row and its revision; unknown and raced 409s stay unexpected', async () => {
+  const calls = [], client = { memberId: 'owner' };
+  await explainAction(async (_, route) => {
+    calls.push(route);
+    return { tasks: [{ id: 'synthetic-current-task' }], stateRevision: 42 };
+  }, client, 'why', 9);
+  assert.equal(calls[0], '/api/tasks?memberId=owner&view=play-v1');
+  assert.match(calls[1], /taskId=synthetic-current-task&revision=42&view=display-v1$/);
+  await assert.rejects(explainAction(async () => ({ tasks: [], stateRevision: 42 }), client, 'why', 9), error => error.status === 'empty-task-list');
+  for (const code of ['TASK_WHY_UNAVAILABLE', undefined]) {
+    let count = 0;
+    await assert.rejects(explainAction(async () => {
+      if (++count === 1) return { tasks: [{ id: 'synthetic-current-task' }], stateRevision: 42 };
+      throw Object.assign(new Error('Synthetic conflict'), { status: 409, code });
+    }, client, 'why', 0), error => error.status === 409);
+    assert.equal(count, 2, 'explanations never retry');
+    const outcome = { status: 409, intentionalConflict: true, requests: [{ route: '/api/task-why', status: 409, errorCode: code, intentionalConflict: false }] };
+    assert.equal(outcomeCounts(outcome).unexpectedFailures, 1);
+    assert.equal(outcomeCounts(outcome).intentionalConflicts, 0);
+  }
+  assert.equal(outcomeCounts({ status: 409, intentionalConflict: true,
+    requests: [{ route: '/api/command', status: 409, intentionalConflict: true }] }).intentionalConflicts, 1);
+});
 
 test('batched unlocks match individual-command gameplay for every roster and rule variant', () => {
   const data = catalogue({ chunks: 8, tasks: 1, dependencyDepth: 1, crossLinks: 1 });

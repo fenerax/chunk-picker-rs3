@@ -1,0 +1,94 @@
+// @test full shared dataset=open-f2p
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, writeFile, rm, stat, utimes } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { generate } from '../scripts/perf/capacity/fixture.mjs';
+import { verifyFixture, copyFixture, logicalFixtureDigest } from '../scripts/perf/capacity/fixture-cache.mjs';
+import { selectedDataset } from '../app/dataset-runtime.mjs';
+import { createServer } from '../app/server.mjs';
+import { createGroupState } from '../app/core/state.mjs';
+import { createTaskEngine } from '../app/tasks/engine.mjs';
+import { buildWorld } from '../app/data/world.mjs';
+import { catalogue, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
+import { fixtureDataset } from './helpers/server-dataset.mjs';
+
+const profile = { name: 'smoke', seed: 'synthetic-pool-42', port: 0,
+  catalogue: { chunks: 4, tasks: 4, dependencyDepth: 2, crossLinks: 1 },
+  fixture: { groups: 3, rosterMix: [0, 1, 0, 0, 0], freshFraction: 1 / 3, unlockFraction: .5, historyEvents: 2, snapshots: 1, keysPerMember: 1 } };
+async function scratch(t, close = async () => {}) {
+  const base = new URL('../.local/', import.meta.url); await mkdir(base, { recursive: true });
+  const directory = await mkdtemp(new URL('capacity-fixture-test-', base));
+  assert.equal(path.dirname(directory), path.resolve(fileURLToPath(base)));
+  t.after(async () => { await close(); await rm(directory, { recursive: true, force: true }); });
+  return directory;
+}
+
+test('a sealed serial fixture reuses exact bytes and refuses mutations, mismatches and incomplete inputs', async t => {
+  const directory = await scratch(t), source = path.join(directory, 'source'), copy = path.join(directory, 'copy');
+  await mkdir(source); await mkdir(copy);
+  const manifest = await generate(profile, source, { workers: 1 });
+  assert.equal(manifest.fixtureDigest, logicalFixtureDigest(manifest));
+  assert.equal((await verifyFixture(source, profile, selectedDataset.digest)).fixtureDigest, manifest.fixtureDigest);
+  const progress = JSON.parse(await readFile(path.join(source, 'fixture-progress.json'), 'utf8'));
+  assert.equal(progress.groups, 3); assert.equal(progress.builtGroups, 3); assert.deepEqual(progress.active, []);
+  // Stage/traffic/name changes do not change stored fixture requirements.
+  const reused = await copyFixture(source, copy, { ...profile, name: 'step-up', stages: [{ seconds: 1 }] }, selectedDataset.digest);
+  assert.equal(reused.fixtureDigest, manifest.fixtureDigest);
+  await verifyFixture(copy, profile, selectedDataset.digest);
+  assert.equal(await readFile(path.join(copy, 'fixture.json'), 'utf8'), await readFile(path.join(source, 'fixture.json'), 'utf8'));
+  await assert.rejects(copyFixture(source, source, profile, selectedDataset.digest), /outside/);
+  await assert.rejects(verifyFixture(source, { ...profile, seed: 'synthetic-other' }, selectedDataset.digest), /digest mismatch/);
+  const incomplete = path.join(directory, 'incomplete'); await mkdir(incomplete);
+  await assert.rejects(copyFixture(incomplete, path.join(directory, 'unused'), profile, selectedDataset.digest), /ENOENT/);
+  const file = path.join(source, 'pickers', manifest.groups[0].pickerId, 'state.json');
+  const before = await readFile(file), timestamp = (await stat(file)).mtime;
+  const changed = Buffer.from(before); changed[changed.length - 1] ^= 1;
+  await writeFile(file, changed);
+  await utimes(file, timestamp, timestamp);
+  await assert.rejects(verifyFixture(source, profile, selectedDataset.digest), /file digest mismatch/);
+  await assert.rejects(copyFixture(source, path.join(directory, 'bad-copy'), profile, selectedDataset.digest), /copy digest mismatch/);
+  await assert.rejects(readFile(path.join(directory, 'bad-copy', 'fixture-complete.json')), /ENOENT/);
+});
+
+test('a worker failure propagates and cannot publish fixture completion', async t => {
+  const directory = await scratch(t);
+  await assert.rejects(generate({ ...profile, fixture: { ...profile.fixture, unlockFraction: NaN } }, directory, { workers: 1 }), /timestamp|time/i);
+  await assert.rejects(readFile(path.join(directory, 'fixture-complete.json')), /ENOENT/);
+});
+
+test('one and three real fixture workers produce the same tiny logical fixture digest',
+  { skip: process.platform === 'win32' ? 'Windows generation is deliberately limited to one worker; real parallel proof runs on Linux CI.' : false }, async t => {
+    const directory = await scratch(t), serial = path.join(directory, 'serial'), parallel = path.join(directory, 'parallel');
+    await mkdir(serial); await mkdir(parallel);
+    const one = await generate(profile, serial, { workers: 1 }), many = await generate(profile, parallel, { workers: 3 });
+    assert.equal(one.fixtureDigest, many.fixtureDigest);
+    assert.deepEqual(one.groups.map(group => group.logicalStateDigest), many.groups.map(group => group.logicalStateDigest));
+    assert.equal(one.keys, many.keys); assert.equal(one.characters, many.characters);
+    await verifyFixture(parallel, profile, selectedDataset.digest);
+  });
+
+test('Why needs a calculated task row; a stale revision still receives a genuine unexpected 409', async t => {
+  let app;
+  const directory = await scratch(t, () => app?.close()), definitions = catalogue(profile.catalogue);
+  const tasks = createTaskEngine(definitions).catalogue.map(({ id, label, category }) => ({ id, label, category }));
+  const initialState = createGroupState([{ id: 'owner', name: 'Synthetic owner', unlocked: Object.keys(definitions.chunks).slice(0, 2) }]);
+  initialState.tasks = tasks;
+  app = await createServer({ dataDir: path.join(directory, 'why'), dataset: fixtureDataset, definitions,
+    world: syntheticWorld(definitions, buildWorld), initialState, port: 0, predictionPrewarm: false });
+  await app.listen();
+  const origin = `http://127.0.0.1:${app.address().port}`, headers = { Authorization: `Bearer ${app.store.getAccessToken()}` };
+  const get = async route => { const response = await fetch(origin + route, { headers }); return { status: response.status, value: await response.json() }; };
+  const revision = app.store.getInfo().revision;
+  const why = (id, at = revision) => `/api/task-why?view=display-v1&memberId=owner&taskId=${encodeURIComponent(id)}&revision=${at}`;
+  const before = await get(why(tasks[0].id));
+  assert.equal(before.status, 409); assert.equal(before.value.code, 'TASK_WHY_UNAVAILABLE');
+  assert.equal(app.store.getInfo().revision, revision, 'the original failure needs no concurrent writer');
+  const list = await get('/api/tasks?memberId=owner&view=play-v1');
+  assert.equal(list.status, 200); assert.ok(list.value.tasks.length);
+  assert.equal((await get(why(list.value.tasks[0].id, list.value.stateRevision))).status, 200);
+  await app.store.command({ type: 'set-note', memberId: 'owner', chunkId: Object.keys(definitions.chunks)[0], note: 'Synthetic concurrent edit' }, revision);
+  const raced = await get(why(list.value.tasks[0].id, list.value.stateRevision));
+  assert.equal(raced.status, 409); assert.notEqual(raced.value.code, 'TASK_WHY_UNAVAILABLE');
+});

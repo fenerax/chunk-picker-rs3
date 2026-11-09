@@ -8,14 +8,24 @@ export function percentile(values,p) {
 }
 const distribution=values=>({count:values.length,p50Ms:percentile(values,.5),p95Ms:percentile(values,.95),p99Ms:percentile(values,.99),maxMs:values.length?values.reduce((a,b)=>Math.max(a,b),0):null});
 export function outcomeCounts(outcome) {
-  const requests=outcome.requests??[], intentional=r=>r.status===409 && outcome.intentionalConflict;
+  const requests=outcome.requests??[], intentional=r=>r.status===409 &&
+    (r.intentionalConflict===true || r.intentionalConflict===undefined && outcome.intentionalConflict && (!r.route || r.route==='/api/command'));
   const unexpected=status=>status==='network-error'||typeof status==='number'&&status>=400&&![429,503].includes(status);
   const unexpectedRequests=requests.filter(r=>unexpected(r.status)&&!intentional(r)).length;
   return {httpRequests:requests.length,httpRejects:requests.filter(r=>[429,503].includes(r.status)).length,
     rejectsWithoutRetryAfter:requests.filter(r=>[429,503].includes(r.status)&&!r.retryAfter).length,
     timeouts:requests.filter(r=>r.status==='timeout').length,
-    unexpectedFailures:unexpectedRequests||Number(unexpected(outcome.status)&&!(outcome.status===409&&outcome.intentionalConflict)),
+    unexpectedFailures:unexpectedRequests||Number(unexpected(outcome.status)&&!(outcome.status===409&&(requests.length?requests.some(intentional):outcome.intentionalConflict))),
     intentionalConflicts:requests.filter(intentional).length,unsupported:outcome.status==='unsupported'?1:0};
+}
+export async function explainAction(call, client, action, ordinal) {
+  // Why is a bounded saved-evidence read, not a request to compute an arbitrary
+  // catalogue ID. Follow the UI's task-list -> selected row -> explanation flow.
+  const list = await call(client, `/api/tasks?memberId=${client.memberId}&view=play-v1`);
+  if (!list.tasks?.length) throw Object.assign(new Error('EmptyTasks'), { status: 'empty-task-list' });
+  if (!Number.isSafeInteger(list.stateRevision)) throw new Error('Task list is missing its revision.');
+  const task = list.tasks[ordinal % list.tasks.length];
+  await call(client, `/api/task-${action}?memberId=${client.memberId}&taskId=${encodeURIComponent(task.id)}&revision=${list.stateRevision}${action==='why'?'&view=display-v1':''}`);
 }
 export function prepareCohorts(profile,fixture) {
   const cohorts=new Map(),rotationMs=(profile.rotationSeconds??300)*1000;let startMs=0;
@@ -78,7 +88,13 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
     let value;try{value=JSON.parse(text);}catch{value=null;}
     Object.assign(observation,{status:res.status,retryAfter:res.headers.get('retry-after'),wallMs:performance.now()-requestStart,
       cacheHit:typeof value?.cache?.hit==='boolean'?value.cache.hit:null,evaluationMs:value?.cache?.evaluationMs??null,timingMs:value?.cache?.timingMs??null});
+    const revision=body?.expectedRevision??new URL(route,base).searchParams.get('revision');
+    if(revision!==null&&revision!==undefined&&Number.isSafeInteger(Number(revision)))observation.requestRevision=Number(revision);
+    const responseRevision=value?.stateRevision??value?.state?.revision??value?.revision;
+    if(Number.isSafeInteger(responseRevision))observation.responseRevision=responseRevision;
     if(!res.ok) {
+      if(['TASK_WHY_UNAVAILABLE','TASK_DETAILS_UNAVAILABLE','TASK_RESULTS_UNAVAILABLE','REVISION_CONFLICT'].includes(value?.code))observation.errorCode=value.code;
+      observation.intentionalConflict=res.status===409&&extra.intentionalConflict===true&&observation.route==='/api/command';
       stats.httpErrors++; if([429,503].includes(res.status)) stats.rejects++;if(res.status===409)stats.conflicts++;
       throw Object.assign(new Error('HTTP'),{status:res.status,retryAfter:res.headers.get('retry-after')});
     }
@@ -132,15 +148,15 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
         const pick=rng();
         if(pick<.5) { action=rng()<.4?'history':'state'; await call(client,action==='history'?'/api/history?limit=20':'/api/state?view=play-v1'); }
         else if(pick<.7) {
-          const variant=rng(),taskId=client.taskIds[event.id%client.taskIds.length];
+          const variant=rng();
           action=variant<.5?'task-view':variant<.7?'group-task-view':variant<.85?'how':'why';
           if(action==='task-view')await call(client,`/api/tasks?memberId=${client.memberId}&view=play-v1`);
+          else if(action==='how'||action==='why')await explainAction(call,client,action,event.id);
           else {
             const state=(await call(client,'/api/state?view=play-v1')).state;
             const peer=client.peers.find(id=>id!==client.memberId);
             if(action==='group-task-view'&&peer)await call(client,`/api/tasks?memberId=${client.memberId}&view=play-v1&lane=duo-v1&peerFor=${peer}&revision=${state.revision}`);
             else if(action==='group-task-view')await call(client,`/api/tasks?memberId=${client.memberId}&view=play-v1`);
-            else await call(client,`/api/task-${action}?memberId=${client.memberId}&taskId=${encodeURIComponent(taskId)}&revision=${state.revision}${action==='why'?'&view=display-v1':''}`);
           }
         }
         else if(pick<.85) {
@@ -150,7 +166,7 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
           const command=variant<.5?{type:'set-note',memberId:client.memberId,chunkId:chunks[event.id%chunks.length],note:`Synthetic live ${event.id}`}:
             variant<.8?{type:'set-task-status',memberId:client.memberId,taskId:client.taskIds[event.id%client.taskIds.length],favorite:event.id%2===0}:
               {type:'set-skill-levels',memberId:client.memberId,skill:'Mining',passiveLevel:1+event.id%90};
-          await call(client,'/api/command?view=play-v1',{expectedRevision:state.revision-(intentional?1:0),command});
+          await call(client,'/api/command?view=play-v1',{expectedRevision:state.revision-(intentional?1:0),command},{intentionalConflict:intentional});
         } else if(pick<.9) {action='switch';throw Object.assign(new Error('Unsupported'),{status:'unsupported'});}
         else if(pick<59/60) {
           const op=rng();action=op<.4?'task-miss':op<.7?'preview':op<.9?'roll-accept':'pool-undo';
@@ -178,8 +194,9 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
     } catch(error) {
       const status=error.status??(error.name==='TimeoutError'?'timeout':'network-error');
       if(status==='timeout')stats.timeouts++;if(status==='unsupported')stats.unsupported++;
-      if(status===409 && intentional)stats.intentionalConflicts++;
-      record(action,event,start,performance.now(),{status,intentionalConflict:status===409&&intentional,retryAfter:error.retryAfter??null,requests:client.observations});
+      const intentionalConflict=status===409&&client.observations.at(-1)?.intentionalConflict===true;
+      if(intentionalConflict)stats.intentionalConflicts++;
+      record(action,event,start,performance.now(),{status,intentionalConflict,retryAfter:error.retryAfter??null,requests:client.observations});
     } finally { active--; }
   };
   const workloadStart=startWorkload();

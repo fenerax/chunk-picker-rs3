@@ -10,9 +10,11 @@ import { processTree, diskBytes } from './telemetry.mjs';
 import { drive } from './driver.mjs';
 import { evaluate, markdown } from './report.mjs';
 import { stageWindow } from './scheduler.mjs';
+import { fixtureWorkers } from './fixture-pool.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
-const {values:args}=parseArgs({options:{profile:{type:'string',default:'smoke'},output:{type:'string'},host:{type:'string',default:'127.0.0.1'}}});
+const {values:args}=parseArgs({options:{profile:{type:'string',default:'smoke'},output:{type:'string'},host:{type:'string',default:'127.0.0.1'},
+  'fixture-workers':{type:'string'},'fixture-from':{type:'string'},'fixture-only':{type:'boolean',default:false}}});
 if(!['127.0.0.1','localhost','::1'].includes(args.host))throw new Error('Scratch runner refuses every non-loopback hostname.');
 if(Number(process.versions.node.split('.')[0])!==24)throw new Error('Use Node 24.');
 const profilePath=['smoke','nominal','step-up'].includes(args.profile)?new URL(`./profiles/${args.profile}.json`,import.meta.url):path.resolve(args.profile);
@@ -20,6 +22,8 @@ const profile=JSON.parse(await readFile(profilePath,'utf8'));
 profile.streamHeaderDeadlineMs??=5000;
 if(process.platform==='win32' && profile.name!=='smoke')throw new Error('Only smoke is allowed on the shared PC.');
 planFixture(profile);
+const workers=fixtureWorkers(args['fixture-workers'],{groups:profile.fixture.groups});
+const fixtureFrom=args['fixture-from']?path.resolve(args['fixture-from']):'';
 integer(profile.catalogue.chunks,2,10000,'chunks');integer(profile.catalogue.tasks,1,200000,'tasks');
 integer(profile.catalogue.dependencyDepth,1,32,'dependencyDepth');integer(profile.catalogue.crossLinks,1,8,'crossLinks');
 integer(profile.port,0,8999,'port');if(profile.port!==0&&profile.port<8900)throw new Error('Use port 0 or 8900–8999.');
@@ -39,7 +43,7 @@ if(!args.output)throw new Error('Use --output NEW_DIRECTORY (must not exist).');
 const directory=path.resolve(args.output);await mkdir(directory,{mode:0o700});
 const profileFile=path.join(directory,'profile.json');await writeFile(profileFile,JSON.stringify(profile,null,2),{flag:'wx'});
 const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>/^(PATH|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|COMSPEC|PATHEXT)$/i.test(key)));
-const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
+const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
 const childLogs=child=>{
   // Synthetic-only child output, bounded independently of the run length.
   let bytes=0;for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{if((bytes+=chunk.length)<=1024*1024)void appendFile(path.join(directory,'server.log'),chunk);});
@@ -72,10 +76,15 @@ for(const subdirectory of ['app','scripts/lib','scripts/perf/capacity']) {
 const sourceTreeDigest=sourceHash.digest('hex');
 const started=Date.now(),sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 try {
-  console.log('Generating synthetic fixture; progress is fixture-progress.json.');
+  console.log(fixtureFrom?'Verifying and copying completed synthetic fixture.':`Generating synthetic fixture with ${workers} workers; progress is fixture-progress.json.`);
   setup=launch('fixture');childLogs(setup);await until(setup,'generated');await new Promise(resolve=>setup.exitCode!==null?resolve():setup.once('exit',resolve));
   const fixture=JSON.parse(await readFile(path.join(directory,'fixture.json'),'utf8'));
   const setupSeconds=(Date.now()-started)/1000;
+  if(args['fixture-only']) {
+    await writeFile(path.join(directory,'setup-summary.json'),JSON.stringify({sourceCommit,sourceTreeDigest,setupSeconds,
+      fixtureDigest:fixture.fixtureDigest,workers:fixture.workers,reused:Boolean(fixtureFrom)},null,2));
+    console.log(`Completed reusable fixture: ${fixture.groups.length} groups, ${setupSeconds.toFixed(1)} s setup.`);
+  } else {
   console.log(`Fixture ready: ${fixture.groups.length} groups, ${fixture.characters} slots. Starting measured server.`);
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
   let id=0,busy=false,telemetryErrors=0,lastCpu,lastAt,lastWindowAt,lastDisk=0,disk=null,runStart;
@@ -108,12 +117,14 @@ try {
     fixture:{groups:fixture.groups.length,characters:fixture.characters,logins:fixture.logins,keys:fixture.keys,gaps:fixture.gaps,planDigest:fixture.planDigest,
       catalogueDigest:fixture.catalogueDigest,catalogueBytes:fixture.catalogueBytes,engineCatalogueTasks:fixture.engineCatalogueTasks,
       growthMode:fixture.growthMode,initializationMs:fixture.initializationMs,
-      setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,growthCommands,stateBytes})=>({index,grown,setupMs,growthMs,durableMs,growthCommands,stateBytes})),
+      fixtureDigest:fixture.fixtureDigest,workers:fixture.workers,reused:Boolean(fixtureFrom),
+      setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes})=>({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes})),
       datasetDigest:fixture.datasetDigest,retention:fixture.groups.map(g=>({index:g.index,stateDigest:g.stateDigest,...g.retention,snapshots:g.retainedSnapshots}))},
     load,samples,telemetryErrors,shutdown};
   result.gates=evaluate(result);
   await writeFile(path.join(directory,'results.json'),JSON.stringify(result,null,2));await writeFile(path.join(directory,'summary.md'),markdown(result));
   console.log(`Results: ${path.join(directory,'summary.md')}; ${load.stats.offered} arrivals, ${load.stats.rejects} rejects, ${load.stats.timeouts} timeouts.`);
+  }
   // Capacity failures are data, not harness execution failures. Inspect gates.
 } catch(error) {
   await writeFile(path.join(directory,'failure.json'),JSON.stringify({sourceCommit,profileDigest:digest(profile),name:error.name,message:error.message}));
