@@ -258,7 +258,7 @@ test('static dependencies and expired retained archive packs load with either wr
   const packs = await readdir(`${f.dataDir}/backups/archives`);
   assert.ok(packs.length > 0);
   const pack = JSON.parse(gunzipSync(await readFile(`${f.dataDir}/backups/archives/${packs[0]}`)));
-  assert.ok(pack.snapshots.some(row => row.document.schemaVersion === 2));
+  assert.ok(pack.snapshots.some(row => (typeof row.document === 'string' ? JSON.parse(row.document) : row.document).schemaVersion === 2));
   await f.reload({ completionCodec: false });
   assert.deepEqual(await f.store.backup(), expected);
   for (const backup of await f.store.listBackups()) {

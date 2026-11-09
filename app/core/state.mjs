@@ -601,7 +601,7 @@ function restoreTaskChanges(state, changes, positions = new Map(state.tasks.map(
 }
 
 // Backups have a JSON boundary. Reject values JSON would silently lose or alter.
-function assertJson(value) {
+function assertJson(value, checked) {
   const seen = new Set();
   // Keys and indexes of the current branch; its path text is built only for an error.
   const branch = [];
@@ -610,6 +610,9 @@ function assertJson(value) {
     if (item === null || typeof item === 'string' || typeof item === 'boolean') return;
     if (typeof item === 'number' && Number.isFinite(item)) return;
     if (typeof item !== 'object') fail(`${where()} is not JSON serializable`);
+    // Only static field roots have the same traversal role as checkStaticField.
+    // A reused object under History must still check event actor/source roles.
+    if (branch.length === 1 && ['tasks', 'identityRegistry', 'legacy', 'provenance'].includes(branch[0]) && checked?.has(item)) return;
     if (seen.has(item)) fail(`${where()} contains a circular reference`);
     const prototype = Object.getPrototypeOf(item);
     if (!Array.isArray(item) && prototype !== Object.prototype && prototype !== null) fail(`${where()} must contain plain JSON objects`);
@@ -653,15 +656,42 @@ export function validateState(state, registry) {
 
 /** Storage already owns this private copy. Validate every JSON/schema invariant
  * without making another full catalogue, registry and provenance clone. */
-export function validateOwnedState(state, registry) {
+export function validateOwnedState(state, registry, validationCache) {
   record(state, 'state');
-  assertJson(state);
-  return validateStateCopy(state, registry);
+  const cache = ownedStateValidationCaches.get(validationCache);
+  if (validationCache !== undefined && !cache) fail('Invalid owned-state validation cache');
+  assertJson(state, cache?.json);
+  return validateStateCopy(state, registry, cache);
 }
 
-function validateStateCopy(copy, registry) {
+const ownedStateValidationCaches = new WeakMap();
+/** Pass-scoped storage reuse. Only JSON-checked, deeply frozen field objects
+ * can acquire cached schema checks. Hash verification remains with storage.
+ * The opaque handle cannot be used to seed an unchecked validation result. */
+export function createOwnedStateValidationCache() {
+  const cache = { json: new WeakSet(), identities: new WeakSet(), catalogues: new WeakMap() };
+  const handle = Object.freeze({
+    checkStaticField(value) {
+      assertJson(value, cache.json);
+      function freeze(item) {
+        if (item === null || typeof item !== 'object' || cache.json.has(item)) return;
+        for (const child of Object.values(item)) freeze(child);
+        Object.freeze(item);
+        cache.json.add(item);
+      }
+      freeze(value);
+    },
+  });
+  ownedStateValidationCaches.set(handle, cache);
+  return handle;
+}
+
+function validateStateCopy(copy, registry, cache) {
   knownKeys(copy, STATE_KEYS, 'state');
-  if (copy.identityRegistry !== undefined) validateIdentityRegistry(copy.identityRegistry);
+  if (copy.identityRegistry !== undefined && !cache?.identities.has(copy.identityRegistry)) {
+    validateIdentityRegistry(copy.identityRegistry);
+    if (cache?.json.has(copy.identityRegistry)) cache.identities.add(copy.identityRegistry);
+  }
   canonicalizeTaskClaimAliases(copy);
   if (copy.progressSnapshots !== undefined) validateProgressSnapshots(copy.progressSnapshots);
   if (copy.identityRegistry && Array.isArray(copy.members) && Array.isArray(copy.tasks)) {
@@ -680,11 +710,18 @@ function validateStateCopy(copy, registry) {
   record(copy.rules, 'rules');
   registryOrDefault(registry).resolve(copy.rules);
   if (copy.ruleReviews !== undefined) validateRuleReviews(copy.ruleReviews, registryOrDefault(registry));
-  uniqueRecords(copy.tasks, 'tasks');
   const rosterIds = new Set((copy.members ?? []).map(member => member.id));
-  for (const task of copy.tasks) validateTask(task, rosterIds);
-  const tasks = new Set(copy.tasks.map(task => task.id));
-  const taskRows = new Map(copy.tasks.map(task => [task.id, task]));
+  // Task shape depends on assignments, hence the roster key. Rules and all
+  // per-state references/History are still checked for every snapshot below.
+  const rosterKey = cache ? JSON.stringify([...rosterIds].sort()) : undefined;
+  let catalogue = cache?.catalogues.get(copy.tasks);
+  if (!catalogue || catalogue.rosterKey !== rosterKey) {
+    uniqueRecords(copy.tasks, 'tasks');
+    for (const task of copy.tasks) validateTask(task, rosterIds);
+    catalogue = { rosterKey, tasks: new Set(copy.tasks.map(task => task.id)), taskRows: new Map(copy.tasks.map(task => [task.id, task])) };
+    if (cache?.json.has(copy.tasks)) cache.catalogues.set(copy.tasks, catalogue);
+  }
+  const { tasks, taskRows } = catalogue;
   uniqueRecords(copy.members, 'members');
   if (copy.finishLine !== undefined) validateFinishLine(copy.finishLine, new Set(copy.members.map(member => member.id)));
   if (copy.groupGoals !== undefined) validateGroupGoals(copy.groupGoals, new Set(copy.members.map(member => member.id)));
@@ -913,7 +950,10 @@ function validateStateCopy(copy, registry) {
   if (diagnostics.length) {
     record(copy.provenance ?? {}, 'provenance');
     copy.provenance = { ...copy.provenance, taskRuleDiagnostics: diagnostics };
-  } else if (copy.provenance?.taskRuleDiagnostics !== undefined) delete copy.provenance.taskRuleDiagnostics;
+  } else if (copy.provenance?.taskRuleDiagnostics !== undefined) {
+    copy.provenance = { ...copy.provenance };
+    delete copy.provenance.taskRuleDiagnostics;
+  }
   // Validate the original sparse undo guards before migrating their values.
   // Transform both sides and current rows together so old null/singleton
   // backups retain their complete undo chain and explicit removal masks.
@@ -946,7 +986,7 @@ export function exportBackup(state, registry) {
 
 // owned is for an isolated caller's private parsed tree; every schema and Undo
 // check still runs, without another whole-state JSON clone.
-export function importBackup(document, registry, { owned = false } = {}) {
+export function importBackup(document, registry, { owned = false, validationCache } = {}) {
   let backup = document;
   if (typeof backup === 'string') {
     try { backup = JSON.parse(backup); } catch { fail('Backup is not valid JSON'); }
@@ -955,7 +995,7 @@ export function importBackup(document, registry, { owned = false } = {}) {
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
   backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
-  let state = owned ? validateOwnedState(backup.state, registry) : validateState(backup.state, registry);
+  let state = owned ? validateOwnedState(backup.state, registry, validationCache) : validateState(backup.state, registry);
   const pluginItems = pluginItemEvidenceFromEnvelope(backup.optionalSidecarEvidence);
   if (pluginItems !== undefined) {
     state = optionalPluginData('imported item evidence', () => {

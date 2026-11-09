@@ -123,11 +123,13 @@ async function run({ output, shape, copies, points, instrument }) {
         for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {`);
       source = once(source, '    return state;\n  }\n  async function staticReference',
         `    __storageProbe.end(probeNormalize);\n    return state;\n  }\n  async function staticReference`);
-      source = once(source, 'if (JSON.stringify(copy.document) !== JSON.stringify(snapshot.document))',
-        `if (!__storageProbe.sync('JSON.compare', () => JSON.stringify(copy.document) === JSON.stringify(snapshot.document)))`);
+      source = once(source, "const matches = typeof copy.document === 'string' ? copy.document === snapshot.document\n          : JSON.stringify(copy.document) === JSON.stringify(parseSavedDocument(snapshot.document));",
+        `const matches = __storageProbe.sync('JSON.compare', () => typeof copy.document === 'string' ? copy.document === snapshot.document
+          : JSON.stringify(copy.document) === JSON.stringify(parseSavedDocument(snapshot.document)));`);
     } else {
       for (const name of ['validateState', 'validateOwnedState', 'validateStateCopy', 'assertJson', 'applyCommand', 'applyValidatedCommand']) wrap(name, false);
-      source = once(source, "  uniqueRecords(copy.tasks, 'tasks');", "  const probeCatalogue = __storageProbe.begin('catalogue-rows-and-indexes');\n  uniqueRecords(copy.tasks, 'tasks');");
+      source = once(source, '  const rosterIds = new Set((copy.members ?? []).map(member => member.id));',
+        "  const probeCatalogue = __storageProbe.begin('catalogue-rows-and-indexes');\n  const rosterIds = new Set((copy.members ?? []).map(member => member.id));");
       source = once(source, "  uniqueRecords(copy.members, 'members');", "  __storageProbe.end(probeCatalogue);\n  uniqueRecords(copy.members, 'members');");
       source = once(source, "  uniqueRecords(copy.history, 'history');", "  const probeHistory = __storageProbe.begin('history-checks');\n  uniqueRecords(copy.history, 'history');");
       source = once(source, '  const diagnostics = savedTaskRuleDiagnostics(copy);', "  __storageProbe.end(probeHistory);\n  const diagnostics = savedTaskRuleDiagnostics(copy);");

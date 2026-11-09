@@ -12,7 +12,7 @@ import { withPluginItemEvidenceWrite } from './plugin-item-snapshot.mjs';
 import { warnOptionalPluginData } from '../core/optional-plugin-data.mjs';
 import { dismissPluginItemEvidence, exportPluginItemEvidence, hasPluginItemDecisions, hasLegacyPluginItemDecisions, recoverPluginItemDecisions, samePluginItemDecisions, stagePluginItemDecisions } from '../plugin-items.mjs';
 import { reconcilePluginItemEvidence, pluginItemEvidenceFromEnvelope, retainPluginItemEvidence, mergePluginItemEvidence } from '../core/plugin-item-evidence.mjs';
-import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
+import { COMPLETION_BACKUP_VERSION, createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { mkdir, open, readFile, readdir, realpath, stat, unlink, utimes } from 'node:fs/promises';
 import { warnDurability } from './publication.mjs';
 import path from 'node:path';
@@ -24,7 +24,7 @@ import { readStaticFieldBytes, validateStaticFieldReference } from './static-fie
 import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
-import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo, hasRandomStartChoices } from '../core/state.mjs';
+import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, createOwnedStateValidationCache, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo, hasRandomStartChoices } from '../core/state.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { evaluateRollPool, partnerConnections, createRollPoolCache } from '../core/rules.mjs';
 import { captureProgressSnapshot, buildProgressModel } from '../core/progress-timeline.mjs';
@@ -60,12 +60,12 @@ function pinSerializedDocument(value) {
   }
   return Buffer.concat([bytes.subarray(0, end - 1), Buffer.from(',"retentionPinned":true}')]);
 }
-function importSavedState(bytes, registry) {
+function importSavedState(bytes, registry, validationCache) {
   const backup = parseSavedDocument(bytes);
   if (!backup || typeof backup !== 'object' || Array.isArray(backup)) throw new TypeError('backup must be an object');
   if (backup.format !== BACKUP_FORMAT) throw new TypeError('Unsupported backup format');
   if (backup.schemaVersion !== SCHEMA_VERSION) throw new TypeError(`Unsupported backup schema version: ${backup.schemaVersion}`);
-  return importBackup(backup, registry, { owned: true });
+  return importBackup(backup, registry, { owned: true, validationCache });
 }
 const BACKUP_ID = /^(\d{16})-[a-f0-9]{16}\.json(?:\.gz)?$/;
 const HISTORY_ID = /^history-\d{16}-\d{16}-[a-f0-9]{16}\.json\.gz$/;
@@ -305,19 +305,24 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     try { return await gunzipAsync(bytes, forImport ? { maxOutputLength: MAX_PORTABLE_BACKUP_BYTES } : {}); }
     catch (error) { if (forImport && error.code === 'ERR_BUFFER_TOO_LARGE') (() => { throw Object.assign(new Error(`This backup is too large. The limit is ${BACKUP_LIMIT_LABEL} after decompression.`), { status: 413 }); })(); throw error; }
   }
-  async function readStaticField(key, reference, forImport = false) {
+  async function readStaticField(key, reference, forImport = false, retentionCache) {
     validateStaticFieldReference(key, reference);
     const cacheKey = `${key}:${reference?.id}`;
+    if (retentionCache?.fields.has(cacheKey)) return retentionCache.fields.get(cacheKey);
     if (readOnly && standbyStaticFields.has(cacheKey)) return standbyStaticFields.get(cacheKey);
     const bytes = await readStaticFieldBytes(directory, key, reference, { decompress: bytes => decodeStoredBytes(bytes, forImport) });
     const result = { value: forImport ? await importDocument(bytes) : JSON.parse(bytes.toString('utf8')) };
+    if (retentionCache) {
+      retentionCache.validation.checkStaticField(result.value);
+      retentionCache.fields.set(cacheKey, result);
+    }
     if (readOnly) {
       if (standbyStaticFields.size >= reusableFields.size) standbyStaticFields.delete(standbyStaticFields.keys().next().value);
       standbyStaticFields.set(cacheKey, result);
     }
     return result;
   }
-  async function hydrateStaticDocument(document, ownsDocument, forImport = false) {
+  async function hydrateStaticDocument(document, ownsDocument, forImport = false, retentionCache) {
     if (document?.storage === undefined) return ownsDocument ? document : { ...document, state: structuredClone(document?.state) };
     const metadata = document.storage;
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || metadata.schemaVersion !== 1
@@ -327,7 +332,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const state = ownsDocument ? { ...document.state } : structuredClone(document.state);
     for (const [key, reference] of Object.entries(metadata.fields)) {
       if (!reusableFields.has(key) || Object.hasOwn(state, key)) throw new TypeError(`Invalid stored static field: ${key}`);
-      const loaded = await readStaticField(key, reference, forImport);
+      const loaded = await readStaticField(key, reference, forImport, retentionCache);
       state[key] = loaded.value;
     }
     return { ...document, state };
@@ -353,11 +358,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function reconcileOptionalSidecarEvidence(state, ...sources) {
     return inheritStateMetadata(state, reconcileEvidenceRecords(state, ...sources));
   }
-  async function importStoredBackup(document, ownsDocument = false, forImport = false) {
+  async function importStoredBackup(document, ownsDocument = false, forImport = false, retentionCache) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
-    document = await hydrateStaticDocument(document, ownsDocument, forImport);
+    document = await hydrateStaticDocument(document, ownsDocument, forImport, retentionCache);
     const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
-    let state = materializeOptionalSidecarEvidence(reconcileOptionalSidecarEvidence(importSavedState(document, registry)), document.optionalSidecarEvidence ?? document.state?.provenance?.optionalSidecarEvidence);
+    let state = materializeOptionalSidecarEvidence(reconcileOptionalSidecarEvidence(importSavedState(document, registry, retentionCache?.validation)), document.optionalSidecarEvidence ?? document.state?.provenance?.optionalSidecarEvidence);
     if (state.provenance?.pluginItemEvidence) {
       try { state = inheritStateMetadata(state, retainPluginItemEvidence(state,
         recoverPluginItemDecisions(state.provenance.pluginItemEvidence))); }
@@ -368,6 +373,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
       const value = state[key];
       if (value === null || typeof value !== 'object') continue;
+      if (retentionCache?.normalized.has(value)) continue;
+      retentionCache?.normalized.add(value);
       const bytes = JSON.stringify(value);
       // Validation can normalize diagnostics. Reuse a loaded sidecar only when
       // its complete normalized field still has exactly the verified content.
@@ -662,7 +669,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     return inheritStateMetadata(state, ready);
   }
-  async function hydrateHistory(state, cache, forImport = false) {
+  async function hydrateHistory(state, cache, forImport = false, validationCache) {
     const archived = new Map();
     const references = state.provenance?.historyArchive ?? [];
     if (!Array.isArray(references)) throw new TypeError('Invalid history archive references.');
@@ -700,7 +707,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     if (forImport) await new Promise(resolve => setImmediate(resolve));
-    const validated = importReader ? validateOwnedState(complete, registry) : validateState(complete, registry);
+    const validated = importReader || validationCache ? validateOwnedState(complete, registry, validationCache) : validateState(complete, registry);
     inheritStateMetadata(state, validated);
     return { state: validated, archived };
   }
@@ -784,9 +791,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       if (pack.format !== 'rs3-chunk-picker-retained-archive' || !Array.isArray(pack.snapshots)) throw new TypeError('Invalid retained backup archive.');
       for (const snapshot of pack.snapshots) {
         if (!BACKUP_ID.test(snapshot?.id)) throw new TypeError('Invalid archived backup ID.');
-        const state = await importStoredBackup(snapshot.document, false, forImport);
-        if (forImport) await new Promise(resolve => setImmediate(resolve));
-        if (state.revision !== Number(BACKUP_ID.exec(snapshot.id)[1])) throw new TypeError('Archived backup revision does not match its ID.');
+        const document = parseSavedDocument(snapshot.document);
+        if (document?.format !== BACKUP_FORMAT) throw new TypeError('Unsupported backup format');
+        if (![SCHEMA_VERSION, COMPLETION_BACKUP_VERSION].includes(document.schemaVersion)) throw new TypeError(`Unsupported backup schema version: ${document.schemaVersion}`);
+        if (!Number.isSafeInteger(document?.state?.revision) || document.state.revision !== Number(BACKUP_ID.exec(snapshot.id)[1])) throw new TypeError('Archived backup revision does not match its ID.');
         index.set(snapshot.id, { packId: entry.name, metadata: { id: snapshot.id, revision: Number(BACKUP_ID.exec(snapshot.id)[1]), bytes: snapshot.bytes, at: snapshot.at } });
       }
     }
@@ -803,6 +811,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const cutoff = Date.parse(timestamp()) - policy.backupDays * 86_400_000;
     const candidates = [];
     const historyCache = { documents: new Map(), bytes: 0 };
+    // Immutable content is checked once per pass, never inherited from the
+    // current save or a prior pass. Unknown-provenance candidates still cross
+    // the complete state/Undo boundary before any source can be removed.
+    const retentionCache = { fields: new Map(), normalized: new WeakSet(), validation: createOwnedStateValidationCache() };
     for (const backup of backups) {
       const day = backup.at.slice(0, 10);
       const checkpoint = !days.has(day);
@@ -812,53 +824,69 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     async function archiveSnapshots(removable) {
       if (!removable.length) return;
+      const locations = new Map(removable.map(snapshot => [snapshot.id, archived.get(snapshot.id)]));
+      const verifiedPacks = new Map();
       const snapshots = removable.filter(snapshot => !archived.has(snapshot.id));
       if (snapshots.length) {
         const packId = `archive-${randomBytes(8).toString('hex')}.json.gz`;
         const pack = { format: 'rs3-chunk-picker-retained-archive', snapshots };
-        const bytes = await gzipAsync(JSON.stringify(pack), { level: constants.Z_BEST_COMPRESSION });
+        const json = JSON.stringify(pack);
+        const bytes = await gzipAsync(json, { level: constants.Z_BEST_COMPRESSION });
         await mkdir(archivesDir, { recursive: true });
         reportDurability(await atomicWrite(path.join(archivesDir, packId), bytes));
-        const verified = await readDocument(path.join(archivesDir, packId));
-        for (const snapshot of verified.snapshots) {
-          await importStoredBackup(snapshot.document);
-          archived.set(snapshot.id, { packId, metadata: { id: snapshot.id, revision: snapshot.revision, bytes: snapshot.bytes, at: snapshot.at } });
+        const reread = await decodeStoredBytes(await readFile(path.join(archivesDir, packId)));
+        if (!reread.equals(Buffer.from(json))) throw new TypeError('Retained archive bytes differ after publication.');
+        verifiedPacks.set(packId, parseSavedDocument(reread));
+        for (const snapshot of snapshots) {
+          locations.set(snapshot.id, { packId, metadata: { id: snapshot.id, revision: snapshot.revision, bytes: snapshot.bytes, at: snapshot.at } });
         }
       }
       // The synchronized and re-read archive is a second durable copy first.
       // Crashing midway leaves harmless duplicates; no sole snapshot is deleted.
-      let verifiedPackId;
-      let verifiedPack;
       for (const snapshot of removable) {
-        const archivedSnapshot = archived.get(snapshot.id);
-        if (verifiedPackId !== archivedSnapshot.packId) {
+        const archivedSnapshot = locations.get(snapshot.id);
+        if (!verifiedPacks.has(archivedSnapshot.packId)) {
           const pack = await readDocument(path.join(archivesDir, archivedSnapshot.packId));
           if (pack.format !== 'rs3-chunk-picker-retained-archive' || !Array.isArray(pack.snapshots)) throw new TypeError('Invalid retained backup archive.');
-          verifiedPackId = archivedSnapshot.packId;
-          verifiedPack = pack;
+          verifiedPacks.set(archivedSnapshot.packId, pack);
         }
+        const verifiedPack = verifiedPacks.get(archivedSnapshot.packId);
         const copy = verifiedPack.snapshots.find(item => item.id === snapshot.id);
         if (!copy) throw new TypeError('Retained archive is missing its preserved snapshot.');
-        const state = await importStoredBackup(copy.document);
-        if (state.revision !== snapshot.revision) throw new TypeError('Archived backup revision does not match its ID.');
-        if (JSON.stringify(copy.document) !== JSON.stringify(snapshot.document)) throw new TypeError('Archived backup differs from its preserved standalone snapshot.');
-        await hydrateHistory(state, historyCache);
+        // New packs preserve the exact decoded standalone JSON, including its
+        // whitespace. Old object-valued packs retain their canonical comparison.
+        const matches = typeof copy.document === 'string' ? copy.document === snapshot.document
+          : JSON.stringify(copy.document) === JSON.stringify(parseSavedDocument(snapshot.document));
+        if (!matches || copy.revision !== snapshot.revision || copy.bytes !== snapshot.bytes || copy.at !== snapshot.at) {
+          throw new TypeError('Archived backup differs from its preserved standalone snapshot.');
+        }
       }
+      // Publish index entries only after the WHOLE batch rereads and matches.
+      // A failed write/read/verification leaves every source in this batch.
+      for (const [id, location] of locations) archived.set(id, location);
       for (const snapshot of removable) await unlink(path.join(backupsDir, snapshot.id));
     }
     let batch = [];
     let batchBytes = 0;
     for (const backup of candidates) {
-      const document = await readDocument(path.join(backupsDir, backup.id), backup.id.endsWith('.gz'));
+      const source = await readFile(path.join(backupsDir, backup.id));
+      const documentBytes = backup.id.endsWith('.gz') ? await decodeStoredBytes(source) : source;
+      const document = parseSavedDocument(documentBytes);
       if (document.retentionPinned) continue;
-      await importStoredBackup(document);
-      const bytes = Buffer.byteLength(JSON.stringify(document));
+      const state = await importStoredBackup(document, false, false, retentionCache);
+      if (state.revision !== backup.revision) throw new TypeError('Retained backup revision does not match its ID.');
+      if (state.provenance?.historyArchive !== undefined) await hydrateHistory(state, historyCache, false, retentionCache.validation);
+      // JSON text has always been accepted by importStoredBackup, including the
+      // frozen rollback reader. It also lets copy verification be byte-exact.
+      const packedDocument = documentBytes.toString('utf8');
+      if (!Buffer.from(packedDocument).equals(documentBytes)) throw new TypeError('Retained backup is not valid UTF-8.');
+      const bytes = Buffer.byteLength(JSON.stringify(packedDocument));
       if (batch.length && (batch.length >= 32 || batchBytes + bytes > 8 * 1024 * 1024)) {
         await archiveSnapshots(batch);
         batch = [];
         batchBytes = 0;
       }
-      batch.push({ ...backup, document });
+      batch.push({ ...backup, document: packedDocument });
       batchBytes += bytes;
     }
     await archiveSnapshots(batch);

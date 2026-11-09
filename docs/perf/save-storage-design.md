@@ -1,7 +1,8 @@
 # Save history storage design
 
 Study of `ad0e89817fef99f50df4969ce819876f9d484b79`. Measured on 2026-11-09.
-No application changes. All inputs were synthetic. No real save was opened.
+Sections 1-5 describe the unchanged application baseline; section 6 measures
+the retention fix. All inputs were synthetic. No real save was opened.
 
 Recommend keeping the file backend. First, remove redundant stored-state
 imports from packing and cold archive indexing. Cache validated immutable
@@ -653,3 +654,85 @@ check retention success, CPU-category totals, repeat-pass writes, archive hash
 stability on reopen, retained timeline counts and delayed-packing selection.
 The smoke, nominal and control probes ran. Existing application tests were
 inspected only. No full suite or server was run.
+
+## 6. After the retention fix
+
+Paired nominal runs on the same Windows PC, supplied Node 24.20.0, one worker,
+BelowNormal priority and the shared heavy lock: one before application edits,
+one after. Each uses the four section-5 anchors and two newly packed points per
+anchor. These fresh baseline numbers differ from section 5 because process CPU,
+GC and shared-machine load vary. No repetitions or Linux calibration were run.
+After measurement, the shallow schema guard was corrected to accept existing
+completion-coded version-2 envelopes; the nominal samples use version 1. The
+codec/retained-plugin tests and all new regressions passed after that correction;
+the nominal probe was not repeated.
+
+| CPU milliseconds | 0 notes | 560 notes | 1,120 notes | 1,300 notes |
+| --- | ---: | ---: | ---: | ---: |
+| Packing per point, before | 4,312.5 | 4,679.5 | 5,180.0 | 5,390.5 |
+| Packing per point, after | 586.5 | 719.0 | 859.5 | 945.0 |
+| Whole cold writable open, before | 3,577 | 3,876 | 4,327 | 4,562 |
+| Whole cold writable open, after | 1,203 | 1,593 | 1,375 | 1,422 |
+
+| Modeled grown group, CPU minutes | Before | After |
+| --- | ---: | ---: |
+| 1,300 durable commands | 7.76 | 7.92 |
+| Packing the same 560 points | 43.98 | 6.73 |
+| Preliminary growth, initial open and pinned replacement | 0.16 | 0.16 |
+| Total | 51.90 | 14.81 |
+
+Packing's modeled CPU falls 84.7%; total modeled CPU falls 71.5%. This is still
+interpolation, not an executed complete fixture or a server forecast. The
+two-point batches amortize a shared field less than the normal 32-point limit.
+The model now includes startup-only CPU categories: removing maintenance History
+hydration exposed a previously hidden omission of 16 CPU ms in this after run.
+Probe anchors were updated for the changed code; total CPU remains measured
+around the same operations. Category boundaries around first field validation
+have moved, so the table compares totals rather than claiming a precise new
+category breakdown.
+
+Per two-point pack, stored-state imports fall from six to two. The shared task
+field is read/checksummed/parsed/JSON-checked once in the pass; its frozen task
+rows and indexes are schema-checked once for that roster. Full rules, member
+references, optional evidence and History checks still run for each candidate.
+Unknown-provenance candidates always receive this up-front check, including full
+History dependency hydration when referenced; a failing candidate stays
+standalone and reports retention failure. No trust marker or prior-pass cache
+authorizes deletion. Checksums in `static-field.mjs` are unchanged.
+
+New packs retain the decoded standalone JSON as exact UTF-8 text in the existing
+`document` slot. No pack field, version, dependency or `state.json` format is
+added. Publication syncs before reread; the complete decoded pack bytes and every
+source document/metadata must match before any source in that batch is unlinked.
+Existing object-valued packs still compare canonical JSON for interrupted
+duplicates. Semantic archive validation happens on use, rather than indexing.
+Cold-open imports fall from three to one (current state only). Repeat passes
+write zero bytes at all anchors; pack hashes survive reopen. All four
+`state.json` lengths match the baseline. At 1,120 notes the pack grows from
+97,278 to 100,226 bytes because JSON text is escaped; size reduction is not this
+fix's goal.
+
+Rollback proof uses the actual `06e15939dbf73ecd1a0e7bc9c29088e0281ca11e`
+store module with this checkout's helper modules. Its `retainedArchiveIndex`
+at line 769 and `readBackup` at line 1253 call `importStoredBackup`, whose
+line 422 calls `parseSavedDocument`; line 32 accepts JSON strings before static
+hydration and semantic import. The focused regression lists and reads every
+new point through those frozen index/reader functions. This is reader-format
+evidence, not a complete frozen-release deployment rehearsal.
+
+All 160 cases in twelve focused files passed (25 new retention cases, zero skips).
+They cover batch corruption, unknown candidates/dependencies, static cache
+counts/checksums/rosters, every retained ID/time, portable historical reads,
+old packs, frozen readers, History/Undo, locks, publication, snapshot barriers,
+server transfer, completion-coded retention, plugin replay suppression and the
+service-checkpoint dependency allowlist. No full suite,
+CI stability loop or live activation ran. Cache memory lasts one pass and grows
+with its distinct field hashes; many different large catalogues remain an
+unmeasured memory case. Existing History replay per candidate and current-state
+import/response cloning remain. Linux fixture/full CI and owner approval remain
+release gates.
+
+Raw before results and model:
+`.local/save-storage-attribution-1794207607855-c4abe1ea/`.
+Raw after results and model:
+`.local/save-storage-attribution-1794208707871-b2ca91b3/`.

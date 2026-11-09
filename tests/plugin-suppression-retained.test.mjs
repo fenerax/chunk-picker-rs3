@@ -36,7 +36,7 @@ async function rawCheckpoint(f, row, archived) {
   for (const name of await readdir(path.join(f.dataDir, 'backups', 'archives'))) {
     const pack = JSON.parse(gunzipSync(await readFile(path.join(f.dataDir, 'backups', 'archives', name))));
     const snapshot = pack.snapshots.find(snapshot => snapshot.id === row.id);
-    if (snapshot) return snapshot.document;
+    if (snapshot) return typeof snapshot.document === 'string' ? JSON.parse(snapshot.document) : snapshot.document;
   }
   assert.fail('The real retention path must have archived the selected checkpoint');
 }

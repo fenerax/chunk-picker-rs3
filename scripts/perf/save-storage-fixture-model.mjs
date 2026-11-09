@@ -45,7 +45,11 @@ function interpolate(rows, position, get) {
 const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length;
 
 export function extrapolate(result) {
-  const rows = result.rows, keys = [...new Set(rows.flatMap(row => [row.packing, ...row.commands].flatMap(sample => Object.keys(sample.categories))))];
+  const rows = result.rows;
+  // Maintenance no longer exercises every startup path (notably History
+  // hydration). Include startup-only categories in the conserved CPU total.
+  const samples = [result.growth, result.initialOpen, result.replacement, ...rows.flatMap(row => [row.packing, ...row.commands])];
+  const keys = [...new Set(samples.flatMap(sample => Object.keys(sample.categories)))];
   assert(rows.length > 1, 'At least two history positions are needed for fixture interpolation.');
   const timeline = fixtureTimeline({ players: result.item.size, chunks: result.shape.chunks });
   assert.deepEqual(timeline.packed, fixtureTimeline({ players: result.item.size, chunks: result.shape.chunks, queued: true }).packed,
