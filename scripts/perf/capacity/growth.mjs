@@ -1,6 +1,12 @@
 // Real commands only. replace-member is the application's existing map-restore
 // command; its single inverse replaces thousands of individual unlock inverses.
-export function* growthCommands(state, item, chunks, fixture, now) {
+// Neighbour-mode option names differ by dataset (open starter: geometric;
+// duo-legacy: frontier). Pick the non-default walking option the registry offers.
+export function alternateNeighborMode(rules) {
+  const options = rules?.get?.('roll.neighborMode')?.options ?? [];
+  return options.find(option => option !== 'accessible' && option !== 'manual') ?? 'accessible';
+}
+export function* growthCommands(state, item, chunks, fixture, now, rules) {
   const unlocked = chunks.slice(0, Math.max(1, Math.floor(chunks.length * fixture.unlockFraction)));
   for (const member of state.members) {
     yield { command: { type: 'replace-member', memberId: member.id,
@@ -17,7 +23,7 @@ export function* growthCommands(state, item, chunks, fixture, now) {
       items: [{ taskId: `custom:item-${member.id}`, title: 'Synthetic item', gameItemId: 1000000, evidence: 'owned', seen: 'Synthetic fixture observation' }] } };
   }
   yield { command: { type: 'set-rule', ruleId: 'access.shared', value: item.variant % 2 === 0 } };
-  yield { command: { type: 'set-rule', ruleId: 'roll.neighborMode', value: item.variant < 2 ? 'accessible' : 'geometric' } };
+  yield { command: { type: 'set-rule', ruleId: 'roll.neighborMode', value: item.variant < 2 ? 'accessible' : alternateNeighborMode(rules) } };
 }
 
 // Publish before a potentially slow operation, then after completion. Callers

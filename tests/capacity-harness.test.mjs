@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planFixture, catalogue, loopback, digest, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
 import { arrivals, dispatch, stageWindow } from '../scripts/perf/capacity/scheduler.mjs';
-import { outcomeCounts, drive, prepareCohorts, consumeStream, explainAction } from '../scripts/perf/capacity/driver.mjs';
+import { outcomeCounts, measuredOutcome, drive, prepareCohorts, consumeStream, explainAction } from '../scripts/perf/capacity/driver.mjs';
 import { fixtureWorkers } from '../scripts/perf/capacity/fixture-pool.mjs';
 import { processTree } from '../scripts/perf/capacity/telemetry.mjs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testRunPolicy, classifyTest } from '../scripts/test-selection.mjs';
 import { evaluate } from '../scripts/perf/capacity/report.mjs';
-import { growthCommands, fixtureProgress } from '../scripts/perf/capacity/growth.mjs';
+import { growthCommands, fixtureProgress, alternateNeighborMode } from '../scripts/perf/capacity/growth.mjs';
 import { probeLimits } from '../scripts/perf/capacity/command-cost.mjs';
 import { createGroupState, applyCommand, validateState } from '../app/core/state.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
@@ -58,7 +58,7 @@ test('batched unlocks match individual-command gameplay for every roster and rul
     const initial = createGroupState(members, registry), before = structuredClone(initial);
     let batched = initial, reference = initial, tick = 0, referenceTick = 0, commands = 0;
     const base = Date.UTC(2026, 9, 1), at = value => base + value * 12 * 3600000;
-    for (const { command, ticks = 1 } of growthCommands(initial, { index: 42, variant }, chunks, { unlockFraction: .5 }, () => at(tick))) {
+    for (const { command, ticks = 1 } of growthCommands(initial, { index: 42, variant }, chunks, { unlockFraction: .5 }, () => at(tick), registry)) {
       tick += ticks; commands++;
       batched = applyCommand(batched, command, { world, registry, now: at(tick) });
       if (command.type === 'replace-member') {
@@ -164,6 +164,24 @@ test('fast unexpected HTTP and network failures fail measured latency and admiss
   assert.equal(gates.nominalAdmission.intentionalConflicts,1);assert.equal(gates.nominalAdmission.unsupported,1);
   assert.equal(gates.nominalAdmission.validHttpRequests,1);
   assert.equal(outcomeCounts({status:409,requests:[{status:409}]}).unexpectedFailures,1);
+});
+
+test('grown variants pick a neighbour mode the selected dataset accepts',()=>{
+  const registry=createRuleRegistry(), options=registry.get('roll.neighborMode').options;
+  assert.ok(options.includes(alternateNeighborMode(registry)));
+  assert.notEqual(alternateNeighborMode(registry),'accessible');
+  assert.equal(alternateNeighborMode({get:()=>({options:['accessible','frontier','manual']})}),'frontier');
+  assert.equal(alternateNeighborMode({get:()=>({options:['accessible','geometric','manual']})}),'geometric');
+});
+
+test('explanations without a task row fail visibly and never count as measured latency',()=>{
+  const empty={status:'empty-task-list',requests:[{status:200,route:'/api/tasks'}]};
+  assert.equal(outcomeCounts(empty).unexpectedFailures,1);
+  assert.equal(measuredOutcome(empty),false);
+  const noPool={status:'empty-pool',requests:[{status:200,route:'/api/tasks'}]};
+  assert.equal(outcomeCounts(noPool).unexpectedFailures,0);
+  assert.equal(measuredOutcome(noPool),false);
+  assert.equal(measuredOutcome({status:200,requests:[{status:200}]}),true);
 });
 
 test('arrivals and telemetry share the post-sample start and exclude boundary-spanning resource windows',async()=>{

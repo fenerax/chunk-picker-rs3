@@ -7,6 +7,11 @@ export function percentile(values,p) {
   const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.max(0,Math.ceil(sorted.length*p)-1)] : null;
 }
 const distribution=values=>({count:values.length,p50Ms:percentile(values,.5),p95Ms:percentile(values,.95),p99Ms:percentile(values,.99),maxMs:values.length?values.reduce((a,b)=>Math.max(a,b),0):null});
+// A missing prerequisite means the measured request was never sent. It must not
+// stand in for a measured sample. An empty task list is a fixture/driver failure;
+// an empty unlock pool can be legitimate, so it is only excluded from latency.
+const failedPrerequisite=status=>status==='empty-task-list';
+export const measuredOutcome=outcome=>!outcome.intentionalConflict&&!['unsupported','empty-task-list','empty-pool'].includes(outcome.status);
 export function outcomeCounts(outcome) {
   const requests=outcome.requests??[], intentional=r=>r.status===409 &&
     (r.intentionalConflict===true || r.intentionalConflict===undefined && outcome.intentionalConflict && (!r.route || r.route==='/api/command'));
@@ -15,7 +20,7 @@ export function outcomeCounts(outcome) {
   return {httpRequests:requests.length,httpRejects:requests.filter(r=>[429,503].includes(r.status)).length,
     rejectsWithoutRetryAfter:requests.filter(r=>[429,503].includes(r.status)&&!r.retryAfter).length,
     timeouts:requests.filter(r=>r.status==='timeout').length,
-    unexpectedFailures:unexpectedRequests||Number(unexpected(outcome.status)&&!(outcome.status===409&&(requests.length?requests.some(intentional):outcome.intentionalConflict))),
+    unexpectedFailures:unexpectedRequests||Number(failedPrerequisite(outcome.status)||unexpected(outcome.status)&&!(outcome.status===409&&(requests.length?requests.some(intentional):outcome.intentionalConflict))),
     intentionalConflicts:requests.filter(intentional).length,unsupported:outcome.status==='unsupported'?1:0};
 }
 export async function explainAction(call, client, action, ordinal) {
@@ -116,7 +121,7 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
     const group=records[`${event.stage}:${action}`]??={stage:event.stage,action,all:[],valid:[],success:[],lag:[],statuses:{},httpRequests:0,httpRejects:0,timeouts:0,
       rejectsWithoutRetryAfter:0,unexpectedFailures:0,intentionalConflicts:0,unsupported:0,cacheHits:0,cacheMisses:0};
     group.all.push(row.latencyMs);group.lag.push(row.startLagMs);if(outcome.status===200)group.success.push(row.latencyMs);
-    if(!outcome.intentionalConflict&&outcome.status!=='unsupported')group.valid.push(row.latencyMs);
+    if(measuredOutcome(outcome))group.valid.push(row.latencyMs);
     group.statuses[outcome.status]=(group.statuses[outcome.status]??0)+1;
     for(const [key,count] of Object.entries(outcomeCounts(outcome)))group[key]+=count;
     group.cacheHits+=(outcome.requests??[]).filter(r=>r.cacheHit===true).length;group.cacheMisses+=(outcome.requests??[]).filter(r=>r.cacheHit===false).length;

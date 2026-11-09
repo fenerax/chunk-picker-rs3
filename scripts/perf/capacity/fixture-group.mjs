@@ -19,7 +19,7 @@ export async function buildGroup({ item, dataDir }, { profile, worldData, tasks,
   const expectedTicks = item.size * (Math.max(1, Math.floor(chunks.length * f.unlockFraction)) + 6) + 1 + f.historyEvents + f.snapshots;
   const now = () => Date.UTC(2026, 9, 1) + (tick - expectedTicks) * 12 * 3600000;
   const growthStarted = performance.now();
-  if (item.grown) for (const { command, ticks = 1 } of growthCommands(state, item, chunks, f, now)) {
+  if (item.grown) for (const { command, ticks = 1 } of growthCommands(state, item, chunks, f, now, rules)) {
     await update({ phase: 'growth', completed: growthCount, total: item.size * 7 + 2, commandType: command.type });
     tick += ticks;
     state = applyCommand(state, command, { world, registry: rules, now: now(), random: rng });
