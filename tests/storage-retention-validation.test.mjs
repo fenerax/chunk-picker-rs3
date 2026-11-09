@@ -13,7 +13,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const storeURL = new URL('../app/storage/store.mjs', import.meta.url).href;
 const stateURL = new URL('../app/core/state.mjs', import.meta.url).href;
 const stats = globalThis[Symbol.for('retention-validation-test')] = {};
-const reset = () => Object.assign(stats, { imports: 0, candidates: 0, taskChecks: 0, fields: [] });
+const reset = () => Object.assign(stats, { imports: 0, candidates: 0, taskChecks: 0, fields: [], cacheSamples: [] });
 reset();
 // Count actual boundaries in the loaded implementation, never elapsed time.
 registerHooks({ load(url, context, next) {
@@ -83,6 +83,163 @@ async function editSource(fixture, revision, change) {
   fixture.sources.set(row.id, bytes);
   return row;
 }
+
+async function limitedStore({ portableBytes, staticCacheBytes, frozenSource } = {}) {
+  const url = `${storeURL}?retention-limits=${portableBytes}-${staticCacheBytes}-${Boolean(frozenSource)}`;
+  const hook = registerHooks({ load(target, context, next) {
+    if (target !== url) return next(target, context);
+    let source = frozenSource ?? String(next(target, context).source);
+    // Exercise the real byte comparisons with small synthetic documents. Only
+    // constants change; publication, compression, import and parsing stay real.
+    if (portableBytes) {
+      source = source.replace('MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL', 'MAX_PORTABLE_BACKUP_BYTES as productionLimit, BACKUP_LIMIT_LABEL');
+      source = `const MAX_PORTABLE_BACKUP_BYTES = ${portableBytes};\n${source}`;
+    }
+    if (staticCacheBytes) {
+      source = source.replace(/const RETENTION_STATIC_CACHE_BYTES = [^;]+;/, `const RETENTION_STATIC_CACHE_BYTES = ${staticCacheBytes};`);
+      const anchor = 'retentionCache.fields.set(cacheKey, result);';
+      assert.equal(source.split(anchor).length, 2);
+      source = source.replace(anchor, `${anchor}
+        globalThis[Symbol.for('retention-validation-test')].cacheSamples.push({
+          entries: retentionCache.fields.size,
+          bytes: [...retentionCache.fields.values()].reduce((sum, entry) => sum + Buffer.byteLength(JSON.stringify(entry.value)), 0),
+          accountedBytes: retentionCache.bytes,
+        });`);
+    }
+    return { format: 'module', source, shortCircuit: true };
+  } });
+  try { return await import(url); } finally { hook.deregister(); }
+}
+
+test('shared History segments normalize claim aliases independently for each retained snapshot', async t => {
+  const fixture = await seed(t);
+  const reference = { id: 'history-0000000000000001-0000000000000001-bbbbbbbbbbbbbbbb.json.gz' };
+  const claim = { memberId: 'actor', at: now() };
+  const segment = { format: 'rs3-chunk-picker-history', events: [{
+    id: 'revision-1', revision: 1, type: 'claim-task', at: now(),
+    undo: { taskClaimChanges: { beforeExists: false, afterExists: true,
+      changes: [{ id: 'old-id', before: { exists: false }, after: { exists: true, value: claim } }] } },
+  }] };
+  const file = path.join(fixture.dataDir, 'history', reference.id);
+  await fs.writeFile(file, gzipSync(JSON.stringify(segment)));
+  const source = await fs.readFile(file);
+  const taskId = revision => `rs3:task:alias-${revision % 2 ? 'a' : 'b'}`;
+  for (const revision of [1, 2, 3, 4]) await editSource(fixture, revision, document => {
+    const id = taskId(revision);
+    document.state.tasks = [{ id, label: 'Synthetic alias target', category: 'custom' }];
+    document.state.identityRegistry = { schemaVersion: 1, entries: { [id]: { id, kind: 'task', label: 'Synthetic alias target' } }, aliases: { 'old-id': id }, unresolved: [] };
+    document.state.taskClaims = { [id]: claim };
+    document.state.history = document.state.history.filter(event => event.revision !== 1);
+    document.state.provenance = { historyArchive: [reference] };
+  });
+  const baseline = await writable(t, fixture.dataDir, { retention: false });
+  for (const revision of [4, 3, 2, 1]) {
+    const row = fixture.snapshots.find(row => row.revision === revision);
+    assert.equal((await baseline.readBackup(row.id)).state.history[0].undo.taskClaimChanges.changes[0].id, taskId(revision));
+  }
+  await baseline.close();
+  const retained = await writable(t, fixture.dataDir);
+  assert.equal(retained.getInfo().retention.failure, undefined);
+  for (const revision of [4, 3, 2, 1]) {
+    const row = fixture.snapshots.find(row => row.revision === revision);
+    await assert.rejects(fs.stat(path.join(fixture.dataDir, 'backups', row.id)), { code: 'ENOENT' });
+    assert.equal((await retained.readBackup(row.id, { forImport: true })).state.history[0].undo.taskClaimChanges.changes[0].id, taskId(revision));
+  }
+  assert.deepEqual(await fs.readFile(file), source);
+});
+
+for (const boundary of ['escaped', 'envelope-overhead', 'exact-limit']) test(`${boundary} singleton preserves restorability at the archive reader limit`, async t => {
+  const fixture = await seed(t, { count: 3 });
+  const row = await editSource(fixture, 1, document => { document.state.members[0].journal = '\\"'.repeat(1800); });
+  const text = gunzipSync(fixture.sources.get(row.id)).toString('utf8');
+  const { event, ...metadata } = row;
+  const singleton = JSON.stringify({ format: 'rs3-chunk-picker-retained-archive', snapshots: [{ ...metadata, document: text }] });
+  const size = Buffer.byteLength(singleton);
+  const limit = boundary === 'escaped' ? 12 * 1024 : size - (boundary === 'envelope-overhead' ? 1 : 0);
+  assert.ok(Buffer.byteLength(text) < limit);
+  if (boundary === 'escaped') assert.ok(Buffer.byteLength(JSON.stringify(text)) > limit);
+  if (boundary === 'envelope-overhead') assert.ok(Buffer.byteLength(JSON.stringify(text)) < limit);
+  const bounded = await limitedStore({ portableBytes: limit });
+  const before = await bounded.openStore({ dataDir: fixture.dataDir, retention: false, now });
+  const expected = await before.readBackup(row.id, { forImport: true });
+  await before.close();
+  const store = await bounded.openStore({ dataDir: fixture.dataDir, retention: { backupDays: 1 }, now });
+  t.after(() => store.close());
+  assert.equal(store.getInfo().retention.failure, undefined);
+  assert.deepEqual(await store.readBackup(row.id, { forImport: true }), expected);
+  if (boundary === 'exact-limit') {
+    const [pack] = await packs(fixture.dataDir);
+    assert.equal(gunzipSync(pack.bytes).length, limit);
+    await assert.rejects(fs.stat(path.join(fixture.dataDir, 'backups', row.id)), { code: 'ENOENT' });
+  } else {
+    assert.deepEqual(await fs.readFile(path.join(fixture.dataDir, 'backups', row.id)), fixture.sources.get(row.id));
+  }
+  assert.deepEqual((await store.listBackups()).map(row => row.id), fixture.snapshots.map(row => row.id));
+  await store.close();
+  let frozenSource;
+  try { frozenSource = execFileSync('git', ['show', '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e:app/storage/store.mjs'], { cwd: root, encoding: 'utf8', windowsHide: true, stdio: 'pipe' }); }
+  catch { return t.skip('Pinned 06e1593 Git object unavailable; full CI fetches it.'); }
+  const frozen = await limitedStore({ portableBytes: limit, frozenSource });
+  const old = await frozen.openStore({ dataDir: fixture.dataDir, retention: false, now });
+  t.after(() => old.close());
+  assert.deepEqual(await old.readBackup(row.id, { forImport: true }), expected);
+  assert.deepEqual((await old.listBackups()).map(row => row.id), fixture.snapshots.map(row => row.id));
+});
+
+test('static retention cache evicts distinct fields by byte budget and skips oversized fields', async t => {
+  const fixture = await seed(t, { count: 36 });
+  const limit = 4 * 1024;
+  const sharedTasks = [{ id: 'rs3:task:retention-probe', label: 'Synthetic shared task', category: 'custom' }];
+  const oversized = { retentionKind: 'provenance', evidence: 'x'.repeat(limit + 1) };
+  await fs.mkdir(path.join(fixture.dataDir, 'static'), { recursive: true });
+  async function field(value) {
+    const json = JSON.stringify(value), sha256 = digest(json), id = `static-${sha256}.json.gz`;
+    await fs.writeFile(path.join(fixture.dataDir, 'static', id), gzipSync(json));
+    return { id, sha256 };
+  }
+  const tasks = await field(sharedTasks), provenance = await field(oversized);
+  for (let revision = 1; revision <= 34; revision++) {
+    const legacy = await field({ retentionKind: 'legacy', revision, evidence: 'x'.repeat(1024) });
+    await editSource(fixture, revision, document => {
+      delete document.state.tasks;
+      document.storage = { schemaVersion: 1, fields: { tasks, legacy, provenance } };
+    });
+  }
+  const bounded = await limitedStore({ staticCacheBytes: limit });
+  reset();
+  const store = await bounded.openStore({ dataDir: fixture.dataDir, retention: { backupDays: 1 }, now });
+  t.after(() => store.close());
+  assert.equal(store.getInfo().retention.failure, undefined);
+  assert.ok(stats.cacheSamples.length >= 34, 'observe insertions across multiple published batches');
+  assert.ok(stats.cacheSamples.every(sample => sample.bytes <= limit), JSON.stringify(stats.cacheSamples));
+  for (const sample of stats.cacheSamples) assert.equal(sample.accountedBytes, sample.bytes);
+  assert.ok(stats.cacheSamples.every(sample => sample.entries <= 4), 'old unique fields are evicted; oversized field is never cached');
+  assert.equal(stats.taskChecks, 1, 'the frequently reused catalogue survives eviction of one-off fields');
+  assert.equal((await store.listBackups()).length, fixture.snapshots.length);
+  assert.equal((await packs(fixture.dataDir)).length, 2);
+});
+
+test('static cached roots stay immutable during diagnostics normalization and identity projection', () => {
+  const cache = createOwnedStateValidationCache(), id = 'rs3:task:retention-probe';
+  const fields = {
+    tasks: [{ id, label: 'Synthetic shared task', category: 'custom' }],
+    identityRegistry: { schemaVersion: 1, entries: { [id]: { id, kind: 'task', label: 'Synthetic shared task' } }, aliases: { 'old-id': id }, unresolved: [] },
+    legacy: { evidence: { text: 'Synthetic immutable legacy' } },
+    provenance: { taskRuleDiagnostics: ['stale'], evidence: { text: 'Synthetic immutable provenance' } },
+  };
+  const before = JSON.stringify(fields);
+  for (const value of Object.values(fields)) cache.checkStaticField(value);
+  for (const completedTasks of [['old-id'], [id]]) {
+    const state = createGroupState([{ id: 'actor', name: 'Synthetic Player', completedTasks: [] }]);
+    state.members[0].completedTasks = completedTasks;
+    const validated = validateOwnedState({ ...state, ...fields }, undefined, cache);
+    assert.deepEqual(validated.members[0].completedTasks, [id]);
+    assert.equal(validated.provenance.taskRuleDiagnostics, undefined);
+    assert.equal(JSON.stringify(fields), before);
+  }
+  for (const value of Object.values(fields)) assert.equal(Object.isFrozen(value), true);
+  assert.equal(Object.isFrozen(fields.provenance.evidence), true);
+});
 
 test('cold open and listing import only current state; each static field is checked once per hash in a multi-snapshot pass', async t => {
   const fixture = await seed(t, { staticFields: true });

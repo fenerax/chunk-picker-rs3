@@ -692,7 +692,7 @@ have moved, so the table compares totals rather than claiming a precise new
 category breakdown.
 
 Per two-point pack, stored-state imports fall from six to two. The shared task
-field is read/checksummed/parsed/JSON-checked once in the pass; its frozen task
+field is read/checksummed/parsed/JSON-checked once while cached; its frozen task
 rows and indexes are schema-checked once for that roster. Full rules, member
 references, optional evidence and History checks still run for each candidate.
 Unknown-provenance candidates always receive this up-front check, including full
@@ -710,7 +710,11 @@ Cold-open imports fall from three to one (current state only). Repeat passes
 write zero bytes at all anchors; pack hashes survive reopen. All four
 `state.json` lengths match the baseline. At 1,120 notes the pack grows from
 97,278 to 100,226 bytes because JSON text is escaped; size reduction is not this
-fix's goal.
+fix's goal. New packs are now capped at `MAX_PORTABLE_BACKUP_BYTES` for the
+complete decoded JSON envelope, including document escaping and metadata.
+An oversized singleton stays standalone. Verification rereads use the same
+decompression bound, including interrupted duplicates, before source deletion.
+Reader limits and the existing pack representation remain unchanged.
 
 Rollback proof uses the actual `06e15939dbf73ecd1a0e7bc9c29088e0281ca11e`
 store module with this checkout's helper modules. Its `retainedArchiveIndex`
@@ -720,17 +724,45 @@ hydration and semantic import. The focused regression lists and reads every
 new point through those frozen index/reader functions. This is reader-format
 evidence, not a complete frozen-release deployment rehearsal.
 
-All 160 cases in twelve focused files passed (25 new retention cases, zero skips).
+At measured commit `e5d9651`, all 160 cases in twelve focused files passed
+(25 new retention cases, zero skips).
 They cover batch corruption, unknown candidates/dependencies, static cache
 counts/checksums/rosters, every retained ID/time, portable historical reads,
 old packs, frozen readers, History/Undo, locks, publication, snapshot barriers,
 server transfer, completion-coded retention, plugin replay suppression and the
 service-checkpoint dependency allowlist. No full suite,
-CI stability loop or live activation ran. Cache memory lasts one pass and grows
-with its distinct field hashes; many different large catalogues remain an
-unmeasured memory case. Existing History replay per candidate and current-state
-import/response cloning remain. Linux fixture/full CI and owner approval remain
-release gates.
+CI stability loop or live activation ran. Existing History replay per candidate
+and current-state import/response cloning remain. Linux fixture/full CI and owner
+approval remain release gates.
+
+Round-1 review fixes isolate cached History JSON from owned validation by
+cloning the assembled events before normalization. A shared segment can resolve
+the same old claim ID through different snapshot registries without contaminating
+the next candidate. The static cache roots remain deeply frozen: identity
+projection clones its input, task/registry validation only reads those roots,
+and diagnostics/evidence normalization replaces provenance rather than mutating
+it. A regression covers normalization and projection using the frozen roots.
+
+The pass cache now has a 32 MiB decoded-JSON budget with least-recently-used
+eviction. Fields larger than the budget are fully validated without caching;
+evicted hashes must be read, checksummed and validated again. The nominal
+18,986,921-byte task field fits. Serialized strings, normalized markers and
+catalogue validation/index caches have weak keys, so evicted field versions
+are not kept alive by those caches. This is an encoded-content budget, not a
+32 MiB heap ceiling: parsed objects, indexes and the current candidate add memory.
+The count-based regression uses a reduced budget and 34 candidates across two
+published batches; one shared catalogue remains validated once while distinct
+fields are evicted and oversized fields never enter the cache.
+
+All three review regressions failed against `e5d9651` before their fixes. The
+size regressions also cover envelope overhead and exact-limit packs through
+the actual frozen `06e1593` index and `readBackup(..., { forImport: true })`,
+with the same reduced limit in both readers. No new performance run was made
+for these review fixes; the measurements above describe the earlier measured
+source, before the History clone, cache budget and pack-size guard.
+Round-1 focused verification passed all 166 cases across the same twelve files,
+including 31 retention cases (six additional), with zero failures or skips on
+Node 24.20.0. No full suite, retries or stability repetition loop ran locally.
 
 Raw before results and model:
 `.local/save-storage-attribution-1794207607855-c4abe1ea/`.

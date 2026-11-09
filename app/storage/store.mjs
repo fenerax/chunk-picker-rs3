@@ -72,6 +72,10 @@ const HISTORY_ID = /^history-\d{16}-\d{16}-[a-f0-9]{16}\.json\.gz$/;
 const ARCHIVE_ID = /^archive-[a-f0-9]{16}\.json\.gz$/;
 const STATIC_ID = /^static-([a-f0-9]{64})\.json\.gz$/;
 const STATIC_THRESHOLD = 256 * 1024;
+// Decoded JSON budget, including the nominal 19 MiB task catalogue. Parsed
+// fields, normalized strings and validation indexes live only while their
+// weakly keyed field is reachable; one-off versions must not accumulate.
+const RETENTION_STATIC_CACHE_BYTES = 32 * 1024 * 1024;
 export const DEFAULT_RETENTION = Object.freeze({ backupDays: 90, historyEntries: 1000 });
 const COMPLETION_HISTORY_TYPES = new Set(['set-task-status', 'tick-active-tasks', 'complete-task', 'apply-runemetrics', 'apply-game-progress', 'sync-original']);
 function taskCompletionEvent({ revision, type, at, command, undoneRevision }) {
@@ -308,12 +312,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function readStaticField(key, reference, forImport = false, retentionCache) {
     validateStaticFieldReference(key, reference);
     const cacheKey = `${key}:${reference?.id}`;
-    if (retentionCache?.fields.has(cacheKey)) return retentionCache.fields.get(cacheKey);
+    if (retentionCache?.fields.has(cacheKey)) {
+      const cached = retentionCache.fields.get(cacheKey);
+      retentionCache.fields.delete(cacheKey);
+      retentionCache.fields.set(cacheKey, cached);
+      return cached;
+    }
     if (readOnly && standbyStaticFields.has(cacheKey)) return standbyStaticFields.get(cacheKey);
     const bytes = await readStaticFieldBytes(directory, key, reference, { decompress: bytes => decodeStoredBytes(bytes, forImport) });
-    const result = { value: forImport ? await importDocument(bytes) : JSON.parse(bytes.toString('utf8')) };
-    if (retentionCache) {
+    const result = { value: forImport ? await importDocument(bytes) : JSON.parse(bytes.toString('utf8')), bytes: bytes.length };
+    if (retentionCache && bytes.length <= RETENTION_STATIC_CACHE_BYTES) {
+      while (retentionCache.bytes + bytes.length > RETENTION_STATIC_CACHE_BYTES) {
+        const oldest = retentionCache.fields.keys().next().value;
+        retentionCache.bytes -= retentionCache.fields.get(oldest).bytes;
+        retentionCache.fields.delete(oldest);
+      }
       retentionCache.validation.checkStaticField(result.value);
+      retentionCache.bytes += bytes.length;
       retentionCache.fields.set(cacheKey, result);
     }
     if (readOnly) {
@@ -696,11 +711,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     const events = new Map(archived);
     for (const event of state.history) events.set(event.revision, event);
-    // Only the history array and archive references change before validation.
-    // Undo cancellation replaces event nodes; the public JSON boundary below
-    // still owns and normalizes every returned field without an earlier clone.
+    const history = [...events.values()].sort((a, b) => a.revision - b.revision);
+    // Owned validation normalizes nested Undo values in place, including task
+    // claim aliases and old stickers. Own the events too: cached archive JSON
+    // must retain its original IDs for the next snapshot's identity registry.
+    // The public validateState path already provides that isolation itself.
     const complete = { ...state,
-      history: [...events.values()].sort((a, b) => a.revision - b.revision) };
+      history: importReader || validationCache ? structuredClone(history) : history };
     if (complete.provenance?.historyArchive !== undefined) {
       complete.provenance = { ...complete.provenance };
       delete complete.provenance.historyArchive;
@@ -811,10 +828,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const cutoff = Date.parse(timestamp()) - policy.backupDays * 86_400_000;
     const candidates = [];
     const historyCache = { documents: new Map(), bytes: 0 };
-    // Immutable content is checked once per pass, never inherited from the
-    // current save or a prior pass. Unknown-provenance candidates still cross
+    // Cached immutable content is checked once while resident, never inherited
+    // from the current save or a prior pass. Unknown-provenance candidates cross
     // the complete state/Undo boundary before any source can be removed.
-    const retentionCache = { fields: new Map(), normalized: new WeakSet(), validation: createOwnedStateValidationCache() };
+    const retentionCache = { fields: new Map(), bytes: 0, normalized: new WeakSet(), validation: createOwnedStateValidationCache() };
     for (const backup of backups) {
       const day = backup.at.slice(0, 10);
       const checkpoint = !days.has(day);
@@ -831,10 +848,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const packId = `archive-${randomBytes(8).toString('hex')}.json.gz`;
         const pack = { format: 'rs3-chunk-picker-retained-archive', snapshots };
         const json = JSON.stringify(pack);
+        // Both this reader and frozen 06e1593 bound the WHOLE decompressed pack
+        // during retained imports. Escaping document text can exceed that limit
+        // even for a restorable standalone. Leave this batch's sources intact.
+        if (Buffer.byteLength(json) > MAX_PORTABLE_BACKUP_BYTES) return;
         const bytes = await gzipAsync(json, { level: constants.Z_BEST_COMPRESSION });
         await mkdir(archivesDir, { recursive: true });
         reportDurability(await atomicWrite(path.join(archivesDir, packId), bytes));
-        const reread = await decodeStoredBytes(await readFile(path.join(archivesDir, packId)));
+        const reread = await decodeStoredBytes(await readFile(path.join(archivesDir, packId)), true);
         if (!reread.equals(Buffer.from(json))) throw new TypeError('Retained archive bytes differ after publication.');
         verifiedPacks.set(packId, parseSavedDocument(reread));
         for (const snapshot of snapshots) {
@@ -846,7 +867,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       for (const snapshot of removable) {
         const archivedSnapshot = locations.get(snapshot.id);
         if (!verifiedPacks.has(archivedSnapshot.packId)) {
-          const pack = await readDocument(path.join(archivesDir, archivedSnapshot.packId));
+          const pack = await readDocument(path.join(archivesDir, archivedSnapshot.packId), true, true);
           if (pack.format !== 'rs3-chunk-picker-retained-archive' || !Array.isArray(pack.snapshots)) throw new TypeError('Invalid retained backup archive.');
           verifiedPacks.set(archivedSnapshot.packId, pack);
         }
