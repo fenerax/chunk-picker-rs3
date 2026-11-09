@@ -78,12 +78,23 @@ test('setup guide native lifecycle', { timeout: 300000 }, async file => {
       const probe = await evaluate(`(() => {
         const node = ${expression}, r = node.getBoundingClientRect(), x = r.x+r.width/2, y = r.y+r.height/2;
         const hit = document.elementFromPoint(x, y);
-        window.setupActivation = { clicked: false, actual: null };
+        const activation = window.setupActivation = { clicked: false, actual: null };
+        const snapshot = event => {
+          const rect = node.getBoundingClientRect(), feedback = document.getElementById('calculation-status');
+          return { actual: event.target.id || event.target.tagName, moreOpen: document.getElementById('more-tools').open,
+            rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            point: [event.clientX, event.clientY], scroll: [scrollX, scrollY], feedback: feedback?.textContent, feedbackHidden: feedback?.hidden };
+        };
+        if (${mode === 'pointer'}) document.addEventListener('pointerdown', event => {
+          activation.press = snapshot(event);
+        }, { once: true, capture: true });
         document.addEventListener('click', event => {
-          window.setupActivation = { clicked: node.contains(event.target), actual: event.target.id || event.target.tagName };
+          Object.assign(activation, { clicked: node.contains(event.target), actual: event.target.id || event.target.tagName,
+            click: snapshot(event) });
         }, { once: true, capture: true });
         return { visible: node.checkVisibility() && r.width > 0 && r.height > 0,
-          enabled: !node.disabled, hit: node.contains(hit), actual: hit?.id || hit?.tagName, x, y };
+          enabled: !node.disabled, hit: node.contains(hit), actual: hit?.id || hit?.tagName, x, y,
+          moreOpen: document.getElementById('more-tools').open, rect: { x: r.x, y: r.y, width: r.width, height: r.height } };
       })()`);
       equal(probe.visible && probe.enabled, true, `activation target visible and enabled: ${expression}`);
       if (mode === 'keyboard') await key('Enter', 'Enter', 13);
@@ -94,6 +105,7 @@ test('setup guide native lifecycle', { timeout: 300000 }, async file => {
         await browser.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
       }
       const activation = await evaluate('window.setupActivation');
+      if (!activation.clicked) t.diagnostic(`Native input race: ${JSON.stringify({ probe, press: activation.press, click: activation.click })}`);
       equal(activation.clicked, true, `${phase}: native click delivered to ${expression}; actual=${activation.actual}`);
     };
     const inside = async () => {
