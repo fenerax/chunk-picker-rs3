@@ -40,11 +40,13 @@ jobs:
           echo "run=$run" | tee -a "$GITHUB_OUTPUT"
 
   inputs:
-    # One cache producer avoids four concurrent pack/Wiki/frozen downloads.
+    # One cache producer avoids concurrent pack/Wiki/frozen/restic downloads.
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      restic-key: ${{ steps.restic.outputs.key }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -53,6 +55,43 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
+      # Populate one checksum-pinned archive before Linux jobs fan out.
+      - name: Identify restic archive
+        id: restic
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { resticPin } from './scripts/linux/restic.mjs';
+          const cpu = process.arch, pin = resticPin[cpu];
+          if (!['x64', 'arm64'].includes(cpu) || !pin) throw Error('Unsupported restic architecture.');
+          const arch = cpu === 'x64' ? 'amd64' : 'arm64';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, [
+            'key=restic-linux-' + cpu + '-' + resticPin.version + '-' + pin.archive,
+            'url=https://github.com/restic/restic/releases/download/v' + resticPin.version + '/restic_' + resticPin.version + '_linux_' + arch + '.bz2',
+            'sha256=' + pin.archive, '',
+          ].join('\n'));
+          NODE
+      - name: Restore restic archive
+        id: resticcache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/restic-archive.bz2
+          key: ${{ steps.restic.outputs.key }}
+      - name: Download and verify restic archive
+        if: steps.resticcache.outputs.cache-hit != 'true'
+        env:
+          RESTIC_URL: ${{ steps.restic.outputs.url }}
+          RESTIC_SHA256: ${{ steps.restic.outputs.sha256 }}
+          RESTIC_ARCHIVE: ${{ runner.temp }}/restic-archive.bz2
+        run: |
+          curl --fail --location --output "$RESTIC_ARCHIVE" "$RESTIC_URL"
+          printf '%s  %s\n' "$RESTIC_SHA256" "$RESTIC_ARCHIVE" | sha256sum --check --status
+      - name: Save restic archive
+        if: steps.resticcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/restic-archive.bz2
+          key: ${{ steps.restic.outputs.key }}
       - name: Identify frozen rollback checkout
         id: frozen
         run: node --input-type=module -e "import fs from 'node:fs'; const pin = JSON.parse(fs.readFileSync('docs/save-surface.json')).frozenRelease; if (!/^[a-f0-9]{40}$/.test(pin)) throw new Error('Invalid frozen pin'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'sha=' + pin + '\n');"
@@ -178,11 +217,17 @@ jobs:
         with:
           path: .local/gh-coverage/wiki-open-f2p
           key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
+      - name: Restore required restic archive
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/restic-archive.bz2
+          key: ${{ needs.inputs.outputs.restic-key }}
+          fail-on-cache-miss: true
       - name: Install checksum-pinned restic for the local encrypted restore test
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y bzip2 util-linux
-          sudo "$(command -v node)" scripts/ops/install-restic.mjs
+          sudo "$(command -v node)" scripts/ops/install-restic.mjs --archive-file "${{ runner.temp }}/restic-archive.bz2"
       # Each full-suite file belongs to exactly one partition.
       - name: Full shard
         run: npm test -- --shard=${{ matrix.shard }}/4
