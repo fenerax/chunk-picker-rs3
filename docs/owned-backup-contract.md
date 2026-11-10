@@ -53,10 +53,9 @@ Explicit rebases, storage-1 rollback inflation/frozen-loader replay, calculator
 transport/residency, browser negotiation and GC remain slices 5–9. Activation and
 real-save migration remain unauthorized; the flag stays off.
 
-Local acceptance is incomplete: the allowed rerun passed six of eight new cases.
-The concurrency fixture reads a command result using the wrong shape, and the
-off-site fixture emits pretty JSON where restic emits JSONL. Those cases require
-fixture correction and verification before this slice is accepted. The final
-missing-source service refusal and owned hold-duration reporting have only had
-syntax checks. Existing service regression execution was stopped before its
-ten-minute shared-work lease expired; that file is also incomplete.
+Local synthetic acceptance passes all ten cases, including actual missing-source
+service refusal and owned hold-duration fields in both response/completion JSON.
+Duration assertions check structure, presence and type without timing values.
+The acceptance file passed after one fixture-directory fix and one rerun in the
+completion round. The existing service regression file was not rerun locally;
+its complete Linux/Windows CI receipts remain required before landing.

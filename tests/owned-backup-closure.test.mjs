@@ -120,11 +120,12 @@ test('online capture drains an in-flight write and blocks the next write through
       assert.equal(store.getInfo().revision, 1);
     }
   } });
-  resume(); const expected = { state: (await first).state }; await capture; await next;
+  resume(); const expected = { state: await first }; await capture; await next;
   const root = snapshotPath(f.dataDir, id); t.after(() => rm(path.dirname(root), { recursive: true, force: true }));
   await verifyOwnedClosure(root, ['store']);
   const captured = await opened(path.join(root, 'store'), await ownedRecoveryOptions(path.join(root, 'store')));
   t.after(() => captured.close()); sameLogical(await captured.backup(), expected);
+  await captured.close();
   assert.equal(store.getInfo().revision, 2);
   const delivered = await captureOnline({ settings: f.settings, release: f.release,
     request: async (_release, _route, _method, body) => {
@@ -133,6 +134,46 @@ test('online capture drains an in-flight write and blocks the next write through
       return { id: body.id, heldMs: 0 };
     } });
   await verifyOwnedClosure(path.dirname(delivered.dataDir), ['store']); await delivered.cleanup();
+});
+test('owned capture reports hold-duration fields in its response and published completion record', async t => {
+  const f = await setup(t), store = await opened(f.dataDir, f.owned); await f.bind(f.dataDir);
+  assert.equal((await json(path.join(f.dataDir, 'state.json'))).storage.schemaVersion, 2);
+  const result = await snapshotStore(f.dataDir, id);
+  const root = snapshotPath(f.dataDir, id), complete = await json(path.join(root, 'complete.json'));
+  for (const record of [result, complete]) {
+    assert.deepEqual(Object.keys(record), ['id', 'heldMs']);
+    assert.equal(record.id, id);
+    assert(Object.hasOwn(record, 'heldMs'));
+    assert.equal(typeof record.heldMs, 'number');
+  }
+  await verifyOwnedClosure(root, ['store']);
+  assert.equal(storeWriteBlocked(f.dataDir), false);
+  await store.close();
+});
+test('service capture refuses a stopped owned store without a catalogue source before publication', async t => {
+  const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
+  await mkdir(f.dataDir);
+  const registry = await openRegistry({ ...multiPicker, legacyDir: f.dataDir });
+  try {
+    const picker = (await registry.firstLogin('discord', 'synthetic-stopped')).picker;
+    const dir = registry.pickerDirectory(picker.id);
+    const initialState = { ...createGroupState(picker.memberIds.map(id => ({ id, name: 'Synthetic member' }))),
+      tasks: fixture().base.tasks, identityRegistry: fixture().base.identityRegistry };
+    const store = await opened(dir, { ...f.owned, pickerId: picker.id }, { initialState });
+    await store.close(); await f.bind(dir);
+    assert.equal((await json(path.join(dir, 'state.json'))).storage.schemaVersion, 2);
+    assert.deepEqual(await recoverySources([dir]), [null]);
+    const before = await inventory(dir), binding = await readFile(dir + '.dataset.json'), steps = [];
+    await assert.rejects(captureServiceCheckpoint({ settings: { ...f.settings, multiPicker }, registry, id,
+      spaceCheck: async () => {}, step: async label => { steps.push(label); } }), /Owned recovery dependency closure is missing/);
+    assert(steps.includes('capture.registry'));
+    assert.equal(steps.includes('capture.manifest'), false);
+    assert.equal(steps.includes('capture.complete'), false);
+    assert.equal(await exists(snapshotPath(f.dataDir, id)), false);
+    assert.deepEqual(await inventory(dir), before);
+    assert.deepEqual(await readFile(dir + '.dataset.json'), binding);
+    assert.equal(storeWriteBlocked(dir), false);
+  } finally { await registry.close(); }
 });
 test('verifier refuses missing/corrupt bases, static and History dependencies even with rehashed inventories', async t => {
   const f = await setup(t); await populate(f);
@@ -216,7 +257,7 @@ test('off-site success requires verification of the remotely restored owned clos
   let staged, tag, corrupt = false, pinged = 0;
   const run = async args => {
     if (args[0] === 'snapshots') return encode(args.includes('--tag') ? [] : [{ id: snapshotId, time, tags: ['chunk-picker', tag] }]);
-    if (args[0] === 'backup') { staged = args.at(-2); tag = args[args.lastIndexOf('--tag') + 1]; return encode({ message_type: 'summary', snapshot_id: snapshotId }); }
+    if (args[0] === 'backup') { staged = args.at(-2); tag = args[args.lastIndexOf('--tag') + 1]; return JSON.stringify({ message_type: 'summary', snapshot_id: snapshotId }) + '\n'; }
     if (args[0] === 'restore') {
       const target = path.join(args[args.indexOf('--target') + 1], path.relative(path.parse(staged).root, staged));
       await cp(staged, target, { recursive: true });
