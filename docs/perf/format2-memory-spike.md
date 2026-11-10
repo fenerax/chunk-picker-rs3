@@ -119,8 +119,15 @@ The shared heavy-work lock was released after the completed comparison.
 
 [Raw measurements](format2-memory-spike-windows.json) retain all samples, host/runtime,
 source hashes and all 50 final hashes per variant. The recorded parent commit is
-`e255a69`; the measured working-tree harness is bound by its source hashes and is
-committed with this report. MiB means 1,048,576 bytes. Percentiles below are over
+`e255a69`; the measured working-tree harness is bound by its source hashes.
+One change was made after measurement, so the committed
+`scripts/perf/format2-memory-spike.mjs` no longer matches its recorded hash
+(`366d5b91…`): the `host.v8` field now keeps only major.minor (the full
+four-part V8 version tripped the repository's address scan), and the three
+recorded `host.v8` values were trimmed the same way. No measurement, fixture or
+variant code changed. The measured harness is that file with line 199 reading
+`v8: process.versions.v8,`; restoring it reproduces the recorded hash. The other
+three source hashes match the committed files. MiB means 1,048,576 bytes. Percentiles below are over
 50 groups in one process per variant, **not** five-run confidence intervals.
 
 | Option | Retained/group p50 | p95 | max | OLS slope/group | Mean/group | Verdict |
