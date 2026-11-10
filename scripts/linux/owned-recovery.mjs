@@ -21,11 +21,24 @@ async function document(file) {
   const bytes = await readFile(file);
   return JSON.parse((file.endsWith('.gz') ? gunzipSync(bytes, { maxOutputLength: limit }) : bytes).toString('utf8'));
 }
-function pinFor(manifest, reference) {
-  const dataset = manifest?.bases?.[reference?.datasetDigest]?.dataset;
-  const pin = resolveOwnedBasePin(manifest, dataset);
-  validateOwnedBaseReference(reference, pin);
-  return pin;
+const manifests = trust => trust?.bases ? [trust] : [trust?.manifest, ...(trust?.retainedManifests ?? [])];
+const trustPin = pin => ({ dataset: pin.dataset, manifest: createOwnedBaseManifest([pin]) });
+function pinFor(trust, reference) {
+  for (const manifest of manifests(trust)) {
+    const candidate = manifest?.bases?.[reference?.datasetDigest];
+    if (candidate?.sha256 !== reference?.sha256) continue;
+    const pin = resolveOwnedBasePin(manifest, candidate.dataset);
+    validateOwnedBaseReference(reference, pin); return pin;
+  }
+  throw new Error('Owned recovery base reference has no retained release pin.');
+}
+function manifestSet(pins) {
+  const primary = [], retainedManifests = [], seen = new Set();
+  for (const pin of pins) {
+    if (seen.has(pin.dataset.digest)) retainedManifests.push(createOwnedBaseManifest([pin]));
+    else { primary.push(pin); seen.add(pin.dataset.digest); }
+  }
+  return { manifest: createOwnedBaseManifest(primary), ...(retainedManifests.length ? { retainedManifests } : {}) };
 }
 // Discovery includes exact string-valued packed preimages, not just state.json.
 async function* documents(store) {
@@ -54,9 +67,10 @@ export async function ownedRecoveryOptions(dataDir, explicit) {
   if (!await exists(path.join(root, marker)) || !await hasOwnedStorage(path.join(dataDir, 'state.json'))) return undefined;
   const closure = await json(path.join(root, marker)), saved = await document(path.join(dataDir, 'state.json'));
   if (saved.storage?.schemaVersion !== 2) return undefined;
-  const pin = pinFor(closure.manifest, saved.storage.base);
+  const pin = pinFor(closure, saved.storage.base);
   return { pickerId: closure.stores.find(row => row.path === path.basename(dataDir))?.pickerId,
-    catalogueRoot: path.join(root, 'catalogue'), dataset: pin.dataset, manifest: closure.manifest };
+    catalogueRoot: path.join(root, 'catalogue'), dataset: pin.dataset, manifest: closure.manifest,
+    ...(closure.retainedManifests ? { retainedManifests: closure.retainedManifests } : {}) };
 }
 export async function recoverySources(dataDirs, explicit) {
   return Promise.all(dataDirs.map(async dataDir => {
@@ -82,7 +96,7 @@ async function checkDocument(saved, store, manifest, catalogueRoot, pins) {
   }
   if (saved.storage?.schemaVersion === 2) {
     const pin = pinFor(manifest, saved.storage.base);
-    const base = await readOwnedBase(catalogueRoot, saved.storage.base, { dataset: pin.dataset, manifest });
+    const base = await readOwnedBase(catalogueRoot, saved.storage.base, trustPin(pin));
     state = ownedCodec(base, pin).decode({ ...saved, state }).state;
     pins.set(pin.sha256, pin);
   }
@@ -96,7 +110,7 @@ async function checkDocument(saved, store, manifest, catalogueRoot, pins) {
 // Decoding only: release-scoped probes supply the existing semantic validators.
 export async function* ownedRecoveryStates(store, options) {
   for await (const saved of documents(store)) yield { saved,
-    state: await checkDocument(saved, store, options.manifest, options.catalogueRoot, new Map()) };
+    state: await checkDocument(saved, store, options, options.catalogueRoot, new Map()) };
 }
 async function dependencyFiles(root, stores) {
   return (await inventory(root)).filter(row => !row.directory && (row.path.startsWith('catalogue/')
@@ -111,30 +125,31 @@ export async function captureOwnedClosure(root, stores, sources, { step = async 
       continue;
     }
     for await (const saved of documents(store)) {
-      await checkDocument(saved, store, source.options.manifest, source.options.catalogueRoot, pins);
+      await checkDocument(saved, store, source.options, source.options.catalogueRoot, pins);
     }
     rows.push({ path: relative, pickerId: source.options.pickerId });
   }
   if (!pins.size) return false;
   await mkdir(path.join(root, 'catalogue'), { mode: 0o700 });
   for (const pin of pins.values()) {
-    const source = sources.find(row => row?.options.manifest.bases[pin.dataset.digest]?.sha256 === pin.sha256);
+    const source = sources.find(row => row && manifests(row.options).some(manifest => manifest.bases[pin.dataset.digest]?.sha256 === pin.sha256));
     await step('capture.owned-base');
     await copyFile(path.join(source.options.catalogueRoot, baseName(pin)), path.join(root, 'catalogue', baseName(pin)), 1);
-    await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, { dataset: pin.dataset, manifest: source.options.manifest });
+    await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, trustPin(pin));
   }
   const { syncRecoveryTree } = await import('./service-checkpoint.mjs');
   await syncRecoveryTree(root);
   await step('capture.owned-dependencies-durable');
   await step('capture.owned-manifest');
-  const closure = { schemaVersion: 1, validated: false, stores: rows, manifest: createOwnedBaseManifest([...pins.values()]),
+  const closure = { schemaVersion: 1, validated: false, stores: rows, ...manifestSet(pins.values()),
     files: await dependencyFiles(root, rows.map(row => row.path)) };
   await atomic(path.join(root, marker), encode(closure));
   for (const row of rows) {
     const source = sources[stores.indexOf(row.path)], probe = validate ?? source.validate;
     if (typeof probe !== 'function') throw new Error('Owned capture requires a release-scoped validation probe.');
     await step('capture.owned-probe');
-    await probe(path.join(root, row.path), { ...source.options, catalogueRoot: path.join(root, 'catalogue'), manifest: closure.manifest });
+    await probe(path.join(root, row.path), { ...source.options, catalogueRoot: path.join(root, 'catalogue'),
+      manifest: closure.manifest, retainedManifests: closure.retainedManifests ?? [] });
   }
   // The probe may use a scratch copy, but it may never bless changed inputs.
   // Recheck the original pins after validation, before any completion record.
@@ -172,11 +187,11 @@ export async function verifyOwnedClosure(root, stores) {
       continue;
     }
     for await (const saved of documents(path.join(root, relative))) {
-      await checkDocument(saved, path.join(root, relative), closure.manifest, path.join(root, 'catalogue'), pins);
+      await checkDocument(saved, path.join(root, relative), closure, path.join(root, 'catalogue'), pins);
     }
   }
-  for (const pin of Object.values(closure.manifest.bases)) {
-    await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, { dataset: pin.dataset, manifest: closure.manifest });
+  for (const pin of manifests(closure).flatMap(manifest => Object.values(manifest.bases))) {
+    await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, trustPin(pin));
   }
   return closure;
 }
@@ -209,10 +224,10 @@ export async function installOwnedClosure(root, stores, options, dataDir) {
   outside(root, options.catalogueRoot); outside(options.catalogueRoot, root);
   // Verify ALL dependencies against retained release pins before publishing any.
   const pending = [];
-  for (const pin of Object.values(closure.manifest.bases)) {
-    pinFor(options.manifest, { datasetDigest: pin.dataset.digest, sha256: pin.sha256 });
-    const base = await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, { dataset: pin.dataset, manifest: options.manifest });
-    pending.push(createOwnedStorage({ ...options, dataset: pin.dataset, releaseBytes: Buffer.from(JSON.stringify(base)) }, dataDir));
+  for (const pin of manifests(closure).flatMap(manifest => Object.values(manifest.bases))) {
+    pinFor(options, { datasetDigest: pin.dataset.digest, sha256: pin.sha256 });
+    const base = await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, trustPin(pin));
+    pending.push(createOwnedStorage({ ...options, ...trustPin(pin), releaseBytes: Buffer.from(JSON.stringify(base)) }, dataDir));
   }
   for (const storage of pending) await storage.withLease(() => storage.ensurePublished());
 }
@@ -224,7 +239,7 @@ export async function captureOwnedStore(dataDir, target, id, source, step = asyn
   // same files we copy, including bases referenced only by retained documents.
   const files = await inventory(dataDir, { ignoreRoot: SNAPSHOT_EXCLUSIONS }), pins = new Map();
   for await (const saved of documents(dataDir)) {
-    await checkDocument(saved, dataDir, source.options.manifest, source.options.catalogueRoot, pins);
+    await checkDocument(saved, dataDir, source.options, source.options.catalogueRoot, pins);
   }
   let bytes = (await lstat(dataDir + '.dataset.json')).size + files.reduce((sum, row) => sum + (row.bytes ?? 0), 0);
   for (const pin of pins.values()) bytes += (await lstat(path.join(source.options.catalogueRoot, baseName(pin)))).size;

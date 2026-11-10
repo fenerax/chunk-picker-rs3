@@ -832,6 +832,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return inheritStateMetadata(state, trimmed);
   }
   async function prepareLoadedState(state) {
+    // Release hooks close over its catalogue/world, which the storage base
+    // alone cannot reconstruct. Isolated import readers prove an exact load
+    // without invoking those hooks; other callers need explicit upgrade staging.
+    if (ownedStorage?.base && !importReader && (migrateState || prepareState)
+      && ownedStorage.base.dataset.digest !== ownedStorage.readerOptions.dataset.digest) {
+      throw Object.assign(new Error('Owned save dataset digest differs from the running release; release-bound startup preparation requires explicit upgrade staging (slice 7 pinned-dataset preparation gate).'), { code: 'OWNED_REBASE_REFUSED' });
+    }
     // Currency predicates have the same complete History contract as hooks.
     // Hydrate and validate once, then reuse that baseline for preparation and
     // the committed-dependency check, even when every hook is already current.
@@ -994,6 +1001,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return result;
   }
   try { await withStoreWrite(directory, () => withCatalogue(() => withPluginEvidence(directory, async () => {
+    if (ownedStorage) {
+      // A mixed binding/state publication is never admitted by a reader.
+      try {
+        await readFile(path.join(directory, 'owned-rebase-intent.json'));
+        throw Object.assign(new Error('Owned rebase pending; explicitly reconcile the migration intent before opening this group.'), { code: 'OWNED_REBASE_PENDING' });
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
     // Check the exact final document before ANY startup mutation. Hash includes
     // receipt/coordination metadata, not just the public revision number.
     if (expectedCheckpoint) {
@@ -1013,6 +1027,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const hydrateStarted = startupDiagnostics && performance.now();
     try {
       const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
+      if (ownedStorage && document.storage?.schemaVersion === 2) await ownedStorage.select(document.storage.base);
       current = await importStoredBackup(document, true);
       pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
       const metadata = receiptMetadata(document.actionReceipts, current.revision);

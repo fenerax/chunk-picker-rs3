@@ -22,6 +22,41 @@ const lstatExact = file => lstat(file, { bigint: true });
 const contains = (parent, child) => { const relative = path.relative(parent, child); return !relative || !relative.startsWith('..') && !path.isAbsolute(relative); };
 /** Inert unless explicitly injected by a caller. No environment/startup flag. */
 export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) {
+  // Trust comes from retained release manifests, never from a saved document.
+  // Reading a backup must not switch the writer away from its current base.
+  const release = createPinnedStorage(options, dataDir, { readOnly });
+  const readers = new Map(), manifests = [options.manifest, ...(options.retainedManifests ?? [])];
+  let active = release;
+  function reader(reference) {
+    const key = `${reference?.datasetDigest}:${reference?.sha256}`;
+    if (readers.has(key)) return readers.get(key);
+    for (const manifest of manifests) {
+      const pin = manifest?.bases?.[reference?.datasetDigest];
+      if (!pin || pin.sha256 !== reference?.sha256) continue;
+      if (pin.dataset.id !== options.dataset.id || pin.dataset.contractVersion !== options.dataset.contractVersion) break;
+      const value = createPinnedStorage({ ...options, manifest, dataset: pin.dataset,
+        releaseBytes: pin.sha256 === release.readerOptions.manifest.bases[options.dataset.digest].sha256 ? options.releaseBytes : undefined }, dataDir, { readOnly });
+      readers.set(key, value); return value;
+    }
+    throw new TypeError('Owned base reference has no matching retained release pin.');
+  }
+  const storage = {
+    read: reference => reader(reference).read(reference),
+    async select(reference) { const selected = reader(reference); await selected.read(reference); active = selected; },
+    codec: () => active.codec(), ensurePublished: () => active.ensurePublished(),
+    withLease: work => release.withLease(work), writeState: (...args) => active.writeState(...args),
+    sameState: (a, b) => active.sameState(a, b), crash: options.crash,
+    readerOptions: { ...release.readerOptions, retainedManifests: structuredClone(options.retainedManifests ?? []) },
+    activate() { readOnly = false; release.activate(); for (const value of readers.values()) value.activate(); },
+    get base() { return active.base; },
+    registerArtifacts() {
+      artifactSources.set(path.resolve(dataDir), storage);
+      return () => { if (artifactSources.get(path.resolve(dataDir)) === storage) artifactSources.delete(path.resolve(dataDir)); };
+    },
+  };
+  return storage;
+}
+function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
   if (!options || typeof options !== 'object' || !options.pickerId || options.pickerId === 'legacy-shared'
     || typeof options.catalogueRoot !== 'string') throw new TypeError('Owned storage requires an owned picker and external catalogueRoot.');
   const pin = resolveOwnedBasePin(options.manifest, options.dataset), root = path.resolve(options.catalogueRoot);

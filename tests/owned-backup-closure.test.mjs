@@ -563,6 +563,20 @@ test('flag-off format-1 raw, service and stopped artifacts are byte-identical to
   const load = file => import(pathToFileURL(path.join(reference, file)).href);
   const old = await load('app/storage/store.mjs'), snapshot = await load('app/storage/snapshot.mjs');
   const recovery = await load('scripts/linux/recovery.mjs'), service = await load('scripts/linux/service-checkpoint.mjs');
+  await t.test('a pre-change owned closure with only one manifest still verifies unchanged', async () => {
+    const dataDir = path.join(f.root, 'pre-change-owned');
+    const store = await old.openStore({ dataDir, initialState: fixture().state, ownedFormat2: f.owned,
+      world, taskCatalogue, retention: false, completionCodec: false, now });
+    try {
+      await f.bind(dataDir); await snapshot.snapshotStore(dataDir, id);
+      const root = snapshotPath(dataDir, id), before = await readFile(path.join(root, 'owned-closure.json'));
+      const closure = JSON.parse(before);
+      assert(!Object.hasOwn(closure, 'retainedManifests'));
+      assert.deepEqual(closure.manifest, JSON.parse(JSON.stringify(f.owned.manifest)));
+      assert.deepEqual(await verifyOwnedClosure(root, ['store']), closure);
+      assert.deepEqual(await readFile(path.join(root, 'owned-closure.json')), before);
+    } finally { await store.close(); }
+  });
   t.mock.method(performance, 'now', () => 0);
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse(now()) });
   const roots = [];
