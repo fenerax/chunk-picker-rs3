@@ -100,6 +100,22 @@ the writer. Rehearse the online path before enabling it.
 
 ## Shutdown and health recovery
 
+Owned storage-2 rollback has a separate, explicit stopped-service tool:
+`node scripts/linux/inflate-owned-format-1.mjs /absolute/path/inflater.json`.
+The private JSON contains `{ "settings": { ...operatorSettings },
+"ownedFormat2": { "pickerId": "owned-operation", "catalogueRoot": "/external/catalogue",
+"dataset": { ...retainedDatasetPin }, "manifest": { ...retainedBaseManifest },
+"retainedManifests": [] } }`; supply every retained release pin independently.
+Stop the writer and timers first and keep manual starts fenced. The command
+does not stop/start services or select a release. It stages every owned current,
+retained and packed save, verifies logical/History hashes and actual frozen
+`06e15939` loading, then installs under a resumable journal. A partial run leaves
+`maintenance.json` saying **DO NOT START THE OLD RELEASE**. Rerun the same command
+to resume; never clear the marker to bypass it. Source/output copies remain in
+`control/inflate-owned-format-1`; retain them until a later GC decision. See
+[the inflater contract](owned-inflater-contract.md) for limits and refusal recovery.
+Nothing in startup, deployment or backup jobs runs this tool automatically.
+
 `Restart=always` restarts the writer after any exit, including a clean
 `/api/shutdown` or an unexpected exit code 0. A restart waits 15 seconds, and
 the start rate is bounded. `systemctl stop` is the only way to keep the writer
