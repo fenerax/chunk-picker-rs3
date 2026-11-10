@@ -4,11 +4,13 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mkdir, mkdtemp, writeFile, readFile, rm, open, realpath, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { constants } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { buildOwnedBase, verifyOwnedBaseBytes, readOwnedBase } from '../app/storage/owned-base.mjs';
 import { OWNED_STORAGE_SCHEMA_VERSION, createOwnedBaseManifest, resolveOwnedBasePin,
-  validateOwnedBaseReference } from '../app/storage/owned-base-schema.mjs';
+  validateOwnedBaseReference, copyBaseJson } from '../app/storage/owned-base-schema.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const projection = () => ({ dataset: { id: 'synthetic', contractVersion: 1, digest: 'a'.repeat(64) },
@@ -119,6 +121,64 @@ test('byte verifier checks integrity, canonical encoding, schema and every embed
   }
 });
 
+test('cardinality refusals precede recursive copying in both builder and cold-open verifier', async t => {
+  const parse = JSON.parse;
+  for (const [field, limits, reason] of [['tasks', { tasks: 2 }, /task limit/],
+    ['entries', { entries: 2 }, /identity limit/], ['aliases', { aliases: 2 }, /identity limit/]]) {
+    const f = fixture(), base = structuredClone(f.base);
+    if (field === 'tasks') base.tasks = [0, 0, 0];
+    else base.identityRegistry[field] = { first: {}, second: {}, third: {} };
+    const bytes = Buffer.from(JSON.stringify(base));
+    const pin = { ...f.pin, sha256: sha(bytes) }, manifest = createOwnedBaseManifest([pin]);
+    let enumerations = 0;
+    const guard = value => new Proxy(value, { ownKeys(target) { enumerations++; return Reflect.ownKeys(target); } });
+    const instrument = document => {
+      if (field === 'tasks') document.tasks = guard(document.tasks);
+      else for (const key of Object.keys(document.identityRegistry[field])) {
+        document.identityRegistry[field][key] = guard(document.identityRegistry[field][key]);
+      }
+      return document;
+    };
+    const { dataset, tasks, identityRegistry } = instrument(structuredClone(base));
+    assert.throws(() => buildOwnedBase({ dataset, tasks, identityRegistry }, { limits }), reason);
+    assert.equal(enumerations, 0, `${field}: builder must refuse before enumerating descendants`);
+    await withDirectory(async directory => {
+      await writeFile(filename(directory, pin), gzipSync(bytes));
+      const mockedParse = t.mock.method(JSON, 'parse', source => instrument(parse(source)));
+      try {
+        await assert.rejects(readOwnedBase(directory, { ...f.reference, sha256: pin.sha256 }, { ...f.options, manifest, limits }),
+          error => /restore or rebuild/.test(error.message) && reason.test(error.cause.message));
+        assert.equal(enumerations, 0, `${field}: verifier must refuse before enumerating descendants`);
+      } finally { mockedParse.mock.restore(); }
+    });
+  }
+});
+
+test('verifier freezes its parsed tree in place instead of constructing another tree', t => {
+  const f = fixture(), parse = JSON.parse;
+  let parsed;
+  t.mock.method(JSON, 'parse', source => { parsed = parse(source); return parsed; });
+  const verified = verifyOwnedBaseBytes(f.bytes, f.options);
+  assert.equal(verified, parsed);
+  assert.ok(Object.isFrozen(parsed));
+  assert.ok(Object.isFrozen(parsed.tasks[0]));
+  assert.ok(Object.isFrozen(parsed.identityRegistry.aliases.z));
+});
+
+test('JSON walks bound node allocation before enumerating a wide array', () => {
+  let enumerations = 0;
+  const wide = new Proxy([0, 0, 0, 0], { ownKeys(target) { enumerations++; return Reflect.ownKeys(target); } });
+  assert.throws(() => copyBaseJson(wide, 0, 32, 4), /JSON node limit/);
+  assert.equal(enumerations, 0);
+  assert.throws(() => copyBaseJson({ wide, second: 0, third: 0 }, 0, 32, 6), /JSON node limit/);
+  assert.equal(enumerations, 0, 'unvisited siblings must also reserve key slots');
+  const f = fixture();
+  assert.throws(() => buildOwnedBase(projection(), { limits: { nodes: 8 } }), /JSON node limit/);
+  assert.throws(() => verifyOwnedBaseBytes(f.bytes, { ...f.options, limits: { nodes: 8 } }), /JSON node limit/);
+  assert.throws(() => verifyOwnedBaseBytes(f.bytes, { ...f.options, limits: { depth: 2 } }), /JSON depth limit/);
+  assert.throws(() => buildOwnedBase(projection(), { limits: { nodes: Number.MAX_SAFE_INTEGER } }), /limits/);
+});
+
 test('cold-open accepts distinct gzip encodings of the same pinned bytes without writing', async () => {
   await withDirectory(async directory => {
     const f = fixture(), target = filename(directory, f.pin);
@@ -155,5 +215,35 @@ test('cold-open rejects path escape and replacement through deterministic filesy
     await assert.rejects(readOwnedBase(directory, f.reference, { ...f.options, io: escape }), error => /location escapes/.test(error.cause.message));
     const changed = { open, realpath, lstat: async name => ({ ...await lstat(name), size: 0 }) };
     await assert.rejects(readOwnedBase(directory, f.reference, { ...f.options, io: changed }), error => /file changed/.test(error.cause.message));
+  });
+});
+
+test('cold-open uses non-blocking read-only flags and closes non-regular descriptors before reading', async () => {
+  await withDirectory(async directory => {
+    const f = fixture(); await writeFile(filename(directory, f.pin), gzipSync(f.bytes));
+    let opens = 0, reads = 0, closes = 0;
+    const io = { realpath, lstat, open: async (file, flags) => {
+      opens++;
+      assert.equal(flags, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0));
+      return { stat: async () => ({ isFile: () => false }),
+        read: async () => { reads++; throw new Error('must not read a special file'); }, close: async () => { closes++; } };
+    } };
+    await assert.rejects(readOwnedBase(directory, f.reference, { ...f.options, io }),
+      error => /restore or rebuild/.test(error.message) && /not a regular file/.test(error.cause.message));
+    assert.deepEqual({ opens, reads, closes }, { opens: 1, reads: 0, closes: 1 });
+  });
+});
+
+test('cold-open rejects a FIFO without a writer instead of leaving the open pending', async t => {
+  if (process.platform === 'win32') { t.skip('Windows does not provide filesystem FIFOs'); return; }
+  await withDirectory(async directory => {
+    const f = fixture(), target = filename(directory, f.pin);
+    const created = spawnSync('mkfifo', [target], { encoding: 'utf8', windowsHide: true });
+    if (created.error?.code === 'ENOENT') { t.skip('mkfifo is unavailable'); return; }
+    assert.ifError(created.error);
+    assert.equal(created.status, 0, created.stderr);
+    assert.ok((await lstat(target)).isFIFO());
+    await assert.rejects(readOwnedBase(directory, f.reference, f.options),
+      error => /restore or rebuild/.test(error.message) && /not a regular file/.test(error.cause.message));
   });
 });

@@ -29,13 +29,18 @@ dataset digest. Retain this manifest independently with release inputs; a save
 cannot supply its trust anchor. No production manifest or base is installed here.
 
 `readOwnedBase` derives `catalogue-<sha256>.json.gz` from a manifest-matched base
-reference, checks realpath containment and regular-file metadata, reads at most
+reference, opens read-only/non-blocking (with no-follow where supported), checks
+realpath containment and regular-file descriptor metadata, reads at most
 32 MiB compressed plus one growth-detection byte, and bounds gunzip to 128 MiB.
 It checks exact SHA-256, strict UTF-8, canonical bytes, schema, generator version
 and all three dataset pins before returning a frozen base. Other bounds are
-250,000 tasks, 500,000 identity entries, 1,000,000 aliases and JSON depth 32;
-callers/tests may lower these limits, never raise them. File changes, missing or
-corrupt bases refuse with an exact-base repair diagnostic; nothing is rewritten
+250,000 tasks, 500,000 identity entries, 1,000,000 aliases, JSON depth 32 and
+4,000,000 JSON nodes (containers and scalar occurrences). Shape/cardinality
+checks precede recursive walks; depth and remaining-node budgets bound each walk
+and its key lists. The builder validates before its one detached copy; the verifier
+freezes its validated parsed tree in place. Callers/tests may lower these limits,
+never raise them. Special files, file changes, missing or corrupt bases refuse
+with an exact-base repair diagnostic; nothing is rewritten
 or repaired. There is no cache, publication, repair, lease or collection policy
 in these helpers. Later storage slices own those operations and their fsyncs.
 

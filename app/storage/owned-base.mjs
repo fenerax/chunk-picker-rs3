@@ -1,10 +1,12 @@
 import path from 'node:path';
 import { open, realpath, lstat } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { gunzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { OWNED_BASE_FORMAT, OWNED_BASE_GENERATOR_VERSION, copyBaseJson, baseFailure,
-  ownedBaseLimits, validateOwnedBase, resolveOwnedBasePin, validateOwnedBaseReference } from './owned-base-schema.mjs';
+  ownedBaseLimits, validateOwnedBase, validateOwnedBaseStructure, checkBaseJson, freezeBaseJson,
+  resolveOwnedBasePin, validateOwnedBaseReference } from './owned-base-schema.mjs';
 
 const decompress = promisify(gunzip);
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -23,11 +25,12 @@ function serialize(base) {
  */
 export function buildOwnedBase(projection, { limits: overrides } = {}) {
   const limits = ownedBaseLimits(overrides);
-  const input = copyBaseJson(projection, 0, limits.depth);
-  if (!input || Object.keys(input).length !== 3 || !['dataset', 'tasks', 'identityRegistry'].every(key => Object.hasOwn(input, key))) baseFailure('projection');
-  const { dataset, tasks, identityRegistry } = input;
-  const base = copyBaseJson({ baseFormat: OWNED_BASE_FORMAT, generatorVersion: OWNED_BASE_GENERATOR_VERSION, dataset, tasks, identityRegistry });
-  validateOwnedBase(base, limits);
+  validateOwnedBaseStructure(projection, limits, true);
+  const { dataset, tasks, identityRegistry } = projection;
+  const input = { baseFormat: OWNED_BASE_FORMAT, generatorVersion: OWNED_BASE_GENERATOR_VERSION, dataset, tasks, identityRegistry };
+  checkBaseJson(input, limits);
+  validateOwnedBase(input, limits);
+  const base = copyBaseJson(input, 0, limits.depth, limits.nodes);
   const bytes = serialize(base);
   if (bytes.length > limits.bytes) baseFailure('byte limit');
   const pin = copyBaseJson({ dataset: base.dataset, sha256: sha(bytes), generatorVersion: base.generatorVersion });
@@ -39,7 +42,9 @@ export function verifyOwnedBaseBytes(bytes, { dataset, manifest, limits: overrid
   const limits = ownedBaseLimits(overrides), pin = resolveOwnedBasePin(manifest, dataset);
   if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > limits.bytes) baseFailure('byte limit');
   if (sha(bytes) !== pin.sha256) baseFailure('checksum mismatch');
-  const value = copyBaseJson(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)), 0, limits.depth);
+  const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  validateOwnedBaseStructure(value, limits);
+  freezeBaseJson(value, limits);
   validateOwnedBase(value, limits);
   if (value.dataset.id !== pin.dataset.id || value.dataset.contractVersion !== pin.dataset.contractVersion
     || value.dataset.digest !== pin.dataset.digest || value.generatorVersion !== pin.generatorVersion) baseFailure('dataset pin mismatch');
@@ -61,11 +66,12 @@ export async function readOwnedBase(catalogueRoot, reference, { dataset, manifes
     const root = await io.realpath(catalogueRoot), target = path.join(root, filename);
     const file = await io.realpath(target);
     if (path.dirname(file) !== root) baseFailure('location escapes catalogue root');
-    const handle = await io.open(file, 'r');
+    const handle = await io.open(file, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0));
     let compressed;
     try {
       const before = await handle.stat();
-      if (!before.isFile() || before.size < 1 || before.size > limits.compressedBytes) baseFailure('compressed byte limit');
+      if (!before.isFile()) baseFailure('not a regular file');
+      if (before.size < 1 || before.size > limits.compressedBytes) baseFailure('compressed byte limit');
       // A fixed allocation bounds even a file that grows after stat; one extra byte detects growth.
       const buffer = Buffer.alloc(before.size + 1);
       let length = 0;
