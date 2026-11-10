@@ -126,7 +126,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   let releaseFileLock;
   try { releaseFileLock = readOnly ? async () => {} : await acquireLock(directory, beforeLockRecovery); }
   catch (error) { await releaseGuard(); throw error; }
-  const releaseLock = async () => { try { await releaseFileLock(); } finally { await releaseGuard(); } };
+  let unregisterArtifacts = !readOnly ? ownedStorage?.registerArtifacts() : undefined;
+  const releaseLock = async () => { try { await releaseFileLock(); } finally { unregisterArtifacts?.(); await releaseGuard(); } };
   const stateFile = path.join(directory, 'state.json');
   const backupsDir = path.join(directory, 'backups');
   const historyDir = path.join(directory, 'history');
@@ -984,11 +985,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A frozen handover still refuses new reads before writer ownership moves.
     if (!allowClosing && (frozen && !(importReader && backupRead) || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
     maintenancePending++;
-    const result = maintenanceQueue.then(() => withCatalogue(() => withStoreWrite(directory, work))).finally(() => { maintenancePending--; });
+    const result = maintenanceQueue.then(() => withStoreWrite(directory, () => withCatalogue(work))).finally(() => { maintenancePending--; });
     maintenanceQueue = result.catch(() => {});
     return result;
   }
-  try { await withCatalogue(() => withStoreWrite(directory, () => withPluginEvidence(directory, async () => {
+  try { await withStoreWrite(directory, () => withCatalogue(() => withPluginEvidence(directory, async () => {
     // Check the exact final document before ANY startup mutation. Hash includes
     // receipt/coordination metadata, not just the public revision number.
     if (expectedCheckpoint) {
@@ -1156,7 +1157,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function enqueue(work) {
     if (closing) return Promise.reject(new Error('The store is closed.'));
     if (frozen) return Promise.reject(Object.assign(new Error('The picker is updating.'), { status: 503, code: 'PICKER_UPDATING' }));
-    const result = queue.then(() => withCatalogue(() => withStoreWrite(directory, () => withPluginEvidence(directory, work))));
+    const result = queue.then(() => withStoreWrite(directory, () => withCatalogue(() => withPluginEvidence(directory, work))));
     queue = result.catch(() => {});
     return result;
   }
@@ -1705,6 +1706,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
           releaseGuard = guard; releaseFileLock = fileLock;
           readOnly = false; ownedStorage?.activate(); frozen = false; liveSwapStrict = true;
+          unregisterArtifacts ??= ownedStorage?.registerArtifacts();
           phaseStarted = performance.now();
           for (const listener of listeners) { try { listener({ revision: current.revision, ownershipChanged: true }); } catch {} }
           reportActivationTiming(onActivationTiming, 'store.listeners', phaseStarted);

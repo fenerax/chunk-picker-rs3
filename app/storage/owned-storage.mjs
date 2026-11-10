@@ -13,6 +13,8 @@ import { acquireProcessGuard } from './process-guard.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 
 const bases = new Map(), verifiedRoots = new Map(), admissions = new Map(), durableRoots = new Set(), lease = new AsyncLocalStorage();
+const artifactSources = new Map();
+export function ownedArtifactSource(dataDir) { return artifactSources.get(path.resolve(dataDir)); }
 // Bigint stats: NTFS file IDs exceed 2^53 and ms timestamps lose precision. ctime
 // cannot be set from userland, so a rewrite always changes this fingerprint.
 const fingerprint = stat => `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
@@ -133,7 +135,12 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
         await crash?.('dependencies-durable');
       }, afterRename: () => crash?.('state-renamed'), afterDirectorySync: () => crash?.('state-directory-synced') }));
   }
-  return { codec, read, withLease, writeState, sameState, crash,
-    readerOptions: { pickerId: options.pickerId, catalogueRoot: root, ...trust },
+  const storage = { codec, read, withLease, writeState, sameState, crash, ensurePublished,
+    readerOptions: { pickerId: options.pickerId, catalogueRoot: root, ...trust, manifest: structuredClone(options.manifest) },
     activate() { readOnly = false; }, get base() { return base; } };
+  storage.registerArtifacts = () => {
+    artifactSources.set(path.resolve(dataDir), storage);
+    return () => { if (artifactSources.get(path.resolve(dataDir)) === storage) artifactSources.delete(path.resolve(dataDir)); };
+  };
+  return storage;
 }

@@ -13,7 +13,7 @@ export const toolsEntrypoints = currentToolsContract.entries;
 // arbitrary computed import may be excused just because its owner is listed.
 const releaseLoaders = {
   'scripts/linux/runtime.mjs': ["pathToFileURL(path.join(config.coreRoot,'app/server.mjs')).href"],
-  'scripts/linux/probe.mjs': ["pathToFileURL(path.join(config.coreRoot,'app/core/state.mjs')).href"],
+  'scripts/linux/probe.mjs': ["pathToFileURL(path.join(config.coreRoot,'app/core/state.mjs')).href", "pathToFileURL(path.join(config.coreRoot,'app/storage/store.mjs')).href"],
   'scripts/linux/prewarm.mjs': ['pathToFileURL(path.join(root,file))'],
   'scripts/private-companion/release-pack-check.mjs': ['tasks/identity', 'dataset-bootstrap', 'dataset-pipeline', 'server', 'plugin-items']
     .map(name => `pathToFileURL(path.join(core,'app/${name}.mjs'))`),

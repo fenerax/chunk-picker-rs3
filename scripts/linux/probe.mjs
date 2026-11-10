@@ -7,9 +7,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openApplication, runtimeEnvironment } from './runtime.mjs';
 import { probe as packProbe } from '../private-companion/release-pack-check.mjs';
 import { encode, json } from './files.mjs';
+import { ownedRecoveryOptions } from './owned-recovery.mjs';
 
 export async function probe(config, dataDir, output) {
-  const app = await openApplication(config, dataDir, { probe: true });
+  const ownedFormat2 = await ownedRecoveryOptions(dataDir);
+  let app;
+  if (ownedFormat2) {
+    const { openStore } = await import(pathToFileURL(path.join(config.coreRoot, 'app/storage/store.mjs')).href);
+    const store = await openStore({ dataDir, ownedFormat2, retention: false });
+    app = { store, close: () => store.close() };
+  } else app = await openApplication(config, dataDir, { probe: true });
   try {
     const document = await app.store.backup();
     const { importBackup } = await import(pathToFileURL(path.join(config.coreRoot, 'app/core/state.mjs')).href);

@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { lstat, mkdir, open, readdir, rm, statfs, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, open, readFile, readdir, rm, statfs, writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { SNAPSHOT_EXCLUSIONS } from './store-identity-policy.mjs';
 import { capturePluginItemFiles, pluginItemFiles } from './plugin-item-snapshot.mjs';
+import { ownedArtifactSource } from './owned-storage.mjs';
 
 const barriers = new Map(), context = new AsyncLocalStorage();
 function barrier(dataDir) {
@@ -15,12 +16,14 @@ function barrier(dataDir) {
 export async function withStoreWrite(dataDir, work) {
   const state = barrier(dataDir);
   const parent = context.getStore();
-  const nested = parent?.state === state && parent.active;
+  let ancestor = parent;
+  while (ancestor && !(ancestor.state === state && ancestor.active)) ancestor = ancestor.parent;
+  const nested = Boolean(ancestor);
   if (!nested) while (state.gate) await state.gate;
   let release;
   const done = new Promise(resolve => { release = resolve; });
   state.active.add(done);
-  const owner = { state, active: true };
+  const owner = { state, active: true, parent };
   try { return await context.run(owner, work); }
   finally { owner.active = false; state.active.delete(done); release(); }
 }
@@ -40,7 +43,19 @@ export function snapshotPath(dataDir, id) {
 // allocation in the Linux write hold. Retention may unlink pinned files.
 // Windows cannot replace an open file reliably: keep its barrier through copying
 // and descriptor close, subject to the same cooperative deadline.
-export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 4096 } = {}) {
+export async function snapshotStore(dataDir, id, options = {}) {
+  if (ownedArtifactSource(dataDir) || options.ownedFormat2) {
+    const { recoverySources, withRecoveryLeases, captureOwnedStore } = await import('../../scripts/linux/owned-recovery.mjs');
+    const sources = await recoverySources([dataDir], options.ownedFormat2);
+    const target = snapshotPath(dataDir, id);
+    await mkdir(snapshotRoot(dataDir), { recursive: true, mode: 0o700 });
+    const started = performance.now();
+    return withDirectoryBarriers([dataDir], () => withRecoveryLeases(sources,
+      () => captureOwnedStore(dataDir, target, id, sources[0], options.step, started)));
+  }
+  return snapshotFormat1(dataDir, id, options);
+}
+async function snapshotFormat1(dataDir, id, { maxHoldMs = 1000, maxFiles = 4096 } = {}) {
   const target = snapshotPath(dataDir, id);
   const state = barrier(dataDir);
   if (state.snapshotBusy) throw Object.assign(new Error('A snapshot is already being captured.'), { status: 503 });
@@ -119,6 +134,8 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
       } finally { await output.close(); await handle.close(); row.closed = true; }
     }
     if (holding) { heldMs = performance.now() - started; unlock(); }
+    let saved; try { saved = JSON.parse(await readFile(path.join(target, 'store', 'state.json'), 'utf8')); } catch {}
+    if (saved?.storage?.schemaVersion === 2) throw new Error('Owned capture requires the pinned catalogue source.');
     await writeFile(path.join(target, 'complete.json'), JSON.stringify({ id, heldMs }) + '\n', { flag: 'wx', mode: 0o600 });
     return { id, heldMs };
   } catch (error) {

@@ -27,10 +27,10 @@ export async function pausedOffhost(settings, repository) {
       return { paused: marker?.format === 'picker-offhost-pause-v1' && marker.repository === repository, repository };
     }));
 }
-export async function selectSnapshot(backupDir, now = Date.now()) {
+export async function selectSnapshot(backupDir, now = Date.now(), { ownedFormat2 = false } = {}) {
   const candidates = [];
   for (const name of await readdir(backupDir)) {
-    if (!/^recovery-\d{8}T\d{9}Z-[a-f0-9-]{36}$/.test(name)) continue;
+    if (!/^recovery-\d{8}T\d{9}Z-[a-f0-9-]{36}$/.test(name) && !(ownedFormat2 && /^service-[a-f0-9-]{36}$/.test(name))) continue;
     const backup = path.join(backupDir, name);
     try {
       const manifest = await verifyBackup(backup), time = Date.parse(manifest.snapshotAt);
@@ -67,17 +67,17 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
       let scratch, verification;
       try {
         const selected = await exclusive(path.join(settings.controlDir, 'operation.lock'), async () => {
-          if (settings.multiPicker) throw Error('Service snapshot format needs a separate off-site adapter.');
+          if (settings.multiPicker && !settings.ownedFormat2) throw Error('Service snapshot format needs a separate off-site adapter.');
           for (const name of ['maintenance.json', 'activation.json', 'tools-transaction.json'])
             if (await exists(path.join(settings.controlDir, name))) throw Error('Operation evidence requires reconciliation.');
-          const selected = await selectSnapshot(settings.backupDir, now());
+          const selected = await selectSnapshot(settings.backupDir, now(), { ownedFormat2: Boolean(settings.ownedFormat2) });
           const release = await releaseReader(settings.current, settings.dataDir);
           if (selected.manifest.releasePointerSha256 !== sha(release.pointerBytes)) throw Error('Snapshot needs the selected release; take a fresh backup.');
           // Both namespaces belong to offhost.lock. Reclaim crash remnants
           // before any allocation admission, including a previous restore.
           const stage = await reclaimScratch(settings, 'offhost-stage');
           const verify = await reclaimScratch(settings, 'offhost-verify');
-          return { ...selected, stage, verify, tag: 'restore-point-' + sha(encode(selected.manifest)) };
+          return { ...selected, stage, verify, owned: await exists(path.join(selected.backup, 'owned-closure.json')), tag: 'restore-point-' + sha(encode(selected.manifest)) };
         }, { skipBusy: true, maxBusyMs: 1800000 });
         if (selected.skipped) return skipped('operation-lock-busy');
         run ??= await resticRunner(config, { signal, settings });
@@ -132,6 +132,10 @@ export async function offhostBackup({ settings, config, run, bundle = recoveryBu
         verification = selected.verify;
         await directory(verification);
         await repository(['restore', snapshots[0].id, '--target', verification, '--verify'], { useCache: false });
+        if (selected.owned) {
+          const restored = path.join(verification, path.relative(path.parse(selected.stage).root, selected.stage), 'snapshot');
+          if (sha(encode(await verifyBackup(restored))) !== sha(encode(selected.manifest))) throw Error('Restored owned snapshot differs.');
+        }
         if (staged) await verifyBackup(staged.backup);
         await recordStatus(settings.controlDir, 'offhost', { result: 'success', snapshotAt: new Date(selected.time).toISOString() }, now());
         try { await ping('offhost'); } catch {}

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { chown, copyFile, mkdtemp, rm } from 'node:fs/promises';
 import { snapshotPath } from '../../app/storage/snapshot.mjs';
 import { copyTree, directory, headroom, inventory, json, noLinks } from './files.mjs';
+import { copyOwnedClosure, verifyOwnedClosure } from './owned-recovery.mjs';
 
 // Root takes ownership of the service-created snapshot, then works only on a
 // private copy. A failed request never falls back to stopping the writer.
@@ -28,8 +29,11 @@ export async function captureOnline({ settings, release, request }) {
       return { serviceDir, heldMs: result.heldMs, cleanup: () => rm(scratch, { recursive: true, force: true }) };
     }
     const dataDir = path.join(scratch, 'store');
+    await verifyOwnedClosure(source, ['store']);
     await copyTree(path.join(source, 'store'), dataDir);
     await copyFile(path.join(source, 'store.dataset.json'), dataDir + '.dataset.json', 1);
+    await copyOwnedClosure(source, scratch);
+    await verifyOwnedClosure(scratch, ['store']);
     return { dataDir, heldMs: result.heldMs, cleanup: () => rm(scratch, { recursive: true, force: true }) };
   } catch (error) {
     if (scratch) await rm(scratch, { recursive: true, force: true });

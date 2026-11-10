@@ -10,6 +10,7 @@ import { assertCompatibleStep } from '../private-companion/release-compatibility
 import { STORE_IDENTITY_EXCLUSIONS } from '../../app/storage/store-identity-policy.mjs';
 import { recordStatus } from './ops-status.mjs';
 import { inPhase } from './phases.mjs';
+import { recoverySources, withRecoveryLeases, captureOwnedClosure, copyOwnedClosure, verifyOwnedClosure, installOwnedClosure } from './owned-recovery.mjs';
 
 export async function runProbe(release, dataDir, output) {
   return runChildProbe(release, dataDir, output, 'portable');
@@ -40,7 +41,7 @@ async function snapshot(dataDir, target, binding) {
   await copyTree(dataDir, target, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
   await writeFile(bindingPath(target), binding ?? await readFile(bindingPath(dataDir)), { flag: 'wx', mode: 0o600 });
 }
-export async function backupStopped({ dataDir, backupDir, scratchRoot, release, controlDir, keep = 30, minFreeBytes, probe = runProbe, snapshotAt = new Date().toISOString() }) {
+export async function backupStopped({ dataDir, backupDir, scratchRoot, release, controlDir, keep = 30, minFreeBytes, probe = runProbe, snapshotAt = new Date().toISOString(), ownedFormat2 = false }) {
   if (!Number.isSafeInteger(keep) || keep < 1) throw new Error('Backup count must be positive.');
   outside(dataDir, backupDir); outside(backupDir, dataDir); outside(dataDir, scratchRoot); outside(backupDir, scratchRoot);
   await directory(backupDir); await directory(scratchRoot);
@@ -50,9 +51,14 @@ export async function backupStopped({ dataDir, backupDir, scratchRoot, release, 
   await headroom(backupDir, size * 3, minFreeBytes); await headroom(scratchRoot, size * 3, minFreeBytes);
   const stage = await mkdtemp(path.join(backupDir, '.pending-'));
   const scratch = await mkdtemp(path.join(scratchRoot, 'backup-'));
+  const sources = await recoverySources([dataDir], ownedFormat2);
+  const capture = async () => {
   try {
     await snapshot(dataDir, path.join(stage, 'store'));
+    if (sources.some(Boolean)) await captureOwnedClosure(stage, ['store'], sources);
+    else await verifyOwnedClosure(stage, ['store']);
     await snapshot(path.join(stage, 'store'), path.join(scratch, 'store'));
+    await copyOwnedClosure(stage, scratch);
     await probe(release, path.join(scratch, 'store'), path.join(stage, 'portable.json'));
     await assertSameRelease(release);
     if (encode(before) !== encode(await storeIdentity(dataDir))) throw new Error('Stopped store changed during backup.');
@@ -72,10 +78,16 @@ export async function backupStopped({ dataDir, backupDir, scratchRoot, release, 
     if (controlDir) await recordStatus(controlDir, 'backup', { result: 'success', snapshotAt });
     return { target, snapshotAt, byteSize: files.reduce((sum, row) => sum + (row.bytes ?? 0), 0) };
   } finally { await rm(stage, { recursive: true, force: true }); await rm(scratch, { recursive: true, force: true }); }
+  };
+  return withRecoveryLeases(sources, capture);
 }
 export async function verifyBackup(backup) {
   await noLinks(backup);
   const manifest = await json(path.join(backup, 'manifest.json'));
+  if (manifest.format === 'picker-service-recovery-v1' && await exists(path.join(backup, 'owned-closure.json'))) {
+    const { verifyServiceBackup } = await import('./service-checkpoint.mjs');
+    return verifyServiceBackup(backup);
+  }
   const actual = (await inventory(backup)).filter(row => row.path !== 'manifest.json');
   if (manifest.format !== 'picker-recovery-v1' || encode(manifest.files) !== encode(actual)
     || !actual.some(row => row.path === 'store/state.json') || !actual.some(row => row.path === 'store.dataset.json')
@@ -83,9 +95,10 @@ export async function verifyBackup(backup) {
   await assertReleased(path.join(backup, 'store'));
   const portable = await json(path.join(backup, 'portable.json'));
   if (portable.format !== 'rs3-chunk-picker' || !portable.state?.members?.length) throw new Error('Recovery portable export is invalid.');
+  await verifyOwnedClosure(backup, ['store']);
   return manifest;
 }
-export async function restoreStopped({ backup, dataDir, scratchRoot, release, minFreeBytes, probe = runProbe }) {
+export async function restoreStopped({ backup, dataDir, scratchRoot, release, minFreeBytes, probe = runProbe, ownedFormat2 = false, assertRestoreAllowed }) {
   // Match the application's lexical directory identity before parent checks or creation.
   dataDir = path.resolve(dataDir);
   outside(backup, dataDir); outside(dataDir, backup); outside(dataDir, scratchRoot);
@@ -96,14 +109,23 @@ export async function restoreStopped({ backup, dataDir, scratchRoot, release, mi
     if ((await readdir(dataDir)).length) throw new Error('Restore requires an empty data directory.');
   }
   const manifest = await verifyBackup(backup);
+  if (manifest.format !== 'picker-recovery-v1') throw new Error('Use service recovery for a service snapshot.');
+  const closure = await verifyOwnedClosure(backup, ['store']);
+  if (closure && typeof assertRestoreAllowed !== 'function') throw new Error('Owned restore requires the target tombstone authority.');
+  if (closure) await assertRestoreAllowed(closure.stores.map(row => row.pickerId));
   await directory(scratchRoot);
   const size = manifest.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0);
   await headroom(path.dirname(dataDir), size, minFreeBytes); await headroom(scratchRoot, size * 2, minFreeBytes);
   const scratch = await mkdtemp(path.join(scratchRoot, 'restore-'));
   try {
     await snapshot(path.join(backup, 'store'), path.join(scratch, 'store'));
+    await copyOwnedClosure(backup, scratch);
     await probe(release, path.join(scratch, 'store'), path.join(scratch, 'portable.json'));
     await assertSameRelease(release); await verifyBackup(backup);
+    if (closure) {
+      await assertRestoreAllowed(closure.stores.map(row => row.pickerId));
+      await installOwnedClosure(backup, ['store'], ownedFormat2, path.join(scratch, 'store'));
+    }
     if (await exists(dataDir)) {
       if ((await readdir(dataDir)).length) throw new Error('Restore target changed.');
     } else await mkdir(dataDir, { mode: 0o700 });

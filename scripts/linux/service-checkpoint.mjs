@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { snapshotPath, snapshotRoot, withDirectoryBarriers } from '../../app/storage/snapshot.mjs';
 import { atomic, copyTree, directory, encode, exists, headroom, inventory, json, noLinks, outside, sha } from './files.mjs';
+import { recoverySources, withRecoveryLeases, captureOwnedClosure, verifyOwnedClosure } from './owned-recovery.mjs';
 
 export const serviceFormat = 'picker-service-recovery-v1';
 export const pickerId = id => /^p_[0-9a-f]{32}$/.test(id);
@@ -107,7 +108,7 @@ async function checkpointBinding(source) {
 }
 const captures = new WeakSet();
 export async function captureServiceCheckpoint({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = settings.minFreeBytes ?? 67108864,
-  onPhase = async () => {}, spaceCheck = headroom, step = async label => {} }) {
+  onPhase = async () => {}, spaceCheck = headroom, step = async label => {}, ownedFormat2 = false }) {
   validateServicePaths(settings);
   const target = snapshotPath(settings.dataDir, id);
   if (captures.has(registry)) throw Object.assign(new Error('A service backup is already running.'), { status: 503 });
@@ -139,6 +140,10 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
     const initial = checkpoint ? await checkpoint.capture(roster) : await registry.withRecoveryCheckpoint(roster);
     const globalBarrierMs = checkpoint ? checkpoint.timings().globalBarrierMs : performance.now() - started;
     const { document, pickers: manifestPickers } = initial;
+    const sources = await Promise.all(manifestPickers.map(async picker => (await recoverySources([pickerPath(settings, picker)],
+      ownedFormat2 && picker.kind !== 'legacy-shared' ? { ...ownedFormat2, pickerId: picker.id } : false))[0]));
+    const owned = sources.some(Boolean);
+    const capture = async () => {
     await onPhase('manifest', { pickerCount: manifestPickers.length });
     await mutate('capture.spool', () => directory(snapshotRoot(settings.dataDir)));
     // The spool usually shares the live data filesystem. Refuse before copying
@@ -155,7 +160,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
       const source = pickerPath(settings, picker), to = path.join(target, 'pickers', picker.id);
       const began = performance.now();
       try {
-        await withDirectoryBarriers([source], async () => {
+        await (owned ? async (_dirs, work) => work() : withDirectoryBarriers)([source], async () => {
           await onPhase('picker-barrier', { id: picker.id });
           await noLinks(source);
           if (await exists(path.join(source, 'operator-quarantine.json'))) throw new Error('Quarantined picker blocks service backup; release or delete it before capture.');
@@ -212,15 +217,23 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
       } else if (errors.has(picker.id)) throw errors.get(picker.id);
     }
     await mutate('capture.registry', () => writeFile(path.join(target, 'registry.json'), encode(document), { flag: 'wx', mode: 0o600 }));
+    const retained = manifestPickers.filter(p => !p.absent && p.initialized);
+    const closed = owned && await captureOwnedClosure(target, retained.map(p => 'pickers/' + p.id),
+      retained.map(p => sources[manifestPickers.indexOf(p)]), { step });
+    if (!owned) await verifyOwnedClosure(target, retained.map(p => 'pickers/' + p.id));
     await syncRecoveryTree(target);
     const files = await inventory(target);
     const timing = checkpoint?.timings() ?? { waitedRequests: 0, maxRequestWaitMs: 0, totalRequestWaitMs: 0 };
     const result = { id, heldMs: globalBarrierMs, globalBarrierMs, pickerCount: manifestPickers.length,
       absentPickerCount: manifestPickers.filter(p => p.absent).length, pickerBarriers,
       waitedRequests: timing.waitedRequests, maxRequestWaitMs: timing.maxRequestWaitMs, totalRequestWaitMs: timing.totalRequestWaitMs };
-    await mutate('capture.manifest', () => atomic(path.join(target, 'manifest.json'), encode({ format: serviceFormat, pickers: manifestPickers, inputs: pins, files })));
+    await mutate('capture.manifest', () => atomic(path.join(target, 'manifest.json'), encode({ format: serviceFormat, pickers: manifestPickers, inputs: pins, files,
+      ...(closed ? { snapshotAt: new Date().toISOString() } : {}) })));
     await mutate('capture.complete', () => atomic(path.join(target, 'complete.json'), encode(result)));
     return result;
+    };
+    return await (owned ? withDirectoryBarriers(manifestPickers.map(picker => pickerPath(settings, picker)),
+      () => withRecoveryLeases(sources, capture)) : capture());
   } catch (error) { if (created && !interrupted) await mutate('capture.failed-cleanup', () => rm(target, { recursive: true, force: true })); throw error; }
   finally { captures.delete(registry); }
 }
@@ -265,7 +278,11 @@ export async function verifyServiceBackup(backup) {
     if (picker.binding && encode(picker.binding) !== encode(await json(path.join(backup, root + '.dataset.json')))) throw new Error('Picker binding mismatch.');
   }
   if (document.pickers.filter(p => p.lifecycle === 'active').some(p => !ids.has(p.id))) throw new Error('Picker checkpoint incomplete.');
+  const closure = await verifyOwnedClosure(backup, manifest.pickers.filter(p => !p.absent && p.initialized).map(p => 'pickers/' + p.id));
+  const catalogueFiles = new Set(closure ? ['owned-closure.json', 'catalogue',
+    ...Object.values(closure.manifest.bases).map(pin => `catalogue/catalogue-${pin.sha256}.json.gz`)] : []);
   for (const row of actual) {
+    if (catalogueFiles.has(row.path)) continue;
     if (row.path === 'registry.json' || row.path === 'pickers' || row.path === 'inputs') continue;
     const parts = row.path.split('/');
     if (inputPaths.has(row.path)) continue;
@@ -284,6 +301,10 @@ export async function publishServiceBackup({ source, settings, release, assertRe
   const stage = target + '.pending';
   try {
     await copyTree(source, stage); await verifyServiceBackup(stage); await assertRelease(release);
+    if (await exists(path.join(stage, 'owned-closure.json'))) {
+      await atomic(path.join(stage, 'manifest.json'), encode({ ...manifest, releasePointerSha256: sha(release.pointerBytes) }));
+      await verifyServiceBackup(stage);
+    }
     await syncRecoveryTree(stage); await rename(stage, target); await syncRecoveryDirectory(settings.backupDir);
     // Keep only verified service recoveries; never prune legacy recoveries.
     const { readdir, stat } = await import('node:fs/promises');
