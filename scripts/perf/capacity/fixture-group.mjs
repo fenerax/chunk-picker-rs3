@@ -8,8 +8,9 @@ import { bindDatasetStorage } from '../../../app/dataset-binding.mjs';
 import { selectedDataset } from '../../../app/dataset-runtime.mjs';
 import { random, digest, syntheticWorld } from './model.mjs';
 import { growthCommands, fixtureProgress } from './growth.mjs';
+import { fixtureMigration, calibrateIdentities } from './fixture-migration.mjs';
 
-export async function buildGroup({ item, dataDir }, { profile, worldData, tasks, progress }) {
+export async function buildGroup({ item, dataDir }, { profile, worldData, tasks, migrationInputs, progress }) {
   const started = performance.now(), rules = createRuleRegistry(), world = syntheticWorld(worldData, buildWorld);
   const step = fixtureProgress(progress);
   const update = value => step({ groupIndex: item.index, rosterSize: item.size, grown: item.grown, ...value });
@@ -27,10 +28,12 @@ export async function buildGroup({ item, dataDir }, { profile, worldData, tasks,
   }
   const growthMs = performance.now() - growthStarted;
   state.tasks = state.tasks.concat(structuredClone(tasks));
+  const hooks = fixtureMigration(migrationInputs, selectedDataset);
+  state = calibrateIdentities(hooks.migrateState(state, { operation: 'initialize' }), profile.catalogue);
   await bindDatasetStorage(dataDir, selectedDataset);
   await update({ phase: 'open-store', completed: 0, total: 1 });
   const durableStarted = performance.now();
-  const store = await openStore({ dataDir, world, registry: rules, initialState: state, now, random: rng });
+  const store = await openStore({ dataDir, world, registry: rules, initialState: state, now, random: rng, ...hooks });
   const result = { index: item.index, grown: item.grown, variant: item.variant, growthMs, growthCommands: growthCount };
   try {
     if (item.grown) {
@@ -51,6 +54,7 @@ export async function buildGroup({ item, dataDir }, { profile, worldData, tasks,
     result.revision = store.getInfo().revision;
     const saved = store.getState();
     result.stateDigest = digest(saved); result.stateBytes = Buffer.byteLength(JSON.stringify(saved));
+    result.taskRows = saved.tasks.length; result.aliases = Object.keys(saved.identityRegistry?.aliases ?? {}).length;
     // Archive filenames are application entropy. Preserve archive CONTENT in
     // the logical digest while excluding those random names, like credentials.
     if (saved.provenance?.historyArchive) for (const reference of saved.provenance.historyArchive) {

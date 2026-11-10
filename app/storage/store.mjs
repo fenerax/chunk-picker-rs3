@@ -96,7 +96,7 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
@@ -945,6 +945,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
     let existing = false;
+    const hydrateStarted = startupDiagnostics && performance.now();
     try {
       const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
       current = await importStoredBackup(document, true);
@@ -963,6 +964,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       currentDiskSerialized = await serializedDiskState(current);
       reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
+    if (startupDiagnostics) startupDiagnostics.storeHydrateValidateMs = performance.now() - hydrateStarted;
     currentDiskSerialized ??= await serializedDiskState(current);
     // Recover surviving review markers as optional input. Neither capture nor
     // frozen lowering may prevent the current picker from serving.
@@ -996,7 +998,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     if (existing) {
       const sealJournals = journalRecovery.has(current);
+      const migrationStarted = startupDiagnostics && performance.now();
       let ready = await prepareLoadedState(current);
+      if (startupDiagnostics) startupDiagnostics.storeMigrateValidateMs = performance.now() - migrationStarted;
       // Compare validated data directly: key ordering has no gameplay meaning,
       // and a changed projection should not stringify its large archive twice.
       // Exceptional numeric distinctions such as -0 conservatively refresh.
@@ -1066,7 +1070,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = folded;
       }
     }
+    const retentionStarted = startupDiagnostics && performance.now();
     if (!readOnly && !liveSwapStrict) await maintainRetention();
+    if (startupDiagnostics) {
+      startupDiagnostics.retentionMs = performance.now() - retentionStarted;
+      startupDiagnostics.storeMigrateValidateMs ??= 0;
+    }
   }));
   } catch (error) { await releaseLock(); throw error; }
 

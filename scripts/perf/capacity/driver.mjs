@@ -2,11 +2,12 @@ import { openSync, writeSync, closeSync } from 'node:fs';
 import path from 'node:path';
 import { arrivals, dispatch } from './scheduler.mjs';
 import { loopback, random } from './model.mjs';
+import { createBrowserClient, reconnectStream, pause, retryAfterMs } from './client.mjs';
 
 export function percentile(values,p) {
   const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.max(0,Math.ceil(sorted.length*p)-1)] : null;
 }
-const distribution=values=>({count:values.length,p50Ms:percentile(values,.5),p95Ms:percentile(values,.95),p99Ms:percentile(values,.99),maxMs:values.length?values.reduce((a,b)=>Math.max(a,b),0):null});
+export const distribution=values=>({count:values.length,p50Ms:percentile(values,.5),p95Ms:percentile(values,.95),p99Ms:percentile(values,.99),maxMs:values.length?values.reduce((a,b)=>Math.max(a,b),0):null});
 // A missing prerequisite means the measured request was never sent. It must not
 // stand in for a measured sample. An empty task list is a fixture/driver failure;
 // an empty unlock pool can be legitimate, so it is only excluded from latency.
@@ -33,13 +34,21 @@ export async function explainAction(call, client, action, ordinal) {
   await call(client, `/api/task-${action}?memberId=${client.memberId}&taskId=${encodeURIComponent(task.id)}&revision=${list.stateRevision}${action==='why'?'&view=display-v1':''}`);
 }
 export function prepareCohorts(profile,fixture) {
-  const cohorts=new Map(),rotationMs=(profile.rotationSeconds??300)*1000;let startMs=0;
-  if(!Number.isFinite(rotationMs)||rotationMs<=0)throw new Error('Invalid cohort rotation interval.');
+  const cohorts=new Map(),rotationMs=rotationInterval(profile);let startMs=0;
+  let population=fixture.groups;
+  if(rotationMs===Infinity&&profile.fixture?.freshFraction!==undefined) {
+    const fraction=profile.fixture.freshFraction,fresh=population.filter(group=>group.grown===false),grown=population.filter(group=>group.grown===true);
+    if(fresh.length!==Math.round(population.length*fraction)||fresh.length+grown.length!==population.length)throw new Error('Fixture fresh/grown inventory does not match the profile.');
+    let freshIndex=0,grownIndex=0;
+    // Every prefix has the rounded freshFraction, so ramp cohorts are nested
+    // and the measured steady cohort cannot get stuck in the fresh-only prefix.
+    population=population.map((_,i)=>Math.round((i+1)*fraction)>Math.round(i*fraction)?fresh[freshIndex++]:grown[grownIndex++]);
+  }
   for(const [stageIndex,stage] of profile.stages.entries()) {
     const endMs=startMs+stage.seconds*1000;
-    for(let rotation=Math.floor(startMs/rotationMs);rotation<Math.ceil(endMs/rotationMs);rotation++) {
-      const groups=Array.from({length:stage.activeGroups},(_,i)=>fixture.groups[(i+rotation*stage.activeGroups)%fixture.groups.length]),list=[];
-      for(let slot=0;slot<5;slot++)for(const group of groups)if(group.members[slot])list.push({...group.members[slot],group:group.index,taskIds:group.taskIds,peers:group.members.map(m=>m.memberId)});
+    for(let rotation=Math.floor(startMs/rotationMs);rotation<Math.max(1,Math.ceil(endMs/rotationMs));rotation++) {
+      const groups=Array.from({length:stage.activeGroups},(_,i)=>population[(i+rotation*stage.activeGroups)%population.length]),list=[];
+      for(let slot=0;slot<5;slot++)for(const group of groups)if(group.members[slot])list.push({...group.members[slot],group:group.index,pickerId:group.pickerId,taskIds:group.taskIds,peers:group.members.map(m=>m.memberId)});
       if(list.length<stage.users)throw new Error(`Stage ${stageIndex} (${stage.name??'unnamed'}), cohort ${rotation}: requested ${stage.users} users but selected groups provide ${list.length} synthetic logins.`);
       cohorts.set(`${stageIndex}:${rotation}`,list.slice(0,stage.users));
     }
@@ -47,44 +56,83 @@ export function prepareCohorts(profile,fixture) {
   }
   return cohorts;
 }
+export function sessionArrivals(profile,cohorts) {
+  const events=[],intervalMs=5000,rotationMs=rotationInterval(profile);let startMs=0;
+  for(const [stage,settings] of profile.stages.entries()) {
+    const endMs=startMs+settings.seconds*1000;
+    for(let rotation=Math.floor(startMs/rotationMs);rotation<Math.max(1,Math.ceil(endMs/rotationMs));rotation++) {
+      const from=rotationMs===Infinity?startMs:Math.max(startMs,rotation*rotationMs),to=Math.min(endMs,(rotation+1)*rotationMs);
+      for(const [clientIndex,client] of cohorts.get(`${stage}:${rotation}`).entries()) {
+        // Anchor each login's stagger to workload time, keeping the same phase
+        // across stage changes. Idle logins still check once every five seconds.
+        const phase=random(`${profile.seed}-session-${client.group}-${client.memberId}`)()*intervalMs;
+        for(let atMs=phase+Math.ceil((from-phase)/intervalMs)*intervalMs;atMs<to;atMs+=intervalMs)events.push({atMs,kind:'session',stage,clientIndex});
+      }
+    }
+    startMs=endMs;
+  }
+  return events.sort((a,b)=>a.atMs-b.atMs);
+}
+export async function prepareRollSnapshot(call,client,snapshot,chunks) {
+  const member=snapshot.state.members?.find(member=>member.id===client.memberId);
+  if(member?.unlocked?.length===0) {
+    // Fresh fixtures stay fresh on disk. Model choosing a first chunk through
+    // the normal browser command before trying to roll or preview a neighbour.
+    await call(client,'/api/command?view=play-v1',{expectedRevision:snapshot.state.revision,
+      command:{type:'set-chunk',memberId:client.memberId,chunkId:chunks[0],status:'unlocked'}});
+    return call(client,'/api/state?view=play-v1');
+  }
+  return snapshot;
+}
+export function rotationInterval(profile) {
+  if(profile.rotationSeconds==null)return Infinity;
+  if(!Number.isFinite(profile.rotationSeconds)||profile.rotationSeconds<=0)throw new Error('Invalid cohort rotation interval.');
+  return profile.rotationSeconds*1000;
+}
 export async function consumeStream({base,client,controller,counters,stats,planned,headerDeadlineMs=5000,fetchRequest=fetch,timer=setTimeout,cancelTimer=clearTimeout}) {
-  let headersReceived=false;
-  counters.attempted++;
-  const deadline=timer(()=>controller.abort(new Error('SSE header deadline expired.')),headerDeadlineMs);
+  const currentCounters=()=>typeof counters==='function'?counters():counters;
+  let headersReceived=false,headerExpired=false,opened=false;
+  currentCounters().attempted++;
+  const deadline=timer(()=>{headerExpired=true;controller.abort(new Error('SSE header deadline expired.'));},headerDeadlineMs);
   try {
     const response=await fetchRequest(base+'/api/events',{headers:{Cookie:client.cookie},signal:controller.signal,redirect:'error'});
     headersReceived=true;cancelTimer(deadline);
-    counters.statuses[response.status]=(counters.statuses[response.status]??0)+1;
+    currentCounters().statuses[response.status]=(currentCounters().statuses[response.status]??0)+1;
     if(!response.ok){
-      stats.streamRejected++;counters.rejected++;
-      if([429,503].includes(response.status)){if(!response.headers.get('retry-after'))counters.rejectsWithoutRetryAfter++;}
-      else counters.unexpectedFailures++;
-      return;
+      stats.streamRejected++;currentCounters().rejected++;
+      if([429,503].includes(response.status)){if(!response.headers.get('retry-after'))currentCounters().rejectsWithoutRetryAfter++;}
+      else currentCounters().unexpectedFailures++;
+      await response.body?.cancel();
+      return {opened:false,retryAfterMs:retryAfterMs(response)};
     }
-    stats.streamOpened++;counters.opened++;
+    opened=true;stats.streamOpened++;currentCounters().opened++;
     for await(const bytes of response.body)stats.httpBytes+=bytes.length;
-    if(!planned()){stats.streamUnexpectedEnds++;counters.unexpectedEnds++;}
+    if(!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
+    return {opened:true};
   } catch {
-    if(!headersReceived){stats.streamEstablishmentFailures++;counters.establishmentFailures++;}
-    else if(!planned()){stats.streamUnexpectedEnds++;counters.unexpectedEnds++;}
+    if(!headersReceived&&(headerExpired||!planned())){stats.streamEstablishmentFailures++;currentCounters().establishmentFailures++;}
+    else if(headersReceived&&!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
+    return {opened};
   } finally {cancelTimer(deadline);}
 }
 export async function drive({base,profile,fixture,directory,onSample,startWorkload=()=>performance.now(),fetchRequest=fetch,schedule=dispatch}) {
   base=loopback(base,{assigned:profile.port===0});
   const cohorts=prepareCohorts(profile,fixture),chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
-  const events=arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
-    pluginStatus:stage.pluginPerSecond*.4,pluginTasks:stage.pluginPerSecond*.2,sync:stage.syncPerMinute/60,session:stage.users/5})).map((event,i)=>({...event,id:i+1}));
+  const events=[...arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
+    pluginStatus:stage.pluginPerSecond*.4,pluginTasks:stage.pluginPerSecond*.2,sync:stage.syncPerMinute/60})),...sessionArrivals(profile,cohorts)]
+    .sort((a,b)=>a.atMs-b.atMs).map((event,i)=>({...event,id:i+1}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
     rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
-    streams=[],streamJobs=new Set(),stageStreams=profile.stages.map(()=>({attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{}})),seq=new Map();
+    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(()=>({attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{}})),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
   let streamShutdown=false, active=0, maxActive=0;
-  const call=async(client,route,body,extra={})=>{
+  const request=async(client,route,body,extra={})=>{
     stats.httpRequests++;
     const requestStart=performance.now();
-    const observation={route:route.split('?')[0],status:'pending'};client.observations?.push(observation);
+    const observation={route:route.split('?')[0],status:'pending',...(route.startsWith('/api/command')?{command:body?.command?.type}: {})};client.observations?.push(observation);
     let res;
     try {res=await fetchRequest(base+route,{method:body===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.timeout(profile.requestDeadlineMs),
-      headers:{...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),...(body===undefined?{}:{'Content-Type':'application/json',Origin:base})},
+      headers:{...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),
+        ...(!extra.plugin&&route!=='/api/session'&&client.pickerId?{'X-Picker-Id':client.pickerId}:{}),...(body===undefined?{}:{'Content-Type':'application/json',Origin:base})},
       ...(body===undefined?{}:{body:JSON.stringify(body)})});
     } catch(error) {observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.wallMs=performance.now()-requestStart;stats.httpErrors++;throw error;}
     let text;
@@ -98,25 +146,59 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
     const responseRevision=value?.stateRevision??value?.state?.revision??value?.revision;
     if(Number.isSafeInteger(responseRevision))observation.responseRevision=responseRevision;
     if(!res.ok) {
-      if(['TASK_WHY_UNAVAILABLE','TASK_DETAILS_UNAVAILABLE','TASK_RESULTS_UNAVAILABLE','REVISION_CONFLICT'].includes(value?.code))observation.errorCode=value.code;
+      if(['TASK_WHY_UNAVAILABLE','TASK_DETAILS_UNAVAILABLE','TASK_RESULTS_UNAVAILABLE','REVISION_CONFLICT','PICKER_WARMING','PICKER_UPDATING'].includes(value?.code))observation.errorCode=value.code;
       observation.intentionalConflict=res.status===409&&extra.intentionalConflict===true&&observation.route==='/api/command';
       stats.httpErrors++; if([429,503].includes(res.status)) stats.rejects++;if(res.status===409)stats.conflicts++;
-      throw Object.assign(new Error('HTTP'),{status:res.status,retryAfter:res.headers.get('retry-after')});
     }
-    return value;
+    return {ok:res.ok,status:res.status,headers:res.headers,json:async()=>value};
   };
-  function openStreams(stage,pool) {
-    const counters=stageStreams[stage];
+  const call=async(client,route,body,extra={})=>{
+    const identity=extra.plugin?client.key:client.cookie;
+    let reader=readers.get(identity);
+    if(!reader) {
+      reader=createBrowserClient({request:(route,options)=>request(options.extra.client,route,options.body,options.extra)});
+      readers.set(identity,reader);
+    }
+    const options={...extra,client};
+    if(!extra.plugin) {
+      let check=sessions.get(identity);
+      if(!check) {
+        check=reader('/api/session',undefined,options).finally(()=>sessions.delete(identity));
+        sessions.set(identity,check);
+      }
+      const session=await check;
+      if(route==='/api/session')return session;
+    }
+    return reader(route,body,options);
+  };
+  function openStreams(pool) {
+    // Retained streams cross stage boundaries. Attribute reconnect failures and
+    // disconnects when they happen, rather than to the original warm-up stage.
+    const counters=()=>stageStreams[currentStage];
+    const wanted=new Set(pool.map(client=>client.cookie));
+    for(const [key,controller] of streams)if(!wanted.has(key)){controller.abort();streams.delete(key);}
     for(const client of pool) {
-      const controller=new AbortController(); streams.push(controller);
-      // Do not wait for one group's stream before offering the next connection.
-      const job=consumeStream({base,client,controller,counters,stats,fetchRequest,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
-        planned:()=>streamShutdown||controller.signal.aborted});
+      if(streams.has(client.cookie))continue;
+      const controller=new AbortController(); streams.set(client.cookie,controller);
+      const rng=random(`${profile.seed}-stream-${client.group}-${client.memberId}`);
+      const job=reconnectStream({signal:controller.signal,sleep:pause,rng,spreadMs:profile.streamConnectSpreadMs??1000,
+        connect:async()=>{
+          const attemptController=new AbortController(),abort=()=>attemptController.abort();
+          controller.signal.addEventListener('abort',abort,{once:true});
+          if(controller.signal.aborted)abort();
+          try {return await consumeStream({base,client,controller:attemptController,counters,stats,fetchRequest,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
+            planned:()=>streamShutdown||controller.signal.aborted});}
+          finally {controller.signal.removeEventListener('abort',abort);}
+        }});
       streamJobs.add(job);job.finally(()=>streamJobs.delete(job));
     }
   }
   const timing=[];
   const record=(action,event,start,end,outcome)=>{
+    for(const observation of outcome.requests??[])if(observation.command) {
+      const key=`${observation.command}:${observation.status}`,row=commands.get(key)??{command:observation.command,status:observation.status,values:[]};
+      row.values.push(observation.wallMs);commands.set(key,row);
+    }
     const row={id:event.id,stage:event.stage,action,scheduledMs:event.atMs,startLagMs:start-event.scheduledAt,latencyMs:end-event.scheduledAt,httpWallMs:end-start,...outcome};
     const group=records[`${event.stage}:${action}`]??={stage:event.stage,action,all:[],valid:[],success:[],lag:[],statuses:{},httpRequests:0,httpRejects:0,timeouts:0,
       rejectsWithoutRetryAfter:0,unexpectedFailures:0,intentionalConflicts:0,unsupported:0,cacheHits:0,cacheMisses:0};
@@ -130,15 +212,14 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
   let currentStage=-1,currentRotation=-1,pool=[];
   const run=async event=>{
     const rng=random(`${profile.seed}-actions-${event.id}`);
-    const rotation=Math.floor(event.atMs/((profile.rotationSeconds??300)*1000));
+    const rotation=Math.floor(event.atMs/rotationInterval(profile));
     if(event.stage!==currentStage||rotation!==currentRotation) {
       const nextPool=cohorts.get(`${event.stage}:${rotation}`);
       if(!nextPool)throw new Error('Unvalidated workload cohort.');
       currentStage=event.stage;currentRotation=rotation;pool=nextPool;
-      for(const controller of streams)controller.abort();streams.length=0;
-      openStreams(currentStage,pool);
+      openStreams(pool);
     }
-    const client={...pool[event.kind==='browser'?Math.floor(rng()*pool.length):event.ordinal%pool.length],observations:[]},start=performance.now();
+    const client={...pool[event.clientIndex??(event.kind==='browser'?Math.floor(rng()*pool.length):event.ordinal%pool.length)],observations:[]},start=performance.now();
     let action=event.kind,intentional=false;active++;maxActive=Math.max(maxActive,active);
     try {
       if(event.kind==='session') await call(client,'/api/session');
@@ -175,12 +256,14 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
         } else if(pick<.9) {action='switch';throw Object.assign(new Error('Unsupported'),{status:'unsupported'});}
         else if(pick<59/60) {
           const op=rng();action=op<.4?'task-miss':op<.7?'preview':op<.9?'roll-accept':'pool-undo';
-          const snapshot=await call(client,'/api/state?view=play-v1'),state=snapshot.state;
+          let snapshot=await call(client,'/api/state?view=play-v1');const state=snapshot.state;
           if(op<.4) {
             action='task-miss';
             await call(client,'/api/command?view=play-v1',{expectedRevision:state.revision,command:{type:'set-rule',ruleId:'access.shared',value:state.rules['access.shared']===false}});
             await call(client,`/api/tasks?memberId=${client.memberId}&view=play-v1`);
           } else {
+            snapshot=await prepareRollSnapshot(call,client,snapshot,chunks);
+            const state=snapshot.state;
             const pool=snapshot.pools?.[client.memberId]?.eligible??[];
             const candidate=pool[event.id%Math.max(1,pool.length)]?.id;
             if(op<.7) {action='preview';if(!candidate)throw Object.assign(new Error('EmptyPool'),{status:'empty-pool'}); await call(client,`/api/predict?memberId=${client.memberId}&chunkId=${candidate}`);}
@@ -209,6 +292,6 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
   try {
     await schedule(events,run,{startAt:workloadStart,maxInFlight:profile.maxClientInFlight,onDrop:event=>{stats.clientDrops++;record('client-drop',event,performance.now(),performance.now(),{status:'client-drop'});}});
     timing.push({maxActive});
-  } finally {clearInterval(sampleTimer);streamShutdown=true;for(const controller of streams)controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
-  return {workloadStart,stats,stageStreams,operations:Object.values(records).map(({all,valid,success,lag,...rest})=>({...rest,latency:distribution(all),validLatency:distribution(valid),successfulLatency:distribution(success),clientDispatchLag:distribution(lag)})),timing};
+  } finally {clearInterval(sampleTimer);streamShutdown=true;for(const controller of streams.values())controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
+  return {workloadStart,stats,stageStreams,commands:[...commands.values()].map(({values,...row})=>({...row,latency:distribution(values)})),operations:Object.values(records).map(({all,valid,success,lag,...rest})=>({...rest,latency:distribution(all),validLatency:distribution(valid),successfulLatency:distribution(success),clientDispatchLag:distribution(lag)})),timing};
 }

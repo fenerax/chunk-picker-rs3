@@ -1,4 +1,5 @@
 import { openLiveTimings, noteTiming } from './live-timings.mjs';
+import { beginOpenDiagnostics } from './open-diagnostics.mjs';
 import { createDeepProfiles } from './deep-profiles.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
@@ -447,16 +448,20 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           const picker = pickerRegistry.getPicker(pickerId);
           if (picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') throw httpError(403, 'Picker access denied.');
           const directory = pickerRegistry.pickerDirectory(pickerId);
-          const binding = await verifyDatasetBinding(directory, dataset);
-          if (!binding.bound) {
-            if ((await readdir(directory)).length) throw httpError(503, 'Picker dataset binding is missing.');
-            await bindDatasetStorage(directory, dataset);
-          }
-          const initial = createGroupState(picker.memberIds.map(id => ({ id, name: 'Player 1' })), ruleRegistry);
-          initial.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
+          const openDiagnostics = beginOpenDiagnostics(multiPicker.onContextOpen, pickerId);
+          const verifyStarted = openDiagnostics && performance.now();
           let opened;
           try {
+            const binding = await verifyDatasetBinding(directory, dataset);
+            if (!binding.bound) {
+              if ((await readdir(directory)).length) throw httpError(503, 'Picker dataset binding is missing.');
+              await bindDatasetStorage(directory, dataset);
+            }
+            if (openDiagnostics) openDiagnostics.timingMs.registryDatasetVerifyMs = performance.now() - verifyStarted;
+            const initial = createGroupState(picker.memberIds.map(id => ({ id, name: 'Player 1' })), ruleRegistry);
+            initial.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
             opened = await createPickerContext({ pickerId, dataDir: directory, runtime, prepareStateResponse: false,
+              openDiagnostics,
               initialState: initial, now, random, beforeCommit: async change => {
                 await beforeCommit?.(change);
                 if (change.operation === 'replace') await pickerRegistry.reserveTransferMembers(pickerId, change.state.members.map(m => m.id));
@@ -468,8 +473,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);
             if (actual.some(id => !pickerRegistry.getPicker(pickerId).memberIds.includes(id))) throw httpError(503, 'Picker membership does not match its registry.');
-            await opened.prepare(); opened.startBackground(); return opened;
-          } catch (error) { await opened?.close(); throw error; }
+            await opened.prepare(); opened.startBackground(); openDiagnostics?.finish('completed'); return opened;
+          } catch (error) { openDiagnostics?.finish('failed', error.code ?? error.name); await opened?.close(); throw error; }
         } });
     }
   } catch (error) { await deepProfiles.close(); await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); await timings.close(); throw error; }

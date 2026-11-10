@@ -7,7 +7,7 @@ import { parseArgs } from 'node:util';
 import { planFixture, integer, digest } from './model.mjs';
 import { createHash } from 'node:crypto';
 import { processTree, diskBytes } from './telemetry.mjs';
-import { drive } from './driver.mjs';
+import { drive, rotationInterval } from './driver.mjs';
 import { evaluate, markdown } from './report.mjs';
 import { stageWindow } from './scheduler.mjs';
 import { fixtureWorkers } from './fixture-pool.mjs';
@@ -17,11 +17,16 @@ const {values:args}=parseArgs({options:{profile:{type:'string',default:'smoke'},
   'fixture-workers':{type:'string'},'fixture-from':{type:'string'},'fixture-only':{type:'boolean',default:false}}});
 if(!['127.0.0.1','localhost','::1'].includes(args.host))throw new Error('Scratch runner refuses every non-loopback hostname.');
 if(Number(process.versions.node.split('.')[0])!==24)throw new Error('Use Node 24.');
-const profilePath=['smoke','nominal','step-up'].includes(args.profile)?new URL(`./profiles/${args.profile}.json`,import.meta.url):path.resolve(args.profile);
+const profilePath=['smoke','nominal','step-up','churn'].includes(args.profile)?new URL(`./profiles/${args.profile}.json`,import.meta.url):path.resolve(args.profile);
 const profile=JSON.parse(await readFile(profilePath,'utf8'));
 profile.streamHeaderDeadlineMs??=5000;
 if(process.platform==='win32' && profile.name!=='smoke')throw new Error('Only smoke is allowed on the shared PC.');
 planFixture(profile);
+rotationInterval(profile);
+if(profile.sessionChecks!==undefined&&profile.sessionChecks!=='before-browser-request')throw new Error('Use browser session preflights.');
+if(profile.streamConnectSpreadMs!==undefined)integer(profile.streamConnectSpreadMs,0,60000,'stream connection spread');
+if(profile.catalogue.aliases!==undefined)integer(profile.catalogue.aliases,1,1000000,'aliases');
+if(profile.catalogue.stateBytes!==undefined)integer(profile.catalogue.stateBytes,1,100000000,'state bytes');
 const workers=fixtureWorkers(args['fixture-workers'],{groups:profile.fixture.groups});
 const fixtureFrom=args['fixture-from']?path.resolve(args['fixture-from']):'';
 integer(profile.catalogue.chunks,2,10000,'chunks');integer(profile.catalogue.tasks,1,200000,'tasks');
@@ -88,8 +93,11 @@ try {
   console.log(`Fixture ready: ${fixture.groups.length} groups, ${fixture.characters} slots. Starting measured server.`);
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
   let id=0,busy=false,telemetryErrors=0,lastCpu,lastAt,lastWindowAt,lastDisk=0,disk=null,runStart;
-  const samples=[],pending=new Map();
-  server.on('message',m=>{if(m.type==='sample'||m.type==='sample-error'){const request=pending.get(m.id);if(request){pending.delete(m.id);request(m);}}});
+  const samples=[],contextOpens=[],admissionTransitions=[],pending=new Map();
+  server.on('message',m=>{
+    if(m.type==='context-open')contextOpens.push(m);
+    if(m.type==='admission')admissionTransitions.push(m);
+    if(m.type==='sample'||m.type==='sample-error'){const request=pending.get(m.id);if(request){pending.delete(m.id);request(m);}}});
   const sample=async client=>{
     if(busy)return;busy=true;
     try {
@@ -118,9 +126,9 @@ try {
       catalogueDigest:fixture.catalogueDigest,catalogueBytes:fixture.catalogueBytes,engineCatalogueTasks:fixture.engineCatalogueTasks,
       growthMode:fixture.growthMode,initializationMs:fixture.initializationMs,
       fixtureDigest:fixture.fixtureDigest,workers:fixture.workers,reused:Boolean(fixtureFrom),
-      setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes})=>({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes})),
+      setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})=>({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})),
       datasetDigest:fixture.datasetDigest,retention:fixture.groups.map(g=>({index:g.index,stateDigest:g.stateDigest,...g.retention,snapshots:g.retainedSnapshots}))},
-    load,samples,telemetryErrors,shutdown};
+    load,samples,contextOpens,admissionTransitions,telemetryErrors,shutdown};
   result.gates=evaluate(result);
   await writeFile(path.join(directory,'results.json'),JSON.stringify(result,null,2));await writeFile(path.join(directory,'summary.md'),markdown(result));
   console.log(`Results: ${path.join(directory,'summary.md')}; ${load.stats.offered} arrivals, ${load.stats.rejects} rejects, ${load.stats.timeouts} timeouts.`);

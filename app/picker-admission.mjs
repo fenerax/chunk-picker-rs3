@@ -6,10 +6,13 @@ export const COLD_OPEN_ADMISSION = Object.freeze({ maxPending: 64, perAccount: 2
 const refused = reason => Object.assign(new Error(`Picker admission ${reason}. Wait a moment and retry.`), { status: 503, retryAfter: 1 });
 export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMISSION }) {
   const groups = new Map(), active = new Set();
-  let pending = 0, closed = false, pumping = false;
+  let pending = 0, closed = false, pumping = false, sequence = 0;
   const drained = new Set();
   function observe(event, item, extra = {}) {
-    try { onEvent?.({ event, waitMs: (item.startedAt ?? performance.now()) - item.queuedAt,
+    try { onEvent?.({ event, admissionId: item.id, pickerId: item.owner?.pickerId,
+      transition: ['queued', 'started', 'completed', 'deadline', 'released'].includes(event) ? event : 'rejected',
+      reason: ['queued', 'started', 'completed', 'released'].includes(event) ? null : event,
+      waitMs: (item.startedAt ?? performance.now()) - item.queuedAt,
       serviceMs: item.startedAt === undefined ? 0 : performance.now() - item.startedAt,
       pending, active: active.size, accounts: groups.size, ...extra }); } catch { /* Diagnostics cannot change admission. */ }
   }
@@ -46,7 +49,7 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
         group.active++; active.add(item); item.startedAt = performance.now(); observe('started', item);
         void Promise.resolve().then(() => { item.controller.signal.throwIfAborted(); return item.work(item.controller.signal); }).then(
           value => { if (!item.settled) { item.settled = true; item.resolve(value); observe('completed', item); } },
-          error => { if (!item.settled) { item.settled = true; item.reject(error); observe('error', item); } },
+          error => { if (!item.settled) { item.settled = true; item.reject(error); observe('error', item, { failureCode: error.code ?? error.name }); } },
         ).finally(() => { release(); active.delete(item); group.active--; remove(item);
           // Keep an account with repeat work behind accounts that arrived during
           // its turn, including two independently replenishing flooders.
@@ -57,10 +60,11 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
   }
   return {
     run(owner, work, signal) {
-      if (closed) return Promise.reject(refused('shutdown'));
-      if (signal?.aborted) return Promise.reject(refused('cancelled'));
+      const item = { id: ++sequence, owner, queuedAt: performance.now() };
+      if (closed) { observe('shutdown', item); return Promise.reject(refused('shutdown')); }
+      if (signal?.aborted) { observe('cancelled', item); return Promise.reject(refused('cancelled')); }
       const account = owner.accountId, group = groups.get(account);
-      const item = { account, owner, work, signal, queuedAt: performance.now(), controller: new AbortController() };
+      Object.assign(item, { account, work, signal, controller: new AbortController() });
       if (PROFILE_ENABLED) { item._profile = profile.capture(); item._profileAt = profile.now(); }
       if ((group?.count ?? 0) >= bounds.perAccount || pending >= bounds.maxPending) {
         const reason = (group?.count ?? 0) >= bounds.perAccount ? 'account-full' : 'queue-full';

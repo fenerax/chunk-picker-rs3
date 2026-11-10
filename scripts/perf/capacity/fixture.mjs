@@ -3,6 +3,7 @@ import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { catalogue, planFixture, digest, knownGaps, integer, syntheticWorld } from './model.mjs';
 import { fixtureWorkers, buildGroups } from './fixture-pool.mjs';
 import { fixtureConfigDigest, logicalFixtureDigest, sealFixture } from './fixture-cache.mjs';
+import { fixtureMigration } from './fixture-migration.mjs';
 
 // The parent alone owns registry/invites/keys. Workers exclusively own the
 // disjoint picker stores between provisioning and ordered capability indexing.
@@ -21,14 +22,25 @@ export async function generate(profile, directory, { workers: requestedWorkers }
   };
   await progress({ phase: 'catalogue' });
   const [{ openRegistry }, { openStore }, { openInviteStore }, { openPluginKeys }, { createGroupState },
-    { createRuleRegistry }, { createTaskEngine }, { buildWorld }, { selectedDataset }, { bindDatasetStorage }] = await Promise.all([
+    { createRuleRegistry }, { buildWorld }, { selectedDataset }, { bindDatasetStorage }] = await Promise.all([
     import('../../../app/storage/registry.mjs'), import('../../../app/storage/store.mjs'), import('../../../app/storage/invites.mjs'),
     import('../../../app/plugin-keys.mjs'), import('../../../app/core/state.mjs'), import('../../../app/core/rules.mjs'),
-    import('../../../app/tasks/engine.mjs'), import('../../../app/data/world.mjs'), import('../../../app/dataset-runtime.mjs'), import('../../../app/dataset-binding.mjs')]);
+    import('../../../app/data/world.mjs'), import('../../../app/dataset-runtime.mjs'), import('../../../app/dataset-binding.mjs')]);
   const data = catalogue(profile.catalogue), rules = createRuleRegistry();
-  const tasks = createTaskEngine(data).catalogue.map(({ id, label, category }) => ({ id, label, category }));
-  const { challenges, ...worldData } = data; // Do not replicate the dependency graph in workers.
-  const taskBytes = Buffer.from(JSON.stringify(tasks)), sharedTasks = new SharedArrayBuffer(taskBytes.length);
+  const { createTaskScheduler } = await import('../../../app/tasks/scheduler.mjs');
+  const { prepareServerDefinitions, preparedDefinitionStages } = await import('../../../app/dataset-pipeline.mjs');
+  const definitions = prepareServerDefinitions(structuredClone(data), selectedDataset, { reviewedOverlays: false });
+  const calculator = await createTaskScheduler({ workerData: { definitions, datasetSelection: selectedDataset.workerSelection(),
+    datasetDigest: selectedDataset.digest, datasetOptions: { reviewedOverlays: false, cacheWalking: false },
+    preparedDatasetStages: preparedDefinitionStages(definitions), world: { ...syntheticWorld(data, buildWorld) } } });
+  let migrationInputs;
+  try {
+    migrationInputs = { definitions, catalogue: calculator.catalogue, dynamicCatalogue: calculator.dynamicCatalogue,
+      taskMap: {}, taskMapHistory: selectedDataset.capabilities.legacyHistory === false ? {} : await selectedDataset.json('app/data/legacy-task-history.json') };
+  } finally { await calculator.close(); }
+  const tasks = migrationInputs.catalogue.map(({ id, label, category }) => ({ id, label, category }));
+  const { challenges, ...worldData } = data; // The world does not need task dependencies.
+  const taskBytes = Buffer.from(JSON.stringify({ tasks, migrationInputs })), sharedTasks = new SharedArrayBuffer(taskBytes.length);
   Buffer.from(sharedTasks).set(taskBytes);
   const f = profile.fixture;
   integer(f.historyEvents, 0, 10000, 'historyEvents'); integer(f.snapshots, 0, 1000, 'snapshots'); integer(f.keysPerMember, 0, 3, 'keysPerMember');
@@ -44,7 +56,8 @@ export async function generate(profile, directory, { workers: requestedWorkers }
   try {
     await bindDatasetStorage(legacy, selectedDataset);
     const legacyStore = await openStore({ dataDir: legacy, world: syntheticWorld(worldData, buildWorld), registry: rules,
-      initialState: createGroupState([{ id: 'legacy1', name: 'Synthetic legacy 1' }, { id: 'legacy2', name: 'Synthetic legacy 2' }], rules) });
+      initialState: createGroupState([{ id: 'legacy1', name: 'Synthetic legacy 1' }, { id: 'legacy2', name: 'Synthetic legacy 2' }], rules),
+      ...fixtureMigration(migrationInputs, selectedDataset) });
     try {
       invites = await openInviteStore({ dataDir: legacy, masterToken: legacyStore.getAccessToken(), pickerRegistry: registry });
       const jobs = [];

@@ -275,7 +275,7 @@ test('oversized stage and rotated cohorts refuse before workload start, and init
 });
 
 test('the same seed offers identical actions and clients with fast and slow fake responses',async t=>{
-  const scratch=new URL('../.local/',import.meta.url);await mkdir(scratch,{recursive:true});
+  const scratch=new URL('../var/',import.meta.url);await mkdir(scratch,{recursive:true});
   const directory=await mkdtemp(new URL('capacity-unit-',scratch));
   // Only remove this test's newly created directory, inside the checkout's ignored scratch area.
   assert.equal(path.dirname(directory),path.resolve(fileURLToPath(scratch)));
@@ -290,7 +290,9 @@ test('the same seed offers identical actions and clients with fast and slow fake
     const load=await drive({base:'http://127.0.0.1:8955',profile,fixture,directory:output,onSample:async()=>{},
       fetchRequest:async(url,options)=>{
         if(url.endsWith('/api/events'))return {ok:false,status:429,headers:{get:()=> '1'}};
-        requests.push(JSON.stringify({route:url,cookie:options.headers.Cookie,body:options.body}));
+        // Session preflights intentionally coalesce while another browser call
+        // is pending. Product actions and selected clients remain seed-stable.
+        if(!url.endsWith('/api/session'))requests.push(JSON.stringify({route:url,cookie:options.headers.Cookie,body:options.body}));
         if(slow)await Promise.resolve();
         return {ok:true,status:200,headers:{get:()=>null},text:async()=>JSON.stringify(snapshot)};
       },schedule:async(events,run)=>{
@@ -298,8 +300,12 @@ test('the same seed offers identical actions and clients with fast and slow fake
         if(slow)await Promise.all(events.map(offer));else for(const event of events)await offer(event);
       }});
     const offered=(await readFile(output+'/events.jsonl','utf8')).trim().split('\n').map(line=>JSON.parse(line))
-      .sort((a,b)=>a.id-b.id).map(row=>({id:row.id,action:row.action,intentionalConflict:row.intentionalConflict,requests:row.requests.map(r=>r.route)}));
-    assert.equal(load.stats.completed,100);
+      .sort((a,b)=>a.id-b.id).map(row=>({id:row.id,action:row.action,intentionalConflict:row.intentionalConflict,requests:row.requests.filter(r=>r.route!=='/api/session').map(r=>r.route)}));
+    assert.equal(load.stats.completed,load.stats.offered);
+    assert.equal(offered.filter(row=>row.action!=='session').length,100);
+    assert.equal(load.commands.reduce((total,row)=>total+row.latency.count,0),
+      offered.reduce((total,row)=>total+row.requests.filter(route=>route==='/api/command').length,0));
+    assert.ok(load.commands.some(row=>row.command==='set-note'&&row.status===200));
     return {offered,requests:requests.sort()};
   };
   const fast=await experiment(false),slow=await experiment(true);
