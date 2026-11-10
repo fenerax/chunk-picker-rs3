@@ -13,7 +13,10 @@ import { acquireProcessGuard } from './process-guard.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 
 const bases = new Map(), verifiedRoots = new Map(), admissions = new Map(), durableRoots = new Set(), lease = new AsyncLocalStorage();
-const fingerprint = stat => `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+// Bigint stats: NTFS file IDs exceed 2^53 and ms timestamps lose precision. ctime
+// cannot be set from userland, so a rewrite always changes this fingerprint.
+const fingerprint = stat => `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+const lstatExact = file => lstat(file, { bigint: true });
 const contains = (parent, child) => { const relative = path.relative(parent, child); return !relative || !relative.startsWith('..') && !path.isAbsolute(relative); };
 /** Inert unless explicitly injected by a caller. No environment/startup flag. */
 export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) {
@@ -43,12 +46,12 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
     validateOwnedBaseReference(referenceToRead, pin);
     try {
       const canonical = await realpath(root), file = await realpath(filename), key = `${canonical}:${pin.sha256}`;
-      const stat = await lstat(file), identity = `${file}:${fingerprint(stat)}`;
+      const stat = await lstatExact(file), identity = `${file}:${fingerprint(stat)}`;
       if (path.dirname(file) !== canonical || !stat.isFile()) throw new TypeError('Invalid owned base location or file.');
       const cached = verifiedRoots.get(key);
       if (cached?.identity !== identity) {
         const value = await readOwnedBase(root, referenceToRead, trust);
-        if (fingerprint(stat) !== fingerprint(await lstat(file)) || await realpath(filename) !== file) throw new TypeError('Owned base changed during verification.');
+        if (fingerprint(stat) !== fingerprint(await lstatExact(file)) || await realpath(filename) !== file) throw new TypeError('Owned base changed during verification.');
         remember(value);
         verifiedRoots.set(key, { identity, base });
       } else remember(cached.base);

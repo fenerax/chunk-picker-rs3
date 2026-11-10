@@ -71,6 +71,21 @@ strict; state-parent sync retains the existing durability-warning/adoption rule.
 Content verification never proves publication durability. A verified reopen must
 sync the base directory under the publication lease before publishing a reference;
 failed syncs leave that dependency unconfirmed for the next attempt.
+
+**Accepted limits (review of 4c14991).**
+- *Windows directory sync.* Owned dependencies use the same `syncDirectory`
+  policy as format 1. On Windows, Node cannot fsync a directory (`EPERM` and
+  similar), so durability there is best effort, exactly as for format-1 saves
+  today. Production runs on Linux, where a failed directory sync is strict. Any
+  Windows production host needs a strict policy for owned dependencies first.
+- *Same-isolate cache.* After a verified read, a reopen in the same process
+  trusts the base when its bigint `lstat` fingerprint (dev, inode, size, mtime
+  and ctime in ns) is unchanged. Userland cannot reset ctime, so only corruption
+  below the filesystem (bit rot, raw-device writes) could keep that fingerprint.
+  That case is caught at the next process start, which re-hashes and fails
+  closed. The parsed base held in memory is the verified one, and every
+  reference names the pinned sha256, so the base can always be rebuilt from
+  release inputs and no group data is lost.
 The injected `crash(point)` covers root creation, preimage, state temporary,
 hook completion, base temporary/publication, dependencies, state rename/sync
 and memory publication. These callbacks are test seams, not application hooks.
