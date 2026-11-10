@@ -1629,9 +1629,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     },
     observePluginCurrency(observation) {
       return enqueue(async () => {
-        const result = observePluginCurrency(ownedStorage ? copyState(current) : current, pluginCurrency, observation,
+        const input = ownedStorage ? copyState(current) : current;
+        const result = observePluginCurrency(input, pluginCurrency, observation,
           { now: timestamp, epoch: currencyEpoch, world, registry, taskCatalogue, membersStartBanks, xpChoiceCatalogue });
-        const ready = result.state === current ? current : await prepared(inheritStateMetadata(current, result.state), 'command');
+        const ready = result.state === input ? current : await prepared(inheritStateMetadata(current, result.state), 'command');
         if (ready.revision !== result.state.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
         await persist(ready, 'plugin-currency', undefined, false, current, false, undefined,
           { cleanup: ready === current, currency: result.metadata });
@@ -1818,7 +1819,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     async previewReplacement(document, { actor } = {}) {
       const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
       const base = inheritStateMetadata(current, cloneCurrent());
-      return withPluginItemEvidenceWrite(directory, async () => ({ current: base, state: await replacementState(document, base, attribution) }));
+      return withPluginItemEvidenceWrite(directory, async () => {
+        const state = await replacementState(document, base, attribution);
+        // Restore comparison and worker transport require detached flat JSON.
+        return ownedStorage ? { current: copyState(base), state: copyState(state) } : { current: base, state };
+      });
     },
     close({ beforeUnlock } = {}) {
       if (closePromise) return closePromise;

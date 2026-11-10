@@ -13,6 +13,7 @@ import { acquireProcessGuard } from './process-guard.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 
 const bases = new Map(), verifiedRoots = new Map(), admissions = new Map(), durableRoots = new Set(), lease = new AsyncLocalStorage();
+const fingerprint = stat => `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
 const contains = (parent, child) => { const relative = path.relative(parent, child); return !relative || !relative.startsWith('..') && !path.isAbsolute(relative); };
 /** Inert unless explicitly injected by a caller. No environment/startup flag. */
 export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) {
@@ -23,7 +24,7 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
   const trust = { dataset: pin.dataset, manifest: { schemaVersion: 1, bases: { [pin.dataset.digest]: pin } } };
   const reference = { datasetDigest: pin.dataset.digest, sha256: pin.sha256 };
   const crash = options.crash;
-  let base, compressed, published = false;
+  let base, compressed, verifiedIdentity, durableIdentity;
   const filename = path.join(root, `catalogue-${pin.sha256}.json.gz`);
   // Retain one parsed/encoded base per hash, not a release Buffer per group.
   function remember(value, bytes) {
@@ -40,13 +41,22 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
   }
   async function read(referenceToRead) {
     validateOwnedBaseReference(referenceToRead, pin);
-    const canonical = await realpath(root), key = `${canonical}:${pin.sha256}`;
-    if (!verifiedRoots.has(key)) {
-      const value = await readOwnedBase(root, referenceToRead, trust);
-      remember(value);
-      verifiedRoots.set(key, base);
-    } else base = verifiedRoots.get(key);
-    published = true;
+    try {
+      const canonical = await realpath(root), file = await realpath(filename), key = `${canonical}:${pin.sha256}`;
+      const stat = await lstat(file), identity = `${file}:${fingerprint(stat)}`;
+      if (path.dirname(file) !== canonical || !stat.isFile()) throw new TypeError('Invalid owned base location or file.');
+      const cached = verifiedRoots.get(key);
+      if (cached?.identity !== identity) {
+        const value = await readOwnedBase(root, referenceToRead, trust);
+        if (fingerprint(stat) !== fingerprint(await lstat(file)) || await realpath(filename) !== file) throw new TypeError('Owned base changed during verification.');
+        remember(value);
+        verifiedRoots.set(key, { identity, base });
+      } else remember(cached.base);
+      verifiedIdentity = identity;
+    } catch (cause) {
+      throw new Error(`Owned catalogue base unavailable: ${path.basename(filename)}; restore or rebuild the exact pinned release base.`, { cause });
+    }
+    // Verified content is not proof that its directory entry was synced.
     return ownedCodec(base, pin);
   }
   async function codec() {
@@ -64,18 +74,24 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
     return isDeepStrictEqual(one.tasks, two.tasks) && isDeepStrictEqual(one.identityRegistry, two.identityRegistry);
   }
   async function ensurePublished() {
-    if (published) return;
     try {
-      await lstat(filename); await read(reference); published = false;
-      // A previous publisher may have renamed successfully but failed its sync.
-      await syncDirectory(root); published = true; return;
-    } catch (error) { published = false; if (error.code !== 'ENOENT') throw error; }
-    if (!base) await read(reference); // Never seed an empty/missing dependency.
-    compressed ??= bases.get(pin.sha256).compressed ??= gzipSync(Buffer.from(JSON.stringify(base)));
-    await atomicWrite(filename, compressed, { beforeRename: () => crash?.('base-temporary-synced') });
-    await crash?.('base-durable');
-    // Only a successful verified cold open may populate the root cache.
-    await read(reference);
+      await read(reference);
+    } catch (error) {
+      // Only an unpublished release seed may create a missing dependency.
+      // Never repair a base already referenced or found to be corrupt.
+      if (verifiedIdentity || !base || error.cause?.code !== 'ENOENT') throw error;
+      compressed ??= bases.get(pin.sha256).compressed ??= gzipSync(Buffer.from(JSON.stringify(base)));
+      await atomicWrite(filename, compressed, { beforeRename: () => crash?.('base-temporary-synced') });
+      await crash?.('base-durable');
+      await read(reference);
+      durableIdentity = verifiedIdentity;
+      return;
+    }
+    if (durableIdentity === verifiedIdentity) return;
+    // Under the publication lease, retry even after a verified reopen: an
+    // earlier rename may have succeeded while its directory sync failed.
+    await syncDirectory(root);
+    durableIdentity = verifiedIdentity;
   }
   async function withLease(work) {
     // Isolated readers run under the writer/capture admission; they never

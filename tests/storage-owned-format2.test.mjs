@@ -10,8 +10,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync, gunzipSync } from 'node:zlib';
+import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { ownedCodec } from '../app/storage/owned-codec.mjs';
+import { frozenRuntime } from './helpers/frozen-release.mjs';
 import { BACKUP_FORMAT, materializeResidentState, validateState } from '../app/core/state.mjs';
 import { fixture, options, commands, now, world, taskCatalogue, custom } from './helpers/owned-format2-fixture.mjs';
 const json = JSON.stringify;
@@ -100,6 +102,71 @@ test('format 2 and unknown storage versions refuse with flag off without replaci
     assert.deepEqual(await readFile(file), bytes);
   }
 });
+test('the actual frozen rollback loader refuses format 2 without changing its bytes', async t => {
+  const root = await directory(t), dataDir = path.join(root, 'owned');
+  const store = await open(t, dataDir, { retention: false, ownedFormat2: options(path.join(root, 'catalogue')) });
+  await store.close();
+  const file = path.join(dataDir, 'state.json'), before = await readFile(file);
+  assert.equal(JSON.parse(before).storage.schemaVersion, 2);
+  const frozen = await frozenRuntime(t);
+  await assert.rejects(frozen.openStore({ ...settings, dataDir }), /Invalid static storage metadata/);
+  assert.deepEqual(await readFile(file), before);
+});
+test('whole-picker format-2 restore previews flat identities and publishes the reviewed replacement', async t => {
+  const root = await directory(t), dataDir = path.join(root, 'owned'), ownedFormat2 = options(path.join(root, 'catalogue'));
+  let store = await open(t, dataDir, { retention: false, ownedFormat2 });
+  const backup = await store.backup();
+  backup.state.members[0].journal = 'Synthetic restored journal';
+  backup.state.provenance = { ...backup.state.provenance, dataset: fixture().pin.dataset };
+  backup.state.tasks.find(row => row.id === custom).label = 'Synthetic restored task';
+  const before = store.getState(), file = path.join(dataDir, 'state.json'), bytes = await readFile(file);
+  const detached = await store.previewReplacement(backup);
+  assert.doesNotThrow(() => json(detached));
+  assert.deepEqual(detached.current, before);
+  const preview = await store.prepareTransfer(serialize({ backup }), {
+    route: '/api/restore/preview', pickerId: 'synthetic-picker', world,
+    dataset: { datasetId: 'synthetic', datasetContractVersion: 1, digest: fixture().pin.dataset.digest, capabilities: {} },
+  });
+  assert.equal(preview.response.preview.taskCounts.changed, 1);
+  assert.deepEqual(store.getState(), before);
+  assert.deepEqual(await readFile(file), bytes);
+  const applied = await store.applyTransfer(preview.ticket, before.revision);
+  assert.equal(applied.state.members[0].journal, 'Synthetic restored journal');
+  assert.equal(applied.state.tasks.find(row => row.id === custom).label, 'Synthetic restored task');
+  assert.equal(applied.state.history.at(-1).type, 'restore');
+  assert.equal(JSON.parse(await readFile(file)).storage.schemaVersion, 2);
+  await store.close();
+  store = await open(t, dataDir, { retention: false, ownedFormat2 });
+  assert.deepEqual(store.getState(), applied.state);
+});
+test('format 1/2 currency no-ops and metadata-only reports keep identical checkpoint and publication paths', async t => {
+  const root = await directory(t), flatDir = path.join(root, 'flat'), ownedDir = path.join(root, 'owned');
+  const flat = await open(t, flatDir, { retention: false });
+  const owned = await open(t, ownedDir, { retention: false, ownedFormat2: options(path.join(root, 'catalogue')) });
+  const paths = { flat: [], owned: [] }, rename = fs.promises.rename;
+  t.mock.method(fs.promises, 'rename', async (from, to) => {
+    for (const [name, directory] of [['flat', flatDir], ['owned', ownedDir]]) {
+      if (to.startsWith(directory + path.sep)) paths[name].push(path.relative(directory, to));
+    }
+    return rename(from, to);
+  });
+  syncBuiltinESMExports(); t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  for (const [index, coins] of [null, null, null, 10, 10].entries()) {
+    paths.flat.length = paths.owned.length = 0;
+    const report = { memberId: 'member-1', keyId: '00000000-0000-4000-8000-000000000001', seq: index + 1, sentAt: now(), coins };
+    assert.deepEqual(await owned.observePluginCurrency(report), await flat.observePluginCurrency(report));
+    assert.deepEqual(owned.getState(), flat.getState());
+    const count = async directory => (await readdir(path.join(directory, 'backups'))).length;
+    const expectedBackups = index < 3 ? 0 : 1;
+    assert.equal(await count(flatDir), expectedBackups);
+    assert.equal(await count(ownedDir), expectedBackups);
+    // Compact preimage names are deliberately unique; compare their publication role.
+    const roles = rows => rows.map(file => file.startsWith('backups' + path.sep) ? 'backup' : file);
+    assert.deepEqual(roles(paths.owned), roles(paths.flat));
+    assert.equal(paths.owned.filter(file => file === 'state.json').length, 1);
+    if (index !== 3) assert.deepEqual(paths.owned, ['state.json']);
+  }
+});
 test('prepared proofs see complete tasks/History; fallible hooks get flat detached state and keep distinct compact preimages', async t => {
   const root = await directory(t), dataDir = path.join(root, 'owned'), catalogueRoot = path.join(root, 'catalogue');
   let refuse = false, fullCalls = 0, proofCalls = 0;
@@ -159,21 +226,39 @@ test('two publishers deduplicate bases and ordinary writes never republish them'
   assert.equal(publications.length, 1);
   assert.equal((await readdir(catalogueRoot)).filter(name => name.endsWith('.json.gz')).length, 1);
 });
-test('base directory sync failure is strict and leaves the old save with its durable preimage', async t => {
+test('failed base sync, verified reopen and retry sync the dependency before publishing its reference', async t => {
   const root = await directory(t), dataDir = path.join(root, 'owned'), catalogueRoot = path.join(root, 'catalogue');
   const initial = await open(t, dataDir, { retention: false }); await initial.close();
-  const store = await open(t, dataDir, { retention: false, ownedFormat2: options(catalogueRoot) });
+  let store = await open(t, dataDir, { retention: false, ownedFormat2: options(catalogueRoot) });
   const file = path.join(dataDir, 'state.json'), before = await readFile(file), { open: fsOpen, rename } = fs.promises;
-  let published = false;
+  let published = false, refuseSync = true;
+  const events = [];
   const failure = Object.assign(new Error('Synthetic base sync failure'), { code: 'EIO' });
-  t.mock.method(fs.promises, 'rename', async (from, to) => { await rename(from, to); if (path.dirname(to) === catalogueRoot) published = true; });
+  t.mock.method(fs.promises, 'rename', async (from, to) => {
+    if (to === file) events.push('state-rename');
+    await rename(from, to); if (path.dirname(to) === catalogueRoot) published = true;
+  });
   t.mock.method(fs.promises, 'open', async (target, flags, ...rest) => published && target === catalogueRoot && flags === 'r'
-    ? { async sync() { throw failure; }, async close() {} } : fsOpen(target, flags, ...rest));
+    ? { async sync() { events.push('base-directory-sync'); if (refuseSync) throw failure; }, async close() {} } : fsOpen(target, flags, ...rest));
   syncBuiltinESMExports(); t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   await assert.rejects(store.command(commands.at(-1), 0), error => error === failure);
   assert.deepEqual(await readFile(file), before);
   const backups = await readdir(path.join(dataDir, 'backups'));
   assert.equal(backups.length, 1); assert.deepEqual(gunzipSync(await readFile(path.join(dataDir, 'backups', backups[0]))), before);
+  await store.close();
+  const { releaseBytes, ...readerOptions } = options(catalogueRoot);
+  store = await open(t, dataDir, { retention: false, ownedFormat2: { ...readerOptions, crash: point => events.push(point) } });
+  events.length = 0;
+  await assert.rejects(store.command(commands.at(-1), 0), error => error === failure);
+  assert.deepEqual(await readFile(file), before);
+  assert.deepEqual(events.filter(point => ['base-directory-sync', 'dependencies-durable', 'state-rename'].includes(point)), ['base-directory-sync']);
+  refuseSync = false; events.length = 0;
+  await store.command(commands.at(-1), 0);
+  assert.deepEqual(events.filter(point => ['base-directory-sync', 'dependencies-durable', 'state-rename'].includes(point)),
+    ['base-directory-sync', 'dependencies-durable', 'state-rename']);
+  await store.close();
+  store = await open(t, dataDir, { retention: false, ownedFormat2: readerOptions });
+  assert.equal(store.getState().revision, 1);
 });
 test('action receipts publish in the format-2 replacement and replay after reopen', async t => {
   const root = await directory(t), dataDir = path.join(root, 'owned'), ownedFormat2 = options(path.join(root, 'catalogue'));
@@ -220,4 +305,18 @@ for (const damage of ['missing', 'corrupt', 'wrong-dataset']) test(`${damage} ba
   assert.deepEqual(await readFile(file), bytes);
   if (damage === 'missing') await assert.rejects(readFile(baseFile), { code: 'ENOENT' });
   else assert.deepEqual(await readFile(baseFile), baseBytes);
+});
+for (const damage of ['missing', 'corrupt']) for (const withReleaseBytes of [false, true]) test(`cached base ${damage} refuses same-isolate reopen (release bytes ${withReleaseBytes})`, async t => {
+  const root = await directory(t), dataDir = path.join(root, 'owned'), catalogueRoot = path.join(root, 'catalogue');
+  const ownedFormat2 = options(catalogueRoot), store = await open(t, dataDir, { retention: false, ownedFormat2 });
+  await store.close();
+  const file = path.join(dataDir, 'state.json'), before = await readFile(file);
+  const baseFile = path.join(catalogueRoot, `catalogue-${fixture().pin.sha256}.json.gz`);
+  const damaged = gzipSync(Buffer.from('synthetic cached corruption'));
+  if (damage === 'missing') await rm(baseFile); else await writeFile(baseFile, damaged);
+  if (!withReleaseBytes) delete ownedFormat2.releaseBytes;
+  await assert.rejects(openStore({ ...settings, dataDir, ownedFormat2 }), /Owned catalogue base unavailable/);
+  assert.deepEqual(await readFile(file), before);
+  if (damage === 'missing') await assert.rejects(readFile(baseFile), { code: 'ENOENT' });
+  else assert.deepEqual(await readFile(baseFile), damaged);
 });

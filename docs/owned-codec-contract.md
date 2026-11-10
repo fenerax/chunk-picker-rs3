@@ -15,6 +15,8 @@ metadata validation and hooks retain their existing adapters. Storage-2 and
 unknown storage versions fail the existing static-metadata check. The frozen
 rollback release `06e15939` also requires storage schema 1 and refuses storage-2
 metadata before reading gameplay. It cannot mistake a delta for a full save.
+The format-2 integration test executes that refusal through the existing exact-SHA
+frozen-release harness and checks that the save bytes remain unchanged.
 The rollback pin is unchanged; direct old-release opening is unsupported until
 slice 6 inflates every owned save and retained snapshot to format 1.
 
@@ -48,8 +50,10 @@ calculator/display boundary materialization remains a slice-7 optimization gate.
 ## Publication and recovery
 
 `owned-storage.mjs` verifies release pins and uses the slice-1 bounded,
-hash-before-parse cold reader. Only verified root/hash opens populate its cache;
-one parsed base/encoding is shared per hash/isolate. A missing/corrupt referenced
+hash-before-parse cold reader. Every reference open checks the backing file's
+realpath and dev/ino/size/mtime/ctime fingerprint; changes require full verification.
+Only verified root/hash/file identities populate its cache; one parsed
+base/encoding is shared per hash/isolate. A missing/corrupt referenced
 base refuses the affected group with the exact-base repair diagnostic, even if
 release bytes were supplied. Startup never seeds an empty replacement or repairs
 corrupt bytes. There is no newest-base fallback.
@@ -64,6 +68,9 @@ the verified base is published before the state rename/parent sync. Only then
 do current memory, receipts, notifications and the response advance. Receipts
 remain in that same authoritative replacement. Dependency sync failures are
 strict; state-parent sync retains the existing durability-warning/adoption rule.
+Content verification never proves publication durability. A verified reopen must
+sync the base directory under the publication lease before publishing a reference;
+failed syncs leave that dependency unconfirmed for the next attempt.
 The injected `crash(point)` covers root creation, preimage, state temporary,
 hook completion, base temporary/publication, dependencies, state rename/sync
 and memory publication. These callbacks are test seams, not application hooks.
@@ -71,8 +78,8 @@ and memory publication. These callbacks are test seams, not application hooks.
 Collection remains absent/disabled: no base or static-field unlink is added.
 Slice 4 owns artifact/capture/off-site dependency closure, restore/verifiers,
 capture barriers/manifests and deletion recovery. Slice 5 owns explicit rebases
-and dataset upgrades; slice 6 owns the stopped-service inflater and actual frozen
-loader rollback verification. Slice 7 owns digest calculator transport, full
+and dataset upgrades; slice 6 owns the stopped-service inflater and verification
+that the frozen loader opens the inflated rollback output. Slice 7 owns digest calculator transport, full
 cache/residency audit and 50-group acceptance. Browser negotiation and exclusive
 mark/sweep closure verification remain slices 8/9. This slice authorizes no
 activation, real-save migration, repair, backup-completeness or residency claim.
