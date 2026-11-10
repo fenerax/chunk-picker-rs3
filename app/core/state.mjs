@@ -152,11 +152,14 @@ function savedTaskRuleDiagnostics(state) {
 }
 function dictionary(value, path, check, checked) {
   record(value, path);
-  const sparse = checked && isIdentityDictionary(value);
-  if (sparse && checked.has(value)) return;
   const keyPath = `${path} key`;
-  for (const [key, child] of sparse ? identityValidationEntries(value, checked) : identityEntries(value)) { propertyKey(key, keyPath); check(child, key); }
-  if (sparse) checked.add(value);
+  if (isIdentityDictionary(value)) {
+    if (checked?.has(value)) return;
+    for (const [key, child] of checked ? identityValidationEntries(value, checked) : identityEntries(value)) { propertyKey(key, keyPath); check(child, key); }
+    checked?.add(value);
+  } else {
+    for (const key of Object.keys(value)) { propertyKey(key, keyPath); check(value[key], key); }
+  }
 }
 function propertyKey(value, path) {
   string(value, path);
@@ -270,7 +273,8 @@ function claimTaskRow(state, id) {
   id = resolveSavedTaskId(state.identityRegistry, id);
   const saved = indexedTaskRows(state.tasks).get(id);
   if (!saved && (id.startsWith('custom:') || id.startsWith('rs3:task:custom:'))) return null;
-  const row = saved ?? identityValue(state.identityRegistry?.entries, id) ?? lookupPermanentId(id);
+  const row = saved ?? (isIdentityDictionary(state.identityRegistry?.entries)
+    ? identityValue(state.identityRegistry.entries, id) : state.identityRegistry?.entries?.[id]) ?? lookupPermanentId(id);
   return row?.label && row?.category ? { id: resolveSavedTaskId(state.identityRegistry, row.id ?? id, row.category), label: row.label, category: row.category,
     ...(row.completionIds ? { completionIds: row.completionIds } : {}) } : null;
 }
@@ -620,12 +624,13 @@ function assertJson(value, checked) {
     // Only static field roots have the same traversal role as checkStaticField.
     // A reused object under History must still check event actor/source roles.
     if (branch.length === 1 && ['tasks', 'identityRegistry', 'legacy', 'provenance'].includes(branch[0]) && checked?.has(item)) return;
-    const sparse = branch.length === 2 && branch[0] === 'identityRegistry'
-      && ['entries', 'aliases'].includes(branch[1]) && isIdentityDictionary(item);
+    const prototype = Object.getPrototypeOf(item);
+    const identityDictionary = !Array.isArray(item) && prototype !== Object.prototype && prototype !== null && isIdentityDictionary(item);
+    const sparse = identityDictionary && branch.length === 2 && branch[0] === 'identityRegistry'
+      && ['entries', 'aliases'].includes(branch[1]);
     if (sparse && checkedResidentJson.has(item)) return;
     if (seen.has(item)) fail(`${where()} contains a circular reference`);
-    const prototype = Object.getPrototypeOf(item);
-    if (!Array.isArray(item) && !isIdentityDictionary(item) && prototype !== Object.prototype && prototype !== null) fail(`${where()} must contain plain JSON objects`);
+    if (!Array.isArray(item) && prototype !== Object.prototype && prototype !== null && !identityDictionary) fail(`${where()} must contain plain JSON objects`);
     if (Object.getOwnPropertySymbols(item).length) fail(`${where()} contains symbol properties`);
     // Restore and identity-migration provenance also contain preserved History.
     // Check attribution while walking JSON so those archives get the same
@@ -635,8 +640,11 @@ function assertJson(value, checked) {
     seen.add(item);
     if (Array.isArray(item)) {
       for (let index = 0; index < item.length; index++) { branch.push(index); visit(item[index], false, historyList); branch.pop(); }
-    } else {
+    } else if (identityDictionary) {
       for (const [key, child] of sparse ? identityValidationEntries(item, checkedResidentJson) : identityEntries(item)) { branch.push(key); visit(child, key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
+    } else {
+      const keys = Object.keys(item);
+      for (const key of keys) { branch.push(key); visit(item[key], key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
     }
     seen.delete(item);
     if (sparse) checkedResidentJson.add(item);
@@ -673,6 +681,7 @@ export function materializeResidentState(state) {
   return materializeIdentities(state);
 }
 export function validateResidentState(state, registry) {
+  assertJson(state);
   const copy = cloneResidentState(state);
   return reconcileResidentIdentities(validateOwnedState(copy, registry), state);
 }
@@ -1207,13 +1216,14 @@ function registerCatalogueTask(state, id, catalogue) {
       entries: createIdentityDictionary(Object.freeze({})), aliases: createIdentityDictionary(Object.freeze({})), unresolved: [] })
       : { schemaVersion: 1, entries: {}, aliases: {}, unresolved: [] };
     const baseline = lookupPermanentId(id);
-    const previous = identityValue(state.identityRegistry.entries, id);
+    const sparseEntries = isIdentityDictionary(state.identityRegistry.entries), sparseAliases = isIdentityDictionary(state.identityRegistry.aliases);
+    const previous = sparseEntries ? identityValue(state.identityRegistry.entries, id) : state.identityRegistry.entries[id];
     const aliases = [...new Set([id, ...(baseline?.aliases ?? []), ...(previous?.aliases ?? []), ...(candidate.aliases ?? []),
       ...(candidate.rawLabel ? [candidate.rawLabel, legacyTaskId(candidate.category, candidate.rawLabel)] : [])])];
     const entry = { ...baseline, ...previous, ...task, kind: candidate.kind ?? baseline?.kind ?? previous?.kind ?? 'task', aliases };
     const addedAliases = {};
     for (const alias of aliases) {
-      const old = identityValue(state.identityRegistry.aliases, alias);
+      const old = sparseAliases ? identityValue(state.identityRegistry.aliases, alias) : state.identityRegistry.aliases[alias];
       const targets = [...new Set([...(Array.isArray(old) ? old : typeof old === 'string' ? [old] : []), id])];
       Object.defineProperty(addedAliases, alias, { value: targets.length === 1 ? targets[0] : targets, enumerable: true });
     }
@@ -1603,7 +1613,8 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       else if (itemId.startsWith('gear:')) payload.itemLabel = `${itemId.slice(5)} gear`;
       else {
         const taskId = itemId.slice(itemId.indexOf(':') + 1);
-        const task = indexedTaskRows(next.tasks).get(taskId) ?? identityValue(next.identityRegistry?.entries, taskId) ?? lookupPermanentId(taskId);
+        const task = indexedTaskRows(next.tasks).get(taskId) ?? (isIdentityDictionary(next.identityRegistry?.entries)
+          ? identityValue(next.identityRegistry.entries, taskId) : next.identityRegistry?.entries?.[taskId]) ?? lookupPermanentId(taskId);
         if (task?.label) payload.itemLabel = trimTaskStars(decodeLegacyText(task.label).replace(/~\|([^|]+)\|~/g, (_, label) => label.split('#')[0])).trim();
       }
       next.finishLine = { ...line, items: { ...line.items, [itemId]: { ...line.items[itemId], ...fields } } };

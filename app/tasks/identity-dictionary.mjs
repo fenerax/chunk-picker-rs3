@@ -2,6 +2,14 @@
 const versions = new WeakMap(), roots = new WeakMap(), frozenTrees = new WeakSet();
 const removed = Symbol('removed');
 const indexKey = key => /^(0|[1-9]\d*)$/.test(key) && Number(key) < 4294967295;
+let callsForTests;
+/** Synchronous, opt-in call counts; never a timing assertion or live-path hook. */
+export function withIdentityDictionaryCallCountsForTests(callback) {
+  const previous = callsForTests, counts = { value: 0, keys: 0, entries: 0, validationEntries: 0 };
+  callsForTests = counts;
+  try { return callback(counts); }
+  finally { callsForTests = previous; }
+}
 class IdentityDictionary {
   toJSON() { throw new TypeError('Materialize resident identities explicitly'); }
 }
@@ -13,12 +21,14 @@ function version(data) {
 }
 export const isIdentityDictionary = value => versions.has(value);
 export function identityValue(dictionary, key) {
+  if (callsForTests) callsForTests.value++;
   const data = versions.get(dictionary);
   if (!data) return dictionary?.[key];
   const value = data.edits.has(key) ? data.edits.get(key) : Object.hasOwn(data.base, key) ? data.base[key] : undefined;
   return value === removed ? undefined : value;
 }
 export function* identityKeys(dictionary) {
+  if (callsForTests) callsForTests.keys++;
   const data = versions.get(dictionary);
   if (!data) { yield* Object.keys(dictionary ?? {}); return; }
   if (data.order) { yield* data.order; return; }
@@ -35,11 +45,13 @@ export function* identityKeys(dictionary) {
   for (const key of data.tail) if (!indexKey(key)) yield key;
 }
 export function* identityEntries(dictionary) {
+  if (callsForTests) callsForTests.entries++;
   for (const key of identityKeys(dictionary)) yield [key, identityValue(dictionary, key)];
 }
 /** Validation caches are role-specific WeakSets, never key/value indexes. A
  * verified immutable base is checked once; each new version checks its edits. */
 export function* identityValidationEntries(dictionary, checked) {
+  if (callsForTests) callsForTests.validationEntries++;
   const data = versions.get(dictionary);
   if (!data) { yield* identityEntries(dictionary); return; }
   if (!checked.has(data.base)) { yield* Object.entries(data.base); checked.add(data.base); }

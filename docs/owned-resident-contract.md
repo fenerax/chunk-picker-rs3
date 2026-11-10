@@ -37,6 +37,8 @@ still cross validation. Untrusted imports always cross full logical validation.
 command-snapshot and archive-hydration boundary: share only frozen task trees and
 the immutable registry; detach every other group field and every History/event
 tree. Archive readers must first supply the existing complete ordered History.
+Resident validation checks the original tree's JSON invariants before cloning;
+cloning cannot erase symbol properties or normalize custom prototypes first.
 Undo previews copy their task working array before applying inverses. No new
 History or Redo representation exists; Redo tests reapply the original command.
 

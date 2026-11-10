@@ -8,7 +8,7 @@ import { createGroupState, validateState, validateOwnedState, applyCommand, appl
   exportBackup, importBackup } from '../app/core/state.mjs';
 import { cloneResidentState } from '../app/core/resident-copy.mjs';
 import { createIdentityDictionary, editIdentityDictionary, identityValue, identityKeys,
-  identityEntries, freezeIdentityTree, materializeIdentities } from '../app/tasks/identity-dictionary.mjs';
+  identityEntries, freezeIdentityTree, materializeIdentities, withIdentityDictionaryCallCountsForTests } from '../app/tasks/identity-dictionary.mjs';
 import { resolveIdentity } from '../app/tasks/identity.mjs';
 import { resolvePersistedIdentity } from '../app/tasks/fact-projection.mjs';
 import { describeHistoryEvent } from '../app/web/history-text.mjs';
@@ -230,4 +230,44 @@ test('alias normalization and hydrated historical task snapshots preserve existi
   assert.equal(json(materializeResidentState(historical)), before);
   assert.equal(json(restored.tasks), json(state.tasks));
   assert.equal(hash(materializeResidentState(restored)), hash(applyCommand(edited, { type: 'undo' }, options)));
+});
+
+test('format-1 validation and commands never call sparse iterators or value lookup', () => {
+  const { base, state } = fixture();
+  withIdentityDictionaryCallCountsForTests(counts => {
+    assert.equal(json(validateState(state)), json(state));
+    assert.equal(json(validateOwnedState(structuredClone(state))), json(state));
+    let current = state;
+    for (const command of commands) current = applyCommand(current, command, options);
+    for (const alias of ['first-alias', 'collision', 'generated-alias', 'missing']) {
+      resolveIdentity(alias, current.identityRegistry, 'Synthetic');
+      resolvePersistedIdentity(alias, current.identityRegistry, 'Synthetic');
+    }
+    getUndoEligibility(current);
+    assert.deepEqual(counts, { value: 0, keys: 0, entries: 0, validationEntries: 0 });
+    const resident = createResidentState(state, base);
+    validateResidentState(resident);
+    resolveIdentity('first-alias', resident.identityRegistry);
+    assert.ok(counts.validationEntries > 0, 'Counter observes the sparse validation path');
+    assert.ok(counts.value > 0, 'Counter observes sparse value lookups');
+  });
+});
+
+for (const [name, malform] of [
+  ['symbol property', state => { state.members[0][Symbol('synthetic')] = true; }],
+  ['custom prototype', state => { state.members[0].notes = Object.assign(Object.create({ synthetic: true }), { '100': 'Synthetic note' }); }],
+  ['unsafe __proto__ key', state => { state.members[0].notes = JSON.parse('{"__proto__":"synthetic"}'); }],
+  ['function value', state => { state.members[0].notes = { '100': () => 'synthetic' }; }],
+  ['undefined array entry', state => { state.provenance.synthetic.evidence = [undefined]; }],
+  ['circular reference', state => { const notes = {}; notes.self = notes; state.members[0].notes = notes; }],
+]) test(`resident and flat validation reject the same ${name}`, () => {
+  const { base, state } = fixture(), flat = structuredClone(state), resident = createResidentState(state, base);
+  malform(flat); malform(resident);
+  let expected;
+  try { validateState(flat); } catch (error) { expected = error; }
+  assert.ok(expected instanceof TypeError, 'Flat validation rejects the malformed input');
+  const sameError = error => error.constructor === expected.constructor && error.message === expected.message;
+  assert.throws(() => validateState(resident), sameError);
+  assert.throws(() => validateResidentState(resident), sameError);
+  assert.throws(() => applyResidentCommand(resident, commands[1], options), sameError);
 });
