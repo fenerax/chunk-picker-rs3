@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { literalModuleReferences, moduleTokens } from '../private-companion/tooling-module-graph.mjs';
 import { encode, inventory, noLinks, outside, sha } from './files.mjs';
 import { currentToolsContract, toolsContract } from './tools-contracts.mjs';
+import { FROZEN_RELEASE } from '../lib/frozen-runtime.mjs';
 
 export const toolsEntrypoints = currentToolsContract.entries;
 // Keys are exact expressions recognized by the existing tooling lexer. No
@@ -67,6 +68,11 @@ export async function toolsClosure(root, entries = toolsEntrypoints) {
     for (const expression of computed) {
       const targets = toolsLoaders[name]?.[expression];
       if (targets) pending.push(...targets);
+      // Only the exact local frozen-worktree loader may cross this boundary.
+      // Its app/dataset modules belong to the provisioned Git pin, never tools.
+      else if (name === 'scripts/lib/frozen-runtime.mjs' && expression === 'pathToFileURL(path.join(checkout,relative)).href') {
+        boundaries.push({ owner: name, expression, source: 'provisioned-frozen-release', release: FROZEN_RELEASE });
+      }
       else if (releaseLoaders[name]?.includes(expression)) boundaries.push({ owner: name, expression, source: 'selected-release' });
       else throw Error('Unmodeled tools import in ' + name + ': ' + expression);
     }

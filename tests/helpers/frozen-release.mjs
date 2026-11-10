@@ -1,58 +1,15 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { root } from './save-surface-corpus.mjs';
+import { openFrozenRuntime, requireFrozenCommit as requireCommit } from '../../scripts/lib/frozen-runtime.mjs';
 
-const execute = promisify(execFile);
 export const manifest = JSON.parse(await readFile(new URL('../../docs/save-surface.json', import.meta.url), 'utf8'));
-const git = (cwd, args) => {
-  // Windows-created worktree pointers are not readable by Linux Git. WSL
-  // rehearsals use the same Windows Git that owns the public checkout.
-  const windows = process.platform === 'linux' && process.env.RS3_TEST_WINDOWS_GIT === '1';
-  const winPath = value => value.replace(/^\/mnt\/([a-z])\//, (_, drive) => `${drive.toUpperCase()}:/`);
-  return execute(windows ? '/mnt/c/Program Files/Git/cmd/git.exe' : 'git',
-    windows ? ['-C', winPath(cwd), ...args.map(winPath)] : args,
-    { cwd, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
-};
+export const requireFrozenCommit = (repository = root, release = manifest.frozenRelease) => requireCommit(repository, release);
 
-export async function requireFrozenCommit(repository = root, release = manifest.frozenRelease) {
-  try { await git(repository, ['cat-file', '-e', `${release}^{commit}`]); }
-  catch (cause) { throw new Error(`Required frozen rollback commit ${release} is missing. Fetch full history (git fetch --unshallow), then rerun the test.`, { cause }); }
-}
-
-/** Cache an independent exact-SHA repository, never a runner-specific .git
- * worktree pointer. Each test run still executes a temporary real git worktree.
- * CI caches this directory by OS and SHA; no live app modules are imported. */
 export async function frozenRuntime(t, { release = manifest.frozenRelease } = {}) {
-  // Even a cache hit must not conceal a shallow/missing source pin.
-  await requireFrozenCommit(root, release);
-  const cacheRoot = path.resolve(process.env.RS3_FROZEN_CACHE ?? path.join(root, '.local', 'frozen-release-cache'));
-  await mkdir(cacheRoot, { recursive: true });
-  const repository = path.join(cacheRoot, release);
-  await mkdir(repository, { recursive: true });
-  let cached = false;
-  try { cached = (await git(repository, ['rev-parse', 'HEAD'])).stdout.trim() === release; } catch { /* cache miss */ }
-  if (!cached) {
-    await git(repository, ['init']);
-    await git(repository, ['-c', 'protocol.file.allow=always', 'fetch', '--depth=1', root, release]);
-    await git(repository, ['checkout', '--detach', 'FETCH_HEAD']);
-  }
-  // Refuse edited cached source instead of accidentally testing a hybrid.
-  const status = (await git(repository, ['status', '--porcelain', '--untracked-files=all'])).stdout;
-  if (status.trim()) throw new Error('Frozen rollback cache is dirty; use a fresh RS3_FROZEN_CACHE directory.');
-  const parent = path.join(root, '.local', 'save-surface-tests');
-  await mkdir(parent, { recursive: true });
-  const temporary = await mkdtemp(path.join(parent, 'frozen-'));
-  const checkout = path.join(temporary, 'checkout');
-  try { await git(repository, ['worktree', 'add', '--detach', checkout, release]); }
-  catch (error) { await rm(temporary, { recursive: true, force: true }); throw error; }
-  t.after(async () => {
-    await git(repository, ['worktree', 'remove', checkout]);
-    await rm(temporary, { recursive: true, force: true });
-  });
-  const load = relative => import(pathToFileURL(path.join(checkout, relative)).href);
-  return { checkout, ...(await load('app/storage/store.mjs')), core: await load('app/core/state.mjs'),
-    items: await load('app/plugin-items.mjs'), achievements: await load('app/plugin-achievements.mjs') };
+  const runtime = await openFrozenRuntime({ repository: root, release,
+    cacheRoot: path.resolve(process.env.RS3_FROZEN_CACHE ?? path.join(root, '.local', 'frozen-release-cache')),
+    workRoot: path.join(root, '.local', 'save-surface-tests') });
+  t.after(() => runtime.close());
+  return runtime;
 }

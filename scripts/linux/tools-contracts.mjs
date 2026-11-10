@@ -11,9 +11,14 @@ const earlierEntries = entries(['operator', 'recovery', 'online', 'files', 'runt
 const currentEntries = entries(['operator', 'recovery', 'online', 'files', 'runtime', 'start-check', 'serve', 'probe',
   'prewarm', 'rehearse', 'notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status',
   'scratch-alerts', 'bootstrap-alerts', 'tools-package', 'tools-install']);
+const inflaterEntries = Object.freeze([...currentEntries,
+  'scripts/linux/inflate-owned-format-1.mjs', 'scripts/lib/frozen-runtime.mjs'].sort());
+const inflaterProbes = Object.freeze([...toolsCliChecks,
+  ['scripts/linux/inflate-owned-format-1.mjs', [], 'Usage: node scripts/linux/inflate-owned-format-1.mjs']]);
 export const toolsContracts = Object.freeze([
   Object.freeze({ version: 1, entries: earlierEntries, closureRoots: earlierEntries, probes: tools128CliChecks }),
   Object.freeze({ version: 2, entries: currentEntries, closureRoots: currentEntries, probes: toolsCliChecks }),
+  Object.freeze({ version: 3, entries: inflaterEntries, closureRoots: inflaterEntries, probes: inflaterProbes }),
 ]);
 export const currentToolsContract = toolsContracts.at(-1);
 
