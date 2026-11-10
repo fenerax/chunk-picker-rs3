@@ -19,7 +19,7 @@ test('task feedback cannot move an open More menu', { timeout: 300000 }, async f
       let server, browser;
       t.after(async () => {
         await browser?.close(); await server?.close();
-        await rm(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        await rm(scratch, { recursive: true, force: true });
       });
       const initialState = createGroupState(Array.from({ length: count }, (_, index) => ({
         id: `actor${index + 1}`, name: wrapped ? `Synthetic explorer with a long display name ${index + 1}` : `Player ${index + 1}`,
@@ -29,6 +29,7 @@ test('task feedback cannot move an open More menu', { timeout: 300000 }, async f
         host: '127.0.0.1', port: 0, predictionPrewarm: false, loopbackPort: undefined, publicOrigin: undefined });
       await server.listen();
       browser = await openChrome(await findChrome(), path.join(scratch, 'chrome'), {
+        signal: file.signal, report: state => t.diagnostic(JSON.stringify(state)),
         extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
       });
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });

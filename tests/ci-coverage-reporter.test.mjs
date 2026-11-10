@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createCoverageReporter } from '../scripts/ci/coverage-reporter.mjs';
 
 const file = 'tests/fixture.test.mjs';
+const execute = promisify(execFile);
 const reporter = (cwd = '/repo') => createCoverageReporter({ lane: 'test', cwd, files: [file] });
 const summary = (tests, overrides = {}) => ({ counts: { tests, suites: 0, passed: tests, failed: 0, skipped: 0, cancelled: 0, todo: 0, topLevel: tests, ...overrides } });
 const event = (testId, name, extra = {}) => ({ type: 'test:complete', data: {
@@ -83,6 +85,37 @@ test('coverage requires native counts and detects missing case events', () => {
   assert.throws(() => r.report(), /Native coverage count mismatch/);
 });
 
+test('aborted FileTest wrapper counts produce an explicitly incomplete failed artifact', () => {
+  const r = reporter();
+  r.onEvent({ type: 'test:enqueue', data: event(1, 'interrupted case').data });
+  r.onFile({ file, passed: false, cancelled: true,
+    summary: summary(1, { passed: 0, cancelled: 1 }) });
+  const result = r.report({ passed: true });
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.tests, [], 'do not invent case evidence for a FileTest wrapper');
+  assert.deepEqual(result.fileResults[0], { file, passed: false, counts: summary(1, { passed: 0, cancelled: 1 }).counts,
+    interruption: 'aborted', incomplete: true, recordCount: 0, observedCounts: { tests: 0, suites: 0 }, pendingTestCount: 1 });
+});
+
+test('aborted files retain completed case evidence and native abort errors identify interruption', () => {
+  const r = reporter();
+  r.onEvent(event(1, 'finished case'));
+  r.onFile({ file, passed: false, errors: [{ failureType: 'testAborted' }],
+    summary: summary(2, { passed: 1, cancelled: 1 }) });
+  const result = r.report();
+  assert.equal(result.passed, false);
+  assert.equal(result.tests[0].status, 'pass');
+  assert.equal(result.fileResults[0].interruption, 'aborted');
+  assert.equal(result.fileResults[0].counts.tests, 2);
+  assert.deepEqual(result.fileResults[0].observedCounts, { tests: 1, suites: 0 });
+
+  const finished = reporter();
+  finished.onEvent(event(1, 'completed before sibling abort'));
+  finished.onFile({ file, passed: true, cancelled: true, summary: summary(1) });
+  assert.equal(finished.report().passed, true);
+  assert.equal(finished.report().fileResults[0].incomplete, undefined);
+});
+
 test('real adaptive native events report nested cases, imported helpers and skipped suites', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'rs3-coverage-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -120,8 +153,7 @@ await r.write('coverage.json', {passed: result.passed});
 `);
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
-  const child = spawnSync(process.execPath, ['run.mjs'], { cwd: root, env, encoding: 'utf8', timeout: 30000, windowsHide: true });
-  assert.equal(child.status, 0, child.stderr);
+  await execute(process.execPath, ['run.mjs'], { cwd: root, env, windowsHide: true });
   const capability = JSON.parse(await readFile(path.join(root, 'capability.json'), 'utf8'));
   assert.equal(capability.node, process.version);
   assert.equal(typeof capability.entryFile, 'boolean');
@@ -141,4 +173,30 @@ await r.write('coverage.json', {passed: result.passed});
   assert.equal(result.tests.find(item => item.name[0] === 'omitted suite').reason, 'platform reason');
   assert.equal(result.tests.find(item => item.name[0] === 'omitted suite').kind, 'suite');
   assert.equal(result.tests.find(item => item.name[0] === 'later').status, 'todo');
+});
+
+test('real native cancellation writes failed coverage instead of a count mismatch', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'rs3-aborted-coverage-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, 'tests'));
+  await writeFile(path.join(root, file), `import { test } from 'node:test';
+import { MessageChannel } from 'node:worker_threads';
+test('held work', async () => { const channel = new MessageChannel(); channel.port1.on('message', () => {});
+  process.stderr.write('ABORT_READY\\n'); await new Promise(() => {}); });`);
+  await writeFile(path.join(root, 'run.mjs'), `
+import { runAdaptive } from ${JSON.stringify(new URL('../scripts/adaptive-test-runner.mjs', import.meta.url).href)};
+import { createCoverageReporter } from ${JSON.stringify(new URL('../scripts/ci/coverage-reporter.mjs', import.meta.url).href)};
+const files = [${JSON.stringify(file)}], r = createCoverageReporter({cwd: process.cwd(), files}), controller = new AbortController();
+const result = await runAdaptive({files, signal: controller.signal, minConcurrency: 1, maxConcurrency: 1,
+  memory: () => 8 * 1024 ** 3, policy: () => ({}), onFile: r.onFile,
+  onEvent: event => { r.onEvent(event); if (event.type === 'test:stderr' && event.data.message.includes('ABORT_READY')) controller.abort(); }});
+await r.write('coverage.json', {passed: result.passed});
+`);
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  // This child runs the adaptive controller outside the current node:test context.
+  await execute(process.execPath, ['run.mjs'], { cwd: root, env, windowsHide: true });
+  const result = JSON.parse(await readFile(path.join(root, 'coverage.json'), 'utf8'));
+  assert.equal(result.passed, false);
+  assert.equal(result.fileResults[0].interruption, 'aborted');
+  assert.equal(result.fileResults[0].incomplete, true);
 });

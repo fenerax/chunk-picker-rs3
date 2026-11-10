@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { chromeCandidates, findChrome, httpFailure, judgeSample, judgeMode, requestAllowed, originalFixtureFetch } from '../scripts/ci/gallery-support.mjs';
-import { runMode, saveProbe } from '../scripts/ci/gallery-check.mjs';
+import { runGallery, runMode, saveProbe } from '../scripts/ci/gallery-check.mjs';
 
 test('Chrome discovery searches Linux PATH and conventional installation paths', async () => {
   const candidates = chromeCandidates({ platform: 'linux', env: { PATH: '/fixture/bin:/fixture/tools' } });
@@ -136,4 +140,51 @@ test('console errors arriving while interception shuts down still fail the mode'
   assert.equal(result.passed, false);
   assert.equal(result.events.consoleErrors, 1);
   assert.equal(browser.listeners.size, 0);
+});
+
+test('gallery outer cancellation reaches Chrome startup and pending close, preserving its failure artifact', async file => {
+  for (const phase of ['startup', 'close']) for (const source of ['deadline', 'SIGINT', 'SIGTERM']) {
+    await file.test(`${source} during Chrome ${phase}`, async t => {
+      const scratch = await mkdtemp(path.join(tmpdir(), 'gallery-cancellation-'));
+      t.after(() => rm(scratch, { recursive: true, force: true }));
+      const output = path.join(scratch, 'report'), entered = Promise.withResolvers(), signals = new EventEmitter();
+      let deadline, signal, serverClosed = 0, guardCleared = false, closing;
+      const result = runGallery({ output }, {
+        findChrome: async () => 'synthetic-chrome', scratchPort: async () => Number('8947'), signals,
+        setTimeout: action => { deadline = action; return action; },
+        clearTimeout: handle => { assert.equal(handle, deadline); guardCleared = true; },
+        startServer: async (_checkout, directory) => {
+          await mkdir(path.join(directory, 'save'));
+          await writeFile(path.join(directory, 'save/state.json'), '{}');
+          return { inviteUrl: 'http://gallery.invalid/join/synthetic', origin: 'http://gallery.invalid',
+            close: async () => { serverClosed++; } };
+        },
+        openChrome: async (_executable, _profile, options) => {
+          signal = options.signal;
+          assert.ok(signal instanceof AbortSignal);
+          if (phase === 'startup') return new Promise((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+            entered.resolve();
+          });
+          return { send: async () => ({ success: true }), close: () => closing ??= new Promise(resolve => {
+            assert.equal(guardCleared, false, 'the outer guard stays armed through browser cleanup');
+            signal.addEventListener('abort', resolve, { once: true });
+            entered.resolve();
+          }) };
+        },
+        fetch: async () => ({ status: 302, headers: new Headers({ 'set-cookie': 'session=synthetic; HttpOnly' }) }),
+        runMode: async () => ({ passed: true, ready: 1, total: 1 }),
+      });
+      await entered.promise;
+      if (source === 'deadline') deadline(); else signals.emit(source);
+      const summary = await result;
+      assert.equal(signal.aborted, true);
+      assert.equal(summary.passed, false);
+      assert.deepEqual(summary.failures, ['INTERRUPTED']);
+      assert.deepEqual(JSON.parse(await readFile(path.join(output, 'summary.json'), 'utf8')), summary);
+      assert.equal(serverClosed, 1);
+      assert.equal(guardCleared, true);
+      assert.equal(signals.listenerCount('SIGINT') + signals.listenerCount('SIGTERM'), 0);
+    });
+  }
 });

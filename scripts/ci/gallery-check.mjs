@@ -179,7 +179,11 @@ export async function runMode({ mode, browser, server, ids, output, isInterrupte
     elapsedMs: Date.now() - started, events, httpFailures, samples: rows };
 }
 
-export async function runGallery({ checkout = root, output = path.join(root, '.local/ci-gallery'), chrome } = {}) {
+export async function runGallery({ checkout = root, output = path.join(root, '.local/ci-gallery'), chrome } = {}, {
+  findChrome: locateChrome = findChrome, startServer: launchServer = startServer, scratchPort: choosePort = scratchPort,
+  openChrome: launchChrome = openChrome, runMode: checkMode = runMode, fetch: request = globalThis.fetch,
+  setTimeout: schedule = setTimeout, clearTimeout: cancel = clearTimeout, signals = process,
+} = {}) {
   checkout = path.resolve(checkout); output = path.resolve(output);
   // Each output directory is new: a passing run cannot upload stale failure pictures.
   await mkdir(path.dirname(output), { recursive: true });
@@ -188,50 +192,48 @@ export async function runGallery({ checkout = root, output = path.join(root, '.l
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'rs3-ci-gallery-'));
   const started = Date.now(), summary = { schema: 'rs3-ci-gallery-v1', passed: false, modes: {}, failures: [] };
   const ownedChildren = [], ownChild = child => { ownedChildren.push(child); return child; };
+  const controller = new AbortController();
   let server, browser, interrupted = false;
-  const interrupt = () => { interrupted = true; void browser?.close().catch(() => {}); };
-  const deadline = setTimeout(interrupt, 18 * 60000);
-  process.once('SIGINT', interrupt); process.once('SIGTERM', interrupt);
+  const interrupt = () => { interrupted = true; controller.abort(new Error('INTERRUPTED')); };
+  const deadline = schedule(interrupt, 18 * 60000);
+  signals.once('SIGINT', interrupt); signals.once('SIGTERM', interrupt);
   try {
-    const executable = await findChrome({ executable: chrome });
+    const executable = await locateChrome({ executable: chrome });
     const { galleryEntries } = await import(pathToFileURL(path.join(checkout, 'app/web/gallery-catalogue.mjs')).href);
     const ids = galleryEntries.map(entry => entry.id);
     if (!ids.length || ids.some(id => !/^[a-z0-9-]+$/.test(id)) || new Set(ids).size !== ids.length) throw new Error('INVALID_CATALOGUE');
-    server = await startServer(checkout, scratch, await scratchPort(), ownChild);
+    controller.signal.throwIfAborted();
+    server = await launchServer(checkout, scratch, await choosePort(), ownChild);
     const before = hash(await readFile(path.join(scratch, 'save/state.json')));
     for (const mode of ['plain', 'framed']) {
       if (interrupted) throw new Error('INTERRUPTED');
-      const cdpPort = await scratchPort(), previousPort = process.env.RS3_SCRATCH_CDP_PORT;
+      const cdpPort = await choosePort(), previousPort = process.env.RS3_SCRATCH_CDP_PORT;
       process.env.RS3_SCRATCH_CDP_PORT = String(cdpPort);
       try {
-        browser = await openChrome(executable, path.join(scratch, mode), { port: cdpPort,
+        browser = await launchChrome(executable, path.join(scratch, mode), { port: cdpPort, signal: controller.signal,
           // Hosted Linux Chrome needs no desktop session or shared-memory mount.
           extraArgs: ['--disable-gpu', '--disable-features=BackForwardCache', '--js-flags=--max-old-space-size=192',
             ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [])] },
         { spawn: (...args) => ownChild(spawn(...args)) });
-        const close = browser.close.bind(browser);
-        let closing;
-        browser.close = () => closing ??= close();
       } finally {
         if (previousPort === undefined) delete process.env.RS3_SCRATCH_CDP_PORT;
         else process.env.RS3_SCRATCH_CDP_PORT = previousPort;
       }
       try {
-        const auth = await fetch(server.inviteUrl, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+        const auth = await request(server.inviteUrl, { redirect: 'manual', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
         const cookie = auth.headers.get('set-cookie');
         if (![302, 303].includes(auth.status) || !cookie) throw new Error('AUTH_FAILED');
         const pair = cookie.split(';')[0], split = pair.indexOf('=');
         const installed = await browser.send('Network.setCookie', { name: pair.slice(0, split), value: pair.slice(split + 1),
           url: server.origin, path: '/', httpOnly: true, sameSite: 'Lax' });
         if (!installed.success) throw new Error('AUTH_FAILED');
-        summary.modes[mode] = await runMode({ mode, browser, server, ids, output, isInterrupted: () => interrupted });
+        summary.modes[mode] = await checkMode({ mode, browser, server, ids, output, isInterrupted: () => interrupted });
       } finally { await browser.close(); browser = undefined; }
     }
     if (before !== hash(await readFile(path.join(scratch, 'save/state.json')))) throw new Error('SAVE_CHANGED');
     summary.passed = !interrupted && ['plain', 'framed'].every(mode => summary.modes[mode]?.passed === true);
   } catch (error) { summary.failures.push(safeCode(error)); }
   finally {
-    clearTimeout(deadline);
     let cleanupFailed = false;
     try { await browser?.close(); } catch { cleanupFailed = true; }
     try { await server?.close(); } catch { cleanupFailed = true; }
@@ -239,7 +241,9 @@ export async function runGallery({ checkout = root, output = path.join(root, '.l
     if (cleanupFailed) { summary.passed = false; summary.failures.push('CLEANUP_FAILED'); }
     else try { await rm(scratch, { recursive: true, force: true }); }
     catch { summary.passed = false; summary.failures.push('SCRATCH_CLEANUP_FAILED'); }
-    process.off('SIGINT', interrupt); process.off('SIGTERM', interrupt);
+    // Keep the outer guard armed until browser/server cleanup has settled too.
+    cancel(deadline);
+    signals.off('SIGINT', interrupt); signals.off('SIGTERM', interrupt);
     summary.elapsedMs = Date.now() - started;
     await writeFile(path.join(output, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');
   }
