@@ -85,7 +85,7 @@ await new Promise(() => {});`);
     } finally { await rm(scratch, { recursive: true, force: true }); }
   });
   for (const [script, expected, name] of [
-    ['tools-install-contracts.mjs', 'tools-contracts-ok', 'upgrades and rolls back the exact #128 package, recovering cross-contract process kills'],
+    ['tools-install-contracts.mjs', 'tools-contracts-ok', 'upgrades v1 and v2 packages to current, rolls back, and recovers cross-contract process kills'],
     ['tools-install.mjs', 'tools-install-ok', 'exchanges a real directory, verifies, rolls back, and fences failures without writer control'],
     ['tools-install-crashes.mjs', 'tools-crashes-ok', 'recovers real process kills outside the journal, retaining live locks'],
   ]) await file.test(name, async () => {

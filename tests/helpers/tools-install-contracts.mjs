@@ -6,8 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
-import { buildTools, verifyTools } from '../../scripts/linux/tools-package.mjs';
-import { toolsContract } from '../../scripts/linux/tools-contracts.mjs';
+import { buildTools, verifyTools, toolsClosure } from '../../scripts/linux/tools-package.mjs';
+import { currentToolsContract, toolsContract, toolsContracts } from '../../scripts/linux/tools-contracts.mjs';
 import { recoverToolsSwitch, switchTools } from '../../scripts/linux/tools-install.mjs';
 import { encode, exists, inventory, json, sha } from '../../scripts/linux/files.mjs';
 
@@ -29,7 +29,7 @@ try {
   assert.equal(oldManifest.files.length, 49);
   assert.equal(Object.hasOwn(oldManifest, 'contractVersion'), false);
   assert.equal(toolsContract(oldManifest).version, 1);
-  assert.equal(newManifest.contractVersion, 2);
+  assert.equal(newManifest.contractVersion, currentToolsContract.version);
   const parent = path.join(scratch, 'installed'), toolsRoot = path.join(parent, 'tools');
   const controlDir = path.join(scratch, 'control'), settings = { controlDir };
   await mkdir(parent); await mkdir(controlDir);
@@ -50,6 +50,32 @@ try {
   await selected(earlierIdentity);
   assert.equal((await install({ ...options, rollbackReceipt: upgrade.receiptFile })).alreadyCompleted, true);
   assert.equal((await recover(options)).result, 'no-pending-switch');
+
+  // A synthetic version-2 package uses the reviewed v2 roots/probes and exact
+  // current compatible module bytes. The immutable #128 fixture above still
+  // separately proves the real unversioned v1-to-current transition.
+  const v2Root = path.join(scratch, 'version-2'), v2Contract = toolsContracts.find(row => row.version === 2);
+  const v2Closure = await toolsClosure(repo, v2Contract.closureRoots);
+  await mkdir(v2Root, { mode: 0o755 });
+  for (const row of v2Closure.files) {
+    const file = path.join(v2Root, row.path); await mkdir(path.dirname(file), { recursive: true, mode: 0o755 });
+    await writeFile(file, await readFile(path.join(repo, row.path)), { mode: 0o644 });
+  }
+  const v2Body = { format: 'picker-tools-v1', contractVersion: v2Contract.version, ...v2Closure };
+  await writeFile(path.join(v2Root, 'tools-manifest.json'), encode({ ...v2Body, toolsIdentity: sha(encode(v2Body)) }), { mode: 0o644 });
+  const v2Manifest = await verifyTools(v2Root);
+  assert.equal(toolsContract(v2Manifest), v2Contract);
+  assert(!v2Manifest.entries.includes('scripts/linux/inflate-owned-format-1.mjs'));
+  await install({ ...options, packageRoot: v2Root });
+  const installedV2 = await selected(v2Manifest.toolsIdentity), v2Before = await inventory(installedV2);
+  const v2Upgrade = await install({ ...options, packageRoot: latest });
+  await selected(newManifest.toolsIdentity);
+  await install({ ...options, rollbackReceipt: v2Upgrade.receiptFile });
+  assert.equal(await selected(v2Manifest.toolsIdentity), installedV2);
+  assert.deepEqual(await inventory(installedV2), v2Before);
+  assert.equal((await install({ ...options, rollbackReceipt: v2Upgrade.receiptFile })).alreadyCompleted, true);
+  assert.equal((await recover(options)).result, 'no-pending-switch');
+  await install({ ...options, packageRoot: earlier }); await selected(earlierIdentity);
 
   // An attacker can recompute an identity. Contract recognition still refuses
   // unknown versions and any changed unversioned historical entry inventory.

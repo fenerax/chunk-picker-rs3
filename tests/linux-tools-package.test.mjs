@@ -88,7 +88,10 @@ test('version 3 adds the inflater without widening app/data closure or changing 
     ['scripts/lib/frozen-runtime.mjs', 'scripts/linux/inflate-owned-format-1.mjs']);
   assert.deepEqual(manifest.files.filter(row => row.path.startsWith('app/')), old.files.filter(row => row.path.startsWith('app/')));
   const additions = manifest.files.filter(row => !old.files.some(before => before.path === row.path)).map(row => row.path).sort();
-  assert.deepEqual(additions, ['scripts/lib/frozen-runtime.mjs', 'scripts/linux/inflate-owned-format-1.mjs']);
+  // The builder now consumes FROZEN_RELEASE from the shared harness, so that
+  // helper is also a builder dependency when traversing the previous roots.
+  assert(old.files.some(row => row.path === 'scripts/lib/frozen-runtime.mjs'));
+  assert.deepEqual(additions, ['scripts/linux/inflate-owned-format-1.mjs']);
   for (const row of old.files) assert.deepEqual(manifest.files.find(after => after.path === row.path), row);
   assert(manifest.boundaries.some(row => row.owner === 'scripts/lib/frozen-runtime.mjs'
     && row.source === 'provisioned-frozen-release' && row.release === '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e'));

@@ -10,7 +10,7 @@ import { mkdir, readFile, readdir, writeFile, rm, utimes } from 'node:fs/promise
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { randomUUID } from 'node:crypto';
 import { inflateOwnedFormat1 } from '../scripts/linux/inflate-owned-format-1.mjs';
-import { inventory, encode, sha, exists } from '../scripts/linux/files.mjs';
+import { inventory, encode, sha, exists, atomic } from '../scripts/linux/files.mjs';
 import { openStore } from '../app/storage/store.mjs';
 import { acquireProcessGuard } from '../app/storage/process-guard.mjs';
 import { stageOwnedRebase, reconcileOwnedRebase } from '../app/storage/owned-rebase.mjs';
@@ -21,13 +21,27 @@ import { fixture, commands } from './helpers/owned-format2-fixture.mjs';
 import { rebaseOptions } from './helpers/owned-rebase-fixture.mjs';
 import { frozenRuntime } from './helpers/frozen-release.mjs';
 import { inflaterFixture, packAndArchive, settingsForStore } from './helpers/owned-inflater-fixture.mjs';
+import { auditInflater, windowsFileUsers } from './helpers/owned-inflater-diagnostics.mjs';
 
 const hash = value => sha(JSON.stringify(value));
 test('owned format-1 inflater acceptance', async t => {
   const frozen = await frozenRuntime(t);
+  const fileUsers = process.platform === 'win32' ? await windowsFileUsers() : undefined;
+  if (fileUsers) t.after(() => fileUsers.close());
   const run = f => inflateOwnedFormat1({ ...f, frozen });
   const live = f => f.stores[0].dataDir;
   const unchanged = async (f, before) => assert.deepEqual(await inventory(live(f)), before);
+  if (fileUsers) await t.test('scoped Windows probe identifies the exact non-delete-sharing file owner', async t => {
+    const f = await inflaterFixture(t), file = path.join(f.root, 'synthetic-journal.json');
+    await writeFile(file, '{}');
+    await fileUsers.hold(file);
+    try {
+      const { files: [row] } = await fileUsers.inspect([file]);
+      assert.equal(row.deleteAccessError, 32); // ERROR_SHARING_VIOLATION
+      assert(row.users.some(user => user.pid === fileUsers.pid));
+    } finally { await fileUsers.release(); }
+    assert.equal((await fileUsers.inspect([file])).files[0].deleteAccessError, 0);
+  });
   await t.test('valid but wrong decoded task and identity rows refuse the independent encoder round trip', async t => {
     for (const role of ['task', 'identity']) {
       const f = await inflaterFixture(t, { populated: true }), before = await inventory(live(f));
@@ -234,14 +248,29 @@ test('owned format-1 inflater acceptance', async t => {
   for (const seam of ['maintenance', 'journal-created', 'source-staged', 'output-staged', 'frozen-verified', 'store-verified', 'all-verified', 'install-intent', 'before-install', 'install-temporary', 'install-renamed', 'file-installed', 'store-installed', 'complete', 'maintenance-cleared']) await t.test(`process crash at ${seam}, then digest-keyed resume`, async t => {
     const f = await inflaterFixture(t, { populated: true, second: true }), before = await inventory(live(f));
     const config = path.join(f.root, 'config.json'); await writeFile(config, JSON.stringify({ settings: f.settings, ownedFormat2: f.ownedFormat2 }));
+    const journal = path.join(f.settings.controlDir, 'inflate-owned-format-1/progress.json');
+    const audit = auditInflater(journal, { inspectFailure: fileUsers?.inspect }); t.after(() => audit.restore());
     const child = fork(fileURLToPath(new URL('./helpers/owned-inflater-crash.mjs', import.meta.url)), [config, seam, frozen.checkout], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
-    let stderr = ''; child.stderr.on('data', bytes => { stderr += bytes; }); child.stdout.resume();
-    const [code] = await once(child, 'exit'); assert.equal(code, 72, stderr);
+    let stderr = '', evidence; child.stderr.on('data', bytes => { stderr += bytes; }); child.stdout.resume();
+    child.on('message', message => { evidence = message; });
+    const [code] = await once(child, 'close'); assert.equal(code, 72, stderr);
+    assert.equal(evidence?.point, seam);
+    assert.deepEqual(evidence.audit.children, [], 'The crash path must spawn no descendant processes.');
+    assert.deepEqual(evidence.audit.workers, [], 'Frozen read-only proof must spawn no worker threads.');
+    assert.deepEqual(evidence.audit.active, [], 'The crash child must have no open journal handles.');
+    assert(evidence.audit.renames.every(row => row.active.length === 0));
+    // No retry: one immediate replacement after close, then the ordinary resume.
+    if (seam === 'maintenance-cleared') await atomic(journal, await readFile(journal));
     if (!['install-renamed', 'file-installed', 'store-installed', 'complete', 'maintenance-cleared'].includes(seam)) await unchanged(f, before);
     if (seam !== 'maintenance-cleared') assert(await exists(path.join(f.settings.controlDir, 'maintenance.json')));
     const result = await run(f); assert.equal(result.phase, 'complete');
     for (const store of f.stores) assert.deepEqual(await readFile(path.join(store.dataDir, 'state.json')), await readFile(path.join(f.flatDir, 'state.json')));
     assert.equal(await exists(path.join(f.settings.controlDir, 'maintenance.json')), false);
+    const completed = audit.snapshot();
+    assert.deepEqual(completed.active, []);
+    assert.deepEqual(completed.children, [{ pid: child.pid, closed: true }]);
+    assert.deepEqual(completed.workers, []);
+    assert(completed.renames.every(row => row.active.length === 0 && row.succeeded));
   });
   await t.test('changed source/output digests refuse resume; a late store failure cannot install an earlier store', async t => {
     const f = await inflaterFixture(t, { second: true });
