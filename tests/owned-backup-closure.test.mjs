@@ -392,7 +392,7 @@ test('service restore resumes after legacy cleanup, retains tombstones and insta
   assert.equal(installed.pickers.find(row => row.id === deleted.id)?.lifecycle, 'deleted');
 });
 
-test('owned quarantine retains its closure and releases only after restaged verification', async t => {
+for (const crash of [null, 'before-seal-journal', 'after-catalogue-rename']) test(`owned quarantine reseals post-probe bytes and releases after verification (${crash ?? 'uninterrupted'})`, async t => {
   const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'),
     pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
   await mkdir(f.dataDir);
@@ -416,25 +416,66 @@ test('owned quarantine retains its closure and releases only after restaged veri
   const target = { ...settings, dataDir: path.join(destination, 'legacy'), controlDir: path.join(destination, 'control'),
     multiPicker: { ...multiPicker, registryDir: path.join(destination, 'registry'), pickerRoot: path.join(destination, 'pickers') } };
   let failing = true, ownedProbes = 0;
+  const migrated = encode({ synthetic: 'post-probe migration' });
   const probe = async (...args) => {
     const source = await ownedRecoveryOptions(args[1]);
     if (source) {
       ownedProbes++; assert.equal(source.pickerId, owned.id);
-      if (failing) throw new Error('Synthetic temporary probe failure');
+      if (failing) {
+        await writeFile(path.join(args[1], 'migrated.json'), migrated);
+        throw new Error('Synthetic temporary probe failure');
+      }
     }
     return f.probe(...args);
   };
-  const restored = await restoreServiceStopped({ settings: target, backup, release: f.release,
-    assertStopped: async () => {}, probe, ownedFormat2: options(path.join(destination, 'catalogue')) });
+  const restore = { settings: target, backup, release: f.release,
+    assertStopped: async () => {}, probe, ownedFormat2: options(path.join(destination, 'catalogue')) };
+  const stage = path.join(target.controlDir, 'service-restore', owned.id);
+  if (crash) {
+    const fault = new Error('Synthetic quarantine interruption'); let renames = 0;
+    await assert.rejects(restoreServiceStopped({ ...restore, step: async label => {
+      if (crash === 'before-seal-journal' && label === 'quarantine.owned-sealed'
+        || crash === 'after-catalogue-rename' && label === 'quarantine.owned-rename' && ++renames === 2) throw fault;
+    } }), error => error === fault);
+    const row = (await json(path.join(target.controlDir, 'service-restore', 'progress.json'))).pickers.find(row => row.id === owned.id);
+    assert.equal(row.status, 'quarantining'); assert.equal(row.probeChanged, true);
+    assert.equal(typeof row.ownedClosureSha256, crash === 'before-seal-journal' ? 'undefined' : 'string');
+    const stagedClosure = await json(path.join(stage, 'owned-closure.json'));
+    assert.equal(stagedClosure.files.find(row => row.path === 'store/migrated.json').sha256, sha(migrated));
+    if (crash === 'before-seal-journal') {
+      // Repeating an unjournaled reseal must not bless edits after the intent.
+      await writeFile(path.join(stage, 'store', 'migrated.json'), 'synthetic later edit');
+      await assert.rejects(restoreServiceStopped(restore), { code: 'OPERATOR_ACTION_REQUIRED' });
+      await writeFile(path.join(stage, 'store', 'migrated.json'), migrated);
+      // Resealing new file hashes cannot make an invalid base satisfy its pin.
+      const baseFile = path.join(stage, 'catalogue', (await readdir(path.join(stage, 'catalogue')))[0]);
+      const baseBytes = await readFile(baseFile); await writeFile(baseFile, 'synthetic corrupt base before reseal');
+      await assert.rejects(restoreServiceStopped(restore), /Owned catalogue base unavailable/);
+      const unsealed = (await json(path.join(target.controlDir, 'service-restore', 'progress.json'))).pickers.find(row => row.id === owned.id);
+      assert.equal(unsealed.ownedClosureSha256, undefined);
+      await writeFile(baseFile, baseBytes);
+    } else assert.equal(await exists(path.join(stage, 'catalogue')), false);
+  }
+  const restored = await restoreServiceStopped(restore);
   assert.deepEqual(restored.quarantined, [owned.id]); assert.equal(ownedProbes, 1);
   const quarantine = path.join(target.controlDir, 'quarantine'), metadata = path.join(quarantine, owned.id + '.owned');
   const closure = path.join(metadata, 'owned-closure.json'), bytes = await readFile(closure);
+  const sealed = JSON.parse(bytes);
+  assert.deepEqual(sealed.manifest, (await json(path.join(backup, 'owned-closure.json'))).manifest);
+  assert.equal(sealed.files.find(row => row.path === 'store/migrated.json').sha256, sha(migrated));
+  const progress = await json(path.join(target.controlDir, 'service-restore', 'progress.json'));
+  assert.equal(progress.pickers.find(row => row.id === owned.id).ownedClosureSha256, sha(bytes));
   assert(await exists(path.join(metadata, 'catalogue')));
   assert.equal(await exists(path.join(target.controlDir, 'service-restore', owned.id)), false);
   assert.equal((await json(path.join(quarantine, owned.id + '.json'))).ownedFormat2, true);
   const release = { settings: target, id: owned.id, release: f.release, assertStopped: async () => {}, probe };
   failing = false;
   const before = await inventory(path.join(quarantine, owned.id));
+  const migratedFile = path.join(quarantine, owned.id, 'migrated.json');
+  assert.equal(await readFile(migratedFile, 'utf8'), migrated);
+  await writeFile(migratedFile, 'synthetic edit after quarantine');
+  await assert.rejects(releaseServiceQuarantine(release), /Owned dependency hash or size mismatch/);
+  assert.equal(ownedProbes, 1); await writeFile(migratedFile, migrated);
   await rm(closure);
   await assert.rejects(releaseServiceQuarantine(release), /Owned quarantine dependency closure is missing; release refused/);
   assert.equal(ownedProbes, 1);
@@ -443,7 +484,9 @@ test('owned quarantine retains its closure and releases only after restaged veri
   await writeFile(closure, bytes);
   // A valid marker alone is insufficient: its dependency pins remain binding.
   const base = (await readdir(path.join(metadata, 'catalogue')))[0], baseFile = path.join(metadata, 'catalogue', base);
-  const baseBytes = await readFile(baseFile); await writeFile(baseFile, 'synthetic-corruption');
+  const baseBytes = await readFile(baseFile); await rm(baseFile);
+  await assert.rejects(releaseServiceQuarantine(release), /Owned dependency hash or size mismatch/);
+  assert.equal(ownedProbes, 1); await writeFile(baseFile, 'synthetic-corruption');
   await assert.rejects(releaseServiceQuarantine(release), /Owned dependency hash or size mismatch/);
   assert.equal(ownedProbes, 1); await writeFile(baseFile, baseBytes);
   assert.deepEqual(await releaseServiceQuarantine(release), { released: owned.id });
@@ -451,6 +494,7 @@ test('owned quarantine retains its closure and releases only after restaged veri
   const store = await opened(path.join(target.multiPicker.pickerRoot, owned.id),
     { ...options(path.join(destination, 'catalogue')), pickerId: owned.id });
   sameLogical(await store.backup(), expected); await store.close();
+  assert.equal(await readFile(path.join(target.multiPicker.pickerRoot, owned.id, 'migrated.json'), 'utf8'), migrated);
   assert.equal(await exists(metadata), false);
   assert.equal(await exists(path.join(quarantine, owned.id + '.json')), false);
   assert.deepEqual(await releaseServiceQuarantine(release), { released: owned.id });

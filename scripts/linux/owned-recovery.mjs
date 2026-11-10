@@ -180,6 +180,17 @@ export async function verifyOwnedClosure(root, stores) {
   }
   return closure;
 }
+// Quarantine keeps post-probe bytes. Its journal pins the store before this
+// reseal and records the new closure hash only after full dependency verification.
+export async function resealOwnedQuarantine(root) {
+  const file = path.join(root, marker);
+  await noLinks(file);
+  const closure = await json(file);
+  const { syncRecoveryTree } = await import('./service-checkpoint.mjs');
+  await syncRecoveryTree(root);
+  await atomic(file, encode({ ...closure, files: await dependencyFiles(root, ['store']) }));
+  await verifyOwnedClosure(root, ['store']);
+}
 export async function copyOwnedClosure(source, target, store) {
   if (!await exists(path.join(source, marker))) return;
   await copyTree(path.join(source, 'catalogue'), path.join(target, 'catalogue'));

@@ -8,7 +8,7 @@ import { reconcileTombstones as reconcileMP5Tombstones } from '../../app/storage
 import { openAccountStore } from '../../app/storage/accounts.mjs';
 import { openInviteStore } from '../../app/storage/invites.mjs';
 import { copyServiceTree, pickerId, pickerPath, validateServicePaths, verifyServiceBackup, syncRecoveryTree, syncRecoveryDirectory } from './service-checkpoint.mjs';
-import { copyOwnedClosure, verifyOwnedClosure, installOwnedClosure } from './owned-recovery.mjs';
+import { copyOwnedClosure, verifyOwnedClosure, installOwnedClosure, resealOwnedQuarantine } from './owned-recovery.mjs';
 
 // MP5 owns deletion decisions and purge order. The checkpoint registry is
 // disposable; the target's external ledger is always opened in place, never
@@ -276,12 +276,21 @@ async function quarantine(settings, picker, stageStore, row, save, step) {
     // Keep the normalized store-relative closure outside the gameplay tree.
     // Each rename can resume independently before the temporary stage is gone.
     const stage = path.dirname(stageStore), metadata = path.join(root, picker.id + '.owned');
+    if (!row.ownedClosureSha256) {
+      // Resume may reseal only the post-probe generation in the durable intent.
+      if (await identity(stageStore) !== row.digest) throw await restoreBytes(settings, picker, row, stageStore);
+      if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw await restoreBytes(settings, picker, row, stageStore + '.dataset.json');
+      await mutate(step, 'quarantine.owned-reseal', () => resealOwnedQuarantine(stage));
+      row.ownedClosureSha256 = sha(await readFile(path.join(stage, 'owned-closure.json')));
+      await save('quarantine.owned-sealed');
+    }
     await mutate(step, 'quarantine.owned-directory', () => directory(metadata));
     for (const name of ['catalogue', 'owned-closure.json']) if (await exists(path.join(stage, name))) {
       if (await exists(path.join(metadata, name))) throw actionRequired(`Move ${metadata} aside after checking ${stage}; then rerun.`);
       await mutate(step, 'quarantine.owned-rename', () => rename(path.join(stage, name), path.join(metadata, name)));
     }
     if (!await exists(path.join(metadata, 'owned-closure.json'))) throw new Error('Owned quarantine dependency closure is missing.');
+    if (sha(await readFile(path.join(metadata, 'owned-closure.json'))) !== row.ownedClosureSha256) throw new Error('Owned quarantine dependency closure changed after sealing.');
     await syncRecoveryTree(metadata); await syncRecoveryDirectory(stage); await syncRecoveryDirectory(root);
   }
   if (await exists(stageStore)) {
