@@ -93,3 +93,12 @@ after legacy cleanup, outer barrier clock scope and a cold probe with conflictin
 inherited dataset settings. Duration assertions check structure and clock-call
 phases without expected timing values. Complete Linux/Windows multi-picker CI
 receipts remain required before landing; that file is not rerun locally.
+
+Owned raw capture admits the complete store, binding and unique referenced base
+file sizes through the shared recovery headroom guard before allocating its
+target, retaining the 64 MiB reserve. Service quarantine retains each owned
+picker's catalogue and sealed closure in a separate `.owned` sidecar directory.
+Release restages and verifies that closure before probing; missing metadata or
+changed dependency pins refuse release. Format-1 capture and quarantine remain
+unchanged. Synthetic checks cover the exact admission boundary, transient probe
+failure, successful quarantine release and missing/corrupt closure dependencies.

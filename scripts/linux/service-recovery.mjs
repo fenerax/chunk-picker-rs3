@@ -123,7 +123,7 @@ async function releaseBytes(settings, picker, row) {
     if (candidate && await exists(candidate)) paths.push(candidate);
   }
   const source = consumed ? `restore ${retained} and ${retained}.dataset.json from an offline copy of the quarantine source matching store digest ${row.quarantineDigest} and binding SHA-256 ${row.quarantineBindingSha256}; ` : '';
-  return actionRequired(`Move ${paths.join(', ') || 'nothing'} aside for inspection; ${source}create ${target} containing only operator-quarantine.json with exactly ${JSON.stringify({ id: picker.id })}; write ${retained}.json containing exactly ${JSON.stringify({ id: picker.id, kind: picker.kind, reason: 'incompatible' })}; recreate ${stage} and write ${journal} containing exactly ${JSON.stringify({ id: picker.id, status: 'pending', releaseIdentity: row.releaseIdentity })}; then rerun quarantine release with the same picker and release.`);
+  return actionRequired(`Move ${paths.join(', ') || 'nothing'} aside for inspection; ${source}create ${target} containing only operator-quarantine.json with exactly ${JSON.stringify({ id: picker.id })}; write ${retained}.json containing exactly ${JSON.stringify({ id: picker.id, kind: picker.kind, reason: 'incompatible', ...(row.ownedFormat2 ? { ownedFormat2: true } : {}) })}; recreate ${stage} and write ${journal} containing exactly ${JSON.stringify({ id: picker.id, status: 'pending', releaseIdentity: row.releaseIdentity })}; then rerun quarantine release with the same picker and release.`);
 }
 const probeInput = async store => ({ digest: await identity(store), binding: await exists(store + '.dataset.json') ? sha(await readFile(store + '.dataset.json')) : null });
 const probeChanged = async (store, before) => encode(await probeInput(store)) !== encode(before);
@@ -248,7 +248,8 @@ async function verifyQuarantined(settings, picker, row) {
   await verifyInstalled(settings, picker, target, row);
   await assertPlaceholder(settings, picker);
   // The record is small fixed metadata; the backup's gameplay bytes cannot repair it.
-  const record = path.join(root, picker.id + '.json'), value = { id: picker.id, kind: picker.kind, reason: 'incompatible' }, expected = encode(value);
+  const record = path.join(root, picker.id + '.json'), value = { id: picker.id, kind: picker.kind, reason: 'incompatible',
+    ...(row.ownedFormat2 ? { ownedFormat2: true } : {}) }, expected = encode(value);
   let current; try { current = encode(await json(record)); } catch {}
   if (current !== expected) throw actionRequired(`Move ${record} aside for inspection and write it containing exactly ${JSON.stringify(value)}; then rerun.`);
 }
@@ -271,6 +272,18 @@ async function quarantine(settings, picker, stageStore, row, save, step) {
     row.status = 'quarantining'; await save('quarantine.intent');
   }
   if (!row.digest) throw unverifiedQuarantine(settings, picker);
+  if (row.ownedFormat2) {
+    // Keep the normalized store-relative closure outside the gameplay tree.
+    // Each rename can resume independently before the temporary stage is gone.
+    const stage = path.dirname(stageStore), metadata = path.join(root, picker.id + '.owned');
+    await mutate(step, 'quarantine.owned-directory', () => directory(metadata));
+    for (const name of ['catalogue', 'owned-closure.json']) if (await exists(path.join(stage, name))) {
+      if (await exists(path.join(metadata, name))) throw actionRequired(`Move ${metadata} aside after checking ${stage}; then rerun.`);
+      await mutate(step, 'quarantine.owned-rename', () => rename(path.join(stage, name), path.join(metadata, name)));
+    }
+    if (!await exists(path.join(metadata, 'owned-closure.json'))) throw new Error('Owned quarantine dependency closure is missing.');
+    await syncRecoveryTree(metadata); await syncRecoveryDirectory(stage); await syncRecoveryDirectory(root);
+  }
   if (await exists(stageStore)) {
     if (await exists(target)) throw actionRequired(`Move ${target} aside after checking ${stageStore}; then rerun.`);
     if (await identity(stageStore) !== row.digest) throw await restoreBytes(settings, picker, row, stageStore);
@@ -287,7 +300,8 @@ async function quarantine(settings, picker, stageStore, row, save, step) {
   if (await exists(original) && (await readdir(original)).length) await assertPlaceholder(settings, picker);
   await mutate(step, 'quarantine.placeholder-directory', () => directory(original));
   await mutate(step, 'quarantine.placeholder', () => atomic(path.join(original, 'operator-quarantine.json'), encode({ id: picker.id })));
-  await mutate(step, 'quarantine.record', () => atomic(path.join(root, picker.id + '.json'), encode({ id: picker.id, kind: picker.kind, reason: 'incompatible' })));
+  await mutate(step, 'quarantine.record', () => atomic(path.join(root, picker.id + '.json'), encode({ id: picker.id, kind: picker.kind, reason: 'incompatible',
+    ...(row.ownedFormat2 ? { ownedFormat2: true } : {}) })));
   await syncRecoveryDirectory(root); await syncRecoveryDirectory(path.dirname(original));
   row.status = 'quarantined'; await save('quarantine.complete');
 }
@@ -416,6 +430,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
       await mutate(step, 'restore.stage-reset', () => rm(stage, { recursive: true, force: true })); await mutate(step, 'restore.stage-directory', () => directory(stage));
       await copyServiceTree(path.join(backup, 'pickers', picker.id), stageStore, step, 'restore.stage-copy');
       if (closure && picker.initialized) await copyOwnedClosure(backup, stage, 'pickers/' + picker.id);
+      if (closure?.stores.some(store => store.path === 'pickers/' + picker.id)) row.ownedFormat2 = true;
       if (picker.binding) await mutate(step, 'restore.stage-copy', () => copyFile(path.join(backup, 'pickers', picker.id + '.dataset.json'), stageStore + '.dataset.json', 1));
     }
     let incompatible = false;
@@ -484,8 +499,10 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
     }
     row.status = 'installed'; await mutate(step, 'release.installed', () => atomic(journal, encode(row)));
     await mutate(step, 'release.remove-quarantine', () => rm(path.join(root, id), { recursive: true, force: true })); await mutate(step, 'release.remove-binding', () => rm(path.join(root, id + '.dataset.json'), { force: true }));
+    if (row.ownedFormat2) await mutate(step, 'release.remove-owned', () => rm(path.join(root, id + '.owned'), { recursive: true, force: true }));
     await mutate(step, 'release.remove-record', () => rm(recordFile, { force: true })); await syncRecoveryDirectory(root);
     for (const name of ['store', 'store.dataset.json', 'portable.json']) await mutate(step, 'release.stage-cleanup', () => rm(path.join(stage, name), { recursive: true, force: true }));
+    if (row.ownedFormat2) for (const name of ['catalogue', 'owned-closure.json']) await mutate(step, 'release.stage-cleanup', () => rm(path.join(stage, name), { recursive: true, force: true }));
     row.status = 'released'; await mutate(step, 'release.complete', () => atomic(journal, encode(row)));
     return { released: id };
   };
@@ -514,6 +531,7 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
   if (row?.status === 'released') throw actionRequired(`Move ${journal} aside after checking quarantine ${path.join(root, id)}; then rerun.`);
   if (!row) row = { id, status: 'pending', releaseIdentity: release.identity };
   if (row.id !== id || row.releaseIdentity !== release.identity) throw new Error('Quarantine release identity changed.');
+  if (record.ownedFormat2) row.ownedFormat2 = true;
   const save = label => mutate(step, label, () => atomic(journal, encode(row)));
   if (row.status === 'installed') return finish(row);
   if (!row.installing) {
@@ -524,6 +542,13 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
     row.quarantineBindingSha256 = sha(await readFile(path.join(root, id + '.dataset.json')));
     await copyServiceTree(path.join(root, id), path.join(stage, 'store'), step, 'release.copy-store');
     await mutate(step, 'release.copy-binding', () => copyFile(path.join(root, id + '.dataset.json'), path.join(stage, 'store.dataset.json'), 1));
+    if (record.ownedFormat2) {
+      const metadata = path.join(root, id + '.owned');
+      if (!await exists(path.join(metadata, 'owned-closure.json'))) throw new Error('Owned quarantine dependency closure is missing; release refused.');
+      for (const name of ['catalogue', 'owned-closure.json']) await mutate(step, 'release.reset-owned', () => rm(path.join(stage, name), { recursive: true, force: true }));
+      await copyOwnedClosure(metadata, stage);
+      await verifyOwnedClosure(stage, ['store']);
+    }
     const before = await probeInput(path.join(stage, 'store'));
     const checked = await probe(release, path.join(stage, 'store'), path.join(stage, 'portable.json'));
     row.probeChanged = await probeChanged(path.join(stage, 'store'), before);
