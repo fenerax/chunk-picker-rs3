@@ -88,16 +88,22 @@ test('owned format-1 inflater acceptance', async t => {
     assert.deepEqual(events.slice(renamed + 1, renamed + 4), [['directory', live(f)], ['directory', stage], ['directory', work]]);
     assert(events.slice(0, sourceIndex).some(row => row[0] === 'directory' && row[1] === path.dirname(f.settings.controlDir)));
   });
-  await t.test('space admission retains the 64 MiB reserve at the exact first-run and resume boundaries', async t => {
+  for (const padded of [false, true]) await t.test(`space admission retains the 64 MiB reserve at the exact first-run and resume boundaries${padded ? ' with padded format-1 JSON' : ''}`, async t => {
     const sum = rows => rows.reduce((total, row) => total + (row.bytes ?? 0), 0), reserve = 64 * 1024 * 1024;
     const withUnchangedFile = async () => {
       const f = await inflaterFixture(t);
       for (const dir of [live(f), f.flatDir]) await writeFile(path.join(dir, 'synthetic-evidence.bin'), Buffer.alloc(64 * 1024, 42));
+      if (padded) {
+        const document = await readFile(path.join(f.flatDir, 'state.json'));
+        const content = Buffer.concat([document, Buffer.alloc(128 * 1024, 32)]);
+        for (const dir of [live(f), f.flatDir]) await writeFile(path.join(dir, 'state.json'), content);
+      }
       return f;
     };
     const low = await withUnchangedFile(), before = await inventory(live(low));
     const sourceBytes = sum(before), outputBytes = sum(await inventory(low.flatDir));
-    const documentBytes = (await readFile(path.join(low.flatDir, 'state.json'))).length;
+    const documentBytes = Buffer.byteLength(JSON.stringify(JSON.parse(await readFile(path.join(low.flatDir, 'state.json')))) + '\n');
+    if (padded) assert(before.find(row => row.path === 'state.json').bytes > documentBytes);
     const probeBytes = outputBytes + documentBytes, initialBytes = sourceBytes + outputBytes + probeBytes;
     await assert.rejects(run({ ...low, statfs: async () => ({ bavail: BigInt(initialBytes + reserve - 1), bsize: 1n }) }), /insufficient free space/);
     await unchanged(low, before);
@@ -108,8 +114,8 @@ test('owned format-1 inflater acceptance', async t => {
     const journal = JSON.parse(await readFile(path.join(resumed.settings.controlDir, 'inflate-owned-format-1/progress.json')));
     const stage = path.join(resumed.settings.controlDir, 'inflate-owned-format-1', journal.stores[0].attempt);
     assert(!(await readdir(stage)).some(name => name.startsWith('probe-')));
-    const rows = await inventory(path.join(stage, 'output')), stateBytes = (await readFile(path.join(stage, 'output/state.json'))).length;
-    const resumeBytes = sum(rows) + stateBytes;
+    const rows = await inventory(path.join(stage, 'output'));
+    const resumeBytes = sum(rows) + documentBytes;
     await assert.rejects(run({ ...resumed, statfs: async () => ({ bavail: BigInt(resumeBytes + reserve - 1), bsize: 1n }) }), /insufficient free space/);
     await unchanged(resumed, original);
     await run({ ...resumed, statfs: async () => ({ bavail: BigInt(resumeBytes + reserve), bsize: 1n }) });
@@ -246,7 +252,10 @@ test('owned format-1 inflater acceptance', async t => {
     }
   });
   for (const seam of ['maintenance', 'journal-created', 'source-staged', 'output-staged', 'frozen-verified', 'store-verified', 'all-verified', 'install-intent', 'before-install', 'install-temporary', 'install-renamed', 'file-installed', 'store-installed', 'complete', 'maintenance-cleared']) await t.test(`process crash at ${seam}, then digest-keyed resume`, async t => {
-    const f = await inflaterFixture(t, { populated: true, second: true }), before = await inventory(live(f));
+    const durability = ['install-renamed', 'file-installed', 'store-installed'].includes(seam);
+    // A single replacement leaves no later rename to incidentally sync the
+    // crashed destination parent. Other crash points retain populated stores.
+    const f = await inflaterFixture(t, { populated: !durability, second: true }), before = await inventory(live(f));
     const config = path.join(f.root, 'config.json'); await writeFile(config, JSON.stringify({ settings: f.settings, ownedFormat2: f.ownedFormat2 }));
     const journal = path.join(f.settings.controlDir, 'inflate-owned-format-1/progress.json');
     const audit = auditInflater(journal, { inspectFailure: fileUsers?.inspect }); t.after(() => audit.restore());
@@ -263,7 +272,39 @@ test('owned format-1 inflater acceptance', async t => {
     if (seam === 'maintenance-cleared') await atomic(journal, await readFile(journal));
     if (!['install-renamed', 'file-installed', 'store-installed', 'complete', 'maintenance-cleared'].includes(seam)) await unchanged(f, before);
     if (seam !== 'maintenance-cleared') assert(await exists(path.join(f.settings.controlDir, 'maintenance.json')));
-    const result = await run(f); assert.equal(result.phase, 'complete');
+    const requiredParents = new Set(), syncedParents = new Set(); let installing = false;
+    if (durability) {
+      const progress = JSON.parse(await readFile(journal)), first = progress.stores[0];
+      const stage = path.join(path.dirname(journal), first.attempt);
+      const originals = new Map((await inventory(path.join(stage, 'source'))).map(row => [row.path, row]));
+      const results = await inventory(path.join(stage, 'output'));
+      const actual = new Map((await inventory(live(f))).map(row => [row.path, row]));
+      assert(results.some(row => !row.directory && row.sha256 !== originals.get(row.path).sha256
+        && row.sha256 === actual.get(row.path).sha256), 'Resume must encounter an already-installed replacement.');
+      for (const store of f.stores) for (const row of results.filter(row => !row.directory)) {
+        for (let parent = path.dirname(path.join(store.dataDir, row.path)); ; parent = path.dirname(parent)) {
+          requiredParents.add(parent);
+          if (path.dirname(parent) === parent) break;
+        }
+      }
+    }
+    const result = await run({ ...f, ...(durability ? {
+      syncDirectory: async root => {
+        await syncRecoveryDirectory(root);
+        if (!installing || !requiredParents.has(root)) return;
+        // Read the journal at the sync seam: observing only the 'complete'
+        // crash callback would miss a sync performed after its journal write.
+        assert.equal(JSON.parse(await readFile(journal)).phase, 'installing');
+        assert(await exists(path.join(f.settings.controlDir, 'maintenance.json')));
+        syncedParents.add(root);
+      },
+      crash: label => {
+        if (label === 'install-intent') installing = true;
+        if (label === 'complete' || label === 'maintenance-cleared') {
+          for (const parent of requiredParents) assert(syncedParents.has(parent), `${label}: destination ancestor not synced: ${parent}`);
+        }
+      }
+    } : {}) }); assert.equal(result.phase, 'complete');
     for (const store of f.stores) assert.deepEqual(await readFile(path.join(store.dataDir, 'state.json')), await readFile(path.join(f.flatDir, 'state.json')));
     assert.equal(await exists(path.join(f.settings.controlDir, 'maintenance.json')), false);
     const completed = audit.snapshot();
