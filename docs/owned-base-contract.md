@@ -39,7 +39,19 @@ and all three dataset pins before returning a frozen base. Other bounds are
 checks precede recursive walks; depth and remaining-node budgets bound each walk
 and its key lists. The builder validates before its one detached copy; the verifier
 freezes its validated parsed tree in place. Callers/tests may lower these limits,
-never raise them. Special files, file changes, missing or corrupt bases refuse
+never raise them.
+
+**Trust boundary for parse cost.** The verifier hashes the bytes and compares
+them with the manifest pin *before* `JSON.parse`. Only `buildOwnedBase` produces
+pins, and it enforces every structural budget before emitting bytes. So any
+document that reaches the native parser is byte-identical to a budgeted builder
+output. The post-parse structural checks are defense in depth. They do not bound
+the parser's heap on their own: `JSON.parse` and `for…in` key enumeration
+allocate in proportion to the input before those checks run. Code that
+lets a less-trusted party supply a pin or manifest must first add a bounded
+structural preflight before native parsing.
+
+Special files, file changes, missing or corrupt bases refuse
 with an exact-base repair diagnostic; nothing is rewritten
 or repaired. There is no cache, publication, repair, lease or collection policy
 in these helpers. Later storage slices own those operations and their fsyncs.
