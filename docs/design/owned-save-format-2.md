@@ -20,12 +20,15 @@ The supplied 15 MB/96% split is **unverified**. Historical measurements describe
 different, much larger migration-heavy state (`docs/backup-import.md:70`); they
 cannot establish today's synthetic footprint. Do not size heap from JSON bytes.
 
-Choose a **lighter resident catalogue view**, backed by one immutable shared base
-and sparse group edits. Full hydration preserves today's object shape but retains
-large per-group dictionaries, indexes and cached JSON after a generated tick.
-Sharing only the disk blobs does not solve that heap cost (**Inferred**).
-Preserve logical state and History/Undo semantics; change their catalogue access,
-validation and transport implementations explicitly.
+Choose **sparse identity dictionaries over one immutable shared base**, retaining
+flat task arrays and today's History/Undo semantics. The [memory spike](../perf/format2-memory-spike.md)
+compared format 1 (A), flat sharing (B) and sparse identities (C). **Verified:**
+[`format2-memory-spike.yml`](../../.github/workflows/format2-memory-spike.yml),
+[CI run 42812885144](https://github.com/fenerax/chunk-picker-rs3/actions/runs/42812885144)
+ran five fresh comparisons on each of Ubuntu and Windows: only C met the 5 MiB
+target, 10/10 runs (about 2.9 MiB/group p50, max ≤3.36 MiB); final logical-state
+and ordered History hashes matched across all variants/runs. The full layered
+`CatalogueView` is not justified. Full server contexts remain a slice-7 gate.
 
 ## Disk representation
 
@@ -73,39 +76,42 @@ from validated hashes, never supplied by a save.
 
 ## Resident state and contracts
 
-Introduce `CatalogueView`: task lookup/ordered iteration/index, identity lookup/
-alias resolution, immutable edits, and explicit inflate/deflate. Flat and layered
-adapters share these semantics. Storage owns base discovery, integrity and sparse
-encoding; callers never manage dependencies themselves. Inject filesystem and
-release-input edges for recovery tests.
+Use immutable sparse identity entry/alias dictionaries over the shared base;
+preserve lookup, alias candidate order and logical key enumeration. Keep ordinary
+flat task arrays and core's existing task indexes. Storage owns base discovery,
+integrity and sparse encoding. Inject filesystem/release-input edges for tests.
+The spike's Proxy is throwaway, not a production interface.
 
-Owned core execution receives group payload plus this view, **not** today's fully
-hydrated JSON object. Adapt state validation, generated registration, History,
-Undo and calculator inputs to the view; do not use JavaScript proxies or pretend
-`structuredClone` understands it. Existing clone-based validation is explicit
-(`app/core/state.mjs:652`); frozen-field validation reuse already has an opaque
-cache boundary (`app/core/state.mjs:671`). Validate shared base schema once per
-verified hash, then every group reference, assignment, overlay and Undo invariant.
-Untrusted imports still cross complete logical validation.
+Make clone boundaries explicit in slice 2. Read-only validation, archive hydration
+and unchanged command snapshots may share a group's immutable identity view and
+frozen base rows/entries/alias arrays. Clone group payload and History/events at
+those boundaries. On catalogue edits, copy the flat task array and touched row;
+on identity registration/alias edits, create a new sparse dictionary version and
+copy only touched entries/alias arrays. Earlier snapshots and other groups must
+remain unchanged; never spread a full identity dictionary. Audit every whole-state
+`structuredClone`/JSON clone, including validation (`app/core/state.mjs:652`),
+Undo and hooks; explicitly materialize detached flat JSON for portable import/
+export/rollback and callers requiring it, then release those bounded working trees.
 
-Undo must observe identical row JSON and indices (`app/core/state.mjs:574`).
-Keep original event bytes/order, including archived events. Sparse edits copy
-only touched rows/identity entries; no spread of the shared identity dictionaries.
-Full JSON inflation is limited to bounded export/import/rollback jobs and caller
-hooks requiring flat objects; release those working trees afterward.
+Validate the shared base once per verified hash, then each group's complete logical
+state and Undo invariants; sharing must not skip validation. Untrusted imports
+cross complete logical validation. Preserve **History/Undo exact-preimage**
+semantics unchanged: identical row JSON, indices, guards and event bytes/order,
+including archived events (`app/core/state.mjs:574`). No new History representation.
 
-One parsed frozen base, lookup indexes and serialized base encoding per digest
-per isolate; no per-group catalogue-sized Map/Set/string caches. Per-group hot
+One parsed frozen base and shared base encoding per digest per isolate. Flat task
+arrays/indexes remain per-group; identity lookup/key indexes are shared, with no
+per-group full identity Map/Set/string caches. Per-group hot
 History stays bounded through archives without discarding events. Calculators
 remain pooled independently of open group handles. **Inferred budget:** about
-5 MiB retained heap/group, including views/caches; 15 MiB is a rejection threshold,
+5 MiB retained heap/group, including dictionaries/caches; 15 MiB is a rejection threshold,
 not permission to evict groups during the acceptance test. This is unproven until
-the 50-group test passes. Flat hydration alone is not an acceptable fallback.
+the complete 50-group server-context test passes.
 
 Coordinate with the separate `prepared()` fast-path work
 (`app/storage/store.mjs:656`, `app/game-profile.mjs:60`, `app/server.mjs:464`).
 Consume its resulting hook contract without replacing it. Migration currency
-must count the complete logical task view, not delta rows: today's check requires
+must count the complete flat task array, not delta rows: today's check requires
 every catalogue ID (`app/server.mjs:317`). A digest stamp alone proves neither
 membership nor valid migration.
 
@@ -257,7 +263,7 @@ excluding fixtures. Each row is a separate PR; activation waits for slices 1–7
 | PR | Size | Deliverable and contracts touched |
 | --- | --- | --- |
 | 1 | M, 250–450 | Deterministic base builder, pins, bounded verifier; dataset identity/storage schema. No writer enablement. |
-| 2 | L, 600–900 | Flat/layered CatalogueView and differential state validation/command/History/Undo tests; core semantics. |
+| 2 | M–L, 350–650 | Sparse identity dictionaries, touched-entry edits and explicit clone/materialization boundaries; flat task arrays; differential validation/command/History/Undo tests preserving exact preimages. |
 | 3 | M, 300–500 | Owned codec, sparse writes, preimages and crash seams; storage publication/receipts and prepared-hook integration. Flag off. |
 | 4 | L, 550–850 | Backup/capture/off-site closure and restore/verifiers; snapshot barriers, manifests, deletion recovery. |
 | 5 | M, 300–500 | Lossless rebase and explicit dataset-upgrade staging; binding/migration/Undo contracts. |
