@@ -4,7 +4,7 @@ import { publishFile } from './publication.mjs';
 
 // Dependencies (backups, sidecars, archives and lock records) must be durable
 // before later writes can reference them or remove their previous source.
-export async function atomicWrite(file, contents, { beforeRename, onPostPublishSyncError = 'throw' } = {}) {
+export async function atomicWrite(file, contents, { beforeRename, afterRename, afterDirectorySync, onPostPublishSyncError = 'throw' } = {}) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
@@ -14,7 +14,7 @@ export async function atomicWrite(file, contents, { beforeRename, onPostPublishS
     await handle.close();
     handle = undefined;
     if (beforeRename) await beforeRename();
-    return await publishFile(temporary, file, { onPostPublishSyncError });
+    return await publishFile(temporary, file, { onPostPublishSyncError, afterRename, afterDirectorySync });
   } catch (error) {
     if (handle) await handle.close().catch(() => {});
     await unlink(temporary).catch(() => {});

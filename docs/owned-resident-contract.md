@@ -50,9 +50,9 @@ versions. Hooks, workers, raw snapshots and portable import/export/rollback
 callers requiring flat JSON must materialize, validate where applicable and
 release their bounded working trees. Never structuredClone a resident dictionary.
 
-Slice 3 must adopt these boundaries at store preparation, archive hydration,
-getState/response, hook and publication seams, alongside the codec/preimages.
-This slice does not enable those seams or write storage-2 metadata. Base caching
-by verified hash, backup closure, rebase, rollback, calculator transport, residency
-acceptance, browser negotiation and collection remain later slices. No heap or
-50-group acceptance claim follows from these small deterministic fixtures.
+The default-off [slice-3 codec](owned-codec-contract.md) adopts these boundaries
+at store preparation, archive hydration, getState/response, hook and publication
+seams. It enables no production writer. Backup closure, rebase, rollback,
+calculator transport, residency acceptance, browser negotiation and collection
+remain later slices. No heap or 50-group acceptance claim follows from these
+small deterministic fixtures.
