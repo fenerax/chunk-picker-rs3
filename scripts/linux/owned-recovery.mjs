@@ -11,6 +11,7 @@ import { readStaticFieldBytes } from '../../app/storage/static-field.mjs';
 import { atomic, copyTree, encode, exists, inventory, json, noLinks, outside, headroom } from './files.mjs';
 import { SNAPSHOT_EXCLUSIONS } from '../../app/storage/store-identity-policy.mjs';
 import { capturePluginItemFiles, pluginItemFiles } from '../../app/storage/plugin-item-snapshot.mjs';
+import { hasOwnedStorage } from '../../app/storage/owned-detection.mjs';
 
 const marker = 'owned-closure.json', limit = 256 * 1024 * 1024;
 const baseName = pin => `catalogue-${pin.sha256}.json.gz`;
@@ -50,7 +51,7 @@ export async function ownedRecoveryOptions(dataDir, explicit) {
   const live = ownedArtifactSource(dataDir);
   if (live) return live.readerOptions;
   const root = path.dirname(dataDir);
-  if (!await exists(path.join(root, marker))) return undefined;
+  if (!await exists(path.join(root, marker)) || !await hasOwnedStorage(path.join(dataDir, 'state.json'))) return undefined;
   const closure = await json(path.join(root, marker)), saved = await document(path.join(dataDir, 'state.json'));
   if (saved.storage?.schemaVersion !== 2) return undefined;
   const pin = pinFor(closure.manifest, saved.storage.base);
@@ -60,7 +61,9 @@ export async function ownedRecoveryOptions(dataDir, explicit) {
 export async function recoverySources(dataDirs, explicit) {
   return Promise.all(dataDirs.map(async dataDir => {
     const options = await ownedRecoveryOptions(dataDir, explicit);
-    return options ? { dataDir, options, storage: ownedArtifactSource(dataDir) ?? createOwnedStorage(options, dataDir) } : null;
+    if (!options) return null;
+    const storage = ownedArtifactSource(dataDir) ?? createOwnedStorage(options, dataDir);
+    return { dataDir, options, storage, validate: options.validateCapture ?? storage.validateCapture };
   }));
 }
 // Acquire only AFTER draining group writers, otherwise a drained writer could
@@ -88,16 +91,29 @@ async function checkDocument(saved, store, manifest, catalogueRoot, pins) {
     const segment = await document(path.join(store, 'history', reference.id));
     if (segment.format !== 'rs3-chunk-picker-history' || !Array.isArray(segment.events)) throw new Error('Invalid recovery History segment.');
   }
+  return state;
 }
-export async function captureOwnedClosure(root, stores, sources, { step = async () => {} } = {}) {
+// Decoding only: release-scoped probes supply the existing semantic validators.
+export async function* ownedRecoveryStates(store, options) {
+  for await (const saved of documents(store)) yield { saved,
+    state: await checkDocument(saved, store, options.manifest, options.catalogueRoot, new Map()) };
+}
+async function dependencyFiles(root, stores) {
+  return (await inventory(root)).filter(row => !row.directory && (row.path.startsWith('catalogue/')
+    || stores.some(store => row.path.startsWith(store + '/') || row.path === store + '.dataset.json')));
+}
+export async function captureOwnedClosure(root, stores, sources, { step = async () => {}, validate } = {}) {
   const pins = new Map(), rows = [];
   for (const [index, relative] of stores.entries()) {
     const source = sources[index], store = path.join(root, relative);
-    for await (const saved of documents(store)) {
-      if (saved.storage?.schemaVersion === 2 && !source) throw new Error('Owned recovery requires the pinned catalogue source.');
-      if (source) await checkDocument(saved, store, source.options.manifest, source.options.catalogueRoot, pins);
+    if (!source) {
+      if (await hasOwnedStorage(path.join(store, 'state.json'))) throw new Error('Owned recovery requires the pinned catalogue source.');
+      continue;
     }
-    if (source) rows.push({ path: relative, pickerId: source.options.pickerId });
+    for await (const saved of documents(store)) {
+      await checkDocument(saved, store, source.options.manifest, source.options.catalogueRoot, pins);
+    }
+    rows.push({ path: relative, pickerId: source.options.pickerId });
   }
   if (!pins.size) return false;
   await mkdir(path.join(root, 'catalogue'), { mode: 0o700 });
@@ -111,7 +127,20 @@ export async function captureOwnedClosure(root, stores, sources, { step = async 
   await syncRecoveryTree(root);
   await step('capture.owned-dependencies-durable');
   await step('capture.owned-manifest');
-  await atomic(path.join(root, marker), encode({ schemaVersion: 1, stores: rows, manifest: createOwnedBaseManifest([...pins.values()]) }));
+  const closure = { schemaVersion: 1, validated: false, stores: rows, manifest: createOwnedBaseManifest([...pins.values()]),
+    files: await dependencyFiles(root, rows.map(row => row.path)) };
+  await atomic(path.join(root, marker), encode(closure));
+  for (const row of rows) {
+    const source = sources[stores.indexOf(row.path)], probe = validate ?? source.validate;
+    if (typeof probe !== 'function') throw new Error('Owned capture requires a release-scoped validation probe.');
+    await step('capture.owned-probe');
+    await probe(path.join(root, row.path), { ...source.options, catalogueRoot: path.join(root, 'catalogue'), manifest: closure.manifest });
+  }
+  // The probe may use a scratch copy, but it may never bless changed inputs.
+  // Recheck the original pins after validation, before any completion record.
+  await step('capture.owned-validated');
+  if (encode(closure.files) !== encode(await dependencyFiles(root, rows.map(row => row.path)))) throw new Error('Owned dependency hash or size mismatch after validation.');
+  await atomic(path.join(root, marker), encode({ ...closure, validated: true }));
   await verifyOwnedClosure(root, stores);
   return true;
 }
@@ -119,26 +148,32 @@ export async function verifyOwnedClosure(root, stores) {
   const present = await exists(path.join(root, marker));
   if (!present) {
     for (const store of stores) {
-      // Preserve format-1 verifier behavior even for opaque old state bytes.
-      let saved; try { saved = await document(path.join(root, store, 'state.json')); } catch { continue; }
-      if (saved.storage?.schemaVersion === 2) throw new Error('Owned recovery dependency closure is missing.');
+      if (await hasOwnedStorage(path.join(root, store, 'state.json'))) throw new Error('Owned recovery dependency closure is missing.');
     }
     return null;
   }
   await noLinks(path.join(root, marker));
   const closure = await json(path.join(root, marker));
-  if (closure.schemaVersion !== 1 || !Array.isArray(closure.stores)
+  if (closure.schemaVersion !== 1 || closure.validated !== true || !Array.isArray(closure.stores)
     || closure.stores.some(row => !stores.includes(row.path) || typeof row.pickerId !== 'string' || row.pickerId === 'legacy-shared')
     || new Set(closure.stores.map(row => row.path)).size !== closure.stores.length) throw new Error('Invalid owned closure manifest.');
+  if (!Array.isArray(closure.files) || encode(closure.files) !== encode(await dependencyFiles(root, closure.stores.map(row => row.path)))) {
+    throw new Error('Owned dependency hash or size mismatch.');
+  }
   if (await exists(path.join(root, 'manifest.json'))) {
     const manifest = await json(path.join(root, 'manifest.json'));
     if (manifest.format === 'picker-owned-capture-v1' && encode(manifest.files) !== encode((await inventory(root))
       .filter(row => !['manifest.json', 'complete.json'].includes(row.path)))) throw new Error('Owned capture manifest differs.');
   }
   const pins = new Map();
-  for (const relative of stores) for await (const saved of documents(path.join(root, relative))) {
-    if (saved.storage?.schemaVersion === 2 && !closure.stores.some(row => row.path === relative)) throw new Error('Owned store missing from closure.');
-    await checkDocument(saved, path.join(root, relative), closure.manifest, path.join(root, 'catalogue'), pins);
+  for (const relative of stores) {
+    if (!closure.stores.some(row => row.path === relative)) {
+      if (await hasOwnedStorage(path.join(root, relative, 'state.json'))) throw new Error('Owned store missing from closure.');
+      continue;
+    }
+    for await (const saved of documents(path.join(root, relative))) {
+      await checkDocument(saved, path.join(root, relative), closure.manifest, path.join(root, 'catalogue'), pins);
+    }
   }
   for (const pin of Object.values(closure.manifest.bases)) {
     await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, { dataset: pin.dataset, manifest: closure.manifest });
@@ -151,6 +186,8 @@ export async function copyOwnedClosure(source, target, store) {
   if (store) {
     const closure = await json(path.join(source, marker));
     closure.stores = closure.stores.filter(row => row.path === store).map(row => ({ ...row, path: 'store' }));
+    closure.files = closure.files.filter(row => row.path.startsWith('catalogue/') || row.path.startsWith(store + '/') || row.path === store + '.dataset.json')
+      .map(row => ({ ...row, path: row.path.startsWith('catalogue/') ? row.path : 'store' + row.path.slice(store.length) }));
     await atomic(path.join(target, marker), encode(closure));
   } else await copyFile(path.join(source, marker), path.join(target, marker), 1);
 }

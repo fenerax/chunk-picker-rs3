@@ -113,6 +113,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   const directory = path.resolve(dataDir);
   const ownedStorage = ownedFormat2 === false ? undefined : createOwnedStorage(ownedFormat2, directory, { readOnly });
+  if (ownedStorage) ownedStorage.validateCapture = async (dataDir, options) => {
+    const { validateOwnedHistory } = await import('../../scripts/linux/probe.mjs');
+    await validateOwnedHistory(dataDir, options, { importBackup: document => importBackup(document, registry), cancelTaskClaimUndo });
+  };
   if (ownedStorage && completionCodec) throw new TypeError('Owned format 2 requires the schema-1 envelope (completionCodec off).');
   // Select adapters once. Format 1 retains its existing serialization loops.
   const copyState = ownedStorage ? materializeResidentState : structuredClone;

@@ -108,7 +108,7 @@ async function checkpointBinding(source) {
 }
 const captures = new WeakSet();
 export async function captureServiceCheckpoint({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = settings.minFreeBytes ?? 67108864,
-  onPhase = async () => {}, spaceCheck = headroom, step = async label => {}, ownedFormat2 = false }) {
+  onPhase = async () => {}, spaceCheck = headroom, step = async label => {}, ownedFormat2 = false, ownedBarrierNow = () => performance.now(), validateOwnedCapture }) {
   validateServicePaths(settings);
   const target = snapshotPath(settings.dataDir, id);
   if (captures.has(registry)) throw Object.assign(new Error('A service backup is already running.'), { status: 503 });
@@ -143,6 +143,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
     const sources = await Promise.all(manifestPickers.map(async picker => (await recoverySources([pickerPath(settings, picker)],
       ownedFormat2 && picker.kind !== 'legacy-shared' ? { ...ownedFormat2, pickerId: picker.id } : false))[0]));
     const owned = sources.some(Boolean);
+    let ownedBarrierStarted;
     const capture = async () => {
     await onPhase('manifest', { pickerCount: manifestPickers.length });
     await mutate('capture.spool', () => directory(snapshotRoot(settings.dataDir)));
@@ -219,7 +220,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
     await mutate('capture.registry', () => writeFile(path.join(target, 'registry.json'), encode(document), { flag: 'wx', mode: 0o600 }));
     const retained = manifestPickers.filter(p => !p.absent && p.initialized);
     const closed = owned && await captureOwnedClosure(target, retained.map(p => 'pickers/' + p.id),
-      retained.map(p => sources[manifestPickers.indexOf(p)]), { step });
+      retained.map(p => sources[manifestPickers.indexOf(p)]), { step, validate: validateOwnedCapture });
     if (!owned) await verifyOwnedClosure(target, retained.map(p => 'pickers/' + p.id));
     await syncRecoveryTree(target);
     const files = await inventory(target);
@@ -229,11 +230,16 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
       waitedRequests: timing.waitedRequests, maxRequestWaitMs: timing.maxRequestWaitMs, totalRequestWaitMs: timing.totalRequestWaitMs };
     await mutate('capture.manifest', () => atomic(path.join(target, 'manifest.json'), encode({ format: serviceFormat, pickers: manifestPickers, inputs: pins, files,
       ...(closed ? { snapshotAt: new Date().toISOString() } : {}) })));
-    await mutate('capture.complete', () => atomic(path.join(target, 'complete.json'), encode(result)));
+    await mutate('capture.complete', () => {
+      if (owned) result.heldMs = ownedBarrierNow() - ownedBarrierStarted;
+      return atomic(path.join(target, 'complete.json'), encode(result));
+    });
     return result;
     };
-    return await (owned ? withDirectoryBarriers(manifestPickers.map(picker => pickerPath(settings, picker)),
-      () => withRecoveryLeases(sources, capture)) : capture());
+    if (!owned) return await capture();
+    ownedBarrierStarted = ownedBarrierNow();
+    return await withDirectoryBarriers(manifestPickers.map(picker => pickerPath(settings, picker)),
+      () => withRecoveryLeases(sources, capture));
   } catch (error) { if (created && !interrupted) await mutate('capture.failed-cleanup', () => rm(target, { recursive: true, force: true })); throw error; }
   finally { captures.delete(registry); }
 }

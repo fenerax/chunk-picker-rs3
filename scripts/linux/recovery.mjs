@@ -55,11 +55,13 @@ export async function backupStopped({ dataDir, backupDir, scratchRoot, release, 
   const capture = async () => {
   try {
     await snapshot(dataDir, path.join(stage, 'store'));
-    if (sources.some(Boolean)) await captureOwnedClosure(stage, ['store'], sources);
-    else await verifyOwnedClosure(stage, ['store']);
-    await snapshot(path.join(stage, 'store'), path.join(scratch, 'store'));
-    await copyOwnedClosure(stage, scratch);
-    await probe(release, path.join(scratch, 'store'), path.join(stage, 'portable.json'));
+    const probeCopy = async () => {
+      await snapshot(path.join(stage, 'store'), path.join(scratch, 'store'));
+      await copyOwnedClosure(stage, scratch);
+      await probe(release, path.join(scratch, 'store'), path.join(stage, 'portable.json'));
+    };
+    if (sources.some(Boolean)) await captureOwnedClosure(stage, ['store'], sources, { validate: probeCopy });
+    else { await verifyOwnedClosure(stage, ['store']); await probeCopy(); }
     await assertSameRelease(release);
     if (encode(before) !== encode(await storeIdentity(dataDir))) throw new Error('Stopped store changed during backup.');
     const files = await inventory(stage);

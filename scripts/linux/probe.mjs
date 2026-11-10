@@ -7,19 +7,43 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openApplication, runtimeEnvironment } from './runtime.mjs';
 import { probe as packProbe } from '../private-companion/release-pack-check.mjs';
 import { encode, json } from './files.mjs';
-import { ownedRecoveryOptions } from './owned-recovery.mjs';
+import { ownedRecoveryOptions, ownedRecoveryStates } from './owned-recovery.mjs';
+import { readHistoryEvents } from '../../app/storage/history-reader.mjs';
+
+const stateValidators = config => import(pathToFileURL(path.join(config.coreRoot, 'app/core/state.mjs')).href);
+
+// Also used by live capture with its already-loaded release validators. No
+// release context or executable imports are added to detached verification.
+export async function validateOwnedHistory(dataDir, options, { importBackup, cancelTaskClaimUndo }) {
+  for await (const { saved, state } of ownedRecoveryStates(dataDir, options)) {
+    const events = new Map();
+    for (const reference of state.provenance?.historyArchive ?? []) {
+      for await (const event of readHistoryEvents(path.join(dataDir, 'history', reference.id))) events.set(event.revision, event);
+    }
+    for (const event of state.history) events.set(event.revision, event);
+    const complete = { ...state, history: [...events.values()].sort((a, b) => a.revision - b.revision), provenance: { ...state.provenance } };
+    delete complete.provenance.historyArchive;
+    for (const [id, through] of Object.entries(saved.coordination?.invalidatedUndo ?? {})) cancelTaskClaimUndo(complete, [id], through);
+    importBackup({ format: saved.format, schemaVersion: saved.schemaVersion, state: complete });
+  }
+}
 
 export async function probe(config, dataDir, output) {
   const ownedFormat2 = await ownedRecoveryOptions(dataDir);
   let app;
   if (ownedFormat2) {
+    const environment = runtimeEnvironment(config, { probe: true });
+    for (const key of Object.keys(process.env)) if (/^RS3_|^NODE_(?:OPTIONS|PATH)$/.test(key)) delete process.env[key];
+    Object.assign(process.env, environment);
+    const validators = await stateValidators(config);
+    await validateOwnedHistory(dataDir, ownedFormat2, validators);
     const { openStore } = await import(pathToFileURL(path.join(config.coreRoot, 'app/storage/store.mjs')).href);
     const store = await openStore({ dataDir, ownedFormat2, retention: false });
     app = { store, close: () => store.close() };
   } else app = await openApplication(config, dataDir, { probe: true });
   try {
     const document = await app.store.backup();
-    const { importBackup } = await import(pathToFileURL(path.join(config.coreRoot, 'app/core/state.mjs')).href);
+    const { importBackup } = await stateValidators(config);
     importBackup(document);
     if (document.format !== 'rs3-chunk-picker' || !document.state?.members?.length) throw new Error('Full portable backup required.');
     await writeFile(output, encode(document), { flag: 'wx', mode: 0o600 });

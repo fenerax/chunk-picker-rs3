@@ -5,23 +5,25 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { openStore } from '../app/storage/store.mjs';
 import { ownedCodec } from '../app/storage/owned-codec.mjs';
 import { snapshotStore, snapshotPath, storeWriteBlocked } from '../app/storage/snapshot.mjs';
+import { hasOwnedStorage } from '../app/storage/owned-detection.mjs';
 import { fixture, options, commands, world, taskCatalogue, now } from './helpers/owned-format2-fixture.mjs';
 import { atomic, encode, exists, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { backupStopped, restoreStopped, verifyBackup } from '../scripts/linux/recovery.mjs';
 import { captureOwnedClosure, verifyOwnedClosure, ownedRecoveryOptions, recoverySources } from '../scripts/linux/owned-recovery.mjs';
 import { captureOnline } from '../scripts/linux/online.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
-import { openRegistry } from '../app/storage/registry.mjs';
+import { openRegistry, registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { captureServiceCheckpoint, publishServiceBackup, verifyServiceBackup } from '../scripts/linux/service-checkpoint.mjs';
 import { restoreServiceStopped } from '../scripts/linux/service-recovery.mjs';
 import { offhostBackup } from '../scripts/linux/offhost-backup.mjs';
-import { createGroupState } from '../app/core/state.mjs';
+import { createGroupState, importBackup, cancelTaskClaimUndo } from '../app/core/state.mjs';
+import { validateOwnedHistory } from '../scripts/linux/probe.mjs';
 
 const id = '00000000-0000-4000-8000-000000000001';
 const handles = new Map();
@@ -37,6 +39,7 @@ async function setup(t) {
     await rm(root, { recursive: true, force: true });
   });
   const dataDir = path.join(root, 'game'), owned = options(path.join(root, 'catalogue'));
+  owned.validateCapture = (dir, options) => validateOwnedHistory(dir, options, { importBackup, cancelTaskClaimUndo });
   const settings = { dataDir, backupDir: path.join(root, 'backups'), scratchRoot: path.join(root, 'scratch'),
     controlDir: path.join(root, 'control'), current: path.join(root, 'current.json'), minFreeBytes: 0 };
   await mkdir(settings.controlDir);
@@ -47,6 +50,7 @@ async function setup(t) {
   const release = await readRelease(settings.current, dataDir);
   const probe = async (_release, dir, output) => {
     const source = await ownedRecoveryOptions(dir);
+    if (source) await validateOwnedHistory(dir, source, { importBackup, cancelTaskClaimUndo });
     const store = await opened(dir, source ?? false);
     try { const backup = await store.backup(); await writeFile(output, encode(backup)); return backup; }
     finally { await store.close(); }
@@ -192,6 +196,79 @@ test('verifier refuses missing/corrupt bases, static and History dependencies ev
     await atomic(path.join(backup.target, 'manifest.json'), encode({ ...manifest, files: (await inventory(backup.target)).filter(row => row.path !== 'manifest.json') }));
   }
 });
+test('release-scoped probe refuses null History and invalid event invariants before capture completion', async t => {
+  const f = await setup(t); await populate(f);
+  const relative = (await inventory(f.dataDir)).find(row => row.path.startsWith('history/') && !row.directory).path;
+  const original = JSON.parse(gunzipSync(await readFile(path.join(f.dataDir, relative))));
+  const config = path.join(f.root, 'probe-config.json'), output = path.join(f.root, 'refused-portable.json');
+  await writeFile(config, encode({ coreRoot: fileURLToPath(new URL('../', import.meta.url)), datasetId: 'open-f2p' }));
+  let probes = 0;
+  const validateCapture = async dir => {
+    probes++;
+    execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/linux/probe.mjs', import.meta.url)), config, dir, output],
+      { stdio: 'pipe', windowsHide: true });
+  };
+  for (const events of [[null], [{ ...original.events[0], id: 'synthetic-invalid-event' }]]) {
+    const bytes = gzipSync(encode({ ...original, events }));
+    await writeFile(path.join(f.dataDir, relative), bytes);
+    await assert.rejects(snapshotStore(f.dataDir, id, { ownedFormat2: { ...f.owned, validateCapture } }), /Recovery probe refused/);
+    assert.equal(await exists(snapshotPath(f.dataDir, id)), false);
+    assert.equal(await exists(output), false);
+    assert.equal(storeWriteBlocked(f.dataDir), false);
+  }
+  assert.equal(probes, 2);
+});
+test('detached verification refuses changed History bytes against capture-time pins', async t => {
+  const f = await setup(t); await populate(f);
+  const backup = await backupStopped({ ...f.settings, release: f.release, probe: f.probe, ownedFormat2: f.owned });
+  const closure = await json(path.join(backup.target, 'owned-closure.json'));
+  assert.equal(closure.validated, true);
+  const pin = closure.files.find(row => row.path.startsWith('store/history/'));
+  assert(pin); assert(closure.files.some(row => row.path.startsWith('catalogue/')));
+  assert.deepEqual(closure.files, (await inventory(backup.target)).filter(row => !row.directory
+    && (row.path.startsWith('store/') || row.path === 'store.dataset.json' || row.path.startsWith('catalogue/'))));
+  for (const row of closure.files) { assert(Number.isSafeInteger(row.bytes)); assert.match(row.sha256, /^[a-f0-9]{64}$/); }
+  const file = path.join(backup.target, pin.path), bytes = await readFile(file);
+  assert.equal(pin.sha256, sha(bytes)); assert.equal(pin.bytes, bytes.length);
+  const segment = JSON.parse(gunzipSync(bytes)); segment.events[0].at = '2026-01-02T00:00:00.000Z';
+  await writeFile(file, gzipSync(encode(segment)));
+  // Rehash the outer transport inventory: the independent validation pins must
+  // still refuse the changed segment, without loading any release validators.
+  const manifest = await json(path.join(backup.target, 'manifest.json'));
+  await atomic(path.join(backup.target, 'manifest.json'), encode({ ...manifest,
+    files: (await inventory(backup.target)).filter(row => row.path !== 'manifest.json') }));
+  await assert.rejects(verifyOwnedClosure(backup.target, ['store']), /dependency hash or size mismatch/);
+  await assert.rejects(verifyBackup(backup.target), /dependency hash or size mismatch/);
+});
+test('owned capture refuses dependency changes after the release probe passes', async t => {
+  const f = await setup(t), store = await opened(f.dataDir, f.owned); await f.bind(f.dataDir);
+  const source = await inventory(f.dataDir);
+  await assert.rejects(snapshotStore(f.dataDir, id, { step: async label => {
+    if (label === 'capture.owned-validated') {
+      const file = path.join(snapshotPath(f.dataDir, id), 'store', 'state.json');
+      await writeFile(file, (await readFile(file, 'utf8')) + '\n');
+    }
+  } }), /dependency hash or size mismatch after validation/);
+  assert.equal(await exists(snapshotPath(f.dataDir, id)), false);
+  assert.deepEqual(await inventory(f.dataDir), source);
+  await store.close();
+});
+test('owned probe applies the release dataset before a cold store import', async t => {
+  const f = await setup(t), store = await opened(f.dataDir, f.owned);
+  const expected = await store.backup(); await f.bind(f.dataDir);
+  await snapshotStore(f.dataDir, id); await store.close();
+  const config = path.join(f.root, 'probe-config.json'), output = path.join(f.root, 'portable.json');
+  await writeFile(config, encode({ coreRoot: fileURLToPath(new URL('../', import.meta.url)), datasetId: 'open-f2p' }));
+  const previous = process.env.RS3_DATASET;
+  try {
+    process.env.RS3_DATASET = 'synthetic-conflicting-dataset';
+    execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/linux/probe.mjs', import.meta.url)), config,
+      path.join(snapshotPath(f.dataDir, id), 'store'), output], { stdio: 'pipe', windowsHide: true });
+    sameLogical(await json(output), expected);
+  } finally {
+    if (previous === undefined) delete process.env.RS3_DATASET; else process.env.RS3_DATASET = previous;
+  }
+});
 test('interrupted closure never publishes complete or replaces an existing capture', async t => {
   const f = await setup(t), store = await opened(f.dataDir, f.owned); t.after(() => store.close()); await f.bind(f.dataDir);
   for (const fail of ['capture.owned-base', 'capture.owned-dependencies-durable', 'capture.owned-manifest', 'capture.owned-complete']) {
@@ -211,7 +288,7 @@ test('raw owned restore refuses without a live deletion authority or when that a
   await assert.rejects(restoreStopped({ ...args, assertRestoreAllowed: async () => { throw new Error('Synthetic tombstone'); } }), /Synthetic tombstone/);
   assert.equal(await exists(target), false);
 });
-test('service restore retains the live tombstones, excludes deleted scopes and installs bases first', async t => {
+test('service restore resumes after legacy cleanup, retains tombstones and installs bases first', async t => {
   const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
   await mkdir(f.dataDir);
   const registry = await openRegistry({ ...multiPicker, legacyDir: f.dataDir }); t.after(() => registry.close());
@@ -227,8 +304,23 @@ test('service restore retains the live tombstones, excludes deleted scopes and i
     await store.command(commands.at(-1), 0); expected.set(picker.id, await store.backup()); await store.close(); await f.bind(dir);
   }
   const settings = { ...f.settings, multiPicker };
-  await captureServiceCheckpoint({ settings, registry, id, ownedFormat2: f.owned, spaceCheck: async () => {} });
+  const clockReads = [], steps = [];
+  const capture = await captureServiceCheckpoint({ settings, registry, id, ownedFormat2: f.owned, spaceCheck: async () => {},
+    step: async label => { steps.push(label); }, ownedBarrierNow: () => {
+      clockReads.push({ phase: steps.at(-1), blocked: [legacy, live, deleted].map(p => storeWriteBlocked(registry.pickerDirectory(p.id))) });
+      return performance.now();
+    } });
   const source = snapshotPath(f.dataDir, id); t.after(() => rm(path.dirname(source), { recursive: true, force: true }));
+  assert.deepEqual(clockReads, [{ phase: undefined, blocked: [false, false, false] },
+    { phase: 'capture.complete', blocked: [true, true, true] }]);
+  const complete = await json(path.join(source, 'complete.json'));
+  assert.deepEqual(Object.keys(capture), Object.keys(complete));
+  for (const record of [capture, complete]) {
+    assert(Object.hasOwn(record, 'heldMs')); assert.equal(typeof record.heldMs, 'number');
+    assert(Object.hasOwn(record, 'globalBarrierMs')); assert.equal(typeof record.globalBarrierMs, 'number');
+    assert.equal(record.pickerBarriers.length, 3);
+    for (const barrier of record.pickerBarriers) assert.deepEqual(Object.keys(barrier), ['id', 'heldMs']);
+  }
   await verifyServiceBackup(source);
   const published = await publishServiceBackup({ source, settings, release: f.release, assertRelease: async () => {} });
   assert.equal((await verifyBackup(published.target)).releasePointerSha256, sha(f.release.pointerBytes));
@@ -239,8 +331,20 @@ test('service restore retains the live tombstones, excludes deleted scopes and i
   const target = { ...settings, dataDir: path.join(destination, 'legacy'), controlDir: path.join(destination, 'control'),
     multiPicker: { ...multiPicker, registryDir: path.join(destination, 'registry'), pickerRoot: path.join(destination, 'pickers') } };
   const owned = options(path.join(destination, 'catalogue'));
-  const result = await restoreServiceStopped({ settings: target, backup: source, release: f.release, assertStopped: async () => {}, probe: f.probe, ownedFormat2: owned });
+  const restore = { settings: target, backup: source, release: f.release, assertStopped: async () => {}, probe: f.probe, ownedFormat2: owned };
+  const legacyStage = path.join(target.controlDir, 'service-restore', legacy.id);
+  await assert.rejects(restoreServiceStopped({ ...restore, step: async label => {
+    if (label === 'restore.stage-reset') {
+      assert.equal(await exists(legacyStage), false);
+      assert(await exists(path.join(target.dataDir, 'state.json')));
+      throw new Error('Synthetic interruption after legacy cleanup');
+    }
+  } }), /Synthetic interruption after legacy cleanup/);
+  const result = await restoreServiceStopped(restore);
   assert.equal(result.excluded, 1); assert.equal(result.quarantined.length, 0);
+  assert.equal(await exists(legacyStage), false);
+  const resumedComplete = await restoreServiceStopped(restore);
+  assert.deepEqual(resumedComplete, result);
   assert.equal(await exists(path.join(target.multiPicker.pickerRoot, deleted.id)), false);
   const restored = await opened(path.join(target.multiPicker.pickerRoot, live.id), { ...owned, pickerId: live.id });
   t.after(() => restored.close()); sameLogical(await restored.backup(), expected.get(live.id));
@@ -249,6 +353,36 @@ test('service restore retains the live tombstones, excludes deleted scopes and i
   assert.equal(restoredLedger.issuedPickerIds.length, JSON.parse(ledger).issuedPickerIds.length);
   const installed = await json(path.join(target.multiPicker.registryDir, 'registry.json'));
   assert.equal(installed.pickers.find(row => row.id === deleted.id)?.lifecycle, 'deleted');
+});
+
+test('flag-off capture and dependency guards never parse whole storage-1 state or retained documents', async t => {
+  const f = await setup(t), store = await opened(f.dataDir, false); await store.close(); await f.bind(f.dataDir);
+  const document = await json(path.join(f.dataDir, 'state.json'));
+  document.state.legacy = { synthetic: { storage: { schemaVersion: 2 }, padding: 'x'.repeat(65536),
+    escaped: '\\"storage\\":{\\"schemaVersion\\":2}' } };
+  document.storage ??= { schemaVersion: 1, fields: {} };
+  const bytes = encode(document), retained = encode({ synthetic: 'opaque-retained-document' });
+  await writeFile(path.join(f.dataDir, 'state.json'), bytes);
+  await mkdir(path.join(f.dataDir, 'backups'), { recursive: true });
+  await writeFile(path.join(f.dataDir, 'backups', 'synthetic.json.gz'), gzipSync(retained));
+  const parse = JSON.parse, parsed = [];
+  t.mock.method(JSON, 'parse', (text, ...rest) => {
+    if (text === bytes || text === retained) parsed.push(text);
+    return parse(text, ...rest);
+  });
+  assert.equal(await hasOwnedStorage(path.join(f.dataDir, 'state.json')), false);
+  await snapshotStore(f.dataDir, id);
+  const root = snapshotPath(f.dataDir, id);
+  assert.equal(await verifyOwnedClosure(root, ['store']), null);
+  assert.equal(await captureOwnedClosure(root, ['store'], [null]), false);
+  const picker = 'p_' + '1'.repeat(32), registry = { withRecoveryCheckpoint: work => work(registryRecoveryDocument({ schemaVersion: 1, accounts: [], capabilities: [],
+    pickers: [{ id: picker, kind: 'legacy-shared', ownerAccountId: null, lifecycle: 'active', provisioning: 'ready', memberIds: ['member-1', 'member-2'], createdAt: now() }] })) };
+  const multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
+  const serviceId = '00000000-0000-4000-8000-000000000002';
+  await captureServiceCheckpoint({ settings: { ...f.settings, multiPicker }, registry, id: serviceId, spaceCheck: async () => {} });
+  await verifyServiceBackup(snapshotPath(f.dataDir, serviceId));
+  assert.deepEqual(parsed, []);
+  assert.equal(await readFile(path.join(root, 'store', 'state.json'), 'utf8'), bytes);
 });
 test('off-site success requires verification of the remotely restored owned closure', async t => {
   const f = await setup(t); await populate(f);

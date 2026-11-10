@@ -1,10 +1,11 @@
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { lstat, mkdir, open, readFile, readdir, rm, statfs, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, rm, statfs, writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { SNAPSHOT_EXCLUSIONS } from './store-identity-policy.mjs';
 import { capturePluginItemFiles, pluginItemFiles } from './plugin-item-snapshot.mjs';
 import { ownedArtifactSource } from './owned-storage.mjs';
+import { hasOwnedStorage } from './owned-detection.mjs';
 
 const barriers = new Map(), context = new AsyncLocalStorage();
 function barrier(dataDir) {
@@ -134,8 +135,7 @@ async function snapshotFormat1(dataDir, id, { maxHoldMs = 1000, maxFiles = 4096 
       } finally { await output.close(); await handle.close(); row.closed = true; }
     }
     if (holding) { heldMs = performance.now() - started; unlock(); }
-    let saved; try { saved = JSON.parse(await readFile(path.join(target, 'store', 'state.json'), 'utf8')); } catch {}
-    if (saved?.storage?.schemaVersion === 2) throw new Error('Owned capture requires the pinned catalogue source.');
+    if (await hasOwnedStorage(path.join(target, 'store', 'state.json'))) throw new Error('Owned capture requires the pinned catalogue source.');
     await writeFile(path.join(target, 'complete.json'), JSON.stringify({ id, heldMs }) + '\n', { flag: 'wx', mode: 0o600 });
     return { id, heldMs };
   } catch (error) {

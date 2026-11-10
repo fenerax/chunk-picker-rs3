@@ -381,7 +381,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   const save = async label => { await mutate(step, label, () => atomic(progressFile(settings), encode(progress))); await onProgress(structuredClone(progress)); };
   await save('restore.prepared');
   await assertStopped();
-  if (closure) await installOwnedClosure(backup, stores, ownedFormat2, path.join(work, legacy.id, 'store'));
+  if (closure) await installOwnedClosure(backup, stores, ownedFormat2, work);
   for (const picker of [legacy, ...manifest.pickers.filter(p => p.kind !== 'legacy-shared')]) {
     const row = progress.pickers.find(r => r.id === picker.id);
     // Scope decisions belong exclusively to MP5 reconciliation.
