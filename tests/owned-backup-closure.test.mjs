@@ -7,11 +7,14 @@ import { performance } from 'node:perf_hooks';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync, gunzipSync } from 'node:zlib';
+import fs from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { openStore } from '../app/storage/store.mjs';
 import { ownedCodec } from '../app/storage/owned-codec.mjs';
 import { snapshotStore, snapshotPath, storeWriteBlocked } from '../app/storage/snapshot.mjs';
 import { hasOwnedStorage } from '../app/storage/owned-detection.mjs';
+import { SNAPSHOT_EXCLUSIONS } from '../app/storage/store-identity-policy.mjs';
 import { fixture, options, commands, world, taskCatalogue, now } from './helpers/owned-format2-fixture.mjs';
 import { atomic, encode, exists, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { backupStopped, restoreStopped, verifyBackup } from '../scripts/linux/recovery.mjs';
@@ -20,7 +23,7 @@ import { captureOnline } from '../scripts/linux/online.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
 import { openRegistry, registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { captureServiceCheckpoint, publishServiceBackup, verifyServiceBackup } from '../scripts/linux/service-checkpoint.mjs';
-import { restoreServiceStopped } from '../scripts/linux/service-recovery.mjs';
+import { restoreServiceStopped, releaseServiceQuarantine } from '../scripts/linux/service-recovery.mjs';
 import { offhostBackup } from '../scripts/linux/offhost-backup.mjs';
 import { createGroupState, importBackup, cancelTaskClaimUndo } from '../app/core/state.mjs';
 import { validateOwnedHistory } from '../scripts/linux/probe.mjs';
@@ -153,6 +156,40 @@ test('owned capture reports hold-duration fields in its response and published c
   await verifyOwnedClosure(root, ['store']);
   assert.equal(storeWriteBlocked(f.dataDir), false);
   await store.close();
+});
+test('owned capture admits the complete pinned payload only above the protected reserve', async t => {
+  const f = await setup(t); await populate(f);
+  await mkdir(path.join(f.dataDir, 'warm-store'));
+  await writeFile(path.join(f.dataDir, 'warm-store', 'ignored.bin'), Buffer.alloc(4096));
+  await writeFile(path.join(f.dataDir, 'plugin-items.json'), encode({ synthetic: true }));
+  const files = await inventory(f.dataDir, { ignoreRoot: SNAPSHOT_EXCLUSIONS });
+  assert(files.some(row => row.path.startsWith('history/')));
+  assert(files.some(row => row.path.startsWith('backups/archives/')));
+  const base = path.join(f.owned.catalogueRoot, `catalogue-${fixture().pin.sha256}.json.gz`);
+  const payload = files.reduce((sum, row) => sum + BigInt(row.bytes ?? 0), 0n)
+    + BigInt((await readFile(f.dataDir + '.dataset.json')).length) + BigInt((await readFile(base)).length);
+  const reserve = 64n * 1024n * 1024n, target = snapshotPath(f.dataDir, id);
+  const before = await inventory(f.dataDir);
+  let available = reserve + payload - 1n, checks = 0, copied = 0;
+  const mock = t.mock.method(fs, 'statfs', async (root, options) => {
+    checks++; assert.equal(root, path.dirname(target)); assert.deepEqual(options, { bigint: true });
+    assert.equal(await exists(target), false);
+    return { bavail: available, bsize: 1n };
+  });
+  syncBuiltinESMExports();
+  t.after(() => { mock.mock.restore(); syncBuiltinESMExports(); });
+  t.after(() => rm(path.dirname(target), { recursive: true, force: true }));
+  const capture = () => snapshotStore(f.dataDir, id, { ownedFormat2: f.owned,
+    step: async label => { if (label === 'capture.owned-base') copied++; } });
+  await assert.rejects(capture(), /Insufficient free space for recovery work and reserve/);
+  assert.equal(checks, 1); assert.equal(copied, 0); assert.equal(await exists(target), false);
+  assert.deepEqual(await inventory(f.dataDir), before);
+  available++;
+  await capture();
+  assert.equal(checks, 2); assert.equal(copied, 1);
+  await verifyOwnedClosure(target, ['store']);
+  assert(await exists(path.join(target, 'complete.json')));
+  assert.deepEqual(await inventory(f.dataDir), before);
 });
 test('service capture refuses a stopped owned store without a catalogue source before publication', async t => {
   const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
@@ -353,6 +390,115 @@ test('service restore resumes after legacy cleanup, retains tombstones and insta
   assert.equal(restoredLedger.issuedPickerIds.length, JSON.parse(ledger).issuedPickerIds.length);
   const installed = await json(path.join(target.multiPicker.registryDir, 'registry.json'));
   assert.equal(installed.pickers.find(row => row.id === deleted.id)?.lifecycle, 'deleted');
+});
+
+for (const crash of [null, 'before-seal-journal', 'after-catalogue-rename']) test(`owned quarantine reseals post-probe bytes and releases after verification (${crash ?? 'uninterrupted'})`, async t => {
+  const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'),
+    pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
+  await mkdir(f.dataDir);
+  const registry = await openRegistry({ ...multiPicker, legacyDir: f.dataDir }); t.after(() => registry.close());
+  const legacy = await registry.registerLegacy({ memberIds: ['member-1', 'member-2'], accounts: [], droppedMemberships: 0 });
+  const owned = (await registry.firstLogin('discord', 'synthetic-quarantine')).picker;
+  let expected;
+  for (const picker of [legacy, owned]) {
+    const dir = registry.pickerDirectory(picker.id), store = await opened(dir,
+      picker === legacy ? false : { ...f.owned, pickerId: picker.id },
+      { initialState: { ...createGroupState(picker.memberIds.map(id => ({ id, name: 'Synthetic member' }))),
+        tasks: fixture().base.tasks, identityRegistry: fixture().base.identityRegistry } });
+    if (picker === owned) expected = await store.backup();
+    await store.close(); await f.bind(dir);
+  }
+  const settings = { ...f.settings, multiPicker };
+  await captureServiceCheckpoint({ settings, registry, id, ownedFormat2: f.owned, spaceCheck: async () => {} });
+  const backup = snapshotPath(f.dataDir, id); t.after(() => rm(path.dirname(backup), { recursive: true, force: true }));
+  await registry.close();
+  const destination = path.join(f.root, 'clean'); await mkdir(destination);
+  const target = { ...settings, dataDir: path.join(destination, 'legacy'), controlDir: path.join(destination, 'control'),
+    multiPicker: { ...multiPicker, registryDir: path.join(destination, 'registry'), pickerRoot: path.join(destination, 'pickers') } };
+  let failing = true, ownedProbes = 0;
+  const migrated = encode({ synthetic: 'post-probe migration' });
+  const probe = async (...args) => {
+    const source = await ownedRecoveryOptions(args[1]);
+    if (source) {
+      ownedProbes++; assert.equal(source.pickerId, owned.id);
+      if (failing) {
+        await writeFile(path.join(args[1], 'migrated.json'), migrated);
+        throw new Error('Synthetic temporary probe failure');
+      }
+    }
+    return f.probe(...args);
+  };
+  const restore = { settings: target, backup, release: f.release,
+    assertStopped: async () => {}, probe, ownedFormat2: options(path.join(destination, 'catalogue')) };
+  const stage = path.join(target.controlDir, 'service-restore', owned.id);
+  if (crash) {
+    const fault = new Error('Synthetic quarantine interruption'); let renames = 0;
+    await assert.rejects(restoreServiceStopped({ ...restore, step: async label => {
+      if (crash === 'before-seal-journal' && label === 'quarantine.owned-sealed'
+        || crash === 'after-catalogue-rename' && label === 'quarantine.owned-rename' && ++renames === 2) throw fault;
+    } }), error => error === fault);
+    const row = (await json(path.join(target.controlDir, 'service-restore', 'progress.json'))).pickers.find(row => row.id === owned.id);
+    assert.equal(row.status, 'quarantining'); assert.equal(row.probeChanged, true);
+    assert.equal(typeof row.ownedClosureSha256, crash === 'before-seal-journal' ? 'undefined' : 'string');
+    const stagedClosure = await json(path.join(stage, 'owned-closure.json'));
+    assert.equal(stagedClosure.files.find(row => row.path === 'store/migrated.json').sha256, sha(migrated));
+    if (crash === 'before-seal-journal') {
+      // Repeating an unjournaled reseal must not bless edits after the intent.
+      await writeFile(path.join(stage, 'store', 'migrated.json'), 'synthetic later edit');
+      await assert.rejects(restoreServiceStopped(restore), { code: 'OPERATOR_ACTION_REQUIRED' });
+      await writeFile(path.join(stage, 'store', 'migrated.json'), migrated);
+      // Resealing new file hashes cannot make an invalid base satisfy its pin.
+      const baseFile = path.join(stage, 'catalogue', (await readdir(path.join(stage, 'catalogue')))[0]);
+      const baseBytes = await readFile(baseFile); await writeFile(baseFile, 'synthetic corrupt base before reseal');
+      await assert.rejects(restoreServiceStopped(restore), /Owned catalogue base unavailable/);
+      const unsealed = (await json(path.join(target.controlDir, 'service-restore', 'progress.json'))).pickers.find(row => row.id === owned.id);
+      assert.equal(unsealed.ownedClosureSha256, undefined);
+      await writeFile(baseFile, baseBytes);
+    } else assert.equal(await exists(path.join(stage, 'catalogue')), false);
+  }
+  const restored = await restoreServiceStopped(restore);
+  assert.deepEqual(restored.quarantined, [owned.id]); assert.equal(ownedProbes, 1);
+  const quarantine = path.join(target.controlDir, 'quarantine'), metadata = path.join(quarantine, owned.id + '.owned');
+  const closure = path.join(metadata, 'owned-closure.json'), bytes = await readFile(closure);
+  const sealed = JSON.parse(bytes);
+  assert.deepEqual(sealed.manifest, (await json(path.join(backup, 'owned-closure.json'))).manifest);
+  assert.equal(sealed.files.find(row => row.path === 'store/migrated.json').sha256, sha(migrated));
+  const progress = await json(path.join(target.controlDir, 'service-restore', 'progress.json'));
+  assert.equal(progress.pickers.find(row => row.id === owned.id).ownedClosureSha256, sha(bytes));
+  assert(await exists(path.join(metadata, 'catalogue')));
+  assert.equal(await exists(path.join(target.controlDir, 'service-restore', owned.id)), false);
+  assert.equal((await json(path.join(quarantine, owned.id + '.json'))).ownedFormat2, true);
+  const release = { settings: target, id: owned.id, release: f.release, assertStopped: async () => {}, probe };
+  failing = false;
+  const before = await inventory(path.join(quarantine, owned.id));
+  const migratedFile = path.join(quarantine, owned.id, 'migrated.json');
+  assert.equal(await readFile(migratedFile, 'utf8'), migrated);
+  await writeFile(migratedFile, 'synthetic edit after quarantine');
+  await assert.rejects(releaseServiceQuarantine(release), /Owned dependency hash or size mismatch/);
+  assert.equal(ownedProbes, 1); await writeFile(migratedFile, migrated);
+  await rm(closure);
+  await assert.rejects(releaseServiceQuarantine(release), /Owned quarantine dependency closure is missing; release refused/);
+  assert.equal(ownedProbes, 1);
+  assert.deepEqual(await inventory(path.join(quarantine, owned.id)), before);
+  assert.deepEqual(await readdir(path.join(target.multiPicker.pickerRoot, owned.id)), ['operator-quarantine.json']);
+  await writeFile(closure, bytes);
+  // A valid marker alone is insufficient: its dependency pins remain binding.
+  const base = (await readdir(path.join(metadata, 'catalogue')))[0], baseFile = path.join(metadata, 'catalogue', base);
+  const baseBytes = await readFile(baseFile); await rm(baseFile);
+  await assert.rejects(releaseServiceQuarantine(release), /Owned dependency hash or size mismatch/);
+  assert.equal(ownedProbes, 1); await writeFile(baseFile, 'synthetic-corruption');
+  await assert.rejects(releaseServiceQuarantine(release), /Owned dependency hash or size mismatch/);
+  assert.equal(ownedProbes, 1); await writeFile(baseFile, baseBytes);
+  assert.deepEqual(await releaseServiceQuarantine(release), { released: owned.id });
+  assert.equal(ownedProbes, 2);
+  const store = await opened(path.join(target.multiPicker.pickerRoot, owned.id),
+    { ...options(path.join(destination, 'catalogue')), pickerId: owned.id });
+  sameLogical(await store.backup(), expected); await store.close();
+  assert.equal(await readFile(path.join(target.multiPicker.pickerRoot, owned.id, 'migrated.json'), 'utf8'), migrated);
+  assert.equal(await exists(metadata), false);
+  assert.equal(await exists(path.join(quarantine, owned.id + '.json')), false);
+  assert.deepEqual(await releaseServiceQuarantine(release), { released: owned.id });
+  assert.equal(ownedProbes, 2);
 });
 
 test('flag-off capture and dependency guards never parse whole storage-1 state or retained documents', async t => {

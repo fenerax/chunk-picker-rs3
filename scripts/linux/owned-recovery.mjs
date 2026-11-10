@@ -180,6 +180,17 @@ export async function verifyOwnedClosure(root, stores) {
   }
   return closure;
 }
+// Quarantine keeps post-probe bytes. Its journal pins the store before this
+// reseal and records the new closure hash only after full dependency verification.
+export async function resealOwnedQuarantine(root) {
+  const file = path.join(root, marker);
+  await noLinks(file);
+  const closure = await json(file);
+  const { syncRecoveryTree } = await import('./service-checkpoint.mjs');
+  await syncRecoveryTree(root);
+  await atomic(file, encode({ ...closure, files: await dependencyFiles(root, ['store']) }));
+  await verifyOwnedClosure(root, ['store']);
+}
 export async function copyOwnedClosure(source, target, store) {
   if (!await exists(path.join(source, marker))) return;
   await copyTree(path.join(source, 'catalogue'), path.join(target, 'catalogue'));
@@ -209,7 +220,15 @@ export async function installOwnedClosure(root, stores, options, dataDir) {
 // byte-for-byte on its old path. The caller holds group and catalogue barriers.
 export async function captureOwnedStore(dataDir, target, id, source, step = async () => {}, started = performance.now()) {
   await noLinks(path.dirname(target));
-  await headroom(path.dirname(target), 0, 64 * 1024 * 1024);
+  // The caller holds both writer barriers and the catalogue lease. Count the
+  // same files we copy, including bases referenced only by retained documents.
+  const files = await inventory(dataDir, { ignoreRoot: SNAPSHOT_EXCLUSIONS }), pins = new Map();
+  for await (const saved of documents(dataDir)) {
+    await checkDocument(saved, dataDir, source.options.manifest, source.options.catalogueRoot, pins);
+  }
+  let bytes = (await lstat(dataDir + '.dataset.json')).size + files.reduce((sum, row) => sum + (row.bytes ?? 0), 0);
+  for (const pin of pins.values()) bytes += (await lstat(path.join(source.options.catalogueRoot, baseName(pin)))).size;
+  await headroom(path.dirname(target), bytes, 64 * 1024 * 1024);
   await mkdir(target, { mode: 0o700 });
   try {
   const evidence = await capturePluginItemFiles(dataDir);
