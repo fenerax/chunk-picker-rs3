@@ -44,7 +44,13 @@ export function createCoverageReporter({ lane = 'test', cwd = process.cwd(), fil
     if (!counts || ['tests', 'suites', 'passed', 'failed', 'cancelled', 'skipped', 'todo', 'topLevel'].some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0)) throw new Error('Missing native coverage counts');
     if (counts.tests !== counts.passed + counts.failed + counts.cancelled + counts.skipped + counts.todo) throw new Error('Inconsistent native coverage counts');
     const timings = Object.fromEntries(['processWallMs', 'fileWallMs', 'bodyMs'].filter(key => Number.isFinite(result[key])).map(key => [key, result[key]]));
-    completed.set(file, { file, passed: result.passed, counts: { ...counts }, ...timings });
+    // Cancellation telemetry describes the shared signal at receipt time. A
+    // file that already completed successfully can race a sibling's abort;
+    // retain its strict case/count checks rather than labelling it incomplete.
+    const interruption = result.passed ? undefined : result.timedOut ? 'deadline'
+      : result.cancelled || result.errors?.some(error => error.failureType === 'testAborted') ? 'aborted' : undefined;
+    completed.set(file, { file, passed: result.passed, counts: { ...counts }, ...timings,
+      ...(interruption ? { interruption, incomplete: true } : {}) });
   };
   const report = ({ passed = [...completed.values()].every(item => item.passed) } = {}) => {
     if (typeof passed !== 'boolean') throw new Error('Coverage passed must be boolean');
@@ -62,7 +68,10 @@ export function createCoverageReporter({ lane = 'test', cwd = process.cwd(), fil
     const parents = new Set([...nodes.values()].filter(node => node.parentId).map(node => JSON.stringify([node.file, node.parentId])));
     const occurrences = new Map(), tests = [];
     for (const [id, node] of [...nodes].sort((a, b) => a[1].sequence - b[1].sequence)) {
-      if (!node.complete) throw new Error('Incomplete coverage test');
+      if (!node.complete) {
+        if (completed.get(node.file)?.interruption) continue;
+        throw new Error('Incomplete coverage test');
+      }
       const data = node.complete, details = data.details ?? {};
       // Suites normally summarize children. A skipped suite itself is evidence:
       // Node does not enqueue any children of a skipped describe().
@@ -79,8 +88,13 @@ export function createCoverageReporter({ lane = 'test', cwd = process.cwd(), fil
     const fileResults = [...completed.values()].sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0).map(item => {
       const records = tests.filter(test => test.file === item.file);
       const suiteCount = [...nodes.values()].filter(node => node.file === item.file && node.type === 'suite').length;
-      if (records.filter(test => test.kind === 'test').length !== item.counts.tests || suiteCount !== item.counts.suites) throw new Error(`Native coverage count mismatch: ${item.file}`);
-      return { ...item, recordCount: records.length };
+      const observedCounts = { tests: records.filter(test => test.kind === 'test').length, suites: suiteCount };
+      if (!item.interruption && (observedCounts.tests !== item.counts.tests || suiteCount !== item.counts.suites)) throw new Error(`Native coverage count mismatch: ${item.file}`);
+      // Aborting a FileTest can count its wrapper without delivering any case
+      // events. Keep the native counts and actual cases distinct; the failed
+      // artifact explains the interruption and can never satisfy coverage.
+      return { ...item, recordCount: records.length, ...(item.interruption ? { observedCounts,
+        pendingTestCount: [...nodes.values()].filter(node => node.file === item.file && !node.complete).length } : {}) };
     });
     return { schema: 'rs3-test-coverage-v1', lane, files: [...expected], completedFiles: [...completed.keys()].sort(),
       passed: passed && completed.size === expected.length && [...completed.values()].every(item => item.passed) && tests.every(test => !['fail', 'cancelled'].includes(test.status)), fileResults, tests };

@@ -1,3 +1,4 @@
+import { step } from './tools-install-progress.mjs';
 // Root subprocess; real SIGKILL at the two unjournaled boundaries, synthetic trees only.
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -12,8 +13,8 @@ const repo = fileURLToPath(new URL('../../', import.meta.url));
 const scratch = await mkdtemp('/var/tmp/tools-crash-test-');
 const account = { uid: 65534, gid: 65534 }, identity = async () => account, idle = async () => {};
 const installer = pathToFileURL(path.join(repo, 'scripts/linux/tools-install.mjs')).href;
-const switcher = options => switchTools({ ...options, identity, idle });
-const recover = options => recoverToolsSwitch({ ...options, identity, idle });
+const switcher = options => step("switch selection", () => switchTools({ ...options, identity, idle }));
+const recover = options => step("recover selection", () => recoverToolsSwitch({ ...options, identity, idle }));
 try {
   await chmod(scratch, 0o755);
   const pkg = path.join(scratch, 'package');
@@ -22,6 +23,7 @@ try {
     // Separate crashes prove ordinary retry can reclaim the lock without recovery
     // first, and recovery itself can reclaim it without help from a retry.
     for (const route of ['retry', 'recover']) {
+      process.stderr.write(`tools crash boundary: ${action} ${point} ${route}\n`);
       const parent = path.join(scratch, `${action}-${point}-${route}`);
       const toolsRoot = path.join(parent, 'tools'), controlDir = path.join(parent, 'control');
       await mkdir(parent, { mode: 0o755 }); await mkdir(controlDir);
@@ -45,7 +47,7 @@ try {
         const { switchTools } = await import(${JSON.stringify(installer)});
         await switchTools({ ...${JSON.stringify(options)}, idle: async () => {}, identity: async () => (${JSON.stringify(account)}) });`;
       assert.throws(() => execFileSync(process.execPath, ['--input-type=module', '-e', hook],
-        { stdio: ['ignore', 'pipe', 'pipe'], timeout: 90000, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } }),
+        { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } }),
       error => error.signal === 'SIGKILL', `${action} ${point} ${route}`);
       assert(await exists(path.join(controlDir, 'operation.lock')));
       assert.equal(await exists(path.join(controlDir, 'tools-transaction.json')), false);

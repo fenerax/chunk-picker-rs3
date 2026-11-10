@@ -1,3 +1,4 @@
+import { step } from './tools-install-progress.mjs';
 // Linux root subprocess. Exact historical public package, synthetic installs,
 // real SIGKILL and privilege-dropped probes; no systemd or network operations.
 import assert from 'node:assert/strict';
@@ -15,8 +16,8 @@ const archive = path.join(repo, 'tests/fixtures/tools-128/package.tar.gz');
 const earlierIdentity = '79eb28369aa720d256d64ba088de6600cbc13522d81660bdaf9264c9632bc94c';
 const scratch = await mkdtemp('/var/tmp/tools-contract-test-');
 const account = { uid: 65534, gid: 65534 }, identity = async () => account, idle = async () => {};
-const install = options => switchTools({ ...options, identity, idle });
-const recover = options => recoverToolsSwitch({ ...options, identity, idle });
+const install = options => step("switch selection", () => switchTools({ ...options, identity, idle }));
+const recover = options => step("recover selection", () => recoverToolsSwitch({ ...options, identity, idle }));
 try {
   await chmod(scratch, 0o755);
   assert.equal(sha(await readFile(archive)), 'c0907c9ef7b14e29a94400afdb88edceb3e75131af242568f43418f2a417bbb9');
@@ -72,6 +73,7 @@ try {
       await selected(newManifest.toolsIdentity);
     }
     for (const point of ['after-journal', 'after-selection', 'after-receipt', 'after-commit']) {
+      process.stderr.write(`tools crash boundary: ${action} ${point}\n`);
       const beforeRoot = await realpath(toolsRoot), before = await inventory(beforeRoot);
       const anchor = {
         'after-journal': "await atomic(transaction, encode(record)); await atomic(maintenance, encode({ command: 'tools-switch' }));",
@@ -90,7 +92,7 @@ try {
         const { switchTools } = await import(${JSON.stringify(installer)});
         await switchTools({ ...${JSON.stringify(switching)}, idle: async () => {}, identity: async () => (${JSON.stringify(account)}) });`;
       assert.throws(() => execFileSync(process.execPath, ['--input-type=module', '-e', hook],
-        { stdio: ['ignore', 'pipe', 'pipe'], timeout: 90000, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } }),
+        { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } }),
       error => error.signal === 'SIGKILL', `${action} ${point}`);
       assert(await exists(path.join(controlDir, 'operation.lock')));
       const committed = point === 'after-commit';

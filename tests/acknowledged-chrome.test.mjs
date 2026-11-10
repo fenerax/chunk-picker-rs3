@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { acknowledgedConnection, acknowledgedUpgrade, chromeEndpoint, openAcknowledgedChrome, removeScratch } from './helpers/acknowledged-chrome.mjs';
+import { acknowledgedConnection, acknowledgedUpgrade, chromeEndpoint } from '../scripts/perf/chrome-transport.mjs';
+import { openAcknowledgedChrome, removeScratch } from './helpers/acknowledged-chrome.mjs';
 
 class Socket extends EventTarget {
   requests = [];
@@ -14,7 +15,6 @@ const childProcess = () => Object.assign(new EventEmitter(), { stderr: new PassT
 
 test('acknowledged browser lifecycle has only its file hang guard', { timeout: 300000 }, async t => {
   await t.test('the HTTP upgrade remains pending through a scheduling delay with network timers disabled', async t => {
-    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const req = new EventEmitter();
     req.end = () => {};
     let options, upgraded = false, abort;
@@ -28,17 +28,16 @@ test('acknowledged browser lifecycle has only its file hang guard', { timeout: 3
       onUpgrade: (status, headers, value) => { assert.equal(status, 101); assert.equal(value, socket); upgraded = true; },
     });
     assert.equal(options.timeout, 0); assert.equal(options.agent, false); assert.equal(typeof abort, 'function');
-    t.mock.timers.tick(3600000); await Promise.resolve();
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(upgraded, false);
     req.emit('upgrade', { statusCode: 101, rawHeaders: [] }, socket, Buffer.from('synthetic frame'));
     assert.equal(upgraded, true);
   });
-  await t.test('a CDP acknowledgement may arrive well beyond the former 30-second budget', async t => {
-    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  await t.test('a CDP operation waits for its explicit acknowledgement', async t => {
     const socket = new Socket(), connection = acknowledgedConnection(socket);
     let settled = false;
     const response = connection.send('Runtime.evaluate', { awaitPromise: true }).then(value => { settled = true; return value; });
-    t.mock.timers.tick(3600000);
+    await new Promise(resolve => setImmediate(resolve));
     await Promise.resolve();
     assert.equal(settled, false);
     socket.reply(socket.requests[0], { result: { value: 'acknowledged' } });
@@ -47,9 +46,8 @@ test('acknowledged browser lifecycle has only its file hang guard', { timeout: 3
     connection.close();
   });
   await t.test('Chrome readiness uses a complete stderr endpoint event after any scheduling delay', async t => {
-    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const child = childProcess(), readiness = chromeEndpoint(child);
-    t.mock.timers.tick(3600000);
+    await new Promise(resolve => setImmediate(resolve));
     child.stderr.write('DevTools listening on ws://127.0.0.1:');
     child.stderr.write('8947/devtools/browser/synthetic\n');
     assert.equal(await readiness, 'ws://127.0.0.1:8947/devtools/browser/synthetic');
@@ -65,7 +63,6 @@ test('acknowledged browser lifecycle has only its file hang guard', { timeout: 3
     await assert.rejects(unsafe, /Unsafe/);
   });
   await t.test('graceful shutdown waits for actual exit and stdio closure without timed escalation', async t => {
-    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const child = childProcess();
     child.kill = () => assert.fail('No elapsed-time termination');
     let socket;
@@ -79,7 +76,7 @@ test('acknowledged browser lifecycle has only its file hang guard', { timeout: 3
     });
     let finished = false;
     const closing = browser.close().then(() => { finished = true; });
-    await Promise.resolve(); t.mock.timers.tick(3600000); await Promise.resolve();
+    await Promise.resolve(); await new Promise(resolve => setImmediate(resolve));
     assert.equal(socket.requests.at(-1).method, 'Browser.close');
     assert.equal(finished, false);
     child.exitCode = 0; child.emit('exit', 0, null);

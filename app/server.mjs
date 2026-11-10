@@ -16,7 +16,7 @@ import { readLegacyAccounts } from './storage/registry-legacy.mjs';
 import { startupPhase } from './startup-timing.mjs';
 import { resolveDataset } from './datasets.mjs';
 import { verifyDatasetBinding, bindDatasetStorage } from './dataset-binding.mjs';
-import { defaultGameDirectory, prepareGameStorage, gameArtOptions, datasetFeature } from './game-profile.mjs';
+import { defaultGameDirectory, prepareGameStorage, gameArtOptions, datasetFeature, prepareOwnedPickerState } from './game-profile.mjs';
 import { prepareServerDefinitions, preparedDefinitionStages } from './dataset-pipeline.mjs';
 import { datasetBrowserPayload } from './dataset-catalogues.mjs';
 import { datasetJSON, selectedDataset, adoptLegacyMetadataProvider } from "./dataset-runtime.mjs";
@@ -466,15 +466,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 await beforeCommit?.(change);
                 if (change.operation === 'replace') await pickerRegistry.reserveTransferMembers(pickerId, change.state.members.map(m => m.id));
               }, retention, runeMetrics, progressSources, originalSync,
-              prepareState: (state, { operation }) => {
-                const registered = pickerRegistry.getPicker(pickerId);
-                const ids = state.members.map(member => member.id);
-                const required = pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId));
-                if (required.some(id => !ids.includes(id)) || (operation !== 'replace' && ids.some(id => !registered.memberIds.includes(id)))) throw httpError(403, 'Picker membership does not match its registry.');
-                const identity = state.provenance?.dataset;
-                if (!identity || identity.id !== dataset.datasetId || identity.contractVersion !== dataset.datasetContractVersion || identity.digest !== dataset.digest) throw httpError(422, 'Choose a backup from this picker’s dataset.');
-                return state;
-              },
+              prepareState: prepareOwnedPickerState(dataset, pickerRegistry, pickerId),
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
               pickerRouting: { requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
