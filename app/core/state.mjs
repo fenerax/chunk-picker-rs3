@@ -1396,7 +1396,8 @@ function prepareUndo(state, undoRevision, registry) {
       claimChanges.push(change);
     } else skippedClaimIds.push(change.id);
   }
-  // Copy gameplay members, never history, provenance, or the task catalogue.
+  // Copy gameplay members, never History or provenance. Catalogue inverses
+  // also need their own array: restoring an edit replaces rows in place.
   // The same preparation supplies both preview eligibility and actual undo.
   const restored = { members: jsonClone(state.members), rules: state.rules, tasks: state.tasks, ...(state.taskClaims !== undefined ? { taskClaims: jsonClone(state.taskClaims) } : {}), ...(state.finishLine !== undefined ? { finishLine: state.finishLine } : {}), ...(state.groupGoals !== undefined ? { groupGoals: state.groupGoals } : {}), ...(state.ruleReviews !== undefined ? { ruleReviews: state.ruleReviews } : {}) };
   if (target.undo.members) for (const member of target.undo.members) restored.members[restored.members.findIndex(candidate => candidate.id === member.id)] = jsonClone(member);
@@ -1418,6 +1419,9 @@ function prepareUndo(state, undoRevision, registry) {
   if (target.undo.tasks) restored.tasks = jsonClone(target.undo.tasks);
   if (target.undo.taskChanges) {
     validateTaskChanges(target.undo.taskChanges, new Set(state.members.map(member => member.id)));
+    // Rows themselves are only read/validated. Keep the shared live array and
+    // its cached ID index intact, including when a later preview check fails.
+    restored.tasks = [...restored.tasks];
     restoreTaskChanges(restored, jsonClone(target.undo.taskChanges));
   }
   // Check restored cross-field invariants and task references using only the
