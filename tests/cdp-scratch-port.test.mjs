@@ -152,15 +152,65 @@ test('ephemeral Chrome readiness waits for its own endpoint event and preserves 
 
 test('outer cancellation during Chrome readiness drains the owned process before returning', async () => {
   const fixture = transport(), controller = new AbortController(), reports = [];
-  let stopped;
+  const stopped = Promise.withResolvers();
   fixture.dependencies.spawn = () => fixture.child;
-  fixture.child.kill = signal => { assert.equal(signal, 'SIGKILL'); stopped = true; return true; };
+  fixture.child.kill = (signal = 'SIGTERM') => { assert.equal(signal, 'SIGTERM'); stopped.resolve(); return true; };
   const opening = openChrome('synthetic-chrome', profile, { signal: controller.signal, report: state => reports.push(state) }, fixture.dependencies);
   const rejected = assert.rejects(opening, /synthetic outer guard/);
   controller.abort(new Error('synthetic outer guard'));
-  assert.equal(stopped, true);
+  await stopped.promise;
   assert.equal(reports[0].phase, 'Chrome stderr readiness');
-  fixture.child.signalCode = 'SIGKILL'; fixture.child.emit('exit', null, 'SIGKILL');
-  fixture.child.emit('close', null, 'SIGKILL');
+  fixture.child.signalCode = 'SIGTERM'; fixture.child.emit('exit', null, 'SIGTERM');
+  fixture.child.emit('close', null, 'SIGTERM');
   await rejected;
+});
+
+test('close without an outer signal escalates an unacknowledged Browser.close and shares one cleanup', async () => {
+  const fixture = transport(), grace = Promise.withResolvers(), entered = Promise.withResolvers();
+  fixture.onClose(() => false); // Neither a CDP reply nor process exit.
+  let stops = 0;
+  fixture.dependencies.waitForClose = () => { entered.resolve(); return grace.promise; };
+  fixture.dependencies.stopChild = async child => {
+    stops++;
+    assert.equal(child, fixture.child);
+    child.exitCode = 0; child.emit('exit', 0); child.emit('close', 0);
+  };
+  const browser = await openChrome('synthetic-chrome', profile, {}, fixture.dependencies);
+  const closing = browser.close();
+  assert.equal(browser.close(), closing, 'concurrent shutdown callers share the same cleanup');
+  await entered.promise;
+  assert.equal(stops, 0, 'graceful completion is attempted before escalation');
+  grace.resolve(false); // Explicitly release the cleanup grace; no clock assertion.
+  await closing;
+  assert.equal(stops, 1);
+});
+
+test('an outer abort reaches bounded process cleanup while Chrome close is pending', async () => {
+  const fixture = transport(), controller = new AbortController(), entered = Promise.withResolvers();
+  const stopped = Promise.withResolvers();
+  fixture.onClose(() => { entered.resolve(); return false; });
+  let stops = 0;
+  fixture.dependencies.waitForClose = () => assert.fail('normal waiting belongs to the outer guard');
+  fixture.dependencies.stopChild = async child => {
+    stops++; stopped.resolve();
+    child.signalCode = 'SIGKILL'; child.emit('exit', null, 'SIGKILL'); child.emit('close', null, 'SIGKILL');
+  };
+  const browser = await openChrome('synthetic-chrome', profile, { signal: controller.signal }, fixture.dependencies);
+  const closing = browser.close();
+  await entered.promise;
+  controller.abort(new Error('synthetic gallery deadline'));
+  await stopped.promise; await closing;
+  assert.equal(stops, 1);
+});
+
+test('shutdown refuses retained stdio instead of waiting without a bound', async () => {
+  const fixture = transport();
+  fixture.onClose(() => false);
+  const waits = [];
+  fixture.dependencies.waitForClose = async closed => { waits.push(closed); return false; };
+  fixture.dependencies.stopChild = async child => { child.exitCode = 0; child.emit('exit', 0); };
+  const browser = await openChrome('synthetic-chrome', profile, {}, fixture.dependencies);
+  await assert.rejects(browser.close(), /stdio did not close; scratch retained/);
+  assert.equal(waits.length, 2, 'both graceful close and cleanup require a stdio acknowledgement');
+  fixture.child.emit('close', 0);
 });

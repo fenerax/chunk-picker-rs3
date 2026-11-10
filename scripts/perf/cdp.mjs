@@ -31,26 +31,50 @@ export async function stopChild(child) {
   if (child.exitCode === null && child.signalCode === null) throw new Error('Child process did not exit; scratch retained.');
 }
 
+// The existing shutdown grace is an operational cleanup bound, independent of
+// test readiness. Callers with an outer signal keep control of normal waiting.
+async function waitForChromeClose(closed) {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), 3000);
+    closed.then(() => { clearTimeout(timer); resolve(true); });
+  });
+}
+
 // Readiness and commands complete on acknowledgements, never on a local clock.
 // The caller owns one outer guard and passes its signal for owned-process cleanup.
 export async function openChrome(executable, profile, options = {}, dependencies = {}) {
   options.signal?.throwIfAborted();
   const { port, args } = chromeLaunchConfiguration(profile, { ...options, env: process.env });
-  const { spawn: launch = spawn, WebSocket: Socket = globalThis.WebSocket } = dependencies;
+  const { spawn: launch = spawn, WebSocket: Socket = globalThis.WebSocket,
+    stopChild: stop = stopChild, waitForClose = waitForChromeClose } = dependencies;
   const child = launch(executable, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
   let socket, connection, phase = 'Chrome stderr readiness', stderr = '';
   child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-8192); });
-  const exited = new Promise(resolve => child.once('exit', resolve));
-  const closed = new Promise(resolve => child.once('close', resolve));
+  let stdioClosed = false, stopping, closing;
+  const interrupted = Promise.withResolvers();
+  const closed = new Promise(resolve => child.once('close', () => { stdioClosed = true; resolve(); }));
   const diagnostics = () => ({ phase, pid: child.pid, exitCode: child.exitCode, signalCode: child.signalCode,
     pending: connection?.pending() ?? [], stderr });
   const terminate = () => {
-    options.report?.(diagnostics());
-    if (child.exitCode === null && child.signalCode === null && child.pid) child.kill('SIGKILL');
+    if (!stopping) {
+      options.report?.(diagnostics());
+      stopping = Promise.resolve().then(() => stop(child));
+      // Abort can arrive before a caller starts awaiting startup or close.
+      stopping.catch(() => {});
+    }
+    return stopping;
   };
-  options.signal?.addEventListener('abort', terminate, { once: true });
+  const abort = () => { interrupted.resolve(); void terminate(); };
+  const drain = async () => {
+    await terminate();
+    if (!stdioClosed && !await waitForClose(closed)) throw new Error('Chrome stdio did not close; scratch retained.');
+  };
+  options.signal?.addEventListener('abort', abort, { once: true });
+  if (options.signal?.aborted) abort();
   try {
-    const endpoint = new URL(await chromeEndpoint(child));
+    const endpoint = new URL(await Promise.race([chromeEndpoint(child), interrupted.promise.then(async () => {
+      await terminate(); options.signal.throwIfAborted();
+    })]));
     if (port && Number(endpoint.port) !== port) throw new Error('Chrome debugger target escaped its owned loopback port.');
     options.signal?.throwIfAborted();
     phase = 'CDP socket open';
@@ -101,20 +125,24 @@ export async function openChrome(executable, profile, options = {}, dependencies
       await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     }
     phase = 'browser work';
-    return { child, send, evaluate, listeners, diagnostics, async close() {
+    const shutdown = async () => {
       phase = 'Chrome process exit';
       try {
-        if (!options.signal?.aborted) await Promise.race([connection.send('Browser.close').catch(() => {}), exited]);
-        await exited; await closed;
+        // Chrome may acknowledge close without exiting, or exit without an
+        // acknowledgement. Neither CDP outcome owns process cleanup.
+        if (!options.signal?.aborted) void connection.send('Browser.close').catch(() => {});
+        if (options.signal) await Promise.race([closed, interrupted.promise.then(drain)]);
+        else if (!await waitForClose(closed)) await drain();
       } finally {
         connection.close(); child.removeListener('exit', onExit);
-        options.signal?.removeEventListener('abort', terminate);
+        options.signal?.removeEventListener('abort', abort);
       }
       if (!options.signal?.aborted && (child.exitCode !== 0 || child.signalCode)) throw new Error(`Owned Chrome failed on exit. ${stderr}`);
-    } };
+    };
+    return { child, send, evaluate, listeners, diagnostics, close: () => closing ??= shutdown() };
   } catch (error) {
-    socket?.close(); terminate(); await closed;
-    options.signal?.removeEventListener('abort', terminate);
+    socket?.close();
+    try { await drain(); } finally { options.signal?.removeEventListener('abort', abort); }
     options.signal?.throwIfAborted();
     throw error;
   }

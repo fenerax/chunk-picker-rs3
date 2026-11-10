@@ -7,7 +7,11 @@ import subprocess
 import sys
 
 # Adopt and reap descendants after the intentional crash probes. The root host
-# survives cancellation long enough to clean its group even when sudo was used.
+# must survive the adaptive worker's group kill to observe EOF and reap its
+# helper session. Isolate before spawning anything; an already-owned group
+# (for example one created by sudo) is also outside the worker's group.
+if os.getpgrp() != os.getpid():
+    os.setsid()
 if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
     raise OSError(ctypes.get_errno(), 'Cannot own test descendants')
 child = subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL, start_new_session=True)
