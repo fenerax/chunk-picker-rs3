@@ -994,6 +994,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return result;
   }
   try { await withStoreWrite(directory, () => withCatalogue(() => withPluginEvidence(directory, async () => {
+    if (ownedStorage) {
+      // A mixed binding/state publication is never admitted by a reader.
+      try {
+        await readFile(path.join(directory, 'owned-rebase-intent.json'));
+        throw Object.assign(new Error('Owned rebase pending; explicitly reconcile the migration intent before opening this group.'), { code: 'OWNED_REBASE_PENDING' });
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
     // Check the exact final document before ANY startup mutation. Hash includes
     // receipt/coordination metadata, not just the public revision number.
     if (expectedCheckpoint) {
@@ -1013,6 +1020,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const hydrateStarted = startupDiagnostics && performance.now();
     try {
       const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
+      if (ownedStorage && document.storage?.schemaVersion === 2) await ownedStorage.select(document.storage.base);
       current = await importStoredBackup(document, true);
       pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
       const metadata = receiptMetadata(document.actionReceipts, current.revision);
@@ -1070,6 +1078,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // and a changed projection should not stringify its large archive twice.
       // Exceptional numeric distinctions such as -0 conservatively refresh.
       if (!sameState(ready, current)) {
+        if (ownedStorage) throw Object.assign(new Error('Owned dataset changes require explicit upgrade staging; startup cannot migrate this save.'), { code: 'OWNED_REBASE_REFUSED' });
         if (readOnly || liveSwapStrict) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
         if (current.revision === Number.MAX_SAFE_INTEGER) throw new RangeError('State revision limit reached.');
         ready.revision = current.revision + 1;
