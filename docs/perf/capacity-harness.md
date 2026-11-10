@@ -99,13 +99,20 @@ The full resolved profile and its digest are recorded. Fields:
   a positive number replaces the active cohort with the next population slice.
   Nominal and step-up keep steady cohorts. Churn uses 300 seconds. It is login/group churn, not an
   implementation of the missing picker-switch product operation.
+  Steady cohorts interleave fresh and grown groups at the configured
+  `freshFraction`, retaining earlier groups during ramps. Nominal's measured
+  cohort has 25 fresh and 75 grown groups. Before a fresh player first previews
+  or rolls, the driver unlocks a starting chunk through the real command API
+  and reloads the eligible pool; fixture saves still start with empty progress.
 - `streamConnectSpreadMs`: seed-based initial connection spread (10 seconds in
   large profiles). Existing streams survive stage changes for retained logins.
   Failed connections reconnect with the browser's exponential backoff and jitter,
   respecting Retry-After; header deadlines cancel only that attempt.
 - `sessionChecks`: `before-browser-request`, matching the scoped browser fetch
-  preflight rather than independent five-second session polls. Each synthetic
-  login keeps route cooldowns. The real browser request reader handles bounded
+  preflight. In addition, every active login, including idle users, gets a
+  periodic check every five seconds with a stable seeded stagger across stages
+  (40 checks/s at 200 users). Periodic checks and preflights share any in-flight
+  session request. Each synthetic login keeps route cooldowns. The real browser request reader handles bounded
   GET/HEAD retries for PICKER_WARMING/PICKER_UPDATING and leaves POSTs single dispatch.
   Plugin requests retain their own key scope and skip browser session preflights.
 - `requestDeadlineMs`: client deadline, 30,000 in supplied profiles; app deadlines

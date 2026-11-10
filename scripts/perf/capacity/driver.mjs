@@ -35,10 +35,19 @@ export async function explainAction(call, client, action, ordinal) {
 }
 export function prepareCohorts(profile,fixture) {
   const cohorts=new Map(),rotationMs=rotationInterval(profile);let startMs=0;
+  let population=fixture.groups;
+  if(rotationMs===Infinity&&profile.fixture?.freshFraction!==undefined) {
+    const fraction=profile.fixture.freshFraction,fresh=population.filter(group=>group.grown===false),grown=population.filter(group=>group.grown===true);
+    if(fresh.length!==Math.round(population.length*fraction)||fresh.length+grown.length!==population.length)throw new Error('Fixture fresh/grown inventory does not match the profile.');
+    let freshIndex=0,grownIndex=0;
+    // Every prefix has the rounded freshFraction, so ramp cohorts are nested
+    // and the measured steady cohort cannot get stuck in the fresh-only prefix.
+    population=population.map((_,i)=>Math.round((i+1)*fraction)>Math.round(i*fraction)?fresh[freshIndex++]:grown[grownIndex++]);
+  }
   for(const [stageIndex,stage] of profile.stages.entries()) {
     const endMs=startMs+stage.seconds*1000;
     for(let rotation=Math.floor(startMs/rotationMs);rotation<Math.max(1,Math.ceil(endMs/rotationMs));rotation++) {
-      const groups=Array.from({length:stage.activeGroups},(_,i)=>fixture.groups[(i+rotation*stage.activeGroups)%fixture.groups.length]),list=[];
+      const groups=Array.from({length:stage.activeGroups},(_,i)=>population[(i+rotation*stage.activeGroups)%population.length]),list=[];
       for(let slot=0;slot<5;slot++)for(const group of groups)if(group.members[slot])list.push({...group.members[slot],group:group.index,pickerId:group.pickerId,taskIds:group.taskIds,peers:group.members.map(m=>m.memberId)});
       if(list.length<stage.users)throw new Error(`Stage ${stageIndex} (${stage.name??'unnamed'}), cohort ${rotation}: requested ${stage.users} users but selected groups provide ${list.length} synthetic logins.`);
       cohorts.set(`${stageIndex}:${rotation}`,list.slice(0,stage.users));
@@ -47,6 +56,34 @@ export function prepareCohorts(profile,fixture) {
   }
   return cohorts;
 }
+export function sessionArrivals(profile,cohorts) {
+  const events=[],intervalMs=5000,rotationMs=rotationInterval(profile);let startMs=0;
+  for(const [stage,settings] of profile.stages.entries()) {
+    const endMs=startMs+settings.seconds*1000;
+    for(let rotation=Math.floor(startMs/rotationMs);rotation<Math.max(1,Math.ceil(endMs/rotationMs));rotation++) {
+      const from=rotationMs===Infinity?startMs:Math.max(startMs,rotation*rotationMs),to=Math.min(endMs,(rotation+1)*rotationMs);
+      for(const [clientIndex,client] of cohorts.get(`${stage}:${rotation}`).entries()) {
+        // Anchor each login's stagger to workload time, keeping the same phase
+        // across stage changes. Idle logins still check once every five seconds.
+        const phase=random(`${profile.seed}-session-${client.group}-${client.memberId}`)()*intervalMs;
+        for(let atMs=phase+Math.ceil((from-phase)/intervalMs)*intervalMs;atMs<to;atMs+=intervalMs)events.push({atMs,kind:'session',stage,clientIndex});
+      }
+    }
+    startMs=endMs;
+  }
+  return events.sort((a,b)=>a.atMs-b.atMs);
+}
+export async function prepareRollSnapshot(call,client,snapshot,chunks) {
+  const member=snapshot.state.members?.find(member=>member.id===client.memberId);
+  if(member?.unlocked?.length===0) {
+    // Fresh fixtures stay fresh on disk. Model choosing a first chunk through
+    // the normal browser command before trying to roll or preview a neighbour.
+    await call(client,'/api/command?view=play-v1',{expectedRevision:snapshot.state.revision,
+      command:{type:'set-chunk',memberId:client.memberId,chunkId:chunks[0],status:'unlocked'}});
+    return call(client,'/api/state?view=play-v1');
+  }
+  return snapshot;
+}
 export function rotationInterval(profile) {
   if(profile.rotationSeconds==null)return Infinity;
   if(!Number.isFinite(profile.rotationSeconds)||profile.rotationSeconds<=0)throw new Error('Invalid cohort rotation interval.');
@@ -54,7 +91,7 @@ export function rotationInterval(profile) {
 }
 export async function consumeStream({base,client,controller,counters,stats,planned,headerDeadlineMs=5000,fetchRequest=fetch,timer=setTimeout,cancelTimer=clearTimeout}) {
   const currentCounters=()=>typeof counters==='function'?counters():counters;
-  let headersReceived=false,headerExpired=false;
+  let headersReceived=false,headerExpired=false,opened=false;
   currentCounters().attempted++;
   const deadline=timer(()=>{headerExpired=true;controller.abort(new Error('SSE header deadline expired.'));},headerDeadlineMs);
   try {
@@ -68,20 +105,22 @@ export async function consumeStream({base,client,controller,counters,stats,plann
       await response.body?.cancel();
       return {opened:false,retryAfterMs:retryAfterMs(response)};
     }
-    stats.streamOpened++;currentCounters().opened++;
+    opened=true;stats.streamOpened++;currentCounters().opened++;
     for await(const bytes of response.body)stats.httpBytes+=bytes.length;
     if(!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
     return {opened:true};
   } catch {
     if(!headersReceived&&(headerExpired||!planned())){stats.streamEstablishmentFailures++;currentCounters().establishmentFailures++;}
     else if(headersReceived&&!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
+    return {opened};
   } finally {cancelTimer(deadline);}
 }
 export async function drive({base,profile,fixture,directory,onSample,startWorkload=()=>performance.now(),fetchRequest=fetch,schedule=dispatch}) {
   base=loopback(base,{assigned:profile.port===0});
   const cohorts=prepareCohorts(profile,fixture),chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
-  const events=arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
-    pluginStatus:stage.pluginPerSecond*.4,pluginTasks:stage.pluginPerSecond*.2,sync:stage.syncPerMinute/60})).map((event,i)=>({...event,id:i+1}));
+  const events=[...arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
+    pluginStatus:stage.pluginPerSecond*.4,pluginTasks:stage.pluginPerSecond*.2,sync:stage.syncPerMinute/60})),...sessionArrivals(profile,cohorts)]
+    .sort((a,b)=>a.atMs-b.atMs).map((event,i)=>({...event,id:i+1}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
     rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
     streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(()=>({attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{}})),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
@@ -121,13 +160,14 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
       readers.set(identity,reader);
     }
     const options={...extra,client};
-    if(!extra.plugin&&route!=='/api/session') {
+    if(!extra.plugin) {
       let check=sessions.get(identity);
       if(!check) {
         check=reader('/api/session',undefined,options).finally(()=>sessions.delete(identity));
         sessions.set(identity,check);
       }
-      await check;
+      const session=await check;
+      if(route==='/api/session')return session;
     }
     return reader(route,body,options);
   };
@@ -179,7 +219,7 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
       currentStage=event.stage;currentRotation=rotation;pool=nextPool;
       openStreams(pool);
     }
-    const client={...pool[event.kind==='browser'?Math.floor(rng()*pool.length):event.ordinal%pool.length],observations:[]},start=performance.now();
+    const client={...pool[event.clientIndex??(event.kind==='browser'?Math.floor(rng()*pool.length):event.ordinal%pool.length)],observations:[]},start=performance.now();
     let action=event.kind,intentional=false;active++;maxActive=Math.max(maxActive,active);
     try {
       if(event.kind==='session') await call(client,'/api/session');
@@ -216,12 +256,14 @@ export async function drive({base,profile,fixture,directory,onSample,startWorklo
         } else if(pick<.9) {action='switch';throw Object.assign(new Error('Unsupported'),{status:'unsupported'});}
         else if(pick<59/60) {
           const op=rng();action=op<.4?'task-miss':op<.7?'preview':op<.9?'roll-accept':'pool-undo';
-          const snapshot=await call(client,'/api/state?view=play-v1'),state=snapshot.state;
+          let snapshot=await call(client,'/api/state?view=play-v1');const state=snapshot.state;
           if(op<.4) {
             action='task-miss';
             await call(client,'/api/command?view=play-v1',{expectedRevision:state.revision,command:{type:'set-rule',ruleId:'access.shared',value:state.rules['access.shared']===false}});
             await call(client,`/api/tasks?memberId=${client.memberId}&view=play-v1`);
           } else {
+            snapshot=await prepareRollSnapshot(call,client,snapshot,chunks);
+            const state=snapshot.state;
             const pool=snapshot.pools?.[client.memberId]?.eligible??[];
             const candidate=pool[event.id%Math.max(1,pool.length)]?.id;
             if(op<.7) {action='preview';if(!candidate)throw Object.assign(new Error('EmptyPool'),{status:'empty-pool'}); await call(client,`/api/predict?memberId=${client.memberId}&chunkId=${candidate}`);}

@@ -301,7 +301,8 @@ test('the same seed offers identical actions and clients with fast and slow fake
       }});
     const offered=(await readFile(output+'/events.jsonl','utf8')).trim().split('\n').map(line=>JSON.parse(line))
       .sort((a,b)=>a.id-b.id).map(row=>({id:row.id,action:row.action,intentionalConflict:row.intentionalConflict,requests:row.requests.filter(r=>r.route!=='/api/session').map(r=>r.route)}));
-    assert.equal(load.stats.completed,100);
+    assert.equal(load.stats.completed,load.stats.offered);
+    assert.equal(offered.filter(row=>row.action!=='session').length,100);
     assert.equal(load.commands.reduce((total,row)=>total+row.latency.count,0),
       offered.reduce((total,row)=>total+row.requests.filter(route=>route==='/api/command').length,0));
     assert.ok(load.commands.some(row=>row.command==='set-note'&&row.status===200));

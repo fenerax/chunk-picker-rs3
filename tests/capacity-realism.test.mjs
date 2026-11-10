@@ -5,16 +5,19 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBrowserClient, reconnectStream, reconnectDelay } from '../scripts/perf/capacity/client.mjs';
-import { prepareCohorts, consumeStream, distribution } from '../scripts/perf/capacity/driver.mjs';
+import { prepareCohorts, consumeStream, distribution, prepareRollSnapshot, sessionArrivals, drive } from '../scripts/perf/capacity/driver.mjs';
 import { beginOpenDiagnostics } from '../app/open-diagnostics.mjs';
 import { createPickerAdmission } from '../app/picker-admission.mjs';
 import { diagnosticMarkdown } from '../scripts/perf/capacity/report.mjs';
 import { fixtureMigration, calibrateIdentities } from '../scripts/perf/capacity/fixture-migration.mjs';
-import { createGroupState } from '../app/core/state.mjs';
+import { createGroupState, applyCommand } from '../app/core/state.mjs';
+import { createRuleRegistry, evaluateRollPool } from '../app/core/rules.mjs';
+import { prepareChunkPrediction } from '../app/core/planning.mjs';
+import { growthCommands } from '../scripts/perf/capacity/growth.mjs';
 import { selectedDataset } from '../app/dataset-runtime.mjs';
 import { generate } from '../scripts/perf/capacity/fixture.mjs';
 import { createServer } from '../app/server.mjs';
-import { catalogue, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
+import { catalogue, syntheticWorld, planFixture } from '../scripts/perf/capacity/model.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
 
@@ -33,6 +36,76 @@ test('production-sized profiles keep steady cohorts; churn explicitly rotates', 
     assert.equal(profile.catalogue.tasks,23939);assert.equal(profile.catalogue.aliases,91000);assert.equal(profile.catalogue.stateBytes,15400000);
     assert.equal(profile.rotationSeconds,name==='churn'?300:null);
   }
+});
+
+test('nominal steady cohorts contain the configured fresh/grown mix through every ramp stage', async () => {
+  const profile=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/nominal.json',import.meta.url)));
+  const groups=planFixture(profile),cohorts=prepareCohorts(profile,{groups});
+  assert.deepEqual([...cohorts], [...prepareCohorts(profile,{groups})]);
+  let previous=new Set();
+  for(const [stageIndex,stage] of profile.stages.entries()) {
+    const selected=new Set(cohorts.get(`${stageIndex}:0`).map(client=>client.group));
+    assert.equal(selected.size,stage.activeGroups);
+    assert.equal([...selected].filter(index=>!groups[index].grown).length,Math.round(stage.activeGroups*profile.fixture.freshFraction));
+    assert.ok([...previous].every(index=>selected.has(index)),'ramp retains earlier groups');
+    previous=selected;
+  }
+  assert.equal([...previous].filter(index=>groups[index].grown).length,75);
+  assert.equal([...previous].filter(index=>!groups[index].grown).length,25);
+});
+
+test('fresh and grown synthetic players can preview and roll through a real eligible pool', async () => {
+  const definitions=catalogue({chunks:8,tasks:2,dependencyDepth:2,crossLinks:1}),chunks=Object.keys(definitions.chunks);
+  const world=syntheticWorld(definitions,buildWorld),registry=createRuleRegistry(),engine=createTaskEngine(definitions),client={memberId:'owner'};
+  const options={world,registry,now:Date.UTC(2026,9,1),random:()=>0};
+  for(const grown of [false,true]) {
+    let state=createGroupState([{id:'owner',name:'Synthetic'}],registry);
+    state.tasks=engine.catalogue.map(({id,label,category})=>({id,label,category}));
+    if(grown)for(const {command} of growthCommands(state,{index:0,variant:0},chunks,{unlockFraction:.5},()=>options.now,registry))state=applyCommand(state,command,options);
+    const snapshot=()=>({state,pools:{owner:{eligible:evaluateRollPool(world,state,'owner',registry).eligible}}}),requests=[];
+    const ready=await prepareRollSnapshot(async(_,route,body)=>{
+      requests.push(route);
+      if(body){assert.equal(body.expectedRevision,state.revision);state=applyCommand(state,body.command,options);}
+      return snapshot();
+    },client,snapshot(),chunks);
+    assert.deepEqual(requests,grown?[]:['/api/command?view=play-v1','/api/state?view=play-v1']);
+    assert.ok(ready.pools.owner.eligible.length);
+    const candidate=ready.pools.owner.eligible[0].id,before=structuredClone(ready.state);
+    assert.doesNotThrow(()=>prepareChunkPrediction(ready.state,registry)('owner',candidate,{engine,world}));
+    assert.deepEqual(ready.state,before,'preview does not mutate the save');
+    const rolled=applyCommand(ready.state,{type:'roll',memberId:'owner',count:1},options);
+    assert.ok(rolled.members[0].unlocked.includes(candidate));
+  }
+});
+
+test('idle logins retain staggered five-second session checks across steady stages', async t => {
+  const scratch=new URL('../var/',import.meta.url);await mkdir(scratch,{recursive:true});
+  const directory=await mkdtemp(new URL('capacity-session-test-',scratch));
+  assert.equal(path.dirname(directory),path.resolve(fileURLToPath(scratch)));
+  t.after(()=>rm(directory,{recursive:true,force:true}));
+  const stages=[0,1].map(()=>({seconds:5,users:200,activeGroups:200,browserPerSecond:0,pluginPerSecond:0,syncPerMinute:0}));
+  const profile={seed:'synthetic-idle-sessions',port:0,catalogue:{chunks:2,tasks:1,dependencyDepth:1,crossLinks:1},
+    requestDeadlineMs:30000,sampleSeconds:60,maxClientInFlight:1000,stages};
+  const fixture={groups:Array.from({length:200},(_,index)=>({index,members:[{memberId:'owner',cookie:`synthetic-${index}`}]}))};
+  const events=sessionArrivals(profile,prepareCohorts(profile,fixture));
+  assert.deepEqual(events,sessionArrivals(profile,prepareCohorts(profile,fixture)));
+  assert.deepEqual(stages.map((_,stage)=>events.filter(event=>event.stage===stage).length),[200,200]);
+  assert.equal(new Set(events.filter(event=>event.stage===0).map(event=>event.atMs)).size,200,'checks are staggered');
+  for(let clientIndex=0;clientIndex<200;clientIndex++) {
+    const planned=events.filter(event=>event.clientIndex===clientIndex);
+    assert.equal(planned.length,2);assert.equal(planned[1].atMs-planned[0].atMs,5000);
+  }
+  const checks=new Map();
+  const load=await drive({base:'http://127.0.0.1:8955',profile,fixture,directory,onSample:async()=>{},fetchRequest:async(url,options)=>{
+    if(url.endsWith('/api/events'))return {ok:false,status:503,headers:new Headers({'Retry-After':'1'})};
+    assert.ok(url.endsWith('/api/session'),'no browser or plugin traffic was offered');
+    checks.set(options.headers.Cookie,(checks.get(options.headers.Cookie)??0)+1);
+    return {ok:true,status:200,headers:new Headers(),text:async()=>'{}'};
+  },schedule:async(offered,run)=>{
+    assert.equal(offered.length,400);
+    for(const event of offered)await run({...event,scheduledAt:event.atMs});
+  }});
+  assert.equal(load.stats.httpRequests,400);assert.equal(checks.size,200);assert.ok([...checks.values()].every(count=>count===2));
 });
 
 test('browser reads retry warming/updating with Retry-After; POST and busy answers stay single dispatch', async () => {
@@ -64,6 +137,21 @@ test('stream retries spread connections and back off; header timeout does not ca
       expire();options.signal.throwIfAborted();
     }});
   assert.equal(attempt.signal.aborted,true);assert.equal(counters.establishmentFailures,1);
+});
+
+test('successful SSE open resets reconnect backoff even when the response body fails', async () => {
+  const lifetime=new AbortController(),waits=[],counters={attempted:0,opened:0,unexpectedEnds:0,establishmentFailures:0,statuses:{}};
+  const stats={streamOpened:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0,httpBytes:0};let connects=0;
+  await reconnectStream({signal:lifetime.signal,rng:()=>0,sleep:async ms=>{waits.push(ms);},connect:async()=>{
+    if(++connects===6){lifetime.abort();return;}
+    return consumeStream({base:'http://synthetic.invalid',client:{cookie:'synthetic'},controller:new AbortController(),counters,stats,
+      planned:()=>false,timer:()=>1,cancelTimer:()=>{},fetchRequest:async()=>{
+        if(connects!==4)throw new Error('Synthetic header failure');
+        return {ok:true,status:200,body:{async *[Symbol.asyncIterator](){yield new Uint8Array(1);throw new Error('Synthetic body failure');}}};
+      }});
+  }});
+  assert.deepEqual(waits,[1000,2000,4000,1000,2000]);
+  assert.equal(counters.opened,1);assert.equal(counters.unexpectedEnds,1);assert.equal(counters.establishmentFailures,4);
 });
 
 test('diagnostics are opt-in, observer failures are isolated, and summary exposes phase/memory/command/admission fields', () => {
