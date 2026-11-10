@@ -8,6 +8,7 @@ import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { exportBackup } from '../app/core/state.mjs';
 import { prepareOwnedPickerState, preserveGameIdentity } from '../app/game-profile.mjs';
+import { coordinationView } from '../app/picker-context-http.mjs';
 import { ownedCommandFixture, ownedCommandSequence, ownedDataset, ownedNow, ownedPickerId,
   ownedRegistry, ownedWorld } from '../scripts/perf/owned-command-fixture.mjs';
 
@@ -31,12 +32,14 @@ async function fixture(t, { fullPath = false, retention = false, historyPrefix =
   }
   const migrateState = (state, context) => { calls.migration.push(context.operation); return migrate(state, context); };
   migrateState.isCurrent = migrate.isCurrent;
+  const generatedGoal = { id: 'dynamic:synthetic-goal', category: 'Collection Log', label: 'Synthetic generated goal' };
   const options = { dataDir, world: ownedWorld, initialState: state, prepareState: preserveGameIdentity(dataset, prepare),
+    taskCatalogue: new Map([[generatedGoal.id, generatedGoal]]),
     prepareImportState: prepare, migrateState, retention, now: ownedNow };
   let store;
   const open = async () => { store = await openStore(options); const opened = store; t.after(() => opened.close()); return store; };
   await open();
-  return { dataDir, dataset, registry, calls, options, store, open, catalogue };
+  return { dataDir, dataset, registry, calls, options, store, open, catalogue, generatedGoal };
 }
 
 test('owned commands and reopen recheck authorization without full preparation or a save rewrite', async t => {
@@ -183,6 +186,87 @@ test('a command with stale migration currency retains the full migration and pre
   assert.deepEqual(f.calls.full, ['initialize', 'command']);
   assert.deepEqual(f.calls.migration, ['initialize', 'command']);
   assert.equal(f.store.getState().revision, 1);
+});
+
+test('a stale migration report takes full load preparation and is repaired like the old path', async t => {
+  const fast = await fixture(t), full = await fixture(t, { fullPath: true });
+  for (const f of [fast, full]) {
+    await f.store.close();
+    const file = path.join(f.dataDir, 'state.json'), document = JSON.parse(await readFile(file));
+    document.state.legacy.gameplayMigration.report.catalogueTasks = 0;
+    await writeFile(file, JSON.stringify(document));
+    f.store = await f.open();
+    assert.equal(f.store.getState().legacy.gameplayMigration.report.catalogueTasks, 8);
+    assert.deepEqual(f.calls.full, ['initialize', 'load']);
+    assert.deepEqual(f.calls.migration, ['initialize', 'load']);
+  }
+  assert.deepEqual(fast.store.getState(), full.store.getState());
+  assert.equal(fast.store.getInfo().revision, 1);
+  assert.equal(fast.store.getState().history.at(-1).type, 'catalogue-refresh');
+});
+
+test('catalogue edits and readers remain equivalent to full preparation and reopen after every step', async t => {
+  const fast = await fixture(t), full = await fixture(t, { fullPath: true });
+  const task = { id: 'custom:synthetic-equivalence', category: 'Custom', label: 'Original synthetic custom task' };
+  const identity = { kind: 'master', admin: true };
+  const compare = async () => {
+    const states = [];
+    for (const f of [fast, full]) {
+      const state = f.store.getState();
+      assert.equal(state.legacy.gameplayMigration.report.catalogueTasks, state.tasks.length);
+      states.push({ state, revision: f.store.getInfo().revision, history: await f.store.queryHistory(),
+        undo: f.store.getUndoEligibility(), coordination: coordinationView(f.store, identity) });
+      const bytes = await readFile(path.join(f.dataDir, 'state.json'));
+      const reopened = await openStore({ ...f.options, readOnly: true });
+      try {
+        assert.deepEqual(reopened.getState(), state);
+        assert.equal(reopened.getInfo().revision, state.revision);
+        assert.deepEqual(await reopened.queryHistory(), await f.store.queryHistory());
+        assert.deepEqual(reopened.getUndoEligibility(), f.store.getUndoEligibility());
+      } finally { await reopened.close(); }
+      assert.deepEqual(await readFile(path.join(f.dataDir, 'state.json')), bytes);
+      assert.deepEqual(f.store.getState(), state);
+    }
+    assert.deepEqual(states[0], states[1]);
+  };
+  const readers = [
+    store => coordinationView(store, identity),
+    store => [store.getUndoEligibility(), ...store.getRecentHistory().filter(event => event.hasUndo)
+      .map(event => store.getUndoEligibility(event.revision))],
+    async store => [store.getState(), store.getStateSnapshot({ view: 'play-v1' }), store.getProgress(),
+      store.getCalculationSnapshot().state, store.getHistory(), await store.queryHistory()],
+  ];
+  await compare();
+  for (const command of [
+    { type: 'add-task', task },
+    { type: 'update-task', taskId: task.id, task: { label: 'First synthetic edit', memberIds: ['synthetic-a'] } },
+    { type: 'update-task', taskId: task.id, task: { label: 'Second synthetic edit' } },
+    { type: 'complete-task', memberId: 'synthetic-a', taskId: task.id, completed: true },
+    { type: 'delete-task', taskId: task.id },
+    { type: 'undo' },
+    { type: 'undo' },
+    { type: 'delete-task', taskId: task.id },
+    { type: 'complete-task', memberId: 'synthetic-a', taskId: fast.generatedGoal.id, completed: true },
+    { type: 'undo' },
+    { type: 'set-task-status', memberId: 'synthetic-b', taskId: fast.generatedGoal.id, challengeCompleted: true },
+    { type: 'undo' },
+  ]) {
+    for (const f of [fast, full]) await f.store.command(command, f.store.getInfo().revision);
+    await compare();
+    for (const read of readers) {
+      const results = [];
+      for (const f of [fast, full]) {
+        const before = f.store.getState();
+        results.push(await read(f.store));
+        assert.deepEqual(f.store.getState(), before);
+      }
+      assert.deepEqual(results[0], results[1]);
+      await compare();
+    }
+  }
+  await fast.store.close(); await full.store.close();
+  fast.store = await fast.open(); full.store = await full.open();
+  await compare();
 });
 
 for (const archived of [false, true]) test(`fast and old full paths produce identical state, revision, Undo and History${archived ? ' with archived events' : ''}`, async t => {

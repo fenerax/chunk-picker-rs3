@@ -73,8 +73,16 @@ export function prepareOwnedPickerState(dataset, pickerRegistry, pickerId) {
     }
     return state;
   };
-  prepare.isCurrent = state => prepare(state, { operation: 'load' }) === state;
-  prepare.commandIsCurrent = state => prepare(state, { operation: 'command' }) === state;
+  const current = (state, operation) => {
+    prepare(state, { operation });
+    // Even a reusable gameplay migration refreshes this derived count. Give
+    // the full preparation path that opportunity after catalogue size changes,
+    // without changing the migration's own readiness/reuse semantics.
+    const migration = state.legacy?.gameplayMigration;
+    return !migration || migration.report?.catalogueTasks === state.tasks.length;
+  };
+  prepare.isCurrent = state => current(state, 'load');
+  prepare.commandIsCurrent = state => current(state, 'command');
   return prepare;
 }
 
