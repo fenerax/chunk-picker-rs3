@@ -6,7 +6,7 @@ import { execFile, fork, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { promisify } from 'node:util';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { mkdir, readFile, readdir, writeFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile, rm, utimes } from 'node:fs/promises';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { randomUUID } from 'node:crypto';
 import { inflateOwnedFormat1 } from '../scripts/linux/inflate-owned-format-1.mjs';
@@ -14,7 +14,9 @@ import { inventory, encode, sha, exists } from '../scripts/linux/files.mjs';
 import { openStore } from '../app/storage/store.mjs';
 import { acquireProcessGuard } from '../app/storage/process-guard.mjs';
 import { stageOwnedRebase, reconcileOwnedRebase } from '../app/storage/owned-rebase.mjs';
-import { importBackup } from '../app/core/state.mjs';
+import { importBackup, validateState } from '../app/core/state.mjs';
+import { ownedRecoveryStates } from '../scripts/linux/owned-recovery.mjs';
+import { syncRecoveryTree, syncRecoveryDirectory } from '../scripts/linux/service-checkpoint.mjs';
 import { fixture, commands } from './helpers/owned-format2-fixture.mjs';
 import { rebaseOptions } from './helpers/owned-rebase-fixture.mjs';
 import { frozenRuntime } from './helpers/frozen-release.mjs';
@@ -26,6 +28,118 @@ test('owned format-1 inflater acceptance', async t => {
   const run = f => inflateOwnedFormat1({ ...f, frozen });
   const live = f => f.stores[0].dataDir;
   const unchanged = async (f, before) => assert.deepEqual(await inventory(live(f)), before);
+  await t.test('valid but wrong decoded task and identity rows refuse the independent encoder round trip', async t => {
+    for (const role of ['task', 'identity']) {
+      const f = await inflaterFixture(t, { populated: true }), before = await inventory(live(f));
+      async function* corruptDecoder(store, options) {
+        for await (const row of ownedRecoveryStates(store, options)) {
+          const target = role === 'task' ? row.state.tasks[0] : Object.values(row.state.identityRegistry.entries)[0];
+          target.label = 'Synthetic valid but wrong decoder row';
+          assert.doesNotThrow(() => validateState(row.state));
+          yield row;
+        }
+      }
+      await assert.rejects(run({ ...f, readStates: corruptDecoder }), /codec round-trip state\/storage bytes differ/);
+      await unchanged(f, before);
+    }
+  });
+  await t.test('retained-tree parent sync failure prevents verification publication', async t => {
+    const f = await inflaterFixture(t), before = await inventory(live(f)); let treeSynced = false;
+    await assert.rejects(run({ ...f,
+      syncTree: async root => { await syncRecoveryTree(root); treeSynced = true; },
+      syncDirectory: async root => {
+        if (treeSynced && path.basename(root).startsWith('p_')) throw Error('Synthetic retained-parent sync refusal');
+        await syncRecoveryDirectory(root);
+      } }), /Synthetic retained-parent sync refusal/);
+    const journal = JSON.parse(await readFile(path.join(f.settings.controlDir, 'inflate-owned-format-1/progress.json')));
+    assert.deepEqual(journal.stores, []); assert.equal(journal.phase, 'staging'); await unchanged(f, before);
+  });
+  await t.test('every journal step follows its entry-parent sync, including both rename parents', async t => {
+    const f = await inflaterFixture(t), events = [];
+    await run({ ...f, syncTree: async root => { await syncRecoveryTree(root); events.push(['tree', root]); },
+      syncDirectory: async root => { await syncRecoveryDirectory(root); events.push(['directory', root]); },
+      crash: label => { events.push(['step', label]); } });
+    const work = path.join(f.settings.controlDir, 'inflate-owned-format-1');
+    const sourceIndex = events.findIndex(row => row[0] === 'tree' && path.basename(row[1]) === 'source');
+    const stage = path.dirname(events[sourceIndex][1]);
+    for (const label of ['source-staged', 'output-staged', 'frozen-verified', 'install-temporary']) {
+      const index = events.findIndex(row => row[0] === 'step' && row[1] === label);
+      assert.deepEqual(events[index - 1], ['directory', stage], label);
+    }
+    for (const label of ['journal-created', 'store-verified', 'all-verified', 'install-intent', 'file-installed', 'store-installed', 'complete']) {
+      const index = events.findIndex(row => row[0] === 'step' && row[1] === label);
+      assert.deepEqual(events[index - 1], ['directory', work], label);
+    }
+    const renamed = events.findIndex(row => row[0] === 'step' && row[1] === 'install-renamed');
+    assert.deepEqual(events.slice(renamed + 1, renamed + 4), [['directory', live(f)], ['directory', stage], ['directory', work]]);
+    assert(events.slice(0, sourceIndex).some(row => row[0] === 'directory' && row[1] === path.dirname(f.settings.controlDir)));
+  });
+  await t.test('space admission retains the 64 MiB reserve at the exact first-run and resume boundaries', async t => {
+    const sum = rows => rows.reduce((total, row) => total + (row.bytes ?? 0), 0), reserve = 64 * 1024 * 1024;
+    const withUnchangedFile = async () => {
+      const f = await inflaterFixture(t);
+      for (const dir of [live(f), f.flatDir]) await writeFile(path.join(dir, 'synthetic-evidence.bin'), Buffer.alloc(64 * 1024, 42));
+      return f;
+    };
+    const low = await withUnchangedFile(), before = await inventory(live(low));
+    const sourceBytes = sum(before), outputBytes = sum(await inventory(low.flatDir));
+    const documentBytes = (await readFile(path.join(low.flatDir, 'state.json'))).length;
+    const probeBytes = outputBytes + documentBytes, initialBytes = sourceBytes + outputBytes + probeBytes;
+    await assert.rejects(run({ ...low, statfs: async () => ({ bavail: BigInt(initialBytes + reserve - 1), bsize: 1n }) }), /insufficient free space/);
+    await unchanged(low, before);
+    const exact = await withUnchangedFile();
+    await run({ ...exact, statfs: async () => ({ bavail: BigInt(initialBytes + reserve), bsize: 1n }) });
+    const resumed = await withUnchangedFile(), original = await inventory(live(resumed));
+    await assert.rejects(run({ ...resumed, crash: label => { if (label === 'all-verified') throw Error('Synthetic verified stop'); } }), /Synthetic verified stop/);
+    const journal = JSON.parse(await readFile(path.join(resumed.settings.controlDir, 'inflate-owned-format-1/progress.json')));
+    const stage = path.join(resumed.settings.controlDir, 'inflate-owned-format-1', journal.stores[0].attempt);
+    assert(!(await readdir(stage)).some(name => name.startsWith('probe-')));
+    const rows = await inventory(path.join(stage, 'output')), stateBytes = (await readFile(path.join(stage, 'output/state.json'))).length;
+    const resumeBytes = sum(rows) + stateBytes;
+    await assert.rejects(run({ ...resumed, statfs: async () => ({ bavail: BigInt(resumeBytes + reserve - 1), bsize: 1n }) }), /insufficient free space/);
+    await unchanged(resumed, original);
+    await run({ ...resumed, statfs: async () => ({ bavail: BigInt(resumeBytes + reserve), bsize: 1n }) });
+    assert(!(await readdir(stage)).some(name => name.startsWith('probe-')));
+  });
+  await t.test('an explicitly provisioned local frozen repository works and missing provisioning refuses clearly', async t => {
+    const f = await inflaterFixture(t), repo = fileURLToPath(new URL('../', import.meta.url));
+    await inflateOwnedFormat1({ ...f, frozenRepository: repo });
+    const missing = await inflaterFixture(t), before = await inventory(live(missing));
+    await assert.rejects(inflateOwnedFormat1({ ...missing, frozenRepository: '' }), /provision.*local Git repository/i);
+    await assert.rejects(inflateOwnedFormat1({ ...missing, frozenRepository: path.join(missing.root, 'unprovisioned') }), /Provision a local Git repository/);
+    await unchanged(missing, before);
+  });
+  await t.test('converted interrupted-retention duplicates prune: current string packs and frozen object packs', async t => {
+    for (const api of [{ openStore }, frozen]) {
+      const f = await inflaterFixture(t, { populated: true }), dataDir = live(f), backups = path.join(dataDir, 'backups');
+      const names = (await readdir(backups)).filter(name => name.endsWith('.json.gz'));
+      assert.equal(names.length, 8);
+      const originals = new Map(), oldTime = new Date('2025-01-01T00:00:00.000Z');
+      for (const name of names) { originals.set(name, await readFile(path.join(backups, name))); await utimes(path.join(backups, name), oldTime, oldTime); }
+      const retention = { backupDays: 1, historyEntries: 1000 };
+      const source = await openStore({ ...settingsForStore, dataDir, ownedFormat2: f.ownedFormat2, retention });
+      try { await source.prepareSnapshot(); assert.equal(source.getInfo().retention.failure, undefined); } finally { await source.close(); }
+      assert.equal((await readdir(backups)).filter(name => name.endsWith('.json.gz')).length, 2);
+      // Recreate the durable duplicates left by a crash before standalone unlink.
+      for (const [name, content] of originals) { await writeFile(path.join(backups, name), content); await utimes(path.join(backups, name), oldTime, oldTime); }
+      if (api === frozen) {
+        // Frozen retention predates string-valued packs (also written by native
+        // current format 1). Its supported historic object form must prune too.
+        const archives = path.join(backups, 'archives');
+        for (const name of await readdir(archives)) {
+          const file = path.join(archives, name), pack = JSON.parse(gunzipSync(await readFile(file)));
+          for (const snapshot of pack.snapshots) snapshot.document = JSON.parse(snapshot.document);
+          await writeFile(file, gzipSync(JSON.stringify(pack)));
+        }
+      }
+      await run(f);
+      const store = await api.openStore({ ...settingsForStore, dataDir, retention });
+      try {
+        await store.prepareSnapshot(); assert.equal(store.getInfo().retention.failure, undefined);
+        assert.equal((await readdir(backups)).filter(name => name.endsWith('.json.gz')).length, 2);
+      } finally { await store.close(); }
+    }
+  });
   await t.test('format-1 differential bytes, frozen current/standalone/packed loads, History/Undo and portable round trip', async t => {
     const f = await inflaterFixture(t, { populated: true, second: true });
     const portableStore = await openStore({ ...settingsForStore, dataDir: live(f), ownedFormat2: f.ownedFormat2 });

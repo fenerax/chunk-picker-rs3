@@ -80,6 +80,25 @@ test('package is the exact runtime closure, including unit and child entrypoints
   await writeFile(path.join(output, 'scripts/linux/unlisted.mjs'), 'export {};');
   await assert.rejects(verifyTools(output), /hashes differ/);
 });
+test('version 3 adds the inflater without widening app/data closure or changing previous entries', async t => {
+  const scratch = await fixture(t), { source } = await sourceCopy(scratch), output = path.join(scratch, 'package');
+  const previous = toolsContracts.find(row => row.version === 2), old = await toolsClosure(source, previous.closureRoots);
+  const manifest = await buildTools(source, output);
+  assert.deepEqual(manifest.entries.filter(name => !previous.entries.includes(name)),
+    ['scripts/lib/frozen-runtime.mjs', 'scripts/linux/inflate-owned-format-1.mjs']);
+  assert.deepEqual(manifest.files.filter(row => row.path.startsWith('app/')), old.files.filter(row => row.path.startsWith('app/')));
+  const additions = manifest.files.filter(row => !old.files.some(before => before.path === row.path)).map(row => row.path).sort();
+  assert.deepEqual(additions, ['scripts/lib/frozen-runtime.mjs', 'scripts/linux/inflate-owned-format-1.mjs']);
+  for (const row of old.files) assert.deepEqual(manifest.files.find(after => after.path === row.path), row);
+  assert(manifest.boundaries.some(row => row.owner === 'scripts/lib/frozen-runtime.mjs'
+    && row.source === 'provisioned-frozen-release' && row.release === '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e'));
+  // Import with all filesystem module loads fenced to the package. Provisioning
+  // remains deferred until execution; no .git or checkout fallback is present.
+  const script = `import {registerHooks} from 'node:module'; import {fileURLToPath,pathToFileURL} from 'node:url';
+    const root=${JSON.stringify(output)}; registerHooks({load(url,c,next){if(url.startsWith('file:') && !fileURLToPath(url).startsWith(root)) throw Error('Outside package');return next(url,c);}});
+    const api=await import(pathToFileURL(root+'/scripts/linux/inflate-owned-format-1.mjs')); if(typeof api.inflateOwnedFormat1!=='function') throw Error('Missing inflater');`;
+  execFileSync(process.execPath, ['--input-type=module', '-e', script], { windowsHide: true, stdio: 'pipe', env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', RS3_DATASET: 'open-starter' } });
+});
 test('new static, dynamic, template and child imports cannot escape or silently disappear from the closure', async t => {
   const scratch = await fixture(t), { source } = await sourceCopy(scratch);
   const entry = path.join(source, 'scripts/linux/operator.mjs'), original = await readFile(entry, 'utf8');
@@ -105,14 +124,14 @@ test('all installed CLI and unit entrypoints act through a symlink, including ma
   await writeFile(config, encode({ service: 'chunk-picker.service', current, controlDir,
     dataDir: path.join(scratch, 'game'), scratchRoot: path.join(scratch, 'scratch'), backupDir: path.join(scratch, 'backups') }));
   const env = { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', RS3_OPERATOR_CONFIG: config };
-  const checked = new Set(toolsCliChecks.map(row => row[0]));
+  const checked = new Set(currentToolsContract.probes.map(row => row[0]));
   for (const row of manifest.files.filter(row => row.path.endsWith('.mjs'))) {
     const source = await readFile(path.join(output, row.path), 'utf8');
     if (/if\s*\(isMain\(import\.meta\.url\)/.test(source)) assert(checked.has(row.path), 'Missing CLI behavior check: ' + row.path);
     if (row.path.startsWith('scripts/linux/') || row.path.startsWith('scripts/release/vps/') && row.path !== 'scripts/release/vps/entrypoint.mjs')
       assert(!/process\.argv\[1\].*===.*(?:fileURLToPath|import\.meta\.url)/.test(source), row.path);
   }
-  for (const [entry, args, diagnostic] of toolsCliChecks) {
+  for (const [entry, args, diagnostic] of currentToolsContract.probes) {
     let failed = false;
     const base = entry.startsWith('scripts/linux/') || entry.startsWith('scripts/release/vps/') ? alias : output;
     try { execFileSync(process.execPath, [path.join(base, entry), ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 15000 }); }

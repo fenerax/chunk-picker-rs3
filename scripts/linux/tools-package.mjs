@@ -67,6 +67,11 @@ export async function toolsClosure(root, entries = toolsEntrypoints) {
     for (const expression of computed) {
       const targets = toolsLoaders[name]?.[expression];
       if (targets) pending.push(...targets);
+      // Only the exact local frozen-worktree loader may cross this boundary.
+      // Its app/dataset modules belong to the provisioned Git pin, never tools.
+      else if (name === 'scripts/lib/frozen-runtime.mjs' && expression === 'pathToFileURL(path.join(checkout,relative)).href') {
+        boundaries.push({ owner: name, expression, source: 'provisioned-frozen-release', release: '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e' });
+      }
       else if (releaseLoaders[name]?.includes(expression)) boundaries.push({ owner: name, expression, source: 'selected-release' });
       else throw Error('Unmodeled tools import in ' + name + ': ' + expression);
     }

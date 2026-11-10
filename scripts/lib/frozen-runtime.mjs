@@ -15,8 +15,10 @@ const git = (cwd, args) => {
     { cwd, windowsHide: true, maxBuffer: 4 * 1024 * 1024 });
 };
 export async function requireFrozenCommit(repository, release = FROZEN_RELEASE) {
+  const provision = `Provision a local Git repository with git fetch --no-tags --depth=1 origin ${release}, then set --frozen-repository or RS3_FROZEN_REPOSITORY.`;
+  if (typeof repository !== 'string' || !path.isAbsolute(repository)) throw new Error(`Frozen rollback repository is missing. ${provision}`);
   try { await git(repository, ['cat-file', '-e', `${release}^{commit}`]); }
-  catch (cause) { throw new Error(`Required frozen rollback commit ${release} is missing. Fetch full history (git fetch --unshallow), then rerun the test.`, { cause }); }
+  catch (cause) { throw new Error(`Required frozen rollback commit ${release} is missing. ${provision}`, { cause }); }
 }
 export async function openFrozenRuntime({ repository, cacheRoot, workRoot, release = FROZEN_RELEASE }) {
   await requireFrozenCommit(repository, release);

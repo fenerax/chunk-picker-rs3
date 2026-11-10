@@ -101,7 +101,26 @@ the writer. Rehearse the online path before enabling it.
 ## Shutdown and health recovery
 
 Owned storage-2 rollback has a separate, explicit stopped-service tool:
-`node scripts/linux/inflate-owned-format-1.mjs /absolute/path/inflater.json`.
+tools package contract version 3 ships `scripts/linux/inflate-owned-format-1.mjs`
+and its shared frozen-release harness. Packaged releases contain no Git history.
+Install Git and provision a separate operator-owned local repository before
+conversion (these are provisioning instructions, not an automatic host change):
+
+```sh
+git init /opt/chunk-picker/frozen-repository
+git -C /opt/chunk-picker/frozen-repository remote add origin https://github.com/fenerax/chunk-picker-rs3.git
+git -C /opt/chunk-picker/frozen-repository fetch --no-tags --depth=1 origin 06e15939dbf73ecd1a0e7bc9c29088e0281ca11e
+git -C /opt/chunk-picker/frozen-repository cat-file -e '06e15939dbf73ecd1a0e7bc9c29088e0281ca11e^{commit}'
+node /opt/chunk-picker/tools/scripts/linux/inflate-owned-format-1.mjs /absolute/path/inflater.json --frozen-repository /opt/chunk-picker/frozen-repository
+```
+
+The repository path can instead be `frozenRepository` in the config JSON or
+`RS3_FROZEN_REPOSITORY` in the operator environment; the CLI flag takes precedence.
+Keep the repository available on resume, even if a frozen cache exists. Missing
+provisioning, an unavailable exact pin or a dirty frozen cache refuses. The
+harness fetches only from this local repository and loads the frozen modules
+from its exact-SHA checkout. They are never added to the tools package.
+
 The private JSON contains `{ "settings": { ...operatorSettings },
 "ownedFormat2": { "pickerId": "owned-operation", "catalogueRoot": "/external/catalogue",
 "dataset": { ...retainedDatasetPin }, "manifest": { ...retainedBaseManifest },
@@ -109,7 +128,12 @@ The private JSON contains `{ "settings": { ...operatorSettings },
 Stop the writer and timers first and keep manual starts fenced. The command
 does not stop/start services or select a release. It stages every owned current,
 retained and packed save, verifies logical/History hashes and actual frozen
-`06e15939` loading, then installs under a resumable journal. A partial run leaves
+`06e15939` loading, then installs under a resumable journal. It also re-encodes
+the inflated state against the pinned base and runs full state validation.
+Staged source/output trees and parent links are synced before installation.
+Disk admission retains a 64 MiB reserve and checks each disposable probe,
+including on resume. Standalone timestamps and packed duplicate sizes stay
+consistent for format-1 retention. A partial run leaves
 `maintenance.json` saying **DO NOT START THE OLD RELEASE**. Rerun the same command
 to resume; never clear the marker to bypass it. Source/output copies remain in
 `control/inflate-owned-format-1`; retain them until a later GC decision. See
