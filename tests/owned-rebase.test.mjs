@@ -105,6 +105,83 @@ test('newer release keeps the pinned base; release-bound startup preparation ref
   assert.deepEqual(await readFile(file), committed);
 });
 
+for (const sameDigest of [true, false]) test(`standby activation reselects the committed base (${sameDigest ? 'same' : 'different'} release digest)`, async t => {
+  const f = await setup(t);
+  if (sameDigest) {
+    f.target = targetBase(projection => { projection.dataset.digest = fixture().pin.dataset.digest; return projection; });
+    f.source.retainedManifests = [f.target.manifest];
+    f.newer = { ...f.newer, dataset: f.target.dataset, manifest: f.target.manifest, releaseBytes: f.target.bytes };
+  }
+  let writer = await f.open(); await writer.close(); await f.bind();
+  const calls = [];
+  const prepareState = state => { calls.push('prepare'); return state; };
+  prepareState.isCurrent = () => { calls.push('currency'); return true; };
+  const standby = await f.open(f.dataDir, f.source, { readOnly: true, prepareState });
+  calls.length = 0;
+  await f.stage(); await f.finish();
+  writer = await f.open(f.dataDir, f.newer);
+  await writer.command(commands[1], writer.getInfo().revision);
+  const checkpoint = await writer.freeze(); await writer.close();
+  const file = path.join(f.dataDir, 'state.json'), before = await readFile(file);
+  const reference = { datasetDigest: f.target.dataset.digest, sha256: f.target.pin.sha256 };
+  assert.deepEqual(JSON.parse(before).storage.base, reference);
+  if (!sameDigest) {
+    await assert.rejects(standby.activate(checkpoint), { code: 'OWNED_REBASE_REFUSED' });
+    assert.deepEqual(calls, [], 'activation refuses before currency proofs or preparation');
+    await assert.rejects(standby.command(commands.at(-1), checkpoint.revision), { code: 'PICKER_UPDATING' });
+    assert.deepEqual(await readFile(file), before);
+    return;
+  }
+  await standby.activate(checkpoint);
+  assert.deepEqual(calls, ['currency']);
+  assert.equal(standby.getState().tasks.find(row => row.id === custom).label, 'Synthetic edit one');
+  assert.deepEqual(await readFile(file), before, 'activation itself preserves the checkpoint');
+  await standby.command(commands.at(-1), checkpoint.revision);
+  assert.deepEqual(JSON.parse(await readFile(file)).storage.base, reference, 'later commands retain the newly selected base');
+});
+
+async function diskBytes(directory) {
+  const entries = [];
+  for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+    const file = path.join(directory, entry.name);
+    entries.push([entry.name, entry.isDirectory() ? await diskBytes(file) : await readFile(file)]);
+  }
+  return entries;
+}
+
+test('different-digest startup refuses before item-review recovery or any file creation', async t => {
+  const f = await setup(t), store = await f.open(); await store.close(); await f.bind();
+  const file = path.join(f.dataDir, 'state.json'), sidecar = path.join(f.dataDir, 'plugin-items.json');
+  const marker = `~plugin-review:${first}`;
+  const sidecarBytes = Buffer.from(json({ v: 1, players: { 'member-1': {
+    baselineAt: now(), items: {}, handled: [marker], journal: null,
+  } } }));
+  await writeFile(sidecar, sidecarBytes);
+  // Missing startup artifacts must stay missing on refusal, too.
+  for (const name of ['access-token', 'backups', 'history']) await rm(path.join(f.dataDir, name), { recursive: true, force: true });
+  const before = await diskBytes(f.root), stateBytes = await readFile(file), calls = [];
+  const preparation = state => { calls.push('prepare'); return state; };
+  preparation.isCurrent = () => { calls.push('currency'); return true; };
+  for (const hook of ['prepareState', 'migrateState']) {
+    await assert.rejects(f.open(f.dataDir, f.newer, { [hook]: preparation, progressQuestPoints: {},
+      beforeCommit: ({ operation }) => calls.push(operation), beforeLockRecovery: () => calls.push('lock-recovery') }),
+    { code: 'OWNED_REBASE_REFUSED' });
+    assert.deepEqual(calls, []);
+    assert.deepEqual(await readFile(file), stateBytes);
+    assert.deepEqual(await readFile(sidecar), sidecarBytes);
+    assert.deepEqual(JSON.parse(await readFile(sidecar)).players['member-1'].handled, [marker]);
+    assert.deepEqual(await diskBytes(f.root), before, 'all files and directory entries stay unchanged');
+  }
+  // Prove the synthetic marker really takes the recovery/publication path
+  // when the pinned digest matches the release.
+  const recovered = await f.open(f.dataDir, f.source, { beforeCommit: ({ operation }) => calls.push(operation) });
+  assert(calls.includes('plugin-item-recovery'));
+  assert.equal(recovered.getInfo().revision, 0);
+  assert.notDeepEqual(await readFile(file), stateBytes);
+  assert.notDeepEqual(await readFile(sidecar), sidecarBytes);
+  assert(recovered.getPluginItemEvidence().players['member-1'].records.live.handled.includes(first));
+});
+
 function semantic(change) {
   return targetBase(projection => {
     projection.tasks.reverse(); // Restore release order for semantic migration.

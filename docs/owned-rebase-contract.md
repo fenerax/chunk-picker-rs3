@@ -14,8 +14,12 @@ dataset digest matches the save's base digest, ordinary startup normalization
 uses the format-1 revision, History and read-only/live-swap refusal rules, then
 encodes against that same pinned base, even if the release has newer base bytes.
 When digests differ, release-bound migration/preparation hooks refuse before
-their currency proofs or preparation run, with an explicit upgrade-staging
-diagnostic. The old base supplies rows and identities, but cannot reconstruct
+any startup recovery, publication, file creation, currency proof or preparation,
+with `OWNED_REBASE_REFUSED` and an explicit upgrade-staging diagnostic. Refusal
+preserves every saved and sidecar byte, including recoverable review markers.
+Standby activation reselects the checkpoint document's own base and applies the
+same gate before recovery or preparation; later commands retain that base.
+The old base supplies rows and identities, but cannot reconstruct
 the old definitions, world and calculator/provider context captured by those
 hooks. Pinned-dataset preparation is therefore a slice-7 activation gate; no
 calculator or display changes are made here. Explicit callers without release
