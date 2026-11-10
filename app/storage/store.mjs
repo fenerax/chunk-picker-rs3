@@ -832,6 +832,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return inheritStateMetadata(state, trimmed);
   }
   async function prepareLoadedState(state) {
+    // Release hooks close over its catalogue/world, which the storage base
+    // alone cannot reconstruct. Isolated import readers prove an exact load
+    // without invoking those hooks; other callers need explicit upgrade staging.
+    if (ownedStorage?.base && !importReader && (migrateState || prepareState)
+      && ownedStorage.base.dataset.digest !== ownedStorage.readerOptions.dataset.digest) {
+      throw Object.assign(new Error('Owned save dataset digest differs from the running release; release-bound startup preparation requires explicit upgrade staging (slice 7 pinned-dataset preparation gate).'), { code: 'OWNED_REBASE_REFUSED' });
+    }
     // Currency predicates have the same complete History contract as hooks.
     // Hydrate and validate once, then reuse that baseline for preparation and
     // the committed-dependency check, even when every hook is already current.
@@ -1078,7 +1085,6 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // and a changed projection should not stringify its large archive twice.
       // Exceptional numeric distinctions such as -0 conservatively refresh.
       if (!sameState(ready, current)) {
-        if (ownedStorage) throw Object.assign(new Error('Owned dataset changes require explicit upgrade staging; startup cannot migrate this save.'), { code: 'OWNED_REBASE_REFUSED' });
         if (readOnly || liveSwapStrict) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
         if (current.revision === Number.MAX_SAFE_INTEGER) throw new RangeError('State revision limit reached.');
         ready.revision = current.revision + 1;

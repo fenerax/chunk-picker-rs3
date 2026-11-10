@@ -9,8 +9,18 @@ capture drains or precedes the complete transaction. No GC is implemented.
 Opted-in readers select the save's pinned reference, never the running release's
 current base. Operators supply independent `retainedManifests` for older bases,
 including two release manifests when the same dataset digest has different base
-bytes. Backup reads cannot change the writer's selected base. Startup refuses
-preparation that would change an existing owned save instead of auto-upgrading it.
+bytes. Backup reads cannot change the writer's selected base. When the release
+dataset digest matches the save's base digest, ordinary startup normalization
+uses the format-1 revision, History and read-only/live-swap refusal rules, then
+encodes against that same pinned base, even if the release has newer base bytes.
+When digests differ, release-bound migration/preparation hooks refuse before
+their currency proofs or preparation run, with an explicit upgrade-staging
+diagnostic. The old base supplies rows and identities, but cannot reconstruct
+the old definitions, world and calculator/provider context captured by those
+hooks. Pinned-dataset preparation is therefore a slice-7 activation gate; no
+calculator or display changes are made here. Explicit callers without release
+preparation hooks can still read the pinned catalogue. Isolated backup/export
+readers keep their existing exact-load proofs and never run release preparation.
 Format-1 and legacy-shared adapters retain their prior paths and bytes.
 Backup closures with several pins for one digest add `retainedManifests`.
 Closures from before this change containing only a single `manifest` still
@@ -43,7 +53,8 @@ value. New aliases are added unless the group already has a different value.
 When both changed, staging retains the group value and commit requires an explicit
 alias migration decision; candidate lists are never merged. Aliases removed from
 the release remain retained. Reorder,
-ID reuse/reassignment, changed task semantics and any live/archived full-catalogue
+ID reuse/reassignment (including registry-only additions colliding with current
+or preserved restore History), changed task semantics and any live/archived full-catalogue
 Undo snapshot that could erase additions refuse with an explicit migration/Undo
 boundary diagnostic. Guarded sparse Undo rows and indices are unchanged.
 

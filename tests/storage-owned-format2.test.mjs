@@ -13,6 +13,10 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import { serialize } from 'node:v8';
 import { openStore } from '../app/storage/store.mjs';
 import { ownedCodec } from '../app/storage/owned-codec.mjs';
+import { buildOwnedBase } from '../app/storage/owned-base.mjs';
+import { createOwnedBaseManifest } from '../app/storage/owned-base-schema.mjs';
+import { prepareOwnedPickerState, preserveGameIdentity } from '../app/game-profile.mjs';
+import { ownedCommandFixture, ownedDataset, ownedNow, ownedPickerId, ownedRegistry, ownedWorld } from '../scripts/perf/owned-command-fixture.mjs';
 import { frozenRuntime } from './helpers/frozen-release.mjs';
 import { BACKUP_FORMAT, materializeResidentState, validateState } from '../app/core/state.mjs';
 import { fixture, options, commands, now, world, taskCatalogue, custom } from './helpers/owned-format2-fixture.mjs';
@@ -195,6 +199,54 @@ test('prepared proofs see complete tasks/History; fallible hooks get flat detach
   store = await open(t, dataDir, { retention: false, ownedFormat2: options(catalogueRoot), prepareState });
   assert.equal(fullCalls, 1); assert(proofCalls >= 4);
   assert.equal(store.getState().tasks.find(row => row.id === custom).label, 'Synthetic edit one');
+});
+
+for (const normalization of ['catalogueTasks', 'progressAliasesVersion']) test(`format 1/2 startup repairs stale ${normalization} with identical revisions and strict-reader refusals`, async t => {
+  const root = await directory(t), catalogueRoot = path.join(root, 'catalogue');
+  const { state, catalogue, migrateState } = ownedCommandFixture({ taskCount: 8, extraAliases: 6, evidenceCopies: 1 });
+  const dataset = { ...ownedDataset, digest: 'b'.repeat(64) };
+  state.provenance.dataset.digest = dataset.digest;
+  const tasks = state.tasks.map(row => Object.fromEntries(['id', 'label', 'category', 'completionIds', 'skill', 'level']
+    .filter(key => Object.hasOwn(row, key)).map(key => [key, row[key]])));
+  const original = buildOwnedBase({ dataset: state.provenance.dataset, tasks, identityRegistry: state.identityRegistry });
+  const manifest = createOwnedBaseManifest([original.pin]);
+  // Same dataset, different base bytes: digest equality permits normalization,
+  // but the save must retain its selected original base and logical task order.
+  const release = buildOwnedBase({ dataset: original.base.dataset, tasks: [...tasks].reverse(), identityRegistry: state.identityRegistry });
+  assert.notEqual(release.pin.sha256, original.pin.sha256);
+  const source = { pickerId: ownedPickerId, catalogueRoot, dataset: original.pin.dataset, manifest, releaseBytes: original.bytes };
+  const newer = { ...source, manifest: createOwnedBaseManifest([release.pin]), releaseBytes: release.bytes, retainedManifests: [manifest] };
+  const common = { initialState: state, world: ownedWorld, now: () => ownedNow, retention: false, migrateState,
+    taskCatalogue: new Map(catalogue.map(row => [row.id, row])),
+    prepareState: preserveGameIdentity(dataset, prepareOwnedPickerState(dataset, ownedRegistry(), ownedPickerId)) };
+  const normalized = [];
+  for (const owned of [false, true]) {
+    const dataDir = path.join(root, owned ? 'owned' : 'flat');
+    let store = await open(t, dataDir, { ...common, ownedFormat2: owned ? source : false });
+    await store.close();
+    const file = path.join(dataDir, 'state.json'), document = JSON.parse(await readFile(file));
+    const migration = document.state.legacy.gameplayMigration;
+    if (normalization === 'catalogueTasks') migration.report.catalogueTasks = 0;
+    else delete migration.progressAliasesVersion;
+    const stale = Buffer.from(json(document)); await writeFile(file, stale);
+    const reopen = { ...common, ownedFormat2: owned ? newer : false };
+    for (const strict of [{ readOnly: true }, { liveSwapStrict: true }]) {
+      await assert.rejects(open(t, dataDir, { ...reopen, ...strict }), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
+      assert.deepEqual(await readFile(file), stale);
+    }
+    store = await open(t, dataDir, reopen);
+    const ready = (await store.backup()).state;
+    assert.equal(store.getInfo().revision, 1); assert.equal(ready.revision, 1);
+    assert.equal(ready.legacy.gameplayMigration.report.catalogueTasks, 8);
+    assert.equal(ready.legacy.gameplayMigration.progressAliasesVersion, 1);
+    assert.equal(ready.history.at(-1).type, 'catalogue-refresh');
+    assert.equal(json(ready.tasks), json(state.tasks));
+    if (owned) assert.deepEqual(JSON.parse(await readFile(file)).storage.base,
+      { datasetDigest: original.pin.dataset.digest, sha256: original.pin.sha256 });
+    normalized.push(ready);
+  }
+  assert.deepEqual(normalized[1], normalized[0]);
+  assert.equal(hash(normalized[1]), hash(normalized[0]));
 });
 const seams = ['catalogue-root-durable', 'preimage-durable', 'state-temporary-synced', 'commit-hook-complete',
   'base-temporary-synced', 'base-durable', 'dependencies-durable', 'state-renamed', 'state-directory-synced', 'memory-published'];

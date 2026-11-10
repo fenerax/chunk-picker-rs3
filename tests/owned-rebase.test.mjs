@@ -87,13 +87,22 @@ test('format 1 -> 2 -> rebase preserves generated/custom/assigned/deleted rows, 
   assert.equal(json(importedBackup.history), json(portable.state.history));
 });
 
-test('newer release opens and writes the original pinned base; startup migration refuses', async t => {
+test('newer release keeps the pinned base; release-bound startup preparation refuses only a digest mismatch', async t => {
   const f = await setup(t); let store = await f.open(); await store.close();
   const file = path.join(f.dataDir, 'state.json'), before = await readFile(file);
   store = await f.open(f.dataDir, f.newer); assert.deepEqual(await readFile(file), before);
+  assert.deepEqual((await store.backup()).state, store.getState(), 'isolated backup reader uses the pinned catalogue');
   await store.command(commands.at(-1), 0); await store.close();
   assert.equal(JSON.parse(await readFile(file)).storage.base.sha256, fixture().pin.sha256);
-  await assert.rejects(f.open(f.dataDir, f.newer, { prepareState(state) { state.members[0].journal = 'Changed by release'; return state; } }), /explicit upgrade staging/);
+  const committed = await readFile(file);
+  let calls = 0;
+  const prepareState = state => { calls++; return state; };
+  prepareState.isCurrent = () => { calls++; return true; };
+  const mismatch = { code: 'OWNED_REBASE_REFUSED', message: /dataset digest differs.*explicit upgrade staging.*slice 7/ };
+  await assert.rejects(f.open(f.dataDir, f.newer, { prepareState }), mismatch);
+  await assert.rejects(f.open(f.dataDir, f.newer, { migrateState: prepareState }), mismatch);
+  assert.equal(calls, 0, 'neither currency proofs nor release preparation may run');
+  assert.deepEqual(await readFile(file), committed);
 });
 
 function semantic(change) {
@@ -219,6 +228,23 @@ test('reorder, reassignment and live/archived full-catalogue Undo refuse an expl
   for (const history of [[{ undo: { tasks: state.tasks } }], [{ undo: { tasks: state.tasks }, undoneRevision: 9 }]]) {
     assert.throws(() => stageOwnedDatasetUpgrade(state, { ...state, history }, fixture().base, semantic(append).base), /full-catalogue Undo.*explicit migration\/Undo-boundary/);
   }
+});
+
+test('registry-only additions refuse IDs retained only in restore.previousHistory', () => {
+  const original = fixture(), state = original.state, id = 'rs3:goal:synthetic-history-only';
+  state.provenance = { restore: { previousHistory: [{ id: 'revision-1', revision: 1, type: 'tick-active-tasks', at: now(),
+    command: { type: 'tick-active-tasks', memberId: 'member-1', taskIds: [id] },
+    undo: { tasks: [{ id, label: 'Synthetic previous goal', category: 'Synthetic previous' }] } }] } };
+  const complete = importBackup({ format: 'rs3-chunk-picker', schemaVersion: 1, state });
+  const target = semantic(projection => {
+    projection.identityRegistry.entries[id] = { label: 'Synthetic reintroduced identity', kind: 'task', category: 'Synthetic reassigned', aliases: [] };
+    return projection;
+  });
+  assert(!original.base.identityRegistry.entries[id]); assert(!complete.identityRegistry.entries[id]);
+  assert(!target.base.tasks.some(row => row.id === id)); assert.equal(complete.history.length, 0);
+  assert.throws(() => stageOwnedDatasetUpgrade(complete, complete, original.base, target.base), {
+    code: 'OWNED_REBASE_REFUSED', message: /Identity rs3:goal:synthetic-history-only.*historical identity.*explicit identity migration\/Undo-boundary/,
+  });
 });
 
 for (const [operation, seam] of [

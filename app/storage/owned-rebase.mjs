@@ -70,7 +70,9 @@ export function stageOwnedDatasetUpgrade(state, complete, oldBase, newBase) {
     if (known[id] && !isDeepStrictEqual(withoutLabel(known[id]), withoutLabel(entry))) {
       refuse(`Identity ${id} was reassigned; an explicit identity migration/Undo-boundary decision is required.`);
     }
-    if (!known[id] && Object.hasOwn(next.identityRegistry.entries, id)) refuse(`Identity ${id} collides with a saved identity; explicit migration required.`);
+    if (!known[id] && (historicalIds.has(id) || Object.hasOwn(next.identityRegistry.entries, id))) {
+      refuse(`Identity ${id} collides with a saved or historical identity; an explicit identity migration/Undo-boundary decision is required.`);
+    }
     if (known[id]?.label !== entry.label && known[id]) names[id] = entry.label;
     if (!Object.hasOwn(next.identityRegistry.entries, id)) next.identityRegistry.entries[id] = structuredClone(entry);
   }
