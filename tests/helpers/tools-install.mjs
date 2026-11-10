@@ -1,3 +1,4 @@
+import { step } from './tools-install-progress.mjs';
 // Root subprocess, on synthetic trees only. CI's Linux slice must execute it.
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -18,7 +19,7 @@ import { lockRelease, prepareBundle, rebaseBundle } from '../../scripts/release/
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const scratch = await mkdtemp('/var/tmp/tools-install-test-');
 const account = { uid: 65534, gid: 65534 }, identity = async () => account;
-const install = options => switchTools({ ...options, identity });
+const install = options => step("switch selection", () => switchTools({ ...options, identity }));
 try {
   await chmod(scratch, 0o755);
   const source = path.join(scratch, 'source'), pkg = path.join(scratch, 'package');
