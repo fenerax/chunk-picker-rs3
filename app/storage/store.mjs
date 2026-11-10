@@ -654,8 +654,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       && (!migrateState || migrateState.isCurrent?.(state) === true);
   }
   async function prepared(state, operation) {
-    // The built-in identity-only hook explicitly proves that a gameplay command
-    // kept its dataset stamp. Caller hooks keep their full copy/validation path.
+    // Explicit read-only proofs may repeat authorization before certifying a
+    // no-op. Hooks without a proof keep their full copy/validation path.
     if (operation === 'command' && prepareState?.commandIsCurrent?.(state)
       && (!migrateState || migrateState.isCurrent?.(state))) return state;
     if (operation === 'load' && loadPreparationIsCurrent(state)) return state;

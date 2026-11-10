@@ -57,6 +57,27 @@ export function requireGameBackup(dataset, backup) {
   return backup;
 }
 
+/** Read-only owned-picker checks. Currency proofs must repeat authorization;
+ * a matching dataset stamp alone never proves registry membership. */
+export function prepareOwnedPickerState(dataset, pickerRegistry, pickerId) {
+  const prepare = (state, { operation }) => {
+    const registered = pickerRegistry.getPicker(pickerId);
+    const ids = state.members.map(member => member.id);
+    const required = pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId));
+    if (required.some(id => !ids.includes(id)) || (operation !== 'replace' && ids.some(id => !registered.memberIds.includes(id)))) {
+      throw Object.assign(new Error('Picker membership does not match its registry.'), { status: 403 });
+    }
+    const identity = state.provenance?.dataset;
+    if (!identity || identity.id !== dataset.datasetId || identity.contractVersion !== dataset.datasetContractVersion || identity.digest !== dataset.digest) {
+      throw Object.assign(new Error('Choose a backup from this picker’s dataset.'), { status: 422 });
+    }
+    return state;
+  };
+  prepare.isCurrent = state => prepare(state, { operation: 'load' }) === state;
+  prepare.commandIsCurrent = state => prepare(state, { operation: 'command' }) === state;
+  return prepare;
+}
+
 export function preserveGameIdentity(dataset, prepareState) {
   if (!dataset.capabilities?.independent) return prepareState;
   const prepare = async (state, context) => {
@@ -64,13 +85,18 @@ export function preserveGameIdentity(dataset, prepareState) {
     ready.provenance = { ...ready.provenance, dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
     return ready;
   };
-  // Only the first-party identity-only hook can prove its load is a no-op.
-  // A caller hook always runs, even if the dataset identity already matches.
-  if (!prepareState) prepare.isCurrent = state => {
+  const identityIsCurrent = state => {
     const identity = state.provenance?.dataset;
     return identity && Object.keys(identity).length === 3 && identity.id === dataset.datasetId
       && identity.contractVersion === dataset.datasetContractVersion && identity.digest === dataset.digest;
   };
-  if (!prepareState) prepare.commandIsCurrent = prepare.isCurrent;
+  // Compose only explicit synchronous, read-only proofs. Ordinary caller hooks
+  // still run on a detached, revalidated copy. Run the caller proof every time
+  // so mutable authorization cannot be bypassed by the identity stamp.
+  for (const key of ['isCurrent', 'commandIsCurrent']) {
+    if (!prepareState) prepare[key] = identityIsCurrent;
+    else if (typeof prepareState[key] === 'function') prepare[key] = state =>
+      prepareState[key](state) === true && identityIsCurrent(state);
+  }
   return prepare;
 }
