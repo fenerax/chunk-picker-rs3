@@ -5,6 +5,9 @@ helpers. Nothing in startup, the store, imports or exports calls them. Existing
 envelope/state and storage-1 behavior is unchanged; `legacy-shared` is untouched.
 Storage schema **2** is reserved, with base reference `{datasetDigest,sha256}`.
 Delta encoding, save decoding/writing and activation belong to later slices.
+The inert [slice-2 resident contract](owned-resident-contract.md) defines sparse
+identity access, command opt-in and clone/materialization boundaries over this
+verified frozen base; it enables no storage writer.
 
 `buildOwnedBase` accepts only `{dataset:{id,contractVersion,digest},tasks,
 identityRegistry}`: the catalogue projection of **fresh owned preparation from

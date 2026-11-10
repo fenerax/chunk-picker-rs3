@@ -1,4 +1,6 @@
 import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
+import { identityValue, identityEntries, identityValidationEntries, isIdentityDictionary, createIdentityDictionary, editIdentityDictionary, freezeIdentityTree, materializeIdentities } from '../tasks/identity-dictionary.mjs';
+import { isResidentState, hasResidentIdentities, cloneResidentState, shareResidentCatalogue, freezeResidentCatalogue, reconcileResidentIdentities } from './resident-copy.mjs';
 import { mergePluginItemEvidence, pluginItemEvidenceFromEnvelope, portablePluginItemEvidence, retainPluginItemEvidence } from './plugin-item-evidence.mjs';
 import { optionalPluginData } from './optional-plugin-data.mjs';
 import { startingSectionLocations } from './cache-surface.mjs';
@@ -148,10 +150,13 @@ function savedTaskRuleDiagnostics(state) {
   return [...state.members.flatMap(member => taskRuleDiagnostics(member.taskRules, { memberId: member.id })),
     ...Object.entries(state.legacy?.maps ?? {}).flatMap(([sourceMapId, map]) => taskRuleDiagnostics(Object.fromEntries(Object.entries(map?.rules ?? {}).map(([id, value]) => [decodeLegacyText(id), value])), { sourceMapId }))];
 }
-function dictionary(value, path, check) {
+function dictionary(value, path, check, checked) {
   record(value, path);
+  const sparse = checked && isIdentityDictionary(value);
+  if (sparse && checked.has(value)) return;
   const keyPath = `${path} key`;
-  for (const key of Object.keys(value)) { propertyKey(key, keyPath); check(value[key], key); }
+  for (const [key, child] of sparse ? identityValidationEntries(value, checked) : identityEntries(value)) { propertyKey(key, keyPath); check(child, key); }
+  if (sparse) checked.add(value);
 }
 function propertyKey(value, path) {
   string(value, path);
@@ -265,7 +270,7 @@ function claimTaskRow(state, id) {
   id = resolveSavedTaskId(state.identityRegistry, id);
   const saved = indexedTaskRows(state.tasks).get(id);
   if (!saved && (id.startsWith('custom:') || id.startsWith('rs3:task:custom:'))) return null;
-  const row = saved ?? state.identityRegistry?.entries?.[id] ?? lookupPermanentId(id);
+  const row = saved ?? identityValue(state.identityRegistry?.entries, id) ?? lookupPermanentId(id);
   return row?.label && row?.category ? { id: resolveSavedTaskId(state.identityRegistry, row.id ?? id, row.category), label: row.label, category: row.category,
     ...(row.completionIds ? { completionIds: row.completionIds } : {}) } : null;
 }
@@ -364,6 +369,7 @@ function restoreTaskClaimChanges(state, delta) {
   else state.taskClaims = claims;
 }
 
+const checkedIdentityEntries = new WeakSet(), checkedIdentityAliases = new WeakSet();
 function validateIdentityRegistry(value) {
   record(value, 'identityRegistry');
   knownKeys(value, new Set(['schemaVersion', 'entries', 'aliases', 'unresolved']), 'identityRegistry');
@@ -376,11 +382,11 @@ function validateIdentityRegistry(value) {
     if (entry.id !== undefined && entry.id !== id) fail('Identity registry row ID does not match its key');
     if (entry.category !== undefined) string(entry.category, `identityRegistry entry ${id}.category`);
     if (entry.aliases !== undefined) uniqueStrings(entry.aliases, `identityRegistry entry ${id}.aliases`);
-  });
+  }, checkedIdentityEntries);
   dictionary(value.aliases, 'identityRegistry.aliases', (targets, alias) => {
     if (Array.isArray(targets)) uniqueStrings(targets, `identityRegistry alias ${alias}`);
     else string(targets, `identityRegistry alias ${alias}`);
-  });
+  }, checkedIdentityAliases);
   if (!Array.isArray(value.unresolved)) fail('identityRegistry.unresolved must be an array');
 }
 
@@ -601,6 +607,7 @@ function restoreTaskChanges(state, changes, positions = new Map(state.tasks.map(
 }
 
 // Backups have a JSON boundary. Reject values JSON would silently lose or alter.
+const checkedResidentJson = new WeakSet();
 function assertJson(value, checked) {
   const seen = new Set();
   // Keys and indexes of the current branch; its path text is built only for an error.
@@ -613,9 +620,12 @@ function assertJson(value, checked) {
     // Only static field roots have the same traversal role as checkStaticField.
     // A reused object under History must still check event actor/source roles.
     if (branch.length === 1 && ['tasks', 'identityRegistry', 'legacy', 'provenance'].includes(branch[0]) && checked?.has(item)) return;
+    const sparse = branch.length === 2 && branch[0] === 'identityRegistry'
+      && ['entries', 'aliases'].includes(branch[1]) && isIdentityDictionary(item);
+    if (sparse && checkedResidentJson.has(item)) return;
     if (seen.has(item)) fail(`${where()} contains a circular reference`);
     const prototype = Object.getPrototypeOf(item);
-    if (!Array.isArray(item) && prototype !== Object.prototype && prototype !== null) fail(`${where()} must contain plain JSON objects`);
+    if (!Array.isArray(item) && !isIdentityDictionary(item) && prototype !== Object.prototype && prototype !== null) fail(`${where()} must contain plain JSON objects`);
     if (Object.getOwnPropertySymbols(item).length) fail(`${where()} contains symbol properties`);
     // Restore and identity-migration provenance also contain preserved History.
     // Check attribution while walking JSON so those archives get the same
@@ -626,10 +636,10 @@ function assertJson(value, checked) {
     if (Array.isArray(item)) {
       for (let index = 0; index < item.length; index++) { branch.push(index); visit(item[index], false, historyList); branch.pop(); }
     } else {
-      const keys = Object.keys(item);
-      for (const key of keys) { branch.push(key); visit(item[key], key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
+      for (const [key, child] of sparse ? identityValidationEntries(item, checkedResidentJson) : identityEntries(item)) { branch.push(key); visit(child, key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
     }
     seen.delete(item);
+    if (sparse) checkedResidentJson.add(item);
   }
   visit(value);
 }
@@ -651,7 +661,26 @@ export function createGroupState(members = [], registry) {
 
 export function validateState(state, registry) {
   record(state, 'state');
-  return validateStateCopy(jsonClone(state), registry);
+  return validateStateCopy(hasResidentIdentities(state) ? materializeResidentState(state) : jsonClone(state), registry);
+}
+
+/** Explicit opt-in only. Existing storage never constructs resident states. */
+export function createResidentState(state, base, registry) {
+  return shareResidentCatalogue(validateState(state, registry), base);
+}
+export function materializeResidentState(state) {
+  assertJson(state);
+  return materializeIdentities(state);
+}
+export function validateResidentState(state, registry) {
+  const copy = cloneResidentState(state);
+  return reconcileResidentIdentities(validateOwnedState(copy, registry), state);
+}
+export function applyResidentCommand(state, command, options = {}) {
+  const baseline = validateResidentState(state, options.registry), next = cloneResidentState(baseline);
+  validatedCommandBaselines.set(next, baseline);
+  try { return freezeResidentCatalogue(applyCommandCopy(next, command, options, baseline)); }
+  finally { validatedCommandBaselines.delete(next); }
 }
 
 /** Storage already owns this private copy. Validate every JSON/schema invariant
@@ -703,7 +732,7 @@ function validateStateCopy(copy, registry, cache) {
     const presentTaskIds = new Set(copy.tasks.map(task => task.id));
     const needsProjection = copy.members.some(member => [...(member.completedTasks ?? []), ...Object.keys(member.taskStatus ?? {}), ...alternativeTaskIds(member)]
       .some(id => !presentTaskIds.has(id) || resolveSavedTaskId(copy.identityRegistry, id) !== id));
-    if (needsProjection) copy = migrateTaskIdentities(copy).state;
+    if (needsProjection) copy = migrateTaskIdentities(hasResidentIdentities(copy) ? materializeResidentState(copy) : copy).state;
   }
   if (copy.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported state schema version: ${copy.schemaVersion}`);
   if (!Number.isSafeInteger(copy.revision) || copy.revision < 0) fail('revision must be a nonnegative safe integer');
@@ -1170,22 +1199,31 @@ function registerCatalogueTask(state, id, catalogue) {
   state.tasks.push(task);
   validatedTaskRows.get(state.tasks)?.set(task.id, task);
   if (isPermanentId(id)) {
-    if (validatedCommandBaselines.get(state)?.identityRegistry === state.identityRegistry && state.identityRegistry) {
+    const resident = isResidentState(state);
+    if (!resident && validatedCommandBaselines.get(state)?.identityRegistry === state.identityRegistry && state.identityRegistry) {
       state.identityRegistry = { ...state.identityRegistry, entries: { ...state.identityRegistry.entries }, aliases: { ...state.identityRegistry.aliases } };
     }
-    state.identityRegistry ??= { schemaVersion: 1, entries: {}, aliases: {}, unresolved: [] };
+    state.identityRegistry ??= resident ? freezeIdentityTree({ schemaVersion: 1,
+      entries: createIdentityDictionary(Object.freeze({})), aliases: createIdentityDictionary(Object.freeze({})), unresolved: [] })
+      : { schemaVersion: 1, entries: {}, aliases: {}, unresolved: [] };
     const baseline = lookupPermanentId(id);
-    const previous = state.identityRegistry.entries[id];
+    const previous = identityValue(state.identityRegistry.entries, id);
     const aliases = [...new Set([id, ...(baseline?.aliases ?? []), ...(previous?.aliases ?? []), ...(candidate.aliases ?? []),
       ...(candidate.rawLabel ? [candidate.rawLabel, legacyTaskId(candidate.category, candidate.rawLabel)] : [])])];
     const entry = { ...baseline, ...previous, ...task, kind: candidate.kind ?? baseline?.kind ?? previous?.kind ?? 'task', aliases };
     const addedAliases = {};
     for (const alias of aliases) {
-      const old = state.identityRegistry.aliases[alias];
+      const old = identityValue(state.identityRegistry.aliases, alias);
       const targets = [...new Set([...(Array.isArray(old) ? old : typeof old === 'string' ? [old] : []), id])];
       Object.defineProperty(addedAliases, alias, { value: targets.length === 1 ? targets[0] : targets, enumerable: true });
     }
     validateIdentityRegistry({ schemaVersion: 1, entries: { [id]: entry }, aliases: addedAliases, unresolved: [] });
+    if (resident) {
+      state.identityRegistry = freezeIdentityTree({ ...state.identityRegistry,
+        entries: editIdentityDictionary(state.identityRegistry.entries, [{ key: id, value: entry }]),
+        aliases: editIdentityDictionary(state.identityRegistry.aliases, Object.entries(addedAliases).map(([key, value]) => ({ key, value }))) });
+      return;
+    }
     state.identityRegistry.entries[id] = entry;
     Object.assign(state.identityRegistry.aliases, addedAliases);
   }
@@ -1565,7 +1603,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       else if (itemId.startsWith('gear:')) payload.itemLabel = `${itemId.slice(5)} gear`;
       else {
         const taskId = itemId.slice(itemId.indexOf(':') + 1);
-        const task = indexedTaskRows(next.tasks).get(taskId) ?? next.identityRegistry?.entries?.[taskId] ?? lookupPermanentId(taskId);
+        const task = indexedTaskRows(next.tasks).get(taskId) ?? identityValue(next.identityRegistry?.entries, taskId) ?? lookupPermanentId(taskId);
         if (task?.label) payload.itemLabel = trimTaskStars(decodeLegacyText(task.label).replace(/~\|([^|]+)\|~/g, (_, label) => label.split('#')[0])).trim();
       }
       next.finishLine = { ...line, items: { ...line.items, [itemId]: { ...line.items[itemId], ...fields } } };
