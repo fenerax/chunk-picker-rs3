@@ -13,7 +13,7 @@ export async function syncDirectory(directory, { filesystem = fs, platform = pro
 /** Warn only when the caller can adopt a self-consistent published file. Ordered
  * publications must stop on sync failure even though rename cannot be undone. */
 export async function publishFile(temporary, file, { filesystem = fs, platform = process.platform, wait = delay,
-  onPostPublishSyncError = 'throw' } = {}) {
+  onPostPublishSyncError = 'throw', afterRename, afterDirectorySync } = {}) {
   if (!['warn', 'throw'].includes(onPostPublishSyncError)) throw new TypeError('Invalid post-publication sync error policy.');
   // Windows scanners can briefly hold the destination without delete-sharing.
   // Retry the same synchronized replacement; never remove the old file.
@@ -24,13 +24,15 @@ export async function publishFile(temporary, file, { filesystem = fs, platform =
       await wait(20 * 2 ** attempt);
     }
   }
+  await afterRename?.();
   try {
     await syncDirectory(path.dirname(file), { filesystem, platform });
-    return { durable: true };
   } catch (error) {
     if (onPostPublishSyncError === 'throw') throw error;
     return { durable: false, error };
   }
+  await afterDirectorySync?.();
+  return { durable: true };
 }
 
 /** Never include file contents, credentials, paths or arbitrary error messages. */

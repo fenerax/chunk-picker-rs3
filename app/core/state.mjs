@@ -672,7 +672,7 @@ export function validateState(state, registry) {
   return validateStateCopy(hasResidentIdentities(state) ? materializeResidentState(state) : jsonClone(state), registry);
 }
 
-/** Explicit opt-in only. Existing storage never constructs resident states. */
+/** Explicit opt-in only; production storage never enables resident states. */
 export function createResidentState(state, base, registry) {
   return shareResidentCatalogue(validateState(state, registry), base);
 }

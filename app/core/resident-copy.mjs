@@ -22,6 +22,9 @@ export function freezeResidentCatalogue(state) {
   return state;
 }
 export function reconcileResidentIdentities(state, previous) {
+  if (state.identityRegistry !== undefined && previous.identityRegistry === undefined && !hasResidentIdentities(state)) {
+    return shareResidentCatalogue(state, residentBases.get(previous));
+  }
   residentBases.set(state, residentBases.get(previous));
   if (state.identityRegistry !== undefined && !hasResidentIdentities(state)) state.identityRegistry = freezeIdentityTree(Object.fromEntries(Object.entries(state.identityRegistry).map(([key, value]) => [key,
     key === 'entries' || key === 'aliases' ? reconcileIdentityDictionary(previous.identityRegistry[key], value) : value])));

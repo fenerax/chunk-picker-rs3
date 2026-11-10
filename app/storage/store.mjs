@@ -21,6 +21,10 @@ import { acquireStoreFileLock as acquireLock } from './store-lock.mjs';
 import { atomicWrite } from './atomic-write.mjs';
 export { prepareStoreProcessIdentity } from './store-lock.mjs';
 import { readStaticFieldBytes, validateStaticFieldReference } from './static-field.mjs';
+import { createOwnedStorage } from './owned-storage.mjs';
+import { cloneResidentState, isResidentState, shareResidentCatalogue, reconcileResidentIdentities } from '../core/resident-copy.mjs';
+import { applyResidentCommand, materializeResidentState, validateResidentState } from '../core/state.mjs';
+import { identityValue, materializeIdentities } from '../tasks/identity-dictionary.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
@@ -96,7 +100,7 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
@@ -108,6 +112,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (Object.keys(policy).some(key => !['backupDays', 'historyEntries'].includes(key))) throw new TypeError('Unknown retention policy setting.');
   }
   const directory = path.resolve(dataDir);
+  const ownedStorage = ownedFormat2 === false ? undefined : createOwnedStorage(ownedFormat2, directory, { readOnly });
+  if (ownedStorage && completionCodec) throw new TypeError('Owned format 2 requires the schema-1 envelope (completionCodec off).');
+  // Select adapters once. Format 1 retains its existing serialization loops.
+  const copyState = ownedStorage ? materializeResidentState : structuredClone;
+  const sameState = ownedStorage ? ownedStorage.sameState : isDeepStrictEqual;
+  const withCatalogue = ownedStorage ? ownedStorage.withLease : work => work();
+  const writeState = ownedStorage ? (bytes, options) => ownedStorage.writeState(stateFile, bytes, options)
+    : (bytes, options) => atomicWrite(stateFile, bytes, options);
+  const applyStoredCommand = ownedStorage ? applyResidentCommand : applyValidatedCommand;
   if (!readOnly) await mkdir(directory, { recursive: true });
   let releaseGuard = readOnly ? async () => {} : await acquireProcessGuard(directory);
   let releaseFileLock;
@@ -155,9 +168,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const captured = await captureOptionalSidecarEvidence(state, { dataDir: directory, retainCommittedReplay: !!retainCommittedReplay, storeOwned: true });
     const materialized = materializeOptionalSidecarEvidence(state, captured, { publication: true });
     const folded = await foldLegacyPluginHandled({ dataDir: directory, state: materialized, previous });
-    const ready = isDeepStrictEqual(folded, original) ? original : folded;
+    let ready = sameState(folded, original) ? original : folded;
     if (ready !== original && coordination.has(original)) coordination.set(ready, coordination.get(original));
     if (ready !== original && journalRecovery.has(original)) journalRecovery.add(ready);
+    if (ownedStorage && isResidentState(original)) ready = inheritStateMetadata(original, ready);
+    if (ownedStorage && !isResidentState(ready)) {
+      await ownedStorage.codec();
+      ready = inheritStateMetadata(ready, shareResidentCatalogue(copyState(ready), ownedStorage.base));
+    }
     return ready;
   }
   const importTickets = new WeakMap();
@@ -244,7 +262,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   let retentionFailure;
   let archiveIndex;
   const listeners = new Set();
-  const envelope = state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state });
+  const envelope = ownedStorage ? state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state: copyState(state) })
+    : state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state });
   const envelopePrefix = `${JSON.stringify({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION }).slice(0, -1)},"state":`;
   let serializedFields = new WeakMap();
   const staticReferences = new WeakMap();
@@ -280,7 +299,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     historyEncoding = { events, json };
     return json;
   }
-  function fieldJSON(key, value) {
+  const fieldJSON = ownedStorage ? (key, value) => {
+    if (key !== 'identityRegistry' || !value) return flatFieldJSON(key, value);
+    return JSON.stringify(materializeIdentities(value));
+  } : flatFieldJSON;
+  function flatFieldJSON(key, value) {
     if (key === 'history') return historyJSON(value);
     if (!reusableFields.has(key) || value === null || typeof value !== 'object') return JSON.stringify(value);
     // Private state commands share these trees without mutating them. Hook
@@ -340,6 +363,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function hydrateStaticDocument(document, ownsDocument, forImport = false, retentionCache) {
     if (document?.storage === undefined) return ownsDocument ? document : { ...document, state: structuredClone(document?.state) };
     const metadata = document.storage;
+    if (ownedStorage && metadata?.schemaVersion === 2) {
+      const codec = await ownedStorage.read(metadata.base);
+      const hydrated = await hydrateStaticDocument({ ...document, storage: { schemaVersion: 1, fields: metadata.fields === undefined ? {} : metadata.fields } }, ownsDocument, forImport, retentionCache);
+      return codec.decode({ ...hydrated, storage: metadata });
+    }
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || metadata.schemaVersion !== 1
       || Object.keys(metadata).some(key => !['schemaVersion', 'fields'].includes(key))
       || !metadata.fields || typeof metadata.fields !== 'object' || Array.isArray(metadata.fields)
@@ -362,7 +390,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // not the root state. Shared fields already keep those verified caches;
     // cloned or changed fields must serialize/hash again, never inherit stale
     // bytes. Gameplay/view caches likewise recompute for a new root.
-    return target;
+    return ownedStorage && isResidentState(source) && target !== source ? reconcileResidentIdentities(target, source) : target;
   }
   // Evidence adapters may replace the root without changing gameplay. Keep
   // store-owned Undo cancellation and archive metadata at this shared boundary,
@@ -397,6 +425,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       serializedFields.set(value, bytes);
       staticReferences.set(value, reference);
     }
+    if (ownedStorage) { await ownedStorage.codec(); return shareResidentCatalogue(state, ownedStorage.base); }
     return state;
   }
   async function staticReference(key, value, bytes) {
@@ -413,7 +442,24 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     pendingPublication?.references.push(value);
     return reference;
   }
-  async function serializedDiskState(state, ledger = receipts, currency = pluginCurrency) {
+  const serializedDiskState = ownedStorage ? serializedOwnedDiskState : serializedFlatDiskState;
+  async function serializedOwnedDiskState(state, ledger = receipts, currency = pluginCurrency) {
+    await retainReceiptQuarantine();
+    const encoded = (await ownedStorage.codec()).encode(state), fields = {};
+    for (const key of ['legacy', 'provenance']) {
+      const value = state[key];
+      if (value === null || typeof value !== 'object') continue;
+      const bytes = fieldJSON(key, value);
+      if (!staticReferences.has(value) && Buffer.byteLength(bytes) < STATIC_THRESHOLD) continue;
+      fields[key] = await staticReference(key, value, bytes);
+      delete encoded.state[key];
+    }
+    if (Object.keys(fields).length) encoded.storage.fields = fields;
+    return `${JSON.stringify(encodeCompletions({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, ...encoded,
+      ...(coordination.has(state) ? { coordination: coordinationOf(state) } : {}),
+      ...(ledger ? { actionReceipts: ledger } : {}), ...(currency ? { pluginCurrency: currency } : {}) }))}\n`;
+  }
+  async function serializedFlatDiskState(state, ledger = receipts, currency = pluginCurrency) {
     // Preserve rejected metadata before ANY replacement can drop it. Evidence
     // remains private, content addressed, and outside ordinary backup pruning.
     await retainReceiptQuarantine();
@@ -441,7 +487,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       ...(Object.keys(fields).length ? { storage: { schemaVersion: 1, fields } } : {}) }))}\n`;
   }
   function gameplayFingerprint() {
+    seedResidentFingerprint(current);
     return fingerprint(current);
+  }
+  const residentDigests = new WeakMap();
+  function seedResidentFingerprint(state) {
+    if (!ownedStorage || !state.identityRegistry) return;
+    if (!residentDigests.has(state.identityRegistry)) residentDigests.set(state.identityRegistry,
+      createHash('sha256').update(fieldJSON('identityRegistry', state.identityRegistry)).digest('hex'));
+    const digests = { identityRegistry: residentDigests.get(state.identityRegistry) };
+    fingerprint.seedStatic(state, digests); taskReuseFingerprint.seedStatic(state, digests);
   }
   let poolState, fullPools, playPools, calculationSnapshot;
   const taskReuseFingerprint = createTaskReuseFingerprint();
@@ -450,7 +505,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function playProjection(state) {
     let projection = playProjections.get(state);
     if (!projection) {
-      const display = projectPlayState(state);
+      const display = projectPlayState(ownedStorage ? copyState(state) : state);
       projection = { state: display, tasksJSON: JSON.stringify(display.tasks), identityJSON: JSON.stringify(display.identityRegistry) };
       playProjections.set(state, projection);
     }
@@ -461,7 +516,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (playProjections.has(state)) return;
     if (playProjectionJobs.has(state)) return playProjectionJobs.get(state);
     const job = (async () => {
-      const steps = projectPlayStateSteps(state);
+      const steps = projectPlayStateSteps(ownedStorage ? copyState(state) : state);
       let next, turn = performance.now();
       do {
         next = steps.next();
@@ -544,8 +599,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
             ? createHash('sha256').update(JSON.stringify([taskReuseFingerprint(input), randomStarts])).digest('hex')
             : taskReuseFingerprint(input);
         },
-        get rollInputKey() { return rollInputKey ??= rollPoolCache.input(input); },
-        get state() { return state ??= structuredClone(input); },
+        get rollInputKey() { return rollInputKey ??= rollPoolCache.input(ownedStorage ? copyState(input) : input); },
+        get state() { return state ??= copyState(input); },
         get stateJSON() {
           if (!stateJSON) {
             // Reuse the verified static-field strings rather than cloning the
@@ -564,20 +619,22 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   function rollPools(view) {
     refreshSnapshots();
-    fullPools ??= Object.fromEntries(current.members.map(member => [member.id,
-      (rollPoolCache.get(current, member.id) ?? rollPoolCache.set(current, member.id,
-        { pool: evaluateRollPool(world, current, member.id, registry) })).pool]));
+    const input = ownedStorage ? copyState(current) : current;
+    fullPools ??= Object.fromEntries(input.members.map(member => [member.id,
+      (rollPoolCache.get(input, member.id) ?? rollPoolCache.set(input, member.id,
+        { pool: evaluateRollPool(world, input, member.id, registry) })).pool]));
     if (view !== PLAY_VIEW) return fullPools;
-    playPools ??= Object.fromEntries(current.members.map(member => [member.id, { ...fullPools[member.id],
-      partnerConnections: rollPoolCache.get(current, member.id)?.partnerConnections
-        ?? partnerConnections(world, current, member.id, registry) }]));
+    playPools ??= Object.fromEntries(input.members.map(member => [member.id, { ...fullPools[member.id],
+      partnerConnections: rollPoolCache.get(input, member.id)?.partnerConnections
+        ?? partnerConnections(world, input, member.id, registry) }]));
     return playPools;
   }
   async function prepareRollPools() {
     refreshSnapshots();
     if (!computeRollPool || fullPools && playPools) return;
     const captured = current, values = [];
-    for (const member of captured.members) values.push([member.id, await computeRollPool(captured, member.id)]);
+    const input = ownedStorage ? copyState(captured) : captured;
+    for (const member of captured.members) values.push([member.id, await computeRollPool(input, member.id)]);
     if (current !== captured) return prepareRollPools();
     fullPools = Object.fromEntries(values.map(([id, value]) => [id, value.pool]));
     playPools = Object.fromEntries(values.map(([id, value]) => [id, { ...value.pool, partnerConnections: value.partnerConnections }]));
@@ -637,6 +694,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     } else {
       await publishDependencies([{ file, bytes, at }, ...(label ? [{ file: `${file}.meta.json`, bytes: JSON.stringify({ label }) }] : [])]);
     }
+    await ownedStorage?.crash?.('preimage-durable');
   }
   const timestamp = () => {
     const value = typeof now === 'function' ? now() : now ?? new Date();
@@ -666,7 +724,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // All callers pass a previously validated private state. Hooks receive a
     // separate clone and their output crosses the validation boundary once.
     const context = { operation, world, registry };
-    let input = importReader ? state : structuredClone(state);
+    let input = importReader && !ownedStorage ? state : copyState(state);
     // Only the explicit first-party migration stage may project saved history
     // onto new identities or establish an archived undo boundary. Caller hooks
     // receive that authoritative baseline, rather than permission to erase it.
@@ -716,15 +774,17 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // claim aliases and old stickers. Own the events too: cached archive JSON
     // must retain its original IDs for the next snapshot's identity registry.
     // The public validateState path already provides that isolation itself.
-    const complete = { ...state,
-      history: importReader || validationCache ? structuredClone(history) : history };
+    const complete = { ...(ownedStorage && isResidentState(state) ? cloneResidentState(state) : state),
+      history: ownedStorage || importReader || validationCache ? structuredClone(history) : history };
     if (complete.provenance?.historyArchive !== undefined) {
       complete.provenance = { ...complete.provenance };
       delete complete.provenance.historyArchive;
     }
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     if (forImport) await new Promise(resolve => setImmediate(resolve));
-    const validated = importReader || validationCache ? validateOwnedState(complete, registry, validationCache) : validateState(complete, registry);
+    if (ownedStorage && isResidentState(state)) inheritStateMetadata(state, complete);
+    const validated = ownedStorage && isResidentState(complete) ? validateResidentState(complete, registry)
+      : importReader || validationCache ? validateOwnedState(complete, registry, validationCache) : validateState(complete, registry);
     inheritStateMetadata(state, validated);
     return { state: validated, archived };
   }
@@ -924,11 +984,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A frozen handover still refuses new reads before writer ownership moves.
     if (!allowClosing && (frozen && !(importReader && backupRead) || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
     maintenancePending++;
-    const result = maintenanceQueue.then(() => withStoreWrite(directory, work)).finally(() => { maintenancePending--; });
+    const result = maintenanceQueue.then(() => withCatalogue(() => withStoreWrite(directory, work))).finally(() => { maintenancePending--; });
     maintenanceQueue = result.catch(() => {});
     return result;
   }
-  try { await withStoreWrite(directory, () => withPluginEvidence(directory, async () => {
+  try { await withCatalogue(() => withStoreWrite(directory, () => withPluginEvidence(directory, async () => {
     // Check the exact final document before ANY startup mutation. Hash includes
     // receipt/coordination metadata, not just the public revision number.
     if (expectedCheckpoint) {
@@ -962,7 +1022,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         : validateState(initialState, registry);
       current = await publicationState(observeStartupProgress(await prepared(seed, 'initialize')));
       currentDiskSerialized = await serializedDiskState(current);
-      reportDurability(await atomicWrite(stateFile, currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
+      reportDurability(await writeState(currentDiskSerialized, { onPostPublishSyncError: 'warn' }));
     }
     if (startupDiagnostics) startupDiagnostics.storeHydrateValidateMs = performance.now() - hydrateStarted;
     currentDiskSerialized ??= await serializedDiskState(current);
@@ -1004,7 +1064,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // Compare validated data directly: key ordering has no gameplay meaning,
       // and a changed projection should not stringify its large archive twice.
       // Exceptional numeric distinctions such as -0 conservatively refresh.
-      if (!isDeepStrictEqual(ready, current)) {
+      if (!sameState(ready, current)) {
         if (readOnly || liveSwapStrict) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
         if (current.revision === Number.MAX_SAFE_INTEGER) throw new RangeError('State revision limit reached.');
         ready.revision = current.revision + 1;
@@ -1017,8 +1077,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         await withPublicationPreparation(async pending => {
           await retainBackup(current, 'catalogue-refresh');
           const diskDocument = await serializedDiskState(ready);
-          const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn', beforeRename: async () => {
-            await beforeCommit?.({ operation: 'catalogue-refresh', state: structuredClone(ready) });
+          const publication = await writeState(diskDocument, { onPostPublishSyncError: 'warn', beforeRename: async () => {
+            await beforeCommit?.({ operation: 'catalogue-refresh', state: copyState(ready) });
             await publishDependencies(pending.dependencies);
           } });
           pending.published = true;
@@ -1032,9 +1092,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = await publicationState(current);
         try { await withPublicationPreparation(async pending => {
           const diskDocument = await serializedDiskState(current);
-          reportDurability(await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn',
+          reportDurability(await writeState(diskDocument, { onPostPublishSyncError: 'warn',
             beforeRename: async () => {
-              await beforeCommit?.({ operation: 'plugin-item-evidence', state: structuredClone(current) });
+              await beforeCommit?.({ operation: 'plugin-item-evidence', state: copyState(current) });
               await publishDependencies(pending.dependencies);
             } }));
           pending.published = true;
@@ -1052,7 +1112,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const diskDocument = await serializedDiskState(observed);
         // Observations keep the same revision, but still replace the durable save.
         await retainBackup(current, 'progress-snapshot');
-        const publication = await atomicWrite(stateFile, diskDocument, { onPostPublishSyncError: 'warn' });
+        const publication = await writeState(diskDocument, { onPostPublishSyncError: 'warn' });
         current = observed; currentDiskSerialized = diskDocument;
         pluginFoldPending = false;
         reportDurability(publication);
@@ -1064,7 +1124,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         if (coordination.has(current)) coordination.set(folded, coordination.get(current));
         try {
           const bytes = await serializedDiskState(folded);
-          await atomicWrite(stateFile, bytes); currentDiskSerialized = bytes;
+          await writeState(bytes); currentDiskSerialized = bytes;
         }
         catch { warnOptionalPluginData('legacy fold checkpoint'); }
         current = folded;
@@ -1076,10 +1136,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       startupDiagnostics.retentionMs = performance.now() - retentionStarted;
       startupDiagnostics.storeMigrateValidateMs ??= 0;
     }
-  }));
+  })));
   } catch (error) { await releaseLock(); throw error; }
 
-  const cloneCurrent = () => structuredClone(current);
+  const cloneCurrent = () => copyState(current);
   const portableRetainedBackup = (state, forImport) => forImport ? envelope(state)
     // Internal imports map source identity before merging destination evidence.
     // Downloads instead enrich the historical checkpoint for portable replay.
@@ -1096,7 +1156,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function enqueue(work) {
     if (closing) return Promise.reject(new Error('The store is closed.'));
     if (frozen) return Promise.reject(Object.assign(new Error('The picker is updating.'), { status: 503, code: 'PICKER_UPDATING' }));
-    const result = queue.then(() => withStoreWrite(directory, () => withPluginEvidence(directory, work)));
+    const result = queue.then(() => withCatalogue(() => withStoreWrite(directory, () => withPluginEvidence(directory, work))));
     queue = result.catch(() => {});
     return result;
   }
@@ -1109,8 +1169,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         { memberIds: state.members.map(member => member.id) }); }
       catch { warnOptionalPluginData('item review lowering preparation'); }
       try {
-        const result = await atomicWrite(stateFile, bytes, { onPostPublishSyncError: 'warn', beforeRename: async () => {
-          await beforeCommit?.({ operation, state: details.summary ?? structuredClone(state), ...(details.digest ? { digest: details.digest } : {}) });
+        const result = await writeState(bytes, { onPostPublishSyncError: 'warn', beforeRename: async () => {
+          await beforeCommit?.({ operation, state: details.summary ?? copyState(state), ...(details.digest ? { digest: details.digest } : {}) });
           await publishDependencies(details.dependencies ?? []);
         } });
         try { await staged?.publish(); } catch { warnOptionalPluginData('item review lowering'); }
@@ -1174,6 +1234,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     receipts = nextReceipts;
     pluginCurrency = currency;
     currentDiskSerialized = diskDocument;
+    await ownedStorage?.crash?.('memory-published');
     reportDurability(publication);
     if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
     for (const listener of listeners) {
@@ -1215,10 +1276,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       let precomputedPool;
       if (command.type === 'roll' && computeRollPool && [1, 2].includes(command.count)
         && input.state.members.some(member => member.id === command.memberId && !member.pendingRoll.length)) {
-        await computeRollPool(input.state, command.memberId);
-        precomputedPool = rollPoolCache.prepare(input.state, command.memberId);
+        await computeRollPool(ownedStorage ? copyState(input.state) : input.state, command.memberId);
+        if (!ownedStorage) precomputedPool = rollPoolCache.prepare(input.state, command.memberId);
       }
-      const next = applyValidatedCommand(input.state, command, { expectedRevision, world, registry, precomputedPool,
+      const next = applyStoredCommand(input.state, command, { expectedRevision, world, registry, precomputedPool,
         random: ['go-members', 'setup-start'].includes(command.type) ? random ?? (() => randomBytes(6).readUIntBE(0, 6) / 2 ** 48) : random,
         now, taskCatalogue, actor: attribution, membersStartBanks, xpChoiceCatalogue });
       inheritStateMetadata(input.state, next);
@@ -1231,7 +1292,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       if (command.type === 'undo') await new Promise(resolve => setImmediate(resolve));
       // Caller hooks can change more than the command requested. Only exact
       // authored coordination output keeps the conservative conflict proof.
-      if (claimOnly && ready !== next) claimOnly = isDeepStrictEqual(ready, next);
+      if (claimOnly && ready !== next) claimOnly = sameState(ready, next);
       if (command.type === 'undo' && !['claim-task', 'clear-task-claim', 'prune-task-claims'].includes(undoTarget?.type)) {
         const removed = Object.keys(baseline.taskClaims ?? {}).filter(id => !Object.hasOwn(ready.taskClaims ?? {}, id));
         if (removed.length) {
@@ -1249,7 +1310,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   async function replacementState(document, base, actor) {
     if (isMainThread && !prepareState && !migrateState) return runImportJob({ kind: 'replacement', dataDir: directory, document, actor,
-      baseRevision: base.revision, rules: registryMetadata(registry), options: { now: timestamp() } });
+      baseRevision: base.revision, rules: registryMetadata(registry), options: { now: timestamp() },
+      ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions } : {}) });
     let incoming = document?.format || typeof document === 'string' ? importBackup(document, registry, { owned: importReader })
       : importReader ? validateOwnedState(document, registry) : validateState(document, registry);
     incoming = materializeOptionalSidecarEvidence(incoming, (typeof document === 'string' ? JSON.parse(document) : document)?.optionalSidecarEvidence);
@@ -1341,7 +1403,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const search = q.trim().toLocaleLowerCase();
     const taskNames = search ? new Map(captured.tasks.map(task => [task.id, task.label])) : undefined;
     const memberName = id => captured.members.find(member => member.id === id)?.name ?? id;
-    const taskLabel = id => taskNames.get(id) ?? captured.identityRegistry?.entries?.[id]?.label ?? labels.taskLabel?.(id) ?? id;
+    const taskLabel = ownedStorage ? id => taskNames.get(id) ?? identityValue(captured.identityRegistry?.entries, id)?.label ?? labels.taskLabel?.(id) ?? id
+      : id => taskNames.get(id) ?? captured.identityRegistry?.entries?.[id]?.label ?? labels.taskLabel?.(id) ?? id;
     const readable = Object.fromEntries(Object.entries({ ...labels, memberName, taskLabel }).map(([key, lookup]) => [key, id => plain(lookup(id))]));
     const matches = event => {
       if (player !== undefined && event.command?.memberId !== player && event.actor?.memberId !== player
@@ -1431,7 +1494,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         .map(({ key, reference }) => [key, reference.sha256]));
       fingerprint.seedStatic(state, preparedDigests);
       taskReuseFingerprint.seedStatic(state, preparedDigests);
-      return { state, disk, backup, dependencies: importDependencies, fields, summary, restoredMemberIds, digest: createHash('sha256').update(disk).digest('hex'),
+      seedResidentFingerprint(state);
+      return { state: ownedStorage ? copyState(state) : state, disk, backup, dependencies: importDependencies, fields, summary, restoredMemberIds, digest: createHash('sha256').update(disk).digest('hex'),
         fingerprints: { gameplay: fingerprint.exportStatic(state, serializedFields), tasks: taskReuseFingerprint.exportStatic(state, serializedFields) },
         coordination: coordination.get(state), receipts, pluginCurrency: currency,
         ownershipChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.unlocked]), state.members.map(m => [m.id, m.unlocked])),
@@ -1491,10 +1555,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         ...(retentionFailure ? { failure: retentionFailure } : {}) } }),
     prepareSnapshot: () => enqueueMaintenance(maintainRetention),
     backup: () => isMainThread ? enqueueMaintenance(() => runImportJob({ kind: 'backup', dataDir: directory,
-      rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true })
+      rules: registryMetadata(registry), retention: policy, completionCodec,
+      ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions } : {}) }), { backupRead: true })
       : hydrateHistory(current).then(({ state }) => withOptionalSidecarEvidence(envelope(state), { dataDir: directory })),
     exportBackup: ({ dataset, gzip = false, encoding } = {}) => enqueueMaintenance(() => runImportJob({ kind: 'export', dataDir: directory,
-      exportDataset: dataset, gzip, encoding, rules: registryMetadata(registry), retention: policy, completionCodec }), { backupRead: true }),
+      exportDataset: dataset, gzip, encoding, rules: registryMetadata(registry), retention: policy, completionCodec,
+      ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions } : {}) }), { backupRead: true }),
     async listBackups() {
       return enqueueMaintenance(async () => {
         const byId = new Map([...(await retainedArchiveIndex()).values()].map(item => [item.metadata.id, { ...item.metadata }]));
@@ -1563,7 +1629,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     },
     observePluginCurrency(observation) {
       return enqueue(async () => {
-        const result = observePluginCurrency(current, pluginCurrency, observation,
+        const result = observePluginCurrency(ownedStorage ? copyState(current) : current, pluginCurrency, observation,
           { now: timestamp, epoch: currencyEpoch, world, registry, taskCatalogue, membersStartBanks, xpChoiceCatalogue });
         const ready = result.state === current ? current : await prepared(inheritStateMetadata(current, result.state), 'command');
         if (ready.revision !== result.state.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
@@ -1583,7 +1649,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         if (result.ledger !== receipts) {
           const next = await publicationState(current, current);
           const bytes = await serializedDiskState(next, result.ledger);
-          const publication = await atomicWrite(stateFile, bytes, { onPostPublishSyncError: 'warn' });
+          const publication = await writeState(bytes, { onPostPublishSyncError: 'warn' });
           current = next; receipts = result.ledger; currentDiskSerialized = bytes;
           reportDurability(publication);
         }
@@ -1630,14 +1696,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           reportActivationTiming(onActivationTiming, 'store.readValidate', phaseStarted);
           phaseStarted = performance.now();
           const ready = await prepareLoadedState(latest);
-          if (!isDeepStrictEqual(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
+          if (!sameState(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
           if (closing) throw new Error('Standby activation was cancelled by shutdown.');
           current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
           pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
           receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
           releaseGuard = guard; releaseFileLock = fileLock;
-          readOnly = false; frozen = false; liveSwapStrict = true;
+          readOnly = false; ownedStorage?.activate(); frozen = false; liveSwapStrict = true;
           phaseStarted = performance.now();
           for (const listener of listeners) { try { listener({ revision: current.revision, ownershipChanged: true }); } catch {} }
           reportActivationTiming(onActivationTiming, 'store.listeners', phaseStarted);
@@ -1690,7 +1756,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const revision = current.revision;
       const checkpoint = currentDiskSerialized;
       const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options: { ...options, now: timestamp() },
-        rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec }, { budget: options.importBudget, userId: options.importUserId,
+        rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec,
+        ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions } : {}) }, { budget: options.importBudget, userId: options.importUserId,
         prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
       const ticket = {};
       importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint });
@@ -1719,7 +1786,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         await publishDependencies(diagnostic);
         const published = await publishItemState(publication.state, publication.disk, prepared.operation,
           { ...publication, dependencies: dependencies.filter(row => !diagnostic.includes(row)) });
-        current = publication.state;
+        current = ownedStorage ? shareResidentCatalogue(copyState(publication.state), ownedStorage.base) : publication.state;
         currentDiskSerialized = publication.disk;
         receipts = publication.receipts;
         pluginCurrency = publication.pluginCurrency;
@@ -1737,7 +1804,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         for (const listener of listeners) {
           try { listener({ revision: current.revision, restored: true, restoredMemberIds: publication.restoredMemberIds, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
         }
-        return { state: current, reply: publication.reply, applyMs: performance.now() - start };
+        return { state: ownedStorage ? copyState(current) : current, reply: publication.reply, applyMs: performance.now() - start };
       }));
     },
     replace(document, expectedRevision, { actor } = {}) {

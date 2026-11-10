@@ -73,7 +73,8 @@ async function run(job) {
   prepareState.isCurrent = () => true;
   if (migrateState) migrateState.isCurrent = () => true;
   const store = await openStore({ dataDir: job.dataDir, registry, readOnly: true, importReader: true, migrateState, prepareState, now: options.now,
-    retention: job.retention, progressQuestPoints: job.progressQuestPoints, completionCodec: job.completionCodec });
+    retention: job.retention, progressQuestPoints: job.progressQuestPoints, completionCodec: job.completionCodec,
+    ownedFormat2: job.ownedFormat2 });
   try {
     if (job.kind === 'backup' || job.kind === 'export') {
       const backup = await store.backup();

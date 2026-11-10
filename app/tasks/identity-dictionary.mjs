@@ -20,6 +20,21 @@ function version(data) {
   return view;
 }
 export const isIdentityDictionary = value => versions.has(value);
+/** Storage projection visits only edits; enumeration recipes are exceptional. */
+export function identityDictionaryDelta(dictionary, base) {
+  let data = versions.get(dictionary);
+  if (!data || data.base !== base) {
+    dictionary = createIdentityDictionary(base, data ? Object.fromEntries(identityEntries(dictionary)) : dictionary);
+    data = versions.get(dictionary);
+  }
+  const replacements = Object.create(null), deleted = [];
+  for (const [key, value] of data.edits) {
+    if (value === removed) { if (Object.hasOwn(base, key)) deleted.push(key); }
+    else if (JSON.stringify(value) !== JSON.stringify(base[key])) replacements[key] = value;
+  }
+  const order = data.order ?? ([...data.tail].some(key => Object.hasOwn(base, key)) ? [...identityKeys(dictionary)] : undefined);
+  return { replacements, deleted, ...(order ? { order } : {}) };
+}
 export function identityValue(dictionary, key) {
   if (callsForTests) callsForTests.value++;
   const data = versions.get(dictionary);
