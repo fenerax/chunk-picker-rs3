@@ -8,6 +8,7 @@ import { reconcileTombstones as reconcileMP5Tombstones } from '../../app/storage
 import { openAccountStore } from '../../app/storage/accounts.mjs';
 import { openInviteStore } from '../../app/storage/invites.mjs';
 import { copyServiceTree, pickerId, pickerPath, validateServicePaths, verifyServiceBackup, syncRecoveryTree, syncRecoveryDirectory } from './service-checkpoint.mjs';
+import { copyOwnedClosure, verifyOwnedClosure, installOwnedClosure } from './owned-recovery.mjs';
 
 // MP5 owns deletion decisions and purge order. The checkpoint registry is
 // disposable; the target's external ledger is always opened in place, never
@@ -291,11 +292,14 @@ async function quarantine(settings, picker, stageStore, row, save, step) {
   row.status = 'quarantined'; await save('quarantine.complete');
 }
 export async function restoreServiceStopped({ settings, backup, release, assertStopped,
-  reconcileTombstones = reconcileServiceRecoveryTombstones, probe = runProbe, onProgress = async () => {}, step = async label => {} }) {
+  reconcileTombstones = reconcileServiceRecoveryTombstones, probe = runProbe, onProgress = async () => {}, step = async label => {}, ownedFormat2 = settings.ownedFormat2 ?? false }) {
   validateServicePaths(settings);
   if (typeof assertStopped !== 'function') throw new Error('Stopped-service proof required.');
   await assertStopped();
   const manifest = await verifyServiceBackup(backup), backupSha256 = sha(await readFile(path.join(backup, 'manifest.json')));
+  const stores = manifest.pickers.filter(p => !p.absent && p.initialized).map(p => 'pickers/' + p.id);
+  const closure = await verifyOwnedClosure(backup, stores);
+  if (closure && !ownedFormat2) throw new Error('Owned restore requires explicit target catalogue options; flag remains off.');
   let document = await json(path.join(backup, 'registry.json'));
   const absent = new Set(manifest.pickers.filter(p => p.absent).map(p => p.id));
   // This is a projection of the backup manifest, not a tombstone decision.
@@ -377,6 +381,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   const save = async label => { await mutate(step, label, () => atomic(progressFile(settings), encode(progress))); await onProgress(structuredClone(progress)); };
   await save('restore.prepared');
   await assertStopped();
+  if (closure) await installOwnedClosure(backup, stores, ownedFormat2, work);
   for (const picker of [legacy, ...manifest.pickers.filter(p => p.kind !== 'legacy-shared')]) {
     const row = progress.pickers.find(r => r.id === picker.id);
     // Scope decisions belong exclusively to MP5 reconciliation.
@@ -410,6 +415,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
     } else {
       await mutate(step, 'restore.stage-reset', () => rm(stage, { recursive: true, force: true })); await mutate(step, 'restore.stage-directory', () => directory(stage));
       await copyServiceTree(path.join(backup, 'pickers', picker.id), stageStore, step, 'restore.stage-copy');
+      if (closure && picker.initialized) await copyOwnedClosure(backup, stage, 'pickers/' + picker.id);
       if (picker.binding) await mutate(step, 'restore.stage-copy', () => copyFile(path.join(backup, 'pickers', picker.id + '.dataset.json'), stageStore + '.dataset.json', 1));
     }
     let incompatible = false;

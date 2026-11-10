@@ -91,8 +91,9 @@ hook completion, base temporary/publication, dependencies, state rename/sync
 and memory publication. These callbacks are test seams, not application hooks.
 
 Collection remains absent/disabled: no base or static-field unlink is added.
-Slice 4 owns artifact/capture/off-site dependency closure, restore/verifiers,
-capture barriers/manifests and deletion recovery. Slice 5 owns explicit rebases
+[Slice 4](owned-backup-contract.md) implements artifact/capture/off-site dependency
+closure, restore/verifiers, capture barriers/manifests and deletion recovery.
+Slice 5 owns explicit rebases
 and dataset upgrades; slice 6 owns the stopped-service inflater and verification
 that the frozen loader opens the inflated rollback output. Slice 7 owns digest calculator transport, full
 cache/residency audit and 50-group acceptance. Browser negotiation and exclusive
