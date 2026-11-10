@@ -131,9 +131,15 @@ async function planStore(store, ownedFormat2, validators, readStates) {
 }
 const fileBytes = rows => rows.reduce((sum, row) => sum + (row.bytes ?? 0), 0);
 function probeSpace(rows, proofs) {
-  const largest = Math.max(...proofs.map(proof => bytes(proof.document).length));
-  // During atomic state replacement both the previous and next document exist.
-  return fileBytes(rows) - rows.find(row => row.path === 'state.json').bytes + largest * 2;
+  const source = rows.find(row => row.path === 'state.json').bytes;
+  let current = source, peak = source;
+  // Start with the actual copied file, including any JSON whitespace. Each
+  // atomic replacement retains its previous document until the rename.
+  for (const proof of proofs) {
+    const next = bytes(proof.document).length;
+    peak = Math.max(peak, current + next); current = next;
+  }
+  return fileBytes(rows) - source + peak;
 }
 async function frozenProof(runtime, output, proofs, work, statfs, syncDirectory) {
   if (runtime.release !== FROZEN_RELEASE) refuse('frozen release pin differs');
@@ -309,7 +315,12 @@ export async function inflateOwnedFormat1({ settings, controller, ownedFormat2, 
         await space(work, output.reduce((size, row) => Math.max(size, row.bytes ?? 0), 0), statfs);
         for (const file of output.filter(row => !row.directory)) {
           const target = path.join(store.dataDir, file.path);
-          if (sha(await readFile(target)) === file.sha256) continue;
+          if (sha(await readFile(target)) === file.sha256) {
+            // Matching bytes may come from a rename interrupted before its
+            // parent sync. Persist that entry and its ancestors on resume too.
+            await durableDirectory(path.dirname(target), syncDirectory);
+            continue;
+          }
           await stopped(); await crash?.('before-install');
           await installFile(target, path.join(stage, 'output', file.path), path.join(stage, 'install.tmp'), crash, syncDirectory);
           await save('file-installed');

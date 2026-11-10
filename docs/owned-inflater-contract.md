@@ -74,7 +74,9 @@ file mode/ownership and timestamps. Packed/standalone duplicates retain the
 standalone timestamp and use its converted compressed size, so both current and
 frozen format-1 retention can prune interrupted-retention copies. Staging trees,
 their parent, and newly created ancestors are synced before verification is
-published. Both rename parents are synced before journal advancement. Crash
+published. Both rename parents are synced before journal advancement. Matching
+live files also have their destination parents and ancestors synced on resume,
+before completion is published or maintenance is cleared. Crash
 points cover
 maintenance, journal creation, source/output staging, frozen proof, per-store/all
 verification, install intent/temporary/rename/file/store completion, final
@@ -93,7 +95,8 @@ Accepted limits: staging/control and stores must share a filesystem; only the
 service's normal `p_<32 hex>` owned directory layout is supported. A 64 MiB disk
 reserve plus source/output/probe space is required through injected `statfs`
 admission before staging, including atomic-write peaks. Each probe, including
-on resume, checks its full copy and state-replacement peak before allocation.
+on resume, checks its full on-disk copy and every atomic state-replacement peak
+before allocation, including the first replacement of a whitespace-padded file.
 Probes are removed after verification or failure and their parent is synced;
 the two verification passes never retain two probe copies. Installation
 additionally admits its temporary space.
