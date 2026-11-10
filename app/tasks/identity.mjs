@@ -1,5 +1,6 @@
 import { datasetValue, selectedDataset } from "../dataset-runtime.mjs";
 import { trimTaskStars } from '../import-output.mjs';
+import { identityValue, isIdentityDictionary } from './identity-dictionary.mjs';
 import { identityRegistryVersion, authoredTasks, authoredEntities, authoredGoals, authoredSources } from '../data/identity-registry.mjs';
 
 const normalized = value => String(value).normalize('NFC');
@@ -158,10 +159,11 @@ export function resolveTaskAlias(id, { category } = {}) {
 }
 /** O(1) static resolution plus a small persisted registry overlay. */
 export function resolveIdentity(id, registry, category) {
-  const saved = candidatesOf(registry?.aliases?.[id]);
+  const sparseEntries = isIdentityDictionary(registry?.entries), sparseAliases = isIdentityDictionary(registry?.aliases);
+  const saved = candidatesOf(sparseAliases ? identityValue(registry.aliases, id) : registry?.aliases?.[id]);
   const ids = [...(idsOf(aliasMap.get(id)) ?? semanticCandidates(id, category)), ...saved];
-  if (record(registry?.entries?.[id])) ids.push(id);
-  const entries = { get: candidate => registry?.entries?.[candidate] ?? entryMap.get(candidate) ?? semanticEntry(candidate) };
+  if (record(sparseEntries ? identityValue(registry.entries, id) : registry?.entries?.[id])) ids.push(id);
+  const entries = { get: candidate => (sparseEntries ? identityValue(registry.entries, candidate) : registry?.entries?.[candidate]) ?? entryMap.get(candidate) ?? semanticEntry(candidate) };
   return result(id, ids, entries, category);
 }
 export function lookupPermanentId(id) {

@@ -1,18 +1,20 @@
+import { identityValue, isIdentityDictionary } from './identity-dictionary.mjs';
 const isPermanentId = id => typeof id === 'string' && /^rs3:(?:task|entity|goal):/.test(id);
 
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** Resolve a server-materialized registry without loading the authored catalogue. */
 export function resolvePersistedIdentity(id, registry, category) {
-  const saved = registry?.aliases?.[id];
+  const sparseEntries = isIdentityDictionary(registry?.entries), sparseAliases = isIdentityDictionary(registry?.aliases);
+  const saved = sparseAliases ? identityValue(registry.aliases, id) : registry?.aliases?.[id];
   const candidates = typeof saved === 'string' ? [saved] : Array.isArray(saved) ? [...saved] : [];
-  if (record(registry?.entries?.[id])) candidates.push(id);
-  let ids = [...new Set(candidates)].filter(candidate => record(registry?.entries?.[candidate]));
+  if (record(sparseEntries ? identityValue(registry.entries, id) : registry?.entries?.[id])) candidates.push(id);
+  let ids = [...new Set(candidates)].filter(candidate => record(sparseEntries ? identityValue(registry.entries, candidate) : registry?.entries?.[candidate]));
   if (category !== undefined) {
     const normalized = String(category).normalize('NFC');
     const prefix = `rs3:${encodeURIComponent(normalized)}:`;
     ids = ids.filter(candidate => {
-      const entry = registry.entries[candidate];
+      const entry = sparseEntries ? identityValue(registry.entries, candidate) : registry.entries[candidate];
       return entry.category === normalized || entry.aliases?.some(alias => alias.startsWith(prefix));
     });
   }
@@ -34,6 +36,7 @@ export function projectMemberTaskFacts(state, member, catalogue = [], {
   savedAliases = state.identityRegistry?.savedAliases ?? state.identityRegistry?.aliases,
 } = {}) {
   if (!(member.completedTasks?.length || Object.keys(member.taskStatus ?? {}).length || Object.keys(member.taskAlternatives ?? {}).length)) return member;
+  const sparseEntries = isIdentityDictionary(state.identityRegistry?.entries), sparseAliases = isIdentityDictionary(savedAliases);
   let index = catalogueAliasIndexes.get(catalogue);
   if (!index) {
     index = new Map();
@@ -90,9 +93,9 @@ export function projectMemberTaskFacts(state, member, catalogue = [], {
     const targets = new Set(exact ? [] : resolveIdentity(id, state.identityRegistry, category).candidates);
     for (const [target, taskCategory] of exact ?? []) if (category === undefined || category === taskCategory || id.startsWith(`rs3:${encodeURIComponent(category)}:`)) targets.add(target);
     if (exact) {
-      const saved = savedAliases?.[id];
+      const saved = sparseAliases ? identityValue(savedAliases, id) : savedAliases?.[id];
       for (const target of Array.isArray(saved) ? saved : typeof saved === 'string' ? [saved] : []) {
-        const entry = state.identityRegistry?.entries?.[target];
+        const entry = sparseEntries ? identityValue(state.identityRegistry.entries, target) : state.identityRegistry?.entries?.[target];
         if (entry && (category === undefined || category === entry.category)) targets.add(target);
       }
     }
@@ -118,7 +121,7 @@ export function projectMemberTaskFacts(state, member, catalogue = [], {
   for (const [category, groups] of Object.entries(member.taskAlternatives ?? {})) for (const [group, id] of Object.entries(groups)) {
     const target = id === null ? null : resolve(id, category), categoryAliases = index.categoryAliases.get(category);
     const currentCategory = target === null ? categoryAliases?.size === 1 ? [...categoryAliases][0] : category
-      : index.taskCategories.get(target) ?? state.identityRegistry?.entries?.[target]?.category ?? category;
+      : index.taskCategories.get(target) ?? (sparseEntries ? identityValue(state.identityRegistry.entries, target) : state.identityRegistry?.entries?.[target])?.category ?? category;
     (category === currentCategory ? canonicalAlternatives : renamedAlternatives).push({ currentCategory, group, target });
   }
   for (const { currentCategory, group, target } of [...renamedAlternatives, ...canonicalAlternatives]) { taskAlternatives[currentCategory] ??= Object.create(null); taskAlternatives[currentCategory][group] = target; }
