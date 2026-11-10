@@ -1,7 +1,7 @@
 # Synthetic capacity harness
 
 This implements capacity-plan step 2: build disposable stores and measure today's
-server without changing the application. It is not a public-launch acceptance
+server with optional diagnostic hooks and no gameplay change. It is not a public-launch acceptance
 certificate. The proposed workload and gates are in
 [groups and accounts](../groups-and-accounts.md#proposed-acceptance-workload-and-gates).
 
@@ -13,6 +13,7 @@ provider account or existing save is needed. Run from the checkout root:
 node scripts/perf/capacity/run.mjs --profile smoke --output /tmp/rs3-capacity-smoke
 node scripts/perf/capacity/run.mjs --profile nominal --output /tmp/rs3-capacity-nominal
 node scripts/perf/capacity/run.mjs --profile step-up --output /tmp/rs3-capacity-step-up
+node scripts/perf/capacity/run.mjs --profile churn --output /tmp/rs3-capacity-churn
 ```
 
 Each output directory must be new; its parent must exist. A command generates
@@ -40,14 +41,21 @@ dataset's geographic crop.
 | smoke | 2 duo groups, 4 logins, 32 tasks, 4 keys | 5 s warm-up + 15 s measured |
 | nominal | 500 four-player groups, 2,000 logins, 6,000 keys | 2 min ramp/warm-up + 60 min measured |
 | step-up | Same stored population | 18 min: warm-up, 25/50/100/200/300/400 users, five-minute nominal return |
+| churn | Same stored population and catalogue | Same duration as nominal; force full cohort rotation every 300 s |
 
 Allow up to the 30-second client deadline for draining, plus server startup and
 shutdown. Large-fixture generation remains a scratch-host measurement; the
 reduced Windows measurement and extrapolation below are planning estimates.
 The nominal fixture performs roughly 0.5 million
 durable History/snapshot writes, plus initial growth, key and registry writes.
-Its 200,000-task dependency graph and recovery preimages can need substantial
-RAM and disk. `fixture-progress.json` reports fully completed `groups`,
+Its 23,939-task catalogue and recovery preimages can need substantial
+RAM and disk. Nominal, step-up and churn target about 91,000 saved identity
+aliases and 15.4 MB serialized seed state, using synthetic historical alias
+labels to match volume. These aggregate targets come from the grown input in
+[engine profile](engine-profile.md); no private save is accessed. Grown custom
+goals, History and later observations add to the seed size. Dependency depth 4,
+two cross-links and 4,096 chunks are assumptions; their production distribution
+has not been measured. `fixture-progress.json` reports fully completed `groups`,
 durably built `builtGroups`, and an `active` entry for each worker with its
 group, roster, phase, completed/total operations, command type when starting an
 operation, timestamp and sequence. The parent adds a global sequence and elapsed
@@ -75,7 +83,8 @@ The full resolved profile and its digest are recorded. Fields:
   and keys/member (0–3). Largest remainders make the roster counts exact before
   shuffling. `[1,1,1,1,6]` at 500 groups gives the contract's mixed 2,000 slots;
   1,000 groups with `[0,1,0,0,0]` gives its two-player layout.
-- `catalogue`: synthetic chunks/tasks, bounded dependency depth and cross-links.
+- `catalogue`: synthetic chunks/tasks, bounded dependency depth and cross-links;
+  optional `aliases` and `stateBytes` size the valid saved identity dictionary.
   Tasks use real engine `Tasks`, `Items`, `Skills` and `Chunks` requirements.
   JSON byte size, compiled catalogue count and shape digests are recorded. Counts
   do not establish equivalence to a private graph; calibrate against permitted
@@ -86,9 +95,19 @@ The full resolved profile and its digest are recorded. Fields:
   excludes warm-up regardless of classification. Active groups must have enough
   distinct roster logins. The step-up profile classifies 300/400 users as overload
   and the final five minutes as recovery.
-- `rotationSeconds` (optional, default 300): replace the active cohort with the
-  next population slice and reopen its streams. It is login/group churn, not an
+- `rotationSeconds` (optional, default null): null disables forced rotation;
+  a positive number replaces the active cohort with the next population slice.
+  Nominal and step-up keep steady cohorts. Churn uses 300 seconds. It is login/group churn, not an
   implementation of the missing picker-switch product operation.
+- `streamConnectSpreadMs`: seed-based initial connection spread (10 seconds in
+  large profiles). Existing streams survive stage changes for retained logins.
+  Failed connections reconnect with the browser's exponential backoff and jitter,
+  respecting Retry-After; header deadlines cancel only that attempt.
+- `sessionChecks`: `before-browser-request`, matching the scoped browser fetch
+  preflight rather than independent five-second session polls. Each synthetic
+  login keeps route cooldowns. The real browser request reader handles bounded
+  GET/HEAD retries for PICKER_WARMING/PICKER_UPDATING and leaves POSTs single dispatch.
+  Plugin requests retain their own key scope and skip browser session preflights.
 - `requestDeadlineMs`: client deadline, 30,000 in supplied profiles; app deadlines
   remain unchanged. `maxClientInFlight`: client safety bound; overflow is recorded
   as a failed offered arrival, never silently queued away.
@@ -125,7 +144,35 @@ once per member, followed by the same skill, custom-task, completion, plugin
 observation and rule commands. Every command still crosses public `applyCommand`
 validation. The harness adds its synthetic catalogue as before; `openStore`
 fully validates the resulting seed before writing. There is no hand-authored
-History, validator bypass, shared mutable group template or app change.
+History, validator bypass, shared mutable group template or gameplay change.
+
+Fixture setup now compiles the real calculator handshake once, shares its
+ordinary/dynamic catalogues and definition inputs with fixture workers, and
+uses `migrateOwnedGameplay` and the dataset identity hook through `openStore`.
+This stores current identities and migration stamps before measurement. A
+synthetic regression verifies the first serving open keeps its revision.
+
+### Open and command diagnostics
+
+The harness opts into `multiPicker.onContextOpen`; ordinary servers leave it
+unset. Each owned open emits dataset verification, store hydration/validation,
+migration/hook validation, retention, sidecar, fingerprint and rule preparation
+durations. Store total additionally includes locks, recovery and publication.
+Failed opens report completed phases and a failure code. No diagnostic modifies
+migration, admission bounds or calculator behavior.
+
+`results.json` includes `contextOpens`, `admissionTransitions`, `load.commands`
+and sampled `server.eventLoop` utilisation, active/idle time and delay percentiles.
+`summary.md` includes phase and memory rows per open, command/status latency
+distributions, event-loop samples and admission transition/reason counts. Raw
+admission events include a correlation ID, queue/service duration and active/
+pending counts, including immediate refusals. Commands retain attempted type,
+status and HTTP latency in `events.jsonl`, including failures; action latency
+also includes cooldown/restart waits.
+
+RSS and heap snapshots before/after each owned open describe the shared server
+process. Their deltas include other activity and GC, so they cannot establish
+isolated per-group allocation. Calculator heaps remain separately sampled.
 
 This bounds initial growth to `7 * rosterSize + 2` commands, at most 37,
 independent of unlocked-chunk count. The supplied nominal/step-up shape uses

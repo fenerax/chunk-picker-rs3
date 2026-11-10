@@ -39,6 +39,7 @@ export function catalogue(shape) {
     data.sections[id]={'0':[ids[i-1],ids[i+1]].filter(Boolean)};
   }
   for(let i=0;i<tasks;i++) data.challenges.Extra[`Synthetic task ${i}`]={Chunks:[ids[i%count]],
+    ...(shape.aliases?{PickerId:`rs3:task:capacity-${i}`} : {}),
     Skills:{Mining:1+i%90}, ...(i%depth ? {Items:Array.from({length:links},(_,j)=>`Synthetic item ${((i-j)%count+count)%count}`)} : {}),
     ...(i%depth ? {Tasks:Object.fromEntries(Array.from({length:Math.min(links,i%depth)},(_,j)=>[`Synthetic task ${i-1-j}`,'Extra']))} : {})};
   return data;
@@ -62,5 +63,5 @@ export const knownGaps = [
   'Stored keys are issued offline through existing key/index APIs, bypassing setup rate/key admission. Runtime admission is unchanged and may reject the target.',
   'Every real durable command retains a preimage. A pinned replacement followed by 1000 History commands and 300 extra snapshots retains at least 1301 snapshots, rather than exactly 300; retention is not disabled or hand-edited.',
   'Initial grown unlocks use one real replace-member command per member. Gameplay matches individual set-chunk commands, but initial History/Undo records batch map replacement rather than a separate action per chunk. All requested durable History/snapshot writes still run independently.',
-  'Synthetic graph counts are configurable, not calibrated equivalence to a private full catalogue. Browser rendering, backup overlap, recovery/fault injection, near-import-limit state and multi-trial/soak acceptance need separate experiments.'
+  'Nominal/step-up/churn target 23939 ordinary task rows, about 91000 identity aliases and 15.4 MB serialized state. Synthetic historical label lengths match volume, not real alias semantics. Dependency depth/cross-links, 4096 chunks, roster mix, grown history and snapshot distribution are assumptions, not calibrated production distributions. Browser rendering, backup overlap, recovery/fault injection, near-import-limit state and multi-trial/soak acceptance need separate experiments.'
 ];

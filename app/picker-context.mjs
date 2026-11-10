@@ -90,7 +90,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   idleMemoryOptions, predictionPrewarm = true, prepareStateResponse = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin, signIn = 'off', signInProvider, pickerRouting, liveSwap, pluginItemsBetaAsLive = false,
-  startupSignal, startupTimingMs = {},
+  startupSignal, startupTimingMs = {}, openDiagnostics,
   backupStatusDir = pickerId === 'legacy' ? path.dirname(path.resolve(dataDir)) : path.resolve(dataDir),
   transport = {},
 }) {
@@ -125,10 +125,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   if (typeof usageAdmission !== 'function') throw new TypeError('A shared usage admission limiter is required.');
   const usageClock = now === undefined ? Date.now : () => typeof now === 'function' ? now() : now;
   // Verify the selected runtime before touching this picker's gameplay files.
+  const datasetVerifyStarted = openDiagnostics && performance.now();
   if (liveSwap?.standby) {
     const binding = await verifyDatasetBinding(dataDir, dataset);
     if (dataset.capabilities.independent && !binding.bound) throw new Error('Standby requires existing bound storage.');
   } else await prepareGameStorage(dataDir, dataset);
+  if (openDiagnostics) openDiagnostics.timingMs.datasetVerifyMs = performance.now() - datasetVerifyStarted + (openDiagnostics.timingMs.registryDatasetVerifyMs ?? 0);
   transport.savingConnections ??= new Map();
   transport.requestClose ??= () => context.close();
   transport.inviteUrl ??= () => `/join/${token}`;
@@ -189,7 +191,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (!Object.hasOwn(row, 'level')) return [row.id, row];
       const { level, ...task } = row; return [task.id, task];
     })) : undefined,
-    readOnly: liveSwap?.standby === true, liveSwapStrict: liveSwap?.strict === true, expectedCheckpoint: liveSwap?.checkpoint, onActivationTiming: liveSwap?.onActivationTiming });
+    readOnly: liveSwap?.standby === true, liveSwapStrict: liveSwap?.strict === true, expectedCheckpoint: liveSwap?.checkpoint, onActivationTiming: liveSwap?.onActivationTiming,
+    startupDiagnostics: openDiagnostics?.timingMs });
   if (PROFILE_ENABLED) profile.wrapMethods(store, ['command', 'commandSerialized', 'getStateSnapshot'], 'store');
   try {
     startupSignal?.throwIfAborted();
@@ -204,6 +207,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     startupSignal?.throwIfAborted();
   } catch (error) { await store.close(); throw error; }
   startupTimingMs.storeMs = performance.now() - storeStarted;
+  if (openDiagnostics) openDiagnostics.timingMs.storeTotalMs = startupTimingMs.storeMs;
   startupPhase('create:store');
   const questMapping = createQuestMapping(parsedDefinitions);
   const authStarted = performance.now();
@@ -252,15 +256,18 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   catch (error) { await Promise.all([signInFlow?.close(), accounts?.close(), invites?.close(), feedback?.close(), usage?.close(), overlays?.close(), gamePlugin?.close(), store.close()]); throw error; }
   if (startupSignal?.aborted) { await Promise.all([overlays.close(), gamePlugin.close()]); await Promise.all([store.close(), signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close()]); startupSignal.throwIfAborted(); }
   startupTimingMs.authMs = performance.now() - authStarted;
+  if (openDiagnostics) openDiagnostics.timingMs.sidecarsMs = startupTimingMs.authMs;
   startupPhase('create:sidecars');
   // Compile the static fingerprint before readiness; subsequent saves hash
   // only changed gameplay fields rather than the large migration archives.
+  const fingerprintStarted = openDiagnostics && performance.now();
   if (taskWorker) {
     store.getGameplayFingerprint();
     // Warm immutable catalogue/legacy digests before readiness. Later exact
     // saved reuse hashes only the changed small fields on the Unlock path.
     void store.getCalculationSnapshot().taskInputKey;
   }
+  if (openDiagnostics) openDiagnostics.timingMs.fingerprintsMs = performance.now() - fingerprintStarted;
   const progressClient = createProgressSources({ ...progressSources, runeMetrics, pluginSnapshot: owner => gamePlugin.progressSnapshot(owner) });
   const runeMetricsPreviews = new Map();
   const originalSyncClient = originalSyncIntegration?.createOriginalSyncClient(originalSync), originalSyncPreviews = new Map();
@@ -2198,8 +2205,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           } catch {
             // Optional preparation must preserve saves and the normal
             // worker recovery path when calculation is unavailable.
-          } finally { startupTimingMs.variantMs = performance.now() - started; }
+          } finally { startupTimingMs.variantMs = performance.now() - started;
+            if (openDiagnostics) openDiagnostics.timingMs.rulePrepMs = startupTimingMs.variantMs; }
         }
+        if (openDiagnostics) openDiagnostics.timingMs.rulePrepMs ??= 0;
         // Owned contexts can admit task/draft reads without preparing an
         // unrelated play body. The authenticated state route builds the same
         // revision-keyed representation on demand.

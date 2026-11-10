@@ -1,5 +1,27 @@
 const cheap=['state','history','edit','session'];
 const expensive=['task-view','group-task-view','how','why','task-miss','preview','roll-accept','pool-undo'];
+const number=value=>Number.isFinite(value)?value.toFixed(2):'n/a';
+export function diagnosticMarkdown(result) {
+  const opens=result.contextOpens??[], transitions=result.admissionTransitions??[], samples=result.samples??[];
+  const phases=['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'];
+  const admission=new Map();
+  for(const row of transitions) {
+    const key=`${row.transition} / ${row.reason??'none'}`;admission.set(key,(admission.get(key)??0)+1);
+  }
+  return `## Owned context opens\n\nHydration includes decoding and validation; migration includes hook validation. Store total also includes locking, recovery and publication. Failed opens retain completed phases.\n\n`+
+    `| Open / picker / status | Total ms | ${phases.join(' | ')} |\n| --- | --- | ${phases.map(()=> '---').join(' | ')} |\n`+
+    opens.map((row,i)=>`| ${i+1} / ${row.pickerId} / ${row.status} | ${number(row.totalMs)} | ${phases.map(key=>number(row.timingMs[key])).join(' | ')} |`).join('\n')+'\n\n'+
+    `RSS/heap are shared server process snapshots per group open, not attributable group allocations. Overlapping opens, other requests and GC affect deltas; calculator heaps remain in samples.\n\n`+
+    `| Open | RSS before / after / delta MiB | Heap used before / after / delta MiB |\n| --- | --- | --- |\n`+
+    opens.map((row,i)=>`| ${i+1} | ${['before','after','delta'].map(key=>number(row.memory[key].rss/1048576)).join(' / ')} | ${['before','after','delta'].map(key=>number(row.memory[key].heapUsed/1048576)).join(' / ')} |`).join('\n')+'\n\n'+
+    `## Command HTTP latency\n\nIncludes failed attempts; client cooldown and restart waits remain in action latency. Each request's command, status and latency is in events.jsonl.\n\n`+
+    `| Command / status | Count | p50 / p95 / p99 / max ms |\n| --- | --- | --- |\n`+
+    (result.load.commands??[]).map(row=>`| ${row.command} / ${row.status} | ${row.latency.count} | ${['p50Ms','p95Ms','p99Ms','maxMs'].map(key=>number(row.latency[key])).join(' / ')} |`).join('\n')+'\n\n'+
+    `## Event loop and admission\n\n| Sample | Utilisation | Active / idle ms | Delay p50 / p95 / p99 / max ms |\n| --- | --- | --- | --- |\n`+
+    samples.filter(row=>row.server).map((row,i)=>{const loop=row.server.eventLoop;return `| ${i+1} | ${number(loop.utilization)} | ${number(loop.activeMs)} / ${number(loop.idleMs)} | ${['p50Ms','p95Ms','p99Ms','maxMs'].map(key=>number(loop[key])).join(' / ')} |`;}).join('\n')+'\n\n'+
+    `| Admission transition / reason | Count |\n| --- | --- |\n${[...admission].map(([key,count])=>`| ${key} | ${count} |`).join('\n')}\n\n`+
+    `Every admission transition (correlation ID, reason, queue/service duration, pending/active counts) and owned open is retained in results.json.\n\n`;
+}
 function counts(rows) {
   const total={httpRequests:0,httpRejects:0,timeouts:0,unexpectedFailures:0,intentionalConflicts:0,unsupported:0,rejectsWithoutRetryAfter:0};
   for(const row of rows)for(const key of Object.keys(total))total[key]+=row[key]??0;
@@ -67,5 +89,6 @@ export function markdown(result) {
       const total=counts(result.load.operations.filter(row=>row.stage===i));return `| ${stage.name} / ${stage.measured?stage.classification:'warm-up'} | ${stage.users} / ${stage.activeGroups} | ${stage.browserPerSecond} / ${stage.pluginPerSecond} | ${total.httpRequests} / ${total.httpRejects} / ${total.unexpectedFailures} | ${total.intentionalConflicts} / ${total.unsupported} |`;
     }).join('\n')}\n\n`+
     `Per-operation latency and status counts: results.json. Every arrival: events.jsonl. Time series: samples.jsonl. Synthetic local capabilities: fixture.json (do not publish).\n\n`+
+    diagnosticMarkdown(result)+
     `## Gaps\n\n${result.fixture.gaps.map(g=>'- '+g).join('\n')}\n`;
 }

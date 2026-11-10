@@ -7,12 +7,12 @@ const progress = value => new Promise(resolve => {
   const id = ++sequence; acknowledgements.set(id, resolve);
   parentPort.postMessage({ type: 'progress', id, value });
 });
-// The engine graph is compiled once by the parent. Only small task rows are
-// shared as immutable UTF-8 bytes; workers never compile the 200k-task graph.
-const tasks = JSON.parse(Buffer.from(workerData.tasks).toString('utf8'));
+// The real calculator compiles once in the parent. Workers share its immutable
+// migration inputs as UTF-8 and parse once; no engine compilation per group.
+const { tasks, migrationInputs } = JSON.parse(Buffer.from(workerData.tasks).toString('utf8'));
 parentPort.on('message', async message => {
   if (message.type === 'ack') { acknowledgements.get(message.id)?.(); acknowledgements.delete(message.id); return; }
   if (message.type !== 'build') return;
-  try { parentPort.postMessage({ type: 'result', value: await buildGroup(message.job, { ...workerData, tasks, progress }) }); }
+  try { parentPort.postMessage({ type: 'result', value: await buildGroup(message.job, { ...workerData, tasks, migrationInputs, progress }) }); }
   catch (error) { parentPort.postMessage({ type: 'failure', message: error.message }); }
 });

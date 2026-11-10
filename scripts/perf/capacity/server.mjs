@@ -1,7 +1,7 @@
 // Runs only as the scratch runner's IPC child. Never consumes inherited secrets/config.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
 const [directory,profileFile,mode,workers,fixtureFrom]=process.argv.slice(2);
@@ -42,6 +42,7 @@ if(mode==='fixture') {
     return Response.json(parsed.searchParams.has('player') ? {name,skills:[{id:1,name:'Attack',level:20,xp:4470}]} : {name,qp:0,qp_max:1,quests:{}});
   };
   const loop=monitorEventLoopDelay({resolution:10}); loop.enable();
+  let lastUtilization=performance.eventLoopUtilization();
   const admission={},workers=new Set();let coldQueue={};
   const stop=async()=>{if(stopping)return;stopping=true;loop.disable();await app?.close();process.disconnect();};
   try {
@@ -58,7 +59,10 @@ if(mode==='fixture') {
       originalSync:{fetchImpl:async()=>{throw new Error('Disabled synthetic upstream');}},
       taskWorkerOptions:{onWorker(worker){workers.add(worker);worker.once('exit',()=>workers.delete(worker));}},
       multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),
-        caps:profile.entityCaps,onAdmission:event=>{const kind=event.kind??event.type??event.event??'event';admission[kind]=(admission[kind]??0)+1;
+        caps:profile.entityCaps,
+        onContextOpen:event=>process.send({type:'context-open',atMs:performance.now(),...event}),
+        onAdmission:event=>{const kind=event.kind??event.type??event.event??'event';admission[kind]=(admission[kind]??0)+1;
+          process.send({type:'admission',atMs:performance.now(),...event});
           coldQueue={pending:event.pending,active:event.active,accounts:event.accounts,waitMs:event.waitMs,serviceMs:event.serviceMs};}},
     });
     await app.listen();
@@ -74,8 +78,11 @@ if(mode==='fixture') {
           const calculatorHeaps=await Promise.all([...workers].filter(worker=>typeof worker.getMemoryUsage==='function').map(async worker=>{
             try {const value=await worker.getMemoryUsage();return {pid:value.pid,hostHeapUsed:value.main?.heapUsed,threadHeapUsed:value.workers?.length?value.workers.reduce((n,w)=>n+(w.memoryUsage?.heapUsed??0),0):null};}catch{return null;}
           }));
+          const currentUtilization=performance.eventLoopUtilization(), utilization=performance.eventLoopUtilization(currentUtilization,lastUtilization);
+          lastUtilization=currentUtilization;
           process.send({type:'sample',id:message.id,memory:process.memoryUsage(),cpu:process.cpuUsage(),
-            eventLoop:{p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6},health,diagnostics,calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
+            eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
+              utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},health,diagnostics,calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
           loop.reset();
         }
       } catch { process.send({type:'sample-error',id:message.id}); }
