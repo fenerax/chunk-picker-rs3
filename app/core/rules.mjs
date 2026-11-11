@@ -10,6 +10,8 @@ import { expandTransportReachability, evaluateTransportRoutes, transportEdges, t
 import { TRANSPORT_ROUTES } from '../data/transport-routes.mjs';
 import { CACHE_SECTION_OFFSET } from '../data/surface-grid.mjs';
 import { personalTeleportRows } from './teleport-returns.mjs';
+import { hasResidentIdentities } from './resident-copy.mjs';
+import { isIdentityDictionary, materializeIdentities } from '../tasks/identity-dictionary.mjs';
 
 /**
  * Pure rules and rolling API. Settings use flat IDs (for example `roll.adjacent`).
@@ -299,6 +301,13 @@ function readonlySnapshot(value, copies = new WeakMap()) {
     return value;
   }
   if (copies.has(value)) return copies.get(value);
+  // Custom hooks retain their flat, deeply frozen API. Trusted built-in hooks
+  // never enter this snapshot boundary and keep sharing resident dictionaries.
+  if (isIdentityDictionary(value)) {
+    const copy = readonlySnapshot(materializeIdentities(value), copies);
+    copies.set(value, copy);
+    return copy;
+  }
   if (value instanceof Map || value instanceof Set) {
     const copy = value instanceof Map ? new Map() : new Set();
     const facade = readonlyCollection(copy);
@@ -333,7 +342,8 @@ const preparedRollPools = new WeakMap();
  * custom hooks retain the complete state, since they may read any field. */
 export function createRollPoolCache(world, registry = defaultRegistry, { inputKey = state => JSON.stringify(state), limit = 16 } = {}) {
   const entries = new Map();
-  const input = state => workerRollRules(registry) ? rollPoolInputKey(state, inputKey(state)) : JSON.stringify(state);
+  const input = state => workerRollRules(registry) ? rollPoolInputKey(state, inputKey(state))
+    : JSON.stringify(hasResidentIdentities(state) ? materializeIdentities(state) : state);
   const key = (state, memberId) => JSON.stringify([memberId, input(state)]);
   const freeze = value => {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.values(value).forEach(freeze); Object.freeze(value); }
