@@ -14,7 +14,9 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { createTaskEngine, taskId, plainLabel } from './engine.mjs';
 import { legacyTaskId } from './identity.mjs';
 import { applySkillGuideTasks } from '../data/skill-guides.mjs';
-import { prepareChunkPrediction } from '../core/planning.mjs';
+import { prepareChunkPredictionState, predictChunkFromPreparedState } from '../core/planning.mjs';
+import { hasResidentIdentities } from '../core/resident-copy.mjs';
+import { identityEntries } from './identity-dictionary.mjs';
 import { createRuleRegistry, createRollPoolCache, evaluateRollPool, partnerConnections } from '../core/rules.mjs';
 import { buildWorld } from '../data/world.mjs';
 import { configureAutomaticTransport } from '../core/automatic-transport.mjs';
@@ -190,8 +192,21 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSiz
 // One byte ledger spans both snapshot caches and all eligibility variants.
 // A picker owns at most half; all shared eligibility proofs own at most a third.
 // Remaining pressure evicts globally by recency. State transfer is independent.
+function snapshotContext(result) {
+  let context = viewContexts.get(result);
+  if (hasResidentIdentities(context?.state)) {
+    const state = context.state;
+    // Deferred views must retain explicit, charged state too. Do not keep a
+    // second memoized projection outside the snapshot's lifetime and budget.
+    context = { ...context, state: { ...state, identityRegistry: { ...state.identityRegistry,
+      entries: Object.fromEntries(identityEntries(state.identityRegistry.entries)),
+      aliases: Object.fromEntries(identityEntries(state.identityRegistry.aliases)) } } };
+    viewContexts.set(result, context);
+  }
+  return context;
+}
 const snapshotOptions = { hotSet: createSnapshotHotSet({ entryLimit: Number(process.env.RS3_CALCULATOR_HOT_SNAPSHOTS ?? 1) }),
-  context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
+  context: snapshotContext, locations: result => mapLocationResults.get(result),
   restoreContext: (result, value) => viewContexts.set(result, value),
   restoreLocations: (result, value) => mapLocationResults.set(result, value) };
 const completeCache = createSerializedSnapshotCache(snapshotBudget, snapshotOptions);
@@ -246,12 +261,12 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = st
   const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs, pickerId }) };
   return timed(timingMs, 'predictionMs', () => {
     // A cached sandbox draft keeps its prediction but not its state; the caller's state carries the revision.
-    if (!snapshot.predict || snapshot.predictionRevision !== source.revision) {
-      snapshot.predict = prepareChunkPrediction(state, registry);
+    if (!snapshot.predictionState || snapshot.predictionRevision !== source.revision) {
+      snapshot.predictionState = prepareChunkPredictionState(state, registry);
       snapshot.predictionRevision = source.revision;
-      completeCache.capture(snapshot, state, source); sandboxCache.capture(snapshot, state, source);
+      completeCache.refresh(snapshot); sandboxCache.refresh(snapshot);
     }
-    return snapshot.predict(memberId, chunkId, { world: rollWorld, engine: planningEngine });
+    return predictChunkFromPreparedState(snapshot.predictionState, memberId, chunkId, { world: rollWorld, engine: planningEngine });
   });
 }
 const noPlanningCheckpoint = () => {};
@@ -343,7 +358,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
     draftSnapshot = { ...draftSnapshot };
     sandboxCache.stage(key, draftSnapshot, undefined, pickerId);
   }
-  const hypothetical = empty ? state : draftSnapshot.state ?? (normalized.previewChunkId !== undefined && (!draftSnapshot.predict || draftSnapshot.predictionRevision !== state.revision)
+  const hypothetical = empty ? state : draftSnapshot.state ?? (normalized.previewChunkId !== undefined && (!draftSnapshot.predictionState || draftSnapshot.predictionRevision !== state.revision)
     ? applySandboxChanges(state, memberId, normalized.changes, getSandboxCatalogue(), taskIndex) : undefined);
   const result = draftSnapshot.baseline;
   // Cached projections outlive display-only revisions; stamp the caller's.
@@ -360,7 +375,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
     viewContexts.delete(draftSnapshot.baseline); draftSnapshot.state = undefined;
     // Shared workers keep ordinary drafts small so each picker has room for
     // its own prediction cache. A detailed draft still uses final preflight.
-    if (snapshotBudget.pickerOwners > 1 && !detailed && !draftSnapshot.predict && !draftSnapshot.planningIndex) {
+    if (snapshotBudget.pickerOwners > 1 && !detailed && !draftSnapshot.predictionState && !draftSnapshot.planningIndex) {
       draftSnapshot.baseline = undefined; draftSnapshot.whyIndex = undefined;
     }
     if (snapshot && !sandboxCache.fits(draftSnapshot, [snapshot])) {

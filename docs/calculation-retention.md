@@ -9,8 +9,13 @@ and **128 MiB of conservative heap charges**, inside the existing shared worker
 and picker budgets. Older snapshots become LZ4-encoded V8 bytes. Serialization is
 deferred until demotion, so unchanged hot reads neither decode nor rewrite the
 snapshot. Deferred views, processing descriptors and aliases survive hydration.
-Prediction closures last only for the active request; the unused planning
-canonicalizer is removed without changing index identity or cancellation.
+Validated prediction state is prepared lazily once per captured revision, charged
+inside the snapshot and serialized on demotion. Candidate requests reuse that
+state without retaining an opaque closure. The unused planning canonicalizer is
+removed without changing index identity or cancellation.
+Owned identity dictionaries become explicit plain data in prediction state and
+deferred-view context, so heap measurement and cold serialization see their
+complete logical contents. No extra projection cache retains them off-ledger.
 
 Heap accounting walks producer-owned graphs, counting objects, properties,
 array/reference slots, Map/Set storage, UTF-16 strings and entire backing
@@ -21,6 +26,9 @@ retain their charge as slack until demotion; forced refreshes start a fresh walk
 Unsupported graphs bypass reuse. Graphs too large for either heap budget stay as
 bytes. `RS3_CALCULATOR_HOT_SNAPSHOTS=0` selects byte-only snapshots for diagnostics;
 increasing the entry bound does not increase the 128 MiB hot heap ceiling.
+Both cache instances resolve preserved snapshots through a shared, ledger-scoped
+weak token registry. A rejected sandbox admission preserves the current baseline
+even when its metadata belongs to the complete-result cache.
 
 ## Local synthetic measurements
 
@@ -47,6 +55,12 @@ Cold p95 increases by 359 ms (38%); it remains below the 3 s heavy-calculation
 target. Warm p95 meets the approximately 150 ms target in this sample. One hot
 graph is charged **117.00 MiB** after lazy Why indexing, well above measured heap
 growth. The rest of the eight snapshots own bytes, about 0.871 MiB each.
+
+After the prediction-reuse and cross-cache preservation fixes, one unpaired
+sanity sample of the same harness measured warm p95 **96 ms**, cold p95
+**1,214 ms**, worker heap growth **30.51 MiB** after eight cold groups and
+**31.86 MiB** after warm actions, with one decoded graph retained. The paired
+main/candidate figures above remain the comparison.
 
 `scripts/perf/controller-retention.mjs` feeds the real scheduler identical full
 and projected-play fixture bytes in both arms. Each of eight groups materializes
@@ -104,16 +118,25 @@ port so it can collect between requests. Eligibility compaction differs from
 production worker threads. GC heap, backing allocations and RSS are different
 measures; neither this small sample nor its projection establishes hosted RSS,
 all-group hot latency or the application's acceptance gates.
+This evaluate/Why probe does not measure large owned-dictionary prediction
+preparation. Prepared prediction state adds its actual heap or wire charge to
+the same unchanged hot-set, picker and worker ceilings.
 
 ## Verification
 
-103 tests passed in 11 targeted files: serialized snapshot accounting/aliasing,
+Initial optimization validation passed 103 tests in 11 targeted files: serialized snapshot accounting/aliasing,
 100 retained-versus-zero-budget request pairs across deterministic edits,
 resident-planning cancellation and GC/demotion, worker cache ownership/budgets,
 calculation equivalence, Q2 comparator, worker timings, eligibility, planning and
 the 20,560-task Why/How integration. No full suite, retries or acceptance dispatch.
 GC proves the deliberate hot baseline is retained, then collectible after
 demotion, while its planning bytes remain reusable.
+
+The follow-up's expanded module/caller inventory, complete file list, outcomes,
+main-source control failure and configuration-only interrupted extra are recorded
+in [the validation report](calculation-retention-validation.md). No original
+prediction-output assertion was changed. The owned-dictionary and preserved-token
+regressions have deterministic coverage.
 
 The pre-existing `unlock-calc.mjs` assertion compares raw
 `projectPlayResult(full.result)` with a worker projection that also contains

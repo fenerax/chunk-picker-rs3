@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createSerializedSnapshotCache, serializedSnapshotBytes } from '../app/tasks/serialized-snapshot-cache.mjs';
 import { createWorkerCacheBudget } from '../app/tasks/snapshot-cache.mjs';
 import { createSnapshotHotSet, createSnapshotHeapMeter } from '../app/tasks/snapshot-hot-set.mjs';
+import { createEligibilityBudget } from '../app/tasks/eligibility-cache.mjs';
 
 function fixture(limit = 1024 * 1024, hotSet) {
   const contexts = new WeakMap(), locations = new WeakMap(), budget = createWorkerCacheBudget(limit);
@@ -182,4 +183,50 @@ test('measuring a demoted snapshot stages promotion without retaining another de
   cache.refresh(a);
   assert.equal([...cache.entries.values()].filter(record => record.value).length, 1);
   assert.equal(budget.bytes, [...cache.entries.values()].reduce((sum, record) => sum + record.cost, 0));
+});
+
+for (const entryLimit of [0, 1]) test(`preserved baselines resolve across full and sandbox caches with ${entryLimit} hot entries`, () => {
+  const budget = createEligibilityBudget({ byteLimit: 12000, ownerByteLimit: 6000 });
+  const hotSet = createSnapshotHotSet({ entryLimit });
+  const complete = createSerializedSnapshotCache(budget, { hotSet });
+  const sandbox = createSerializedSnapshotCache(budget, { hotSet });
+  let seed = 42;
+  const bytes = Uint8Array.from({ length: 1500 }, () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed >>> 24;
+  });
+  const baseline = { baseline: { tasks: [{ id: 'base' }], metrics: {}, bytes } };
+  const draft = { baseline: { tasks: [{ id: 'draft' }], metrics: {}, bytes: bytes.slice() } };
+  assert.equal(complete.set('base', baseline, undefined, 'one'), true);
+  sandbox.stage('draft', draft, undefined, 'one');
+  const before = budget.bytes, cost = sandbox.measure(draft);
+  assert.ok(cost < 6000 && before < 6000 && cost + before > 6000, 'each snapshot fits alone but the pair exceeds the owner cap');
+  assert.equal(sandbox.fits(draft, [baseline]), false);
+  assert.equal(sandbox.set('draft', draft, undefined, 'one', { preserve: [baseline] }), false);
+  assert.equal(complete.isCurrent('base', baseline), true);
+  assert.equal(sandbox.entries.size, 0);
+  assert.equal(budget.bytes, before, 'rejected draft preserves the baseline charge');
+  const restored = complete.entries.get('base');
+  assert.deepStrictEqual(restored.baseline, baseline.baseline);
+  assert.equal(sandbox.fits(draft, [restored]), false, 'hydrated baseline resolves its current ledger token too');
+  complete.entries.clear();
+  assert.equal(budget.bytes, 0); assert.equal(hotSet.size, 0);
+});
+
+test('prepared prediction state joins the heap charge and survives cold demotion', () => {
+  const hotSet = createSnapshotHotSet({ entryLimit: 1 });
+  const { cache, snapshot, budget } = fixture(1024 * 1024, hotSet);
+  cache.set('base', snapshot, undefined, 'one');
+  const before = budget.bytes;
+  snapshot.predictionState = { revision: 4, members: [{ id: 'one' }], retained: '雪'.repeat(2000) };
+  snapshot.predictionRevision = 4;
+  cache.refresh(snapshot);
+  assert.ok(budget.bytes > before + 4000, 'validated state storage is charged as heap');
+  assert.equal(budget.bytes, hotSet.bytes);
+  cache.set('other', { baseline: { tasks: [], metrics: {} } }, undefined, 'two');
+  assert.equal(Map.prototype.get.call(cache.entries, 'base').value, undefined);
+  const restored = cache.entries.get('base');
+  assert.deepStrictEqual(restored.predictionState, snapshot.predictionState);
+  assert.equal(restored.predictionRevision, 4);
+  assert.equal(hotSet.size, 1);
+  cache.entries.clear(); assert.equal(budget.bytes, 0);
 });

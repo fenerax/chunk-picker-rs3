@@ -254,8 +254,13 @@ test('shared sandbox results stay lazy through scheduler caching and obey byte q
   assert.deepEqual(first.resultCache, { baselineHit: true, hypotheticalHit: true });
   assert.ok(scheduler.getDiagnostics().predictionLane.cache.bytes >= bytes.length);
   assert.equal(parses, 0);
-  assert.deepEqual(first.result, { ...output, cache: first.resultCache });
-  assert.equal(second.result, first.result); assert.equal(parses, 1, 'Coalesced/cache waiters share the same memoized parse');
+  const firstResult = first.result;
+  assert.deepStrictEqual(firstResult, { ...output, cache: first.resultCache });
+  assert.equal(parses, 1, 'The first object consumer parses only on demand');
+  // Sandbox consumers key responses by signature/revision, not object identity.
+  const secondResult = second.result;
+  assert.deepStrictEqual(secondResult, firstResult);
+  assert.equal(parses, 2, 'Each object consumer parses the retained bytes without memoizing a graph');
   const oversized = await createTaskScheduler({ workerFactory, predictionCacheBytes: 1 });
   t.after(() => oversized.close());
   await oversized.evaluate(state, 'one', 'sandbox', draft, 'large', 'saved');

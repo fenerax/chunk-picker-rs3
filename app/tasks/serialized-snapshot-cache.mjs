@@ -31,17 +31,23 @@ function discardSnapshot(entries, key, record, hotSet) {
 }
 function demoteSnapshot(demote, record) { return () => demote(record); }
 const noCheckpoint = () => {};
+// Full and sandbox caches share a ledger. Resolve preserved snapshots through
+// that ledger's weak registry, even when another cache owns their metadata.
+const snapshotRecords = new WeakMap();
 
 export function createSerializedSnapshotCache(budget, { context = () => undefined, locations = () => undefined,
   restoreContext = () => {}, restoreLocations = () => {}, hotSet = createSnapshotHotSet({ entryLimit: 0 }) } = {}) {
   const metadata = new WeakMap(), results = new WeakMap();
+  let retainedRecords = snapshotRecords.get(budget);
+  if (!retainedRecords) snapshotRecords.set(budget, retainedRecords = new WeakMap());
   const transient = new Set();
   const version = value => [value.baseline, value.includeViews, value.revision, value.playResult, value.sandboxDelta,
     value.planningIndex, value.whyIndex, value.estimates, value.estimates?.size,
-    value.baseline?.currentBiS, value.baseline?.activityInfo, context(value.baseline), locations(value.baseline)];
+    value.baseline?.currentBiS, value.baseline?.activityInfo, context(value.baseline), locations(value.baseline), value.predictionState];
   const same = (a, b) => a?.length === b.length && a.every((part, i) => part === b[i]);
   const remember = (value, entry) => {
     metadata.set(value, entry);
+    if (entry.retainedRecord) retainedRecords.set(value, entry.retainedRecord);
     if (value.baseline) results.set(value.baseline, value);
     return value;
   };
@@ -118,7 +124,7 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
         // when their identity/size changes. The meter deduplicates their aliases.
         const roots = [value.baseline, context(value.baseline), locations(value.baseline), value.playResult,
           value.sandboxDelta, value.planningIndex, value.whyIndex, value.estimates, value.estimates?.size,
-          value.baseline?.currentBiS, value.baseline?.activityInfo];
+          value.baseline?.currentBiS, value.baseline?.activityInfo, value.predictionState];
         roots.forEach((root, index) => {
           if (!prior || root !== prior[index] || index === 7 && roots[8] !== prior[8]) meter.visit(root, index === 7, checkpoint);
         });
@@ -148,7 +154,7 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
       checkpoint(); return;
     } // Unsupported data bypasses reuse.
   };
-  const tokens = values => values.map(value => metadata.get(value)?.retainedRecord).filter(Boolean);
+  const tokens = values => values.map(value => retainedRecords.get(value)).filter(Boolean);
   const set = (key, value, state, owner, { preserve = [] } = {}) => {
     const entry = stage(key, value, state, owner), cost = measure(value);
     const previous = Map.prototype.get.call(entries, key), protectedEntries = tokens(preserve);
@@ -165,6 +171,7 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
       throw new Error('Snapshot admission preflight mismatch.');
     Map.prototype.set.call(entries, key, record);
     entry.retainedRecord = record;
+    retainedRecords.set(value, record);
     entry.admittedCost = cost;
     return true;
   };
