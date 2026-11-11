@@ -147,6 +147,27 @@ test('bounded verified receiver refuses missing, corrupt, wrong-pin and wrong-da
   });
 });
 
+test('prediction-first owned state stays resident and matches flat state after deferred views', async () => {
+  const f = data(), input = ownedCalculatorInput(f.resident), expected = [];
+  const requests = [{ type: 'predict', chunkId: '12851' },
+    { type: 'chunk-planning', chunkId: '12851', residentOnly: true }, { type: 'evaluate' }];
+  for (const owned of [false, true]) {
+    const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), { workerData, execArgv: ['--import', clock] });
+    try {
+      const c = await client(worker);
+      for (const [index, request] of requests.entries()) {
+        const replies = await c.send({ ...request, ...(owned ? {
+          stateTransport: OWNED_CALCULATOR_TRANSPORT, ownedDocument: input.document,
+          ...(index === 0 ? { ownedBase: input.installation } : {}) } : { state: f.logical }) });
+        assert.equal(replies.at(-1).error, undefined, request.type);
+        assert.equal(replies.at(-1).residentPlanningMiss, undefined, request.type);
+        if (owned) assert.deepStrictEqual(replies, expected[index], request.type);
+        else expected.push(replies);
+      }
+    } finally { await worker.terminate(); }
+  }
+});
+
 test('owned commands, responses and pooled requests make no full identity copies', async t => {
   const f = data(), directory = await mkdtemp(path.join(tmpdir(), 'owned-calculator-'));
   let store, scheduler;

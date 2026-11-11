@@ -66,9 +66,11 @@ test('prediction summary observers see complete current results and peeks do not
   scheduler.supersedeDisplay(1, 'gameplay'); worker.finish(result);
   assert.equal(summaries.length, 1); assert.equal(summaries[0].state.revision, 1);
   assert.equal(summaries[0].input, 'gameplay'); assert.equal(summaries[0].memberId, 'actor1');
-  assert.equal(summaries[0].chunkId, '12342'); assert.equal(summaries[0].result, result);
+  // Consumers derive summaries from values and input keys. Serialized cache
+  // reads may return distinct objects; every result field must still match.
+  assert.equal(summaries[0].chunkId, '12342'); assert.deepStrictEqual(summaries[0].result, result);
   const before = scheduler.getDiagnostics().predictionLane;
-  assert.equal(scheduler.peekPrediction(state(1), 'actor1', '12342', 'gameplay'), result);
+  assert.deepStrictEqual(scheduler.peekPrediction(state(1), 'actor1', '12342', 'gameplay'), result);
   assert.equal(scheduler.peekPrediction(state(1), 'reed', '12342', 'gameplay'), undefined);
   assert.equal(scheduler.peekPrediction(state(1), 'actor1', '12342', 'changed'), undefined);
   assert.deepEqual(scheduler.getDiagnostics().predictionLane, before);

@@ -25,15 +25,23 @@ globalThis.__cacheAccounting = { measures, setLedger: value => { ledger = value;
 registerHooks({ load(url, context, next) {
   const result = next(url, context);
   let source = String(result.source), anchor, replacement;
-  if (url.endsWith('/tasks/snapshot-cache.mjs')) {
-    anchor = 'const metadata = new WeakMap(), results = new WeakMap(), slots = new Map();';
-    replacement = anchor + \`
-  globalThis.__cacheAccounting.measures.push(() => [...entries].map(([key, value]) => {
-      const entry = metadata.get(value);
-      return { projectionOnly: !value.baseline && !!value.playResult, sandbox: !!value.playResult, ownsState: !!entry.state || !!context(value.baseline)?.state, owner: 'picker:' + entry.owner, cost: snapshotBytes(value, entry.state,
-        context(value.baseline), locations(value.baseline), entry.predictionBytes)
-        + Buffer.byteLength(key) + Buffer.byteLength(entry.owner) };
-    }));\`;
+  if (url.endsWith('/tasks/serialized-snapshot-cache.mjs')) {
+    anchor = 'const stage = (key, value, _state, owner) => {';
+    replacement = \`
+  globalThis.__cacheAccounting.measures.push(() => [...entries].map(([key, record]) => {
+      if (Object.keys(record).some(key => !['bytes', 'owner', 'cost', 'value'].includes(key))) throw new Error('Unknown retained representation.');
+      const { snapshot, deferred } = record.value ? { snapshot: record.value, deferred: context(record.value.baseline) } : decode(record.bytes);
+      let minimum;
+      if (record.value) {
+        const meter = createSnapshotHeapMeter();
+        meter.visit({ ...snapshot, predict: undefined }); meter.visit(deferred); meter.visit(locations(snapshot.baseline));
+        minimum = meter.bytes;
+      } else minimum = serializedSnapshotBytes(key, record.owner, record.bytes);
+      if (record.cost < minimum) throw new Error('Retained snapshot is undercharged.');
+      return { projectionOnly: !snapshot.baseline && !!snapshot.playResult, sandbox: !!snapshot.playResult,
+        ownsState: !!deferred?.state, owner: 'picker:' + record.owner,
+        cost: record.cost };
+    }));\` + anchor;
   } else if (url.endsWith('/tasks/eligibility-cache.mjs')) {
     anchor = 'const retained = new Map();';
     replacement = anchor + \`

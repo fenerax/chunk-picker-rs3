@@ -1,5 +1,6 @@
 import { applyCommand, validateState, validateOwnedState, hasRandomStartChoices, seedRandomStartSections } from './state.mjs';
 import { hasResidentIdentities, cloneCalculationState } from './resident-copy.mjs';
+import { identityEntries } from '../tasks/identity-dictionary.mjs';
 import { createRuleRegistry } from './rules.mjs';
 
 export const RULE_PROFILE_FORMAT = 'rs3-chunk-rule-profile';
@@ -111,11 +112,29 @@ function predictionInputs(chunkId, { world, engine }) {
 /** Reuse one validated, immutable snapshot for a worker's bounded prediction
  * cache. Every candidate still evaluates its complete hypothetical state. */
 export function prepareChunkPrediction(state, registry) {
-  const baseline = freeze(hasResidentIdentities(state) ? validateOwnedState(cloneCalculationState(state), registry) : validateState(state, registry));
-  return (memberId, chunkId, options = {}) => {
-    predictionInputs(chunkId, options);
-    return predictionFromBaseline(baseline, memberId, chunkId, options);
-  };
+  const baseline = validatedPredictionState(state, registry);
+  return (memberId, chunkId, options = {}) => predictChunkFromPreparedState(baseline, memberId, chunkId, options);
+}
+
+// Explicit data lets worker caches charge and serialize the validated clone
+// without retaining an opaque closure over a second full state graph.
+export function prepareChunkPredictionState(state, registry) {
+  const baseline = validatedPredictionState(state, registry);
+  if (!hasResidentIdentities(baseline)) return baseline;
+  // Resident dictionaries hide their backing trees in weak metadata. A cache
+  // must own explicit data that both the heap meter and V8 serializer can see.
+  // A new top-level state also drops the resident ownership marker.
+  return freeze({ ...baseline, identityRegistry: { ...baseline.identityRegistry,
+    entries: Object.fromEntries(identityEntries(baseline.identityRegistry.entries)),
+    aliases: Object.fromEntries(identityEntries(baseline.identityRegistry.aliases)) } });
+}
+
+const validatedPredictionState = (state, registry) =>
+  freeze(hasResidentIdentities(state) ? validateOwnedState(cloneCalculationState(state), registry) : validateState(state, registry));
+
+export function predictChunkFromPreparedState(baseline, memberId, chunkId, options = {}) {
+  predictionInputs(chunkId, options);
+  return predictionFromBaseline(freeze(baseline), memberId, chunkId, options);
 }
 
 export function predictChunk(state, memberId, chunkId, { world, engine, registry } = {}) {

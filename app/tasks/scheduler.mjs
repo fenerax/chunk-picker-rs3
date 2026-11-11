@@ -6,7 +6,7 @@ import { ProcessWorker } from './process-worker.mjs';
 import { createCalculatorPool } from './calculator-pool.mjs';
 import { createSessionResidency } from './session-residency.mjs';
 import { createHash } from 'node:crypto';
-import { deserialize } from 'node:v8';
+import { deserialize, serialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
@@ -58,9 +58,8 @@ const evaluationWith = (value, metadata) => {
   return result;
 };
 function unlockEvaluation(reused) {
-  let result;
   const value = { evaluationMs: 0, timingMs: {}, cancelled: false, resultCache: { unlockPredictionHit: true },
-    get result() { return result ??= JSON.parse(value.playJSON.toString('utf8')); } };
+    get result() { return JSON.parse(value.playJSON.toString('utf8')); } };
   return Object.defineProperties(value, Object.fromEntries(['playJSON', 'duoJSON', 'duoSidebarJSON', 'gzipJSONPrefixes', 'gzipJSONPrefixMetadata']
     .filter(key => key in reused).map(key => [key, Object.getOwnPropertyDescriptor(reused, key)])));
 }
@@ -72,26 +71,30 @@ function cachedPlayValue(value) {
   delete descriptors.coalesced; delete descriptors.calculatorStarted;
   delete descriptors.resultJSON; delete descriptors.result;
   const playJSON = value.playJSON;
-  let result;
-  return Object.defineProperties({ get result() { return result ??= JSON.parse(playJSON.toString('utf8')); } }, descriptors);
+  return Object.defineProperties({ get result() { return JSON.parse(playJSON.toString('utf8')); } }, descriptors);
 }
 function workerEvaluation(message, entry) {
   const metadata = { evaluationMs: message.evaluationMs, timingMs: message.timingMs };
   const observed = value => Object.defineProperty(value, 'eligibilitySeeded', { value: entry.eligibilitySeeded === true });
   if (message.sandboxJSON instanceof SharedArrayBuffer) {
     const sandboxJSON = Buffer.from(message.sandboxJSON);
-    let result;
     return observed({ sandboxJSON, resultCache: message.resultCache, ...metadata,
-      get result() { return result ??= { ...JSON.parse(sandboxJSON.toString('utf8')), cache: message.resultCache }; } });
+      get result() { return { ...JSON.parse(sandboxJSON.toString('utf8')), cache: message.resultCache }; } });
   }
   if (!(message.playJSON instanceof SharedArrayBuffer)) return observed({ result: message.result, ...metadata });
   const resultJSON = message.resultJSON instanceof SharedArrayBuffer ? Buffer.from(message.resultJSON) : undefined;
   const playJSON = Buffer.from(message.playJSON);
-  let result;
   const duoJSON = message.duoJSON instanceof SharedArrayBuffer ? Buffer.from(message.duoJSON) : undefined;
   const duoSidebarJSON = message.duoSidebarJSON instanceof SharedArrayBuffer ? Buffer.from(message.duoSidebarJSON) : undefined;
   return observed({ ...(resultJSON ? { resultJSON } : {}), ...(duoJSON ? { duoJSON } : {}), ...(duoSidebarJSON ? { duoSidebarJSON } : {}), playJSON, cancelled: !!message.cancelled, ...metadata,
-    get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } });
+    get result() { return JSON.parse((resultJSON ?? playJSON).toString('utf8')); } });
+}
+function serializedEvaluation(value) {
+  if (value.playJSON || value.sandboxJSON) return { value };
+  const descriptors = Object.getOwnPropertyDescriptors(value), bytes = serialize(value.result);
+  delete descriptors.result;
+  return { value: Object.defineProperties({ get result() { return deserialize(Buffer.from(bytes)); } }, descriptors),
+    bytes: bytes.buffer.byteLength + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs })) };
 }
 function validStateInput(state, input, stateInput, type) {
   if (stateInput.owned) return typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
@@ -715,14 +718,15 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   function storeEvaluation(key, revision, type, value, pickerId) {
     if (type === 'how-task') return false; // Proofs have a separate small worker cache.
     if (type === 'why-task' && value.result?.unavailable) return false;
+    const retained = serializedEvaluation(value);
     const bytes = value.sandboxJSON ? value.sandboxJSON.length
       + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs, resultCache: value.resultCache }))
       : value.playJSON ? (value.resultJSON?.length ?? 0) + (value.duoJSON?.length ?? 0) + (value.duoSidebarJSON?.length ?? 0) + value.playJSON.length
       + Object.values(value.gzipJSONPrefixes ?? {}).reduce((sum, buffer) => sum + buffer.length, 0)
       + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs, cancelled: value.cancelled }))
-      : Buffer.byteLength(JSON.stringify(value));
+      : retained.bytes;
     if ((value.playJSON || value.sandboxJSON ? value.cancelled : value.result?.cancelled) || bytes > cacheByteLimit) return false;
-    cache.delete(key); cache.set(key, { value, bytes, revision, type, pickerId });
+    cache.delete(key); cache.set(key, { value: retained.value, bytes, revision, type, pickerId });
     while (cache.size > cacheLimit || [...cache.values()].reduce((sum, item) => sum + item.bytes, 0) > cacheByteLimit) cache.delete(cache.keys().next().value);
     return cache.has(key);
   }

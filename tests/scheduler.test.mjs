@@ -250,14 +250,37 @@ test('shared results stay lazy through coalescing, cache insertion, hits and dia
   assert.throws(() => cached.result, SyntaxError, 'Only a full-result consumer parses JSON');
 });
 
-test('full-result parsing is shared and memoized across transported waiters and hits', async t => {
+test('transported waiters and hits decode identical bytes without retaining a shared result graph', async t => {
   const { workers, evaluate } = await fixture(t);
   const first = evaluate('shared'), follower = evaluate('shared');
   finishJSON(workers[0], '{"tasks":[{"id":"known"}]}');
   const [one, two] = await Promise.all([first, follower]);
   assert.deepEqual(one.result, { tasks: [{ id: 'known' }] });
-  assert.equal(one.result, two.result);
-  assert.equal((await evaluate('shared')).result, one.result);
+  const original = one.result, bytes = Buffer.from(one.resultJSON);
+  assert.deepEqual(two.result, original);
+  assert.notEqual(two.result, original);
+  original.tasks[0].id = 'mutated-consumer';
+  const hit = await evaluate('shared');
+  assert.deepEqual(hit.result, { tasks: [{ id: 'known' }] });
+  assert.deepEqual(hit.resultJSON, bytes);
+  assert.notEqual(hit.result, hit.result);
+});
+
+test('object-response cache retains serialized values and gives each hit private typed data', async t => {
+  const { workers, evaluate } = await fixture(t);
+  const pending = evaluate('object-bytes');
+  const original = { tasks: [{ id: 'known' }], map: new Map([['key', 7]]), bytes: new Uint8Array([3, 5]) };
+  workers[0].finish(original);
+  await pending;
+  original.tasks[0].id = 'producer-mutation';
+  const hit = await evaluate('object-bytes'), decoded = hit.result;
+  assert.equal(decoded.tasks[0].id, 'known');
+  assert.deepEqual(decoded.map, new Map([['key', 7]]));
+  decoded.bytes[0] = 99;
+  decoded.tasks[0].id = 'consumer-mutation';
+  const next = (await evaluate('object-bytes')).result;
+  assert.equal(next.tasks[0].id, 'known');
+  assert.deepEqual(next.bytes, new Uint8Array([3, 5]));
 });
 
 test('play-only results remain lazy and same caller keys cannot mix compact and full caches', async t => {

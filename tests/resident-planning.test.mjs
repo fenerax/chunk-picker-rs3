@@ -141,11 +141,9 @@ test('cold, changed revision/member/input/rules/picker and evicted snapshots fal
   balanced(finalMessages(evicted).at(-1).message.probe);
 });
 
-test('planning growth releases the foreground snapshot when its existing owner share is full', async t => {
-  // The conservative reference bound scans serialized bytes, including the
-  // engine's elapsedMs double. Its random 0x5e bytes can change the charge even
-  // when the native length is identical. Fix this irrelevant synthetic metric
-  // before measurement so two calculators have the exact same baseline cost.
+test('planning growth demotes the foreground snapshot when its heap charge exceeds the owner share', async t => {
+  // Match the baseline exactly, then grow its planning index beyond that heap
+  // allowance. Wire bytes can still fit without retaining the decoded graph.
   const measure = await fixture(t, { fixedEngineTiming: true });
   await measure.evaluate();
   const charge = finalMessages(measure).at(-1).message.probe.snapshots[0].charge;
@@ -156,7 +154,8 @@ test('planning growth releases the foreground snapshot when its existing owner s
   const reply = finalMessages(f).at(-1).message;
   assert.equal(planned.result.format, 'chunk-planning-v1');
   assert.equal(reply.probe.evaluateFull, 1);
-  assert.equal(reply.probe.snapshots.length, 0, 'index growth uses the existing admission and eviction rule');
+  assert.equal(reply.probe.snapshots.length, 1, 'the smaller wire representation remains reusable');
+  assert.equal(reply.probe.snapshots[0].decoded, false, 'oversized heap charge demotes the decoded graph');
   balanced(reply.probe);
   assert.deepEqual(planned.result, (await measure.planning()).result);
 });
