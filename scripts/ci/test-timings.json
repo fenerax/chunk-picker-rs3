@@ -20,6 +20,16 @@
       "sha": "d2f1c31d833741e63a9f7f8b99e7ca3a41003617",
       "runId": "42294078968",
       "runAttempt": 1
+    },
+    {
+      "sha": "9262ab1706f66e06306d05952674c5710993506f",
+      "kind": "local-focused",
+      "runtime": "Linux Node.js 24.20.0",
+      "files": [
+        "tests/linux-multi-picker.test.mjs",
+        "tests/linux-ops-effects.test.mjs",
+        "tests/linux-tools-install.test.mjs"
+      ]
     }
   ],
   "defaultMs": 1798,
@@ -333,16 +343,17 @@
     "tests/linux-lock-publication.test.mjs": 5547,
     "tests/linux-lock-recovery.test.mjs": 7698,
     "tests/linux-monitor.test.mjs": 44634,
-    "tests/linux-multi-picker.test.mjs": 179056,
+    "tests/linux-multi-picker.test.mjs": 40855,
     "tests/linux-notify-crash.test.mjs": 78156,
     "tests/linux-offhost-restic.test.mjs": 56842,
     "tests/linux-offhost.test.mjs": 18889,
     "tests/linux-operator-maintenance.test.mjs": 1227,
     "tests/linux-operator.test.mjs": 62330,
+    "tests/linux-ops-effects.test.mjs": 390,
     "tests/linux-ops-setup.test.mjs": 1771,
     "tests/linux-recovery-paths.test.mjs": 3557,
     "tests/linux-service-crash.test.mjs": 145121,
-    "tests/linux-tools-install.test.mjs": 240711,
+    "tests/linux-tools-install.test.mjs": 50844,
     "tests/linux-tools-package.test.mjs": 15526,
     "tests/live-base-compatibility.test.mjs": 342,
     "tests/live-base-drift.test.mjs": 526,
