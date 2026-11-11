@@ -51,7 +51,8 @@ calculator invalidates the run instead of reducing its reported memory.
 Every group receives ticks, notes, Undo, native digest/full calculator transport,
 full response serialization, play/claim projection and narrow identity lookup.
 A simultaneous round overlaps all 50 request streams with all handles retained.
-Scheduler queue/deadline/cache/resource limits are unchanged. Rejections are
+Both formats use the same production scheduler limits and managed cache budget
+defined below. Queue, deadline and process resource limits are unchanged. Rejections are
 recorded without retry and prevent an acceptance claim. After settling and GC,
 one read-only round warms the resulting cache working set, followed by four
 identical rounds. Their receipts are written outside the store root and released
@@ -63,7 +64,8 @@ Admission retains the resident store and input identity, then the scheduler
 loads the revision-fenced capture only when a calculator is available. Format 1
 therefore encodes its full `stateJSON` at dispatch, while format 2 loads its owned
 input at dispatch. Neither queues an eagerly encoded full save. Command counts,
-full result transport, refusals, deadlines and byte/count limits are unchanged.
+full result transport, refusals and deadlines are unchanged. Both formats use
+the same byte/count limits.
 
 Five additional mutation rounds run **tick → Undo → note → Undo** on every
 retained group, then calculate and serialize full/play responses at the new
@@ -250,22 +252,88 @@ An `uncoveredMaximum` always vetoes a waiver. All raw heap measurements, the
 conservative worst-owner residual, targets and hard reject lines stay charged.
 
 `decision.steadyState` is machine-checkable and explains why proof is unavailable.
-The current source audit has blockers, so this implementation emits no successful
-warm-up assertion and runs the original rounds/growth gates:
+The source audit still has a History blocker, so this implementation emits no
+successful warm-up assertion and runs the original rounds/growth gates:
 
 | Owner | Enforced bound | Missing proof |
 | --- | --- | --- |
-| Response caches | 32 entries / 48 MiB representation bytes per group | Complete heap ownership is still required for any residual |
-| Hot snapshot | One graph / 128 MiB conservative charge | Shared backing charges are reported separately |
-| Shared snapshot/eligibility cache | 512 entries / 384 MiB, with existing partitions | Hot charge overlaps this cap; do not add it twice |
-| Engine variants | 16 boolean combinations, eight when early travel is fixed false | Parsed engines/lazy indexes have no byte ledger |
-| stateSnapshots | Two entries | Retained input payloads have no byte ledger |
-| History | Compaction policy, not a hard cap | Pending-roll/Undo suffix exceptions; archive reference count and payload bytes have no cap |
+| Response caches | 32 entries / 48 MiB per group, plus existing 4 MiB sandbox pool; **128 MiB / 4,096 entries service-wide** across static, group and saved-Why caches | Group ledgers are subsets of the service ledger; complete heap attribution remains required for residual growth |
+| Scheduler result caches | **128 MiB service-wide** across foreground, advisory, Preview, duo and saved-unlock results | Included in the managed service budget; source byte units are not V8 heap bytes |
+| Hot snapshot | One graph / 128 MiB per calculator, also limited by its worker share | A subset of the worker ledger, counted once |
+| Shared snapshot/eligibility cache | 512 entries per calculator / **256 MiB across all calculator shares** | Existing picker/eligibility/snapshot partitions apply within each share |
+| Engine variants | 16 combinations / **128 MiB evictable parsed graphs and lazy indexes across calculator shares**, plus fixed input charge `B` | Explicit roots include shared access indexes and lazy rate tables; oversized variants run without retention |
+| stateSnapshots and installed calculator bases | Two snapshots and two bases per calculator / **32 MiB across calculator shares**, split equally | Separate conservative graph ledgers; eviction invalidates scheduler and pool hints so the next request resends its exact input/base |
+| History | Byte ledger only; compaction policy remains unchanged | Pending-roll/Undo suffixes, archive references, active payloads and previous-chain provenance have no hard cap |
+| Production saved viewer task results | Existing eight entries / 32 MiB compact + 16 MiB full gzip per group | Outside the managed global allocation; pressure eviction would change read-only replies |
+
+Every bounded owner reported by the census, including a subset, exposes enforced `entries` and
+`chargeBytes` dimensions to the fail-closed rule. `includedInOtherCap` excludes
+subset rows only from additive projections; it never exempts their evidence
+from validation. The hot graph is charged by its worker, and group responses
+by the service response ledger. Those subset charges enter the total once.
+Independently retained inputs conservatively charge their complete reachable
+graphs, including any shared immutable base; those source charges are not exact
+physical heap attribution.
+
+### One managed service budget (owner decision, 2026-11-11)
+
+`RS3_SERVICE_CACHE_BYTES` defaults to **672 MiB**. Its partitions are 128 MiB
+responses, 128 MiB scheduler results, 256 MiB worker snapshot/eligibility caches,
+128 MiB parsed engines and 32 MiB inputs (snapshots and installed bases). Physical calculators divide
+the last three partitions by the configured maximum calculator count; they do
+not each receive the whole allocation. Without a pool, four lane shares cover
+foreground, advisory, Preview and duo. Replacement/retirement remains governed
+by the existing physical-worker lifetime and RSS controls.
+
+`RS3_RESPONSE_CACHE_BYTES` overrides the response partition and must not exceed
+the service budget. With no override it receives 4/21 of the total. The remainder
+is divided 8:4:1:4 between worker caches, parsed engines, inputs and scheduler
+results. `RS3_CALCULATOR_CACHE_BYTES`, `RS3_ENGINE_VARIANT_BYTES` and
+`RS3_STATE_SNAPSHOT_BYTES` can lower a calculator's assigned share; larger values
+are clamped to that share. For input residency the option lowers each half-share
+(snapshots and installed bases). Quotas use integer bytes, rounding down.
+
+The 100-active-group envelope gives responses an average 1.28 MiB/group when
+fully occupied. That is smaller than the 5 MiB/group reported goal. The managed
+672 MiB total leaves 78 MiB below the 750 MiB hard measured total for fixed
+inputs, History and other residency. This is a budget choice to load-test, not
+evidence that those remaining owners fit. The fixed engine source/catalogue
+charge `B` is measured at construction, reported separately and cannot grow by
+cache admission. It is included in cap projections in addition to 672 MiB.
+The 15 MiB/group and 750 MiB total reject gates are unchanged. Launch remains a
+capped beta of about 25–50 groups within a load-tested envelope of about 100
+active groups and about 200 online; 2,000 players remains the design ceiling.
+
+Response eviction prefers globally old entries from groups above a soft 64 KiB
+floor, then falls back to global LRU. The floor cannot override the byte/entry
+cap. In-flight saved-Why decoder reservations remain charged and cannot be
+evicted until they settle. New admissions decline if pinned reservations leave
+insufficient room. Completed identity/gzip/brotli growth rebalances the same
+ledger. The caller still receives uncached results; response bytes, ETags,
+conditional requests and saved bytes are unchanged.
+
+At **100 groups** and **500 groups**, the known managed subtotal is the same
+`704,643,072 + B` bytes, instead of multiplying the group response cap. The full
+projected worst case remains **unbounded** at both group counts because History
+has no finite payload/reference cap. The diagnostic projection therefore returns
+`null` for complete totals at both counts. An arbitrary observed History size
+must not be substituted for its missing cap.
+
+This is the synthetic harness subtotal. Production saved viewer results add
+48 MiB/group outside that allocation: the identified bounded subtotal is at
+least **5,472 MiB + B** at 100 groups and **24,672 MiB + B** at 500 groups,
+before other roots.
+[Remaining service residency gaps](f2-memory-residency-gaps.md) records those
+owners and the reply-preservation requirements for follow-up. This change does
+not establish a complete service-wide memory bound.
 
 The warm-up preflight stops with these blockers instead of running an unbounded
 loop or inventing limits. Resolving them requires source ownership/budget work;
 this change does not impose a new History policy or change save/wire formats.
-`retention.caps` reports the per-group sum and projection to 100 groups, plus
+[History residency design](f2-history-residency-design.md) records why a hard
+bound would cross the task's compatibility stop condition. No default-off load
+option is implemented or enabled in this change.
+`retention.caps` reports the per-group sum and projections to 100 and 500 groups, plus
 shared caps, as diagnostics only. Complete totals are `null` while any byte cap
 is missing; known subtotals remain numeric and identify overlapping charges.
 

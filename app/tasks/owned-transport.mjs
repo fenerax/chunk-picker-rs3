@@ -3,6 +3,7 @@ import { residentBase } from '../core/resident-copy.mjs';
 import { ownedCodec } from '../storage/owned-codec.mjs';
 import { verifyOwnedBaseBytes } from '../storage/owned-base.mjs';
 import { ownedBaseLimits, validateOwnedBaseReference } from '../storage/owned-base-schema.mjs';
+import { createStateSnapshotCache } from './retained-data.mjs';
 
 const encodings = new WeakMap();
 export const OWNED_CALCULATOR_TRANSPORT = 'owned-delta-v1';
@@ -28,9 +29,10 @@ export function ownedCalculatorInput(state) {
 }
 
 /** Each physical worker owns this cache, independently of picker handles. */
-export function createOwnedCalculatorReceiver(datasetDigest, { limits: overrides } = {}) {
-  const bases = new Map(), limits = ownedBaseLimits(overrides);
-  return ({ document, installation }) => {
+export function createOwnedCalculatorReceiver(datasetDigest, { limits: overrides,
+  maxBytes = 16 * 1024 ** 2, maxEntries = 2, onEvict } = {}) {
+  const bases = createStateSnapshotCache({ maxBytes, maxEntries, onEvict }), limits = ownedBaseLimits(overrides);
+  const receive = ({ document, installation }) => {
     try {
       const reference = document?.storage?.base;
       if (reference?.datasetDigest !== datasetDigest) throw new Error('Worker dataset pin mismatch.');
@@ -56,4 +58,7 @@ export function createOwnedCalculatorReceiver(datasetDigest, { limits: overrides
       return ownedCodec(cached.base, cached.pin).decode(document, { resident: true }).state;
     } catch (cause) { throw refused(cause); }
   };
+  receive.retentionLedger = () => ({ ...bases.retentionLedger(),
+    accounting: 'Verified calculator base graph bytes, including dictionary payloads and release pins. Oversized bases decode the current request without retention; private hints require a full installation on reuse.' });
+  return receive;
 }

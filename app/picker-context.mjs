@@ -282,12 +282,13 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   // Enable explicitly after measuring the deployment's full-state cache misses.
   const gzipFullStateParts = process.env.RS3_FULL_STATE_GZIP_PARTS === '1';
   const responseBudget = 48 * 1024 * 1024;
-  const responseCache = createResponseCache({ maxEntries: 32, maxBytes: responseBudget });
+  const responseGroup = Symbol('picker-responses');
+  const responseCache = createResponseCache({ maxEntries: 32, maxBytes: responseBudget, group: responseGroup });
   const savedWhyEvidence = createSavedWhyEvidence({ cache: responseCache });
   const stateResponseBuilds = createStateResponseBuilds();
   const stateResponses = new Set();
   const stateResponseLeases = createResponseLeases({ maxBytes: responseBudget });
-  const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024 });
+  const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024, group: responseGroup });
   const poolRanking = createPoolRanking(), rankingPools = new Map();
   if (PROFILE_ENABLED) profile.wrapMethods(poolRanking, ['read', 'record', 'missing'], 'poolRanking');
   let rankingPoolInput, rankingLeaseTimer;

@@ -5,6 +5,7 @@ import { digest } from '../capacity/model.mjs';
 import { calculatorEvidence } from './lifecycle.mjs';
 import { deferredTaskInput } from '../../../app/tasks/deferred-input.mjs';
 import { warmupPlan, capProjection } from './steady-state.mjs';
+import { serviceResponseCacheBudget } from '../../../app/response-cache-budget.mjs';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const probeURL = new URL('./probe.mjs', import.meta.url).href;
@@ -35,10 +36,14 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
   const evidence = calculatorEvidence({ context, diagnostics: () => scheduler?.getDiagnostics() });
   // Named root helps DevTools dominator/retainer inspection of optional snapshots.
   globalThis.__ownedAcceptanceHandles = handles;
-  probe.ownerLedgers = () => handles.flatMap((handle, group) => [
-    { ...handle.responses.retentionLedger(), id: `responses-${group}`, scope: 'group', group, workload: { newEntriesPerCycle: 2 } },
+  probe.ownerLedgers = () => [{ ...serviceResponseCacheBudget.retentionLedger(), id: 'service-responses', scope: 'shared',
+    workload: { newEntriesPerCycle: Math.max(1, handles.length * 2) } },
+    ...(scheduler ? [{ ...scheduler.retentionLedger(), id: 'scheduler-responses', scope: 'shared', workload: { newEntriesPerCycle: 1 } }] : []),
+    ...handles.flatMap((handle, group) => [
+    { ...handle.responses.retentionLedger({ subset: true }), id: `responses-${group}`, scope: 'group', group, includedInOtherCap: true,
+      chargedBy: 'service-responses', workload: { newEntriesPerCycle: 2 } },
     { ...handle.store.retentionLedger(), id: `history-${group}`, scope: 'group', group, workload: { newEntriesPerCycle: 4 } },
-  ]);
+  ])];
   async function rows() {
     const receipts = path.join(directory, 'checkpoints', String(sequence));
     const files = (await readdir(receipts)).filter(file => /^\d+-\d+\.json$/.test(file));
@@ -162,7 +167,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     warm = { id: pickerId(warmGroup.index), store: await openStore(options(warmGroup)), lane: scheduler.forPicker(pickerId(warmGroup.index)), responses: responseCache() };
     // Populate all ordinary lazy indexes/transport paths before charging groups.
     await exercise(warm, warmGroup.index);
-    warm.lane.cancelPicker(); await warm.store.close(); warm = undefined;
+    warm.lane.cancelPicker(); await warm.store.close(); warm.responses.clear(); warm = undefined;
     records.length = 0;
     if (errors.length) throw new Error('Warmup failed; cannot establish shared baseline.');
     stage = 'shared-baseline';
@@ -382,8 +387,9 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
   } finally {
     evidence.seal(); stage = 'cleanup';
     await warm?.store.close();
+    warm?.responses.clear();
     for (const release of releases) release();
-    for (const handle of handles) await handle.store.close();
+    for (const handle of handles) { await handle.store.close(); handle.responses.clear(); }
     await scheduler?.close();
     for (const worker of workers) await worker.terminate();
     delete globalThis.__ownedAcceptanceHandles;

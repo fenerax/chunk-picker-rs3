@@ -52,8 +52,11 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
       assert(result.retention.warmup.blockers.some(reason => reason.includes('archive-references-have-no-cap')));
       assert.equal(result.retention.caps.complete, false);
       assert.equal(result.retention.caps.projectedTotal100GroupBytes, null);
-      assert.equal(result.retention.caps.knownPerGroupByteCapSubtotal, 48 * 1024 ** 2);
-      assert.equal(result.retention.caps.knownSharedByteCapSubtotal, 384 * 1024 ** 2);
+      assert.equal(result.retention.caps.knownPerGroupByteCapSubtotal, 0, 'response groups are subsets of the service budget');
+      const owners = result.commandSamples.at(-1).ownerLedgers;
+      const engine = owners.find(row => row.owner === 'engine-variants');
+      assert.equal(result.retention.caps.knownSharedByteCapSubtotal, 672 * 1024 ** 2 + engine.fixedInputBytes);
+      assert.equal(result.retention.caps.projectedTotal500GroupBytes, null);
       assert.equal(result.openSamples[0].ownerLedgers, undefined, 'opening censuses are not retained in the measured controller');
       assert(result.commandSamples.at(-1).ownerLedgers.some(row => row.owner === 'History'));
       assert(result.commandSamples.at(-1).isolates.every(row => row.ownerLedgers === undefined), 'censuses load after measurement, outside isolate receipts in memory');

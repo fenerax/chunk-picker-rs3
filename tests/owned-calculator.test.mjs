@@ -35,7 +35,7 @@ const definitions = { challenges: { Synthetic: { 'Synthetic first': { PickerId: 
 const world = buildWorld(definitions);
 const workerData = genericWorkerData({ definitions, world: { chunks: world.chunks, surface: world.surface },
   skillGuideCatalogue: { skills: [], tasks: [] } });
-const clock = 'data:text/javascript,' + encodeURIComponent("Object.defineProperty(performance, 'now', { value: () => 0 });");
+const clock = new URL('./helpers/fixed-performance-clock.mjs', import.meta.url).href;
 function data() {
   const original = fixture();
   const built = buildOwnedBase({ dataset: { id: selectedDataset.datasetId, contractVersion: selectedDataset.datasetContractVersion,
@@ -166,6 +166,47 @@ test('prediction-first owned state stays resident and matches flat state after d
       }
     } finally { await worker.terminate(); }
   }
+});
+
+test('verified base byte eviction reloads exact input and saved delta bytes', () => {
+  const f = data(), input = ownedCalculatorInput(f.resident), evicted = [];
+  const original = JSON.stringify(input.document), reference = createOwnedCalculatorReceiver(f.pin.dataset.digest)(input);
+  const expected = JSON.stringify(ownedCodec(f.base, f.pin).encode(reference));
+  const receive = createOwnedCalculatorReceiver(f.pin.dataset.digest, { maxBytes: 0, onEvict: digest => evicted.push(digest) });
+  for (const packet of [input, structuredClone(input)]) {
+    const state = receive(packet);
+    assert.deepEqual(materializeResidentState(state), f.logical);
+    assert.equal(JSON.stringify(ownedCodec(f.base, f.pin).encode(state)), expected);
+  }
+  assert.equal(JSON.stringify(input.document), original);
+  assert.deepEqual(evicted, [f.pin.sha256, f.pin.sha256]);
+  const ledger = receive.retentionLedger();
+  assert.equal(ledger.complete, true);
+  assert.deepEqual(ledger.dimensions.map(row => [row.unit, row.used, row.cap]), [['entries', 0, 2], ['chargeBytes', 0, 0]]);
+});
+
+test('pooled base eviction requests installations again without changing calculator reply bytes', async t => {
+  const f = data(), input = ownedCalculatorInput(f.resident), replies = [], sends = [];
+  for (const cap of [1024 ** 2, 0]) {
+    const sent = [];
+    const scheduler = await createTaskScheduler({ maxCalculators: 1, workerData, workerFactory: data => {
+      const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), { workerData: data,
+        env: { ...process.env, RS3_STATE_SNAPSHOT_BYTES: String(cap), RS3_CALCULATOR_CACHE_BYTES: '0' }, execArgv: ['--import', clock] });
+      const post = worker.postMessage.bind(worker);
+      worker.postMessage = message => { if (message.type === 'evaluate') sent.push(!!message.ownedBase); return post(message); };
+      return worker;
+    } });
+    t.after(() => scheduler.close());
+    const values = [];
+    for (const key of ['first', 'second']) {
+      const value = await scheduler.forPicker(A).evaluate({ revision: f.logical.revision, members: f.logical.members }, 'member-1',
+        'evaluate', undefined, key, 'synthetic-input', undefined, [], 'full', { owned: input, inputKey: 'synthetic-input' });
+      values.push(JSON.stringify(value.result));
+    }
+    replies.push(values); sends.push(sent); await scheduler.close();
+  }
+  assert.deepEqual(replies[1], replies[0]);
+  assert.deepEqual(sends, [[true, false], [true, true]]);
 });
 
 test('owned commands, responses and pooled requests make no full identity copies', async t => {

@@ -4,6 +4,8 @@ import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warni
 import { EARLY_TRAVEL_UNLOCKS_RULE, travelRewardKind, usefulTravelRecord, furnitureWorkbenches, nexusDestinationClauses, unlockLabel } from '../data/travel-reward-gates.mjs';
 import { createHowCapture } from './how-proof.mjs';
 import { eligibilityInputKey } from './eligibility-cache.mjs';
+import { retainedDataBytes } from './retained-data.mjs';
+import { accessRetentionRoots, accessRetentionVersion, releaseAccessRetention } from './access.mjs';
 import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
@@ -162,7 +164,9 @@ function experienceLevel(xp, ceiling = 120) {
  * Separate compiled variants keep disabled outputs out of capability closure. */
 export function createTaskEngine(definitions, options = {}) {
   const { dataset, reviewedOverlays = Boolean(dataset), skillGuideTasks, skillGuideMilestones, skillGuideCorrections, retainedTaskCorrections, retainedUnsupportedCorrections, divinationTraining, skillGuideCatalogue: catalogue = skillGuideCatalogue,
-    skillGuideCorrectionOverlay = applySkillguideCombatCorrections, ...baseOptions } = options;
+    skillGuideCorrectionOverlay = applySkillguideCombatCorrections,
+    variantByteLimit = Number(process.env.RS3_ENGINE_VARIANT_BYTES ?? 128 * 1024 * 1024), ...baseOptions } = options;
+  if (!Number.isSafeInteger(variantByteLimit) || variantByteLimit < 0) throw new TypeError('Invalid engine variant byte cap.');
   for (const [name, value] of Object.entries({ skillGuideTasks, skillGuideMilestones, skillGuideCorrections })) {
     if (value !== undefined && typeof value !== 'boolean') throw new TypeError(`${name} must be a boolean.`);
   }
@@ -173,11 +177,27 @@ export function createTaskEngine(definitions, options = {}) {
     for (const key of ['cacheWalking', 'cacheResources', 'cacheArchaeology', 'cacheShops']) baseOptions[key] ??= dataset.capabilities[key];
     baseOptions.dataset = dataset;
   }
-  // Three guide switches and early travel give sixteen finite variants. Their
-  // eligibility backing stores divide one fixed budget; parsed engines do not.
+  // Three guide switches and early travel give sixteen finite variants.
+  // Eligibility backing stores and parsed graphs have separate byte owners.
   const eligibilityBudget = baseOptions.eligibilityBudget ?? createEligibilityBudget();
   const variants = new Map();
   const accessIndexes = [];
+  const versions = new Map();
+  let fixedRoots, fixedBytes = 0, retainedBytes = 0, evictions = 0;
+  const sweepIndexes = () => {
+    const live = new Set([...variants.values()].map(value => value.accessIndex()));
+    for (let i = accessIndexes.length - 1; i >= 0; i--) if (!live.has(accessIndexes[i].index)) accessIndexes.splice(i, 1);
+  };
+  const forgetVariant = key => {
+    const value = variants.get(key);
+    value?.release(); variants.delete(key); versions.delete(value); evictions++; sweepIndexes();
+  };
+  const measureVariants = () => retainedDataBytes([...(fixedRoots ?? []), ...[...variants.values()].flatMap(value => value.retentionRoots())]) - fixedBytes;
+  const trimVariants = () => {
+    if (!fixedRoots) return;
+    retainedBytes = measureVariants();
+    while (variants.size && retainedBytes > variantByteLimit) { forgetVariant(variants.keys().next().value); retainedBytes = measureVariants(); }
+  };
   let engine, baselineProvider;
   const configureProviders = () => {
     if (!baselineProvider) return;
@@ -199,7 +219,9 @@ export function createTaskEngine(definitions, options = {}) {
       variants.set(key, createCompiledTaskEngine(data, { ...baseOptions, metadataCorrections: false, equipmentCorrections: false, eligibilityBudget, earlyTravelUnlocks: early }, accessIndexes, configureProviders));
       configureProviders();
     }
-    return variants.get(key);
+    const value = variants.get(key);
+    variants.delete(key); variants.set(key, value);
+    return value;
   };
   const variantForRules = (rules, early = false) => variant(skillGuideTasks ?? rules?.[SKILL_GUIDE_TASKS_RULE] === true,
     skillGuideCorrections ?? rules?.[SKILL_GUIDE_CORRECTIONS_RULE] === true,
@@ -213,24 +235,44 @@ export function createTaskEngine(definitions, options = {}) {
     return variantForRules(state.rules, rules[EARLY_TRAVEL_UNLOCKS_RULE] === true && taskRuleEnabled(rules, EARLY_TRAVEL_UNLOCKS_RULE));
   };
   const initial = variant(skillGuideTasks === true, skillGuideCorrections === true, skillGuideMilestones === true);
+  // Source definitions and the public identity catalogue are permanent engine
+  // inputs. Record their fixed charge separately from evictable parsed graphs.
+  fixedRoots = [definitions, catalogue, initial.catalogue, baseOptions];
+  fixedBytes = retainedDataBytes(fixedRoots);
+  trimVariants();
+  function use(compiled, operation) {
+    let completed = false;
+    try { const result = operation(compiled); completed = true; return result; }
+    finally {
+      const version = compiled.retentionVersion();
+      if (!completed || versions.get(compiled) !== version) {
+        versions.set(compiled, version); trimVariants();
+        // Versions never keep an evicted engine alive.
+        for (const key of versions.keys()) if (![...variants.values()].includes(key)) versions.delete(key);
+      }
+    }
+  }
   engine = Object.freeze({ datasetDigest: dataset?.digest, catalogue: initial.catalogue,
-    prepare(rules) { variantForRules(rules).prepare(); },
+    prepare(rules) { return use(variantForRules(rules), compiled => compiled.prepare()); },
     retentionLedger() {
       if (variants.size > 16) throw new Error('Engine variant entry cap exceeded.');
-      return { owner: 'engine-variants', complete: false,
-        dimensions: [{ unit: 'entries', used: variants.size, cap: 16, enforced: true }],
-        blockers: ['parsed-engine-and-lazy-index-bytes-have-no-ledger'],
+      trimVariants();
+      if (retainedBytes > variantByteLimit) throw new Error('Engine variant byte cap exceeded.');
+      return { owner: 'engine-variants', complete: true,
+        dimensions: [{ unit: 'entries', used: variants.size, cap: 16, enforced: true },
+          { unit: 'chargeBytes', used: fixedBytes + retainedBytes, cap: fixedBytes + variantByteLimit, enforced: true }],
+        fixedInputBytes: fixedBytes, parsedBytes: retainedBytes, parsedByteLimit: variantByteLimit, evictions,
         keys: [...variants.keys()].sort(),
-        accounting: 'Finite boolean key space; early=false gives eight workload combinations. No byte cap for parsed variants.' };
+        accounting: 'Conservative explicit graph roots, deduplicated across variants and shared access indexes. Immutable source/catalogue charge is fixed at construction; parsed graphs and lazy indexes share an evictable cap. Eligibility backing is charged only by the worker cache.' };
     },
-    how(state, memberId, taskId, options) { return variantForMember(state, memberId).how(state, memberId, taskId, options); },
+    how(state, memberId, taskId, options) { return use(variantForMember(state, memberId), compiled => compiled.how(state, memberId, taskId, options)); },
     evaluate(state, memberId, evaluateOptions) {
-      return variantForMember(state, memberId).evaluate(state, memberId, evaluateOptions);
+      return use(variantForMember(state, memberId), compiled => compiled.evaluate(state, memberId, evaluateOptions));
     },
     eligibilityProofKey(state, memberId, evaluateOptions) {
       const compiled = variantForMember(state, memberId);
       const variantKey = [...variants].find(([, value]) => value === compiled)[0];
-      return JSON.stringify([evaluateOptions?.eligibilityScope ?? null, variantKey, compiled.eligibilityProofKey(state, memberId, evaluateOptions)]);
+      return use(compiled, value => JSON.stringify([evaluateOptions?.eligibilityScope ?? null, variantKey, value.eligibilityProofKey(state, memberId, evaluateOptions)]));
     },
     exportEligibilityProof(key, maxBytes) {
       try { const [, variantKey, inputKey] = JSON.parse(key); return variants.get(variantKey)?.exportEligibilityProof(inputKey, maxBytes); }
@@ -1741,6 +1783,13 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     catch (error) { if (error.proof) return error.proof; throw error; }
   }
   return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate, how,
+    accessIndex: () => accessIndex,
+    retentionVersion: () => `${evaluationPrepared}:${!!accessIndex}:${accessRetentionVersion(definitions)}`,
+    retentionRoots: () => [definitions, accessBranches, accessIndex, entrances, compiled, byKey, byId, compileDiagnostics,
+      usefulGates, nexusDestinations, slayerGates, slayerEntranceTasks, catalogue, processingSetFields, emptyProcessingAccess,
+      outputGates, producers, declaredOutputRoots, processingTasks, recipeIds, processingBoostFields,
+      processingRowsForDiscovery, capabilitySeeds, primarySkillTasks, pointTasks, unsupportedTasks, accessRetentionRoots(definitions)],
+    release() { eligibilityCache.clear(); releaseAccessRetention(definitions); },
     eligibilityProofKey: (state, memberId, options) => eligibilityInputKey(projectedState(state), memberId, options),
     exportEligibilityProof: (key, maxBytes) => eligibilityCache.exportProof(key, maxBytes),
     exportEligibilityProofChunk: (key, maxBytes, offset, proofId) => eligibilityCache.exportProofChunk(key, maxBytes, offset, proofId),

@@ -24,6 +24,9 @@ function version(data) {
   return view;
 }
 export const isIdentityDictionary = value => versions.has(value);
+// Source census includes the immutable base even when a delta hides its rows.
+// Enumerating the visible dictionary alone would miss retained tombstone data.
+export const identityRetentionRoots = dictionary => versions.get(dictionary);
 /** Storage projection visits only edits; enumeration recipes are exceptional. */
 export function identityDictionaryDelta(dictionary, base) {
   let data = versions.get(dictionary);

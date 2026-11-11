@@ -34,6 +34,8 @@ import { buildChunkPlanningIndex, buildChunkPlanningIndexIncremental } from './c
 import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
+import { createStateSnapshotCache } from './retained-data.mjs';
+import { serviceMemoryBudget, boundedMemoryOption } from '../service-memory-budget.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { serialize } from 'node:v8';
 import { createWarmResults, warmResultNamespace } from './warm-results.mjs';
@@ -74,8 +76,11 @@ function mapPlayResult(result) {
   return { ...projectPlayResult(result), taskLocations: locations };
 }
 const compileStarted = performance.now();
-const snapshotBudget = createWorkerCacheBudget(process.env.RS3_CALCULATOR_CACHE_BYTES === undefined ? undefined : Number(process.env.RS3_CALCULATOR_CACHE_BYTES));
-const engineOptions = { eligibilityBudget: snapshotBudget, dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue };
+const memoryBudget = workerData.memoryBudget ?? serviceMemoryBudget();
+const snapshotBudget = createWorkerCacheBudget(boundedMemoryOption(process.env.RS3_CALCULATOR_CACHE_BYTES, memoryBudget.workerBytes));
+const engineOptions = { eligibilityBudget: snapshotBudget, dataset: selectedDataset, ...workerData.datasetOptions,
+  variantByteLimit: boundedMemoryOption(process.env.RS3_ENGINE_VARIANT_BYTES ?? workerData.datasetOptions?.variantByteLimit, memoryBudget.engineBytes),
+  skillGuideCatalogue: workerData.skillGuideCatalogue };
 const engine = createTaskEngine(definitions, engineOptions);
 const howCache = createHowCache();
 // Structured cloning removes the world's non-enumerable definitions/provider.
@@ -211,17 +216,20 @@ const snapshotOptions = { hotSet: createSnapshotHotSet({ entryLimit: Number(proc
   restoreLocations: (result, value) => mapLocationResults.set(result, value) };
 const completeCache = createSerializedSnapshotCache(snapshotBudget, snapshotOptions);
 const snapshots = completeCache.entries;
-const stateSnapshots = new Map();
+const evictedStateInputs = new Set();
+const evictedOwnedBases = new Set();
+const stateSnapshots = createStateSnapshotCache({ maxEntries: STATE_SNAPSHOT_LIMIT,
+  maxBytes: boundedMemoryOption(process.env.RS3_STATE_SNAPSHOT_BYTES, Math.floor(memoryBudget.stateBytes / 2)),
+  onEvict: key => evictedStateInputs.add(key) });
 // Optional in-process observer, never sent through the calculator wire.
 if (globalThis[Symbol.for('rs3.acceptance.probe')]) globalThis[Symbol.for('rs3.acceptance.probe')].ownerLedgers = () => {
   if (stateSnapshots.size > STATE_SNAPSHOT_LIMIT) throw new Error('State snapshot entry cap exceeded.');
   return [
-    { ...snapshotOptions.hotSet.retentionLedger(), id: 'hot-graph', scope: 'shared', includedInOtherCap: true, workload: { newEntriesPerCycle: 1 } },
+    { ...snapshotOptions.hotSet.retentionLedger(), id: 'hot-graph', scope: 'shared', includedInOtherCap: true, chargedBy: 'worker-cache', workload: { newEntriesPerCycle: 1 } },
     { ...snapshotBudget.retentionLedger(), id: 'worker-cache', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
     { ...engine.retentionLedger(), id: 'engine', scope: 'shared', workload: { newEntriesPerCycle: 1, workingSetEntries: 8 } },
-    { owner: 'stateSnapshots', id: 'state-inputs', scope: 'shared', complete: false,
-      dimensions: [{ unit: 'entries', used: stateSnapshots.size, cap: STATE_SNAPSHOT_LIMIT, enforced: true }],
-      workload: { newEntriesPerCycle: 1 }, blockers: ['state-snapshot-payload-bytes-have-no-ledger'] },
+    { ...stateSnapshots.retentionLedger(), id: 'state-inputs', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
+    { ...receiveOwnedState.retentionLedger(), id: 'installed-bases', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
   ];
 };
 const latestRevisions = new Map();
@@ -454,7 +462,9 @@ function sharedJSON(value) {
 }
 // Wrapped by reassignment so the declaration above stays byte-identical for scripts/perf/unlock-calc.mjs.
 if (PROFILE_ENABLED) { const raw = sharedJSON; sharedJSON = value => profile.span('worker.resultSerialization', () => raw(value)); }
-const receiveOwnedState = createOwnedCalculatorReceiver(selectedDataset.digest);
+const receiveOwnedState = createOwnedCalculatorReceiver(selectedDataset.digest, {
+  maxBytes: boundedMemoryOption(process.env.RS3_STATE_SNAPSHOT_BYTES, Math.floor(memoryBudget.stateBytes / 2)),
+  onEvict: key => evictedOwnedBases.add(key) });
 function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId }) {
   if (typeof input !== 'string' || !Number.isSafeInteger(stateRevision) || stateRevision < 0
     || typeof snapshotKey !== 'string' || snapshotKey !== JSON.stringify([stateRevision, input])
@@ -535,9 +545,13 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       const snapshotInput = pickerSnapshotKey(pickerId, scheduled ? parsed[1] : snapshotKey), cached = state ? undefined : stateSnapshots.get(snapshotInput);
       state ??= cached && (!scheduled || cached.revision === parsed[0] ? cached : { ...cached, revision: parsed[0] });
       if (!state) throw new RangeError('Worker state snapshot is missing; resend its full state.');
-      stateSnapshots.delete(snapshotInput); stateSnapshots.set(snapshotInput, state);
-      while (stateSnapshots.size > STATE_SNAPSHOT_LIMIT) stateSnapshots.delete(stateSnapshots.keys().next().value);
+      stateSnapshots.set(snapshotInput, state);
     }
+    // Cache hints are private control metadata. A miss only resends input/base
+    // bytes; it never changes a calculation or client reply.
+    if (reportProgress && (evictedStateInputs.size || evictedOwnedBases.size)) parentPort.postMessage({ id, type: 'progress',
+      evictedStateInputs: [...evictedStateInputs], evictedOwnedBases: [...evictedOwnedBases] });
+    evictedStateInputs.clear(); evictedOwnedBases.clear();
     if (type !== 'roll-pool') latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), state.revision));
     // Calculation caches receive an opaque picker-scoped input. Legacy callers
     // keep their previous cache keys, including revision-only inputs.

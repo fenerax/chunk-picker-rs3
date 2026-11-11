@@ -30,6 +30,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
 import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, createOwnedStateValidationCache, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo, hasRandomStartChoices } from '../core/state.mjs';
+import { retainedDataBytes } from '../tasks/retained-data.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { evaluateRollPool, partnerConnections, createRollPoolCache } from '../core/rules.mjs';
 import { captureProgressSnapshot, buildProgressModel } from '../core/progress-timeline.mjs';
@@ -1608,7 +1609,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     retentionLedger() {
       return { owner: 'History', complete: false,
         dimensions: [{ unit: 'entries', used: current.history.length, cap: null, enforced: false },
-          { unit: 'archiveReferences', used: current.provenance?.historyArchive?.length ?? 0, cap: null, enforced: false }],
+          { unit: 'archiveReferences', used: current.provenance?.historyArchive?.length ?? 0, cap: null, enforced: false },
+          { unit: 'chargeBytes', used: retainedDataBytes([current.history, current.provenance?.historyArchive,
+            current.provenance?.restore?.previousHistory]), cap: null, enforced: false }],
         policy: policy && { ...policy },
         blockers: ['active-history-policy-preserves-pending-roll-and-undo-suffixes', 'archive-references-have-no-cap', 'history-payload-bytes-have-no-cap'] };
     },

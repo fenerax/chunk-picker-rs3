@@ -3,6 +3,7 @@ import { gzip, createGzip, brotliCompress, constants } from 'node:zlib';
 import { promisify } from 'node:util';
 import { Readable, Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { serviceResponseCacheBudget } from './response-cache-budget.mjs';
 
 const gzipAsync = promisify(gzip), brotliAsync = promisify(brotliCompress);
 const etag = bytes => `"${createHash('sha256').update(bytes).digest('hex')}"`;
@@ -183,9 +184,11 @@ export async function sendRepresentation(request, response, representation, { st
 
 /** Bound retained bytes, including completed encodings. Pending encodings
  * coalesce, and failures can be retried without poisoning the cache. */
-export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 1024 } = {}) {
+export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 1024,
+  budget = serviceResponseCacheBudget, group = Symbol('response-owner') } = {}) {
   if (![maxEntries, maxBytes].every(value => Number.isSafeInteger(value) && value >= 0)) throw new TypeError('Invalid response cache bound.');
   const rows = new Map();
+  const tokens = new Map();
   const bytes = () => [...rows.values()].reduce((sum, row) => sum + row.retainedBytes, 0);
   const remove = key => {
     const row = rows.get(key);
@@ -193,6 +196,7 @@ export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 10
     // settles. Invalidation still cancels their reusable result immediately.
     if (row?.pinned) { row.onEvict?.(); return false; }
     rows.delete(key);
+    budget.forget(tokens.get(key)); tokens.delete(key);
     if (row) { row.onSizeChange = undefined; row.onEvict?.(); }
     return !!row;
   };
@@ -204,23 +208,30 @@ export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 10
     }
   };
   return {
-    get(key) { const row = rows.get(key); if (row) { rows.delete(key); rows.set(key, row); } return row; },
+    get(key) { const row = rows.get(key); if (row) { rows.delete(key); rows.set(key, row); budget.touch(tokens.get(key)); } return row; },
     set(key, value) {
       if (rows.has(key) && !remove(key)) return value;
       const pinned = [...rows.values()].filter(row => row.pinned);
       if (value.retainedBytes > maxBytes || pinned.length >= maxEntries
         || pinned.reduce((sum, row) => sum + row.retainedBytes, 0) + value.retainedBytes > maxBytes) return value;
-      rows.set(key, value); value.onSizeChange = trim; trim();
+      const token = {};
+      rows.set(key, value); tokens.set(key, token);
+      value.onSizeChange = () => { trim(); budget.resize(token, value.retainedBytes); };
+      if (!budget.admit(token, { group, cost: value.retainedBytes, pinned: () => !!value.pinned, evict: () => remove(key) })) {
+        // Rejected reservations were never admitted; do not cancel their caller.
+        if (rows.get(key) === value) { rows.delete(key); tokens.delete(key); value.onSizeChange = undefined; }
+      }
+      trim();
       return value;
     },
     clear() { for (const key of rows.keys()) remove(key); },
     delete: remove,
     get size() { return rows.size; },
     get bytes() { return bytes(); },
-    retentionLedger() {
+    retentionLedger({ subset = false } = {}) {
       const used = bytes();
       if (rows.size > maxEntries || used > maxBytes) throw new Error('Response cache retention cap exceeded.');
-      return { owner: 'response-caches', complete: true, dimensions: [
+      return { owner: 'response-caches', complete: true, includedInOtherCap: subset, dimensions: [
         { unit: 'entries', used: rows.size, cap: maxEntries, enforced: true },
         { unit: 'chargeBytes', used, cap: maxBytes, enforced: true }],
         accounting: 'Representation retainedBytes, including plain/gzip backing stores; not V8 heap bytes.' };
