@@ -202,8 +202,10 @@ test('arrivals and telemetry share the post-sample start and exclude boundary-sp
   assert.equal(stageWindow(stages,workloadStart,89999,90001).measured,false);
   assert.equal(stageWindow(stages,workloadStart,93000).stage,null);
   const result=fakeResult(stages,[operation(1,'session',200)]);
-  result.samples=[{...stageWindow(stages,workloadStart,90999,91001),treeCpuPercent:99,tree:{rssBytes:0},server:{eventLoop:{p99Ms:999}}},
-    {...stageWindow(stages,workloadStart,91001,91500),treeCpuPercent:10,tree:{rssBytes:0},server:{eventLoop:{p99Ms:1}}}];
+  result.samples=[[90999,91001,99,999],[91001,91500,10,1]].map(([from,to,cpuPercent,p99Ms])=>{
+    const window=stageWindow(stages,workloadStart,from,to),point=stageWindow(stages,workloadStart,to);
+    return {...window,tree:{...point,window,cpuPercent,rssBytes:0},server:{...point,window,eventLoop:{p99Ms}}};
+  });
   assert.equal(evaluate(result).cpu.averagePercent,10);assert.equal(evaluate(result).eventLoop.worstWindowP99Ms,1);
 });
 
@@ -213,7 +215,8 @@ test('overload rejection stays visible without contaminating nominal gates; reco
   rejected.latency={count:1,p95Ms:10000,p99Ms:10000};
   const result=fakeResult(stages,[operation(0,'session',200),rejected,operation(2,'session',200),operation(2,'preview',200)]);
   result.load.stageStreams[1]={opened:0,rejected:1,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0};
-  result.samples=[{stage:1,measured:true,treeCpuPercent:99,tree:{rssBytes:99999},server:{eventLoop:{p99Ms:999}}}];
+  result.samples=[{tree:{stage:1,measured:true,window:{stage:1,measured:true},cpuPercent:99,rssBytes:99999},
+    server:{stage:1,measured:true,window:{stage:1,measured:true},eventLoop:{p99Ms:999}}}];
   let gates=evaluate(result);
   assert.equal(gates.cheapWarm.status,'pass');assert.equal(gates.nominalAdmission.status,'pass');
   assert.equal(gates.nominalAdmission.httpRequests,1);assert.equal(gates.cpu.status,'not-measured');
@@ -257,7 +260,7 @@ test('missing Linux children discovery preserves root readings and makes tree ga
   assert.equal(tree.rssBytes,null);assert.equal(tree.cpuSeconds,null);assert.equal(tree.observedProcesses,1);
   assert.equal(tree.root.rssBytes,4096*1024);assert.equal(tree.root.cpuSeconds,3);assert.equal(tree.root.writeBytes,200);
   const result=fakeResult([{measured:true,classification:'nominal'}],[operation(0,'session',200)]);
-  result.samples=[{stage:0,measured:true,tree,treeCpuPercent:0}];
+  result.samples=[{tree:{...tree,stage:0,measured:true,window:{stage:0,measured:true},cpuPercent:0}}];
   assert.equal(evaluate(result).cpu.status,'unavailable');assert.equal(evaluate(result).cpu.averagePercent,null);
   assert.equal(evaluate(result).memory.status,'unavailable');
 });

@@ -48,10 +48,14 @@ export function evaluate(result) {
   const overloadCounts=counts(overload),recoveryAdmission=admission(recovery,streams('recovery'));
   const recoveryCheap=latency(recovery,cheap,1000,2000),recoveryExpensive=latency(recovery,expensive,3000,8000);
   const noCrash=result.shutdown&&!result.shutdown.forced&&result.shutdown.exitCode===0&&!result.shutdown.signal;
-  const measured=result.samples.filter(row=>row.measured&&inClass(row.stage,'nominal')), cpu=measured.map(row=>row.treeCpuPercent).filter(Number.isFinite),
-    peak=measured.reduce((n,row)=>Math.max(n,row.tree.rssBytes??row.server?.memory.rss??0),0),
-    loop=measured.reduce((n,row)=>Math.max(n,row.server?.eventLoop.p99Ms??0),0);
-  const treeUnavailable=measured.some(row=>row.tree.availability==='unavailable');
+  const nominal=observation=>observation?.measured&&inClass(observation.stage,'nominal');
+  const serverSamples=result.samples.filter(row=>nominal(row.server?.window));
+  const treeSamples=result.samples.filter(row=>nominal(row.tree?.window));
+  const cpu=treeSamples.map(row=>row.tree.cpuPercent).filter(Number.isFinite);
+  const rss=[...result.samples.filter(row=>nominal(row.tree)).map(row=>row.tree.rssBytes),
+    ...result.samples.filter(row=>nominal(row.server)).map(row=>row.server.memory?.rss)].filter(Number.isFinite);
+  const peak=rss.reduce((n,value)=>Math.max(n,value),0),loop=serverSamples.reduce((n,row)=>Math.max(n,row.server.eventLoop.p99Ms??0),0);
+  const treeUnavailable=result.samples.some(row=>nominal(row.tree)&&row.tree.availability==='unavailable');
   const gates={
     cheapWarm:latency(ops,cheap,1000,2000),
     expensiveWarm:latency(ops,expensive,3000,8000),
@@ -59,7 +63,7 @@ export function evaluate(result) {
     eventPropagation:{status:'not-measured',reason:'Streams are consumed and disconnects counted; no browser ack-to-render probe.'},
     nominalAdmission:admission(ops,streams('nominal')),
     cpu:{status:treeUnavailable?'unavailable':cpu.length?(cpu.reduce((a,b)=>a+b,0)/cpu.length<=65?'pass':'fail'):'not-measured',averagePercent:treeUnavailable?null:cpu.length?cpu.reduce((a,b)=>a+b,0)/cpu.length:null,limitPercent:65},
-    eventLoop:{status:measured.some(row=>row.server)?(loop<=50?'pass':'fail'):'not-measured',worstWindowP99Ms:loop,limitMs:50},
+    eventLoop:{status:serverSamples.length?(loop<=50?'pass':'fail'):'not-measured',worstWindowP99Ms:loop,limitMs:50},
     memory:{status:treeUnavailable?'unavailable':peak>=.8*(result.hardware.ramBytes-result.profile.osReserveBytes)?'fail':'not-measured',peakServiceRssBytes:treeUnavailable?null:peak,
       reason:'80% threshold after OS reserve checked for service; backup overlap, sustained swap, OOM and memory-guard audit still required.'},
     client:{status:stats.clientDrops||result.telemetryErrors||result.shutdown?.forced?'fail':'pass',droppedArrivals:stats.clientDrops,telemetryErrors:result.telemetryErrors,forcedShutdown:result.shutdown?.forced??false},

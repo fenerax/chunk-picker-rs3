@@ -2,8 +2,8 @@ import { createRequestReader, requestError, retryAfterMs } from '../../../app/we
 
 // Reuse the browser's route cooldowns and bounded, read-only restart retries.
 // The caller owns one instance per login, preserving cooldowns across actions.
-export function createBrowserClient({ request, now, sleep }) {
-  const read = createRequestReader({ fetch: request, now, sleep });
+export function createBrowserClient({ request, now, sleep, maxReadAttempts, maxReadRetryMs }) {
+  const read = createRequestReader({ fetch: request, now, sleep, maxReadAttempts, maxReadRetryMs });
   return async (route, body, extra) => {
     const { response, value } = await read(route, { method: body === undefined ? 'GET' : 'POST', body, extra });
     if (!response.ok) throw requestError(response, value);
@@ -34,3 +34,18 @@ export function pause(ms, signal) {
 }
 
 export { retryAfterMs };
+
+// A sustained client keeps its scheduled arrival while retrying safe reads.
+// Writes are single-dispatch: a lost acknowledgement is not proof of failure.
+export async function retryRead(operation, {safe,deadlineMs,now=()=>performance.now(),sleep=pause,rng=Math.random} = {}) {
+  const started = now();
+  for (let attempt=0;;attempt++) {
+    try {return await operation();}
+    catch(error) {
+      if(!safe||attempt>=5||error.status&&!([429,503].includes(error.status)))throw error;
+      const waitMs=Math.max(error.retryAfterMs??0,Math.min(5000,250*2**attempt)+Math.floor(rng()*250));
+      if(now()-started+waitMs>=deadlineMs)throw error;
+      await sleep(waitMs);
+    }
+  }
+}
