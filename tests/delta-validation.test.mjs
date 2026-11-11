@@ -5,6 +5,8 @@ import { createDeltaCommandValidator } from '../app/core/delta-validation.mjs';
 import { applyCommand, validateState, createResidentState, materializeResidentState } from '../app/core/state.mjs';
 import { adoptResidentState } from '../app/core/resident-copy.mjs';
 import { createIdentityDictionary } from '../app/tasks/identity-dictionary.mjs';
+import { ownedCodec } from '../app/storage/owned-codec.mjs';
+import { alias, deltaAliasCases } from './helpers/delta-alias-fixture.mjs';
 import { fixture, commands, first, second, generated, custom, world, now, taskCatalogue } from './helpers/owned-format2-fixture.mjs';
 
 const settings = { world: { ...world, surface: new Set(['100', '101']) }, now, taskCatalogue, random: () => 0 };
@@ -146,5 +148,22 @@ test('delta validation matches the full validator on generated and adversarial i
     assert.throws(() => validator.apply(corrupted, { type: 'set-note', memberId: 'member-1', chunkId: '100', note: 'Synthetic' }, settings), /duplicate/);
     assert.equal(certified.revision, corrupted.revision);
     assert.deepEqual(logical(certified), validateState(state));
+  });
+  for (const resident of [false, true]) for (const row of deltaAliasCases()) await t.test(`${row.name}, resident ${resident}`, () => {
+    assert.deepEqual(validateState(row.state), row.state, 'the starting state is fully valid without migration');
+    const validator = createDeltaCommandValidator();
+    const input = validator.validate(resident ? createResidentState(row.state, row.base) : row.state);
+    const options = { ...settings, taskCatalogue: row.catalogue, expectedRevision: input.revision };
+    const full = outcome(() => applyCommand(row.state, row.command, options));
+    const delta = outcome(() => validator.apply(input, row.command, options));
+    assert.equal(full.accepted, row.accepted);
+    compare(full, delta, row.name);
+    if (!full.accepted) return;
+    const saved = state => JSON.stringify({ format: 'rs3-chunk-picker', schemaVersion: 1,
+      ...(resident ? ownedCodec(row.base, row.pin).encode(state) : { state }) });
+    assert.equal(saved(delta.state), saved(full.state), 'saved envelope bytes match the full command');
+    assert.equal(logical(delta.state).members[0].taskStatus[first].challengeCompleted, true);
+    assert(!Object.hasOwn(logical(delta.state).members[0].taskStatus, alias));
+    assert.deepEqual(logical(delta.state), validateState(logical(delta.state)), 'certified state is a full-validation fixed point');
   });
 });

@@ -6,10 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { openStore } from '../app/storage/store.mjs';
-import { applyCommand } from '../app/core/state.mjs';
+import { applyCommand, validateState } from '../app/core/state.mjs';
 import { ownedCodec } from '../app/storage/owned-codec.mjs';
 import { createOwnedStorage } from '../app/storage/owned-storage.mjs';
 import { fixture, options, commands, first, custom, world, now, taskCatalogue } from './helpers/owned-format2-fixture.mjs';
+import { deltaAliasCases } from './helpers/delta-alias-fixture.mjs';
 
 const settings = { world: { ...world, surface: new Set(['100', '101']) }, now, taskCatalogue, random: () => 0, completionCodec: false };
 test('default-off delta sessions preserve saved state and serialized replies in both formats', { timeout: 240000 }, async t => {
@@ -87,5 +88,32 @@ test('default-off delta sessions preserve saved state and serialized replies in 
       assert.equal(store.getInfo().revision, 0);
       await store.close();
     }
+  });
+  for (const format of [1, 2]) for (const row of deltaAliasCases()) await t.test(`${row.name}, format ${format}`, async () => {
+    const stores = [], directories = [];
+    for (const deltaValidation of [false, true]) {
+      const dataDir = path.join(root, `alias-${format}-${row.name}-${deltaValidation}`);
+      const store = await openStore({ ...settings, dataDir, taskCatalogue: row.catalogue, initialState: row.state,
+        retention: false, deltaValidation, ownedFormat2: format === 2 ? options(path.join(root, 'alias-catalogue')) : false,
+        // The reference store fully validates command output before saving or
+        // replying; option-off alone uses an existing private command shortcut.
+        ...(!deltaValidation ? { prepareState: state => validateState(state) } : {}) });
+      handles.push(store); stores.push(store); directories.push(dataDir);
+    }
+    const replies = [];
+    let expected;
+    if (row.accepted) expected = applyCommand(stores[0].getState(), row.command, { ...settings, taskCatalogue: row.catalogue });
+    for (const store of stores) {
+      try {
+        replies.push({ accepted: true, ...await store.commandSerialized(row.command, store.getInfo().revision, { view: 'play-v1' }) });
+      } catch (error) { replies.push({ accepted: false, message: error.message }); }
+    }
+    assert.equal(replies[0].accepted, row.accepted);
+    assert.deepEqual(replies[1], replies[0], 'serialized reply matches the full-validation store');
+    assert.equal(await readFile(path.join(directories[1], 'state.json'), 'utf8'),
+      await readFile(path.join(directories[0], 'state.json'), 'utf8'), 'exact saved bytes match the full-validation store');
+    assert.deepEqual(stores[1].getState(), stores[0].getState());
+    if (expected) assert.deepEqual(stores[1].getState(), expected, 'saved logical state matches full applyCommand');
+    for (const store of stores) await store.close();
   });
 });

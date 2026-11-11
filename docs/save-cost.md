@@ -91,9 +91,11 @@ unrecognized roots; startup is outside the command measurements.
 
 The fast path uses the existing `applyValidatedCommand`, including command
 JSON checks, revision checks, gameplay validation and new inverse validation.
-It applies only to notes, ticks whose resolved task IDs already exist, and
+It applies only to notes, ticks whose original task IDs already exist and are
+unchanged by identity resolution, and
 Undo of the latest active note/tick with only the corresponding sparse member
-patches. Nonempty task claims disable it. Task registration, catalogue edits,
+patches. Tick Undo leaves must also address existing, unchanged task IDs.
+Nonempty task claims disable it. Task registration, catalogue edits,
 nonlatest Undo and complex inverses use the full path. Format 2 keeps the
 existing resident command construction in that fallback, followed by full
 validation; this preserves the codec's alias replacement order as well as its
@@ -156,6 +158,48 @@ exposed differing alias replacement order in the resident fallback. The final
 fallback preserves the existing resident construction and the corrected files
 pass. No retry policy, timing assertion or per-case deadline was added; each
 new file has one generous outer guard.
+
+### Review correction: exact task keys
+
+Tick execution and catalogue registration use the original requested ID. The
+previous gate admitted an alias whenever its resolved ID existed, allowing a
+new alias row or alias-keyed progress to acquire a certificate. Admission now
+requires the original ID to be present and equal to its resolved ID. Aliases
+use the full fallback, including when both alias and canonical rows exist.
+Execution does not normalize IDs in the fast path.
+
+The identity/lookup audit also found that valid imported History can restore an
+alias through a tick inverse's before-side. Fast Undo now applies the same
+original-ID check to every task-status leaf. Object patches only carry
+container-presence flags; they cannot introduce a task key.
+
+| Audited lookup | Admission and execution |
+| --- | --- |
+| Tick IDs and catalogue registration | Both use the original ID's exact row; aliases and absent rows fall back before execution. The caller's catalogue cannot extend fast-path admission. |
+| Tick Undo paths | Leaf keys must be present and unchanged by resolution; restoration uses those literal keys. Historical alias leaves fall back. |
+| Members and sparse Undo member IDs | Exact ID equality in `findMember`; fast commands cannot change the roster or assignments. |
+| Note chunk IDs and paths | Command syntax/world checks and note writes use the same original chunk ID. Sparse restoration uses literal path segments. |
+| Undo target revision | The gate and core select the same latest active event; explicit revisions must match exactly. Other targets fall back. |
+| Singular task IDs | Core resolves `payload.taskId`, but all three admitted command schemas reject that field. Commands that use it already fall back. |
+| Certificates, task-row indexes and resident identities | Certificates and indexes use exact immutable root/array identities and original row IDs. Flat and resident registry lookups share `resolveSavedTaskId`; no revision-based identity proof is used. |
+
+The added differential cases cover an alias tick without a catalogue row, an
+alias-only caller catalogue row, saved alias and canonical rows together, a
+mixed canonical/alias batch, and Undo restoring a historical alias. Each runs
+in flat and resident core states and in both storage formats. Comparisons cover
+acceptance, exact saved bytes, complete serialized replies and full-validator
+output, including migration metadata and History. Starting states are checked
+to be full-validation fixed points; accepted results must be canonical and
+remain unchanged by full validation.
+
+Before the correction, the four accepting alias cases reproduced mismatches
+in each representation and format. After the correction, the two affected
+files passed: `tests/delta-validation.test.mjs` 14/14 and
+`tests/storage-delta-validation.test.mjs` 16/16, with no failures, cancellations
+or skips. Each file ran once before and once after the code change, sequentially
+under the shared PC lock at BelowNormal priority with `--test-concurrency=1`
+and its complete `testRunPolicy` environment. No other test files or performance
+probes were run for this correction.
 
 ### Before and after
 

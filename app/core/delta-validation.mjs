@@ -19,15 +19,20 @@ export function createDeltaCommandValidator(registry = createRuleRegistry()) {
     if (proofs.has(state)) return state;
     return remember(isResidentState(state) ? validateResidentState(state, registry) : validateState(state, registry));
   }
+  function existingCanonicalTask(state, id) {
+    let ids = taskIds.get(state.tasks);
+    if (!ids) { ids = new Set(state.tasks.map(row => row.id)); taskIds.set(state.tasks, ids); }
+    // Tick execution and sparse Undo use the original key. A resolved alias
+    // cannot prove that key exists or that full validation would leave it alone.
+    return ids.has(id) && resolveSavedTaskId(state.identityRegistry, id) === id;
+  }
   function everyday(state, command) {
     // Claim cleanup can rewrite older inverses. Catalogue registration can
     // change historical reference interpretation. Both retain full validation.
     if (!Object.isFrozen(registry) || Object.keys(state.taskClaims ?? {}).length) return false;
     if (command?.type === 'set-note') return true;
     if (command?.type === 'tick-active-tasks') {
-      let ids = taskIds.get(state.tasks);
-      if (!ids) { ids = new Set(state.tasks.map(row => row.id)); taskIds.set(state.tasks, ids); }
-      return Array.isArray(command.taskIds) && command.taskIds.every(id => ids.has(resolveSavedTaskId(state.identityRegistry, id)));
+      return Array.isArray(command.taskIds) && command.taskIds.every(id => existingCanonicalTask(state, id));
     }
     if (command?.type !== 'undo') return false;
     const target = state.history.findLast(event => event.undo && event.undoneRevision === undefined && event.type !== 'undo');
@@ -35,7 +40,8 @@ export function createDeltaCommandValidator(registry = createRuleRegistry()) {
       && ['set-note', 'tick-active-tasks'].includes(target.type)
       && Object.keys(target.undo).every(key => key === 'memberChanges')
       && target.undo.memberChanges?.every(change => change.changes.every(patch =>
-        patch.path[0] === (target.type === 'set-note' ? 'notes' : 'taskStatus')));
+        patch.path[0] === (target.type === 'set-note' ? 'notes' : 'taskStatus')
+        && (target.type === 'set-note' || patch.kind === 'object' || existingCanonicalTask(state, patch.path[1]))));
   }
   function apply(state, command, options = {}) {
     const baseline = validate(state), resident = isResidentState(baseline);
