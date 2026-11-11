@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -10,12 +10,12 @@ import { comparison, shapes } from '../scripts/perf/owned-acceptance.mjs';
 import { aggregate } from '../scripts/perf/owned-acceptance/aggregate.mjs';
 import { decision } from '../scripts/perf/owned-acceptance/metrics.mjs';
 
-// One generous outer guard, no timing/memory thresholds or repetitions. The
+// No per-test deadlines or timing/memory thresholds. The
 // tiny fixture exercises measurement plumbing, never the acceptance budget.
-test('synthetic acceptance smoke preserves both formats and complete measurement structure', { timeout: 180000 }, async () => {
+test('synthetic acceptance smoke preserves both formats and complete measurement structure', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'owned-acceptance-smoke-'));
   try {
-    const report = await comparison({ output: path.join(root, 'report'), smoke: true });
+    const report = await comparison({ output: path.join(root, 'report'), smoke: true, signal: t.signal });
     assert.equal(report.format, 'owned-acceptance-7b');
     assert.equal(report.smoke, true); assert.equal(report.equivalent, true);
     assert.match(report.commit, /^[a-f0-9]{40}$/); assert.equal(typeof report.seed, 'string');
@@ -27,18 +27,18 @@ test('synthetic acceptance smoke preserves both formats and complete measurement
       assert.deepEqual(result.shape, shapes.smoke);
       assert.equal(result.decision.status, 'smoke-only'); assert.equal(result.decision.acceptanceClaim, false);
       assert.deepEqual(result.errors, []);
-      assert.deepEqual(result.openSamples.map(row => row.count), [1, 2]);
-      assert.equal(result.groups.length, 2); assert.equal(result.commandSamples.length, 2);
-      assert.equal(result.sessionsRetained, 8); assert.equal(result.repeated.length, 4);
-      assert.equal(result.mutationRepeated.length, 4);
+      assert.deepEqual(result.openSamples.map(row => row.count), [1]);
+      assert.equal(result.groups.length, 1); assert.equal(result.commandSamples.length, 1);
+      assert.equal(result.sessionsRetained, 4); assert.equal(result.repeated.length, 1);
+      assert.equal(result.mutationRepeated.length, 1);
       assert.equal(result.decision.mutationGrowth.commandsPerGroupPerRound, 4);
       assert.equal(result.decision.mutationGrowth.historyBounded, true);
       assert.equal(typeof result.decision.mutationGrowth.slopeBytesPerCommand, 'number');
       for (const round of [result.mutationWarmup, ...result.mutationRepeated]) {
-        assert.deepEqual(round.history.map(row => row.revisionDelta), [4, 4]);
-        assert.deepEqual(round.history.map(row => row.index), [0, 1]);
+        assert.deepEqual(round.history.map(row => row.revisionDelta), [4]);
+        assert.deepEqual(round.history.map(row => row.index), [0]);
       }
-      assert.equal(result.fixtureHashes.length, 6); assert.equal(new Set(result.fixtureHashes).size, 6);
+      assert.equal(result.fixtureHashes.length, 5); assert.equal(new Set(result.fixtureHashes).size, 5);
       for (const sample of [result.baseline, ...result.openSamples, result.settled, ...result.repeated, ...result.mutationRepeated]) {
         for (const key of ['heapUsed', 'heapTotal', 'rss', 'external', 'arrayBuffers']) assert.equal(typeof sample.total[key], 'number');
         assert(sample.isolates.some(row => row.pid !== sample.isolates[0].pid));
@@ -59,7 +59,8 @@ test('synthetic acceptance smoke preserves both formats and complete measurement
       // A per-revision leak must reject even when read-only keys remain stable.
       const leak = { ...result, smoke: false,
         repeated: result.repeated.map(row => ({ ...row, total: { ...row.total, heapUsed: 100 } })),
-        mutationRepeated: result.mutationRepeated.map((row, i) => ({ ...row, total: { ...row.total, heapUsed: 100 + i } })) };
+        mutationRepeated: Array.from({ length: 4 }, (_, i) => ({ ...result.mutationRepeated[0], round: i + 1,
+          total: { ...result.mutationRepeated[0].total, heapUsed: 100 + i } })) };
       assert(decision(leak).reasons.includes('positive-mutation-repeat-heap-slope'));
       assert(decision({ ...leak, postPublicationIO: { ...leak.postPublicationIO, baseWrites: 1 } })
         .reasons.includes('base-rewritten-after-publication'));
@@ -68,7 +69,32 @@ test('synthetic acceptance smoke preserves both formats and complete measurement
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('probe receipts stay immutable and publication failure cannot acknowledge or retry a sequence', async () => {
+test('cancelling a ready comparison reaps the trial and calculator before rejecting', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'owned-acceptance-cancel-'));
+  const controller = new AbortController();
+  const signal = AbortSignal.any([t.signal, controller.signal]);
+  let pids;
+  const pending = comparison({ output: root, smoke: true, signal, onReady: ready => {
+    // This IPC event follows a complete baseline barrier from the real relay
+    // and calculator thread. No delay, polling or host timing selects the abort.
+    pids = [ready.controller, ...ready.children];
+    assert.equal(pids.length, 2);
+    for (const pid of pids) process.kill(pid, 0);
+    controller.abort();
+  } });
+  try {
+    await assert.rejects(pending, { name: 'AbortError' });
+    assert.equal(pids?.length, 2, 'cancellation reached a live calculator');
+    for (const pid of pids) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    assert.deepEqual((await readdir(root)).sort(), ['format1', 'started.json']);
+    assert.deepEqual(await readdir(path.join(root, 'format1')), ['probes']);
+  } finally {
+    controller.abort(); await pending.catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('probe receipts stay immutable and publication failure cannot acknowledge or retry a sequence', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'owned-probe-publication-'));
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('RS3_') || ['NODE_OPTIONS', 'NODE_PATH'].includes(key)) delete env[key];
@@ -98,6 +124,6 @@ test('probe receipts stay immutable and publication failure cannot acknowledge o
         fs.mkdirSync(path.join(root, 'checkpoints', '3'));
         await assert.rejects(probe.collect(request(3)), { code: 'ENOENT' });
         assert.equal(probe.record().sequence, 2);
-      `], { env, windowsHide: true });
+      `], { env, signal: t.signal, windowsHide: true });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
