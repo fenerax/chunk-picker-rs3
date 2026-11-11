@@ -6,7 +6,8 @@ import { digest } from '../capacity/model.mjs';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const probeURL = new URL('./probe.mjs', import.meta.url).href;
 
-export async function trial({ root, mode, shape, smoke, snapshots = false }) {
+export async function trial({ root, mode, shape, rounds, smoke, snapshots = false, signal, forkProcess }) {
+  signal.throwIfAborted();
   if (!smoke && process.env.GITHUB_ACTIONS !== 'true') throw new Error('Full measurement requires hosted CI.');
   process.env.RS3_ACCEPTANCE_CONTROLLER_PID = String(process.pid);
   // Environment is cleared by the fresh-process launcher before any app import.
@@ -30,12 +31,14 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
       .filter(row => row.pid === process.pid ? row.threadId === 0 : workers.some(worker => worker.pid === row.pid));
   }
   async function checkpoint({ gc = true, snapshot = false, resetPeaks = false } = {}) {
+    signal.throwIfAborted();
     const request = { sequence: ++sequence, gc, snapshot, resetPeaks };
     await mkdir(path.join(directory, 'checkpoints', String(sequence)), { recursive: true });
     await appendFile(path.join(directory, 'control.jsonl'), JSON.stringify(request) + '\n');
     await probe.collect(request);
     const end = Date.now() + 30000;
     while (true) {
+      signal.throwIfAborted();
       if (exitedWorkers.size) throw new Error('Calculator retired during measurement; refusing incomplete residency evidence.');
       const failed = (await readdir(directory)).filter(file => /^\d+-\d+\.error$/.test(file));
       if (failed.length) throw new Error(`Isolate probe publication failed: ${await readFile(path.join(directory, failed[0]), 'utf8')}`);
@@ -50,6 +53,7 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
   const childCPU = checkpoint => checkpoint.isolates.filter(row => row.pid !== process.pid && row.threadId === 0)
     .reduce((sum, row) => sum + row.cpu.user + row.cpu.system, 0);
   async function timed(kind, index, work, { concurrent = false, record = true } = {}) {
+    signal.throwIfAborted();
     const before = concurrent ? undefined : await checkpoint({ gc: false });
     const cpu = process.cpuUsage(), started = performance.now();
     let error;
@@ -118,7 +122,7 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
   try {
     scheduler = await createTaskScheduler({ maxCalculators: 1, residency: {}, maxRestarts: 0,
       workerFactory: input => {
-        const worker = new ProcessWorker(input, { probeImport: probeURL });
+        const worker = new ProcessWorker(input, { probeImport: probeURL, forkProcess });
         workers.push(worker); worker.once('exit', () => exitedWorkers.add(worker)); return worker;
       },
       workerData: { definitions: data.definitions, world: { chunks: data.world.chunks, surface: data.world.surface, neighbors: data.world.neighbors },
@@ -132,6 +136,8 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
     records.length = 0;
     if (errors.length) throw new Error('Warmup failed; cannot establish shared baseline.');
     const baseline = await checkpoint({ snapshot: snapshots, resetPeaks: true });
+    if (process.env.RS3_ACCEPTANCE_NOTIFY_READY === '1')
+      process.send?.({ kind: 'acceptance-ready', children: workers.map(worker => worker.pid) });
     const measuredBefore = probe.record().io, openSamples = [], groups = [], commandSamples = [];
     const readyStarted = performance.now();
     for (let index = 0; index < shape.groups; index++) {
@@ -174,7 +180,7 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
     const settled = await checkpoint();
     // First read-only round saturates caches; following four rounds use exactly
     // the same keys and no History writes, so monotonic growth is actionable.
-    for (let round = 0; round < 5; round++) {
+    for (let round = 0; round < rounds; round++) {
       const roundTimes = [];
       for (const [index, handle] of handles.entries()) roundTimes.push(await timed('read-only-repeat', index, async () => {
         await calculate(handle, index % shape.members); await stateResponse(handle);
@@ -190,7 +196,7 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
     // working set above. Undo restores the tick and note, preventing unbounded
     // task-status/note data from being confused with a revision-cache leak.
     const mutationHistoryBaseline = handles.map((handle, index) => ({ index, ...handle.store.getInfo().retention }));
-    for (let round = 0; round < 5; round++) {
+    for (let round = 0; round < rounds; round++) {
       const roundTimes = [], history = [];
       for (const [index, handle] of handles.entries()) {
         const before = handle.store.getInfo();
@@ -217,19 +223,19 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
       await writeFile(path.join(directory, `mutation-history-${round}.json`), JSON.stringify(history));
       roundTimes.length = 0; history.length = 0;
       await writeFile(path.join(directory, `mutation-${round}.json`), JSON.stringify({ round,
-        ...await checkpoint({ snapshot: snapshots && (round === 0 || round === 4) }) }));
+        ...await checkpoint({ snapshot: snapshots && (round === 0 || round === rounds - 1) }) }));
     }
     const measuredIO = ioDelta(measuredBefore, probe.record().io);
     const postPublicationIO = ioDelta(publicationBefore, probe.record().io);
-    const repeated = await Promise.all(Array.from({ length: 5 }, (_, round) =>
+    const repeated = await Promise.all(Array.from({ length: rounds }, (_, round) =>
       readFile(path.join(directory, `repeat-${round}.json`), 'utf8').then(JSON.parse)));
-    const repeatTimes = await Promise.all(Array.from({ length: 5 }, (_, round) =>
+    const repeatTimes = await Promise.all(Array.from({ length: rounds }, (_, round) =>
       readFile(path.join(directory, `repeat-times-${round}.json`), 'utf8').then(JSON.parse)));
-    const mutations = await Promise.all(Array.from({ length: 5 }, async (_, round) => ({
+    const mutations = await Promise.all(Array.from({ length: rounds }, async (_, round) => ({
       ...JSON.parse(await readFile(path.join(directory, `mutation-${round}.json`), 'utf8')),
       history: JSON.parse(await readFile(path.join(directory, `mutation-history-${round}.json`), 'utf8')),
     })));
-    const mutationTimes = await Promise.all(Array.from({ length: 5 }, (_, round) =>
+    const mutationTimes = await Promise.all(Array.from({ length: rounds }, (_, round) =>
       readFile(path.join(directory, `mutation-times-${round}.json`), 'utf8').then(JSON.parse)));
     records.push(...repeatTimes.flat(), ...mutationTimes.flat());
     const result = { mode, smoke, shape, fixtureHashes: fixture.hashes, groups, beforeShared, baseline,

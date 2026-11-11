@@ -55,7 +55,14 @@ jobs:
             var/owned-acceptance/ci/**/*.json
             var/owned-acceptance/ci/**/*.txt
             var/owned-acceptance/ci/**/*.error
-            var/owned-acceptance/ci/**/*.heapsnapshot
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve explicitly requested raw snapshots
+        if: always() && inputs.snapshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: owned-heap-snapshots-${{ matrix.os }}-${{ matrix.run }}
+          path: var/owned-acceptance/ci/**/*.heapsnapshot
           if-no-files-found: error
           retention-days: 14
 

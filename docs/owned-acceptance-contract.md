@@ -85,6 +85,13 @@ one comparison; each format is a fresh process at BelowNormal priority, on Node
 The full harness refuses execution outside hosted Actions. Never run its
 50-group mode on the shared PC. Normal tests discover the tiny deterministic
 `tests/owned-acceptance.test.mjs`; it checks plumbing and structure only.
+Its fixture uses one group, three tasks, two aliases/chunks, one active History event
+and one single-event archive, with one warmup and one measured round per phase.
+Both formats, mutation commands, isolate receipts, bounded lanes and aggregation
+use the full harness path. The 50-group fixture and its five rounds are unchanged.
+Test cancellation propagates over IPC to the trial's AbortSignal and every
+calculator child; the launcher waits for process closure before removing stores
+or returning. Cancellation does not start the second format.
 
 Artifacts `owned-acceptance-<OS>-<1..5>` contain `results.json`, `summary.txt`,
 per-format results and isolate probe receipts, also uploaded on failure. Keep
@@ -192,7 +199,12 @@ WeakMaps, base/key arrays, task Maps, result caches and response buffers. A base
 copy in each physical calculator belongs to its shared baseline; a dictionary
 or index repeated under every handle belongs to group cost. Snapshots are large
 and perturb timing, so use a separate diagnostic dispatch rather than treating
-its wall times as clean speed evidence. They contain generated synthetic data only.
+its wall times as clean speed evidence. They contain generated synthetic data,
+including the seed-derived fixture `access-token` value, and are not redacted.
+Default result artifacts exclude raw snapshots even if a snapshot file exists.
+Only an explicit `snapshots=true` dispatch uploads them, in separate
+`owned-heap-snapshots-<OS>-<1..5>` artifacts with 14-day retention. Aggregate
+downloads select only the ordinary result artifacts.
 
 7c still owns synthetic activation, pinned-dataset preparation, retirement
 filtering and current-name display, plus investigation/fixes for any failed
