@@ -131,6 +131,39 @@ test('plugin key counts survive context eviction and server restart, and revocat
   assert.equal((await create(c)).status, 201);
 });
 
+for (const [name, options, message] of [
+  ['beta', { betaPickerCap: 2 }, /beta is full/],
+  ['login', { caps: { accounts: 1 } }, /login account limit/],
+  ['picker', { caps: { pickers: 2 } }, /picker limit/],
+]) test(`${name} capacity refusal reaches sign-in clearly and preserves existing maps and registry across restart`, async t => {
+  const f = await fixture(t, { ...options, registrationsPerAccount: 20, registrationsGlobal: 20 });
+  const existing = await f.login('101');
+  assert.equal((await f.note(existing, 'Synthetic retained map', 0)).status, 200);
+  const before = await f.registry(), ledgerFile = path.join(f.multiPicker.tombstoneDir, 'ledger.json');
+  const ledger = await readFile(ledgerFile, 'utf8');
+  for (const restart of [false, true]) {
+    if (restart) await f.restart();
+    const response = await (await f.begin('102'))();
+    assert.equal(response.status, 409, response.text); assert.match(response.text, message);
+    assert.deepEqual(await f.registry(), before); assert.equal(await readFile(ledgerFile, 'utf8'), ledger);
+    const state = await f.send('/api/state', existing);
+    assert.equal(state.status, 200); assert.match(state.text, /Synthetic retained map/);
+  }
+});
+
+test('the member key limit remains three when the login allowance is thirty', async t => {
+  const f = await fixture(t, { pluginKeysPerAccount: 30 });
+  const cookie = await f.login('101');
+  const create = () => f.send('/api/game-plugin/keys', cookie, { body: { memberId: 'owner', label: 'Synthetic' } });
+  const records = [];
+  for (let n = 0; n < 3; n++) { const response = await create(); assert.equal(response.status, 201, response.text); records.push(response.json()); }
+  await f.restart();
+  const denied = await create(); assert.equal(denied.status, 429); assert.match(denied.text, /character.*plugin key limit/);
+  for (const { key } of records) {
+    assert.equal((await f.send('/api/plugin/v1/status', null, { headers: { Authorization: 'Bearer ' + key } })).status, 200);
+  }
+});
+
 test('extra plugin keys cannot increase account traffic and another account cannot exceed the global traffic budget', async t => {
   const f = await fixture(t, { pluginRequestsPerAccount: 2, pluginRequestsGlobal: 3, pluginWindowMs: 60000 });
   const a = await f.login('101'), b = await f.login('102');

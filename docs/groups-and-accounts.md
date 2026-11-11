@@ -8,6 +8,10 @@ The code audit uses local `origin/main` at `3df54499e0002aede31e88f6ad281842bef0
 
 Only source and documentation were inspected. No credential files, account records, saves, live APIs or server state were read. All examples are synthetic. This document authorizes no implementation, migration, deployment or public sign-up. Changes to durable save, registry or authentication formats, and to recovery contracts, require the owner's OK before implementation.
 
+### Staged beta (owner decision, 2026-11-11)
+
+Start with a capped, invite-only beta of roughly 25–50 groups after the [launch basics](launch-readiness.md) pass, within a load-tested envelope of about 100 active groups. Keep 2,000 active player characters as the design ceiling, to be proven before caps rise beyond demonstrated capacity. This replaces “prove 2,000 before any public launch.” Public sign-up itself still needs the owner's explicit OK. The larger workload and gates below remain the eventual capacity proof, not a prerequisite for this smaller beta. Entity quotas are safety ceilings, not evidence that their populations have been load-tested.
+
 ## Settled scope
 
 - Design for about 2,000 player accounts, 500–1,000 groups and up to about 200 people online at once, on one server. Immutable game data is stored once and shared.

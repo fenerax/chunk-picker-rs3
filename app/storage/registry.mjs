@@ -14,8 +14,8 @@ const identityKey = (provider, subject) => JSON.stringify([provider, subject]);
 const capabilityKey = (kind, hash) => JSON.stringify([kind, hash]);
 const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const bad = () => { throw new TypeError('Invalid registry document.'); };
-export const DEFAULT_REGISTRY_CAPS = Object.freeze({ accounts: 1000, pickers: 1000, issuedPickerIds: 1000000,
-  retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100, capabilities: 10000, capabilitiesPerPicker: 100 });
+export const DEFAULT_REGISTRY_CAPS = Object.freeze({ accounts: 3000, pickers: 3500, issuedPickerIds: 1000000,
+  retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100, capabilities: 20000, capabilitiesPerPicker: 100 });
 export const REGISTRY_PROVISION_POINTS = Object.freeze(['account-recorded', 'id-reserved', 'registry-reserved', 'directory-created', 'directory-synced', 'registry-ready']);
 
 function validateLedger(ledger) {
@@ -124,10 +124,11 @@ async function load(file) {
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
-  crashPoint, pickerRandomBytes = randomBytes } = {}) {
+  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap } = {}) {
   if ([registryDir, pickerRoot, tombstoneDir].some(dir => typeof dir !== 'string' || !dir)) throw new TypeError('Registry, picker and tombstone roots are required.');
   const caps = { ...DEFAULT_REGISTRY_CAPS, ...overrides };
   if (!object(overrides, Object.keys(DEFAULT_REGISTRY_CAPS)) || Object.values(caps).some(n => !Number.isSafeInteger(n) || n < 1)) throw new TypeError('Invalid registry caps.');
+  if (betaPickerCap !== undefined && (!Number.isSafeInteger(betaPickerCap) || betaPickerCap < 1)) throw new TypeError('betaPickerCap must be a positive integer when set.');
   let roots = [registryDir, pickerRoot, tombstoneDir].map(dir => path.resolve(dir));
   const checkRoots = () => { if (roots.some((dir, i) => roots.slice(i + 1).some(other => !separate(dir, other)))) throw new TypeError('Registry, picker and tombstone roots must be disjoint.'); };
   checkRoots();
@@ -155,8 +156,14 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     issuedIds = new Set(ledger.issuedPickerIds);
   };
   function enforceCaps(next, nextLedger = ledger) {
-    const limited = next.accounts.length > caps.accounts || next.pickers.filter(p => p.lifecycle !== 'deleted').length > caps.pickers || nextLedger.issuedPickerIds.length > caps.issuedPickerIds || nextLedger.accounts.length > caps.retiredAccounts || next.capabilities.length > caps.capabilities || next.accounts.some(a => a.memberships.length > caps.membershipsPerAccount) || next.pickers.some(p => p.memberIds.length > caps.membersPerPicker || next.capabilities.filter(c => c.pickerId === p.id).length > caps.capabilitiesPerPicker);
-    if (limited) throw error(409, 'Registry capacity has been reached.');
+    if (next.accounts.length > caps.accounts) throw error(409, 'The login account limit has been reached. Ask the operator about available capacity.');
+    if (next.pickers.filter(p => p.lifecycle !== 'deleted').length > caps.pickers) throw error(409, 'The picker limit has been reached. Existing maps are unchanged. Ask the operator about available capacity.');
+    if (nextLedger.issuedPickerIds.length > caps.issuedPickerIds) throw error(409, 'The picker ID limit has been reached. Ask the operator for help; existing IDs cannot be reused.');
+    if (nextLedger.accounts.length > caps.retiredAccounts) throw error(409, 'The retired account record limit has been reached. Ask the operator for help; existing records must be kept.');
+    if (next.capabilities.length > caps.capabilities) throw error(409, 'The access key limit has been reached. Revoke an unused key or ask the operator for help.');
+    if (next.accounts.some(a => a.memberships.length > caps.membershipsPerAccount)) throw error(409, 'The account membership record limit has been reached. Ask the operator for help; existing memberships are unchanged.');
+    if (next.pickers.some(p => p.memberIds.length > caps.membersPerPicker)) throw error(409, 'The picker member ID limit has been reached. Ask the operator for help; historical member IDs must be kept.');
+    if (next.pickers.some(p => next.capabilities.filter(c => c.pickerId === p.id).length > caps.capabilitiesPerPicker)) throw error(409, 'This picker has reached its access key limit. Revoke an unused key before creating another.');
   }
   async function save(next) {
     validate(next); enforceCaps(next);
@@ -195,7 +202,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     registryIdentity(provider, subject);
     let account = accountForIdentity(next, provider, subject);
     if (!account) {
-      if (next.accounts.length >= caps.accounts) throw error(409, 'Registry capacity has been reached.');
+      if (next.accounts.length >= caps.accounts) throw error(409, 'The login account limit has been reached. Ask the operator about available capacity.');
       let id;
       do { id = randomUUID(); } while (next.accounts.some(a => a.id === id) || retiredAccounts.has(id));
       account = { id, identities: [{ provider, subject }], memberships: [], defaultPickerId: null, createdAt: timestamp() };
@@ -203,8 +210,15 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     }
     return account;
   }
+  function checkPickerAllocation() {
+    const count = current.pickers.filter(p => p.lifecycle !== 'deleted').length;
+    if (count >= caps.pickers) throw error(409, 'The picker limit has been reached. Existing maps are unchanged. Ask the operator about available capacity.');
+    // Admission only: a lowered beta cap must not block reads, recovery or deletion.
+    if (betaPickerCap !== undefined && count >= betaPickerCap) throw error(409, 'The beta is full. New groups are paused; existing maps are unchanged. Ask the operator about the next opening.');
+    if (ledger.issuedPickerIds.length >= caps.issuedPickerIds) throw error(409, 'The picker ID limit has been reached. Ask the operator for help; existing IDs cannot be reused.');
+  }
   async function allocate() {
-    if (current.pickers.filter(p => p.lifecycle !== 'deleted').length >= caps.pickers) throw error(409, 'Registry capacity has been reached.');
+    checkPickerAllocation();
     for (let attempt = 0; attempt < 128; attempt++) {
       const bits = pickerRandomBytes(16);
       if (!Buffer.isBuffer(bits) || bits.length !== 16) throw new TypeError('Expected 128 random bits.');
@@ -239,7 +253,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   async function ensureDefault(accountId) {
     const account = requireAccount(current, accountId);
     if (account.defaultPickerId) return provision(account.defaultPickerId);
-    if (account.memberships.length >= caps.membershipsPerAccount) throw error(409, 'Registry capacity has been reached.');
+    if (account.memberships.length >= caps.membershipsPerAccount) throw error(409, 'The account membership record limit has been reached. Ask the operator for help; existing memberships are unchanged.');
     const id = await allocate(), next = copy(current), owner = requireAccount(next, accountId);
     const picker = { id, kind: 'default', ownerAccountId: accountId, lifecycle: 'active', provisioning: 'reserved', memberIds: ['owner'], createdAt: timestamp() };
     next.pickers.push(picker); owner.defaultPickerId = id;
@@ -382,6 +396,9 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const next = copy(current), account = requireAccount(next, accountId); account.identities = account.identities.filter(i => i.provider !== provider); await save(next); return account;
     }); },
     firstLogin(provider, subject) { return enqueue(async () => {
+      registryIdentity(provider, subject);
+      // Refuse admission before persisting a new login or consuming an ID.
+      if (!accountForIdentity(current, provider, subject)?.defaultPickerId) checkPickerAllocation();
       const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next);
       await point('account-recorded', account.defaultPickerId);
       const picker = await ensureDefault(account.id); return { account: requireAccount(current, account.id), picker };

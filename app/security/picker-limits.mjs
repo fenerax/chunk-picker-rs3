@@ -8,7 +8,7 @@ export const MP7_DEFAULTS = Object.freeze({
   maxOutstandingJobsPerPicker: 4, maxWaitersPerJob: 64,
   expensivePerAccount: 600, expensivePerPicker: 600, expensiveGlobal: 1200,
   streamsPerAccount: 16, streamsPerPicker: 32, streamsGlobal: 64,
-  pluginKeysPerAccount: 3, pluginKeysPerPicker: 6, pluginKeysGlobal: 192,
+  pluginKeysPerCharacter: 3, pluginKeysPerAccount: 30, pluginKeysPerPicker: 15, pluginKeysGlobal: 9000,
   pluginRequestsPerKey: 4, pluginRequestsPerAccount: 16, pluginRequestsPerPicker: 32, pluginRequestsGlobal: 128,
   invitationsPerAccount: 10, invitationsPerPicker: 20, invitationsGlobal: 100,
   registrationsPerAccount: 3, registrationsGlobal: 30,
@@ -27,6 +27,8 @@ export function pickerLimitOptions(options = {}) {
   return Object.freeze(config);
 }
 const hash = value => createHash('sha256').update(value).digest('hex');
+// Second segment of a plugin key quota row (`keys:<scope>:...`); `keys:global` falls back to the service.
+const keyScopeLabels = new Map([['character', 'This character'], ['account', 'This login'], ['picker', 'This group']]);
 const refusal = (message, retryAfter = 1, status = 429) => Object.assign(new Error(message), { status, retryAfter });
 const keyHash = request => {
   const key = /^Bearer (gpk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];
@@ -79,15 +81,24 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
     if (capability) return scope(capability, pickerId);
     return legacyScope(pickerId, memberId);
   }
+  // Until durable characters exist, a character key scope is the immutable
+  // (picker, member) tuple. Never use the login allowance as a member allowance.
+  function keyRows(owner) {
+    return [...rows('keys', owner, config.pluginKeysPerAccount, config.pluginKeysPerPicker, config.pluginKeysGlobal),
+      [`keys:character:${JSON.stringify([owner.pickerId, owner.memberId])}`, config.pluginKeysPerCharacter]];
+  }
   function keyLease(owner) {
     const counts = keyCounts();
-    for (const [key, limit] of rows('keys', owner, config.pluginKeysPerAccount, config.pluginKeysPerPicker, config.pluginKeysGlobal)) if ((counts.get(key) ?? 0) >= limit) throw refusal('Too many plugin keys. Revoke an existing key before creating another.');
+    for (const [key, limit] of keyRows(owner)) if ((counts.get(key) ?? 0) >= limit) {
+      const scope = keyScopeLabels.get(key.split(':')[1]) ?? 'The service';
+      throw refusal(`${scope} has reached its plugin key limit. Revoke an existing key before creating another.`);
+    }
   }
   // Includes pending issuance: a persistence await cannot oversubscribe a cap.
   const reservations = new Map();
   function keyCounts() {
     const counts = new Map(reservations);
-    for (const owner of keys.values()) for (const [key] of rows('keys', owner, 1, 1, 1)) counts.set(key, (counts.get(key) ?? 0) + 1);
+    for (const owner of keys.values()) for (const [key] of keyRows(owner)) counts.set(key, (counts.get(key) ?? 0) + 1);
     return counts;
   }
   return {
@@ -102,8 +113,9 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
         for (const record of document.keys) if (!record.revoked) {
           const capability = registry.resolveCapability('plugin-key', record.tokenHash);
           const account = record.accountId ? { accountId: record.accountId } : capability;
-          keys.set(record.tokenHash, account ? scope(account, picker.kind === 'legacy-shared' ? 'legacy' : picker.id)
-            : picker.kind === 'legacy-shared' ? legacyScope('legacy', record.player) : scope(undefined, picker.id));
+          const owner = account ? scope(account, picker.kind === 'legacy-shared' ? 'legacy' : picker.id)
+            : picker.kind === 'legacy-shared' ? legacyScope('legacy', record.player) : scope(undefined, picker.id);
+          keys.set(record.tokenHash, { ...owner, memberId: record.player });
         }
       }
     },
@@ -122,9 +134,9 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
     },
     reserveKey(identity, pickerId, memberId) {
       // Resolve pre-existing legacy player keys to the same account as issuance.
-      const owner = identity?.accountId ? scope(identity, pickerId) : pluginScope({ headers: {} }, pickerId, memberId);
+      const owner = { ...(identity?.accountId ? scope(identity, pickerId) : pluginScope({ headers: {} }, pickerId, memberId)), memberId };
       keyLease(owner);
-      const entries = rows('keys', owner, 1, 1, 1);
+      const entries = keyRows(owner);
       for (const [key] of entries) reservations.set(key, (reservations.get(key) ?? 0) + 1);
       let released = false;
       return { finish(key) {

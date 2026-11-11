@@ -38,7 +38,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const progressSource = createPluginProgressSource({ clock });
   const coordinates = createGameCoordinates(world);
   const gameId = id => coordinates.pickerChunkToGameId(id);
-  const keys = await openPluginKeys({ dataDir, clock, maxActiveKeysPerPlayer: pickerLimits?.config.pluginKeysPerAccount });
+  const keys = await openPluginKeys({ dataDir, clock, maxActiveKeysPerPlayer: pickerLimits?.config.pluginKeysPerCharacter });
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   let importedItems, importedRevision = -1;
   const importedEvidence = () => {
