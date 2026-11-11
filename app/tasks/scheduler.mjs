@@ -825,6 +825,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     entry.stateInput = undefined;
     releaseQueuedInput(entry);
     for (const waiter of entry.waiters) {
+      waiter.releaseFair?.();
       waiter.signal?.removeEventListener('abort', waiter.abort);
       if (error) waiter.reject(error); else waiter.resolve(evaluationWith(value, { hit: waiter.hit, coalesced: waiter.hit, calculatorStarted: entry.calculatorStarted }));
     }
@@ -1147,6 +1148,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
             const value = active.previewValue = workerEvaluation(message, active);
             storeEvaluation(active.key, active.revision, active.type, value, active.pickerId);
             for (const waiter of active.waiters) {
+              waiter.releaseFair?.();
               waiter.signal?.removeEventListener('abort', waiter.abort);
               waiter.resolve(evaluationWith(value, { hit: waiter.hit, coalesced: waiter.hit, calculatorStarted: active.calculatorStarted }));
             }
@@ -1362,8 +1364,16 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         else if (previous) { counts.superseded++; cancel(previous, superseded()); }
       }
       const hit = !!entry;
+      let releaseJoined;
       if (entry) {
         if (fairness && entry.waiters.size >= fairness.maxWaitersPerJob) { counts.rejected++; return Promise.reject(queueFull()); }
+        // Equivalent work shares a calculator slot, but a different response
+        // key still represents independently admitted demand from this picker.
+        // Exact-key followers retain their existing bounded waiter allowance.
+        if (entry.key !== key) {
+          releaseJoined = admitFair(pickerId, { interactive: !residentOnly });
+          if (!releaseJoined) { counts.rejected++; return Promise.reject(queueFull()); }
+        }
         counts.coalesced++; entry.revision = Math.max(entry.revision, state.revision);
         if (entry.purpose === 'ranking') {
           entry.purpose = undefined;
@@ -1371,13 +1381,13 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         }
         // A bounded response cache can reject/evict the delta while the same
         // active prediction is still preparing its partner. Follow its result.
-        if (entry.previewValue && !entry.discarded) { entry.previewServed = true; return Promise.resolve(evaluationWith(entry.previewValue, { hit: true, coalesced: true, calculatorStarted: entry.calculatorStarted })); }
+        if (entry.previewValue && !entry.discarded) { releaseJoined?.(); entry.previewServed = true; return Promise.resolve(evaluationWith(entry.previewValue, { hit: true, coalesced: true, calculatorStarted: entry.calculatorStarted })); }
         // Queued requests can add the projection before dispatch. Already active
         // normal requests keep their ordinary payload and callers fall back to it.
         entry.duoSidebarProjection ||= duoSidebarProjection;
         const position = warmQueue.indexOf(entry);
         if (position >= 0) {
-          if (queue.length >= maxQueue) { counts.rejected++; return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
+          if (queue.length >= maxQueue) { releaseJoined?.(); counts.rejected++; return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
           warmQueue.splice(position, 1); queue.push(entry); waitDeadline(entry);
         }
       }
@@ -1398,9 +1408,10 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         waitDeadline(entry);
       }
       const promise = new Promise((resolve, reject) => {
-        const waiter = { resolve, reject, signal, hit };
+        const waiter = { resolve, reject, signal, hit, releaseFair: releaseJoined };
         waiter.abort = () => {
           if (!entry.waiters.delete(waiter)) return;
+          waiter.releaseFair?.();
           signal.removeEventListener('abort', waiter.abort);
           reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
           if (!entry.waiters.size && !entry.warm) { counts.cancelled++; cancel(entry, unavailable('Calculation abandoned by its requesters.')); pump(); }

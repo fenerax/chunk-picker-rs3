@@ -16,6 +16,11 @@ coalescing, cancellation and saved-prediction reuse behavior. Independent
 members/kinds remain independent computations; `coalesceQueued: false` supports
 callers whose opaque keys intentionally name independent jobs.
 
+Joining with a different response key retains its own per-picker admission
+charge until completion, cancellation or failure, while sharing the queued
+calculation and input. Exact-key followers use the separate waiter limit.
+Coalescing cannot bypass the picker's outstanding-request quota.
+
 Within a priority class, pickers take round-robin turns. Interactive requests
 precede full task hydration, planning, sandbox, area checks, death estimates
 and peer task calculations. After eight interactive dispatches, one waiting

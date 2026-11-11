@@ -57,7 +57,8 @@ test('bounded calculator admission', { timeout: 60000 }, async t => {
   });
 
   await t.test('equivalent queued reads join, replacements fence the old revision, and abort removes only its waiter', async t => {
-    const f = await fixture(t), first = f.request(1, 'blocker'), blocker = await f.next();
+    const f = await fixture(t, { fairness: { maxOutstandingJobsPerPicker: 2 } });
+    const first = f.request(1, 'blocker'), blocker = await f.next();
     const controller = new AbortController();
     const old = f.request(2, 'old', { input: 'same', signal: controller.signal });
     const aborted = assert.rejects(old, { name: 'AbortError' });
@@ -74,6 +75,38 @@ test('bounded calculator admission', { timeout: 60000 }, async t => {
     assert.equal((await current).result.marker, 'current');
     assert.equal((await currentFollower).result.marker, 'current');
     assert.equal(f.scheduler.getDiagnostics().cache.entries, 2);
+    const fresh = ['one', 'two'].map(member => f.request(2, `fresh-${member}`, { member, value: state(1), input: 'changed' }));
+    for (let n = 0; n < 2; n++) f.finish(await f.next());
+    await Promise.all(fresh);
+  });
+
+  for (const pooled of [false, true]) for (const event of ['error', 'exit']) await t.test(`joined request charges survive coalescing and release on abort and ${event} (${pooled ? 'pooled' : 'dedicated'})`, async t => {
+    const f = await fixture(t, { fairness: { maxOutstandingJobsPerPicker: 2 }, ...(pooled ? { maxCalculators: 1 } : {}) });
+    const first = f.request(1, 'blocker'), blocker = await f.next();
+    const primary = f.request(2, 'primary', { input: 'same' });
+    const primaryRejected = assert.rejects(primary, { status: 503 });
+    const controller = new AbortController();
+    const alias = f.request(2, 'alias', { input: 'same', signal: controller.signal });
+    const aborted = assert.rejects(alias, { name: 'AbortError' });
+    await assert.rejects(f.request(2, 'over-budget', { input: 'same' }), { status: 429 });
+    const exact = f.request(2, 'primary', { input: 'same' });
+    const exactRejected = assert.rejects(exact, { status: 503 });
+    assert.equal(f.scheduler.getDiagnostics().queue.depth, 1, 'joined demand uses one queued calculation');
+    controller.abort(); await aborted;
+    const replacement = f.request(2, 'replacement', { input: 'same' });
+    const replacementRejected = assert.rejects(replacement, { status: 503 });
+    await assert.rejects(f.request(2, 'still-over-budget', { input: 'same' }), { status: 429 });
+    f.finish(blocker); await first;
+    const running = await f.next();
+    running.worker.emit(event, event === 'error' ? new Error('synthetic crash') : 1);
+    await Promise.all([primaryRejected, exactRejected, replacementRejected]);
+    assert.equal(f.scheduler.getDiagnostics().retainedWork.pending, 0);
+    // Another lane shares the picker quota. Filling it detects leaked charges
+    // even though the foreground lane exhausted its configured restart budget.
+    const fresh = [100, 101].map(chunkId => f.request(2, `fresh-${chunkId}`, { type: 'predict', chunkId }));
+    await assert.rejects(f.request(2, 'fresh-over-budget', { type: 'predict', chunkId: 102 }), { status: 429 });
+    for (let n = 0; n < 2; n++) f.finish(await f.next());
+    await Promise.all(fresh);
   });
 
   await t.test('flooding groups cannot starve a quiet group', async t => {
