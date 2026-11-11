@@ -94,6 +94,42 @@ test('cancelling a ready comparison reaps the trial and calculator before reject
   }
 });
 
+test('a calculator exit after the baseline survives failed trials in JSON artifacts and the human summary', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'owned-acceptance-retirement-'));
+  try {
+    const report = await comparison({ output: root, smoke: true, signal: t.signal, onReady: ({ children }) => {
+      // The trial identifies its own live calculator after complete relay and
+      // isolate receipts. Kill only that owned child, without a delay or race
+      // against an assumed calculation duration.
+      assert.equal(children.length, 1);
+      process.kill(children[0], 'SIGKILL');
+    } });
+    assert.deepEqual(report.results, []);
+    assert.deepEqual(report.failures.map(row => row.mode), ['format1', 'format2']);
+    assert.equal(report.equivalent, false);
+    const saved = JSON.parse(await readFile(path.join(root, 'results.json'), 'utf8'));
+    assert.deepEqual(saved.failures, report.failures);
+    for (const failure of report.failures) {
+      assert.match(failure.message, /refusing incomplete residency evidence/);
+      assert.notEqual(failure.stage, 'cleanup');
+      assert.equal(failure.calculatorLifecycle.length, 1);
+      const worker = failure.calculatorLifecycle[0];
+      assert.equal(typeof worker.exit.code, 'number');
+      const incident = worker.events.find(row => row.initiator === 'crash');
+      assert.equal(incident.reason, 'worker-exit');
+      assert.equal(typeof incident.scheduler.queue.depth, 'number');
+      assert.equal(typeof incident.barrier, 'number');
+      assert.equal(typeof incident.lastCompletedBarrier, 'number');
+      assert.equal(typeof incident.stage, 'string');
+      assert.deepEqual(JSON.parse(await readFile(path.join(root, failure.mode, 'failure.json'), 'utf8')), failure);
+    }
+    const human = await readFile(path.join(root, 'summary.txt'), 'utf8');
+    assert.match(human, /INCOMPLETE SMOKE; no acceptance claim/);
+    assert.match(human, /format1 calculator 1: crash \(worker-exit\).*barrier.*queue.*exit/);
+    assert.match(human, /format2 calculator 1: crash \(worker-exit\).*barrier.*queue.*exit/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('probe receipts stay immutable and publication failure cannot acknowledge or retry a sequence', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'owned-probe-publication-'));
   const env = { ...process.env };

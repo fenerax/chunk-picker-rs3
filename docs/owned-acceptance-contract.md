@@ -98,6 +98,28 @@ per-format results and isolate probe receipts, also uploaded on failure. Keep
 all ten runs and their exact commit/runtime/host/OS/seed metadata. A failed
 process can leave only partial probe evidence; that is an incomplete run. No
 single run, median across runs or average group cost establishes acceptance.
+
+`calculatorLifecycle` preserves each physical worker's ID/PID, start context and
+replacement flag, initiation events, original worker errors (name/code/message/
+stack), and observed exit code/context. Each receipt identifies the stage,
+current barrier and last completed barrier. Initiation events identify deadline,
+memory ceiling, crash, idle, generation retirement, explicit restart, profiling
+retirement or capacity eviction, with the scheduler's existing diagnostics and
+active job kind/age, effective deadline allowance and deadline age. Pool events
+also retain pool diagnostics. These come from an optional, in-process
+`onCalculatorLifecycle` observer before retirement/recovery clears the state;
+worker messages, client responses, limits and scheduling policy are unchanged.
+
+On a trial failure, `<format>/failure.json` retains this evidence, the failure
+stack, scheduler diagnostics and already collected command errors/timing records.
+The controller includes it in `results.json` under `failures` and explains each
+incident in `summary.txt`, including the exit code. `schedulerLifecycle` records
+failures or explicit restarts with no physical worker currently owned. Normal
+teardown is excluded; a previously observed incident can still receive its exit
+details during teardown. An exit not observed is reported explicitly, never
+guessed. Cancellation remains cancellation. Missing residency evidence still
+fails the trial; these diagnostic receipts cannot establish acceptance.
+
 The final summary job pools wall/CPU percentiles by OS and format into
 `owned-acceptance-aggregate/aggregate.json`, checks five distinct receipts per OS
 at the same commit/runtime/seed, and requires every format-2 trial to meet the bar.
