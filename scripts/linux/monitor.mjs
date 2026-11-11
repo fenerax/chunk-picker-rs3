@@ -2,12 +2,12 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile, statfs } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
 import { notify, releaseWindow, failureUnits } from './notify.mjs';
 import { processIdentity } from './start-check.mjs';
 const execute = promisify(execFile), GiB = 1024 ** 3;
-export const maintenanceGraceMs = 10 * 60000;
 export function evaluate(sample, previous = {}, now = Date.now()) {
   // An unavailable observation proves neither a fault nor a recovery. Partial
   // collection failures conservatively retain all unresolved observations.
@@ -18,15 +18,12 @@ export function evaluate(sample, previous = {}, now = Date.now()) {
   for (const [code, at] of [['backup-source', sample.backup?.snapshotAt], ['offhost-source', sample.offhost?.snapshotAt], ['offhost-delivery', sample.offhost?.lastSuccessAt]]) {
     const hours = age(at) / 3600000; if (hours >= 36) put(code, hours >= 48 ? 'critical' : 'warning');
   }
-  // Routine backups and deploys hold the marker for a few minutes. Warn only
-  // when a live owner keeps it past the grace period; a dead owner or an
-  // undated marker still alerts at once.
-  if (sample.marker) {
-    if (!sample.ownerAlive || age(sample.marker.startedAt) >= maintenanceGraceMs) put('maintenance');
-    if (!sample.ownerAlive) put('maintenance-abandoned', 'critical');
-  }
+  // Every alert must need operator action. Routine backups and deploys hold
+  // the marker for minutes, so a live owner alerts only once its operation
+  // exceeds the time budget below; a dead owner alerts at once.
+  if (sample.marker && !sample.ownerAlive) put('maintenance-abandoned', 'critical');
   if (sample.offhostPause) put('offhost-paused');
-  if (sample.lock && age(sample.lock.startedAt) >= 30 * 60000 || sample.marker && age(sample.marker.startedAt) >= 30 * 60000) put('operation-long', 'critical');
+  if (sample.lock && age(sample.lock.startedAt) >= 30 * 60000 || sample.marker && age(sample.marker.startedAt ?? sample.lock?.startedAt) >= 30 * 60000) put('operation-long', 'critical');
   if (sample.diskBytes < 15 * GiB) put('disk-low', sample.diskBytes < 5 * GiB ? 'urgent' : 'warning');
   const lowRamSince = sample.ramBytes < 2 * GiB ? previous.lowRamSince ?? now : null;
   if (sample.ramBytes < GiB) put('ram-low', 'urgent');
@@ -46,6 +43,15 @@ export function evaluate(sample, previous = {}, now = Date.now()) {
   if (sample.window && !releaseWindow(sample.window, now)) put('release-window');
   return { faults, lowRamSince };
 }
+// Single-picker locks record a boot-scoped process identity. Multi-picker
+// service locks record only pid and host; the process must still exist there.
+export async function lockOwnerAlive(lock, { identity = processIdentity, host = hostname() } = {}) {
+  try {
+    if (lock?.processIdentity) return await identity(lock.pid) === lock.processIdentity;
+    if (lock?.host !== host) return false;
+    await identity(lock.pid); return true;
+  } catch { return false; }
+}
 async function optional(file) { try { return await json(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }
 export async function collect(config) {
   const sample = {}, read = async (key, file) => {
@@ -56,8 +62,7 @@ export async function collect(config) {
   await read('window', path.join(config.controlDir, 'release-window.json'));
   await read('offhostPause', path.join(config.controlDir, 'offhost-paused.json'));
   for (const kind of ['operator', 'health', 'backup', 'offhost']) await read(kind, path.join(config.controlDir, kind + '-status.json'));
-  sample.ownerAlive = false;
-  if (sample.lock) try { sample.ownerAlive = await processIdentity(sample.lock.pid) === sample.lock.processIdentity; } catch {}
+  sample.ownerAlive = await lockOwnerAlive(sample.lock);
   const output = await execute('systemctl', ['show', 'chunk-picker.service', '--property=ActiveState,SubState,MainPID'], { timeout: 10000, windowsHide: true });
   const fields = Object.fromEntries(output.stdout.trim().split('\n').map(row => row.split('=')));
   sample.writerActive = fields.ActiveState === 'active' && fields.SubState === 'running' && Number(fields.MainPID) > 0;

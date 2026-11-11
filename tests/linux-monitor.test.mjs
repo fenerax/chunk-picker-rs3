@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { evaluate, monitor, maintenanceGraceMs } from '../scripts/linux/monitor.mjs';
+import { evaluate, monitor, lockOwnerAlive } from '../scripts/linux/monitor.mjs';
 import { notify, notifyFailure, releaseWindow, failureUnits } from '../scripts/linux/notify.mjs';
 import { deadman } from '../scripts/linux/ops-status.mjs';
 import { exclusive } from '../scripts/linux/files.mjs';
@@ -49,16 +49,23 @@ test('maintenance remains evidence, dead ownership and long operations alert; re
   assert(!releaseWindow({ startedAt: new Date(now - 60000), endsAt: new Date(now) }, now));
 });
 
-test('a live routine operation stays quiet until the maintenance grace period ends', () => {
-  const at = ms => ({ startedAt: new Date(now - ms).toISOString() });
-  const faults = (marker, ownerAlive = true) => evaluate({ ...sample(), marker, ownerAlive }, {}, now).faults;
-  assert.deepEqual(faults(at(maintenanceGraceMs - 1000)), {});
-  assert.equal(faults(at(maintenanceGraceMs))['maintenance'], 'warning');
-  // Dead ownership and undated or unparsable markers alert immediately.
-  const dead = faults(at(1000), false);
-  assert.equal(dead['maintenance'], 'warning'); assert.equal(dead['maintenance-abandoned'], 'critical');
-  assert.equal(faults({})['maintenance'], 'warning');
-  assert.equal(faults({ startedAt: 'invalid' })['maintenance'], 'warning');
+test('routine maintenance needs no action and sends nothing until it is abandoned or too long', async () => {
+  const at = ms => new Date(now - ms).toISOString();
+  const faults = (marker, ownerAlive, lock) => evaluate({ ...sample(), marker, ownerAlive, lock }, {}, now).faults;
+  assert.deepEqual(faults({ startedAt: at(29 * 60000) }, true), {});
+  // Multi-picker markers carry no time; the lock supplies the operation start.
+  assert.deepEqual(faults({ command: 'backup' }, true, { startedAt: at(60000) }), {});
+  assert.equal(faults({ command: 'backup' }, true, { startedAt: at(30 * 60000) })['operation-long'], 'critical');
+  assert.equal(faults({ startedAt: at(30 * 60000) }, true)['operation-long'], 'critical');
+  assert.deepEqual(faults({ startedAt: at(60000) }, false), { 'maintenance-abandoned': 'critical' });
+  assert.equal(faults({}, true)['operation-long'], 'critical');
+  const identity = async pid => { if (pid !== 7) throw Error('gone'); return 'boot:1'; };
+  assert(await lockOwnerAlive({ pid: 7, processIdentity: 'boot:1' }, { identity }));
+  assert(!await lockOwnerAlive({ pid: 7, processIdentity: 'boot:2' }, { identity }));
+  assert(await lockOwnerAlive({ pid: 7, host: 'vps' }, { identity, host: 'vps' }));
+  assert(!await lockOwnerAlive({ pid: 8, host: 'vps' }, { identity, host: 'vps' }));
+  assert(!await lockOwnerAlive({ pid: 7, host: 'other' }, { identity, host: 'vps' }));
+  assert(!await lockOwnerAlive(null, { identity }));
 });
 
 test('release windows exclude only the writer from the monitor failed-unit aggregate', async t => {
