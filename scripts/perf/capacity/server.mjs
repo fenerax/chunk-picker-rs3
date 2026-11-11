@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
+import { observeServerIdentity } from './evidence.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
 const [directory,profileFile,mode,workers,fixtureFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
@@ -65,9 +66,10 @@ if(mode==='fixture') {
           process.send({type:'admission',atMs:performance.now(),...event});
           coldQueue={pending:event.pending,active:event.active,accounts:event.accounts,waitMs:event.waitMs,serviceMs:event.serviceMs};}},
     });
+    const serverId=observeServerIdentity(app.server);
     await app.listen();
     const base=loopback(`http://127.0.0.1:${app.address().port}`,{assigned:profile.port===0});
-    process.send({type:'ready',base});
+    process.send({type:'ready',base,serverId});
     process.on('message',async message=>{
       try {
         if(message.type==='stop') return await stop();
@@ -80,7 +82,7 @@ if(mode==='fixture') {
           }));
           const currentUtilization=performance.eventLoopUtilization(), utilization=performance.eventLoopUtilization(currentUtilization,lastUtilization);
           lastUtilization=currentUtilization;
-          process.send({type:'sample',id:message.id,memory:process.memoryUsage(),cpu:process.cpuUsage(),
+          process.send({type:'sample',id:message.id,serverId,memory:process.memoryUsage(),cpu:process.cpuUsage(),
             eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
               utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},health,diagnostics,calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
           loop.reset();

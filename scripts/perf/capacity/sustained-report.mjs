@@ -1,44 +1,142 @@
 import { diagnosticMarkdown } from './report.mjs';
 import { distribution } from './driver.mjs';
+import { cleanExit } from './evidence.mjs';
 
 export const everydayActions = ['state','history','task-view','group-task-view','how','why','note','tick','undo','session'];
 export const heavyActions = ['task-miss','preview','roll-accept','pool-undo'];
-const terminalFailures = row => Object.entries(row.statuses).reduce((n,[status,count])=>n+(status==='200'?0:count),0);
-function speed(rows, actions, limitMs) {
+const count = value => Number.isSafeInteger(value) && value >= 0;
+const time = value => Number.isFinite(value) && value >= 0;
+const values = object => Object.values(object??{});
+const total = object => values(object).reduce((n,value)=>n+value,0);
+const slot = row => `${row.stage}:${row.phase}:${row.action}`;
+const terminalFailures = row => Object.entries(row.statuses??{}).reduce((n,[status,value])=>n+(status==='200'?0:value),0);
+const unique = (rows,size) => Array.isArray(rows)&&rows.length===size&&new Set(rows).size===size;
+const sameMembers = (rows,expected) => unique(rows,expected.length)&&rows.every(id=>expected.includes(id));
+function continuousSamples(samples,start,end,maxGapMs) {
+  const last=samples.findIndex(row=>row.elapsedMs>=end);
+  const window=last<0?[]:samples.slice(0,last+1).filter(row=>row.elapsedMs>=start);
+  return window.length>0&&window[0].elapsedMs-start<=maxGapMs&&window.at(-1).elapsedMs-end<=maxGapMs&&
+    window.every((row,index)=>index===0||row.elapsedMs-window[index-1].elapsedMs<=maxGapMs);
+}
+function completion(rows,actions,offered) {
   const selected = rows.filter(row=>actions.includes(row.action));
-  const missing = actions.filter(action=>!selected.some(row=>row.action===action&&row.latency.count));
-  return {status:missing.length?'fail':selected.some(row=>row.latency.p95Ms>=limitMs||terminalFailures(row))?'fail':'pass',
-    p95LimitMs:limitMs,missing,failures:selected.reduce((n,row)=>n+terminalFailures(row),0),
+  const expected = (offered??[]).filter(row=>actions.includes(row.action));
+  const missing = actions.filter(action=>!expected.some(row=>row.action===action&&row.count>0)||!selected.some(row=>row.action===action&&row.latency?.count>0));
+  const valid = unique(expected.map(slot),expected.length)&&expected.every(row=>count(row.count)&&row.count>0&&
+    selected.filter(actual=>slot(actual)===slot(row)).length===1&&selected.find(actual=>slot(actual)===slot(row)).latency?.count===row.count)&&
+    selected.every(row=>expected.some(planned=>slot(planned)===slot(row))&&count(row.latency?.count)&&row.latency.count>0&&
+      values(row.statuses).every(count)&&total(row.statuses)===row.latency.count&&row.statuses?.['200']===row.latency.count&&
+      count(row.httpRequests)&&values(row.httpStatuses).every(count)&&total(row.httpStatuses)===row.httpRequests&&count(row.coalescedSessionChecks??0)&&
+      (row.httpStatuses?.['200']??0)+(row.action==='session'?(row.coalescedSessionChecks??0):0)>=row.latency.count&&
+      ['p50Ms','p95Ms','p99Ms'].every(key=>time(row.latency[key]))&&row.latency.p50Ms<=row.latency.p95Ms&&row.latency.p95Ms<=row.latency.p99Ms);
+  return {status:!missing.length&&valid?'pass':'fail',missing,expected:expected.reduce((n,row)=>n+row.count,0),
+    completed:selected.reduce((n,row)=>n+(row.latency?.count??0),0),failures:selected.reduce((n,row)=>n+terminalFailures(row),0),
+    classes:actions.map(action=>({action,p95ByPhaseMs:selected.filter(row=>row.action===action).map(row=>({phase:row.phase,p95Ms:row.latency?.p95Ms??null}))}))};
+}
+function speed(rows,actions,limitMs,offered) {
+  const gate=completion(rows,actions,offered);
+  return {...gate,status:gate.status==='pass'&&!rows.some(row=>actions.includes(row.action)&&row.latency.p95Ms>=limitMs)?'pass':'fail',p95LimitMs:limitMs,
     scope:'Scheduled arrival to full HTTP completion, including dispatch, preflights, cooldown/backoff and terminal failures; no browser render time.'};
+}
+function proof(row,serverId) {
+  return !!serverId&&row.serverId===serverId&&row.stateServerId===serverId&&row.tasksServerId===serverId&&
+    count(row.stateRevision)&&count(row.tasksRevision)&&row.tasksRevision>=row.stateRevision&&time(row.elapsedMs);
+}
+function liveRecoveryStream(lifetimes,client,{serverId,startedAt,deadlineAt,confirmedAt,completedAt,sampleMs}) {
+  const reasons=['unexpected','reconnect','server-restart','cohort-change','workload-end'];
+  const connections=lifetimes.filter(row=>row.clientId===client.clientId&&row.group===client.group&&row.serverId===serverId&&
+    time(row.openedAt)&&row.openedAt>=startedAt&&time(row.closedAt)&&row.closedAt>=row.openedAt&&row.closedAt<=completedAt&&reasons.includes(row.closeReason))
+    .sort((a,b)=>a.openedAt-b.openedAt);
+  // The fixed profile deliberately reconnects one client at the deadline.
+  // Permit a bounded planned handoff, but require its replacement to be live
+  // at confirmation. Unexpected ends and immediate handshakes cannot bridge it.
+  const handoffMs=Math.max(sampleMs,1500);
+  const index=connections.findIndex(row=>row.openedAt<deadlineAt&&row.closedAt-row.openedAt>=sampleMs&&
+    (row.closedAt>deadlineAt||row.closeReason==='reconnect'&&row.closedAt>=deadlineAt-handoffMs));
+  if(index<0)return null;
+  const recovered=connections[index];let current=recovered;
+  for(let next=index+1;current.closedAt<=confirmedAt;next++) {
+    const replacement=connections[next];
+    if(current.closeReason!=='reconnect'||!replacement||replacement.openedAt<current.closedAt||
+      replacement.openedAt-current.closedAt>handoffMs||replacement.openedAt>confirmedAt)return null;
+    current=replacement;
+  }
+  return current.closedAt-current.openedAt>=sampleMs?recovered:null;
+}
+function headerEvidence(rows,streams,stages) {
+  const histogram = (statuses,headers,missing) => values(statuses).every(count)&&values(headers).every(count)&&missing===0&&
+    total(headers)===(statuses?.['429']??0)+(statuses?.['503']??0)&&Object.keys(headers??{}).every(value=>/^\d+(?:\.\d+)?$/.test(value)||Number.isFinite(Date.parse(value)));
+  return rows.length>0&&rows.some(row=>row.httpRequests>0)&&rows.every(row=>count(row.httpRequests)&&count(row.httpRejects)&&total(row.httpStatuses)===row.httpRequests&&
+    row.httpRejects===(row.httpStatuses?.['429']??0)+(row.httpStatuses?.['503']??0)&&histogram(row.httpStatuses,row.retryAfterValues,row.rejectsWithoutRetryAfter))&&
+    Array.isArray(streams)&&streams.length===stages.length&&streams.every(row=>count(row.attempted)&&total(row.statuses)<=row.attempted&&histogram(row.statuses,row.retryAfterValues,row.rejectsWithoutRetryAfter));
 }
 export function evaluateSustained(result) {
   const {load,profile} = result, measured = load.operations.filter(row=>profile.stages[row.stage]?.measured);
   const activeGroups = profile.stages.at(-1).activeGroups, users = profile.stages.at(-1).users;
-  const restart = load.restarts[0], groups = load.recovery.groups;
-  const firstHTTPRecoveryMs = groups.length===activeGroups ? Math.max(...groups.map(row=>row.elapsedMs)) : null;
+  const restart = load.restarts[0], groups = load.recovery.groups, cohort=load.cohort??{};
+  const cohortValid=unique(cohort.groups,activeGroups)&&cohort.groups.every(count)&&unique(cohort.clients?.map(row=>row.clientId),users)&&
+    cohort.clients.every(row=>typeof row.clientId==='string'&&row.clientId.startsWith(`${row.group}:`)&&row.clientId.length>`${row.group}:`.length&&cohort.groups.includes(row.group))&&
+    sameMembers([...new Set(cohort.clients.map(row=>row.group))],cohort.groups);
+  const replacement=load.restarts.length===1&&restart.generation===1&&typeof restart.serverId==='string'&&restart.serverId.length>0&&
+    typeof load.initialServerId==='string'&&load.initialServerId.length>0&&restart.serverId!==load.initialServerId&&
+    time(restart.startedAt)&&time(restart.serverReadyMs)&&cleanExit(restart.shutdown);
+  const limitMs=profile.sustained.recoveryDeadlineSeconds*1000;
+  const groupProof=cohortValid&&replacement&&sameMembers(groups.map(row=>row.group),cohort.groups)&&
+    groups.every(row=>proof(row,restart.serverId)&&row.elapsedMs>=restart.serverReadyMs&&row.elapsedMs<limitMs);
+  const firstHTTPRecoveryMs = groupProof ? Math.max(...groups.map(row=>row.elapsedMs)) : null;
   const restartElapsedMs = restart?.startedAt - load.workloadStart;
-  // First successful visits alone could bless an evict/reopen loop. Require a
-  // post-restart sample showing the entire active cohort resident together.
-  const resident = (result.samples??[]).find(sample=>sample.generation===1&&sample.server?.health?.service?.openContexts>=activeGroups+1&&
-    firstHTTPRecoveryMs!==null&&sample.elapsedMs-restartElapsedMs>=firstHTTPRecoveryMs&&sample.elapsedMs-restartElapsedMs<profile.sustained.recoveryDeadlineSeconds*1000);
+  const deadlineAt=restart?.startedAt+limitMs,deadlineElapsed=restartElapsedMs+limitMs;
+  const samples=(result.samples??[]).filter(row=>time(row.elapsedMs)).sort((a,b)=>a.elapsedMs-b.elapsedMs);
+  const healthy=sample=>sample.generation===1&&sample.server?.serverId===restart?.serverId&&sample.server?.health?.ready===true&&
+    sample.server.health.savesReady===true&&sample.server.health.worker?.ready===true&&sample.server.health.service?.registry==='ready'&&sample.server.health.service.openContexts>=activeGroups+1;
+  // Confirm readiness through the deadline, rather than bless a transient open
+  // count. A first post-deadline sample bounds how long the evidence can be stale.
+  const confirmation=samples.find(row=>row.elapsedMs>=deadlineElapsed);
+  const confirmed=confirmation&&confirmation.elapsedMs<=deadlineElapsed+2*profile.sampleSeconds*1000&&healthy(confirmation);
+  const resident=groupProof&&confirmed&&samples.find(sample=>sample.elapsedMs>=restartElapsedMs+firstHTTPRecoveryMs&&sample.elapsedMs<deadlineElapsed&&healthy(sample)&&
+    samples.filter(row=>row.elapsedMs>=sample.elapsedMs&&row.elapsedMs<=confirmation.elapsedMs).every(healthy)&&
+    continuousSamples(samples,sample.elapsedMs,confirmation.elapsedMs,2*profile.sampleSeconds*1000));
   const recoveryMs = resident ? resident.elapsedMs-restartElapsedMs : null;
   const cold = load.operations.filter(row=>row.action==='cold-open');
-  const coldCount = cold.reduce((n,row)=>n+row.latency.count,0);
-  const coldGate = speed(cold,['cold-open'],2000);
-  if(coldCount!==activeGroups)coldGate.status='fail';
-  const drops = load.stats.clientDrops, misses = measured.filter(row=>row.action==='task-miss').reduce((n,row)=>n+row.cacheMisses,0);
-  const heavyCount = measured.filter(row=>row.action==='task-miss').reduce((n,row)=>n+row.latency.count,0);
-  const invalid = drops||result.telemetryErrors||result.shutdown?.forced||result.shutdown?.exitCode!=null&&result.shutdown.exitCode!==0||load.restarts.some(row=>row.shutdown?.forced||row.shutdown?.exitCode!=null&&row.shutdown.exitCode!==0);
+  const coldCount = cold.reduce((n,row)=>n+(row.latency?.count??0),0);
+  const offered=load.offeredOperations,measuredOffered=(offered??[]).filter(row=>profile.stages[row.stage]?.measured);
+  const coldGate = speed(cold,['cold-open'],2000,offered);
+  if(!cohortValid||!sameMembers(cohort.coldGroups??[],cohort.groups??[])||!sameMembers((load.coldOpens??[]).map(row=>row.group),cohort.groups??[])||
+    !(load.coldOpens??[]).every(row=>proof(row,load.initialServerId))||coldCount!==activeGroups)coldGate.status='fail';
+  const drops = load.stats.clientDrops,missRows=measured.filter(row=>row.action==='task-miss');
+  const misses=missRows.reduce((n,row)=>n+(row.successfulTaskMisses??0),0),heavyCount=missRows.reduce((n,row)=>n+(row.latency?.count??0),0);
+  const sampleValid=row=>row.server&&row.server.serverId===(row.generation===0?load.initialServerId:row.generation===1?restart?.serverId:null)&&
+    ['rss','heapUsed','external'].every(key=>time(row.server.memory?.[key]))&&time(row.server.eventLoop?.p99Ms)&&count(row.server.diagnostics?.queue?.depth);
+  const expectedTotal=(offered??[]).reduce((n,row)=>n+row.count,0),durationMs=profile.stages.reduce((n,row)=>n+row.seconds*1000,0);
+  // Sampling is serialized and its IPC request has a five-second deadline.
+  // A few isolated snapshots cannot stand in for the advertised time series.
+  const telemetryWindowMs=2*Math.max(profile.sampleSeconds*1000,5000);
+  const validGenerator=drops===0&&result.telemetryErrors===0&&cleanExit(result.shutdown)&&replacement&&
+    Array.isArray(offered)&&offered.length>0&&unique(offered.map(slot),offered.length)&&offered.every(row=>count(row.count)&&row.count>0)&&
+    offered.filter(row=>row.action==='restart').reduce((n,row)=>n+row.count,0)===1&&offered.filter(row=>row.action==='workload-end').reduce((n,row)=>n+row.count,0)===1&&
+    count(load.stats.offered)&&load.stats.offered===expectedTotal&&count(load.stats.completed)&&count(load.stats.recoveryProbesSkipped??0)&&
+    load.stats.completed+(load.stats.recoveryProbesSkipped??0)===load.stats.offered&&
+    load.operations.reduce((n,row)=>n+(row.latency?.count??0),0)===load.stats.completed&&
+    time(load.workloadStart)&&time(load.completedAt)&&load.completedAt-load.workloadStart>=durationMs&&
+    continuousSamples(samples,0,durationMs,telemetryWindowMs)&&
+    samples.some(row=>row.generation===0&&sampleValid(row))&&samples.some(row=>row.generation===1&&sampleValid(row))&&
+    samples.every(row=>row.restarting===true?row.elapsedMs>=restartElapsedMs&&row.elapsedMs<=restartElapsedMs+restart.serverReadyMs:sampleValid(row));
+  const clients=cohort.clients??[],lifetimes=load.recovery.streams??[];
+  const live=cohortValid&&replacement&&confirmed?clients.map(client=>liveRecoveryStream(lifetimes,client,{serverId:restart.serverId,
+    startedAt:restart.startedAt,deadlineAt,confirmedAt:load.workloadStart+confirmation.elapsedMs,completedAt:load.completedAt,sampleMs:profile.sampleSeconds*1000})):[];
+  const configuredPlugin=profile.stages.some(row=>row.measured&&row.pluginPerSecond>0),configuredSync=profile.stages.some(row=>row.measured&&row.syncPerMinute>0);
   return {
-    everyday:speed(measured,everydayActions,300), heavy:speed(measured,heavyActions,3000),coldOpen:{...coldGate,groups:coldCount},
-    restartRecovery:{status:load.restarts.length===1&&restart?.serverReadyMs!=null&&recoveryMs!==null&&recoveryMs<profile.sustained.recoveryDeadlineSeconds*1000?'pass':'fail',
+    everyday:speed(measured,everydayActions,300,measuredOffered),heavy:speed(measured,heavyActions,3000,measuredOffered),coldOpen:{...coldGate,groups:coldCount},
+    pluginTraffic:configuredPlugin?completion(measured,['pluginReport','pluginStatus','pluginTasks'],measuredOffered):{status:'not-configured'},
+    syncTraffic:configuredSync?completion(measured,['sync'],measuredOffered):{status:'not-configured'},
+    restartRecovery:{status:recoveryMs!==null&&recoveryMs<limitMs?'pass':'fail',
       readyGroups:groups.length,expectedGroups:activeGroups,recoveryMs,firstHTTPRecoveryMs,allActiveResident:!!resident,limitMs:profile.sustained.recoveryDeadlineSeconds*1000,
-      scope:'Every active group must return authenticated state and tasks, with a subsequent sample showing the active cohort resident together. Dormant groups stay dormant; no restore/durability proof.'},
-    streamRecovery:{status:load.recovery.streams.length===users&&load.recovery.streams.every(row=>row.elapsedMs<profile.sustained.recoveryDeadlineSeconds*1000)?'pass':'fail',
-      reopened:load.recovery.streams.length,expected:users,latency:distribution(load.recovery.streams.map(row=>row.elapsedMs))},
-    generator:{status:invalid?'fail':'pass',droppedArrivals:drops,telemetryErrors:result.telemetryErrors,forcedShutdown:!!(result.shutdown?.forced||load.restarts.some(row=>row.shutdown?.forced))},
-    calculationMissCoverage:{status:heavyCount&&misses>=heavyCount?'pass':'fail',misses,offeredTaskMisses:heavyCount},
-    refusalHeaders:{status:measured.some(row=>row.rejectsWithoutRetryAfter)||(load.stageStreams??[]).some(row=>row.rejectsWithoutRetryAfter)?'fail':'pass'},
+      scope:'Distinct active groups must return current state/tasks from the replacement process and remain healthy/resident through a bounded post-deadline confirmation. Dormant groups stay dormant.'},
+    streamRecovery:{status:live.length===users&&live.every(Boolean)?'pass':'fail',reopened:live.filter(Boolean).length,expected:users,
+      latency:distribution(live.filter(Boolean).map(row=>row.openedAt-restart.startedAt)),scope:'Expected clients must hold established replacement-process SSE streams at the deadline and confirmation. Bounded planned reconnect handoffs require live replacements; unexpected ends and closed handshakes do not count.'},
+    generator:{status:validGenerator?'pass':'fail',droppedArrivals:drops,telemetryErrors:result.telemetryErrors,shutdownClean:cleanExit(result.shutdown),restartShutdownClean:cleanExit(restart?.shutdown)},
+    calculationMissCoverage:{status:completion(measured,['task-miss'],measuredOffered).status==='pass'&&heavyCount>0&&missRows.every(row=>row.successfulTaskMisses===row.latency.count)?'pass':'fail',misses,offeredTaskMisses:heavyCount},
+    refusalHeaders:{status:headerEvidence(load.operations,load.stageStreams,profile.stages)?'pass':'fail'},
     format2Serving:{status:'blocked',reason:'HTTP format-2 activation and pinned catalogue preparation are not implemented (slice 7c).'},
     characterSwitch:{status:'blocked',offered:measured.filter(row=>row.action==='switch').reduce((n,row)=>n+row.latency.count,0),reason:'No durable character entity or authorized character switch API; offered switches are unsupported.'},
   };

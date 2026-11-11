@@ -131,10 +131,10 @@ try {
       generation++;lastCpu=undefined;lastAt=undefined;lastWindowAt=undefined;
       server=launch('server');childLogs(server);attach(server);
       const ready=await until(server,'ready');
-      return {base:ready.base,shutdown,generation};
+      return {base:ready.base,serverId:ready.serverId,shutdown,generation};
     } finally {restarting=false;}
   };
-  const load=await drive({base:ready.base,profile,fixture,directory,onSample:sample,restartServer,startWorkload:()=>runStart=performance.now()});
+  const load=await drive({base:ready.base,initialServerId:ready.serverId,profile,fixture,directory,onSample:sample,restartServer,startWorkload:()=>runStart=performance.now()});
   while(busy)await new Promise(resolve=>setTimeout(resolve,10));
   await sample({phase:'after'});
   const shutdown=await stop(server);server=undefined;

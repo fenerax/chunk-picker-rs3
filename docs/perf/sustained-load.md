@@ -10,7 +10,10 @@ format-1 comparison cannot approve format-2 launch.
 No application source or behavior changes are included. The harness uses
 existing injected synthetic definitions/world, diagnostics, context-open and
 admission observers. Existing runtime admission/residency/calculator defaults
-remain enabled. Synthetic offline provisioning uses the existing proposed
+remain enabled. The scratch wrapper adds an `x-capacity-server-id` response
+header and includes that random per-process identity in readiness and telemetry
+IPC receipts; production application code is unchanged. Synthetic offline
+provisioning uses the existing proposed
 entity caps (3,000 accounts / 3,500 pickers / 20,000 capabilities), just as the
 earlier capacity profiles do. Those caps do not implement product account quotas.
 No real saves, identities, providers, plugin clients, Platform or Hiscores calls
@@ -111,13 +114,28 @@ actions. This is a bounded synthetic reconnect policy, not a claim that every
 current browser transport error retries automatically.
 
 For five minutes after restart, independent staggered state + task readiness
-probes revisit each active group every five seconds until its first success.
+probes revisit each active group every five seconds until its first valid success.
 The recovery gate counts all **100 active groups**, including groups that never
-recover, from the start of shutdown, then requires a sample showing all 100
-resident together. Serial visits through an eviction loop cannot pass. The other 400 resident disk groups remain
+recover, from the shutdown request (including any wait for in-flight telemetry).
+Both state and tasks must identify the replacement process, and the tasks
+revision must be at least the returned state revision. Successful responses
+from a draining process are discarded and cannot suppress later probes, even
+when the replacement reuses its port. The gate then requires healthy samples
+showing all 100 resident together through a post-deadline confirmation, no later
+than two sampling intervals after the deadline. Serial visits through an eviction
+loop and transient residency cannot pass. The other 400 resident disk groups remain
 dormant. “All groups ready” here means the active workload cohort; this does not
 prove that all 500 can open simultaneously. SSE recovery counts all 200 clients
-separately. Concurrent same-group edits may naturally return 409; those appear
+by distinct group/member identity. A successful event-stream handshake records
+its opening and closure times, serving process, and closure reason (planned
+reconnect, cohort change, restart, workload end, or unexpected end). Every expected
+client must hold an established replacement-process connection at the recovery
+deadline and confirmation, lasting at least one sampling interval. A planned
+reconnect handoff may span that boundary for up to one sampling interval (or
+1.5 seconds, if larger, for normal reconnect jitter), provided its replacement
+is live at confirmation. Unexpected ends cannot bridge that boundary, and
+immediately closed handshakes cannot pass.
+Concurrent same-group edits may naturally return 409; those appear
 separately in statuses and fail the relevant speed bar rather than being hidden.
 
 ## Measurements and verdicts
@@ -129,13 +147,19 @@ client-in-flight cap records dropped arrivals and fails the generator gate.
 Phase labels separate cold-open, before-restart, restart-recovery and
 after-recovery observations. Each action/phase has p50/p95/p99, terminal statuses,
 HTTP-attempt status counts and raw refusal Retry-After histograms.
+Session checks sharing an in-flight preflight record a confirmed coalesced check
+only after that HTTP request succeeds; zero-request completions need that proof.
 
 | Speed bar | PASS requires |
 | --- | --- |
-| Everyday | Every measured everyday class has observations, p95 < 300 ms, and no terminal failures. |
-| Heavy | All four expensive classes have observations, p95 < 3,000 ms, and no terminal failures. Failed/empty work cannot provide a passing speed number. Actual task-miss coverage has a separate gate. |
-| Cold open | One successful state + tasks readiness open for every active group, p95 < 2,000 ms. Initial requests include HTTP queuing and client retries. |
-| Restart | Exactly one completed restart, every active group has returned state/tasks, and a subsequent sample shows all active groups resident together within 300 seconds, including server stop/start time. Smoke uses a 30-second recovery window. |
+| Everyday | Every planned action/phase completes, with valid p50/p95/p99, p95 < 300 ms, and no terminal failures. |
+| Heavy | All four expensive classes complete every planned action/phase, p95 < 3,000 ms, and no terminal failures. Actual task-miss coverage requires one successful cache-miss action per intended miss, not an aggregate of failed/repeated attempts. |
+| Cold open | One successful initial-process state + tasks readiness open for each distinct active group, p95 < 2,000 ms. Initial requests include HTTP queuing and client retries. |
+| Restart | Exactly one clean restart; distinct active groups return current replacement-process state/tasks and remain healthy/resident through the confirmation described above, with recovery before 300 seconds. Smoke uses a 30-second recovery window. |
+| Plugin / sync | Configured report, status, tasks and sync classes must complete every planned action/phase without terminal failures. Their p95 is reported per phase; browser latency limits do not apply. |
+| SSE recovery | Every expected client holds established replacement-process streams at the deadline and confirmation, with recorded lifetimes and closure reasons. Bounded planned reconnect handoffs require live replacements. |
+| Generator / controls | Explicit unforced exit-code-zero receipts with no signal for both shutdowns; no drops or telemetry errors; complete offered/completed/skipped accounting and full run duration; valid memory, queue and event-loop time series from both generations. Gaps may not exceed twice the larger of the sampling interval and five-second telemetry IPC timeout. Restart placeholders are allowed only during stop/start. |
+| Refusal headers | HTTP and SSE 429/503 totals reconcile with nonempty, valid Retry-After histograms, including cold opens. Missing counters or observations cannot stand in for zero refusals. |
 
 Refusals, timeouts and failures remain in latency distributions. An all-refusal
 run cannot pass because its responses are fast. Missing classes fail, and blocked
@@ -270,7 +294,7 @@ its original verdicts; the 9.38-second residency result is a stricter offline
 evaluation of its existing samples. A tiny fixture is a protocol/driver smoke,
 never a capacity acceptance result.
 
-Final focused verification passed **36 cases in three files**:
+Initial implementation verification passed **36 cases in three files**:
 `tests/capacity-sustained.test.mjs` (8), `tests/capacity-harness.test.mjs` (16),
 and `tests/capacity-realism.test.mjs` (12), using Node 24.20.0, their complete
 `testRunPolicy` environments, `--test-concurrency=1`, BelowNormal priority and
@@ -278,3 +302,20 @@ the shared lock for the combined run. The reused SSE regressions caught and
 verified a correction to handshake observation with injected headerless test
 responses. Syntax checks, `git diff --check`, and the real CLI's format-2
 refusal before output creation also passed. No full suite or hosted CI ran.
+
+PR #211 gate review added four regressions for replacement-generation readiness,
+failed/missing plugin and sync work, signal exits, and immediately closed SSE.
+The gate sweep added twelve regressions covering incomplete latency/completion,
+confirmed session coalescing, phase evidence, duplicate/missing cohort identities,
+invalid stream lifetimes,
+stale task revisions, transient/unhealthy residency, aggregate cache-miss masking,
+missing telemetry/accounting/truncated duration, isolated telemetry snapshots,
+incomplete Retry-After evidence, and non-SSE HTTP 200 responses. The existing
+real-server capacity test also checks the scratch identity response header.
+
+Review-fix verification passed **52 cases in the same three files**: sustained
+(24), harness (16), realism (12), with zero failures or skips, Node 24.20.0,
+complete `testRunPolicy` environments, one worker, BelowNormal priority and the
+shared lock. No new smoke, full suite, or hosted CI ran. Historical smoke artifacts
+are unchanged; they lack the new process/lifetime/accounting receipts and cannot
+satisfy the hardened gates or establish recovery under the new rules.

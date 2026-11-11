@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { prepareCohorts, drive } from '../scripts/perf/capacity/driver.mjs';
+import { prepareCohorts, drive, consumeStream } from '../scripts/perf/capacity/driver.mjs';
 import { planFixture, catalogue, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
 import { sustainedArrivals, sustainedAction, sustainedPhase, sustainedBrowserAction, validateSustained } from '../scripts/perf/capacity/sustained.mjs';
 import { evaluateSustained, everydayActions, heavyActions } from '../scripts/perf/capacity/sustained-report.mjs';
 import { retryRead } from '../scripts/perf/capacity/client.mjs';
 import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
+import { SERVER_ID_HEADER, readinessProof } from '../scripts/perf/capacity/evidence.mjs';
 
 const profile = JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained.json',import.meta.url)));
 function fixture(settings=profile) {
@@ -97,26 +98,42 @@ test('fresh-map Undo offers valid durable work and restores the note through rea
   assert.deepEqual(commands,['set-note','undo']);assert.deepEqual(state.members[0].notes,initialNotes);
 });
 function reportFixture() {
-  const row=action=>({stage:1,action,latency:{count:10,p50Ms:10,p95Ms:20,p99Ms:30},statuses:{200:10},cacheMisses:action==='task-miss'?10:0});
+  const row=(action,n=10)=>({stage:1,phase:'before-restart',action,latency:{count:n,p50Ms:10,p95Ms:20,p99Ms:30},statuses:{200:n},
+    httpRequests:n,httpRejects:0,httpStatuses:{200:n},retryAfterValues:{},rejectsWithoutRetryAfter:0,
+    cacheMisses:action==='task-miss'?n:0,successfulTaskMisses:action==='task-miss'?n:0});
+  const ready=(group,serverId,elapsedMs)=>({group,serverId,stateServerId:serverId,tasksServerId:serverId,stateRevision:1,tasksRevision:1,elapsedMs});
+  const operations=[...everydayActions,...heavyActions,'pluginReport','pluginStatus','pluginTasks','sync'].map(action=>row(action));
+  operations.push({...row('cold-open',2),stage:0,phase:'cold-open'},{...row('restart',1),phase:'restart-recovery'},{...row('workload-end',1),phase:'after-recovery'});
+  const offeredOperations=operations.map(({stage,phase,action,latency})=>({stage,phase,action,count:latency.count}));
+  const clients=[1,2].flatMap(group=>['owner','member2'].map(memberId=>({group,clientId:`${group}:${memberId}`})));
+  const sample=(generation,elapsedMs)=>({generation,elapsedMs,server:{serverId:generation?'new-process':'old-process',memory:{rss:1,heapUsed:1,external:0},
+    eventLoop:{p99Ms:1},diagnostics:{queue:{depth:0}},health:{ready:true,savesReady:true,worker:{ready:true},service:{registry:'ready',openContexts:3}}}});
+  const shutdown={forced:false,exitCode:0,signal:null};
+  const offered=offeredOperations.reduce((n,row)=>n+row.count,0);
   return {profile:{...profile,stages:[profile.stages[0],{...profile.stages[1],activeGroups:2,users:4}]},format:'format1',
-    load:{stats:{clientDrops:0},operations:[...everydayActions,...heavyActions].map(row).concat([{...row('cold-open'),stage:0,latency:{count:2,p95Ms:10},statuses:{200:2}}]),
-      workloadStart:0,restarts:[{startedAt:1000,serverReadyMs:10,shutdown:{forced:false}}],recovery:{groups:[{group:1,elapsedMs:100},{group:2,elapsedMs:200}],streams:[1,2,3,4].map(group=>({group,elapsedMs:300}))}},
-    samples:[{generation:1,elapsedMs:1300,server:{health:{service:{openContexts:3}}}}],telemetryErrors:0,shutdown:{forced:false}};
+    load:{stats:{clientDrops:0,offered,completed:offered,recoveryProbesSkipped:0},operations,offeredOperations,initialServerId:'old-process',
+      cohort:{groups:[1,2],coldGroups:[1,2],clients},coldOpens:[ready(1,'old-process',100),ready(2,'old-process',200)],
+      stageStreams:[{attempted:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},{attempted:4,statuses:{200:4},retryAfterValues:{},rejectsWithoutRetryAfter:0}],
+      workloadStart:0,completedAt:1920100,restarts:[{startedAt:1020000,serverReadyMs:10,generation:1,serverId:'new-process',shutdown:{...shutdown}}],
+      recovery:{groups:[ready(1,'new-process',100),ready(2,'new-process',200)],
+        streams:clients.map(client=>({...client,serverId:'new-process',openedAt:1020300,closedAt:1920000,closeReason:'workload-end'}))}},
+    samples:[sample(0,100000),sample(1,1020300),sample(1,1321000),
+      ...Array.from({length:384},(_,i)=>(i+1)*5000+1500).map(at=>sample(at>=1020010?1:0,at))],telemetryErrors:0,shutdown};
 }
 test('speed verdicts cannot pass fast refusals, missing classes, dropped work or incomplete recovery',()=>{
   const result=reportFixture(),gates=evaluateSustained(result);
   assert.equal(gates.everyday.status,'pass');assert.equal(gates.heavy.status,'pass');assert.equal(gates.coldOpen.status,'pass');
   assert.equal(gates.restartRecovery.status,'pass');assert.equal(gates.format2Serving.status,'blocked');assert.equal(gates.characterSwitch.status,'blocked');
-  result.samples[0].server.health.service.openContexts=2;
+  result.samples.filter(row=>row.generation===1).forEach(row=>row.server.health.service.openContexts=2);
   assert.equal(evaluateSustained(result).restartRecovery.status,'fail','visiting groups serially cannot stand in for simultaneous readiness');
-  result.samples[0].server.health.service.openContexts=3;
+  result.samples.filter(row=>row.generation===1).forEach(row=>row.server.health.service.openContexts=3);
   result.load.operations.find(row=>row.action==='tick').statuses={503:10};
   assert.equal(evaluateSustained(result).everyday.status,'fail');
   result.load.operations=result.load.operations.filter(row=>row.action!=='preview');
   assert.deepEqual(evaluateSustained(result).heavy.missing,['preview']);
   result.load.recovery.groups.pop();assert.equal(evaluateSustained(result).restartRecovery.status,'fail');
   result.load.stats.clientDrops=1;assert.equal(evaluateSustained(result).generator.status,'fail');
-  result.load.operations.find(row=>row.action==='task-miss').cacheMisses=0;assert.equal(evaluateSustained(result).calculationMissCoverage.status,'fail');
+  result.load.operations.find(row=>row.action==='task-miss').successfulTaskMisses=0;assert.equal(evaluateSustained(result).calculationMissCoverage.status,'fail');
 });
 test('smoke stays tiny, with a full recovery window and one scheduled restart',async()=>{
   const smoke=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
@@ -137,13 +154,13 @@ test('driver retains its schedule through restart, updates the scratch origin an
     const parsed=new URL(url);origins.push(parsed.origin);
     if(parsed.pathname==='/api/events') {
       const body=new ReadableStream({start(controller){const close=()=>controller.close();options.signal.addEventListener('abort',close,{once:true});if(options.signal.aborted)close();}});
-      return new Response(body);
+      return new Response(body,{headers:{'Content-Type':'text/event-stream',[SERVER_ID_HEADER]:parsed.port==='1'?'old-process':'new-process'}});
     }
     return Response.json(parsed.pathname==='/api/state'?{state:{revision:1,members:[{id:'owner'},{id:'member2'}]}}:
-      parsed.pathname==='/api/tasks'?{stateRevision:1,tasks:[]}:{});
+      parsed.pathname==='/api/tasks'?{stateRevision:1,tasks:[]}:{},{headers:{[SERVER_ID_HEADER]:parsed.port==='1'?'old-process':'new-process'}});
   };
-  const result=await drive({base:'http://127.0.0.1:1',profile:smoke,fixture:fixture(smoke),directory,onSample:async()=>{},fetchRequest,
-    restartServer:async()=>{restarts++;return {base:'http://127.0.0.1:2',shutdown:{forced:false,exitCode:0}};},
+  const result=await drive({base:'http://127.0.0.1:1',initialServerId:'old-process',profile:smoke,fixture:fixture(smoke),directory,onSample:async()=>{},fetchRequest,
+    restartServer:async()=>{restarts++;return {base:'http://127.0.0.1:2',serverId:'new-process',generation:1,shutdown:{forced:false,exitCode:0,signal:null}};},
     schedule:async(events,run)=>{
       for(const event of events.filter(row=>['cold-open','restart','recovery-open','workload-end'].includes(row.kind)))
         await run({...event,scheduledAt:performance.now()});
@@ -154,4 +171,164 @@ test('driver retains its schedule through restart, updates the scratch origin an
   assert.equal(records.find(row=>row.action==='restart').scheduledMs,65000);
   assert.deepEqual(new Set(records.filter(row=>row.action==='recovery-open').map(row=>row.status)),new Set([200]));
   assert.ok(records.filter(row=>row.action==='recovery-open').every(row=>row.phase==='restart-recovery'));
+});
+
+test('P1: successful probes on the draining process do not recover groups, even when the port is reused',async t=>{
+  const settings=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
+  settings.streamConnectSpreadMs=0;
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-sustained-generation-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  let serving='old-process',release;
+  const waiting=new Promise(resolve=>release=resolve),base='http://127.0.0.1:1';
+  const fetchRequest=async(url,options)=>{
+    const route=new URL(url).pathname;
+    if(route==='/api/events')return new Response(new ReadableStream({start(controller){options.signal.addEventListener('abort',()=>controller.close(),{once:true});}}),
+      {headers:{'content-type':'text/event-stream',[SERVER_ID_HEADER]:serving}});
+    return Response.json(route==='/api/state'?{state:{revision:1,members:[{id:'owner'},{id:'member2'}]}}:route==='/api/tasks'?{stateRevision:1,tasks:[]}:{},
+      {headers:{[SERVER_ID_HEADER]:serving}});
+  };
+  const result=await drive({base,initialServerId:serving,profile:settings,fixture:fixture(settings),directory,onSample:async()=>{},fetchRequest,
+    restartServer:async()=>{await waiting;return {base,serverId:'new-process',generation:1,shutdown:{forced:false,exitCode:0,signal:null}};},
+    schedule:async(events,run)=>{
+      const invoke=event=>run({...event,scheduledAt:performance.now()});
+      const restartJob=invoke(events.find(row=>row.kind==='restart'));
+      const probes=events.filter(row=>row.kind==='recovery-open');
+      await invoke(probes[0]); // Both HTTP responses are 200 while stop waits on telemetry.
+      serving='new-process';release();await restartJob;
+      await invoke(probes[2]);await invoke(probes[3]);
+    }});
+  assert.equal(result.recovery.groups.length,2);
+  assert.ok(result.recovery.groups.every(row=>row.stateServerId==='new-process'&&row.tasksServerId==='new-process'));
+  const records=(await readFile(path.join(directory,'events.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);
+  const old=records.find(row=>row.action==='recovery-open');assert.equal(old.status,'stale-generation');
+  assert.equal(old.requests.filter(row=>['/api/state','/api/tasks'].includes(row.route)&&row.status===200).length,2);
+  const readiness={state:{state:{revision:1,members:[{id:'owner'}]}},tasks:{stateRevision:1,tasks:[]},memberId:'owner',expectedServerId:'new-process'};
+  for(const [stateServerId,tasksServerId] of [['old-process','new-process'],['new-process','old-process']])
+    assert.throws(()=>readinessProof({...readiness,stateServerId,tasksServerId}),error=>error.status==='stale-generation');
+});
+
+test('P2: plugin and sync 500s or missing configured classes cannot pass completion gates',()=>{
+  const result=reportFixture();
+  assert.ok(Object.values(evaluateSustained(result)).every(gate=>['pass','blocked'].includes(gate.status)));
+  for(const action of ['pluginReport','pluginStatus','pluginTasks','sync']) {
+    const row=result.load.operations.find(row=>row.action===action);row.statuses={500:10};row.httpStatuses={500:10};
+  }
+  assert.equal(evaluateSustained(result).pluginTraffic.status,'fail');assert.equal(evaluateSustained(result).syncTraffic.status,'fail');
+  const missing=reportFixture();missing.load.operations=missing.load.operations.filter(row=>!['pluginTasks','sync'].includes(row.action));
+  assert.ok(evaluateSustained(missing).pluginTraffic.missing.includes('pluginTasks'));assert.ok(evaluateSustained(missing).syncTraffic.missing.includes('sync'));
+  assert.equal(evaluateSustained(reportFixture()).pluginTraffic.classes[0].p95ByPhaseMs[0].p95Ms,20);
+});
+test('P2: restart and final shutdown require explicit zero exit codes without signals',()=>{
+  for(const receipt of [{forced:false,exitCode:null,signal:'SIGTERM'},{forced:false,exitCode:0,signal:'SIGTERM'},{forced:false},{forced:true,exitCode:0,signal:null},undefined]) {
+    for(const target of ['restart','final']) {
+      const result=reportFixture();if(target==='restart')result.load.restarts[0].shutdown=receipt;else result.shutdown=receipt;
+      assert.equal(evaluateSustained(result).generator.status,'fail');
+    }
+  }
+});
+test('P2: immediately closed 200 SSE handshakes do not recover clients; planned reconnects may recover with live replacements',()=>{
+  const result=reportFixture();result.load.recovery.streams.forEach(row=>{row.closedAt=row.openedAt+1;row.closeReason='unexpected';});
+  assert.equal(evaluateSustained(result).streamRecovery.status,'fail');
+  const planned=reportFixture();planned.load.recovery.streams.unshift({...planned.load.recovery.streams[0],closedAt:1020500,closeReason:'reconnect'});
+  assert.equal(evaluateSustained(planned).streamRecovery.status,'pass');
+  const handoff=reportFixture(),before=handoff.load.recovery.streams[0];
+  handoff.load.recovery.streams.push({...before,openedAt:1320500});before.closedAt=1319990;before.closeReason='reconnect';
+  assert.equal(evaluateSustained(handoff).streamRecovery.status,'pass','a planned handoff across the deadline needs a live replacement at confirmation');
+  before.closeReason='unexpected';assert.equal(evaluateSustained(handoff).streamRecovery.status,'fail');
+  before.closeReason='reconnect';handoff.load.recovery.streams.pop();assert.equal(evaluateSustained(handoff).streamRecovery.status,'fail');
+});
+test('sweep: absent or malformed latency and terminal completion evidence cannot pass speed bars',()=>{
+  for(const change of [row=>row.latency.p95Ms=null,row=>delete row.latency,row=>row.statuses={},row=>row.statuses={200:9},
+    row=>row.httpRequests=0,row=>{row.httpRequests=1;row.httpStatuses={200:1};},row=>row.httpStatuses={500:10}]) {
+    const result=reportFixture();change(result.load.operations.find(row=>row.action==='state'));
+    assert.equal(evaluateSustained(result).everyday.status,'fail');
+  }
+});
+test('sweep: session completions require successful HTTP or confirmed coalesced checks',async t=>{
+  const result=reportFixture(),session=result.load.operations.find(row=>row.action==='session');
+  session.httpRequests=0;session.httpStatuses={};
+  assert.equal(evaluateSustained(result).everyday.status,'fail');
+  session.coalescedSessionChecks=10;assert.equal(evaluateSustained(result).everyday.status,'pass');
+  const settings=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
+  settings.streamConnectSpreadMs=0;
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-sustained-session-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  let release;const pending=new Promise(resolve=>release=resolve);
+  const load=await drive({base:'http://127.0.0.1:1',initialServerId:'old-process',profile:settings,fixture:fixture(settings),directory,onSample:async()=>{},
+    fetchRequest:async(url,options)=>{
+      if(new URL(url).pathname==='/api/events')return new Response(new ReadableStream({start(controller){options.signal.addEventListener('abort',()=>controller.close(),{once:true});}}),
+        {headers:{'content-type':'text/event-stream',[SERVER_ID_HEADER]:'old-process'}});
+      await pending;return Response.json({},{headers:{[SERVER_ID_HEADER]:'old-process'}});
+    },schedule:async(events,run)=>{
+      const sessions=events.filter(row=>row.kind==='session').slice(0,2);
+      const jobs=sessions.map(event=>run({...event,clientIndex:0,scheduledAt:performance.now()}));release();await Promise.all(jobs);
+    }});
+  const observed=load.operations.find(row=>row.action==='session');
+  assert.equal(observed.latency.count,2);assert.equal(observed.httpRequests,1);assert.equal(observed.coalescedSessionChecks,1);
+});
+test('sweep: partial phases and duplicate cold/recovery identities cannot replace the planned cohort',()=>{
+  const partial=reportFixture();partial.load.offeredOperations.push({stage:1,phase:'after-recovery',action:'state',count:10});
+  assert.equal(evaluateSustained(partial).everyday.status,'fail');
+  for(const evidence of ['coldOpens','groups']) {
+    const result=reportFixture(),rows=evidence==='coldOpens'?result.load.coldOpens:result.load.recovery.groups;
+    rows[1]={...rows[0]};assert.equal(evaluateSustained(result)[evidence==='coldOpens'?'coldOpen':'restartRecovery'].status,'fail');
+  }
+});
+test('sweep: missing or mismatched cohort identities cannot certify cold, HTTP or stream recovery',()=>{
+  for(const change of [result=>delete result.load.cohort.clients[0].clientId,
+    result=>result.load.cohort.clients[0].clientId='other-group:owner',result=>result.load.cohort.groups[0]=undefined,
+    result=>result.load.cohort.clients.forEach((row,index)=>{row.group=1;row.clientId=`1:member${index}`;})]) {
+    const result=reportFixture();change(result);const gates=evaluateSustained(result);
+    for(const gate of ['coldOpen','restartRecovery','streamRecovery'])assert.equal(gates[gate].status,'fail');
+  }
+});
+test('sweep: missing stream closure records and impossible lifetimes cannot prove a live cohort',()=>{
+  for(const change of [row=>delete row.closedAt,row=>row.closedAt=2000000,row=>row.closeReason='unknown',row=>row.serverId='old-process']) {
+    const result=reportFixture();change(result.load.recovery.streams[0]);assert.equal(evaluateSustained(result).streamRecovery.status,'fail');
+  }
+});
+test('sweep: stale task readiness cannot confirm a newer state revision',()=>{
+  assert.throws(()=>readinessProof({state:{state:{revision:5,members:[{id:'owner'}]}},tasks:{stateRevision:4,tasks:[]},
+    memberId:'owner',expectedServerId:'new-process',stateServerId:'new-process',tasksServerId:'new-process'}),error=>error.status==='stale-readiness');
+  const result=reportFixture();result.load.recovery.groups[0].tasksRevision=0;
+  assert.equal(evaluateSustained(result).restartRecovery.status,'fail');
+});
+test('sweep: an unhealthy, stale-generation or transient residency sample cannot prove sustained recovery',()=>{
+  for(const change of [sample=>sample.server.health.ready=false,sample=>sample.server.health.savesReady=false,
+    sample=>sample.server.serverId='old-process',sample=>sample.server.health.service.openContexts=2]) {
+    const result=reportFixture();change(result.samples[2]);assert.equal(evaluateSustained(result).restartRecovery.status,'fail');
+  }
+  const transient=reportFixture(),bad=structuredClone(transient.samples[1]);bad.elapsedMs=1319999;bad.server.health.ready=false;
+  transient.samples.splice(2,0,bad);assert.equal(evaluateSustained(transient).restartRecovery.status,'fail');
+});
+test('sweep: failed or repeated cache-miss attempts cannot compensate for an intended action that hit cache',()=>{
+  const result=reportFixture(),row=result.load.operations.find(row=>row.action==='task-miss');
+  row.cacheMisses=100;row.successfulTaskMisses=9;
+  assert.equal(evaluateSustained(result).calculationMissCoverage.status,'fail');
+  row.successfulTaskMisses=10;row.statuses={200:9,500:1};assert.equal(evaluateSustained(result).calculationMissCoverage.status,'fail');
+});
+test('sweep: missing telemetry, missing scheduled work and a truncated run fail the generator gate',()=>{
+  for(const change of [result=>result.samples=[],result=>result.load.stats.completed--,result=>result.load.completedAt=1900000,
+    result=>delete result.telemetryErrors,result=>result.load.offeredOperations=[],result=>result.samples[1].server.memory.rss=null]) {
+    const result=reportFixture();change(result);assert.equal(evaluateSustained(result).generator.status,'fail');
+  }
+});
+test('sweep: isolated telemetry snapshots cannot prove recovery or the full run time series',()=>{
+  const result=reportFixture();result.samples=result.samples.slice(0,3);
+  const gates=evaluateSustained(result);assert.equal(gates.generator.status,'fail');assert.equal(gates.restartRecovery.status,'fail');
+  const restarting=reportFixture();restarting.samples[0].restarting=true;
+  assert.equal(evaluateSustained(restarting).generator.status,'fail','restart placeholders cannot mask telemetry loss outside the restart');
+});
+test('sweep: missing or invalid Retry-After evidence in cold opens or SSE cannot hide behind zero counters',()=>{
+  const result=reportFixture(),cold=result.load.operations.find(row=>row.action==='cold-open');
+  cold.httpRequests++;cold.httpRejects=1;cold.httpStatuses[503]=1;
+  assert.equal(evaluateSustained(result).refusalHeaders.status,'fail');
+  cold.retryAfterValues={bananas:1};assert.equal(evaluateSustained(result).refusalHeaders.status,'fail');
+  const stream=reportFixture();stream.load.stageStreams[1].attempted++;stream.load.stageStreams[1].statuses[503]=1;
+  assert.equal(evaluateSustained(stream).refusalHeaders.status,'fail');
+});
+test('sweep: a successful non-SSE HTTP response cannot establish a live event stream',async()=>{
+  const counters={attempted:0,opened:0,unexpectedFailures:0,statuses:{}},stats={streamOpened:0,httpBytes:0};let opened=false,closed;
+  const result=await consumeStream({base:'http://127.0.0.1:1',client:{cookie:'synthetic'},controller:new AbortController(),counters,stats,
+    planned:()=>false,requireEventStream:true,onOpened:()=>opened=true,onClosed:row=>closed=row,
+    fetchRequest:async()=>Response.json({ready:true},{headers:{[SERVER_ID_HEADER]:'new-process'}})});
+  assert.equal(result.opened,false);assert.equal(opened,false);assert.equal(closed.opened,false);assert.equal(counters.unexpectedFailures,1);
 });

@@ -4,6 +4,7 @@ import { arrivals, dispatch } from './scheduler.mjs';
 import { loopback, random } from './model.mjs';
 import { createBrowserClient, reconnectStream, pause, retryAfterMs, retryRead } from './client.mjs';
 import { sustainedArrivals, sustainedAction, sustainedBrowserAction, sustainedPhase } from './sustained.mjs';
+import { SERVER_ID_HEADER, clientIdentity, plannedOperations, readinessProof } from './evidence.mjs';
 
 export function percentile(values,p) {
   const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.max(0,Math.ceil(sorted.length*p)-1)] : null;
@@ -90,7 +91,7 @@ export function rotationInterval(profile) {
   if(!Number.isFinite(profile.rotationSeconds)||profile.rotationSeconds<=0)throw new Error('Invalid cohort rotation interval.');
   return profile.rotationSeconds*1000;
 }
-export async function consumeStream({base,client,controller,counters,stats,planned,onOpened=()=>{},onHandshake=()=>{},headerDeadlineMs=5000,fetchRequest=fetch,timer=setTimeout,cancelTimer=clearTimeout}) {
+export async function consumeStream({base,client,controller,counters,stats,planned,onOpened=()=>{},onClosed=()=>{},onHandshake=()=>{},requireEventStream=false,headerDeadlineMs=5000,fetchRequest=fetch,timer=setTimeout,cancelTimer=clearTimeout}) {
   const currentCounters=()=>typeof counters==='function'?counters():counters;
   let headersReceived=false,headerExpired=false,opened=false;
   currentCounters().attempted++;
@@ -98,16 +99,23 @@ export async function consumeStream({base,client,controller,counters,stats,plann
   try {
     const response=await fetchRequest(base+'/api/events',{headers:{Cookie:client.cookie},signal:controller.signal,redirect:'error'});
     headersReceived=true;cancelTimer(deadline);
-    onHandshake({status:response.status,retryAfter:response.headers?.get?.('retry-after')??null});
+    const retryAfter=response.headers?.get?.('retry-after')??null,serverId=response.headers?.get?.(SERVER_ID_HEADER)??null;
+    onHandshake({status:response.status,retryAfter,serverId});
     currentCounters().statuses[response.status]=(currentCounters().statuses[response.status]??0)+1;
     if(!response.ok){
       stats.streamRejected++;currentCounters().rejected++;
-      if([429,503].includes(response.status)){if(!response.headers.get('retry-after'))currentCounters().rejectsWithoutRetryAfter++;}
+      if([429,503].includes(response.status)){
+        if(!retryAfter)currentCounters().rejectsWithoutRetryAfter++;
+        const values=currentCounters().retryAfterValues??={};values[retryAfter??'(missing)']=(values[retryAfter??'(missing)']??0)+1;
+      }
       else currentCounters().unexpectedFailures++;
       await response.body?.cancel();
       return {opened:false,retryAfterMs:retryAfterMs(response)};
     }
-    opened=true;stats.streamOpened++;currentCounters().opened++;onOpened();
+    if(requireEventStream&&!/^text\/event-stream(?:;|$)/i.test(response.headers?.get?.('content-type')??'')) {
+      currentCounters().unexpectedFailures++;await response.body?.cancel();return {opened:false};
+    }
+    opened=true;stats.streamOpened++;currentCounters().opened++;onOpened({serverId});
     for await(const bytes of response.body)stats.httpBytes+=bytes.length;
     if(!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
     return {opened:true};
@@ -115,9 +123,9 @@ export async function consumeStream({base,client,controller,counters,stats,plann
     if(!headersReceived&&(headerExpired||!planned())){stats.streamEstablishmentFailures++;currentCounters().establishmentFailures++;}
     else if(headersReceived&&!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
     return {opened};
-  } finally {cancelTimer(deadline);}
+  } finally {cancelTimer(deadline);onClosed({opened,planned:planned()});}
 }
-export async function drive({base,profile,fixture,directory,onSample,restartServer,startWorkload=()=>performance.now(),fetchRequest=fetch,schedule=dispatch}) {
+export async function drive({base,initialServerId,profile,fixture,directory,onSample,restartServer,startWorkload=()=>performance.now(),fetchRequest=fetch,schedule=dispatch}) {
   base=loopback(base,{assigned:profile.port===0});
   const cohorts=prepareCohorts(profile,fixture),chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
   const workloadEvents=profile.sustained?sustainedArrivals(profile,cohorts):arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
@@ -125,9 +133,9 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
   const events=[...workloadEvents,...sessionArrivals(profile,cohorts).filter(event=>!profile.sustained||event.stage>0)]
     .sort((a,b)=>a.atMs-b.atMs).map((event,i)=>({...event,id:i+1}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
-    rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
-    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(()=>({attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{}})),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
-  const streamAttempts=new Map(),recovered=new Map(),streamRecovery=new Map(),restarts=[],streamHandshakes=[];
+    rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,recoveryProbesSkipped:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
+    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(()=>({attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{},retryAfterValues:{}})),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
+  const streamAttempts=new Map(),recovered=new Map(),restarts=[],streamHandshakes=[],streamLifetimes=[],coldOpens=[];
   let streamShutdown=false, active=0, maxActive=0,restart;
   const request=async(client,route,body,extra={})=>{
     stats.httpRequests++;
@@ -143,7 +151,7 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
     try {text=await res.text();}catch(error){observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.wallMs=performance.now()-requestStart;stats.httpErrors++;throw error;}
     stats.httpBytes+=Buffer.byteLength(text);
     let value;try{value=JSON.parse(text);}catch{value=null;}
-    Object.assign(observation,{status:res.status,retryAfter:res.headers.get('retry-after'),wallMs:performance.now()-requestStart,
+    Object.assign(observation,{status:res.status,serverId:res.headers.get(SERVER_ID_HEADER),retryAfter:res.headers.get('retry-after'),wallMs:performance.now()-requestStart,
       cacheHit:typeof value?.cache?.hit==='boolean'?value.cache.hit:null,evaluationMs:value?.cache?.evaluationMs??null,timingMs:value?.cache?.timingMs??null});
     const revision=body?.expectedRevision??new URL(route,base).searchParams.get('revision');
     if(revision!==null&&revision!==undefined&&Number.isSafeInteger(Number(revision)))observation.requestRevision=Number(revision);
@@ -166,13 +174,18 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
     }
     const options={...extra,client};
     if(!extra.plugin) {
-      let check=sessions.get(identity);
+      let check=sessions.get(identity),coalesced=!!check;
       if(!check) {
-        check=reader('/api/session',undefined,options).finally(()=>sessions.delete(identity));
+        check={observations:client.observations};
+        check.promise=reader('/api/session',undefined,options).finally(()=>sessions.delete(identity));
         sessions.set(identity,check);
       }
-      const session=await check;
-      if(route==='/api/session')return session;
+      const session=await check.promise;
+      if(route==='/api/session') {
+        if(coalesced&&check.observations.findLast(row=>row.route==='/api/session')?.status===200)
+          client.coalescedSessionChecks=(client.coalescedSessionChecks??0)+1;
+        return session;
+      }
     }
     return reader(route,body,options);
   };
@@ -193,13 +206,15 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
         connect:async()=>{
           const attemptController=new AbortController(),attempt={controller:attemptController,planned:false},abort=()=>attemptController.abort();
           const startedAt=performance.now();
+          let connection;
           streamAttempts.set(client.cookie,attempt);
           controller.signal.addEventListener('abort',abort,{once:true});
           if(controller.signal.aborted)abort();
-          try {return await consumeStream({base,client,controller:attemptController,counters,stats,fetchRequest,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
-            onOpened:()=>{if(restart?.serverReadyMs!=null&&!streamRecovery.has(client.cookie))streamRecovery.set(client.cookie,{group:client.group,elapsedMs:performance.now()-restart.startedAt});},
+          try {return await consumeStream({base,client,controller:attemptController,counters,stats,fetchRequest,requireEventStream:!!profile.sustained,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
+            onOpened:({serverId})=>{if(profile.sustained){connection={clientId:clientIdentity(client),group:client.group,serverId,openedAt:performance.now(),closedAt:null,closeReason:null};streamLifetimes.push(connection);}},
+            onClosed:({planned})=>{if(connection){connection.closedAt=performance.now();connection.closeReason=planned||'unexpected';}},
             onHandshake:observation=>{if(profile.sustained)streamHandshakes.push({...observation,stage:currentStage,phase:sustainedPhase(profile,performance.now()-workloadStart),latencyMs:performance.now()-startedAt});},
-            planned:()=>streamShutdown||controller.signal.aborted||attempt.planned||!!(profile.sustained&&restart&&restart.serverReadyMs==null)});}
+            planned:()=>streamShutdown?'workload-end':controller.signal.aborted?'cohort-change':attempt.planned?'reconnect':profile.sustained&&restart&&restart.serverReadyMs==null?'server-restart':false});}
           finally {if(streamAttempts.get(client.cookie)===attempt)streamAttempts.delete(client.cookie);controller.signal.removeEventListener('abort',abort);}
         }});
       streamJobs.add(job);job.finally(()=>streamJobs.delete(job));
@@ -214,7 +229,7 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
     const phase=sustainedPhase(profile,event.atMs);
     const row={id:event.id,stage:event.stage,...(phase?{phase}:{}),action,scheduledMs:event.atMs,startLagMs:start-event.scheduledAt,latencyMs:end-event.scheduledAt,httpWallMs:end-start,...outcome};
     const group=records[`${event.stage}:${phase??''}:${action}`]??={stage:event.stage,...(phase?{phase}:{}),action,all:[],valid:[],success:[],lag:[],statuses:{},httpRequests:0,httpRejects:0,timeouts:0,
-      rejectsWithoutRetryAfter:0,unexpectedFailures:0,intentionalConflicts:0,unsupported:0,cacheHits:0,cacheMisses:0,httpStatuses:{},retryAfterValues:{}};
+      rejectsWithoutRetryAfter:0,unexpectedFailures:0,intentionalConflicts:0,unsupported:0,cacheHits:0,cacheMisses:0,successfulTaskMisses:0,coalescedSessionChecks:0,httpStatuses:{},retryAfterValues:{}};
     group.all.push(row.latencyMs);group.lag.push(row.startLagMs);if(outcome.status===200)group.success.push(row.latencyMs);
     if(measuredOutcome(outcome))group.valid.push(row.latencyMs);
     group.statuses[outcome.status]=(group.statuses[outcome.status]??0)+1;
@@ -226,6 +241,9 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
       }
     }
     group.cacheHits+=(outcome.requests??[]).filter(r=>r.cacheHit===true).length;group.cacheMisses+=(outcome.requests??[]).filter(r=>r.cacheHit===false).length;
+    group.coalescedSessionChecks+=outcome.coalescedSessionChecks??0;
+    const taskResponse=(outcome.requests??[]).findLast(row=>row.route==='/api/tasks');
+    if(action==='task-miss'&&outcome.status===200&&taskResponse?.status===200&&taskResponse.cacheHit===false)group.successfulTaskMisses++;
     writeSync(log,JSON.stringify(row)+'\n');stats.completed++;
   };
   let currentStage=-1,currentRotation=-1,pool=[];
@@ -255,9 +273,14 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
         if(attempt){attempt.planned=true;attempt.controller.abort();}
       } else if(event.kind==='cold-open'||event.kind==='recovery-open') {
         const state=await call(client,'/api/state?view=play-v1');
+        const stateServerId=client.observations.findLast(row=>row.route==='/api/state')?.serverId;
         const tasks=await call(client,`/api/tasks?memberId=${client.memberId}&view=play-v1`);
-        if(!state.state?.members?.some(row=>row.id===client.memberId)||!Number.isSafeInteger(tasks.stateRevision)||!Array.isArray(tasks.tasks))throw new Error('Readiness response is incomplete.');
-        if(event.kind==='recovery-open'&&restart&&!recovered.has(client.group))recovered.set(client.group,{group:client.group,elapsedMs:performance.now()-restart.startedAt});
+        const tasksServerId=client.observations.findLast(row=>row.route==='/api/tasks')?.serverId;
+        const expectedServerId=event.kind==='cold-open'?initialServerId:restart?.serverReadyMs!=null&&restart.serverId!==initialServerId?restart.serverId:null;
+        const proof=readinessProof({state,tasks,stateServerId,tasksServerId,expectedServerId,memberId:client.memberId});
+        const evidence={group:client.group,...proof,elapsedMs:performance.now()-(event.kind==='cold-open'?workloadStart:restart.startedAt)};
+        if(event.kind==='cold-open')coldOpens.push(evidence);
+        else if(!recovered.has(client.group))recovered.set(client.group,evidence);
       } else if(event.kind==='session') await call(client,'/api/session');
       else if(event.kind==='sync') await call(client,'/api/runemetrics/preview',{memberId:client.memberId});
       else if(event.kind.startsWith('plugin')) {
@@ -316,7 +339,7 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
           }
         } else {action='lifecycle';throw Object.assign(new Error('Unsupported'),{status:'unsupported'});}
       }
-      record(action,event,start,performance.now(),{status:200,requests:client.observations});
+      record(action,event,start,performance.now(),{status:200,requests:client.observations,coalescedSessionChecks:client.coalescedSessionChecks??0});
     } catch(error) {
       const lastStatus=client.observations.at(-1)?.status;
       const status=error.status??(error.name==='TimeoutError'||lastStatus==='timeout'?'timeout':'network-error');
@@ -332,6 +355,10 @@ export async function drive({base,profile,fixture,directory,onSample,restartServ
     await schedule(events,run,{startAt:workloadStart,maxInFlight:profile.maxClientInFlight,onDrop:event=>{stats.clientDrops++;record('client-drop',event,performance.now(),performance.now(),{status:'client-drop'});}});
     timing.push({maxActive});
   } finally {clearInterval(sampleTimer);streamShutdown=true;for(const controller of streams.values())controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
-  return {workloadStart,stats,stageStreams,streamHandshakes,restarts,recovery:{groups:[...recovered.values()],streams:[...streamRecovery.values()]},
+  const selected=profile.sustained?cohorts.get(`${profile.stages.length-1}:0`):[];
+  return {workloadStart,completedAt:performance.now(),initialServerId,stats,stageStreams,streamHandshakes,restarts,
+    offeredOperations:profile.sustained?plannedOperations(events,profile):undefined,coldOpens,
+    cohort:{groups:[...new Set(selected.map(row=>row.group))],clients:selected.map(row=>({clientId:clientIdentity(row),group:row.group})),coldGroups:[...new Set(cohorts.get('0:0').map(row=>row.group))]},
+    recovery:{groups:[...recovered.values()],streams:streamLifetimes},
     commands:[...commands.values()].map(({values,...row})=>({...row,latency:distribution(values)})),operations:Object.values(records).map(({all,valid,success,lag,...rest})=>({...rest,latency:distribution(all),validLatency:distribution(valid),successfulLatency:distribution(success),clientDispatchLag:distribution(lag)})),timing};
 }
