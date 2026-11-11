@@ -84,7 +84,7 @@ export async function recoverySources(dataDirs, explicit) {
 // itself be waiting for this catalogue lease. Hold through complete publication.
 export async function withRecoveryLeases(sources, work) {
   const unique = [...new Map(sources.filter(Boolean).map(source => [path.resolve(source.options.catalogueRoot), source.storage])).entries()].sort();
-  const enter = index => index === unique.length ? work() : unique[index][1].withLease(() => enter(index + 1));
+  const enter = index => index === unique.length ? work() : unique[index][1].withLease(() => enter(index + 1), { mode: 'exclusive' });
   return enter(0);
 }
 async function checkDocument(saved, store, manifest, catalogueRoot, pins) {
@@ -229,7 +229,7 @@ export async function installOwnedClosure(root, stores, options, dataDir) {
     const base = await readOwnedBase(path.join(root, 'catalogue'), { datasetDigest: pin.dataset.digest, sha256: pin.sha256 }, trustPin(pin));
     pending.push(createOwnedStorage({ ...options, ...trustPin(pin), releaseBytes: Buffer.from(JSON.stringify(base)) }, dataDir));
   }
-  for (const storage of pending) await storage.withLease(() => storage.ensurePublished());
+  for (const storage of pending) await storage.withLease(() => storage.ensurePublished(), { mode: 'exclusive' });
 }
 // Used by the raw owned snapshot branch; the existing descriptor capture stays
 // byte-for-byte on its old path. The caller holds group and catalogue barriers.

@@ -107,7 +107,7 @@ async function exclusive({ dataDir, ownedFormat2 }, work) {
   return withStoreWrite(directory, async () => {
     // A live command writer refuses, rather than racing a stopped migration.
     const release = await acquireProcessGuard(directory);
-    try { return await storage.withLease(() => work(directory, storage)); }
+    try { return await storage.withLease(() => work(directory, storage), { mode: 'exclusive' }); }
     finally { await release(); }
   });
 }
