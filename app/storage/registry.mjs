@@ -3,6 +3,7 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { durableDirectory, lockRegistry, syncDirectory, writeRegistryJson } from './registry-lock.mjs';
 import { REGISTRY_ACCOUNT, registryIdentity, registryMembers, registryObject as object } from './registry-legacy.mjs';
+import { createRegistryCaps } from './registry-caps.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -14,8 +15,8 @@ const identityKey = (provider, subject) => JSON.stringify([provider, subject]);
 const capabilityKey = (kind, hash) => JSON.stringify([kind, hash]);
 const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const bad = () => { throw new TypeError('Invalid registry document.'); };
-export const DEFAULT_REGISTRY_CAPS = Object.freeze({ accounts: 1000, pickers: 1000, issuedPickerIds: 1000000,
-  retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100, capabilities: 10000, capabilitiesPerPicker: 100 });
+export const DEFAULT_REGISTRY_CAPS = Object.freeze({ accounts: 3000, pickers: 3500, issuedPickerIds: 1000000,
+  retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100, capabilities: 20000, capabilitiesPerPicker: 100 });
 export const REGISTRY_PROVISION_POINTS = Object.freeze(['account-recorded', 'id-reserved', 'registry-reserved', 'directory-created', 'directory-synced', 'registry-ready']);
 
 function validateLedger(ledger) {
@@ -35,9 +36,9 @@ function validateLedger(ledger) {
   return ledger;
 }
 
-function validate(document) {
+function validate(document, selection) {
   if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements']) || document.schemaVersion !== 1 || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
-  if (document.relinkCodes !== undefined) {
+  if (document.relinkCodes !== undefined && (!selection || selection.relinkCodes)) {
     if (!Array.isArray(document.relinkCodes)) bad();
     const seen = new Set();
     for (const entry of document.relinkCodes) {
@@ -45,17 +46,21 @@ function validate(document) {
       seen.add(entry.accountId);
     }
   }
-  if (document.relinkRetirements !== undefined && (!Array.isArray(document.relinkRetirements) || document.relinkRetirements.some(id => !REGISTRY_ACCOUNT.test(id)) || new Set(document.relinkRetirements).size !== document.relinkRetirements.length)) bad();
+  if (document.relinkRetirements !== undefined && (!selection || selection.relinkRetirements) && (!Array.isArray(document.relinkRetirements) || document.relinkRetirements.some(id => !REGISTRY_ACCOUNT.test(id)) || new Set(document.relinkRetirements).size !== document.relinkRetirements.length)) bad();
   const accounts = new Map(), pickers = new Map(), identities = new Set(), defaults = new Set();
+  const accountRows = selection?.accounts ?? document.accounts, pickerRows = selection?.pickers ?? document.pickers;
+  const accountFor = id => accounts.has(id) ? accounts.get(id) : selection?.account(id);
+  const pickerFor = id => pickers.get(id) ?? selection?.picker(id);
   let legacy = 0;
-  for (const picker of document.pickers) {
+  for (const picker of pickerRows) {
     if (!object(picker, ['id', 'kind', 'ownerAccountId', 'lifecycle', 'provisioning', 'memberIds', 'createdAt']) || !PICKER.test(picker.id) || pickers.has(picker.id) || !['default', 'legacy-shared'].includes(picker.kind) || !['active', 'deleting', 'deleted'].includes(picker.lifecycle) || !['reserved', 'ready'].includes(picker.provisioning) || !date(picker.createdAt)) bad();
     registryMembers(picker.memberIds);
     if (picker.kind === 'legacy-shared') { if (++legacy > 1 || picker.ownerAccountId !== null || picker.provisioning !== 'ready' || picker.memberIds.length !== 2) bad(); }
     else if (!REGISTRY_ACCOUNT.test(picker.ownerAccountId)) bad();
     pickers.set(picker.id, picker);
   }
-  for (const account of document.accounts) {
+  for (const account of accountRows) {
+    if (selection && account.deleted) { accounts.set(account.id, null); continue; }
     if (!object(account, ['id', 'identities', 'memberships', 'defaultPickerId', 'createdAt']) || !REGISTRY_ACCOUNT.test(account.id) || accounts.has(account.id) || !Array.isArray(account.identities) || account.identities.length > 2 || !Array.isArray(account.memberships) || !date(account.createdAt)) bad();
     accounts.set(account.id, account);
     const providers = new Set(), memberships = new Set();
@@ -64,29 +69,37 @@ function validate(document) {
       registryIdentity(identity.provider, identity.subject);
       const key = identityKey(identity.provider, identity.subject);
       if (identities.has(key) || providers.has(identity.provider)) bad();
+      const other = selection?.identity(key);
+      if (other && other !== account.id && !accountRows.some(a => a.id === other && (a.deleted || !a.identities.some(i => identityKey(i.provider, i.subject) === key)))) bad();
       identities.add(key); providers.add(identity.provider);
     }
     for (const membership of account.memberships) {
-      const picker = pickers.get(membership?.pickerId);
+      const picker = pickerFor(membership?.pickerId);
       const key = JSON.stringify([membership?.pickerId, membership?.memberId]);
       if (!object(membership, ['pickerId', 'role', 'memberId']) || !picker || picker.lifecycle !== 'active' || !roles.includes(membership.role) || (membership.role === 'viewer' ? membership.memberId !== null : !picker.memberIds.includes(membership.memberId)) || memberships.has(key) || (membership.role === 'owner' && (picker.kind !== 'default' || picker.ownerAccountId !== account.id))) bad();
       memberships.add(key);
     }
     if (account.defaultPickerId !== null) {
-      const picker = pickers.get(account.defaultPickerId);
+      const picker = pickerFor(account.defaultPickerId);
       if (!picker || picker.kind !== 'default' || picker.ownerAccountId !== account.id || picker.lifecycle === 'deleted' || defaults.has(picker.id)) bad();
       defaults.add(picker.id);
     }
   }
-  for (const picker of document.pickers) {
+  // Account edits must also preserve their existing owned picker invariant.
+  if (selection) for (const account of accountRows) {
+    for (const id of [selection.account(account.id)?.defaultPickerId, account.defaultPickerId]) {
+      const picker = pickerFor(id); if (picker) pickers.set(id, picker);
+    }
+  }
+  for (const picker of pickers.values()) {
     if (picker.kind === 'default' && picker.lifecycle === 'active') {
-      const account = accounts.get(picker.ownerAccountId);
+      const account = accountFor(picker.ownerAccountId);
       if (!account || account.defaultPickerId !== picker.id || !account.memberships.some(m => m.pickerId === picker.id && m.role === 'owner')) bad();
     }
   }
   const capabilities = new Set();
-  for (const capability of document.capabilities) {
-    const account = accounts.get(capability?.accountId), picker = pickers.get(capability?.pickerId);
+  for (const capability of selection?.addedCapabilities ?? document.capabilities) {
+    const account = accountFor(capability?.accountId), picker = pickerFor(capability?.pickerId);
     const key = capabilityKey(capability?.kind, capability?.hash);
     if (!object(capability, ['kind', 'hash', 'pickerId', 'accountId', 'memberId']) || !kinds.includes(capability.kind) || typeof capability.hash !== 'string' || !HASH.test(capability.hash) || capabilities.has(key) || !picker || picker.lifecycle !== 'active' || picker.provisioning !== 'ready' || !account?.memberships.some(m => m.pickerId === picker.id && m.memberId === capability.memberId && (capability.kind !== 'plugin-key' || m.role !== 'viewer'))) bad();
     capabilities.add(key);
@@ -94,19 +107,27 @@ function validate(document) {
   return document;
 }
 
-function reconcile(document, ledger) {
+function reconcile(document, ledger, changes = { accounts: [], pickers: [], removedCapabilities: [] }) {
   const next = copy(document), blocked = new Map(ledger.pickers.map(entry => [entry.pickerId, entry]));
   const deletedAccounts = new Set(ledger.accounts.map(entry => entry.accountId));
-  next.accounts = next.accounts.filter(account => !deletedAccounts.has(account.id));
+  next.accounts = next.accounts.filter(account => {
+    if (!deletedAccounts.has(account.id)) return true;
+    changes.accounts.push({ id: account.id, deleted: true }); return false;
+  });
   for (const picker of next.pickers) {
     const tombstone = blocked.get(picker.id);
-    if (tombstone) picker.lifecycle = tombstone.lifecycle;
+    if (tombstone && picker.lifecycle !== tombstone.lifecycle) { picker.lifecycle = tombstone.lifecycle; changes.pickers.push(picker); }
   }
   for (const account of next.accounts) {
+    const length = account.memberships.length, previousDefault = account.defaultPickerId;
     account.memberships = account.memberships.filter(m => !blocked.has(m.pickerId));
     if (blocked.get(account.defaultPickerId)?.lifecycle === 'deleted') account.defaultPickerId = null;
+    if (account.memberships.length !== length || account.defaultPickerId !== previousDefault) changes.accounts.push(account);
   }
-  next.capabilities = next.capabilities.filter(c => !blocked.has(c.pickerId) && !deletedAccounts.has(c.accountId));
+  next.capabilities = next.capabilities.filter(c => {
+    if (!blocked.has(c.pickerId) && !deletedAccounts.has(c.accountId)) return true;
+    changes.removedCapabilities.push(c); return false;
+  });
   return next;
 }
 
@@ -124,10 +145,11 @@ async function load(file) {
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
-  crashPoint, pickerRandomBytes = randomBytes } = {}) {
+  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck } = {}) {
   if ([registryDir, pickerRoot, tombstoneDir].some(dir => typeof dir !== 'string' || !dir)) throw new TypeError('Registry, picker and tombstone roots are required.');
   const caps = { ...DEFAULT_REGISTRY_CAPS, ...overrides };
   if (!object(overrides, Object.keys(DEFAULT_REGISTRY_CAPS)) || Object.values(caps).some(n => !Number.isSafeInteger(n) || n < 1)) throw new TypeError('Invalid registry caps.');
+  if (betaPickerCap !== undefined && (!Number.isSafeInteger(betaPickerCap) || betaPickerCap < 1)) throw new TypeError('betaPickerCap must be a positive integer when set.');
   let roots = [registryDir, pickerRoot, tombstoneDir].map(dir => path.resolve(dir));
   const checkRoots = () => { if (roots.some((dir, i) => roots.slice(i + 1).some(other => !separate(dir, other)))) throw new TypeError('Registry, picker and tombstone roots must be disjoint.'); };
   checkRoots();
@@ -140,28 +162,60 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const releases = [];
   let current, ledger, queue = Promise.resolve(), closed = false, failed = false, closing;
-  let providerIndex, capabilityIndex, accountIndex, tombstoneIndex, retiredAccounts, issuedIds;
+  let providerIndex, capabilityIndex, accountIndex, pickerIndex, memberAccounts, tombstoneIndex, retiredAccounts, issuedIds, capCounts;
   const file = path.join(registryDir, 'registry.json'), ledgerFile = path.join(tombstoneDir, 'ledger.json');
   const timestamp = () => new Date(now()).toISOString();
   const usable = () => { if (closed || failed) throw new Error('Registry is closed or requires restart.'); };
   const rebuildIndexes = () => {
     accountIndex = new Map(current.accounts.map(a => [a.id, a]));
+    pickerIndex = new Map(current.pickers.map(p => [p.id, p]));
     providerIndex = new Map(current.accounts.flatMap(a => a.identities.map(i => [identityKey(i.provider, i.subject), a.id])));
     capabilityIndex = new Map(current.capabilities.map(c => [capabilityKey(c.kind, c.hash), c]));
+    memberAccounts = new Map();
+    for (const account of current.accounts) indexMemberships(account, true);
   };
+  function indexMemberships(account, add) {
+    for (const membership of account?.memberships ?? []) {
+      const key = JSON.stringify([membership.pickerId, membership.memberId]);
+      if (add) {
+        if (!memberAccounts.has(key)) memberAccounts.set(key, new Set());
+        memberAccounts.get(key).add(account.id);
+      } else {
+        const accounts = memberAccounts.get(key); accounts?.delete(account.id);
+        if (!accounts?.size) memberAccounts.delete(key);
+      }
+    }
+  }
   const rebuildLedgerIndexes = () => {
     tombstoneIndex = new Map(ledger.pickers.map(t => [t.pickerId, t]));
     retiredAccounts = new Set(ledger.accounts.map(t => t.accountId));
     issuedIds = new Set(ledger.issuedPickerIds);
   };
-  function enforceCaps(next, nextLedger = ledger) {
-    const limited = next.accounts.length > caps.accounts || next.pickers.filter(p => p.lifecycle !== 'deleted').length > caps.pickers || nextLedger.issuedPickerIds.length > caps.issuedPickerIds || nextLedger.accounts.length > caps.retiredAccounts || next.capabilities.length > caps.capabilities || next.accounts.some(a => a.memberships.length > caps.membershipsPerAccount) || next.pickers.some(p => p.memberIds.length > caps.membersPerPicker || next.capabilities.filter(c => c.pickerId === p.id).length > caps.capabilitiesPerPicker);
-    if (limited) throw error(409, 'Registry capacity has been reached.');
+  function enforceCaps(next, nextLedger = ledger, changes = {}) {
+    return capCounts.prepare(next, nextLedger, changes);
   }
-  async function save(next) {
-    validate(next); enforceCaps(next);
-    try { await writeRegistryJson(file, next); current = next; rebuildIndexes(); }
-    catch (failure) { failed = true; throw failure; }
+  async function save(next, changes = {}) {
+    const accountRows = changes.accounts ?? [], pickerRows = changes.pickers ?? [];
+    validate(next, { ...changes, accounts: accountRows, pickers: pickerRows, addedCapabilities: changes.addedCapabilities ?? [],
+      account: id => accountIndex.get(id), picker: id => pickerIndex.get(id), identity: key => providerIndex.get(key) });
+    const commitCounts = enforceCaps(next, ledger, changes);
+    try {
+      await writeRegistryJson(file, next); current = next; commitCounts();
+      for (const account of accountRows) {
+        indexMemberships(accountIndex.get(account.id), false);
+        for (const identity of accountIndex.get(account.id)?.identities ?? []) {
+          const key = identityKey(identity.provider, identity.subject); if (providerIndex.get(key) === account.id) providerIndex.delete(key);
+        }
+        if (account.deleted) accountIndex.delete(account.id); else accountIndex.set(account.id, account);
+      }
+      for (const account of accountRows) if (!account.deleted) {
+        indexMemberships(account, true);
+        for (const identity of account.identities) providerIndex.set(identityKey(identity.provider, identity.subject), account.id);
+      }
+      for (const picker of pickerRows) pickerIndex.set(picker.id, picker);
+      for (const capability of changes.removedCapabilities ?? []) capabilityIndex.delete(capabilityKey(capability.kind, capability.hash));
+      for (const capability of changes.addedCapabilities ?? []) capabilityIndex.set(capabilityKey(capability.kind, capability.hash), capability);
+    } catch (failure) { failed = true; throw failure; }
   }
   async function saveLedger(next) {
     validateLedger(next); enforceCaps(current, next);
@@ -195,7 +249,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     registryIdentity(provider, subject);
     let account = accountForIdentity(next, provider, subject);
     if (!account) {
-      if (next.accounts.length >= caps.accounts) throw error(409, 'Registry capacity has been reached.');
+      if (next.accounts.length >= caps.accounts) throw error(409, 'The login account limit has been reached. Ask the operator about available capacity.');
       let id;
       do { id = randomUUID(); } while (next.accounts.some(a => a.id === id) || retiredAccounts.has(id));
       account = { id, identities: [{ provider, subject }], memberships: [], defaultPickerId: null, createdAt: timestamp() };
@@ -203,8 +257,15 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     }
     return account;
   }
+  function checkPickerAllocation() {
+    const count = capCounts.activePickers;
+    if (count >= caps.pickers) throw error(409, 'The picker limit has been reached. Existing maps are unchanged. Ask the operator about available capacity.');
+    // Admission only: a lowered beta cap must not block reads, recovery or deletion.
+    if (betaPickerCap !== undefined && count >= betaPickerCap) throw error(409, 'The beta is full. New groups are paused; existing maps are unchanged. Ask the operator about the next opening.');
+    if (ledger.issuedPickerIds.length >= caps.issuedPickerIds) throw error(409, 'The picker ID limit has been reached. Ask the operator for help; existing IDs cannot be reused.');
+  }
   async function allocate() {
-    if (current.pickers.filter(p => p.lifecycle !== 'deleted').length >= caps.pickers) throw error(409, 'Registry capacity has been reached.');
+    checkPickerAllocation();
     for (let attempt = 0; attempt < 128; attempt++) {
       const bits = pickerRandomBytes(16);
       if (!Buffer.isBuffer(bits) || bits.length !== 16) throw new TypeError('Expected 128 random bits.');
@@ -233,18 +294,18 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     await point('directory-created', id);
     await syncDirectory(directory); await syncDirectory(pickerRoot);
     await point('directory-synced', id);
-    const next = copy(current); requirePicker(next, id).provisioning = 'ready'; await save(next);
+    const next = copy(current), changed = requirePicker(next, id); changed.provisioning = 'ready'; await save(next, { pickers: [changed] });
     await point('registry-ready', id); return requirePicker(current, id);
   }
   async function ensureDefault(accountId) {
     const account = requireAccount(current, accountId);
     if (account.defaultPickerId) return provision(account.defaultPickerId);
-    if (account.memberships.length >= caps.membershipsPerAccount) throw error(409, 'Registry capacity has been reached.');
+    if (account.memberships.length >= caps.membershipsPerAccount) throw error(409, 'The account membership record limit has been reached. Ask the operator for help; existing memberships are unchanged.');
     const id = await allocate(), next = copy(current), owner = requireAccount(next, accountId);
     const picker = { id, kind: 'default', ownerAccountId: accountId, lifecycle: 'active', provisioning: 'reserved', memberIds: ['owner'], createdAt: timestamp() };
     next.pickers.push(picker); owner.defaultPickerId = id;
     owner.memberships.push({ pickerId: id, role: 'owner', memberId: 'owner' });
-    await save(next); await point('registry-reserved', id); return provision(id);
+    await save(next, { accounts: [owner], pickers: [picker] }); await point('registry-reserved', id); return provision(id);
   }
   function deletion(nextLedger, id) {
     if (!nextLedger.pickers.some(t => t.pickerId === id)) nextLedger.pickers.push({ pickerId: id, lifecycle: 'deleting', deletingAt: timestamp(), deletedAt: null });
@@ -258,14 +319,15 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     const nextLedger = copy(ledger);
     for (const id of current.relinkRetirements) retireAccount(nextLedger, id, true);
     await saveLedger(nextLedger); await point('relink-retired');
-    const next = reconcile(current, ledger); delete next.relinkRetirements;
-    await save(next); await point('relink-reconciled');
+    const changes = { accounts: [], pickers: [], removedCapabilities: [], relinkRetirements: true };
+    const next = reconcile(current, ledger, changes); delete next.relinkRetirements;
+    await save(next, changes); await point('relink-reconciled');
   }
   async function applyTombstones() {
-    const next = reconcile(current, ledger);
+    const changes = { accounts: [], pickers: [], removedCapabilities: [] };
+    const next = reconcile(current, ledger, changes);
     // Retired IDs can exist only in the external ledger after restoring an older checkpoint.
-    validate(next);
-    if (JSON.stringify(next) !== JSON.stringify(current)) await save(next);
+    if (changes.accounts.length || changes.pickers.length || changes.removedCapabilities.length) await save(next, changes);
     return { blockedPickerIds: ledger.pickers.map(t => t.pickerId), deletedAccountIds: ledger.accounts.map(t => t.accountId) };
   }
   const blockedPicker = id => tombstoneIndex.get(id);
@@ -321,7 +383,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (current === undefined) current = { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] };
     validate(current);
     if (current.pickers.some(p => !ledger.issuedPickerIds.includes(p.id) || p.lifecycle !== 'active' && !ledger.pickers.some(t => t.pickerId === p.id))) bad();
-    current = reconcile(current, ledger); validate(current); enforceCaps(current); rebuildIndexes(); rebuildLedgerIndexes();
+    current = reconcile(current, ledger); validate(current);
+    capCounts = createRegistryCaps(current, caps, onCapCheck); capCounts.checkInitial(ledger); rebuildIndexes(); rebuildLedgerIndexes();
     await finishRelinkRetirements();
     // Reconcile before recovery can create a directory or expose any index.
     await saveLedger(ledger); await save(current);
@@ -331,13 +394,16 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     throw failure;
   }
   return {
+    // Diagnostic read, never used by request admission. Tests compare a rescan.
+    capCounts() { usable(); return capCounts.snapshot(); },
     // Queue-held read-only checkpoint. No provider subjects or capabilities may
     // leave the server; explicit account IDs and memberships survive recovery.
     withRecoveryCheckpoint(work) { return enqueue(() => work(registryRecoveryDocument(current))); },
     getAccount(id) { usable(); return visibleAccount(id); },
     listAccounts() { usable(); return [...accountIndex.keys()].map(visibleAccount).filter(Boolean); },
+    accountsForMember(pickerId, memberId) { usable(); return [...(memberAccounts.get(JSON.stringify([pickerId, memberId])) ?? [])].filter(id => !retiredAccounts.has(id)); },
     findIdentity(provider, subject) { usable(); registryIdentity(provider, subject); return visibleAccount(providerIndex.get(identityKey(provider, subject))); },
-    getPicker(id) { usable(); return visiblePicker(current.pickers.find(p => p.id === id)); },
+    getPicker(id) { usable(); return visiblePicker(pickerIndex.get(id)); },
     listPickers() { usable(); return current.pickers.map(visiblePicker); },
     pickerDirectory(id) {
       usable(); if (typeof id !== 'string' || !PICKER.test(id)) throw error(400, 'Invalid picker ID.');
@@ -353,7 +419,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const expiresAt = new Date(now() + expiresInMs).toISOString();
       next.relinkCodes = (next.relinkCodes ?? []).filter(c => c.accountId !== accountId && Date.parse(c.expiresAt) > now());
       next.relinkCodes.push({ accountId, hash: createHash('sha256').update(code).digest('hex'), expiresAt });
-      await save(next); return { code, expiresAt };
+      await save(next, { relinkCodes: true }); return { code, expiresAt };
     }); },
     checkRelink(code, provider, subject) { usable(); return copy(checkRelink(code, provider, subject)); },
     claimIdentity(code, provider, subject, { emptyAccountId = null, onCommit } = {}) { return enqueue(async () => {
@@ -368,21 +434,24 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       addIdentity(next, requireAccount(next, target.id), provider, subject);
       next.relinkCodes = next.relinkCodes.filter(c => c.hash !== hash);
       // The sole commit publishes the identity move, consumption and retirement intent.
-      await point('relink-before-commit'); await save(next);
+      await point('relink-before-commit'); await save(next, { accounts: [requireAccount(next, target.id), ...(source ? [requireAccount(next, source.id)] : [])], relinkCodes: true, relinkRetirements: true });
       try {
         onCommit?.(source?.defaultPickerId);
         await point('relink-committed'); await finishRelinkRetirements();
       } catch (failure) { failed = true; throw failure; }
       return requireAccount(current, target.id);
     }); },
-    ensureIdentity(provider, subject) { return enqueue(async () => { const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next); return account; }); },
-    linkIdentity(accountId, provider, subject) { return enqueue(async () => { const next = copy(current), account = requireAccount(next, accountId); addIdentity(next, account, provider, subject); await save(next); return account; }); },
+    ensureIdentity(provider, subject) { return enqueue(async () => { const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next, { accounts: [account] }); return account; }); },
+    linkIdentity(accountId, provider, subject) { return enqueue(async () => { const next = copy(current), account = requireAccount(next, accountId); addIdentity(next, account, provider, subject); await save(next, { accounts: [account] }); return account; }); },
     unlinkIdentity(accountId, provider) { return enqueue(async () => {
       if (!['discord', 'google'].includes(provider)) throw error(400, 'Invalid sign-in provider.');
-      const next = copy(current), account = requireAccount(next, accountId); account.identities = account.identities.filter(i => i.provider !== provider); await save(next); return account;
+      const next = copy(current), account = requireAccount(next, accountId); account.identities = account.identities.filter(i => i.provider !== provider); await save(next, { accounts: [account] }); return account;
     }); },
     firstLogin(provider, subject) { return enqueue(async () => {
-      const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next);
+      registryIdentity(provider, subject);
+      // Refuse admission before persisting a new login or consuming an ID.
+      if (!accountForIdentity(current, provider, subject)?.defaultPickerId) checkPickerAllocation();
+      const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next, { accounts: [account] });
       await point('account-recorded', account.defaultPickerId);
       const picker = await ensureDefault(account.id); return { account: requireAccount(current, account.id), picker };
     }); },
@@ -396,7 +465,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const required = next.accounts.flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId));
       if (required.some(id => !memberIds.includes(id))) throw error(422, 'Roster mapping must keep every assigned participant.');
       picker.memberIds = [...new Set([...picker.memberIds, ...memberIds])];
-      enforceCaps(next, ledger); await save(next); return picker;
+      await save(next, { pickers: [picker] }); return picker;
     }); },
     ensureDefaultPicker(accountId) { return enqueue(() => ensureDefault(accountId)); },
     attachMembership(accountId, membership) { return enqueue(async () => {
@@ -405,14 +474,18 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const existing = account.memberships.find(m => m.pickerId === picker.id && m.memberId === membership.memberId);
       if (existing && existing.role !== membership.role) throw error(409, 'Membership is already assigned.');
       if (!existing) account.memberships.push(copy(membership));
-      await save(next); return account;
+      await save(next, { accounts: [account] }); return account;
     }); },
     removeMembership(accountId, pickerId, memberId) { return enqueue(async () => {
       const next = copy(current), account = requireAccount(next, accountId);
       if (account.memberships.some(m => m.pickerId === pickerId && m.memberId === memberId && m.role === 'owner')) throw error(409, 'Delete the owned picker before removing its owner.');
       account.memberships = account.memberships.filter(m => m.pickerId !== pickerId || m.memberId !== memberId);
-      next.capabilities = next.capabilities.filter(c => c.accountId !== accountId || c.pickerId !== pickerId || c.memberId !== memberId);
-      await save(next); return account;
+      const removedCapabilities = [];
+      next.capabilities = next.capabilities.filter(c => {
+        if (c.accountId !== accountId || c.pickerId !== pickerId || c.memberId !== memberId) return true;
+        removedCapabilities.push(c); return false;
+      });
+      await save(next, { accounts: [account], removedCapabilities }); return account;
     }); },
     registerLegacy(plan) { return enqueue(async () => {
       if (!legacyDir || !object(plan, ['accounts', 'memberIds', 'droppedMemberships']) || !Array.isArray(plan.accounts)) throw new TypeError('Invalid legacy registration.');
@@ -432,7 +505,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
         }
         for (const membership of input.memberships) if (!object(membership, ['role', 'memberId']) || !['player', 'viewer'].includes(membership.role) || (membership.role === 'viewer' ? membership.memberId !== null : !plan.memberIds.includes(membership.memberId))) throw new TypeError('Invalid legacy registration.');
       }
-      validate(next); enforceCaps(next);
+      const accounts = [...new Set(plan.accounts.map(input => input.id))].map(id => requireAccount(next, id));
+      enforceCaps(next, ledger, { accounts });
       if (!picker) {
         const id = await allocate();
         picker = { id, kind: 'legacy-shared', ownerAccountId: null, lifecycle: 'active', provisioning: 'ready', memberIds: copy(plan.memberIds), createdAt: timestamp() }; next.pickers.push(picker);
@@ -441,18 +515,21 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
         const account = requireAccount(next, input.id);
         if (!account.memberships.some(m => m.pickerId === picker.id && m.memberId === membership.memberId && m.role === membership.role)) account.memberships.push({ pickerId: picker.id, ...membership });
       }
-      await save(next); return picker;
+      await save(next, { accounts, pickers: [picker] }); return picker;
     }); },
     setCapability(input) { return enqueue(async () => {
-      const next = copy(current);
       if (!object(input, ['kind', 'hash', 'pickerId', 'accountId', 'memberId']) || !kinds.includes(input.kind) || typeof input.hash !== 'string' || !HASH.test(input.hash)) throw error(400, 'Invalid capability index entry.');
-      activePicker(next, input.pickerId);
-      const existing = next.capabilities.find(c => c.kind === input.kind && c.hash === input.hash);
+      const picker = pickerIndex.get(input.pickerId);
+      if (!picker) throw error(404, 'Picker not found.');
+      if (picker.lifecycle !== 'active' || tombstoneIndex.has(picker.id)) throw error(409, 'Picker is unavailable.');
+      const existing = capabilityIndex.get(capabilityKey(input.kind, input.hash));
       if (existing && JSON.stringify(existing) !== JSON.stringify(input)) {
         if (['pickerId', 'accountId', 'memberId'].some(key => existing[key] !== input[key])) throw error(409, 'Capability hash is already assigned.');
       }
-      if (!existing) next.capabilities.push({ kind: input.kind, hash: input.hash, pickerId: input.pickerId, accountId: input.accountId, memberId: input.memberId });
-      await save(next); return input;
+      if (existing) return input;
+      const record = { kind: input.kind, hash: input.hash, pickerId: input.pickerId, accountId: input.accountId, memberId: input.memberId };
+      const next = { ...current, capabilities: [...current.capabilities, record] };
+      await save(next, { addedCapabilities: [record] }); return input;
     }); },
     resolveCapability(kind, hash) {
       usable(); if (!kinds.includes(kind) || typeof hash !== 'string' || !HASH.test(hash)) return null;
@@ -460,7 +537,9 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       return capability && !blockedPicker(capability.pickerId) && !retiredAccounts.has(capability.accountId) ? copy(capability) : null;
     },
     revokeCapability(kind, hash) { return enqueue(async () => {
-      const next = copy(current); next.capabilities = next.capabilities.filter(c => c.kind !== kind || c.hash !== hash); await save(next);
+      const existing = capabilityIndex.get(capabilityKey(kind, hash)); if (!existing) return;
+      const next = { ...current, capabilities: current.capabilities.filter(c => c.kind !== kind || c.hash !== hash) };
+      await save(next, { removedCapabilities: [existing] });
     }); },
     beginPickerDeletion(id, { onTombstone } = {}) { return enqueue(async () => {
       if (requirePicker(current, id).kind === 'legacy-shared') throw error(409, 'The shared picker cannot be deleted.');

@@ -8,6 +8,10 @@ The code audit uses local `origin/main` at `3df54499e0002aede31e88f6ad281842bef0
 
 Only source and documentation were inspected. No credential files, account records, saves, live APIs or server state were read. All examples are synthetic. This document authorizes no implementation, migration, deployment or public sign-up. Changes to durable save, registry or authentication formats, and to recovery contracts, require the owner's OK before implementation.
 
+### Staged beta (owner decision, 2026-11-11)
+
+Start with a capped, invite-only beta of roughly 25–50 groups after the [launch basics](launch-readiness.md) pass, within a load-tested envelope of about 100 active groups. Keep 2,000 active player characters as the design ceiling, to be proven before caps rise beyond demonstrated capacity. This replaces “prove 2,000 before any public launch.” Public sign-up itself still needs the owner's explicit OK. The larger workload and gates below remain the eventual capacity proof, not a prerequisite for this smaller beta. Entity quotas are safety ceilings, not evidence that their populations have been load-tested.
+
 ## Settled scope
 
 - Design for about 2,000 player accounts, 500–1,000 groups and up to about 200 people online at once, on one server. Immutable game data is stored once and shared.
@@ -204,6 +208,7 @@ These settings protect traffic and memory; they do not replace durable entity qu
 | `streamsPerAccount / PerPicker / Global` | 16 / 32 / 64 | Retain 16 / 32; global 512. Nominal 200 streams, separate 400-stream two-tab test. |
 | `pluginRequestsPerKey / PerAccount / PerPicker / Global` | 4 / 16 / 32 / 128 per second | Retain 4 / 16 / 32; global 256. This admits 100/s nominal and 200/s heavy smoothly; 800/s is overload with expected rejection. Multiple characters share their login's budget. |
 | `invitationsPerAccount / PerPicker / Global` | 10 / 20 / 100 per minute | Retain all three creation-rate budgets; add the pending-seat/record quotas above. Consumption/expiry does not replenish the same minute's rate bucket. |
+| `keyChangesPerAccount / keyChangesPerMember` | 12 / 12 per minute | Combined plugin-key create/revoke attempts, charged before persistence. Login budget spans groups; member budget uses `(pickerId, memberId)` until characters exist. Revoking a key does not refund attempts; return 429 with `Retry-After`. |
 | `registrationsPerAccount / Global` | 3 / 30 per minute | Retain; “per account” here charges client/identity admission, not characters owned. Do not call a 2,000-user signup burst nominal. |
 | `provisioningPerAccount / Global` | 3 / 30 per minute | Retain initially, extend accounting to Add character and lifecycle-created pickers. Reserve legitimate multi-character group-deletion moves as one bounded operation with fair scheduling; do not partially delete after a rate refusal. |
 | `expensivePerAccount / PerPicker / Global` | 600 / 600 / 1,200 per minute | Retain for the proposed action mix. Count underlying charged HTTP calls as well as product actions; revise only with measured amplification. |

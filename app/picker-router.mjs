@@ -20,11 +20,11 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  pickerLimits, onAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  pickerLimits, onAdmission, admissionClock, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const entries = new Map();
-  const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission });
+  const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission, clock: admissionClock });
   // Process-wide budget for owned backup parsers, on top of each context's own
   // single-import guard, so many owners cannot each materialize a large backup
   // at once. Legacy keeps its own guard and is outside this budget.

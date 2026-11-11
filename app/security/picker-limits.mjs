@@ -8,7 +8,8 @@ export const MP7_DEFAULTS = Object.freeze({
   maxOutstandingJobsPerPicker: 4, maxWaitersPerJob: 64,
   expensivePerAccount: 600, expensivePerPicker: 600, expensiveGlobal: 1200,
   streamsPerAccount: 16, streamsPerPicker: 32, streamsGlobal: 64,
-  pluginKeysPerAccount: 3, pluginKeysPerPicker: 6, pluginKeysGlobal: 192,
+  pluginKeysPerCharacter: 3, pluginKeysPerAccount: 30, pluginKeysPerPicker: 15, pluginKeysGlobal: 9000,
+  keyChangesPerAccount: 12, keyChangesPerMember: 12,
   pluginRequestsPerKey: 4, pluginRequestsPerAccount: 16, pluginRequestsPerPicker: 32, pluginRequestsGlobal: 128,
   invitationsPerAccount: 10, invitationsPerPicker: 20, invitationsGlobal: 100,
   registrationsPerAccount: 3, registrationsGlobal: 30,
@@ -27,6 +28,8 @@ export function pickerLimitOptions(options = {}) {
   return Object.freeze(config);
 }
 const hash = value => createHash('sha256').update(value).digest('hex');
+// Second segment of a plugin key quota row (`keys:<scope>:...`); `keys:global` falls back to the service.
+const keyScopeLabels = new Map([['character', 'This character'], ['account', 'This login'], ['picker', 'This group']]);
 const refusal = (message, retryAfter = 1, status = 429) => Object.assign(new Error(message), { status, retryAfter });
 const keyHash = request => {
   const key = /^Bearer (gpk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];
@@ -34,9 +37,12 @@ const keyHash = request => {
 };
 
 /** One instance belongs to the server, including dormant pickers. */
-export function createPickerLimits(options = {}, { now = Date.now } = {}) {
+export function createPickerLimits(options = {}, { now = Date.now, onKeyCount = () => {} } = {}) {
   const config = pickerLimitOptions(options), buckets = new Map(), streams = new Map(), cold = new Map(), keys = new Map(), bodyHeld = new Map();
-  let registry;
+  const keyCounts = new Map();
+  let bucketCursor = buckets.entries();
+  let registry, legacyId;
+  const legacyAccounts = new Map();
   const scope = (identity, pickerId) => ({ pickerId, accountId: identity?.accountId ?? identity?.id ?? `picker:${pickerId}`, ...(identity?.accountIds ? { accountIds: identity.accountIds } : {}) });
   function rows(kind, owner, accountLimit, pickerLimit, globalLimit) {
     return [...(globalLimit ? [[`${kind}:global`, globalLimit]] : []), ...(accountLimit ? (owner.accountIds ?? [owner.accountId]).map(id => [`${kind}:account:${id}`, accountLimit]) : []),
@@ -44,11 +50,23 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
   }
   function charge(entries, amount = 1, window = config.limitWindowMs, message = 'Too many requests. Wait and retry.') {
     const at = now();
-    for (const [key, entry] of buckets) if (entry.until <= at) buckets.delete(key);
+    // Bounded background reclamation; selected buckets also expire lazily.
+    // Admission must not walk every login's live rate buckets on each request.
+    for (let i = 0; i < 16; i++) {
+      const item = bucketCursor.next();
+      if (item.done) { bucketCursor = buckets.entries(); break; }
+      const [key, entry] = item.value;
+      if (entry.until <= at) buckets.delete(key);
+    }
     const selected = entries.map(([key, limit]) => {
+      if (buckets.get(key)?.until <= at) buckets.delete(key);
       // Overflow shares a bucket rather than evicting live accounting.
-      if (!buckets.has(key) && buckets.size >= config.limitMaxAccounts * 16) key = key.split(':').slice(0, 2).join(':') + ':overflow';
+      const overflow = key.split(':').slice(0, 2).join(':') + ':overflow';
+      // Keep using a live overflow window after reclamation frees capacity;
+      // otherwise one identity could acquire a fresh bucket mid-window.
+      if (!buckets.has(key) && (buckets.size >= config.limitMaxAccounts * 16 || buckets.get(overflow)?.until > at)) key = overflow;
       let entry = buckets.get(key);
+      if (entry?.until <= at) { buckets.delete(key); entry = undefined; }
       if (!entry) { entry = { count: 0, until: at + window }; buckets.set(key, entry); }
       return { entry, limit };
     });
@@ -66,11 +84,10 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
     };
   }
   function legacyScope(pickerId, memberId) {
-    const legacyId = registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id;
-    const accounts = registry?.listAccounts().filter(account => account.memberships.some(m => m.pickerId === legacyId && m.memberId === memberId)) ?? [];
+    const accounts = registry?.accountsForMember?.(legacyId, memberId) ?? legacyAccounts.get(memberId) ?? [];
     // Old keys did not record their issuer. Charge every possible owning account
     // until such a key is revoked, instead of guessing and resetting a quota.
-    return scope(accounts.length ? { accountIds: accounts.map(account => account.id) } : undefined, pickerId);
+    return scope(accounts.length ? { accountIds: accounts } : undefined, pickerId);
   }
   function pluginScope(request, pickerId, memberId) {
     const known = keys.get(keyHash(request));
@@ -79,22 +96,47 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
     if (capability) return scope(capability, pickerId);
     return legacyScope(pickerId, memberId);
   }
+  // Until durable characters exist, a character key scope is the immutable
+  // (picker, member) tuple. Never use the login allowance as a member allowance.
+  function keyRows(owner) {
+    return [...rows('keys', owner, config.pluginKeysPerAccount, config.pluginKeysPerPicker, config.pluginKeysGlobal),
+      [`keys:character:${JSON.stringify([owner.pickerId, owner.memberId])}`, config.pluginKeysPerCharacter]];
+  }
   function keyLease(owner) {
-    const counts = keyCounts();
-    for (const [key, limit] of rows('keys', owner, config.pluginKeysPerAccount, config.pluginKeysPerPicker, config.pluginKeysGlobal)) if ((counts.get(key) ?? 0) >= limit) throw refusal('Too many plugin keys. Revoke an existing key before creating another.');
+    for (const [key, limit] of keyRows(owner)) {
+      onKeyCount();
+      if ((keyCounts.get(key) ?? 0) < limit) continue;
+      const scope = keyScopeLabels.get(key.split(':')[1]) ?? 'The service';
+      throw refusal(`${scope} has reached its plugin key limit. Revoke an existing key before creating another.`);
+    }
   }
   // Includes pending issuance: a persistence await cannot oversubscribe a cap.
-  const reservations = new Map();
-  function keyCounts() {
-    const counts = new Map(reservations);
-    for (const owner of keys.values()) for (const [key] of rows('keys', owner, 1, 1, 1)) counts.set(key, (counts.get(key) ?? 0) + 1);
-    return counts;
+  function adjustKeys(owner, amount) {
+    for (const [key] of keyRows(owner)) {
+      onKeyCount();
+      const count = (keyCounts.get(key) ?? 0) + amount;
+      if (count) keyCounts.set(key, count); else keyCounts.delete(key);
+    }
+  }
+  function revokeKey(digest) {
+    const owner = keys.get(digest);
+    if (!owner) return;
+    adjustKeys(owner, -1); keys.delete(digest);
   }
   return {
     config, scope, pluginScope,
     async initialize(value) {
       registry = value;
-      for (const picker of registry.listPickers()) {
+      const pickers = registry.listPickers();
+      legacyId = pickers.find(picker => picker.kind === 'legacy-shared')?.id;
+      // Older adapters can supply a startup snapshot. The registry itself uses
+      // its live membership index, including membership edits and retirements.
+      if (legacyId && !registry.accountsForMember) for (const account of registry.listAccounts()) for (const membership of account.memberships) {
+        if (membership.pickerId !== legacyId) continue;
+        if (!legacyAccounts.has(membership.memberId)) legacyAccounts.set(membership.memberId, []);
+        legacyAccounts.get(membership.memberId).push(account.id);
+      }
+      for (const picker of pickers) {
         if (picker.lifecycle !== 'active') continue;
         let document;
         try { document = JSON.parse(await readFile(path.join(registry.pickerDirectory(picker.id), 'plugin-keys.json'), 'utf8')); }
@@ -102,8 +144,11 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
         for (const record of document.keys) if (!record.revoked) {
           const capability = registry.resolveCapability('plugin-key', record.tokenHash);
           const account = record.accountId ? { accountId: record.accountId } : capability;
-          keys.set(record.tokenHash, account ? scope(account, picker.kind === 'legacy-shared' ? 'legacy' : picker.id)
-            : picker.kind === 'legacy-shared' ? legacyScope('legacy', record.player) : scope(undefined, picker.id));
+          const owner = account ? scope(account, picker.kind === 'legacy-shared' ? 'legacy' : picker.id)
+            : picker.kind === 'legacy-shared' ? legacyScope('legacy', record.player) : scope(undefined, picker.id);
+          const entry = { ...owner, memberId: record.player };
+          revokeKey(record.tokenHash);
+          keys.set(record.tokenHash, entry); adjustKeys(entry, 1);
         }
       }
     },
@@ -122,18 +167,24 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
     },
     reserveKey(identity, pickerId, memberId) {
       // Resolve pre-existing legacy player keys to the same account as issuance.
-      const owner = identity?.accountId ? scope(identity, pickerId) : pluginScope({ headers: {} }, pickerId, memberId);
+      const owner = { ...(identity?.accountId ? scope(identity, pickerId) : pluginScope({ headers: {} }, pickerId, memberId)), memberId };
       keyLease(owner);
-      const entries = rows('keys', owner, 1, 1, 1);
-      for (const [key] of entries) reservations.set(key, (reservations.get(key) ?? 0) + 1);
+      adjustKeys(owner, 1);
       let released = false;
       return { finish(key) {
         if (released) return; released = true;
-        if (key) keys.set(hash(key), owner);
-        for (const [name] of entries) { const count = reservations.get(name) - 1; if (count) reservations.set(name, count); else reservations.delete(name); }
+        if (key) { revokeKey(hash(key)); keys.set(hash(key), owner); }
+        else adjustKeys(owner, -1);
       } };
     },
-    revokeKey(digest) { keys.delete(digest); },
+    revokeKey,
+    keyChange(identity, pickerId, memberId) {
+      charge([...rows('key-change', scope(identity, pickerId), config.keyChangesPerAccount, 0, 0),
+        [`key-change:member:${JSON.stringify([pickerId, memberId ?? 'admin'])}`, config.keyChangesPerMember]],
+      1, config.limitWindowMs, 'Too many plugin key changes. Wait before creating or revoking another key.');
+    },
+    // Diagnostics only: admission uses the incrementally maintained map.
+    keyCounts() { return Object.fromEntries(keyCounts); },
     // Deleted pickers stop holding key quota, dormant ones included. An account
     // tombstone alone releases nothing: deleting an account also tombstones the
     // pickers it owns, while its keys on a surviving shared picker stay usable
@@ -141,7 +192,7 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
     forgetDeleted() {
       if (!registry) return;
       const pickers = new Set(registry.deletionRecords().pickers.map(t => t.pickerId));
-      for (const [digest, owner] of keys) if (pickers.has(owner.pickerId)) keys.delete(digest);
+      for (const [digest, owner] of keys) if (pickers.has(owner.pickerId)) revokeKey(digest);
     },
     registration(client) { charge(rows('registration', { accountId: client }, config.registrationsPerAccount, 0, config.registrationsGlobal), 1, config.limitWindowMs, 'Too many sign-in attempts. Wait before starting sign-in again.'); },
     provisioningRegistry(value) {
