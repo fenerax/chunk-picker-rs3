@@ -11,6 +11,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
   const slots = new Set(), endpoints = new Set(), waiting = new Map(), turns = [];
   let ready, boot, closed = false, sequence = 0, peak = 0, pumping = false, evictions = 0, activityObserved = false;
   let memoryTrips = 0, optimizationsSuspended = false, closePromise;
+  let interactiveTurns = 0;
   const keepWarm = () => sessions?.enabled && !optimizationsSuspended;
   const remainingSession = () => sessions?.remainingAny() ?? 0;
   const idleRemaining = slot => sessions
@@ -151,7 +152,9 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         }
         if (!candidates.length) break;
         const interactive = candidates.some(value => value.interactive);
-        const eligible = candidates.filter(value => value.interactive === interactive);
+        const requested = candidates.filter(value => value.interactive === interactive);
+        const fast = requested.filter(value => (value.priority ?? 0) === 0), heavy = requested.filter(value => (value.priority ?? 0) !== 0);
+        const eligible = fast.length && (!heavy.length || interactiveTurns < 8) ? fast : heavy;
         const ids = new Set(eligible.map(value => value.pickerId));
         for (let i = turns.length - 1; i >= 0; i--) if (!ids.has(turns[i])) turns.splice(i, 1);
         for (const id of ids) if (!turns.includes(id)) turns.push(id);
@@ -200,6 +203,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
         }
         const { endpoint, request } = selected;
         turns.splice(turns.indexOf(selected.pickerId), 1); turns.push(selected.pickerId);
+        interactiveTurns = (selected.priority ?? 0) === 0 ? interactiveTurns + 1 : 0;
         waiting.delete(endpoint); clock.clearTimeout(slot.timer);
         slot.owner = endpoint; slot.pickerId = selected.pickerId; endpoint.slot = slot;
         endpoint.startedCalculator = slot.cold; slot.cold = false;
@@ -218,6 +222,12 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }
     get snapshotHints() { return this.slot?.snapshots; }
+    // Admission may discover a superseded deferred capture before sending work.
+    releaseUnused() {
+      const slot = this.slot;
+      if (!slot) return;
+      slot.owner = undefined; this.slot = undefined; idle(slot); pump();
+    }
     get ownedBaseDigests() { return this.slot?.ownedBases; }
     // Read-only correlation for the opt-in scheduler observer. Do not borrow a
     // slot or use lastSlot: an idle calculator may now belong to another lane.

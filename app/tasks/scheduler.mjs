@@ -97,6 +97,8 @@ function serializedEvaluation(value) {
     bytes: bytes.buffer.byteLength + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs })) };
 }
 function validStateInput(state, input, stateInput, type) {
+  if (typeof stateInput.load === 'function') return stateInput.inputKey === input
+    && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members);
   if (stateInput.owned) return typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
     && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members);
   return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
@@ -107,13 +109,15 @@ function validStateInput(state, input, stateInput, type) {
 }
 
 /** Interactive work and advisory batches have independent bounded workers. */
-export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs = 120000, deathWorkerFactory,
-  duoWorkerFactory, maxDuoQueue = 2, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
-  predictionWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
+export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs = 120000, deathWorkerFactory,
+  duoWorkerFactory, maxDuoQueue = 128, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
+  predictionWorkerFactory, maxPredictionQueue = 128, predictionDeadlineMs = 120000,
   predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, residency, eligibilityProofSeeding = true, ...options } = {}) {
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
+  // A picker is the fairness unit. Legacy positional callers can still opt out.
+  if (!Object.hasOwn(options, 'fairness')) options.fairness = {};
   if (options.fairness) {
     const { maxOutstandingJobsPerPicker = 4, maxWaitersPerJob = 64 } = options.fairness;
     positive(maxOutstandingJobsPerPicker, 'maxOutstandingJobsPerPicker'); positive(maxWaitersPerJob, 'maxWaitersPerJob');
@@ -565,12 +569,13 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
 
 /** One worker, bounded snapshots, and a bounded lifetime restart budget. */
 async function createWorkerLane({ workerData, workerPreparation, workerFactory = nativeWorker, includeReadyCatalogue = true, onCreated, onEvaluation, onSleep, onEligibilitySeedRequest,
-  maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
+  maxQueue = 128, waitDeadlineMs = 240000, maxQueuedInputBytes = 64 * 1024 * 1024, coalesceQueued = true,
+  deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
   stuckMs = 120000, signal, fairness, calculatorPool, sessions, timings: liveTimings, onWorker, onCalculatorLifecycle, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
-  for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
+  for (const [name, value] of Object.entries({ maxQueue, waitDeadlineMs, maxQueuedInputBytes, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
   positive(idleMs, 'idleMs');
   positive(stuckMs, 'stuckMs');
@@ -593,20 +598,32 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     for (const key of sentSnapshots.keys()) if (JSON.parse(key)[0] === pickerId) sentSnapshots.set(key, {});
   }
   const turns = [];
-  function fairTake() {
-    const candidates = calculatorPool && queue.length ? queue : [...queue, ...warmQueue];
-    const waiting = new Set(candidates.map(entry => entry.pickerId));
-    for (let index = turns.length - 1; index >= 0; index--) if (!waiting.has(turns[index])) turns.splice(index, 1);
+  let queuedInputBytes = 0, interactiveTurns = 0;
+  const interactive = entry => !entry.warm && !duoResults && !(entry.type === 'evaluate' && entry.resultView === 'full')
+    && !['chunk-planning', 'sandbox', 'area-check', 'death-estimates'].includes(entry.type);
+  function candidatesForTurn() {
+    if (!queue.length) return warmQueue;
+    const fast = queue.filter(interactive), heavy = queue.filter(entry => !interactive(entry));
+    return fast.length && (!heavy.length || interactiveTurns < 8) ? fast : heavy;
+  }
+  function fairPeek() {
+    const candidates = candidatesForTurn(), waiting = new Set(candidates.map(entry => entry.pickerId));
+    for (let index = turns.length - 1; index >= 0; index--) if (![...queue, ...warmQueue].some(entry => entry.pickerId === turns[index])) turns.splice(index, 1);
     for (const id of waiting) if (!turns.includes(id)) turns.push(id);
-    const id = turns.shift();
-    if (id === undefined) return;
-    const selected = queue.some(entry => entry.pickerId === id) ? queue : warmQueue;
-    const entry = selected.splice(selected.findIndex(entry => entry.pickerId === id), 1)[0];
-    if ([...queue, ...warmQueue].some(entry => entry.pickerId === id)) turns.push(id);
+    return candidates.find(entry => entry.pickerId === turns.find(id => waiting.has(id)));
+  }
+  function fairTake() {
+    const entry = fairPeek();
+    if (!entry) return;
+    const selected = queue.includes(entry) ? queue : warmQueue;
+    selected.splice(selected.indexOf(entry), 1);
+    turns.splice(turns.indexOf(entry.pickerId), 1); turns.push(entry.pickerId);
+    interactiveTurns = interactive(entry) ? interactiveTurns + 1 : 0;
     return entry;
   }
   function admitFair(pickerId, { interactive = false } = {}) {
     if (!fairness) return () => {};
+    if (pickerId === 'legacy-shared') return () => {};
     // Leave room for another picker even in the small advisory queues.
     const limit = Math.min(fairness.maxOutstandingJobsPerPicker, Math.max(1, Math.floor(maxQueue / 2)));
     const count = () => [...pending.values()].filter(entry => entry.pickerId === pickerId).length;
@@ -747,6 +764,52 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   // A producer that already answered Preview still prepares its partner. It is
   // requested work until it finishes or is cancelled (discarded), never idle warm-up.
   function served(entry) { return !!entry?.previewServed && !entry.discarded; }
+  function releaseQueuedInput(entry) {
+    queuedInputBytes -= entry.queuedInput?.cost ?? 0;
+    entry.queuedInput = undefined;
+  }
+  function parkInput(entry) {
+    if (entry.queuedInput) return true;
+    const deferred = typeof entry.stateInput?.load === 'function';
+    // Store captures already share the immutable base. Serialize only the sparse
+    // owned document, never its base or a full resident graph. Eager compatibility
+    // callers are charged for every byte retained while they wait.
+    const owned = deferred ? undefined : entry.stateInput?.owned ?? (isResidentState(entry.state) ? ownedCalculatorInput(entry.state) : undefined);
+    const shared = !deferred && !owned ? entry.stateInput?.stateJSON : undefined;
+    const prediction = entry.type === 'predict' ? { rules: entry.state.rules, taskRules: entry.state.taskRules,
+      legacy: { maps: Object.fromEntries((entry.state.members ?? []).filter(member => member.sourceMapId !== undefined)
+        .map(member => [member.sourceMapId, { rules: entry.state.legacy?.maps?.[member.sourceMapId]?.rules }])) } } : {};
+    const captured = deferred ? {} : owned ? { state: { revision: entry.state.revision,
+      members: entry.state.members?.map(({ id, taskRules, sourceMapId }) => ({ id, taskRules, sourceMapId })), ...prediction },
+      stateInput: { owned: { document: owned.document }, inputKey: entry.input } }
+      : { state: entry.state, stateInput: shared ? { inputKey: entry.input } : entry.stateInput };
+    const bytes = serialize({ ...captured, chunkId: entry.chunkId, chunkIds: entry.chunkIds });
+    // Draft arguments and opaque response keys can also be large. Charge them
+    // even when the state itself is deferred; queue metadata is not a loophole.
+    const cost = bytes.byteLength + (shared?.byteLength ?? 0) + [entry.key, entry.originalKey, entry.input, entry.admissionSlot]
+      .reduce((sum, value) => sum + (typeof value === 'string' ? Buffer.byteLength(value) : 0), 0);
+    if (queuedInputBytes + cost > maxQueuedInputBytes) return false;
+    entry.queuedInput = { bytes, cost, shared, installation: owned?.installation };
+    queuedInputBytes += cost;
+    if (!deferred) { entry.state = undefined; entry.stateInput = undefined; }
+    entry.chunkId = undefined; entry.chunkIds = undefined;
+    return true;
+  }
+  function loadInput(entry) {
+    if (entry.queuedInput) {
+      const { bytes, installation, shared } = entry.queuedInput;
+      const loaded = deserialize(bytes);
+      if (installation) loaded.stateInput.owned.installation = installation;
+      if (shared) loaded.stateInput.stateJSON = shared;
+      releaseQueuedInput(entry);
+      Object.assign(entry, loaded);
+    }
+    if (typeof entry.stateInput?.load === 'function') {
+      const loaded = entry.stateInput.load(entry.revision);
+      if (loaded.state.revision !== entry.revision || loaded.stateInput.inputKey !== entry.input) throw superseded();
+      Object.assign(entry, loaded);
+    }
+  }
   function settle(entry, error, value) {
     entry.releaseFair?.();
     if (active !== entry) deadlineClock.clearTimeout(entry.timer);
@@ -760,7 +823,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     entry.predictionState = undefined;
     entry.previewValue = undefined;
     entry.stateInput = undefined;
+    releaseQueuedInput(entry);
     for (const waiter of entry.waiters) {
+      waiter.releaseFair?.();
       waiter.signal?.removeEventListener('abort', waiter.abort);
       if (error) waiter.reject(error); else waiter.resolve(evaluationWith(value, { hit: waiter.hit, coalesced: waiter.hit, calculatorStarted: entry.calculatorStarted }));
     }
@@ -857,9 +922,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return;
     }
     if (calculatorPool) {
-      const candidates = queue.length ? queue : warmQueue;
-      const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
-      const next = candidates.find(entry => entry.pickerId === id) ?? candidates[0];
+      const next = fairness ? fairPeek() : queue[0] ?? warmQueue[0];
       if (next?.type === 'why-task') {
         if (!worker.tryReadSnapshot(next.pickerId, () => {
           sentSnapshots = worker.snapshotHints;
@@ -878,10 +941,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
           entry.warm = false; warmCounts.cancelled++;
           cancel(entry, unavailable('Background prediction cancelled.'));
         }
-        const candidates = queue.length ? queue : warmQueue;
-        const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
-        const entry = candidates.find(entry => entry.pickerId === id) ?? candidates[0];
-        return entry && { pickerId: entry.pickerId, interactive: !!queue.length };
+        const entry = fairness ? fairPeek() : queue[0] ?? warmQueue[0];
+        return entry && { pickerId: entry.pickerId, interactive: !!queue.length, priority: interactive(entry) ? 0 : 1 };
       }, () => {
         // Hints belong to this physical calculator, shared across its lanes.
         // They contain only bounded metadata, never another retained state body.
@@ -890,7 +951,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       }, () => scheduler.yieldForInteractive(), () => scheduler.isBackground(), () => scheduler.stopForMemory(), () => scheduler.yieldWhileStarting());
       return;
     }
-    if (fairness && (queue.length || warmQueue.length)) { dispatch(fairTake()); return; }
+    if (fairness && (queue.length || warmQueue.some(entry => entry.pickerId !== 'legacy-shared'))) { dispatch(fairTake()); return; }
     if (!queue.length && idleClock.now() - lastRequestAt >= idleMs && !sessionRemaining()) { sleep(); return; }
     if (!queue.length) {
       if (!warmQueue.length || idleTimer) return;
@@ -900,20 +961,29 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     const entry = queue.shift();
     dispatch(entry);
   }
-  function deadline(entry, allowance = !active && firstCalculation && queue.length <= 1 && entry.type !== 'prepare-rules' && !entry.residentOnly
-    ? Math.max(deadlineMs, firstCalculationDeadlineMs) : deadlineMs) {
-    entry.deadlineStartedAt ??= idleClock.now();
+  function waitDeadline(entry) {
+    deadlineClock.clearTimeout(entry.timer);
+    entry.timer = deadlineClock.setTimeout(() => {
+      counts.expired++;
+      settle(entry, Object.assign(new Error('Task calculation wait deadline exceeded. The calculator is overloaded; retry shortly.'), { status: 504, code: 'CALCULATION_WAIT_TIMEOUT', retryAfter: 1 }));
+      pump();
+    }, Math.max(0, waitDeadlineMs - (idleClock.now() - entry.queuedAt)));
+  }
+  function deadline(entry, allowance = deadlineMs) {
+    entry.deadlineStartedAt = idleClock.now();
     if (onCalculatorLifecycle) entry.diagnosticDeadlineMs = allowance;
     deadlineClock.clearTimeout(entry.timer);
     entry.timer = deadlineClock.setTimeout(() => {
       const error = Object.assign(new Error('Task calculation deadline exceeded. Retry shortly.'), { status: 504 });
       counts.expired++; settle(entry, error);
       if (active === entry) failure('calculation-deadline', error); else pump();
-    }, Math.max(0, allowance - (idleClock.now() - entry.deadlineStartedAt)));
+    }, allowance);
   }
   function dispatch(entry) {
     if (closed || status !== 'ready' || active) { if (entry) (entry.warm ? warmQueue : queue).unshift(entry); return; }
     if (!entry) return;
+    try { loadInput(entry); }
+    catch (error) { settle(entry, error); worker.releaseUnused?.(); pump(); return; }
     residentPickers.add(entry.pickerId);
     if (wakeStarted !== undefined) { liveTimings?.record('calculator-wake', idleClock.now() - wakeStarted, { source: 'computed', calculatorStarted: !calculatorPool || !!worker.startedCalculator }); wakeStarted = undefined; }
     entry.calculatorStarted ||= !!worker.startedCalculator;
@@ -935,7 +1005,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (firstCalculation && entry.type !== 'prepare-rules' && !entry.residentOnly) {
       firstCalculation = false;
       deadline(entry, Math.max(deadlineMs, firstCalculationDeadlineMs));
-    } else if (!entry.timer) deadline(entry);
+    } else deadline(entry);
     // Coalesced display revisions can update entry.revision while the captured
     // bytes retain their original revision, so the key names that revision.
     // Both LRUs key only its task input: after a display-only save the worker
@@ -1078,6 +1148,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
             const value = active.previewValue = workerEvaluation(message, active);
             storeEvaluation(active.key, active.revision, active.type, value, active.pickerId);
             for (const waiter of active.waiters) {
+              waiter.releaseFair?.();
               waiter.signal?.removeEventListener('abort', waiter.abort);
               waiter.resolve(evaluationWith(value, { hit: waiter.hit, coalesced: waiter.hit, calculatorStarted: active.calculatorStarted }));
             }
@@ -1281,9 +1352,28 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return Promise.resolve(evaluationWith(value.value, { hit: true }));
       }
       if (type === 'how-task' && [...pending.values()].some(entry => entry.type === type && entry.pickerId === pickerId && entry.memberId === memberId && entry.key !== key)) return Promise.reject(queueFull());
-      let entry = pending.get(key), hit = !!entry;
+      let entry = pending.get(key);
+      // A caller's response-cache key can differ for the same calculation. One
+      // queued slot per picker/member/kind/arguments joins equivalent inputs;
+      // a newer draft replaces the old slot without losing its fairness turn.
+      if (!entry && coalesceQueued && pickerId !== 'legacy-shared' && input !== undefined) {
+        const slot = JSON.stringify([memberId, type, resultView, chunkId, chunkIds]);
+        const previous = queue.find(value => value.pickerId === pickerId && value.admissionSlot === slot);
+        if (previous && previous.revision > state.revision) return Promise.reject(superseded());
+        if (previous && previous.input === input && previous.revision === state.revision) entry = previous;
+        else if (previous) { counts.superseded++; cancel(previous, superseded()); }
+      }
+      const hit = !!entry;
+      let releaseJoined;
       if (entry) {
         if (fairness && entry.waiters.size >= fairness.maxWaitersPerJob) { counts.rejected++; return Promise.reject(queueFull()); }
+        // Equivalent work shares a calculator slot, but a different response
+        // key still represents independently admitted demand from this picker.
+        // Exact-key followers retain their existing bounded waiter allowance.
+        if (entry.key !== key) {
+          releaseJoined = admitFair(pickerId, { interactive: !residentOnly });
+          if (!releaseJoined) { counts.rejected++; return Promise.reject(queueFull()); }
+        }
         counts.coalesced++; entry.revision = Math.max(entry.revision, state.revision);
         if (entry.purpose === 'ranking') {
           entry.purpose = undefined;
@@ -1291,14 +1381,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         }
         // A bounded response cache can reject/evict the delta while the same
         // active prediction is still preparing its partner. Follow its result.
-        if (entry.previewValue && !entry.discarded) { entry.previewServed = true; return Promise.resolve(evaluationWith(entry.previewValue, { hit: true, coalesced: true, calculatorStarted: entry.calculatorStarted })); }
+        if (entry.previewValue && !entry.discarded) { releaseJoined?.(); entry.previewServed = true; return Promise.resolve(evaluationWith(entry.previewValue, { hit: true, coalesced: true, calculatorStarted: entry.calculatorStarted })); }
         // Queued requests can add the projection before dispatch. Already active
         // normal requests keep their ordinary payload and callers fall back to it.
         entry.duoSidebarProjection ||= duoSidebarProjection;
         const position = warmQueue.indexOf(entry);
         if (position >= 0) {
-          if (queue.length >= maxQueue) { counts.rejected++; return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
-          warmQueue.splice(position, 1); queue.unshift(entry); deadline(entry);
+          if (queue.length >= maxQueue) { releaseJoined?.(); counts.rejected++; return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
+          warmQueue.splice(position, 1); queue.push(entry); waitDeadline(entry);
         }
       }
       else {
@@ -1310,16 +1400,18 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         const releaseFair = admitFair(pickerId, { interactive: !residentOnly });
         if (!releaseFair) { if (residentOnly) return Promise.reject(residentPlanningUnavailable()); counts.rejected++; return Promise.reject(queueFull()); }
         entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, residentOnly, sourceDrain, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
+        entry.admissionSlot = JSON.stringify([memberId, type, resultView, chunkId, chunkIds]);
         entry.calculatorStarted = !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status));
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry);
         if (!fairness && (type === 'predict' || type === 'evaluate' && resultView === 'play-v1')) queue.unshift(entry); else queue.push(entry);
-        deadline(entry);
+        waitDeadline(entry);
       }
       const promise = new Promise((resolve, reject) => {
-        const waiter = { resolve, reject, signal, hit };
+        const waiter = { resolve, reject, signal, hit, releaseFair: releaseJoined };
         waiter.abort = () => {
           if (!entry.waiters.delete(waiter)) return;
+          waiter.releaseFair?.();
           signal.removeEventListener('abort', waiter.abort);
           reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
           if (!entry.waiters.size && !entry.warm) { counts.cancelled++; cancel(entry, unavailable('Calculation abandoned by its requesters.')); pump(); }
@@ -1333,7 +1425,15 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         if (calculatorPool) {
           if (!worker.tryIdle(pickerId, run)) settle(entry, residentPlanningUnavailable());
         } else run();
-      } else { wake(); pump(); }
+      } else {
+        wake(); pump();
+        // Idle requests take the original fast path. Only jobs still waiting
+        // after the synchronous dispatch attempt need a parked representation.
+        if (queue.includes(entry)) {
+          try { if (!parkInput(entry)) { counts.rejected++; cancel(entry, queueFull()); pump(); } }
+          catch (error) { cancel(entry, error); pump(); }
+        }
+      }
       return promise;
     },
     supersede(revision, input, memberId, pickerId = 'legacy-shared') {
@@ -1423,8 +1523,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         snapshot ??= stateInput ? state : isResidentState(state) ? cloneResidentState(state) : structuredClone(state);
         const entry = { calculatorStarted: !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status)), releaseFair, key, originalKey, pickerId, input, state: snapshot, stateInput, memberId, type: 'evaluate', resultView,
           revision: state.revision, queuedAt: idleClock.now(), waiters: new Set(), warm: true };
+        if (!parkInput(entry)) { releaseFair(); warmCounts.skipped++; continue; }
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
-        pending.set(key, entry); warmQueue.push(entry); queued++; warmCounts.queued++;
+        pending.set(key, entry); warmQueue.push(entry); waitDeadline(entry); queued++; warmCounts.queued++;
       }
       pump(); return { queued };
     },
@@ -1458,8 +1559,9 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         snapshot ??= isResidentState(state) ? cloneResidentState(state) : structuredClone(state);
         const entry = { releaseFair, key, originalKey: JSON.parse(key)[1], pickerId, input, state: snapshot, memberId, type: 'predict', chunkId, revision: state.revision,
           queuedAt: idleClock.now(), waiters: new Set(), warm: true, purpose };
+        if (!parkInput(entry)) { releaseFair(); warmCounts.skipped++; continue; }
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
-        pending.set(key, entry); warmQueue.push(entry); queued++; warmCounts.queued++;
+        pending.set(key, entry); warmQueue.push(entry); waitDeadline(entry); queued++; warmCounts.queued++;
       }
       const abort = () => scheduler.cancelPrewarm({}, pickerId);
       prewarmSubscriptions.set(pickerId, { signal, abort });
@@ -1531,7 +1633,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       try { await manualRestart; return true; } finally { manualRestart = undefined; }
     },
     getDiagnostics() {
-      return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, deadlineMs, firstCalculationDeadlineMs,
+      return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, waitDeadlineMs, deadlineMs, firstCalculationDeadlineMs,
+        inputBytes: queuedInputBytes, inputByteLimit: maxQueuedInputBytes,
         oldestWaitMs: queue.length ? idleClock.now() - queue[0].queuedAt : 0 }, counts: { ...counts },
       retainedWork: { pending: pending.size, cancellationGrace: cancelledGrace ? 1 : 0,
         stateInputs: [...pending.values()].filter(entry => entry.state || entry.stateInput).length },

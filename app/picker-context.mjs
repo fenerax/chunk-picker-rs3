@@ -25,6 +25,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { isImportRoute, readBackupRequest, sendPreparedBackup } from './backup-transfer.mjs';
 import { createTaskReuseFingerprint } from './tasks/unlock-reuse.mjs';
+import { deferredTaskInput } from './tasks/deferred-input.mjs';
 import { createPoolRanking } from './tasks/pool-ranking.mjs';
 import { openStore } from './storage/store.mjs';
 import { openInviteStore } from './storage/invites.mjs';
@@ -655,14 +656,16 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     if (!calculationSnapshot || calculationSnapshot.metadata.revision !== store.getInfo().revision) {
       const captured = store.getCalculationSnapshot();
       let taskIndex;
-      calculationSnapshot = { metadata: { revision: captured.revision, members: captured.members }, input: captured.taskInputKey,
+      calculationSnapshot = { capture: captured, metadata: { revision: captured.revision, members: captured.members }, input: captured.taskInputKey,
         get state() { return captured.residentState ?? captured.state; },
         get sandboxTaskIndex() { return taskIndex ??= sandboxTaskCatalogue(captured.residentState ?? captured.state, sandboxCatalogue); },
-        get stateInput() { return { get owned() { return captured.owned; }, get stateJSON() { return captured.stateJSON; }, inputKey: captured.taskInputKey,
-          get taskInputKey() { return captured.taskInputKey; } }; } };
+        get stateInput() { return deferredTaskInput(store, captured.taskInputKey, currentCalculationCapture); } };
     }
     return calculationSnapshot;
   }
+  // Resolve through the context cache, without keeping an obsolete capture in
+  // each queued provider or asking the store to recapture it at every dispatch.
+  function currentCalculationCapture() { return calculationState().capture; }
   function schedulePredictions(delay = 1000) {
     if (!taskWorker || closed || liveSwap?.standby || !predictionPrewarm && !poolRanking.interestedMembers().size) return;
     schedulingClock.clearTimeout(prewarmTimer);
