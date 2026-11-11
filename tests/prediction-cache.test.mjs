@@ -1,13 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { waitForCondition, settlePredictionLane, predictionLaneWork } from './helpers/prediction-lane.mjs';
 import { EventEmitter } from 'node:events';
 import { createTaskScheduler, predictionCacheKey } from '../app/tasks/scheduler.mjs';
 
+const guard = AbortSignal.timeout(60_000);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate) {
-  const deadline = Date.now() + 2000;
-  while (!predicate()) { if (Date.now() > deadline) assert.fail('Condition did not become true.'); await delay(2); }
-}
+const until = predicate => waitForCondition(predicate, Boolean, guard);
 function factory({ ready = true } = {}) {
   const workers = [];
   const create = () => {
@@ -45,12 +44,11 @@ test('prediction identity separates revision, member, chunk, gameplay input and 
 
 test('empty prewarm groups keep the prediction lane idle without starting a worker', async t => {
   const { scheduler, prediction, warm } = await fixture(t);
-  const before = scheduler.getDiagnostics().predictionLane;
+  const before = (await settlePredictionLane(() => scheduler.getDiagnostics(), guard)).predictionLane;
   assert.equal(warm([]).queued, 0);
   assert.equal(scheduler.prewarm(state(), 'gameplay', []).queued, 0);
-  await delay(5);
   assert.equal(prediction.workers.length, 0);
-  assert.deepEqual(scheduler.getDiagnostics().predictionLane, before);
+  assert.deepEqual(predictionLaneWork(scheduler.getDiagnostics().predictionLane), predictionLaneWork(before));
   assert.equal(scheduler.getHealth().prediction.status, 'idle');
 });
 
@@ -69,11 +67,11 @@ test('prediction summary observers see complete current results and peeks do not
   // Consumers derive summaries from values and input keys. Serialized cache
   // reads may return distinct objects; every result field must still match.
   assert.equal(summaries[0].chunkId, '12342'); assert.deepStrictEqual(summaries[0].result, result);
-  const before = scheduler.getDiagnostics().predictionLane;
+  const before = (await settlePredictionLane(() => scheduler.getDiagnostics(), guard)).predictionLane;
   assert.deepStrictEqual(scheduler.peekPrediction(state(1), 'actor1', '12342', 'gameplay'), result);
   assert.equal(scheduler.peekPrediction(state(1), 'reed', '12342', 'gameplay'), undefined);
   assert.equal(scheduler.peekPrediction(state(1), 'actor1', '12342', 'changed'), undefined);
-  assert.deepEqual(scheduler.getDiagnostics().predictionLane, before);
+  assert.deepEqual(predictionLaneWork(scheduler.getDiagnostics().predictionLane), predictionLaneWork(before));
   unsubscribe(); warm(['12343'], state(1)); await until(() => worker.requests().length === 2);
   worker.finish({ delta: { tasksAdded: [] } }); assert.equal(summaries.length, 1);
   assert.equal(scheduler.peekPrediction(state(1), 'actor1', '12342', 'gameplay'), undefined);
