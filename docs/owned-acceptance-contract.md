@@ -77,18 +77,22 @@ and logical History bytes against `mutationHistoryBaseline`, and checks this
 workload bound. Mutation timing/History receipts are released before GC and read
 back only after all repeated measurements finish.
 
-## Dispatch after merge
+## Dispatch scope (owner decision, 2026-11-11)
 
-In GitHub Actions choose **Owned format 2 acceptance → Run workflow** on `main`,
-or run:
+The default `diagnostic` scope measures Ubuntu fresh run 1 in both formats.
+It still checks paired fixture/final hashes and every reject gate. Only `full`
+scope, with both OSes and all five fresh runs, can establish final acceptance:
 
 ```sh
-gh workflow run format2-acceptance.yml --ref main -f snapshots=false
+gh workflow run format2-acceptance.yml --ref main -f scope=full -f snapshots=false
 ```
 
-The workflow always checks out `main`, has no unmerged-ref override, and runs
-Ubuntu and Windows five times each, with at most two measurement jobs active.
-The OS × run × format matrix has twenty jobs; each measures just one format
+Every job checks out the dispatch's immutable `github.sha`, including a branch
+dispatch. The earlier `ref: main` prevented measuring an unmerged branch; its
+introducing commit records no further safety rationale. SHA-pinned actions,
+`contents: read`, `persist-credentials: false`, synthetic inputs and hosted-only
+full measurements remain in force. A branch dispatch receives no write token.
+The full OS × run × format matrix has twenty jobs, at most two active; each measures one format
 with its own unchanged 60-minute timeout. Each format is a fresh process at BelowNormal priority, on Node
 24.21.0 (the harness requires 24.20+ within 24.x). There are no package dependencies.
 The full harness refuses execution outside hosted Actions. Never run its
@@ -111,7 +115,12 @@ Missing/duplicate receipts, failed processes, command errors in either format,
 base rewrites in either format, or mismatched commit, seed, Node/V8/architecture,
 dispatch/attempt, smoke or snapshot settings prevent acceptance. Format 1 remains
 the control; its memory target is reported, while format 2 must meet every
-existing target, hard limit and growth gate. There are no retries or relaxed gates.
+hard limit and growth gate. Targets are reported goals. There are no retries.
+`scope` must match in the format receipts and aggregate's requested scope;
+missing or mismatched scope, extra OS/run receipts and incomplete pairs fail.
+`scopePassed` records whether the requested set passed. A diagnostic aggregate
+always has `acceptanceClaim: false`. Launcher decisions retain `gatePassed` for
+the per-trial verdict and suppress claims in diagnostic artifacts too.
 
 The contract requires the same OS/run and runtime, not the same physical runner.
 Each format measures heap increments against its own warmed shared baseline;
@@ -152,8 +161,8 @@ guessed. Cancellation remains cancellation. Missing residency evidence still
 fails the trial; these diagnostic receipts cannot establish acceptance.
 
 The final summary job pools wall/CPU percentiles by OS and format into
-`owned-acceptance-aggregate/aggregate.json`, checks five distinct receipts per OS
-at the same commit/runtime/seed, and requires every format-2 trial to meet the bar.
+`owned-acceptance-aggregate/aggregate.json`, checks the exact requested scope at
+the same commit/runtime/seed, and requires every format-2 trial to meet the bar.
 
 ## Accounting and interpretation
 
@@ -187,22 +196,80 @@ Positive growth after the serial attribution phase is also reported as
 whole residual for target/hard-limit decisions until dominators can explain it;
 the harness never spreads uncertain concurrent growth over fifty groups.
 
-Targets are **every group ≤5 MiB** and **total group heap ≤250 MiB**. Any attributable
+Targets are **every group ≤5 MiB** and **total group heap ≤250 MiB**. The
+**owner decision, 2026-11-11** makes these goals, not approval requirements. `targetMet`
+remains computed from the same raw measurements. `target-met` and
+`within-hard-limits-target-missed` both carry a per-trial acceptance claim when
+the run is not smoke and has no reject reasons. Final acceptance also requires
+full CI scope and both formats' equivalence.
+
+Any attributable
 group **>15 MiB**, aggregate **>750 MiB**, or positive heap growth in every interval
-of the four identical read-only rounds rejects the run. This strict growth flag
-needs snapshot attribution if noise is suspected; it is never silently waived.
+of the four identical read-only rounds rejects the run unless the ledger rule
+below proves steady state. Missing proof preserves the original raw gates.
 The mutation gate also rejects a positive least-squares retained-heap slope
 across the four measured mutation rounds. `decision.mutationGrowth` reports the
 raw slope per round/per command and deltas, alongside the bounded History
 accounting and logical-byte slope. History remains charged in every heap limit;
 JSON bytes are not a V8 retained-size estimate and are never subtracted. Positive
-growth is evidence needing dominator attribution, not by itself proof of a cache
-leak: legitimate bounded History/cache filling and GC noise can also reject a run.
-Neither a History allowance nor averaging groups can waive this conservative gate.
-`target-met` is emitted only when targets and hard limits hold, all commands
-complete, no base is rewritten, and the two formats agree. Missing the targets
-within the hard limits is reported distinctly and still exits unsuccessfully.
+growth requires evidence; bounded filling and GC noise can also reject a run.
+Neither a History subtraction nor averaging groups can waive a hard limit.
 Smoke always says `smoke-only` with `acceptanceClaim: false`.
+
+## Steady-state rule (owner decision, 2026-11-11)
+
+The allowlist is History (active events and archive), response caches, the hot
+snapshot and shared snapshot/eligibility ledger, engine variants, stateSnapshots,
+and compiled code/feedback. In-code ledgers supply their current entries/charges
+and enforced caps at immutable isolate barriers. Sampling asserts existing caps;
+an over-cap or unlisted owner rejects. Logical/wire/backing bytes are explicitly
+labelled and never converted to guessed V8 bytes.
+Ledger censuses remain in the immutable probe files during measurement and load
+after the repeat phases. They do not accumulate under retained open receipts.
+
+Warm-up must derive its admissions from the workload and the enforced entry
+caps, or an enumerated finite working set. For example, two new full/play
+response keys per mutation cycle need at most ceil(32/2) admission cycles before
+entry saturation, unless the 48 MiB byte bound causes earlier eviction. A cap
+assertion or complete working-set assertion is required; being below a cap for
+a guessed number of rounds proves nothing. All owners must reach their cap or
+steady working set before the post-warm-up measurements. Each ledger dimension
+must then be flat, with the same complete owner inventory at every barrier.
+
+Any remaining positive heap growth rejects. Compiled code/feedback is the sole
+unledgered allowance: at most **1 MiB across the entire process tree and entire
+measured interval**, backed by non-native compiled-code/feedback heap evidence.
+`getHeapCodeStatistics()` is reported for diagnosis but cannot certify that
+attribution. Missing code attribution permits no positive residual. Native and
+backing-store changes are reported separately and cannot offset heap growth.
+An `uncoveredMaximum` always vetoes a waiver. All raw heap measurements, the
+conservative worst-owner residual, targets and hard reject lines stay charged.
+
+`decision.steadyState` is machine-checkable and explains why proof is unavailable.
+The current source audit has blockers, so this implementation emits no successful
+warm-up assertion and runs the original rounds/growth gates:
+
+| Owner | Enforced bound | Missing proof |
+| --- | --- | --- |
+| Response caches | 32 entries / 48 MiB representation bytes per group | Complete heap ownership is still required for any residual |
+| Hot snapshot | One graph / 128 MiB conservative charge | Shared backing charges are reported separately |
+| Shared snapshot/eligibility cache | 512 entries / 384 MiB, with existing partitions | Hot charge overlaps this cap; do not add it twice |
+| Engine variants | 16 boolean combinations, eight when early travel is fixed false | Parsed engines/lazy indexes have no byte ledger |
+| stateSnapshots | Two entries | Retained input payloads have no byte ledger |
+| History | Compaction policy, not a hard cap | Pending-roll/Undo suffix exceptions; archive reference count and payload bytes have no cap |
+
+The warm-up preflight stops with these blockers instead of running an unbounded
+loop or inventing limits. Resolving them requires source ownership/budget work;
+this change does not impose a new History policy or change save/wire formats.
+`retention.caps` reports the per-group sum and projection to 100 groups, plus
+shared caps, as diagnostics only. Complete totals are `null` while any byte cap
+is missing; known subtotals remain numeric and identify overlapping charges.
+
+Usable full-shape snapshots are not required for a complete ledger proof. If
+ledger proof is unavailable, snapshots cannot replace it: the original raw
+growth gates apply unchanged, with the reason recorded. This supersedes the
+earlier snapshot-only waiver requirement. Spot checks may veto a proof but
+cannot supply missing caps or offset unexplained heap.
 
 `times` contains p50/p95/max wall, controller CPU and child process CPU for opens
 and each command/request kind. Child CPU is sampled at explicit before/after
@@ -243,8 +310,19 @@ materialization/copy counts come from 7a's existing counting seam.
 
 ## Outlier attribution and next slice
 
-Dispatch with `snapshots=true` to capture V8 heap snapshots for every live
-format-2 controller/relay/calculator isolate at the shared baseline, 1 and 50 groups,
+Dispatch with `snapshots=true` to run a **separate reduced diagnostic job** after
+the measured jobs have exited. It uses three synthetic groups, 2,400 tasks and
+10,000 aliases, with the ordinary History/membership shape and five rounds.
+It cannot establish full-shape acceptance or certify another process's growth.
+The measured jobs never capture snapshots. Their process/pool ceilings are
+unchanged, and the diagnostic job uses those same ceilings. Full-catalogue
+capture previously exceeded the 3 GiB process ceiling; a sequential streaming
+experiment instead hit the shared PC's lower dynamic pool budget (~1.54 GB).
+Neither observation justifies raising a ceiling. Reducing the separate spot-check
+shape avoids making full-catalogue snapshot RSS a prerequisite for the gate.
+
+The diagnostic pass captures each live format-2 controller/relay/calculator
+isolate at the shared baseline, first/last group,
 the end of serial commands, settling, every read-only and mutation round, and
 after bounded lanes. After the trial and its calculators have exited, the
 launcher automatically writes `<format>/dominators/index.json` and per-isolate
@@ -284,10 +362,11 @@ or index repeated under every handle belongs to group cost. Snapshots are large
 and perturb timing, so use a separate diagnostic dispatch rather than treating
 its wall times as clean speed evidence. They contain generated synthetic data,
 including the seed-derived fixture `access-token` value, and are not redacted.
-Default result artifacts exclude raw snapshots even if a snapshot file exists.
-Only an explicit `snapshots=true` dispatch uploads them, in separate
-`owned-heap-snapshots-<OS>-<1..5>` artifacts with 14-day retention. Aggregate
-downloads select only the ordinary result artifacts.
+Only an explicit `snapshots=true` dispatch uploads the separate
+`owned-dominator-spot-check` artifact (14-day retention), containing receipts,
+reports and raw snapshots. Its name and directory are outside the aggregate's
+ordinary `owned-acceptance-*` receipt selection. Locally use `--spot-check`
+for the same reduced shape; it always implies smoke/no acceptance claim.
 
 7c still owns synthetic activation, pinned-dataset preparation, retirement
 filtering and current-name display, plus investigation/fixes for any failed

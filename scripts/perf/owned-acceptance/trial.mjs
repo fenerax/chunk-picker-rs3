@@ -4,6 +4,7 @@ import { totals, ioDelta, measuredTimes, decision } from './metrics.mjs';
 import { digest } from '../capacity/model.mjs';
 import { calculatorEvidence } from './lifecycle.mjs';
 import { deferredTaskInput } from '../../../app/tasks/deferred-input.mjs';
+import { warmupPlan, capProjection } from './steady-state.mjs';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const probeURL = new URL('./probe.mjs', import.meta.url).href;
@@ -34,15 +35,30 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
   const evidence = calculatorEvidence({ context, diagnostics: () => scheduler?.getDiagnostics() });
   // Named root helps DevTools dominator/retainer inspection of optional snapshots.
   globalThis.__ownedAcceptanceHandles = handles;
+  probe.ownerLedgers = () => handles.flatMap((handle, group) => [
+    { ...handle.responses.retentionLedger(), id: `responses-${group}`, scope: 'group', group, workload: { newEntriesPerCycle: 2 } },
+    { ...handle.store.retentionLedger(), id: `history-${group}`, scope: 'group', group, workload: { newEntriesPerCycle: 4 } },
+  ]);
   async function rows() {
     const receipts = path.join(directory, 'checkpoints', String(sequence));
     const files = (await readdir(receipts)).filter(file => /^\d+-\d+\.json$/.test(file));
     return (await Promise.all(files.map(async file => JSON.parse(await readFile(path.join(receipts, file), 'utf8')))))
-      .filter(row => row.pid === process.pid ? row.threadId === 0 : workers.some(worker => worker.pid === row.pid));
+      .filter(row => row.pid === process.pid ? row.threadId === 0 : workers.some(worker => worker.pid === row.pid))
+      // Keep ledgers in immutable receipts until measurement finishes. Retaining
+      // a census at every open would make harness bookkeeping grow quadratically.
+      .map(({ ownerLedgers, ...receipt }) => receipt);
   }
-  async function checkpoint({ gc = true, snapshot = false, resetPeaks = false } = {}) {
+  async function loadLedgers(sample) {
+    const owners = [];
+    for (const row of sample.isolates) {
+      const receipt = JSON.parse(await readFile(path.join(directory, 'checkpoints', String(row.sequence), `${row.pid}-${row.threadId}.json`), 'utf8'));
+      owners.push(...(receipt.ownerLedgers ?? []).map(owner => ({ ...owner, id: `${row.pid}-${row.threadId}/${owner.id}` })));
+    }
+    return owners;
+  }
+  async function checkpoint({ gc = true, snapshot = false, resetPeaks = false, ledgers = false } = {}) {
     signal.throwIfAborted();
-    const request = { sequence: ++sequence, gc, snapshot, resetPeaks };
+    const request = { sequence: ++sequence, gc, snapshot, resetPeaks, ledgers };
     await mkdir(path.join(directory, 'checkpoints', String(sequence)), { recursive: true });
     await appendFile(path.join(directory, 'control.jsonl'), JSON.stringify(request) + '\n');
     await probe.collect(request);
@@ -182,7 +198,8 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     await withIdentityDictionaryCallCountsForTests(async counts => {
       for (const [index, handle] of handles.entries()) {
         await exercise(handle, index);
-        const sample = { count: index + 1, ...await checkpoint({ snapshot: snapshots && index === handles.length - 1 }) };
+        const sample = { count: index + 1, ...await checkpoint({ snapshot: snapshots && index === handles.length - 1,
+          ledgers: index === handles.length - 1 }) };
         groups[index].commandBytes = sample.total.heapUsed - previous.total.heapUsed;
         groups[index].commandExternalBytes = sample.total.external - previous.total.external;
         groups[index].commandArrayBufferBytes = sample.total.arrayBuffers - previous.total.arrayBuffers;
@@ -196,7 +213,11 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     const simultaneous = await timed('simultaneous-batch', -1,
       () => Promise.all(handles.map((handle, index) => exercise(handle, index, true))));
     stage = 'settled';
-    const settled = await checkpoint({ snapshot: snapshots });
+    const settled = await checkpoint({ snapshot: snapshots, ledgers: true });
+    // Preflight cannot honestly warm an unbounded archive or unledgered graph.
+    // Preserve the original measured rounds/raw gates when proof is unavailable;
+    // never run an arbitrary number of extra rounds and call that saturation.
+    await writeFile(path.join(directory, 'retention-warmup-plan.json'), JSON.stringify(warmupPlan(await loadLedgers(settled))));
     // First read-only round saturates caches; following four rounds use exactly
     // the same keys and no History writes, so monotonic growth is actionable.
     for (let round = 0; round < rounds; round++) {
@@ -210,7 +231,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       // growing application cache in the strict monotonic-growth rejection.
       await writeFile(path.join(directory, `repeat-times-${round}.json`), JSON.stringify(roundTimes));
       roundTimes.length = 0;
-      await writeFile(path.join(directory, `repeat-${round}.json`), JSON.stringify({ round, ...await checkpoint({ snapshot: snapshots }) }));
+      await writeFile(path.join(directory, `repeat-${round}.json`), JSON.stringify({ round, ...await checkpoint({ snapshot: snapshots, ledgers: true }) }));
     }
     // New revisions exercise mutation-keyed caches as well as the read-only
     // working set above. Undo restores the tick and note, preventing unbounded
@@ -244,7 +265,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       await writeFile(path.join(directory, `mutation-history-${round}.json`), JSON.stringify(history));
       roundTimes.length = 0; history.length = 0;
       await writeFile(path.join(directory, `mutation-${round}.json`), JSON.stringify({ round,
-        ...await checkpoint({ snapshot: snapshots }) }));
+        ...await checkpoint({ snapshot: snapshots, ledgers: true }) }));
     }
     const measuredIO = ioDelta(measuredBefore, probe.record().io);
     const postPublicationIO = ioDelta(publicationBefore, probe.record().io);
@@ -258,6 +279,8 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     })));
     const mutationTimes = await Promise.all(Array.from({ length: rounds }, (_, round) =>
       readFile(path.join(directory, `mutation-times-${round}.json`), 'utf8').then(JSON.parse)));
+    const retentionWarmupPlan = JSON.parse(await readFile(path.join(directory, 'retention-warmup-plan.json'), 'utf8'));
+    for (const sample of [commandSamples.at(-1), settled, ...repeated, ...mutations]) sample.ownerLedgers = await loadLedgers(sample);
     records.push(...repeatTimes.flat(), ...mutationTimes.flat());
     const result = { mode, smoke, shape, fixtureHashes: fixture.hashes, groups, beforeShared, baseline,
       sharedCharge: { total: baseline.total, allocationSinceImports: ioDelta(beforeShared.total, baseline.total),
@@ -269,6 +292,19 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       responseCaches: handles.map((handle, index) => ({ index, entries: handle.responses.size, bytes: handle.responses.bytes })),
       scheduler: scheduler.getDiagnostics(), calculatorLifecycle: evidence.records, schedulerLifecycle: evidence.schedulerEvents,
       allGroupsReadyWallMs, bounded: [] };
+    result.snapshots = snapshots;
+    result.retention = {
+      schemaVersion: 1, warmupPlan: retentionWarmupPlan,
+      warmup: { status: retentionWarmupPlan.status === 'blocked' ? 'blocked' : 'not-reached', owners: [],
+        blockers: retentionWarmupPlan.blockers,
+        explanation: 'No steady-state assertion is emitted for owners without complete enforceable caps. Original rounds and raw growth gates remain in force.' },
+      samples: [commandSamples.at(-1), settled, ...repeated, ...mutations].map(sample => ({
+        heapUsedBytes: sample.total.heapUsed, nativeBytes: sample.total.external,
+        owners: sample.ownerLedgers })),
+      compiledCode: null,
+      codeStatistics: mutations.map(sample => sample.isolates.map(row => ({ pid: row.pid, threadId: row.threadId, code: row.code }))),
+      caps: capProjection(settled.ownerLedgers),
+    };
     // Capture ordinary measurements before explicit flat/export/stopped lanes.
     result.decision = decision(result);
     for (const kind of ['open', 'tick', 'note', 'undo', 'calculator', 'full-response', 'play-and-claims', 'read-only-repeat', 'mutation-repeat-read']) {
@@ -351,5 +387,6 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     await scheduler?.close();
     for (const worker of workers) await worker.terminate();
     delete globalThis.__ownedAcceptanceHandles;
+    probe.ownerLedgers = undefined;
   }
 }

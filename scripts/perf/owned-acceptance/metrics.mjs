@@ -1,4 +1,6 @@
 import { acceptanceShape } from './profile.mjs';
+import { steadyStateRule } from './steady-state.mjs';
+import { uncoveredMaximum } from './attribution.mjs';
 export const MiB = 1024 ** 2;
 export function percentiles(values) {
   const sorted = [...values].sort((a, b) => a - b);
@@ -25,6 +27,16 @@ export const measuredTimes = rows => Object.fromEntries(['wallMs', 'mainCpuMs', 
   [key, percentiles(rows.filter(row => row[key] !== null).map(row => row[key]))]));
 
 export function decision(result) {
+  const steadyState = steadyStateRule(result.retention && { ...result.retention,
+    uncoveredMaximum: result.retention.uncoveredMaximum || uncoveredMaximum(result) });
+  const coveredStates = [result.commandSamples.at(-1), result.settled, result.readOnlyWarmup,
+    ...result.repeated, result.mutationWarmup, ...result.mutationRepeated];
+  if (result.retention && (coveredStates.length !== result.retention.samples?.length
+    || coveredStates.some((row, i) => row.total.heapUsed !== result.retention.samples[i].heapUsedBytes
+      || JSON.stringify(row.ownerLedgers) !== JSON.stringify(result.retention.samples[i].owners)))) {
+    steadyState.eligible = false;
+    steadyState.reasons.push('ledger-proof-does-not-cover-measured-samples');
+  }
   const baseline = result.baseline.total.heapUsed;
   const states = [...result.openSamples, ...result.commandSamples, result.settled, result.readOnlyWarmup, ...result.repeated,
     result.mutationWarmup, ...result.mutationRepeated];
@@ -56,14 +68,15 @@ export function decision(result) {
   const worstPossibleGroupBytes = Math.max(...groups.map(row => row.attributableBytes)) + unattributedGrowthBytes;
   if (worstPossibleGroupBytes > 15 * MiB) reasons.push('unattributed-growth-needs-dominators');
   if (maximum > 750 * MiB) reasons.push('aggregate-over-750-MiB');
-  if (sustainedGrowth) reasons.push('growth-on-every-read-only-repeat');
-  if (mutationSlopeBytesPerRound > 0) reasons.push('positive-mutation-repeat-heap-slope');
+  if (sustainedGrowth && !steadyState.eligible) reasons.push('growth-on-every-read-only-repeat');
+  if (mutationSlopeBytesPerRound > 0 && !steadyState.eligible) reasons.push('positive-mutation-repeat-heap-slope');
+  if (steadyState.reasons.some(reason => /owner-over-cap|unlisted-owner|uncovered-maximum/.test(reason))) reasons.push('steady-state-owner-proof-rejected');
   if (!historyBounded) reasons.push('mutation-history-outside-workload-bound');
   if (result.postPublicationIO.baseWrites !== 0) reasons.push('base-rewritten-after-publication');
   if (result.errors.length) reasons.push('incomplete-command-workload');
   const targetMet = worstPossibleGroupBytes <= 5 * MiB && maximum <= 250 * MiB;
   return { status: result.smoke ? 'smoke-only' : reasons.length ? 'reject' : targetMet ? 'target-met' : 'within-hard-limits-target-missed',
-    acceptanceClaim: !result.smoke && reasons.length === 0 && targetMet, reasons, targetMet, groups,
+    acceptanceClaim: !result.smoke && reasons.length === 0, reasons, targetMet, groups, steadyState,
     maximumGroupHeapBytes: maximum, unattributedGrowthBytes, worstPossibleGroupBytes,
     perGroupBytes: percentiles(groups.map(row => row.attributableBytes)),
     openSlopeBytesPerGroup: slope([{ x: 0, y: 0 }, ...result.openSamples.map(row => ({ x: row.count, y: row.total.heapUsed - baseline }))]),

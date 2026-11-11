@@ -1605,6 +1605,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return current.history.slice(-limit).map(historyRecord);
     },
     getHistoryEvent: revision => historyRecord(current.history.find(event => event.revision === revision)),
+    retentionLedger() {
+      return { owner: 'History', complete: false,
+        dimensions: [{ unit: 'entries', used: current.history.length, cap: null, enforced: false },
+          { unit: 'archiveReferences', used: current.provenance?.historyArchive?.length ?? 0, cap: null, enforced: false }],
+        policy: policy && { ...policy },
+        blockers: ['active-history-policy-preserves-pending-roll-and-undo-suffixes', 'archive-references-have-no-cap', 'history-payload-bytes-have-no-cap'] };
+    },
     getUndoEligibility: undoRevision => getUndoEligibility(current, undoRevision, { registry }),
     getStateJSONParts: () => ['{', ...stateFields(current), '}'],
     getGameplayFingerprint: gameplayFingerprint,

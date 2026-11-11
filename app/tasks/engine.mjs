@@ -173,7 +173,8 @@ export function createTaskEngine(definitions, options = {}) {
     for (const key of ['cacheWalking', 'cacheResources', 'cacheArchaeology', 'cacheShops']) baseOptions[key] ??= dataset.capabilities[key];
     baseOptions.dataset = dataset;
   }
-  // All eight feature variants divide one fixed backing-buffer budget.
+  // Three guide switches and early travel give sixteen finite variants. Their
+  // eligibility backing stores divide one fixed budget; parsed engines do not.
   const eligibilityBudget = baseOptions.eligibilityBudget ?? createEligibilityBudget();
   const variants = new Map();
   const accessIndexes = [];
@@ -214,6 +215,14 @@ export function createTaskEngine(definitions, options = {}) {
   const initial = variant(skillGuideTasks === true, skillGuideCorrections === true, skillGuideMilestones === true);
   engine = Object.freeze({ datasetDigest: dataset?.digest, catalogue: initial.catalogue,
     prepare(rules) { variantForRules(rules).prepare(); },
+    retentionLedger() {
+      if (variants.size > 16) throw new Error('Engine variant entry cap exceeded.');
+      return { owner: 'engine-variants', complete: false,
+        dimensions: [{ unit: 'entries', used: variants.size, cap: 16, enforced: true }],
+        blockers: ['parsed-engine-and-lazy-index-bytes-have-no-ledger'],
+        keys: [...variants.keys()].sort(),
+        accounting: 'Finite boolean key space; early=false gives eight workload combinations. No byte cap for parsed variants.' };
+    },
     how(state, memberId, taskId, options) { return variantForMember(state, memberId).how(state, memberId, taskId, options); },
     evaluate(state, memberId, evaluateOptions) {
       return variantForMember(state, memberId).evaluate(state, memberId, evaluateOptions);

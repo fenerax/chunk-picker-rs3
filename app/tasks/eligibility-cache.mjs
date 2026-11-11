@@ -157,6 +157,16 @@ export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLi
     get eligibilityByteLimit() { return eligibilityByteLimit; },
     get bytes() { return retainedBytes; },
     get size() { return retained.size; },
+    retentionLedger() {
+      if (retained.size > entryLimit || retainedBytes > byteLimit || snapshotRetainedBytes > snapshotByteLimit
+        || [...owners].some(([owner, bytes]) => bytes > (owner === 'eligibility' ? eligibilityByteLimit : ownerByteLimit)))
+        throw new Error('Worker cache retention cap exceeded.');
+      return { owner: 'hot-snapshot', complete: true,
+        dimensions: [{ unit: 'entries', used: retained.size, cap: entryLimit, enforced: true },
+          { unit: 'chargeBytes', used: retainedBytes, cap: byteLimit, enforced: true }],
+        partitions: { snapshotBytes: snapshotRetainedBytes, snapshotByteLimit, eligibilityByteLimit, ownerByteLimit },
+        accounting: 'Shared snapshot/eligibility ledger including cold wire backing. Hot charge overlaps; diagnostic caps identify that overlap.' };
+    },
     // Reserve every transient native/IPC copy before requesting a proof. This
     // uses the existing eligibility partition and cannot displace any entry.
     // Only a bounded chunk crosses thread/IPC boundaries. The receiving

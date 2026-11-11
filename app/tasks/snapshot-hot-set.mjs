@@ -62,6 +62,13 @@ export function createSnapshotHotSet({ entryLimit = 1, byteLimit = 128 * 1024 * 
   return Object.freeze({
     get bytes() { return bytes; }, get size() { return entries.size; },
     get byteLimit() { return byteLimit; }, get entryLimit() { return entryLimit; },
+    retentionLedger() {
+      if (entries.size > entryLimit || bytes > byteLimit) throw new Error('Hot snapshot retention cap exceeded.');
+      return { owner: 'hot-snapshot', complete: true, dimensions: [
+        { unit: 'entries', used: entries.size, cap: entryLimit, enforced: true },
+        { unit: 'chargeBytes', used: bytes, cap: byteLimit, enforced: true }],
+        accounting: 'Conservative hot graph charge. Cold wire/eligibility ledger is reported separately.' };
+    },
     forget,
     touch(record) { const entry = entries.get(record); if (entry) { entries.delete(record); entries.set(record, entry); } },
     canHold(cost) { return entryLimit > 0 && cost <= byteLimit; },
