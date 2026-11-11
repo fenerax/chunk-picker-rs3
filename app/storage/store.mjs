@@ -102,7 +102,7 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, ownedCatalogueSemantics = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
@@ -118,6 +118,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   const directory = path.resolve(dataDir);
   const ownedStorage = ownedFormat2 === false ? undefined : createOwnedStorage(ownedFormat2, directory, { readOnly });
+  ownedCatalogueSemantics = !!ownedStorage && ownedCatalogueSemantics === true;
   if (ownedStorage) ownedStorage.validateCapture = async (dataDir, options) => {
     const { validateOwnedHistory } = await import('../../scripts/linux/probe.mjs');
     await validateOwnedHistory(dataDir, options, { importBackup: document => importBackup(document, registry), cancelTaskClaimUndo });
@@ -131,6 +132,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     : (bytes, options) => atomicWrite(stateFile, bytes, options);
   const applyStoredCommand = deltaCommands?.apply ?? (ownedStorage ? applyResidentCommand : applyValidatedCommand);
   async function selectOwnedStartupBase(document) {
+    if (ownedFormat2.servingPin && (document.storage?.schemaVersion !== 2
+      || document.storage.base?.datasetDigest !== ownedFormat2.servingPin.dataset.digest
+      || document.storage.base?.sha256 !== ownedFormat2.servingPin.sha256)) {
+      throw Object.assign(new Error('Owned serving pin changed before store admission; reopen with verified pinned preparation.'), { code: 'OWNED_SERVING_REFUSED' });
+    }
     if (document.storage?.schemaVersion === 2) await ownedStorage.select(document.storage.base);
     // Release hooks close over catalogue/world context the pinned base cannot
     // reconstruct. Refuse before recovery, currency proofs or preparation.
@@ -543,13 +549,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     fingerprint.seedStatic(state, digests); taskReuseFingerprint.seedStatic(state, digests);
   }
   let poolState, fullPools, playPools, calculationSnapshot;
-  const taskReuseFingerprint = createTaskReuseFingerprint();
+  const taskReuseFingerprint = createTaskReuseFingerprint({ ownedCatalogueSemantics });
   rollPoolCache ??= createRollPoolCache(world, registry, { inputKey: taskReuseFingerprint });
   const playProjections = new WeakMap();
   function playProjection(state) {
     let projection = playProjections.get(state);
     if (!projection) {
-      const display = projectPlayState(state);
+      const display = projectPlayState(state, { ownedCatalogueSemantics });
       projection = { state: display, tasksJSON: JSON.stringify(display.tasks), identityJSON: JSON.stringify(display.identityRegistry) };
       playProjections.set(state, projection);
     }
@@ -560,7 +566,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (playProjections.has(state)) return;
     if (playProjectionJobs.has(state)) return playProjectionJobs.get(state);
     const job = (async () => {
-      const steps = projectPlayStateSteps(state);
+      const steps = projectPlayStateSteps(state, { ownedCatalogueSemantics });
       let next, turn = performance.now();
       do {
         next = steps.next();
@@ -641,6 +647,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // resolved. Keep its provenance and invalidate browser/ranking caches too.
       const randomStarts = current.members.filter(member => hasRandomStartChoices(current, member)).map(member => [member.id, member.pendingRoll]);
       input.history = randomStarts.length ? history : [];
+      if (ownedStorage && provenance?.ownedCatalogue) input.provenance = { ownedCatalogue: provenance.ownedCatalogue };
       if (ownedStorage) adoptResidentState(input, residentBase(current));
       let state, stateJSON, taskInputKey, rollInputKey, residentState, ownedInput;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
@@ -1284,8 +1291,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       !== JSON.stringify(validated.members.map(member => [member.id, member.selected, member.pendingRoll]));
     // A built-in note edit changes no saved task references. Reuse only the
     // cached catalogue and identity fields; display fields come from durable state.
+    // Owned labels/retirement are also display inputs, independent of those trees.
     const previousPlay = reuseNoteProjection && validated.tasks === current.tasks
-      && validated.identityRegistry === current.identityRegistry && playProjections.get(current);
+      && validated.identityRegistry === current.identityRegistry
+      && (!ownedCatalogueSemantics || validated.provenance?.ownedCatalogue === current.provenance?.ownedCatalogue)
+      && playProjections.get(current);
     if (previousPlay) {
       const { provenance, identityRegistry, progressSnapshots, ...display } = validated;
       playProjections.set(validated, { ...previousPlay, state: { ...display,
@@ -1397,6 +1407,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const evidence = reconcileOptionalSidecarEvidence(ready, base).provenance;
     const pluginAutoHandled = evidence?.pluginAutoHandled;
     ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}),
+      ...(ownedStorage && ready.provenance?.ownedCatalogue ? { ownedCatalogue: ready.provenance.ownedCatalogue } : {}),
       ...(evidence?.optionalSidecarEvidence ? { optionalSidecarEvidence: evidence.optionalSidecarEvidence } : {}),
       ...(evidence?.pluginItemEvidence ? { pluginItemEvidence: evidence.pluginItemEvidence, pluginItemEvidenceReconciled: 1 } : {}),
       ...(pluginAutoHandled ? { pluginAutoHandled } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,

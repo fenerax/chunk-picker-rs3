@@ -4,6 +4,7 @@ import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warni
 import { EARLY_TRAVEL_UNLOCKS_RULE, travelRewardKind, usefulTravelRecord, furnitureWorkbenches, nexusDestinationClauses, unlockLabel } from '../data/travel-reward-gates.mjs';
 import { createHowCapture } from './how-proof.mjs';
 import { eligibilityInputKey } from './eligibility-cache.mjs';
+import { hasResidentIdentities } from '../core/resident-copy.mjs';
 import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
@@ -247,7 +248,7 @@ export function createTaskEngine(definitions, options = {}) {
 function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, cacheResources = false, resourceCatalogue, resourceSelectors,
   cacheArchaeology = false, archaeologyCatalogue, metadataCorrections = false, equipmentCorrections = false, cacheShops = false, shopCatalogue,
   lodestones, transportRoutes, transportFactsByMember, eligibilityBudget, earlyTravelUnlocks = false,
-  projectionFast = true } = {}, accessIndexes = [], configureProviders = () => {}) {
+  projectionFast = true, ownedCatalogueSemantics = false } = {}, accessIndexes = [], configureProviders = () => {}) {
   // On by default (IE1 phase 4: cold Preview + first repeat -1.7 s); RS3_FINAL_PROJECTION=0 always forces reference.
   projectionFast = projectionFast === true && process.env.RS3_FINAL_PROJECTION !== '0';
   if (!definitions || typeof definitions.challenges !== 'object') throw new TypeError('Task definitions need challenges.');
@@ -940,6 +941,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       return obligationCache.evaluate(task, visiting, () => computeObligation(task, visiting));
     }
     function obligation(task, visiting = projectionFast ? undefined : new Set(), copyOnMiss = false) {
+      if (ownedCatalogueSemantics && hasResidentIdentities(state) && state.provenance?.ownedCatalogue?.retiredIds?.includes(task.id)) return false;
       const root = visiting === undefined || visiting.size === 0;
       if (root && ownRootProofs.has(task)) return true;
       // Cache lookup only reads the caller's path. The shared evaluator copies
@@ -1713,26 +1715,26 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   }
   // Dataset-bound engines serve shared workers; injected definitions retain
   // the existing small-cache default for direct callers.
-  const eligibilityCache = createEligibilityCache({ limit: dataset ? 64 : 2, budget: eligibilityBudget });
+  const eligibilityCache = createEligibilityCache({ limit: dataset ? 64 : 2, budget: eligibilityBudget, ownedCatalogueSemantics });
   const computeProfiledEligibility = PROFILE_ENABLED ? (...args) => profile.span('eligibility', () => computeEligibility(...args)) : computeEligibility;
   const howInputs = new WeakMap();
   const projectedState = state => ({ ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) });
   function evaluate(state, memberId, options) {
     state = projectedState(state);
     const result = eligibilityCache.evaluate(state, memberId, options, () => computeProfiledEligibility(state, memberId, options));
-    if (result.metrics.processingFallbacks === 0) howInputs.set(result.processing, eligibilityInputKey(state, memberId));
+    if (result.metrics.processingFallbacks === 0) howInputs.set(result.processing, eligibilityInputKey(state, memberId, undefined, ownedCatalogueSemantics));
     return result;
   }
   function how(state, memberId, taskId, { limits, context, cancelled, baseline } = {}) {
     state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
-    const inputKey = eligibilityInputKey(state, memberId);
+    const inputKey = eligibilityInputKey(state, memberId, undefined, ownedCatalogueSemantics);
     const closure = baseline?.processing && howInputs.get(baseline.processing) === inputKey ? baseline.processing : undefined;
     const howRequest = { taskId, limits, cancelled, closure, deadline: performance.now() + Math.min(25000, limits?.replayMs ?? 20000), context: { datasetDigest: dataset?.digest ?? 'injected', capabilityInputKey: inputKey, ...context } };
     try { return computeEligibility(state, memberId, { reuseEligibility: false, howRequest }).howProof; }
     catch (error) { if (error.proof) return error.proof; throw error; }
   }
   return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate, how,
-    eligibilityProofKey: (state, memberId, options) => eligibilityInputKey(projectedState(state), memberId, options),
+    eligibilityProofKey: (state, memberId, options) => eligibilityInputKey(projectedState(state), memberId, options, ownedCatalogueSemantics),
     exportEligibilityProof: (key, maxBytes) => eligibilityCache.exportProof(key, maxBytes),
     exportEligibilityProofChunk: (key, maxBytes, offset, proofId) => eligibilityCache.exportProofChunk(key, maxBytes, offset, proofId),
     beginEligibilityImport: (key, proof) => eligibilityCache.beginImport(key, proof),

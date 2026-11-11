@@ -51,7 +51,9 @@ if(mode==='fixture') {
     const data=catalogue(profile.catalogue);
     const {buildWorld}=await import('../../../app/data/world.mjs');
     const {createGroupState}=await import('../../../app/core/state.mjs');
+    const ownedFormat2=profile.storageFormat==='format2'?await (await import('./owned-release.mjs')).loadCapacityOwnedRelease(directory):false;
     app=await createServer({dataDir:path.join(directory,'legacy'),host:'127.0.0.1',port:profile.port,
+      ownedFormat2,
       loopbackPort:undefined,publicOrigin:undefined,definitions:data,world:syntheticWorld(data,buildWorld),taskMap:{},
       initialState:createGroupState([{id:'legacy1',name:'Synthetic legacy 1'},{id:'legacy2',name:'Synthetic legacy 2'}]),
       packsDir:path.join(directory,'no-packs'),packSelection:undefined,gameDataDir:path.join(directory,'no-game-data'),mapAssetsDir:path.join(directory,'no-assets'),

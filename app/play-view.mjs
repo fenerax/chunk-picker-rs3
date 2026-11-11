@@ -1,6 +1,8 @@
 import { lookupPermanentId, resolveIdentity } from './tasks/identity.mjs';
 import { helperTaskLevels } from './helper-task-levels.mjs';
 import { identityValue } from './tasks/identity-dictionary.mjs';
+import { hasResidentIdentities } from './core/resident-copy.mjs';
+import { ownedCatalogueRow } from './tasks/owned-catalogue-view.mjs';
 
 export const PLAY_VIEW = 'play-v1';
 const factKeys = ['id', 'label', 'category', 'status', 'hidden', 'obligation', 'aliases', 'completionGroup', 'completionIds'];
@@ -66,13 +68,13 @@ function* projectRegistrySteps(state, resolve) {
 }
 
 /** A display projection, never a backup or an input to durable validation. */
-export function projectPlayState(state) {
-  return finishProjection(projectPlayStateSteps(state));
+export function projectPlayState(state, options) {
+  return finishProjection(projectPlayStateSteps(state, options));
 }
 
 // The writer drains these same steps in short turns before replying to HTTP.
 // Synchronous callers retain the identical projection and fresh resolver scope.
-export function* projectPlayStateSteps(state) {
+export function* projectPlayStateSteps(state, { ownedCatalogueSemantics = false } = {}) {
   const { provenance, identityRegistry, progressSnapshots, ...display } = state;
   // Selection and registry projection ask the same identity questions. Reuse
   // answers within this projection only, including every category's ambiguity.
@@ -93,7 +95,7 @@ export function* projectPlayStateSteps(state) {
   for (const goal of state.groupGoals ?? []) { if (goal.link?.kind === 'task') add(goal.link.id); if (++visited % 256 === 0) yield; }
   const tasks = [];
   for (const task of state.tasks ?? []) {
-    if (task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id)) tasks.push(task);
+    if (task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id)) tasks.push(ownedCatalogueSemantics && hasResidentIdentities(state) ? ownedCatalogueRow(task, provenance?.ownedCatalogue) : task);
     if (++visited % 256 === 0) yield;
   }
   const projectedRegistry = yield* projectRegistrySteps({ ...state, tasks }, resolve);

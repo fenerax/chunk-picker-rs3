@@ -3,10 +3,11 @@
 Slice 7a implements calculator digest transport and audits catalogue copies.
 `openStore` still defaults to `ownedFormat2: false`. No production caller, job,
 environment variable or browser negotiation enables it. Slice 7b owns the
-50-group acceptance harness and measurements. Slice 7c owns activation,
-pinned-dataset preparation, retirement filtering and current-name display.
-This change preserves existing calculator results, including retired references;
-it does not activate semantic dataset upgrades.
+50-group acceptance harness and measurements. Slice 7c adds default-off synthetic
+HTTP serving, pinned-dataset preparation, retirement filtering and current-name
+display, as described in [the serving contract](owned-serving-contract.md).
+The default calculator APIs preserve slice-7a results, including retired
+references. Semantic dataset upgrades and real-save activation remain gated.
 
 ## Calculator transport
 
@@ -124,3 +125,9 @@ index and counts narrow index entries as unrelated mapping/catalogue rows grow.
 multi-step chains and cycles without changing historical alias order.
 The flat compatibility snapshot, import, export and stopped-writer lanes are
 outside that zero-copy assertion and are listed above for later measurement.
+
+Slice 7c's [owned serving contract](owned-serving-contract.md) adds default-off
+HTTP configuration and pinned preparation. Retirement/current-name consumers
+are explicitly enabled only for that owned path; the default transport parity
+and plugin/browser schemas above remain unchanged. Real-save activation still
+requires explicit approval (owner decision, 2026-11-11).

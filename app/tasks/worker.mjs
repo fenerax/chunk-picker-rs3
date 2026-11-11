@@ -40,6 +40,7 @@ import { createWarmResults, warmResultNamespace } from './warm-results.mjs';
 import { eligibilityTransferList, releaseEligibilityChunk } from './eligibility-transfer.mjs';
 import { preparedCollectionKey, decodePreparedCollection, encodePreparedCollection, readPreparedCollectionFile } from './prepared-collection.mjs';
 import { OWNED_CALCULATOR_TRANSPORT, createOwnedCalculatorReceiver } from './owned-transport.mjs';
+import { applyOwnedCatalogueRows } from './owned-catalogue-view.mjs';
 
 const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
 startupPhase('worker:modules');
@@ -75,7 +76,7 @@ function mapPlayResult(result) {
 }
 const compileStarted = performance.now();
 const snapshotBudget = createWorkerCacheBudget(process.env.RS3_CALCULATOR_CACHE_BYTES === undefined ? undefined : Number(process.env.RS3_CALCULATOR_CACHE_BYTES));
-const engineOptions = { eligibilityBudget: snapshotBudget, dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue };
+const engineOptions = { eligibilityBudget: snapshotBudget, dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue, ownedCatalogueSemantics: workerData.ownedCatalogueSemantics === true };
 const engine = createTaskEngine(definitions, engineOptions);
 const howCache = createHowCache();
 // Structured cloning removes the world's non-enumerable definitions/provider.
@@ -138,6 +139,7 @@ function evaluateCore(state, memberId, timingMs, cacheSizing = false, pickerId) 
   result.tasks.push(...collection.tasks);
   result.collectionPlanning = { completionGroups: collection.completionGroups, obligationIds: collection.obligationIds, diagnostics: collection.diagnostics, coverage: collection.coverage };
   result.diagnostics.push(...collection.diagnostics);
+  if (workerData.ownedCatalogueSemantics && hasResidentIdentities(state)) result.tasks = applyOwnedCatalogueRows(result.tasks, state);
   result.metrics.availableCount = result.tasks.filter(task => task.status === 'available' && task.obligation !== false).length;
   return result;
 }
@@ -166,7 +168,8 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSiz
       ? { ...owner, taskRules: { ...owner.taskRules, 'Show Best in Slot Tasks': true } } : owner) };
     dutyEquipment = timed(timingMs, 'equipmentMs', () => evaluateEquipment(result, dutyState, memberId, definitions));
   }
-  result.presentation = timed(timingMs, 'presentationMs', () => selectCollectionGoals(selectPresentedTasks({ ...result, tasks: [...result.tasks, ...equipment.tasks] }, state, memberId, definitions), state, memberId));
+  const displayTasks = workerData.ownedCatalogueSemantics && hasResidentIdentities(state) ? applyOwnedCatalogueRows([...result.tasks, ...equipment.tasks], state) : [...result.tasks, ...equipment.tasks];
+  result.presentation = timed(timingMs, 'presentationMs', () => selectCollectionGoals(selectPresentedTasks({ ...result, tasks: displayTasks }, state, memberId, definitions), state, memberId));
   result.presentation.alternatives = { ...result.presentation.alternatives, ...equipment.alternatives };
   const visibleEquipmentIds = new Set(equipment.catalogue.map(task => task.id));
   const hiddenDuties = dutyEquipment.catalogue.filter(task => !visibleEquipmentIds.has(task.id)).map(task => ({ ...task,
@@ -183,6 +186,12 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSiz
     return { ...task, obligation: own, hidden: !own, hiddenReasons: own ? [] : ['Outside your own reachable map.'], status: 'blocked', explanation: detail, blockers: [{ kind: 'access', detail }], sources: [] };
   }));
   result.equipmentPlanning = { obligationIds: dutyEquipment.tasks.map(task => task.id), loadouts: equipment.loadouts, recommendations: equipment.recommendations, specialist: equipment.specialist, diagnostics: equipment.diagnostics, coverage: equipment.coverage };
+  if (workerData.ownedCatalogueSemantics && hasResidentIdentities(state)) {
+    result.tasks = applyOwnedCatalogueRows(result.tasks, state);
+    const retired = new Set(state.provenance?.ownedCatalogue?.retiredIds ?? []);
+    result.equipmentPlanning.obligationIds = result.equipmentPlanning.obligationIds.filter(id => !retired.has(id));
+    result.collectionPlanning.obligationIds = result.collectionPlanning.obligationIds.filter(id => !retired.has(id));
+  }
   viewContexts.set(result, { equipment, state, memberId });
   if (includeViews) appendViews(result, timingMs);
   result.metrics.availableCount = result.tasks.filter(task => task.status === 'available' && task.obligation !== false).length;
@@ -238,7 +247,7 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true, pick
   completeCache.set(key, snapshot, state, pickerId);
   return { snapshot, hit };
 }
-const taskReuseFingerprint = createTaskReuseFingerprint();
+const taskReuseFingerprint = createTaskReuseFingerprint({ ownedCatalogueSemantics: workerData.ownedCatalogueSemantics === true });
 // Rebuild native roll topology here; explicit worlds retain their supplied indexes.
 const rollWorld = workerData.world?.neighbors ? workerData.world : buildWorld(definitions, engineOptions);
 configureAutomaticTransport(rollWorld, { definitions, engine });

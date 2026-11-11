@@ -4,19 +4,22 @@ import { isMainThread } from 'node:worker_threads';
 import { serialize, deserialize, DefaultDeserializer } from 'node:v8';
 import { zstdCompressSync, zstdDecompressSync, constants } from 'node:zlib';
 import { automaticTravelInputKey } from '../core/travel-inputs.mjs';
+import { hasResidentIdentities } from '../core/resident-copy.mjs';
 
 // Use the conservative travel proof boundary: every personal completion and
 // explicit backlog value remains an input. Challenge satisfaction is overlaid
 // afterwards. In particular we do not infer that a completed ordinary-looking
 // row is harmless: it can seed training, processing, items or access elsewhere.
-export function eligibilityInputKey(state, memberId, options) {
+export function eligibilityInputKey(state, memberId, options, ownedCatalogueSemantics = false) {
   // With sharing and typed travel disabled, another member cannot supply access,
   // training or items. Keep roster identity/order for explanations and overlays.
   const independent = state.rules?.['access.shared'] === false
     && state.rules?.['travel.automatic'] !== true && state.rules?.['access.transport'] !== true;
   const input = independent ? { ...state, members: state.members.map(member => member.id === memberId ? member
     : { id: member.id, name: member.name, sourceMapId: member.sourceMapId }) } : state;
-  return createHash('sha256').update(automaticTravelInputKey(input)).update(JSON.stringify([memberId, options ?? null])).digest('hex');
+  const hash = createHash('sha256').update(automaticTravelInputKey(input)).update(JSON.stringify([memberId, options ?? null]));
+  if (ownedCatalogueSemantics && hasResidentIdentities(state) && state.provenance?.ownedCatalogue) hash.update(JSON.stringify(state.provenance.ownedCatalogue));
+  return hash.digest('hex');
 }
 
 // Cold replies retain their already serialized proof first. Idle compression
@@ -216,7 +219,7 @@ export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLi
   });
 }
 
-export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 1024, budget } = {}) {
+export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 1024, budget, ownedCatalogueSemantics = false } = {}) {
   if (!Number.isSafeInteger(limit) || limit < 0 || !Number.isSafeInteger(byteLimit) || byteLimit < 0) throw new TypeError('Invalid eligibility cache bound.');
   budget ??= createEligibilityBudget({ byteLimit });
   const entries = new Map();
@@ -318,7 +321,7 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
         Object.defineProperty(result.metrics, 'eligibilityCacheHit', { value: false });
         return applyCompletionOverlay(result, state, memberId);
       }
-      const key = eligibilityInputKey(state, memberId, options);
+      const key = eligibilityInputKey(state, memberId, options, ownedCatalogueSemantics);
       let cached = entries.get(key);
       let result;
       if (cached) {

@@ -21,6 +21,7 @@ if(Number(process.versions.node.split('.')[0])!==24)throw new Error('Use Node 24
 const profilePath=['smoke','nominal','step-up','churn','sustained','sustained-smoke'].includes(args.profile)?new URL(`./profiles/${args.profile}.json`,import.meta.url):path.resolve(args.profile);
 const profile=JSON.parse(await readFile(profilePath,'utf8'));
 validateSustained(profile,args.format);
+profile.storageFormat=args.format;
 profile.streamHeaderDeadlineMs??=5000;
 if(process.platform==='win32' && !['smoke','sustained-smoke'].includes(profile.name))throw new Error('Only smoke is allowed on the shared PC.');
 planFixture(profile);
@@ -133,7 +134,7 @@ try {
   const shutdown=await stop(server);server=undefined;
   const result={schemaVersion:1,sourceCommit,sourceTreeDigest,node:process.version,platform:process.platform,hardware:{cpuModel:cpus()[0].model,logicalCpus:cpus().length,ramBytes:totalmem()},
     profile,format:args.format,profileDigest:digest(profile),setupSeconds,elapsedSeconds:(Date.now()-started)/1000,
-    fixture:{groups:fixture.groups.length,characters:fixture.characters,logins:fixture.logins,keys:fixture.keys,gaps:fixture.gaps,planDigest:fixture.planDigest,
+    fixture:{storageFormat:fixture.storageFormat,ownedBasePin:fixture.ownedBasePin,groups:fixture.groups.length,characters:fixture.characters,logins:fixture.logins,keys:fixture.keys,gaps:fixture.gaps,planDigest:fixture.planDigest,
       catalogueDigest:fixture.catalogueDigest,catalogueBytes:fixture.catalogueBytes,engineCatalogueTasks:fixture.engineCatalogueTasks,
       growthMode:fixture.growthMode,initializationMs:fixture.initializationMs,
       fixtureDigest:fixture.fixtureDigest,workers:fixture.workers,reused:Boolean(fixtureFrom),

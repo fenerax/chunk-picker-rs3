@@ -8,6 +8,8 @@ import { bodyJSON, json } from './picker-context-http.mjs';
 import { httpError, redactInviteTokens, serverReadyMessage, cachedJSON } from './picker-context-http.mjs';
 export { routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult, coordinationView } from './picker-context-http.mjs';
 import { createPickerContext } from './picker-context.mjs';
+import { prepareOwnedServingRelease, verifyOwnedServingConfiguration, verifyOwnedRuntimeRelease, selectOwnedServingPicker } from './storage/owned-serving.mjs';
+import { createPinnedOwnedMigration } from './owned-preparation.mjs';
 import { createPickerLimits } from './security/picker-limits.mjs';
 import { createPickerRouter } from './picker-router.mjs';
 import { reconcileTombstones, backupDeletionDisclosure } from './storage/tombstones.mjs';
@@ -81,7 +83,7 @@ async function startTaskWorker(definitions, definitionBytes, world, registry, op
   }
   // Native indexes are rebuilt off-thread. Keep every cold lane's init payload small,
   // while preserving custom topology from an explicitly supplied world.
-  return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: transferRollWorld ? { ...world } : { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
+  return createTaskScheduler({ ...options, workerData: { ...input, ...(options?.ownedCatalogueSemantics ? { ownedCatalogueSemantics: true } : {}), datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: transferRollWorld ? { ...world } : { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
 }
 
 /** Create the private local application without binding a port until listen(). */
@@ -115,6 +117,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   liveSwap,
   // Synthetic scratch saves only: game plugin items from beta worlds tick like live ones.
   pluginItemsBetaAsLive = false,
+  ownedFormat2 = false,
 } = {}) {
   // Custom calculator fixtures retain their established lane contract. Native
   // calculators share an explicit host/memory cap even in the legacy picker.
@@ -135,6 +138,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Refuse a broken executable installation before opening or preparing saves.
   const originalSyncIntegration = await loadOriginalSyncIntegration(dataset, undefined, privateAddon);
   dataDir ??= defaultGameDirectory(ROOT, dataset);
+  const ownedServing = ownedFormat2 === false ? undefined : await verifyOwnedServingConfiguration(ownedFormat2, {
+    dataset, deletionRoots: [dataDir, multiPicker?.pickerRoot, multiPicker?.tombstoneDir, multiPicker?.registryDir].filter(Boolean),
+  });
+  if (ownedServing && process.env.RS3_COMPLETION_CODEC === '1') throw new TypeError('Owned format 2 requires completionCodec off.');
+  if (ownedServing && (!multiPicker?.pickerRoot || !multiPicker?.tombstoneDir || !multiPicker?.registryDir)) throw new TypeError('Owned format 2 requires explicit multi-picker storage roots.');
   if (liveSwap?.standby) {
     const binding = await verifyDatasetBinding(dataDir, dataset);
     if (dataset.capabilities?.independent && !binding.bound) throw new Error('Standby requires existing bound storage.');
@@ -259,6 +267,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const ruleRegistry = registry ?? createRuleRegistry();
   const storeProcessPending = prepareStoreProcessIdentity();
   const definitionCachePending = cachedJSON(definitionBytes), taskCachePending = cachedJSON(taskBytes);
+  if (ownedServing) taskWorkerOptions = { ...taskWorkerOptions, ownedCatalogueSemantics: true };
   const taskWorkerPending = parsedDefinitions.challenges && typeof parsedDefinitions.challenges === 'object' && !Array.isArray(parsedDefinitions.challenges)
     ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, multiPicker ? { warmStoreDirectory: path.join(dataDir, 'warm-store'), ...taskWorkerOptions, fairness: pickerLimits.config, maxCalculators: multiPicker.maxCalculators ?? 2 } : { warmStoreDirectory: path.join(dataDir, 'warm-store'), ...taskWorkerOptions }, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
   let taskWorker, identityHistory, definitionCache, taskCache;
@@ -424,6 +433,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       backups: backupDeletionDisclosure(backupRetentionMs) } };
   }
   try {
+    if (ownedServing) verifyOwnedRuntimeRelease(ownedServing, await prepareOwnedServingRelease({ dataset, migrateState, registry: ruleRegistry }));
     if (multiPicker) {
       await mkdir(dataDir, { recursive: true, mode: 0o700 });
       backupDeletionDisclosure(backupRetentionMs);
@@ -451,6 +461,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           const verifyStarted = openDiagnostics && performance.now();
           let opened;
           try {
+            const pinned = ownedServing ? await selectOwnedServingPicker(ownedServing, pickerId, directory) : undefined;
+            const pickerDataset = pinned ? { ...dataset, datasetId: pinned.base.dataset.id,
+              datasetContractVersion: pinned.base.dataset.contractVersion, digest: pinned.base.dataset.digest } : dataset;
+            const pickerRuntime = pinned ? { ...runtime, dataset: pickerDataset, ownedBase: pinned.base, migrateState: createPinnedOwnedMigration(runtime, pinned.base) } : runtime;
             const binding = await verifyDatasetBinding(directory, dataset);
             if (!binding.bound) {
               if ((await readdir(directory)).length) throw httpError(503, 'Picker dataset binding is missing.');
@@ -459,13 +473,14 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             if (openDiagnostics) openDiagnostics.timingMs.registryDatasetVerifyMs = performance.now() - verifyStarted;
             const initial = createGroupState(picker.memberIds.map(id => ({ id, name: 'Player 1' })), ruleRegistry);
             initial.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
-            opened = await createPickerContext({ pickerId, dataDir: directory, runtime, prepareStateResponse: false,
+            opened = await createPickerContext({ pickerId, dataDir: directory, runtime: pickerRuntime, prepareStateResponse: false,
+              ownedFormat2: pinned?.ownedFormat2 ?? false,
               openDiagnostics,
               initialState: initial, now, random, beforeCommit: async change => {
                 await beforeCommit?.(change);
                 if (change.operation === 'replace') await pickerRegistry.reserveTransferMembers(pickerId, change.state.members.map(m => m.id));
               }, retention, runeMetrics, progressSources, originalSync,
-              prepareState: prepareOwnedPickerState(dataset, pickerRegistry, pickerId),
+              prepareState: prepareOwnedPickerState(pickerDataset, pickerRegistry, pickerId),
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
               pickerRouting: { requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },

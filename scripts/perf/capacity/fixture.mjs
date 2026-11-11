@@ -4,6 +4,7 @@ import { catalogue, planFixture, digest, knownGaps, integer, syntheticWorld } fr
 import { fixtureWorkers, buildGroups } from './fixture-pool.mjs';
 import { fixtureConfigDigest, logicalFixtureDigest, sealFixture } from './fixture-cache.mjs';
 import { fixtureMigration } from './fixture-migration.mjs';
+import { prepareCapacityOwnedRelease } from './owned-release.mjs';
 
 // The parent alone owns registry/invites/keys. Workers exclusively own the
 // disjoint picker stores between provisioning and ordered capability indexing.
@@ -45,9 +46,15 @@ export async function generate(profile, directory, { workers: requestedWorkers }
   const f = profile.fixture;
   integer(f.historyEvents, 0, 10000, 'historyEvents'); integer(f.snapshots, 0, 1000, 'snapshots'); integer(f.keysPerMember, 0, 3, 'keysPerMember');
   const paths = { registryDir: path.join(directory, 'registry'), pickerRoot: path.join(directory, 'pickers'), tombstoneDir: path.join(directory, 'tombstones') };
+  const storageFormat = profile.storageFormat ?? 'format1';
+  if (!['format1', 'format2'].includes(storageFormat)) throw new TypeError('Invalid fixture storage format.');
+  const ownedServing = storageFormat === 'format2' ? await prepareCapacityOwnedRelease(directory, {
+    dataset: selectedDataset, registry: rules, migrateState: fixtureMigration(migrationInputs, selectedDataset).migrateState,
+  }) : undefined;
   const legacy = path.join(directory, 'legacy'); await mkdir(legacy, { recursive: true });
   const registry = await openRegistry({ ...paths, caps: profile.entityCaps });
-  const manifest = { schemaVersion: 1, seed: profile.seed, planDigest: digest(plan), catalogueDigest: digest(data), datasetDigest: selectedDataset.digest,
+  const manifest = { schemaVersion: 1, storageFormat, seed: profile.seed, planDigest: digest(plan), catalogueDigest: digest(data), datasetDigest: selectedDataset.digest,
+    ...(ownedServing ? { ownedBasePin: ownedServing.manifest.bases[selectedDataset.digest] } : {}),
     configDigest: fixtureConfigDigest(profile, selectedDataset.digest), catalogueBytes: Buffer.byteLength(JSON.stringify(data)), engineCatalogueTasks: tasks.length,
     shape: profile.catalogue, groups: [], characters: 0, logins: 0, keys: 0, gaps: knownGaps, workers,
     setupApi: 'serialized registry/session/key APIs; disjoint real picker stores in worker threads; no timed admission overrides',
@@ -75,8 +82,8 @@ export async function generate(profile, directory, { workers: requestedWorkers }
         }
         jobs.push({ item, dataDir: registry.pickerDirectory(owner.picker.id), pickerId: owner.picker.id, accounts, registryMs: performance.now() - at });
       }
-      const results = await buildGroups(jobs.map(({ item, dataDir }) => ({ item, dataDir })), {
-        workers, workerData: { profile, worldData, tasks: sharedTasks },
+      const results = await buildGroups(jobs.map(({ item, dataDir, pickerId }) => ({ item, dataDir, pickerId })), {
+        workers, workerData: { profile, worldData, tasks: sharedTasks, ownedServing },
         onProgress: async (value, worker) => { active.set(worker, value); await progress({ phase: 'building' }); },
         onComplete: async (result, worker) => { active.delete(worker); builtGroups++; await progress({ phase: 'building' }); }
       });

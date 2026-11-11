@@ -11,7 +11,7 @@ const staticFields = new Set(['tasks', 'identityRegistry', 'legacy']);
  * each call. Roll bookkeeping is not consumed by task/access calculation;
  * actual unlocked chunks, personal progress, rules and overrides all remain.
  * Preferences follow storage's display-only gameplay-fingerprint boundary. */
-export function createTaskReuseFingerprint() {
+export function createTaskReuseFingerprint({ ownedCatalogueSemantics = false } = {}) {
   const staticDigests = new WeakMap();
   const fieldDigest = (value, serialized) => {
     if (!staticDigests.has(value) && hasResidentIdentities({ identityRegistry: value })) {
@@ -23,6 +23,7 @@ export function createTaskReuseFingerprint() {
   };
   const fingerprint = state => {
     const fields = [];
+    if (ownedCatalogueSemantics && hasResidentIdentities(state) && state.provenance?.ownedCatalogue) fields.push(['ownedCatalogue', digest(state.provenance.ownedCatalogue)]);
     for (const key of Object.keys(state).sort()) {
       if (['revision', 'history', 'provenance', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews'].includes(key)) continue;
       let value = state[key];
