@@ -22,9 +22,10 @@ import { atomicWrite } from './atomic-write.mjs';
 export { prepareStoreProcessIdentity } from './store-lock.mjs';
 import { readStaticFieldBytes, validateStaticFieldReference } from './static-field.mjs';
 import { createOwnedStorage } from './owned-storage.mjs';
-import { cloneResidentState, isResidentState, shareResidentCatalogue, reconcileResidentIdentities } from '../core/resident-copy.mjs';
+import { cloneResidentState, isResidentState, shareResidentCatalogue, reconcileResidentIdentities, adoptResidentState, residentBase } from '../core/resident-copy.mjs';
 import { applyResidentCommand, materializeResidentState, validateResidentState } from '../core/state.mjs';
-import { identityValue, materializeIdentities } from '../tasks/identity-dictionary.mjs';
+import { identityValue, identityJSONParts } from '../tasks/identity-dictionary.mjs';
+import { ownedCalculatorInput } from '../tasks/owned-transport.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
@@ -330,8 +331,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return json;
   }
   const fieldJSON = ownedStorage ? (key, value) => {
+    if (key === 'tasks') return JSON.stringify(value);
     if (key !== 'identityRegistry' || !value) return flatFieldJSON(key, value);
-    return JSON.stringify(materializeIdentities(value));
+    return [...identityJSONParts(value)].join('');
   } : flatFieldJSON;
   function flatFieldJSON(key, value) {
     if (key === 'history') return historyJSON(value);
@@ -344,6 +346,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function* stateFields(state) {
     let first = true;
     for (const [key, value] of Object.entries(state)) {
+      if (ownedStorage && key === 'identityRegistry' && value) {
+        if (!first) yield ',';
+        first = false;
+        yield JSON.stringify(key); yield ':'; yield* identityJSONParts(value); continue;
+      }
       const bytes = fieldJSON(key, value);
       if (bytes === undefined) continue;
       if (!first) yield ',';
@@ -523,8 +530,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const residentDigests = new WeakMap();
   function seedResidentFingerprint(state) {
     if (!ownedStorage || !state.identityRegistry) return;
-    if (!residentDigests.has(state.identityRegistry)) residentDigests.set(state.identityRegistry,
-      createHash('sha256').update(fieldJSON('identityRegistry', state.identityRegistry)).digest('hex'));
+    if (!residentDigests.has(state.identityRegistry)) {
+      const hash = createHash('sha256');
+      for (const part of identityJSONParts(state.identityRegistry)) hash.update(part);
+      residentDigests.set(state.identityRegistry, hash.digest('hex'));
+    }
     const digests = { identityRegistry: residentDigests.get(state.identityRegistry) };
     fingerprint.seedStatic(state, digests); taskReuseFingerprint.seedStatic(state, digests);
   }
@@ -535,7 +545,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function playProjection(state) {
     let projection = playProjections.get(state);
     if (!projection) {
-      const display = projectPlayState(ownedStorage ? copyState(state) : state);
+      const display = projectPlayState(state);
       projection = { state: display, tasksJSON: JSON.stringify(display.tasks), identityJSON: JSON.stringify(display.identityRegistry) };
       playProjections.set(state, projection);
     }
@@ -546,7 +556,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (playProjections.has(state)) return;
     if (playProjectionJobs.has(state)) return playProjectionJobs.get(state);
     const job = (async () => {
-      const steps = projectPlayStateSteps(ownedStorage ? copyState(state) : state);
+      const steps = projectPlayStateSteps(state);
       let next, turn = performance.now();
       do {
         next = steps.next();
@@ -620,7 +630,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // resolved. Keep its provenance and invalidate browser/ranking caches too.
       const randomStarts = current.members.filter(member => hasRandomStartChoices(current, member)).map(member => [member.id, member.pendingRoll]);
       input.history = randomStarts.length ? history : [];
-      let state, stateJSON, taskInputKey, rollInputKey;
+      if (ownedStorage) adoptResidentState(input, residentBase(current));
+      let state, stateJSON, taskInputKey, rollInputKey, residentState, ownedInput;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
       const inputKey = gameplayFingerprint();
       calculationSnapshot = { revision, members, inputKey, hasPendingRoll: current.members.some(member => member.pendingRoll.length > 0),
@@ -629,7 +640,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
             ? createHash('sha256').update(JSON.stringify([taskReuseFingerprint(input), randomStarts])).digest('hex')
             : taskReuseFingerprint(input);
         },
-        get rollInputKey() { return rollInputKey ??= rollPoolCache.input(ownedStorage ? copyState(input) : input); },
+        get rollInputKey() { return rollInputKey ??= rollPoolCache.input(input); },
+        get residentState() { return ownedStorage ? residentState ??= cloneResidentState(input) : undefined; },
+        get owned() { return ownedStorage ? ownedInput ??= ownedCalculatorInput(input) : undefined; },
         get state() { return state ??= copyState(input); },
         get stateJSON() {
           if (!stateJSON) {
@@ -649,7 +662,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   function rollPools(view) {
     refreshSnapshots();
-    const input = ownedStorage ? copyState(current) : current;
+    const input = current;
     fullPools ??= Object.fromEntries(input.members.map(member => [member.id,
       (rollPoolCache.get(input, member.id) ?? rollPoolCache.set(input, member.id,
         { pool: evaluateRollPool(world, input, member.id, registry) })).pool]));
@@ -663,7 +676,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     refreshSnapshots();
     if (!computeRollPool || fullPools && playPools) return;
     const captured = current, values = [];
-    const input = ownedStorage ? copyState(captured) : captured;
+    const input = captured;
     for (const member of captured.members) values.push([member.id, await computeRollPool(input, member.id)]);
     if (current !== captured) return prepareRollPools();
     fullPools = Object.fromEntries(values.map(([id, value]) => [id, value.pool]));
@@ -1230,7 +1243,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       }
     }
   }
-  async function persistState(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency } = {}) {
+  async function persistState(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency, skipSnapshot = false } = {}) {
     // Every gameplay publication retains current atomic decisions and folds
     // usable optional input under the same mutex as legacy sidecar writers.
     next = await publicationState(next, operation === 'replace' ? undefined : current);
@@ -1274,6 +1287,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // Let already-requested task lanes receive the committed snapshot before
     // preparing the response pools.
     if (ownershipChanged) await new Promise(resolve => setImmediate(resolve));
+    if (skipSnapshot) return;
     return cleanup ? structuredClone({ revision: current.revision, taskClaims: current.taskClaims, history: current.history })
       : serializedResult ? { ...await preparedCommandSnapshot(baseline, omitUnchanged, view), ...(receiptResult ? { receipt: receiptResult } : {}) } : cloneCurrent();
   }
@@ -1307,7 +1321,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       let precomputedPool;
       if (command.type === 'roll' && computeRollPool && [1, 2].includes(command.count)
         && input.state.members.some(member => member.id === command.memberId && !member.pendingRoll.length)) {
-        await computeRollPool(ownedStorage ? copyState(input.state) : input.state, command.memberId);
+        await computeRollPool(input.state, command.memberId);
         if (!ownedStorage) precomputedPool = rollPoolCache.prepare(input.state, command.memberId);
       }
       const next = applyStoredCommand(input.state, command, { expectedRevision, world, registry, precomputedPool,
@@ -1533,6 +1547,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         choicesChanged: !isDeepStrictEqual(current.members.map(m => [m.id, m.selected, m.pendingRoll]), state.members.map(m => [m.id, m.selected, m.pendingRoll])) };
     },
     getState: cloneCurrent,
+    // Internal read-only consumers share the immutable catalogue. Public flat
+    // snapshots remain an explicit compatibility/materialization boundary.
+    getReadState: () => ownedStorage ? cloneResidentState(current) : cloneCurrent(),
     getPluginItemEvidence: () => structuredClone(current.provenance?.pluginItemEvidence),
     getPluginTestingMode: player => pluginTestingMode(current, player),
     getTaskClaimState() {
@@ -1552,7 +1569,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     getTaskClaimSnapshot: () => ({ revision: current.revision, taskClaims: structuredClone(current.taskClaims ?? {}) }),
     getRules: () => ({ ...current.rules }),
     getStateSnapshot: ({ view } = {}) => computeRollPool ? preparedCommandSnapshot(undefined, false, view) : commandSnapshot(undefined, false, view),
-    getCalculationState: () => capturedCalculation().state,
+    getCalculationState: () => capturedCalculation().residentState ?? capturedCalculation().state,
     getCalculationSnapshot: capturedCalculation,
     // Advisory clients may reuse an existing pool, never trigger travel/task work.
     peekRollPool(memberId) { refreshSnapshots(); return fullPools?.[memberId] ?? null; },
@@ -1660,13 +1677,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     },
     observePluginCurrency(observation) {
       return enqueue(async () => {
-        const input = ownedStorage ? copyState(current) : current;
+        const input = current;
         const result = observePluginCurrency(input, pluginCurrency, observation,
           { now: timestamp, epoch: currencyEpoch, world, registry, taskCatalogue, membersStartBanks, xpChoiceCatalogue });
         const ready = result.state === input ? current : await prepared(inheritStateMetadata(current, result.state), 'command');
         if (ready.revision !== result.state.revision) throw new TypeError('prepareState must preserve the authoritative revision.');
         await persist(ready, 'plugin-currency', undefined, false, current, false, undefined,
-          { cleanup: ready === current, currency: result.metadata });
+          { cleanup: ready === current, currency: result.metadata, skipSnapshot: !!ownedStorage });
         return { currencyRetry: result.retry };
       });
     },

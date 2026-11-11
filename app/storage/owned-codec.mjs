@@ -1,4 +1,5 @@
-import { identityDictionaryDelta } from '../tasks/identity-dictionary.mjs';
+import { identityDictionaryDelta, identityDictionaryFromDelta, countOwnedFullCopyForTests } from '../tasks/identity-dictionary.mjs';
+import { adoptResidentState } from '../core/resident-copy.mjs';
 import { validateOwnedBaseReference } from './owned-base-schema.mjs';
 
 const json = JSON.stringify;
@@ -62,11 +63,15 @@ export function ownedCodec(base, pin) {
     registryVersions.set(registry, delta);
     return delta;
   }
-  function inflateDictionary(delta, baseDictionary) {
+  function inflateDictionary(delta, baseDictionary, resident) {
     requireShape(delta, ['replacements', 'deleted'], ['order']);
     if (!record(delta.replacements) || !Array.isArray(delta.deleted)
       || delta.deleted.some(key => !safe(key) || !Object.hasOwn(baseDictionary, key))
       || new Set(delta.deleted).size !== delta.deleted.length) throw new TypeError('Invalid owned dictionary delta.');
+    for (const key of Object.keys(delta.replacements)) if (!safe(key) || delta.deleted.includes(key)) throw new TypeError('Invalid owned identity replacement.');
+    if (Object.hasOwn(delta, 'order') && (!Array.isArray(delta.order) || delta.order.some(key => !safe(key)))) throw new TypeError('Invalid owned dictionary order.');
+    if (resident) return identityDictionaryFromDelta(baseDictionary, delta);
+    countOwnedFullCopyForTests();
     const result = { ...baseDictionary };
     for (const key of delta.deleted) delete result[key];
     for (const [key, value] of Object.entries(delta.replacements)) {
@@ -86,7 +91,7 @@ export function ownedCodec(base, pin) {
       return { state: payload, storage: { schemaVersion: 2, base: { datasetDigest: pin.dataset.digest, sha256: pin.sha256 },
         delta: { keys: Object.keys(state), tasks: tasksDelta(tasks), identityRegistry: registryDelta(identityRegistry) } } };
     },
-    decode(document) {
+    decode(document, { resident = false } = {}) {
       const { storage, state } = document;
       requireShape(storage, ['schemaVersion', 'base', 'delta'], ['fields']);
       if (storage.schemaVersion !== 2) throw new TypeError('Unsupported owned storage version.');
@@ -102,11 +107,12 @@ export function ownedCodec(base, pin) {
         requireShape(identityRegistry, ['present', 'keys', 'schemaVersion', 'entries', 'aliases', 'unresolved']);
         if (identityRegistry.present !== true) throw new TypeError('Invalid owned registry presence.');
         const registry = { schemaVersion: identityRegistry.schemaVersion,
-          entries: inflateDictionary(identityRegistry.entries, base.identityRegistry.entries),
-          aliases: inflateDictionary(identityRegistry.aliases, base.identityRegistry.aliases), unresolved: identityRegistry.unresolved };
+          entries: inflateDictionary(identityRegistry.entries, base.identityRegistry.entries, resident),
+          aliases: inflateDictionary(identityRegistry.aliases, base.identityRegistry.aliases, resident), unresolved: identityRegistry.unresolved };
         payload.identityRegistry = ordered(registry, identityRegistry.keys);
       }
-      return { ...document, state: structuredClone(ordered(payload, keys)) };
+      const logical = ordered(payload, keys);
+      return { ...document, state: resident ? adoptResidentState(logical, base) : structuredClone(logical) };
     },
   };
   codecs.set(base, codec);

@@ -1,5 +1,6 @@
 import { lookupPermanentId, resolveIdentity } from './tasks/identity.mjs';
 import { helperTaskLevels } from './helper-task-levels.mjs';
+import { identityValue } from './tasks/identity-dictionary.mjs';
 
 export const PLAY_VIEW = 'play-v1';
 const factKeys = ['id', 'label', 'category', 'status', 'hidden', 'obligation', 'aliases', 'completionGroup', 'completionIds'];
@@ -41,15 +42,15 @@ function* projectRegistrySteps(state, resolve) {
   }
   for (const id of Object.keys(state.taskClaims ?? {})) { add(id); if (++visited % 256 === 0) yield; }
   for (const [id, categories] of references) {
-    const persisted = state.identityRegistry?.aliases?.[id];
+    const persisted = identityValue(state.identityRegistry?.aliases, id);
     const saved = (typeof persisted === 'string' ? [persisted] : Array.isArray(persisted) ? persisted : [])
-      .filter(target => state.identityRegistry?.entries?.[target]);
+      .filter(target => identityValue(state.identityRegistry?.entries, target));
     if (saved.length) savedAliases[id] = saved;
     const candidates = new Set();
     for (const category of categories) for (const target of resolve(id, category).candidates) candidates.add(target);
     if (candidates.size && (candidates.size !== 1 || !candidates.has(id))) aliases[id] = [...candidates];
     for (const target of candidates) {
-      const entry = state.identityRegistry?.entries?.[target] ?? lookupPermanentId(target);
+      const entry = identityValue(state.identityRegistry?.entries, target) ?? lookupPermanentId(target);
       if (!entry) continue;
       const ownPrefix = entry.category ? `rs3:${encodeURIComponent(entry.category)}:` : undefined;
       const categoryAliases = [...new Set((entry.aliases ?? []).flatMap(alias => {

@@ -244,7 +244,7 @@ test('format-1 validation and commands never call sparse iterators or value look
       resolvePersistedIdentity(alias, current.identityRegistry, 'Synthetic');
     }
     getUndoEligibility(current);
-    assert.deepEqual(counts, { value: 0, keys: 0, entries: 0, validationEntries: 0 });
+    assert.deepEqual(counts, { value: 0, keys: 0, entries: 0, validationEntries: 0, materializations: 0, fullCopies: 0 });
     const resident = createResidentState(state, base);
     validateResidentState(resident);
     resolveIdentity('first-alias', resident.identityRegistry);

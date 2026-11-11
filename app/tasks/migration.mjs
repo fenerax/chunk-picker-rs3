@@ -983,3 +983,8 @@ function migrateOwnedTaskIdentities(next, { catalogue = [], taskMap, history, pr
   if (conflicts.length) warnings.push(`${conflicts.length} conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.`);
   return { state: next, warnings, report: { ...conservation, conversions, unresolved, conflicts } };
 }
+/** Currency counts the complete logical flat array, never a base/delta stamp. */
+export function hasCompleteMigrationCatalogue(state, catalogueIds) {
+  const registeredIds = new Set(state.tasks.map(task => task.id));
+  return [...catalogueIds].every(id => registeredIds.has(id));
+}

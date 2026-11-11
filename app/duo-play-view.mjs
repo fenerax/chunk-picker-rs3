@@ -1,4 +1,5 @@
 import { createTaskFactsIndex } from './core/progress-index.mjs';
+import { identityValue } from './tasks/identity-dictionary.mjs';
 
 export const DUO_INSPECTION_VIEW = 'duo-inspection-v1';
 
@@ -12,7 +13,7 @@ export function projectDuoInspectionJSON(bytes, { neverShowIds = [] } = {}) {
 
 const custom = id => typeof id === 'string' && (id.startsWith('custom:') || id.startsWith('rs3:task:custom:'));
 const targets = (registry, id) => {
-  const candidates = registry?.aliases?.[id];
+  const candidates = identityValue(registry?.aliases, id);
   return typeof candidates === 'string' ? [candidates] : Array.isArray(candidates) ? candidates : [];
 };
 

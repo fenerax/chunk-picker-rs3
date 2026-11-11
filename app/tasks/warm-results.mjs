@@ -2,6 +2,9 @@ import path from 'node:path';
 import { serialize, deserialize } from 'node:v8';
 import { preparationSourceDigest } from '../preparation-key.mjs';
 import { createWarmStore, warmStoreAllowed, warmHash, WARM_RESULT_LIMITS } from './warm-store.mjs';
+import { createHash } from 'node:crypto';
+import { hasResidentIdentities } from '../core/resident-copy.mjs';
+import { identityJSONParts } from './identity-dictionary.mjs';
 
 const buffers = ['resultJSON', 'playJSON', 'duoJSON', 'duoSidebarJSON'];
 const reuseBuffers = ['playJSON', 'duoJSON', 'duoSidebarJSON'];
@@ -36,7 +39,10 @@ export function warmResultKey(namespace, request) {
       || !Number.isSafeInteger(request.state?.revision) || request.state.revision < 0) return;
     // Full hydrated calculation bytes plus revision: inputKey alone is never
     // trusted as proof of save identity, even for direct calculator clients.
-    return warmHash(JSON.stringify([1, namespace, request]));
+    if (!hasResidentIdentities(request.state)) return warmHash(JSON.stringify([1, namespace, request]));
+    const hash = createHash('sha256');
+    for (const part of identityJSONParts([1, namespace, request])) hash.update(part);
+    return hash.digest('hex');
   } catch { /* Optional miss. */ }
 }
 export function createWarmResults(data, options = {}) {

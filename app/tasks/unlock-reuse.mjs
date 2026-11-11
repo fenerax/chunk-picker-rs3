@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { constants as zlibConstants, crc32, gzipSync, gunzipSync } from 'node:zlib';
+import { hasResidentIdentities } from '../core/resident-copy.mjs';
+import { identityJSONParts } from './identity-dictionary.mjs';
 
 const digest = value => createHash('sha256').update(JSON.stringify(value) ?? 'null').digest('hex');
 const staticFields = new Set(['tasks', 'identityRegistry', 'legacy']);
@@ -12,6 +14,10 @@ const staticFields = new Set(['tasks', 'identityRegistry', 'legacy']);
 export function createTaskReuseFingerprint() {
   const staticDigests = new WeakMap();
   const fieldDigest = (value, serialized) => {
+    if (!staticDigests.has(value) && hasResidentIdentities({ identityRegistry: value })) {
+      const hash = createHash('sha256'); for (const part of identityJSONParts(value)) hash.update(part);
+      staticDigests.set(value, hash.digest('hex'));
+    }
     if (!staticDigests.has(value)) staticDigests.set(value, serialized === undefined ? digest(value) : createHash('sha256').update(serialized).digest('hex'));
     return staticDigests.get(value);
   };

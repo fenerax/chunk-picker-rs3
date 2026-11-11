@@ -2,6 +2,13 @@ import { createIdentityDictionary, reconcileIdentityDictionary, isIdentityDictio
 
 const taskBases = new WeakMap(), residentBases = new WeakMap();
 export const isResidentState = state => residentBases.has(state);
+export const residentBase = state => residentBases.get(state);
+/** Codec/worker input already owns its group payload and sparse dictionaries. */
+export function adoptResidentState(state, base) {
+  residentBases.set(state, base);
+  if (state.identityRegistry) freezeIdentityTree(state.identityRegistry);
+  return freezeResidentCatalogue(state);
+}
 export const hasResidentIdentities = state => isIdentityDictionary(state?.identityRegistry?.entries)
   && isIdentityDictionary(state?.identityRegistry?.aliases);
 
@@ -15,6 +22,18 @@ export function cloneResidentState(state) {
   const copy = Object.fromEntries(Object.entries(state).map(([key, value]) => [key,
     key === 'tasks' || key === 'identityRegistry' ? value : structuredClone(value)]));
   residentBases.set(copy, residentBases.get(state));
+  return copy;
+}
+/** Calculator drafts can spread a resident state. Share only its immutable
+ * catalogue, including when the draft has no storage ownership marker. */
+export function cloneCalculationState(state) {
+  if (isResidentState(state)) return cloneResidentState(state);
+  if (!hasResidentIdentities(state)) return structuredClone(state);
+  if (!Object.isFrozen(state.identityRegistry)) throw new TypeError('Expected immutable calculator catalogue');
+  const copy = Object.fromEntries(Object.entries(state).map(([key, value]) => [key,
+    key === 'tasks' || key === 'identityRegistry' ? value : structuredClone(value)]));
+  if (!Object.isFrozen(copy.tasks)) copy.tasks = freezeIdentityTree(copy.tasks.map(row => Object.isFrozen(row) ? row : structuredClone(row)));
+  if (residentBases.has(state)) residentBases.set(copy, residentBases.get(state));
   return copy;
 }
 export function freezeResidentCatalogue(state) {

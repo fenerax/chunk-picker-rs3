@@ -37,15 +37,20 @@ for group-owned legacy/provenance only.
 Every open validates the complete inflated logical state, including Undo, before
 sharing the verified frozen base through slice-2 resident dictionaries/flat task
 arrays. Hook proofs keep their existing contract and see complete tasks and
-hydrated History. Fallible hooks, public snapshots, exports and existing worker
-boundaries receive detached flat JSON. Archive hydration owns events before
-coordination cancellation/validation. Commands use resident copy boundaries;
+hydrated History. Fallible hooks, public snapshots, exports and import/transfer
+workers receive detached flat JSON. Owned native calculators use the verified
+base and delta transport described in [slice 7a](owned-calculator-contract.md).
+Archive hydration owns events before coordination cancellation/validation.
+Commands use resident copy boundaries;
 there is no new History or Redo format (Redo reapplies the original command).
 Shared base indexes/encoding and weak per-version delta caches prevent ordinary
 payload writes from serializing/hashing or rewriting the complete base. New task
 arrays are scanned to form spans; touched nonbase rows retain exact JSON. No
-per-group full identity dictionary/string cache is introduced. Current full
-calculator/display boundary materialization remains a slice-7 optimization gate.
+per-group full identity dictionary/string cache is introduced. The previous
+calculator/display boundary materialization gate is addressed by
+[slice 7a](owned-calculator-contract.md); its audit lists the remaining explicit
+flat boundaries. Complete 50-group residency measurement and activation remain
+slices 7b/7c.
 
 ## Publication and recovery
 

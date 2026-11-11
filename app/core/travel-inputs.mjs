@@ -1,3 +1,4 @@
+import { identityValue } from '../tasks/identity-dictionary.mjs';
 // These inputs belong to the transport-disabled task proof and the personal
 // fact projection in automatic-transport.mjs. Keep this browser-compatible.
 const memberFields = ['id', 'name', 'sourceMapId', 'unlocked', 'completedTasks', 'obtainedEquipment',
@@ -20,9 +21,9 @@ function identityInputs(state) {
   // Entry labels/category/aliases and unrelated registrations are not read by
   // this uncategorized resolution. Task alternatives only select presentation.
   return [...ids].map(id => {
-    const aliases = registry?.aliases?.[id], savedAliases = registry?.savedAliases?.[id];
+    const aliases = identityValue(registry?.aliases, id), savedAliases = registry?.savedAliases?.[id];
     return [id, aliases, savedAliases, [...new Set([id, ...targets(aliases), ...targets(savedAliases)])]
-      .map(target => [target, record(registry?.entries?.[target])])];
+      .map(target => [target, record(identityValue(registry?.entries, target))])];
   });
 }
 
