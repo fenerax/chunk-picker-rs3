@@ -452,7 +452,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, ownedDocument, ownedBase, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof, ownedDocument, ownedBase }) => {
   if (type === 'eligibility-seed') {
     const reply = requests.get(id)?.pickerId === pickerId ? requests.get(id).seedReply : undefined;
     if (reply) reply(proof); else releaseEligibilityChunk({ type, proof });
