@@ -75,3 +75,179 @@ one large phase sample does not establish a separate causal slope.
 | 2 | 5000 | tick | 0.0 | 78.0 | 406.0 | 16.0 | 46.0 | 329.0 | 875.0 |
 | 2 | 5000 | note | 15.0 | 94.0 | 453.0 | 15.0 | 470.0 | 15.0 | 1062.0 |
 | 2 | 5000 | undo | 594.0 | 47.0 | 359.0 | 16.0 | 31.0 | 0.0 | 1047.0 |
+
+## Delta validation (phase 2)
+
+`openStore({ deltaValidation: true })` opts in. The default is `false` in both
+formats. No server launcher or environment variable enables it. Production
+keeps the existing command path until a separate activation decision.
+
+`app/core/delta-validation.mjs` owns a per-store `WeakSet` of certified roots.
+Certification runs the full validator, owns its returned copy, and deeply
+freezes it. A revision number, shallow freeze or reused catalogue cannot seed
+a proof. There is no global group cache. The session's weak references do not
+retain obsolete snapshots. Certification adds a full pass at startup and on
+unrecognized roots; startup is outside the command measurements.
+
+The fast path uses the existing `applyValidatedCommand`, including command
+JSON checks, revision checks, gameplay validation and new inverse validation.
+It applies only to notes, ticks whose resolved task IDs already exist, and
+Undo of the latest active note/tick with only the corresponding sparse member
+patches. Nonempty task claims disable it. Task registration, catalogue edits,
+nonlatest Undo and complex inverses use the full path. Format 2 keeps the
+existing resident command construction in that fallback, followed by full
+validation; this preserves the codec's alias replacement order as well as its
+logical values. Newly returned snapshots are frozen before acquiring a proof.
+
+These restrictions let an everyday command reuse the baseline's catalogue,
+identity registry and History checks. The new inverse restores the baseline's
+gameplay exactly, so replaying it leads into the already checked Undo chain.
+Undo of the latest active simple change removes that chain's first active
+inverse and adds its paired marker. Older selective Undo retains full replay.
+The existing core functions validate the changed member state, task references
+and both inverse sides. Members are still copied and their small gameplay
+projection is validated; this is not an optimization for unbounded member
+dictionaries. The History array still has to be copied and serialized.
+
+Hooks retain their detached full-validation boundary. Their returned roots,
+publication metadata changes and retention trims have no inherited certificate;
+the next command certifies them in full. Archive hydration still loads and
+validates the complete merged History. Its certified result can enter command
+application without a second resident-state validation. No archive cache,
+History paging or save/wire format change was introduced.
+
+### Invariant coverage
+
+| Full-validator invariant | Delta path / fallback |
+| --- | --- |
+| JSON serializability, plain objects, symbols, cycles, unsafe keys, actor/source validation in preserved History | Full certification; deeply frozen shared trees; command and new-event JSON checks remain in core. |
+| State/schema keys, revision bounds, rule resolution, diagnostics and normalization | Full certification; core checks command revision, timestamp and gameplay; authored revision/event construction preserves ordering. Unrecognized roots use full validation. |
+| Duplicate tasks/members, roster-sensitive assignments, task shapes and identity dictionaries | The fast path changes none of these. Untrusted roots and every task-registration/edit path use full validation, including historical assignments. |
+| Migration of aliases, claims, legacy stickers, provenance and plugin evidence | Full boundary before certification; catalogue/identity changes use the fallback. No normalization result is inferred from a hash or revision. |
+| Member field shape, progression overlap, referenced completions/statuses/progress/alternatives, claims, goals/reviews/finish line | Core `validateCommandGameplay` and `prepareUndo` remain in use; immutable unchanged global fields retain certification. Claims and other command kinds use the full fallback. |
+| History IDs, unique/monotonic revisions, actor/source, task timelines and historical references | Fully checked on certification. A fast append changes no older rows or timeline. New IDs/revisions are authored from a checked increment. |
+| Every inverse kind, snapshot roster, both sparse sides, guarded reverse replay, paired Undo markers | Full certification checks all existing inverses. Core validates each new sparse inverse. The fast Undo restriction preserves the certified reverse chain; other Undo uses the full validator. |
+| Archive overrides, invalidated claims, archive-boundary Undo | Existing hydration merges overrides/cancels invalidated claims before full certification. The storage differential case puts the only undoable event in an archive. |
+
+### Differential verification
+
+The full `applyCommand` / `validateState` implementation is the independent
+oracle. `tests/delta-validation.test.mjs` runs three deterministic generated
+streams in both flat and resident representations: 762 command pairs,
+288 accepted and 474 rejected. After each accepted delta result it also runs
+the full validator and compares exact logical state and History. Each command
+checks that the previous snapshot survives unchanged. The adversarial matrix
+tests duplicate rows/IDs, changed rosters and order, absent/historical assignees,
+invalid JSON, alias migration, corrupt paths/sides/markers, and every inverse
+component. A forged frozen root with a certified revision is refused.
+
+`tests/storage-delta-validation.test.mjs` compares option off/on for both
+formats with and without an archive, including identity migration on open,
+an Undo whose target is archived, ticks with duplicate requested IDs, notes,
+catalogue registration/edits, claims, Undo and reopen. It compares exact saved
+envelope bytes, serialized replies and complete backup states after each
+command. It also checks that a hook cannot introduce an absent assignee after
+a hot command. These are bounded deterministic synthetic comparisons, not an
+exhaustive enumeration of all JSON values.
+
+The initial test invocation exposed invalid synthetic surface declarations and
+a missing published base. After those fixture repairs, the byte comparison
+exposed differing alias replacement order in the resident fallback. The final
+fallback preserves the existing resident construction and the corrected files
+pass. No retry policy, timing assertion or per-case deadline was added; each
+new file has one generous outer guard.
+
+### Before and after
+
+Same probe, one completed option-on run, fresh synthetic directories and the
+same lock/priority/runtime policy. Milliseconds of process CPU; first tick is
+cold in each group. The complete option-on phase table follows the overview.
+
+| Format | Live History | Tick before / after | Note before / after | Undo before / after |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 4 | 359 / 328 | 15 / 16 | 1157 / 922 |
+| 1 | 200 | 406 / 406 | 15 / 31 | 923 / 1484 |
+| 1 | 1000 | 297 / 469 | 15 / 31 | 1312 / 1578 |
+| 1 | 5000 | 390 / 516 | 47 / 47 | 1156 / 1405 |
+| 2 | 4 | 406 / 313 | 78 / 32 | 219 / 109 |
+| 2 | 200 | 327 / 405 | 95 / 16 | 155 / 172 |
+| 2 | 1000 | 469 / 391 | 172 / 31 | 311 / 266 |
+| 2 | 5000 | 875 / 344 | 1062 / 78 | 1047 / 703 |
+
+| Format | Live History | Command | Load/archive validation | Apply | Validate | Encode | Publish | Reply | Total |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 4 | tick | 0.0 | 32.0 | 0.0 | 125.0 | 62.0 | 109.0 | 328.0 |
+| 1 | 4 | note | 0.0 | 0.0 | 0.0 | 0.0 | 16.0 | 0.0 | 16.0 |
+| 1 | 4 | undo | 484.0 | 0.0 | 0.0 | 313.0 | 31.0 | 94.0 | 922.0 |
+| 2 | 4 | tick | 16.0 | 0.0 | 0.0 | 16.0 | 15.0 | 266.0 | 313.0 |
+| 2 | 4 | note | 0.0 | 0.0 | 0.0 | 0.0 | 32.0 | 0.0 | 32.0 |
+| 2 | 4 | undo | 93.0 | 0.0 | 0.0 | 0.0 | 16.0 | 0.0 | 109.0 |
+| 1 | 200 | tick | 0.0 | 15.0 | 0.0 | 203.0 | 47.0 | 141.0 | 406.0 |
+| 1 | 200 | note | 0.0 | 0.0 | 0.0 | 0.0 | 31.0 | 0.0 | 31.0 |
+| 1 | 200 | undo | 844.0 | 0.0 | 0.0 | 374.0 | 64.0 | 202.0 | 1484.0 |
+| 2 | 200 | tick | 0.0 | 15.0 | 0.0 | 16.0 | 16.0 | 358.0 | 405.0 |
+| 2 | 200 | note | 0.0 | 0.0 | 0.0 | 0.0 | 16.0 | 0.0 | 16.0 |
+| 2 | 200 | undo | 141.0 | 0.0 | 16.0 | 0.0 | 0.0 | 15.0 | 172.0 |
+| 1 | 1000 | tick | 0.0 | 15.0 | 0.0 | 203.0 | 79.0 | 172.0 | 469.0 |
+| 1 | 1000 | note | 16.0 | 0.0 | 0.0 | 0.0 | 15.0 | 0.0 | 31.0 |
+| 1 | 1000 | undo | 781.0 | 16.0 | 31.0 | 593.0 | 32.0 | 125.0 | 1578.0 |
+| 2 | 1000 | tick | 0.0 | 0.0 | 0.0 | 15.0 | 32.0 | 344.0 | 391.0 |
+| 2 | 1000 | note | 0.0 | 0.0 | 0.0 | 0.0 | 31.0 | 0.0 | 31.0 |
+| 2 | 1000 | undo | 203.0 | 0.0 | 0.0 | 16.0 | 47.0 | 0.0 | 266.0 |
+| 1 | 5000 | tick | 0.0 | 15.0 | 0.0 | 250.0 | 79.0 | 172.0 | 516.0 |
+| 1 | 5000 | note | 0.0 | 0.0 | 0.0 | 0.0 | 47.0 | 0.0 | 47.0 |
+| 1 | 5000 | undo | 780.0 | 0.0 | 0.0 | 313.0 | 78.0 | 234.0 | 1405.0 |
+| 2 | 5000 | tick | 0.0 | 0.0 | 0.0 | 31.0 | 47.0 | 266.0 | 344.0 |
+| 2 | 5000 | note | 15.0 | 0.0 | 0.0 | 16.0 | 31.0 | 16.0 | 78.0 |
+| 2 | 5000 | undo | 624.0 | 0.0 | 0.0 | 0.0 | 63.0 | 16.0 | 703.0 |
+
+
+The sub-20 ms command target is **not met**. At 1,000 live events, format-2
+tick/note validation changes from 156/109 ms to below counter resolution.
+The cold tick still spends 344 ms in reply preparation and 47 ms in encoding
+and publication, for 391 ms total. The warm note takes 31 ms total. Undo takes
+266 ms, including 203 ms loading/validating merged History. At 5,000 events
+that load phase is 624 ms. Format 1 already used validated command baselines;
+this run does not demonstrate an end-to-end improvement for it. Its cold
+encoding and hydrated catalogue/identity costs remain substantial.
+
+Archive hydration and History traversal remain proportional to History size.
+Reducing that archive boundary to a bounded per-command cost needs a separate
+History/Undo paging design. Work stops at this boundary as requested; there is
+no save-format implementation or activation here. Cold catalogue encoding and
+reply construction are separate remaining costs and would also need attention
+before claiming the overall target. Single samples, GC/helper CPU attribution
+and Windows counter resolution limit comparisons between asynchronous phases.
+
+### Focused checks and commits
+
+| Test file | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| `tests/delta-validation.test.mjs` | 4 | 0 | 0 |
+| `tests/storage-delta-validation.test.mjs` | 6 | 0 | 0 |
+| `tests/state.test.mjs` | 59 | 0 | 0 |
+| `tests/undo-safety.test.mjs` | 7 | 0 | 0 |
+| `tests/storage-undo-safety.test.mjs` | 2 | 0 | 0 |
+| `tests/owned-resident-state.test.mjs` | 16 | 0 | 0 |
+| `tests/storage-owned-format2.test.mjs` | 31 | 0 | 0 |
+| `tests/storage-owned-load.test.mjs` | 16 | 0 | 0 |
+| `tests/migration-identity.test.mjs` | 9 | 0 | 0 |
+| `tests/multisticker-state.test.mjs` | 12 | 0 | 0 |
+| `tests/task-claims.test.mjs` | 41 | 0 | 0 |
+| `tests/history-reader.test.mjs` | 3 | 0 | 0 |
+
+206 cases passed across 12 distinct files; no failures or skips in the final
+checks. There were 16 file invocations including the two earlier repair-driven
+checks of the new files, never a retry loop. The ten existing regression files
+ran once each. All test/probe work ran sequentially at BelowNormal priority
+under the shared directory lock, with one test worker and the complete per-file
+`testRunPolicy` environment. Each lock lease ended within ten minutes. No
+server listener was started by the probe; tests use isolated synthetic stores.
+
+Phase 1 was committed before optimization as `c25df82797701f90ddf3dc6068a18388ac9beae8`.
+The phase-2 commit contains the default-off validator, local store integration,
+differential tests and this report. No lease-admission file, acceptance gate,
+save/wire schema, production setting or deployment was changed. No full suite,
+hosted CI/stability loop, push or PR was run; complete CI remains for the
+publication candidate. Raw synthetic probe outputs and focused logs remain in
+the ignored `var/save-cost-{baseline,delta}/` and `.local/` directories.
