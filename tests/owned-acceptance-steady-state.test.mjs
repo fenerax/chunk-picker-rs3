@@ -29,6 +29,56 @@ test('enforced warmed flat owners within caps allow only attributed bounded code
   assert.equal(caps.perGroupByteCapSum, 5 * 128); assert.equal(caps.projectedTotal100GroupBytes, 100 * 5 * 128);
 });
 
+test('entries-only owners cannot certify steady state or a complete cap projection', () => {
+  const proof = evidence();
+  for (const sample of proof.samples) for (const owner of sample.owners)
+    owner.dimensions = owner.dimensions.filter(dimension => dimension.unit === 'entries');
+  assert.equal(steadyStateRule(proof).eligible, false);
+  const projection = capProjection(proof.samples[0].owners);
+  assert.equal(projection.complete, false);
+  assert.equal(projection.missingByteCaps.length, allowedOwners.length);
+  assert.equal(projection.projectedTotal100GroupBytes, null);
+});
+
+test('missing attained entries on every warm-up owner cannot certify steady state', () => {
+  const proof = evidence();
+  for (const owner of proof.warmup.owners) delete owner.attainedEntries;
+  const verdict = steadyStateRule(proof);
+  assert.equal(verdict.eligible, false);
+  for (const owner of proof.warmup.owners) assert(verdict.reasons.includes(`warmup-unasserted:${owner.owner}/${owner.id}`));
+});
+
+test('missing and nonnumeric counters fail closed throughout the steady-state rule', () => {
+  const fields = [
+    ['sample heap', (proof, value) => { proof.samples[0].heapUsedBytes = value; }],
+    ['sample native', (proof, value) => { proof.samples[0].nativeBytes = value; }],
+    ['ledger used', (proof, value) => { proof.samples[0].owners[0].dimensions[1].used = value; }],
+    ['ledger cap', (proof, value) => { proof.samples[0].owners[0].dimensions[1].cap = value; }],
+    ['admissions per cycle', (proof, value) => { proof.samples[0].owners[0].workload.newEntriesPerCycle = value; }],
+    ['working set', (proof, value) => { proof.samples[0].owners[0].workload.workingSetEntries = value; }],
+    ['required entries', (proof, value) => { proof.warmup.owners[0].requiredEntries = value; }],
+    ['attained entries', (proof, value) => { proof.warmup.owners[0].attainedEntries = value; }],
+    ['unattributed heap', (proof, value) => { proof.spotChecks[0].unattributedHeapGrowthBytes = value; }],
+    ['spot owner used', (proof, value) => { proof.spotChecks[0].owners[0].used = value; }],
+    ['spot owner cap', (proof, value) => { proof.spotChecks[0].owners[0].cap = value; }],
+    ['compiled heap', (proof, value) => { proof.compiledCode.heapGrowthBytes = value; }],
+  ];
+  const invalid = [undefined, null, NaN, Infinity, -Infinity, -1, 0.5, '4', true, Number.MAX_SAFE_INTEGER + 1];
+  for (const [name, set] of fields) for (const value of invalid) {
+    const proof = evidence(); set(proof, value);
+    assert.equal(steadyStateRule(proof).eligible, false, `${name}: ${String(value)}`);
+  }
+  const tooMany = evidence(); tooMany.warmup.owners[0].attainedEntries = 5;
+  assert.equal(steadyStateRule(tooMany).eligible, false, 'attainment cannot exceed the enforced entry cap');
+  const zeroAdmissions = evidence(); zeroAdmissions.samples[0].owners[0].workload.newEntriesPerCycle = 0;
+  assert.equal(steadyStateRule(zeroAdmissions).eligible, false);
+  // Native growth is signed diagnostic data, but still cannot be malformed.
+  for (const value of invalid.filter(value => value !== -1)) {
+    const proof = evidence(); proof.spotChecks[0].nativeGrowthBytes = value;
+    if (value !== undefined) assert.equal(steadyStateRule(proof).eligible, false);
+  }
+});
+
 test('an unlisted dominator owner and an owner over its cap each veto the rule', () => {
   const unlisted = evidence(); unlisted.spotChecks[0].owners.push({ owner: 'unexpected-retainer', used: 1, cap: 10 });
   assert(steadyStateRule(unlisted).reasons.includes('unlisted-owner:unexpected-retainer'));
@@ -83,6 +133,25 @@ function rawResult() {
     repeated: [1, 2, 3, 4].map(sample), mutationWarmup: sample(0), mutationRepeated: [1, 2, 3, 4].map(sample),
     mutationHistoryBaseline: history.map(() => ({ activeHistoryEntries: 0 })), postPublicationIO: { baseWrites: 0 }, errors: [] };
 }
+
+test('an uncovered 201 MiB opening peak falls back to passing raw gates with flat 200 MiB repeats', () => {
+  const result = rawResult(), proof = evidence();
+  result.groups.forEach(group => { group.openBytes = 4 * MiB; });
+  result.openSamples[0].total.heapUsed = 201 * MiB;
+  const covered = [result.commandSamples.at(-1), result.settled, result.readOnlyWarmup,
+    ...result.repeated, result.mutationWarmup, ...result.mutationRepeated];
+  covered.forEach(sample => { sample.total.heapUsed = 200 * MiB; sample.ownerLedgers = structuredClone(proof.samples[0].owners); });
+  result.retention = { ...proof, compiledCode: null, spotChecks: [], samples: covered.map(sample => ({
+    heapUsedBytes: sample.total.heapUsed, nativeBytes: 0, owners: sample.ownerLedgers })) };
+  const verdict = decision(result);
+  assert.equal(verdict.steadyState.eligible, false);
+  assert.deepEqual(verdict.steadyState.reasons, ['uncovered-maximum']);
+  assert.deepEqual(verdict.reasons, []);
+  assert.equal(verdict.maximumGroupHeapBytes, 201 * MiB);
+  assert.equal(verdict.worstPossibleGroupBytes, 5 * MiB);
+  assert.equal(verdict.targetMet, true);
+  assert.equal(verdict.acceptanceClaim, true);
+});
 
 test('missing snapshots/ledgers preserve every raw growth gate and explain the fallback', () => {
   const result = rawResult();

@@ -31,9 +31,9 @@ export function decision(result) {
     uncoveredMaximum: result.retention.uncoveredMaximum || uncoveredMaximum(result) });
   const coveredStates = [result.commandSamples.at(-1), result.settled, result.readOnlyWarmup,
     ...result.repeated, result.mutationWarmup, ...result.mutationRepeated];
-  if (result.retention && (coveredStates.length !== result.retention.samples?.length
-    || coveredStates.some((row, i) => row.total.heapUsed !== result.retention.samples[i].heapUsedBytes
-      || JSON.stringify(row.ownerLedgers) !== JSON.stringify(result.retention.samples[i].owners)))) {
+  if (result.retention && (!Array.isArray(result.retention.samples) || coveredStates.length !== result.retention.samples.length
+    || coveredStates.some((row, i) => row.total.heapUsed !== result.retention.samples[i]?.heapUsedBytes
+      || JSON.stringify(row.ownerLedgers) !== JSON.stringify(result.retention.samples[i]?.owners)))) {
     steadyState.eligible = false;
     steadyState.reasons.push('ledger-proof-does-not-cover-measured-samples');
   }
@@ -70,7 +70,8 @@ export function decision(result) {
   if (maximum > 750 * MiB) reasons.push('aggregate-over-750-MiB');
   if (sustainedGrowth && !steadyState.eligible) reasons.push('growth-on-every-read-only-repeat');
   if (mutationSlopeBytesPerRound > 0 && !steadyState.eligible) reasons.push('positive-mutation-repeat-heap-slope');
-  if (steadyState.reasons.some(reason => /owner-over-cap|unlisted-owner|uncovered-maximum/.test(reason))) reasons.push('steady-state-owner-proof-rejected');
+  // Missing attribution denies a waiver; actual cap/owner violations reject.
+  if (steadyState.reasons.some(reason => /owner-over-cap|unlisted-owner/.test(reason))) reasons.push('steady-state-owner-proof-rejected');
   if (!historyBounded) reasons.push('mutation-history-outside-workload-bound');
   if (result.postPublicationIO.baseWrites !== 0) reasons.push('base-rewritten-after-publication');
   if (result.errors.length) reasons.push('incomplete-command-workload');
