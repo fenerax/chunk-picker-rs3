@@ -2,6 +2,7 @@ import { createStreamLimits } from './security/request.mjs';
 import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
 import { open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import { generateToken } from './security/tokens.mjs';
 import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 import { overlayPayload, overlayRollCandidate, overlayText } from './overlay-model.mjs';
@@ -233,7 +234,7 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
         const result = await mutate(request, security, next => {
           if (scope.player !== 'duo' && !members().some(member => member.id === scope.player)) throw fail(400, 'Choose a known player.');
           if (next.links.length >= 1000) throw fail(409, 'The overlay link limit has been reached.');
-          const key = randomBytes(32).toString('base64url');
+          const key = generateToken();
           const record = { id: randomUUID(), label, widget: scope.widget, player: scope.player,
             ...(scope.widget === 'goals' ? { goals: scope.goals } : {}), createdAt: new Date().toISOString(), revoked: false, tokenHash: digest(key) };
           next.links.push(record);

@@ -28,6 +28,7 @@ import { applyResidentCommand, materializeResidentState, validateResidentState }
 import { identityValue, identityJSONParts } from '../tasks/identity-dictionary.mjs';
 import { ownedCalculatorInput } from '../tasks/owned-transport.mjs';
 import { createHash, randomBytes } from 'node:crypto';
+import { generateToken } from '../security/tokens.mjs';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
 import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, createOwnedStateValidationCache, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo, hasRandomStartChoices } from '../core/state.mjs';
@@ -102,7 +103,7 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, tokenRandomBytes, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
@@ -1055,7 +1056,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const tokenFile = path.join(directory, 'access-token');
     try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
       if (error.code !== 'ENOENT' || readOnly) throw error;
-      token = randomBytes(32).toString('base64url');
+      token = generateToken(tokenRandomBytes);
       reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
     }
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
