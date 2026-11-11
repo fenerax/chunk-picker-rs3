@@ -89,12 +89,14 @@ test('one shared hot graph avoids decoding, charges heap growth and preserves la
   const other = createSerializedSnapshotCache(budget, { hotSet });
   assert.equal(cache.set('key', snapshot, undefined, 'one'), true);
   assert.equal(cache.entries.get('key'), snapshot);
-  const record = [...cache.entries.values()][0], before = budget.bytes;
+  let record = [...cache.entries.values()][0];
+  const before = budget.bytes;
   assert.equal(record.bytes, undefined);
   assert.equal(hotSet.bytes, before);
   snapshot.whyIndex = { tasks: snapshot.baseline.tasks, byId: new Map([['synthetic', snapshot.baseline.tasks[0]]]) };
   snapshot.estimates.set('chunk', { detail: '雪'.repeat(2000) });
   cache.refresh(snapshot);
+  record = Map.prototype.get.call(cache.entries, 'key');
   assert.ok(budget.bytes > before + 4000, 'UTF-16 strings and graph storage join the ledger');
   assert.equal(budget.bytes, hotSet.bytes);
   const expected = JSON.stringify(snapshot.baseline);
@@ -134,4 +136,50 @@ test('hot set obeys heap and entry bounds, rejects executables and drops predict
   const meter = createSnapshotHeapMeter();
   assert.throws(() => meter.visit({ executable() {} }), TypeError);
   assert.throws(() => meter.visit({ get value() { assert.fail('Getter must not execute'); } }), TypeError);
+});
+
+test('refreshing a demoted snapshot re-admits its decoded graph to both budgets', () => {
+  const hotSet = createSnapshotHotSet({ entryLimit: 1, byteLimit: 128 * 1024 });
+  const { cache, budget, snapshot: a } = fixture(1024 * 1024, hotSet);
+  a.baseline.large = 'a'.repeat(5000);
+  const b = { baseline: { tasks: [{ id: 'b' }], metrics: {}, large: 'b'.repeat(5000) } };
+  const balance = () => {
+    const records = [...cache.entries.values()], hot = records.filter(record => record.value);
+    assert.equal(hot.length, 1, 'only one decoded graph is retained');
+    assert.equal(hotSet.size, hot.length);
+    assert.equal(hotSet.bytes, hot.reduce((sum, record) => sum + record.cost, 0));
+    assert.equal(budget.bytes, records.reduce((sum, record) => sum + record.cost, 0), 'ledger covers every retained representation');
+  };
+  assert.equal(cache.set('a', a, undefined, 'one'), true);
+  balance();
+  assert.equal(cache.set('b', b, undefined, 'two'), true);
+  balance();
+  const demoted = Map.prototype.get.call(cache.entries, 'a');
+  assert.equal(demoted.value, undefined);
+  assert.ok(demoted.bytes instanceof Buffer);
+  cache.refresh(a);
+  balance();
+  assert.equal(Map.prototype.get.call(cache.entries, 'a').value, a);
+  assert.equal(Map.prototype.get.call(cache.entries, 'b').value, undefined);
+  assert.equal(cache.isCurrent('a', a), true);
+  assert.deepStrictEqual(cache.entries.get('b').baseline, b.baseline, 'demoted contents remain exact after re-admission');
+  balance();
+  cache.entries.clear();
+  assert.equal(budget.bytes, 0); assert.equal(hotSet.bytes, 0);
+});
+
+test('measuring a demoted snapshot stages promotion without retaining another decoded graph', () => {
+  const hotSet = createSnapshotHotSet({ entryLimit: 1 });
+  const { cache, budget, snapshot: a } = fixture(1024 * 1024, hotSet);
+  const b = { baseline: { tasks: [], metrics: {} } };
+  cache.set('a', a, undefined, 'one'); cache.set('b', b, undefined, 'two');
+  const retained = Map.prototype.get.call(cache.entries, 'a'), before = budget.bytes, wireCost = retained.cost;
+  const measured = cache.measure(a);
+  assert.ok(measured > wireCost, 'decoded heap costs more than these wire bytes');
+  assert.equal(retained.value, undefined, 'measurement must not promote the resident record');
+  assert.equal([...cache.entries.values()].filter(record => record.value).length, 1);
+  assert.equal(hotSet.size, 1); assert.equal(budget.bytes, before);
+  cache.refresh(a);
+  assert.equal([...cache.entries.values()].filter(record => record.value).length, 1);
+  assert.equal(budget.bytes, [...cache.entries.values()].reduce((sum, record) => sum + record.cost, 0));
 });

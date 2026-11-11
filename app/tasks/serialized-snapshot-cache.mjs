@@ -94,8 +94,10 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
       const bytes = wire(value);
       budget.forget(record);
       record.bytes = bytes; record.cost = serializedSnapshotBytes(entry.key, entry.owner, bytes);
-      record.value = undefined; entry.meter = undefined;
-      if (!budget.admit(record, discardSnapshot(entries, entry.key, record, hotSet), { cost: record.cost, owner: 'picker:' + entry.owner })) entries.delete(entry.key);
+      record.value = undefined; entry.meter = undefined; entry.heapVersion = undefined;
+      entry.admittedCost = undefined;
+      if (budget.admit(record, discardSnapshot(entries, entry.key, record, hotSet), { cost: record.cost, owner: 'picker:' + entry.owner })) entry.admittedCost = record.cost;
+      else entries.delete(entry.key);
     } catch { budget.forget(record); discardSnapshot(entries, entry.key, record, hotSet)(); }
   };
   const measure = (value, force = false, checkpoint = noCheckpoint) => {
@@ -103,7 +105,8 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
     const entry = metadata.get(value);
     if (!entry) return;
     const next = version(value);
-    if (!force && entry.record && same(entry.version, next) && (entry.record.value || !hotSet.entryLimit)) return entry.record.cost;
+    if (!force && entry.record && same(entry.version, next)
+      && (entry.record.value === value || !entry.record.value && !hotSet.entryLimit)) return entry.record.cost;
     try {
       if (hotSet.entryLimit) {
         // Keep the producer's index identity: cancellation rolls an uncharged
@@ -124,8 +127,11 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
         entry.heapVersion = roots;
         const cost = meter.bytes;
         if (hotSet.canHold(cost) && budget.canAdmit({ cost, owner: 'picker:' + entry.owner })) {
-          entry.record ??= { owner: entry.owner };
-          entry.record.value = value; entry.record.bytes = undefined; entry.record.cost = cost;
+          // Measurement only stages a candidate. A representation or charge
+          // change must replace the resident token through set(), even when a
+          // demoted graph happens to regain exactly its former hot cost.
+          if (entry.record?.value !== value || entry.record.cost !== cost)
+            entry.record = { value, bytes: undefined, owner: entry.owner, cost };
           entry.version = version(value);
           return cost;
         }
