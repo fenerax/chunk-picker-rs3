@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { waitForCondition, settlePredictionLane, predictionLaneWork } from './helpers/prediction-lane.mjs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -7,6 +8,8 @@ import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { selectedDataset } from '../app/dataset-runtime.mjs';
 import { SURFACE_GRID } from '../app/data/surface-grid.mjs';
+
+const guard = AbortSignal.timeout(60_000);
 
 // Keep twelve fixture cells inside the active crop. The private reference keeps
 // its original IDs; the independent crop lays out the same fixture by column.
@@ -17,11 +20,7 @@ const definitions = { chunks: Object.fromEntries(ids.map(id => [id, { Nickname: 
   walkableChunks: ids, walkableChunksF2P: ids,
   challenges: { Mining: Object.fromEntries(ids.map(id => [`Mine at ${id}`, { Chunks: [id] }])) } };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(operation, predicate) {
-  const end = Date.now() + 12000;
-  while (Date.now() < end) { const value = await operation(); if (predicate(value)) return value; await delay(20); }
-  assert.fail('Pool comparison did not settle');
-}
+const until = (operation, predicate) => waitForCondition(operation, predicate, guard);
 async function fixture(t, extra = {}) {
   const base = path.resolve('.local/pool-ranking-tests'); await mkdir(base, { recursive: true });
   const dataDir = await mkdtemp(path.join(base, 'fixture-'));
@@ -35,25 +34,27 @@ async function fixture(t, extra = {}) {
     : { ...auth, Origin: origin, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) });
   const get = async route => { const response = await request(route); assert.equal(response.status, 200); return response.json(); };
   const intent = (visible, watchId = 'test', revision = 0) => request('/api/pool-ranking-intent', { memberId: 'reed', revision, watchId, visible });
-  return { app, get, request, intent, origin, headers };
+  const settle = () => settlePredictionLane(() => get('/api/diagnostics'), guard);
+  return { app, get, request, intent, origin, headers, settle };
 }
 test('pool reads do no worker work; visible comparison checks every chunk and reuses saved rows', async t => {
   const f = await fixture(t);
-  const before = await f.get('/api/diagnostics');
+  const before = await f.settle();
   const pending = await f.get('/api/pool-ranking?memberId=reed');
   assert.ok(pending.total > 8); assert.equal(pending.checked, 0);
   assert.ok(pending.rows.every(row => row.status === 'estimated' && row.count === null));
-  assert.deepEqual((await f.get('/api/diagnostics')).predictionLane, before.predictionLane);
+  assert.deepEqual(predictionLaneWork((await f.get('/api/diagnostics')).predictionLane), predictionLaneWork(before.predictionLane));
   await f.get('/api/tasks?memberId=reed&view=play-v1');
   assert.equal((await f.intent(true)).status, 200);
   const checked = await until(() => f.get('/api/pool-ranking?memberId=reed'), value => value.checked === value.total);
   assert.equal(checked.total, pending.total); assert.equal(checked.rows.length, pending.total);
   assert.ok(checked.rows.every(row => Number.isSafeInteger(row.count)));
   assert.equal((await f.intent(false)).status, 200);
-  const diag = await f.get('/api/diagnostics');
+  // Checked rows can precede the last producer's final reply, even after closing.
+  const diag = await f.settle();
   assert.equal(diag.poolRanking.watchers, 0); assert.equal(diag.predictionLane.ranking.pending, 0);
   assert.deepEqual((await f.get('/api/pool-ranking?memberId=reed')).rows, checked.rows);
-  assert.deepEqual((await f.get('/api/diagnostics')).predictionLane, diag.predictionLane);
+  assert.deepEqual(predictionLaneWork((await f.get('/api/diagnostics')).predictionLane), predictionLaneWork(diag.predictionLane));
   assert.equal((await f.request('/pool-ranking.mjs')).status, 200);
   const saved = await f.request('/api/command?view=play-v1', { expectedRevision: 0,
     command: { type: 'set-note', memberId: 'reed', chunkId: ids[0], note: 'Display-only edit' } });
@@ -61,7 +62,7 @@ test('pool reads do no worker work; visible comparison checks every chunk and re
   const restamped = await f.get('/api/pool-ranking?memberId=reed');
   assert.equal(restamped.stateRevision, 1);
   assert.deepEqual(restamped.rows, checked.rows, 'Display-only reuse keeps exact counts under the current revision');
-  assert.deepEqual((await f.get('/api/diagnostics')).predictionLane, diag.predictionLane);
+  assert.deepEqual(predictionLaneWork((await f.get('/api/diagnostics')).predictionLane), predictionLaneWork(diag.predictionLane));
 });
 test('viewers can see saved ranking but cannot start work, and invalid/stale intents are rejected', async t => {
   const f = await fixture(t);
@@ -69,10 +70,10 @@ test('viewers can see saved ranking but cannot start work, and invalid/stale int
   assert.equal(createdResponse.status, 201); const created = await createdResponse.json();
   const joined = await fetch(created.link, { redirect: 'manual' });
   const viewer = { Cookie: joined.headers.get('set-cookie').split(';')[0] };
-  const before = await f.get('/api/diagnostics');
+  const before = await f.settle();
   assert.equal((await f.request('/api/pool-ranking?memberId=reed', undefined, viewer)).status, 200);
   assert.equal((await f.request('/api/pool-ranking-intent', { memberId: 'reed', revision: 0, watchId: 'viewer', visible: true }, viewer)).status, 403);
-  assert.deepEqual((await f.get('/api/diagnostics')).predictionLane, before.predictionLane);
+  assert.deepEqual(predictionLaneWork((await f.get('/api/diagnostics')).predictionLane), predictionLaneWork(before.predictionLane));
   assert.equal((await f.intent(true, 'test', 1)).status, 409);
   assert.equal((await f.request('/api/pool-ranking?memberId=unknown')).status, 400);
   assert.equal((await f.intent(true, 'bad watch id')).status, 400);
@@ -102,7 +103,7 @@ test('closing cancels only ranking; pending task lists defer it and stale comple
   assert.equal(workers[1].messages.filter(message => message.type === 'predict').length, 1);
 });
 
-test('a pool read held across an HTTP save rejects its captured owner before retaining rows', { timeout: 20000 }, async t => {
+test('a pool read held across an HTTP save rejects its captured owner before retaining rows', async t => {
   const { Worker } = await import('node:worker_threads');
   let release, hold = false, markHeld;
   const held = new Promise(resolve => { markHeld = resolve; });
@@ -137,11 +138,10 @@ test('a pool read held across an HTTP save rejects its captured owner before ret
   assert.ok(checked.checked >= 1);
   // Preview can answer before its producer finishes the partner reply; let that
   // requested work settle so the snapshot measures the reads below alone.
-  const before = await until(() => f.get('/api/diagnostics'), value => !value.predictionLane.queue.active
-    && !value.predictionLane.queue.depth && !value.predictionLane.retainedWork.pending);
+  const before = await f.settle();
   for (let i = 0; i < 3; i++) assert.deepEqual((await f.get('/api/pool-ranking?memberId=reed')).rows, checked.rows);
   const after = await f.get('/api/diagnostics');
-  assert.deepEqual(after.predictionLane, before.predictionLane);
+  assert.deepEqual(predictionLaneWork(after.predictionLane), predictionLaneWork(before.predictionLane));
   assert.equal(after.poolRanking.watchers, 0);
   assert.equal((await f.request('/map-availability.mjs')).status, 200);
 });
