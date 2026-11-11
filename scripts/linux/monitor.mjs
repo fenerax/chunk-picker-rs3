@@ -7,6 +7,7 @@ import { atomic, directory, encode, exclusive, json } from './files.mjs';
 import { notify, releaseWindow, failureUnits } from './notify.mjs';
 import { processIdentity } from './start-check.mjs';
 const execute = promisify(execFile), GiB = 1024 ** 3;
+export const maintenanceGraceMs = 10 * 60000;
 export function evaluate(sample, previous = {}, now = Date.now()) {
   // An unavailable observation proves neither a fault nor a recovery. Partial
   // collection failures conservatively retain all unresolved observations.
@@ -17,7 +18,13 @@ export function evaluate(sample, previous = {}, now = Date.now()) {
   for (const [code, at] of [['backup-source', sample.backup?.snapshotAt], ['offhost-source', sample.offhost?.snapshotAt], ['offhost-delivery', sample.offhost?.lastSuccessAt]]) {
     const hours = age(at) / 3600000; if (hours >= 36) put(code, hours >= 48 ? 'critical' : 'warning');
   }
-  if (sample.marker) { put('maintenance'); if (!sample.ownerAlive) put('maintenance-abandoned', 'critical'); }
+  // Routine backups and deploys hold the marker for a few minutes. Warn only
+  // when a live owner keeps it past the grace period; a dead owner or an
+  // undated marker still alerts at once.
+  if (sample.marker) {
+    if (!sample.ownerAlive || age(sample.marker.startedAt) >= maintenanceGraceMs) put('maintenance');
+    if (!sample.ownerAlive) put('maintenance-abandoned', 'critical');
+  }
   if (sample.offhostPause) put('offhost-paused');
   if (sample.lock && age(sample.lock.startedAt) >= 30 * 60000 || sample.marker && age(sample.marker.startedAt) >= 30 * 60000) put('operation-long', 'critical');
   if (sample.diskBytes < 15 * GiB) put('disk-low', sample.diskBytes < 5 * GiB ? 'urgent' : 'warning');

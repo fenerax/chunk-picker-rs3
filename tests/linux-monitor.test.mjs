@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { evaluate, monitor } from '../scripts/linux/monitor.mjs';
+import { evaluate, monitor, maintenanceGraceMs } from '../scripts/linux/monitor.mjs';
 import { notify, notifyFailure, releaseWindow, failureUnits } from '../scripts/linux/notify.mjs';
 import { deadman } from '../scripts/linux/ops-status.mjs';
 import { exclusive } from '../scripts/linux/files.mjs';
@@ -47,6 +47,18 @@ test('maintenance remains evidence, dead ownership and long operations alert; re
   assert(releaseWindow({ startedAt: new Date(now - 60000), endsAt: new Date(now + 60000) }, now));
   assert(!releaseWindow({ startedAt: new Date(now), endsAt: new Date(now + 31 * 60000) }, now));
   assert(!releaseWindow({ startedAt: new Date(now - 60000), endsAt: new Date(now) }, now));
+});
+
+test('a live routine operation stays quiet until the maintenance grace period ends', () => {
+  const at = ms => ({ startedAt: new Date(now - ms).toISOString() });
+  const faults = (marker, ownerAlive = true) => evaluate({ ...sample(), marker, ownerAlive }, {}, now).faults;
+  assert.deepEqual(faults(at(maintenanceGraceMs - 1000)), {});
+  assert.equal(faults(at(maintenanceGraceMs))['maintenance'], 'warning');
+  // Dead ownership and undated or unparsable markers alert immediately.
+  const dead = faults(at(1000), false);
+  assert.equal(dead['maintenance'], 'warning'); assert.equal(dead['maintenance-abandoned'], 'critical');
+  assert.equal(faults({})['maintenance'], 'warning');
+  assert.equal(faults({ startedAt: 'invalid' })['maintenance'], 'warning');
 });
 
 test('release windows exclude only the writer from the monitor failed-unit aggregate', async t => {
