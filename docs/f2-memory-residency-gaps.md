@@ -1,11 +1,14 @@
 # Remaining service residency gaps
 
-The managed cache budget covers `createResponseCache` owners, scheduler results,
+The opt-in `budget-672` managed cache budget covers `createResponseCache` owners, scheduler results,
 worker snapshot/eligibility caches, parsed engines and input snapshots. It is
 not a hard bound on every allocation in the running service. History remains
 unbounded for the reasons in [the History design note](f2-history-residency-design.md).
 Saved viewer results still need a global bound before claiming a complete
-production service budget or certificate. Installed bases are now covered below.
+production service budget or certificate. Installed bases are covered by the
+opt-in input allocation below. The default profile preserves the existing live
+caps; global responses and engine/input byte dimensions are report-only. See
+the [profile cap table](owned-acceptance-contract.md).
 
 ## Saved viewer task results
 
@@ -38,7 +41,7 @@ again when the same backing is retained by both consumers.
 ## Installed calculator bases: included in the input allocation
 
 `createOwnedCalculatorReceiver` keeps verified bases outside `stateSnapshots`.
-It now has its own two-entry and graph-byte cap: half of the input allocation,
+In the budget profile it has its own two-entry and graph-byte cap: half of the input allocation,
 with the other half reserved for snapshots. Both ledgers enter the census.
 Oversized bases decode the current request without retention. Eviction hints
 invalidate scheduler and physical-pool installation hints so a later request

@@ -38,8 +38,9 @@ export function retainedDataBytes(roots) {
   return Math.ceil(bytes / 8) * 8;
 }
 
-export function createStateSnapshotCache({ maxEntries = 2, maxBytes = 32 * 1024 * 1024, onEvict = () => {} } = {}) {
-  if (![maxEntries, maxBytes].every(n => Number.isSafeInteger(n) && n >= 0)) throw new TypeError('Invalid state input cap.');
+export function createStateSnapshotCache({ maxEntries = 2, maxBytes = null, onEvict = () => {} } = {}) {
+  if (![maxEntries, maxBytes].every(n => n === null || Number.isSafeInteger(n) && n >= 0)) throw new TypeError('Invalid state input cap.');
+  const byteCeiling = maxBytes ?? Infinity, entryCeiling = maxEntries ?? Infinity;
   const rows = new Map(), sizes = new WeakMap();
   let bytes = 0;
   function remove(key, notify = true) {
@@ -53,16 +54,16 @@ export function createStateSnapshotCache({ maxEntries = 2, maxBytes = 32 * 1024 
       let cost = sizes.get(state);
       if (cost === undefined) { cost = retainedDataBytes([state]); sizes.set(state, cost); }
       cost += retainedDataBytes([key]) + 256;
-      if (!maxEntries || cost > maxBytes) { onEvict(key); return; }
-      while (rows.size >= maxEntries || bytes + cost > maxBytes) remove(rows.keys().next().value);
+      if (!entryCeiling || cost > byteCeiling) { onEvict(key); return; }
+      while (rows.size >= entryCeiling || bytes + cost > byteCeiling) remove(rows.keys().next().value);
       rows.set(key, { state, bytes: cost }); bytes += cost;
     },
     get size() { return rows.size; }, get bytes() { return bytes; },
     retentionLedger() {
-      if (rows.size > maxEntries || bytes > maxBytes) throw new Error('State input retention cap exceeded.');
-      return { owner: 'stateSnapshots', complete: true, dimensions: [
-        { unit: 'entries', used: rows.size, cap: maxEntries, enforced: true },
-        { unit: 'chargeBytes', used: bytes, cap: maxBytes, enforced: true }],
+      if (rows.size > entryCeiling || bytes > byteCeiling) throw new Error('State input retention cap exceeded.');
+      return { owner: 'stateSnapshots', complete: maxBytes !== null && maxEntries !== null, dimensions: [
+        { unit: 'entries', used: rows.size, cap: maxEntries, enforced: maxEntries !== null },
+        { unit: 'chargeBytes', used: bytes, cap: maxBytes, enforced: maxBytes !== null }],
       accounting: 'Conservative input graph bytes, including resident identity payloads and keys. Each input is charged independently, never converted to V8 heap bytes.' };
     },
   });

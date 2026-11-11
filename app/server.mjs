@@ -45,7 +45,7 @@ import { createInteriorAssetCatalogue } from './data/interior-assets.mjs';
 import { createTerrainAssetCatalogue, validateTerrainDescriptor, TERRAIN_BUNDLE, TERRAIN_COARSE_BUNDLE } from './data/terrain-assets.mjs';
 import { buildInteriorMapIndex } from './core/interior-maps.mjs';
 import { loadChunkSectionIndex, buildChunkSectionIndex } from './core/chunk-sections.mjs';
-import { createRepresentation, createResponseCache } from './http-response.mjs';
+import { createRepresentation, createResponseCache, RESPONSE_CACHE_DEFAULTS } from './http-response.mjs';
 import { startEarlyServer, reuseEquivalentDataset } from './startup.mjs';
 import { buildXpChoiceCatalogue } from './core/xp-choices.mjs';
 import { createArtProvider } from './art-provider.mjs';
@@ -355,7 +355,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
     limits, admitStream, usageAdmission, requestContextFor, pickerLimits,
     get definitionCache() { return definitionCache; }, get taskCache() { return taskCache; },
-    staticCache: createResponseCache({ maxEntries: 128, maxBytes: 48 * 1024 * 1024 }),
+    staticCache: createResponseCache(RESPONSE_CACHE_DEFAULTS.static),
     releaseReferences() {
       definitionCache = createRepresentation(definitionBytes); taskCache = createRepresentation(taskBytes);
       mapInfoCache.clear(); npcShopInfoCache = undefined; archaeologyCache = undefined;

@@ -147,9 +147,13 @@ export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs
   // Their fixed shares also sum to the one service cache budget.
   const memoryBudget = serviceMemoryBudget({ calculators: maxCalculators ?? 4 });
   options.workerData = { ...options.workerData, memoryBudget };
-  options.cacheByteLimit = boundedMemoryOption(options.cacheByteLimit, Math.floor(memoryBudget.schedulerBytes * 3 / 8));
-  duoCacheBytes = Math.min(duoCacheBytes, Math.floor(memoryBudget.schedulerBytes / 8));
-  predictionCacheBytes = Math.min(predictionCacheBytes, Math.floor(memoryBudget.schedulerBytes / 8));
+  options.cacheByteLimit = boundedMemoryOption(options.cacheByteLimit,
+    memoryBudget.enforced ? Math.floor(memoryBudget.schedulerBytes * 3 / 8) : null) ?? 128 * 1024 ** 2;
+  if (memoryBudget.enforced) {
+    duoCacheBytes = Math.min(duoCacheBytes, Math.floor(memoryBudget.schedulerBytes / 8));
+    predictionCacheBytes = Math.min(predictionCacheBytes, Math.floor(memoryBudget.schedulerBytes / 8));
+  }
+  const resultByteCap = 2 * options.cacheByteLimit + duoCacheBytes + predictionCacheBytes;
   if (options.warmStoreDirectory) options.workerData = { ...options.workerData, warmStoreDirectory: options.warmStoreDirectory };
   options.workerPreparation = createWorkerPreparation(options.workerData, { persistentDirectory: options.warmStoreDirectory });
   if (maxCalculators !== undefined) {
@@ -258,10 +262,12 @@ export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs
       const used = caches.reduce((sum, row) => sum + row.bytes, 0) + unlocks.reduce((sum, row) => sum + row.bytes, 0);
       const entries = caches.reduce((sum, row) => sum + row.entries, 0) + unlocks.reduce((sum, row) => sum + row.entries, 0);
       const entryCap = 2 * (options.cacheLimit ?? 8) + duoCacheLimit + 2 * predictionCacheLimit;
-      if (used > memoryBudget.schedulerBytes || entries > entryCap) throw new Error('Scheduler result retention cap exceeded.');
+      if (used > resultByteCap || entries > entryCap) throw new Error('Scheduler result retention cap exceeded.');
       return { owner: 'response-caches', complete: true, dimensions: [
         { unit: 'entries', used: entries, cap: entryCap, enforced: true },
-        { unit: 'chargeBytes', used, cap: memoryBudget.schedulerBytes, enforced: true }],
+        { unit: 'chargeBytes', used, cap: resultByteCap, enforced: true }],
+      partitions: { foregroundBytes: options.cacheByteLimit, advisoryBytes: options.cacheByteLimit, duoBytes: duoCacheBytes,
+        predictionBytes: predictionCacheBytes - Math.floor(predictionCacheBytes / 2), unlockBytes: Math.floor(predictionCacheBytes / 2) },
       accounting: 'Service partition for foreground/advisory/preview/duo results and global saved-unlock results. Byte quotas are divided before lane creation.' };
     },
     forPicker(id) {

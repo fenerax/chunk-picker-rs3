@@ -172,7 +172,7 @@ test('verified base byte eviction reloads exact input and saved delta bytes', ()
   const f = data(), input = ownedCalculatorInput(f.resident), evicted = [];
   const original = JSON.stringify(input.document), reference = createOwnedCalculatorReceiver(f.pin.dataset.digest)(input);
   const expected = JSON.stringify(ownedCodec(f.base, f.pin).encode(reference));
-  const receive = createOwnedCalculatorReceiver(f.pin.dataset.digest, { maxBytes: 0, onEvict: digest => evicted.push(digest) });
+  const receive = createOwnedCalculatorReceiver(f.pin.dataset.digest, { maxEntries: 2, maxBytes: 0, onEvict: digest => evicted.push(digest) });
   for (const packet of [input, structuredClone(input)]) {
     const state = receive(packet);
     assert.deepEqual(materializeResidentState(state), f.logical);

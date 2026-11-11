@@ -1,0 +1,14 @@
+{
+  "commit": "bcd3c92b5f2a632be73f6c00cd911ac41cb0f1e8",
+  "workerBytes": 402653184,
+  "workerEntries": 512,
+  "workerPartitions": { "snapshotByteLimit": 268435456, "eligibilityByteLimit": 134217728, "ownerByteLimit": 201326592 },
+  "hotBytes": 134217728,
+  "schedulerPartitions": { "foregroundBytes": 134217728, "advisoryBytes": 134217728, "duoBytes": 33554432, "predictionBytes": 16777216, "unlockBytes": 16777216 },
+  "responses": {
+    "generic": { "entries": 64, "bytes": 33554432 },
+    "group": { "entries": 32, "bytes": 50331648 },
+    "sandbox": { "entries": 32, "bytes": 4194304 },
+    "static": { "entries": 128, "bytes": 50331648 }
+  }
+}

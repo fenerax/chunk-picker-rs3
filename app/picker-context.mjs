@@ -66,7 +66,7 @@ import { projectPlayState, projectPlayResult, PLAY_VIEW } from './play-view.mjs'
 import { projectBrowserState } from './web/browser-state.mjs';
 import { projectDuoPlayResult, projectDuoInspectionJSON, DUO_INSPECTION_VIEW } from './duo-play-view.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
-import { createRepresentation as rawCreateRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
+import { createRepresentation as rawCreateRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, RESPONSE_CACHE_DEFAULTS, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
 import { crc32, deflateRawSync } from 'node:zlib';
 import { normalizeSandboxRequest, sandboxTaskCatalogue, applySandboxChanges } from './sandbox.mjs';
 import { normalizeAreaCheckRequest } from './tasks/area-check.mjs';
@@ -281,14 +281,14 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   };
   // Enable explicitly after measuring the deployment's full-state cache misses.
   const gzipFullStateParts = process.env.RS3_FULL_STATE_GZIP_PARTS === '1';
-  const responseBudget = 48 * 1024 * 1024;
+  const responseBudget = RESPONSE_CACHE_DEFAULTS.group.maxBytes;
   const responseGroup = Symbol('picker-responses');
-  const responseCache = createResponseCache({ maxEntries: 32, maxBytes: responseBudget, group: responseGroup });
+  const responseCache = createResponseCache({ ...RESPONSE_CACHE_DEFAULTS.group, group: responseGroup });
   const savedWhyEvidence = createSavedWhyEvidence({ cache: responseCache });
   const stateResponseBuilds = createStateResponseBuilds();
   const stateResponses = new Set();
   const stateResponseLeases = createResponseLeases({ maxBytes: responseBudget });
-  const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024, group: responseGroup });
+  const sandboxPools = createResponseCache({ ...RESPONSE_CACHE_DEFAULTS.sandbox, group: responseGroup });
   const poolRanking = createPoolRanking(), rankingPools = new Map();
   if (PROFILE_ENABLED) profile.wrapMethods(poolRanking, ['read', 'record', 'missing'], 'poolRanking');
   let rankingPoolInput, rankingLeaseTimer;

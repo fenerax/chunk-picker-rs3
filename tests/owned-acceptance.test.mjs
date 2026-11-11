@@ -26,6 +26,7 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
       const receipt = await comparison({ output, format: mode, smoke: true, signal: t.signal });
       assert.deepEqual(JSON.parse(await readFile(path.join(output, 'results.json'), 'utf8')), receipt);
       assert.equal(receipt.selectedFormat, mode); assert.equal(receipt.equivalent, false);
+      assert.equal(receipt.memoryProfile, 'budget-672');
       assert.deepEqual(receipt.results.map(row => row.mode), [mode]);
       assert.deepEqual(receipt.failures, []);
       assert.deepEqual((await readdir(output)).sort(), [mode, 'results.json', 'started.json', 'summary.txt'].sort());
@@ -55,6 +56,11 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
       assert.equal(result.retention.caps.knownPerGroupByteCapSubtotal, 0, 'response groups are subsets of the service budget');
       const owners = result.commandSamples.at(-1).ownerLedgers;
       const engine = owners.find(row => row.owner === 'engine-variants');
+      for (const owner of owners.filter(row => row.owner !== 'History')) {
+        const bytes = owner.dimensions.find(dimension => dimension.unit === 'chargeBytes');
+        assert.equal(bytes.enforced, true, `${owner.id} has a real enforced byte dimension`);
+        assert(Number.isSafeInteger(bytes.cap)); assert(bytes.used <= bytes.cap);
+      }
       assert.equal(result.retention.caps.knownSharedByteCapSubtotal, 672 * 1024 ** 2 + engine.fixedInputBytes);
       assert.equal(result.retention.caps.projectedTotal500GroupBytes, null);
       assert.equal(result.openSamples[0].ownerLedgers, undefined, 'opening censuses are not retained in the measured controller');
@@ -103,7 +109,7 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
 function hostedReceipts() {
   return ['linux', 'win32'].flatMap(os => [1, 2, 3, 4, 5].flatMap(run => ['format1', 'format2'].map(mode => ({
     format: 'owned-acceptance-7b', schemaVersion: 1, selectedFormat: mode, smoke: false, snapshots: false, scope: 'full',
-    commit: 'a'.repeat(40), seed: SEED, runtime: { node: '24.21.0', v8: 'synthetic-v8', arch: 'x64' },
+    commit: 'a'.repeat(40), seed: SEED, memoryProfile: 'budget-672', runtime: { node: '24.21.0', v8: 'synthetic-v8', arch: 'x64' },
     host: { os, hostname: `${mode}-synthetic-host` }, ci: { run: 'synthetic-dispatch', attempt: '1', freshRun: String(run) },
     failures: [], results: [{ mode, shape: shapes.acceptance, errors: [],
       fixtureHashes: Array.from({ length: 54 }, (_, i) => `fixture-${i}`),
@@ -139,7 +145,7 @@ test('aggregate refuses absent, duplicate, mismatched, failed or non-accepting m
     ['duplicate receipt', rows => rows.push(structuredClone(rows[0]))],
     ['duplicate run', rows => { rows[2].ci.freshRun = '1'; rows[3].ci.freshRun = '1'; }],
     ['wrong run', rows => { rows[0].ci.freshRun = '6'; rows[1].ci.freshRun = '6'; }],
-    ...['commit', 'seed', 'smoke', 'snapshots', 'scope'].map(key => [key, rows => { rows[0][key] = 'mismatch'; }]),
+    ...['commit', 'seed', 'smoke', 'snapshots', 'scope', 'memoryProfile'].map(key => [key, rows => { rows[0][key] = 'mismatch'; }]),
     ...['node', 'v8', 'arch'].map(key => [key, rows => { rows[0].runtime[key] = 'mismatch'; }]),
     ...['run', 'attempt'].map(key => [key, rows => { rows[0].ci[key] = 'mismatch'; }]),
     ...['fixtureHashes', 'finalHashes'].map(key => [key, rows => { rows[0].results[0][key][0] = 'mismatch'; }]),

@@ -13,6 +13,9 @@ import { engineFixture, fixtureStates } from './fixtures/task-engine.mjs';
 import { SKILL_GUIDE_TASKS_RULE, SKILL_GUIDE_CORRECTIONS_RULE, SKILL_GUIDE_MILESTONES_RULE } from '../app/data/skill-guides.mjs';
 
 const semantic = value => JSON.stringify(value);
+// These differential cases exercise opt-in enforcement; compatibility defaults
+// are inspected in a separate fresh-process profile test.
+process.env.RS3_MEMORY_PROFILE = 'budget-672';
 const definitions = { chunks: { '12850': {} }, walkableChunks: ['12850'], walkableChunksF2P: ['12850'],
   challenges: { Extra: { Synthetic: { Chunks: ['12850'] } } }, equipment: {}, codeItems: {}, drops: {} };
 

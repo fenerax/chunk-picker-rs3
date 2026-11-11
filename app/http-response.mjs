@@ -184,7 +184,14 @@ export async function sendRepresentation(request, response, representation, { st
 
 /** Bound retained bytes, including completed encodings. Pending encodings
  * coalesce, and failures can be retried without poisoning the cache. */
-export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 1024,
+export const RESPONSE_CACHE_DEFAULTS = Object.freeze(Object.fromEntries(Object.entries({
+  generic: { maxEntries: 64, maxBytes: 32 * 1024 ** 2 },
+  group: { maxEntries: 32, maxBytes: 48 * 1024 ** 2 },
+  sandbox: { maxEntries: 32, maxBytes: 4 * 1024 ** 2 },
+  static: { maxEntries: 128, maxBytes: 48 * 1024 ** 2 },
+}).map(([owner, limits]) => [owner, Object.freeze(limits)])));
+
+export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.generic.maxEntries, maxBytes = RESPONSE_CACHE_DEFAULTS.generic.maxBytes,
   budget = serviceResponseCacheBudget, group = Symbol('response-owner') } = {}) {
   if (![maxEntries, maxBytes].every(value => Number.isSafeInteger(value) && value >= 0)) throw new TypeError('Invalid response cache bound.');
   const rows = new Map();

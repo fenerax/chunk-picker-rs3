@@ -5,6 +5,7 @@ import { EARLY_TRAVEL_UNLOCKS_RULE, travelRewardKind, usefulTravelRecord, furnit
 import { createHowCapture } from './how-proof.mjs';
 import { eligibilityInputKey } from './eligibility-cache.mjs';
 import { retainedDataBytes } from './retained-data.mjs';
+import { boundedMemoryOption, serviceMemoryBudget } from '../service-memory-budget.mjs';
 import { accessRetentionRoots, accessRetentionVersion, releaseAccessRetention } from './access.mjs';
 import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
@@ -165,8 +166,8 @@ function experienceLevel(xp, ceiling = 120) {
 export function createTaskEngine(definitions, options = {}) {
   const { dataset, reviewedOverlays = Boolean(dataset), skillGuideTasks, skillGuideMilestones, skillGuideCorrections, retainedTaskCorrections, retainedUnsupportedCorrections, divinationTraining, skillGuideCatalogue: catalogue = skillGuideCatalogue,
     skillGuideCorrectionOverlay = applySkillguideCombatCorrections,
-    variantByteLimit = Number(process.env.RS3_ENGINE_VARIANT_BYTES ?? 128 * 1024 * 1024), ...baseOptions } = options;
-  if (!Number.isSafeInteger(variantByteLimit) || variantByteLimit < 0) throw new TypeError('Invalid engine variant byte cap.');
+    variantByteLimit = boundedMemoryOption(process.env.RS3_ENGINE_VARIANT_BYTES, serviceMemoryBudget().engineBytes), ...baseOptions } = options;
+  if (variantByteLimit !== null && (!Number.isSafeInteger(variantByteLimit) || variantByteLimit < 0)) throw new TypeError('Invalid engine variant byte cap.');
   for (const [name, value] of Object.entries({ skillGuideTasks, skillGuideMilestones, skillGuideCorrections })) {
     if (value !== undefined && typeof value !== 'boolean') throw new TypeError(`${name} must be a boolean.`);
   }
@@ -196,7 +197,7 @@ export function createTaskEngine(definitions, options = {}) {
   const trimVariants = () => {
     if (!fixedRoots) return;
     retainedBytes = measureVariants();
-    while (variants.size && retainedBytes > variantByteLimit) { forgetVariant(variants.keys().next().value); retainedBytes = measureVariants(); }
+    while (variantByteLimit !== null && variants.size && retainedBytes > variantByteLimit) { forgetVariant(variants.keys().next().value); retainedBytes = measureVariants(); }
   };
   let engine, baselineProvider;
   const configureProviders = () => {
@@ -257,10 +258,10 @@ export function createTaskEngine(definitions, options = {}) {
     retentionLedger() {
       if (variants.size > 16) throw new Error('Engine variant entry cap exceeded.');
       trimVariants();
-      if (retainedBytes > variantByteLimit) throw new Error('Engine variant byte cap exceeded.');
-      return { owner: 'engine-variants', complete: true,
+      if (variantByteLimit !== null && retainedBytes > variantByteLimit) throw new Error('Engine variant byte cap exceeded.');
+      return { owner: 'engine-variants', complete: variantByteLimit !== null,
         dimensions: [{ unit: 'entries', used: variants.size, cap: 16, enforced: true },
-          { unit: 'chargeBytes', used: fixedBytes + retainedBytes, cap: fixedBytes + variantByteLimit, enforced: true }],
+          { unit: 'chargeBytes', used: fixedBytes + retainedBytes, cap: variantByteLimit === null ? null : fixedBytes + variantByteLimit, enforced: variantByteLimit !== null }],
         fixedInputBytes: fixedBytes, parsedBytes: retainedBytes, parsedByteLimit: variantByteLimit, evictions,
         keys: [...variants.keys()].sort(),
         accounting: 'Conservative explicit graph roots, deduplicated across variants and shared access indexes. Immutable source/catalogue charge is fixed at construction; parsed graphs and lazy indexes share an evictable cap. Eligibility backing is charged only by the worker cache.' };

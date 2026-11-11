@@ -77,7 +77,9 @@ function mapPlayResult(result) {
 }
 const compileStarted = performance.now();
 const memoryBudget = workerData.memoryBudget ?? serviceMemoryBudget();
-const snapshotBudget = createWorkerCacheBudget(boundedMemoryOption(process.env.RS3_CALCULATOR_CACHE_BYTES, memoryBudget.workerBytes));
+const snapshotBudget = createWorkerCacheBudget(boundedMemoryOption(process.env.RS3_CALCULATOR_CACHE_BYTES,
+  memoryBudget.enforced ? memoryBudget.workerBytes : null) ?? memoryBudget.workerBytes);
+const inputByteCeiling = memoryBudget.stateBytes === null ? null : Math.floor(memoryBudget.stateBytes / 2);
 const engineOptions = { eligibilityBudget: snapshotBudget, dataset: selectedDataset, ...workerData.datasetOptions,
   variantByteLimit: boundedMemoryOption(process.env.RS3_ENGINE_VARIANT_BYTES ?? workerData.datasetOptions?.variantByteLimit, memoryBudget.engineBytes),
   skillGuideCatalogue: workerData.skillGuideCatalogue };
@@ -219,7 +221,7 @@ const snapshots = completeCache.entries;
 const evictedStateInputs = new Set();
 const evictedOwnedBases = new Set();
 const stateSnapshots = createStateSnapshotCache({ maxEntries: STATE_SNAPSHOT_LIMIT,
-  maxBytes: boundedMemoryOption(process.env.RS3_STATE_SNAPSHOT_BYTES, Math.floor(memoryBudget.stateBytes / 2)),
+  maxBytes: boundedMemoryOption(process.env.RS3_STATE_SNAPSHOT_BYTES, inputByteCeiling),
   onEvict: key => evictedStateInputs.add(key) });
 // Optional in-process observer, never sent through the calculator wire.
 if (globalThis[Symbol.for('rs3.acceptance.probe')]) globalThis[Symbol.for('rs3.acceptance.probe')].ownerLedgers = () => {
@@ -463,7 +465,8 @@ function sharedJSON(value) {
 // Wrapped by reassignment so the declaration above stays byte-identical for scripts/perf/unlock-calc.mjs.
 if (PROFILE_ENABLED) { const raw = sharedJSON; sharedJSON = value => profile.span('worker.resultSerialization', () => raw(value)); }
 const receiveOwnedState = createOwnedCalculatorReceiver(selectedDataset.digest, {
-  maxBytes: boundedMemoryOption(process.env.RS3_STATE_SNAPSHOT_BYTES, Math.floor(memoryBudget.stateBytes / 2)),
+  maxEntries: memoryBudget.enforced ? 2 : null,
+  maxBytes: boundedMemoryOption(process.env.RS3_STATE_SNAPSHOT_BYTES, inputByteCeiling),
   onEvict: key => evictedOwnedBases.add(key) });
 function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId }) {
   if (typeof input !== 'string' || !Number.isSafeInteger(stateRevision) || stateRevision < 0

@@ -4,6 +4,7 @@ import { ownedCodec } from '../storage/owned-codec.mjs';
 import { verifyOwnedBaseBytes } from '../storage/owned-base.mjs';
 import { ownedBaseLimits, validateOwnedBaseReference } from '../storage/owned-base-schema.mjs';
 import { createStateSnapshotCache } from './retained-data.mjs';
+import { serviceMemoryBudget } from '../service-memory-budget.mjs';
 
 const encodings = new WeakMap();
 export const OWNED_CALCULATOR_TRANSPORT = 'owned-delta-v1';
@@ -30,7 +31,8 @@ export function ownedCalculatorInput(state) {
 
 /** Each physical worker owns this cache, independently of picker handles. */
 export function createOwnedCalculatorReceiver(datasetDigest, { limits: overrides,
-  maxBytes = 16 * 1024 ** 2, maxEntries = 2, onEvict } = {}) {
+  maxBytes = serviceMemoryBudget().stateBytes === null ? null : Math.floor(serviceMemoryBudget().stateBytes / 2),
+  maxEntries = serviceMemoryBudget().enforced ? 2 : null, onEvict } = {}) {
   const bases = createStateSnapshotCache({ maxBytes, maxEntries, onEvict }), limits = ownedBaseLimits(overrides);
   const receive = ({ document, installation }) => {
     try {

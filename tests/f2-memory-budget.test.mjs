@@ -23,17 +23,33 @@ const semantic = value => JSON.stringify(value);
 
 test('service partitions include responses and cannot multiply with physical calculators', () => {
   for (const calculators of [1, 2, 4]) {
-    const budget = serviceMemoryBudget({ env: {}, calculators });
+    const budget = serviceMemoryBudget({ env: { RS3_MEMORY_PROFILE: 'budget-672' }, calculators });
     assert.equal(budget.totalBytes, 672 * 1024 ** 2);
     assert.equal(budget.responseBytes, 128 * 1024 ** 2);
     assert(budget.allocatedBytes <= budget.totalBytes);
     assert.equal(budget.workerBytes * calculators, 256 * 1024 ** 2);
     assert.equal(budget.engineBytes * calculators, 128 * 1024 ** 2);
     assert.equal(budget.stateBytes * calculators, 32 * 1024 ** 2);
+    const byBytes = serviceMemoryBudget({ env: { RS3_SERVICE_CACHE_BYTES: '704643072' }, calculators });
+    assert.deepEqual({ ...byBytes, profile: budget.profile }, budget);
   }
   const configured = serviceMemoryBudget({ env: { RS3_SERVICE_CACHE_BYTES: '210', RS3_RESPONSE_CACHE_BYTES: '40' }, calculators: 2 });
   assert(configured.allocatedBytes <= 210);
   assert.throws(() => serviceMemoryBudget({ env: { RS3_SERVICE_CACHE_BYTES: '1', RS3_RESPONSE_CACHE_BYTES: '2' } }), TypeError);
+  assert.throws(() => serviceMemoryBudget({ env: { RS3_MEMORY_PROFILE: 'unknown' } }), TypeError);
+  assert.throws(() => serviceMemoryBudget({ env: { RS3_RESPONSE_CACHE_BYTES: '-1' } }), TypeError);
+});
+
+test('report-only global accounting never evicts or declines admissions and fails closed for proof', () => {
+  const budget = createResponseCacheBudget({ maxBytes: null, maxEntries: null });
+  const a = createResponseCache({ budget }), b = createResponseCache({ budget });
+  a.set('a', createRepresentation('aaaa')); b.set('b', createRepresentation('bbbb'));
+  assert.equal(budget.bytes, 8); assert(a.get('a')); assert(b.get('b'));
+  const ledger = { ...budget.retentionLedger(), id: 'service', scope: 'shared' };
+  assert.equal(charge(ledger).used, 8); assert.equal(charge(ledger).cap, null);
+  assert.equal(charge(ledger).enforced, false); assert.equal(ledger.complete, false);
+  assert(inspectLedgers([ledger]).some(reason => reason.includes('missing-enforced-cap')));
+  a.clear(); b.clear(); assert.equal(budget.bytes, 0);
 });
 
 test('global pressure evicts across groups with a soft per-group floor and global LRU', () => {
@@ -158,8 +174,8 @@ test('source ledgers supply real byte dimensions to the fail-closed proof inspec
   cache.set('synthetic', createRepresentation('synthetic'));
   const hot = createSnapshotHotSet({ byteLimit: 128 });
   hot.retain({}, 64, () => {});
-  const state = createStateSnapshotCache(); state.set('synthetic', { revision: 1 });
-  const engine = createTaskEngine(engineFixture());
+  const state = createStateSnapshotCache({ maxBytes: 1024 }); state.set('synthetic', { revision: 1 });
+  const engine = createTaskEngine(engineFixture(), { variantByteLimit: 128 * 1024 ** 2 });
   const owners = [cache.retentionLedger({ subset: true }), hot.retentionLedger(), state.retentionLedger(), engine.retentionLedger()]
     .map(row => ({ ...row, id: row.owner, scope: 'shared' }));
   const reasons = inspectLedgers(owners);

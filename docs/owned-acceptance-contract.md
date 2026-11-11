@@ -51,8 +51,10 @@ calculator invalidates the run instead of reducing its reported memory.
 Every group receives ticks, notes, Undo, native digest/full calculator transport,
 full response serialization, play/claim projection and narrow identity lookup.
 A simultaneous round overlaps all 50 request streams with all handles retained.
-Both formats use the same production scheduler limits and managed cache budget
-defined below. Queue, deadline and process resource limits are unchanged. Rejections are
+Both formats explicitly select `RS3_MEMORY_PROFILE=budget-672` in fresh trial
+processes, before any application import. The receipt records `memoryProfile`.
+This is the opt-in profile defined below; the live default keeps its existing
+cache capacities. Queue, deadline and process resource limits are unchanged. Rejections are
 recorded without retry and prevent an acceptance claim. After settling and GC,
 one read-only round warms the resulting cache working set, followed by four
 identical rounds. Their receipts are written outside the store root and released
@@ -255,19 +257,30 @@ conservative worst-owner residual, targets and hard reject lines stay charged.
 The source audit still has a History blocker, so this implementation emits no
 successful warm-up assertion and runs the original rounds/growth gates:
 
-| Owner | Enforced bound | Missing proof |
+| Owner | Default profile (existing live policy) | Opt-in `budget-672` profile |
 | --- | --- | --- |
-| Response caches | 32 entries / 48 MiB per group, plus existing 4 MiB sandbox pool; **128 MiB / 4,096 entries service-wide** across static, group and saved-Why caches | Group ledgers are subsets of the service ledger; complete heap attribution remains required for residual growth |
-| Scheduler result caches | **128 MiB service-wide** across foreground, advisory, Preview, duo and saved-unlock results | Included in the managed service budget; source byte units are not V8 heap bytes |
-| Hot snapshot | One graph / 128 MiB per calculator, also limited by its worker share | A subset of the worker ledger, counted once |
-| Shared snapshot/eligibility cache | 512 entries per calculator / **256 MiB across all calculator shares** | Existing picker/eligibility/snapshot partitions apply within each share |
-| Engine variants | 16 combinations / **128 MiB evictable parsed graphs and lazy indexes across calculator shares**, plus fixed input charge `B` | Explicit roots include shared access indexes and lazy rate tables; oversized variants run without retention |
-| stateSnapshots and installed calculator bases | Two snapshots and two bases per calculator / **32 MiB across calculator shares**, split equally | Separate conservative graph ledgers; eviction invalidates scheduler and pool hints so the next request resends its exact input/base |
-| History | Byte ledger only; compaction policy remains unchanged | Pending-roll/Undo suffixes, archive references, active payloads and previous-chain provenance have no hard cap |
-| Production saved viewer task results | Existing eight entries / 32 MiB compact + 16 MiB full gzip per group | Outside the managed global allocation; pressure eviction would change read-only replies |
+| Group response cache, including saved-Why | 32 entries / 48 MiB per group | Same local cap, within global response quota |
+| Sandbox pool response cache | 32 entries / 4 MiB per group | Same local cap, within global response quota |
+| Static responses | 128 entries / 48 MiB | Same local cap, within global response quota |
+| Generic response cache | 64 entries / 32 MiB | Same local cap, within global response quota |
+| Service response aggregate | **Report-only bytes and entries; no global eviction** | **128 MiB / 4,096 entries** across the above owners |
+| Scheduler foreground and advisory results | **8 entries / 128 MiB each** | 8 entries / 48 MiB each |
+| Scheduler duo results | **4 entries / 32 MiB** | 4 entries / 16 MiB |
+| Preview and saved-unlock reuse | **256 entries / 16 MiB each**, 32 MiB combined | 256 entries / 8 MiB each, 16 MiB combined |
+| Scheduler aggregate | 320 MiB, derived from independent lane caps | **128 MiB service-wide** |
+| Hot snapshot | One graph / 128 MiB per calculator; included in worker charge | Same local cap, also limited by worker share |
+| Worker snapshot/eligibility cache | **512 entries / 384 MiB per calculator** | 512 entries per calculator / **256 MiB across calculators** |
+| Engine variants and lazy indexes | 16 combinations; byte ledger report-only | 16 combinations / **128 MiB parsed charge across calculators**, plus fixed input charge `B` |
+| stateSnapshots | Two entries per calculator; byte ledger report-only | Two entries per calculator / **16 MiB across calculators** |
+| Installed calculator bases | Entry and byte ledgers report-only | Two entries per calculator / **16 MiB across calculators** |
+| History | Existing compaction; byte ledger report-only | Unchanged; pending-roll/Undo suffixes, archives, payloads and provenance lack a hard cap |
+| Production saved viewer task results | Eight entries / 32 MiB compact + 16 MiB full gzip per group | Unchanged; outside managed quota because eviction changes read-only replies |
 
-Every bounded owner reported by the census, including a subset, exposes enforced `entries` and
-`chargeBytes` dimensions to the fail-closed rule. `includedInOtherCap` excludes
+Every owner reports real numeric byte usage in both profiles. Missing default
+bounds are `cap: null, enforced: false, complete: false`; report-only dimensions
+cannot establish a waiver. The opt-in acceptance census retains complete enforced
+entry/byte dimensions for the bounded owners; History still blocks a certificate.
+`includedInOtherCap` excludes
 subset rows only from additive projections; it never exempts their evidence
 from validation. The hot graph is charged by its worker, and group responses
 by the service response ledger. Those subset charges enter the total once.
@@ -277,7 +290,20 @@ physical heap attribution.
 
 ### One managed service budget (owner decision, 2026-11-11)
 
-`RS3_SERVICE_CACHE_BYTES` defaults to **672 MiB**. Its partitions are 128 MiB
+With no budget overrides, including `RS3_MEMORY_PROFILE=default`, the default profile
+preserves the live per-owner limits pinned from `origin/main` at `bcd3c92b`.
+Worker partitions remain 192 MiB per picker, 128 MiB eligibility and 256 MiB
+snapshots within each 384 MiB calculator cap. Existing entry eviction, byte
+measurement, ledgers and census remain active. The service response aggregate
+is **report-only by default**, including its entry count. A finite global cap
+could tighten behavior as more groups open, so no new aggregate eviction is
+enabled. Engine and input byte ledgers are also report-only where the existing
+path had no byte limit; installed bases retain their existing unbounded Map
+policy. This profile makes no complete service-bound claim.
+
+`RS3_MEMORY_PROFILE=budget-672` explicitly enables **672 MiB**. Setting
+`RS3_SERVICE_CACHE_BYTES=704643072` enables the same allocation without the named
+profile; other integer values select a scaled custom budget. Its partitions are 128 MiB
 responses, 128 MiB scheduler results, 256 MiB worker snapshot/eligibility caches,
 128 MiB parsed engines and 32 MiB inputs (snapshots and installed bases). Physical calculators divide
 the last three partitions by the configured maximum calculator count; they do
@@ -285,16 +311,23 @@ not each receive the whole allocation. Without a pool, four lane shares cover
 foreground, advisory, Preview and duo. Replacement/retirement remains governed
 by the existing physical-worker lifetime and RSS controls.
 
-`RS3_RESPONSE_CACHE_BYTES` overrides the response partition and must not exceed
-the service budget. With no override it receives 4/21 of the total. The remainder
+In a budget profile, `RS3_RESPONSE_CACHE_BYTES` overrides the response partition
+and must not exceed the service budget. With no override it receives 4/21 of the total. The remainder
 is divided 8:4:1:4 between worker caches, parsed engines, inputs and scheduler
 results. `RS3_CALCULATOR_CACHE_BYTES`, `RS3_ENGINE_VARIANT_BYTES` and
 `RS3_STATE_SNAPSHOT_BYTES` can lower a calculator's assigned share; larger values
 are clamped to that share. For input residency the option lowers each half-share
 (snapshots and installed bases). Quotas use integer bytes, rounding down.
+In the default profile, a lone `RS3_RESPONSE_CACHE_BYTES` opts into only that
+global byte limit (no global entry cap); it does not shrink the other owners.
+Individual worker/engine/input overrides remain available without a service
+budget. Unknown profile names and invalid byte budgets are refused at startup.
 
-The 100-active-group envelope gives responses an average 1.28 MiB/group when
-fully occupied. That is smaller than the 5 MiB/group reported goal. The managed
+The opt-in allocation gives responses an average 1.28 MiB/group at 100 active
+groups when fully occupied, compared with about 18 MB/group observed in the
+capacity work. Pressure can increase recalculation latency. Speed has priority;
+the budget profile must be load-tested before becoming the live default
+(owner decision, 2026-11-11). The 5 MiB/group goal is reported only. The managed
 672 MiB total leaves 78 MiB below the 750 MiB hard measured total for fixed
 inputs, History and other residency. This is a budget choice to load-test, not
 evidence that those remaining owners fit. The fixed engine source/catalogue
@@ -304,7 +337,7 @@ The 15 MiB/group and 750 MiB total reject gates are unchanged. Launch remains a
 capped beta of about 25–50 groups within a load-tested envelope of about 100
 active groups and about 200 online; 2,000 players remains the design ceiling.
 
-Response eviction prefers globally old entries from groups above a soft 64 KiB
+When global enforcement is enabled, response eviction prefers globally old entries from groups above a soft 64 KiB
 floor, then falls back to global LRU. The floor cannot override the byte/entry
 cap. In-flight saved-Why decoder reservations remain charged and cannot be
 evicted until they settle. New admissions decline if pinned reservations leave
@@ -312,7 +345,7 @@ insufficient room. Completed identity/gzip/brotli growth rebalances the same
 ledger. The caller still receives uncached results; response bytes, ETags,
 conditional requests and saved bytes are unchanged.
 
-At **100 groups** and **500 groups**, the known managed subtotal is the same
+In the budget profile, at **100 groups** and **500 groups**, the known managed subtotal is the same
 `704,643,072 + B` bytes, instead of multiplying the group response cap. The full
 projected worst case remains **unbounded** at both group counts because History
 has no finite payload/reference cap. The diagnostic projection therefore returns
@@ -326,6 +359,25 @@ before other roots.
 [Remaining service residency gaps](f2-memory-residency-gaps.md) records those
 owners and the reply-preservation requirements for follow-up. This change does
 not establish a complete service-wide memory bound.
+
+The default profile has no finite managed service total: response allowances
+scale with group count, and parsed engines/input bytes have no finite caps.
+The full worst case is unbounded at both 100 and 500 groups in both profiles.
+
+### Sustained load harness forwarding
+
+The inspected `perf/sustained-load` harness cannot yet forward either selector.
+`scripts/perf/capacity/run.mjs` constructs an OS-only child environment, and
+`scripts/perf/capacity/server.mjs` deletes every `RS3_` key before importing the
+server. That branch needs to allowlist `RS3_MEMORY_PROFILE`,
+`RS3_SERVICE_CACHE_BYTES` and optional `RS3_RESPONSE_CACHE_BYTES` in **both**
+places. Preserve only those values through sanitization and restore them before
+the first application import. Use the same values on initial server launch and
+restart, and record the selected profile/effective budget in the receipt.
+Keep the remaining synthetic-only environment filtering intact. Then the harness
+can compare no overrides against `RS3_MEMORY_PROFILE=budget-672` (or the byte
+selector above). No harness branch is edited by this change. Its current
+format-2 HTTP refusal remains separate from profile forwarding.
 
 The warm-up preflight stops with these blockers instead of running an unbounded
 loop or inventing limits. Resolving them requires source ownership/budget work;
