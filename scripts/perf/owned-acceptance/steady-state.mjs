@@ -17,7 +17,10 @@ export function inspectLedgers(owners) {
     if (!record(row)) { reasons.push('invalid-ledger'); continue; }
     if (keys.has(key(row))) reasons.push(`duplicate-ledger:${key(row)}`);
     keys.add(key(row));
-    if (!allowedOwners.includes(row.owner)) reasons.push(`unlisted-owner:${row.owner}`);
+    // An unlisted owner's numbers are unsupported evidence: they deny the
+    // waiver (unlisted-owner) but never prove a hard cap violation.
+    const listed = allowedOwners.includes(row.owner);
+    if (!listed) reasons.push(`unlisted-owner:${row.owner}`);
     // The source flag may veto completeness, but cannot establish it without
     // actual enforced entry and byte ledgers. Projection uses this same check.
     if (row.complete !== true) reasons.push(`incomplete-owner:${key(row)}:${list(row.blockers).join(',')}`);
@@ -29,7 +32,7 @@ export function inspectLedgers(owners) {
       units.add(dimension?.unit);
       if (!enforcedDimension(dimension))
         reasons.push(`unenforced-cap:${key(row)}/${dimension?.unit}`);
-      else if (dimension.used > dimension.cap) reasons.push(`owner-over-cap:${key(row)}/${dimension.unit}`);
+      else if (listed && dimension.used > dimension.cap) reasons.push(`owner-over-cap:${key(row)}/${dimension.unit}`);
     }
   }
   for (const owner of allowedOwners) if (!list(owners).some(row => row?.owner === owner)) reasons.push(`missing-owner:${owner}`);
@@ -116,9 +119,10 @@ export function steadyStateRule(evidence) {
     if (!Array.isArray(spot?.owners)) reasons.push('invalid-spot-check-owners');
     if (spot?.nativeGrowthBytes !== undefined && !Number.isSafeInteger(spot.nativeGrowthBytes)) reasons.push('invalid-spot-check-native-growth');
     for (const owner of list(spot?.owners)) {
-      if (![...allowedOwners, 'compiled-code-feedback'].includes(owner?.owner)) reasons.push(`unlisted-owner:${owner?.owner}`);
+      const listed = [...allowedOwners, 'compiled-code-feedback'].includes(owner?.owner);
+      if (!listed) reasons.push(`unlisted-owner:${owner?.owner}`);
       if (!valid(owner?.cap) || !valid(owner?.used)) reasons.push(`invalid-spot-check-owner:${owner?.owner}`);
-      else if (owner.used > owner.cap) reasons.push(`spot-check-owner-over-cap:${owner?.owner}`);
+      else if (listed && owner.used > owner.cap) reasons.push(`spot-check-owner-over-cap:${owner?.owner}`);
     }
   }
   // Code statistics are a bounded diagnostic, not a heap attribution oracle.

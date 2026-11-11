@@ -176,10 +176,14 @@ test('unlisted ledger and spot owners deny a waiver without rejecting passing ra
   for (const source of ['ledger', 'spot']) {
     const result = withRetention(rawResult({ heapMiB: 200, groupMiB: 4 }));
     if (source === 'ledger') {
-      for (const sample of result.retention.samples)
-        sample.owners.push({ ...structuredClone(sample.owners[0]), owner: 'unexpected-retainer', id: 'unexpected-retainer' });
+      // Valid numeric counters over their cap: still only unsupported evidence.
+      for (const sample of result.retention.samples) {
+        const row = { ...structuredClone(sample.owners[0]), owner: 'unexpected-retainer', id: 'unexpected-retainer' };
+        for (const dimension of row.dimensions) dimension.used = dimension.cap + 1;
+        sample.owners.push(row);
+      }
       result.retention.warmup.owners.push({ ...result.retention.warmup.owners[0], owner: 'unexpected-retainer', id: 'unexpected-retainer' });
-    } else result.retention.spotChecks.push({ owners: [{ owner: 'unexpected-retainer', used: 1, cap: 10 }], unattributedHeapGrowthBytes: 0 });
+    } else result.retention.spotChecks.push({ owners: [{ owner: 'unexpected-retainer', used: 129, cap: 128 }], unattributedHeapGrowthBytes: 0 });
     const verdict = decision(result);
     assert.equal(verdict.steadyState.eligible, false, source);
     assert.deepEqual(verdict.steadyState.reasons, ['unlisted-owner:unexpected-retainer'], source);
