@@ -69,3 +69,42 @@ test('workflow runs four fail-fast bounded shards and requires all reports', asy
   assert.match(workflow, /test-shard-\$\{\{ matrix.shard \}\}-coverage/);
   for (const use of workflow.matchAll(/uses: (actions\/[^@\s]+)@([^\s]+)/g)) assert.match(use[2], /^[a-f0-9]{40}$/);
 });
+
+test('test workflows install verified cached restic offline and bound cold downloads', async () => {
+  for (const name of ['test.yml', 'stability.yml']) {
+    const workflow = await readFile(new URL('../.github/workflows/' + name, import.meta.url), 'utf8');
+    const steps = workflow.split(/^      - /m);
+    const step = title => {
+      const found = steps.find(text => text.startsWith('name: ' + title + '\n'));
+      assert.ok(found, `${name}: ${title}`);
+      return found;
+    };
+    assert.doesNotMatch(workflow, /apt-get\s+(?:update|install)/);
+    const identify = step('Identify restic archive');
+    assert.match(identify, /'key=restic-linux-' \+ cpu \+ '-' \+ resticPin.version \+ '-' \+ pin.archive/);
+    assert.ok(identify.includes('https://github.com/restic/restic/releases/download/v'));
+    for (const title of ['Restore restic archive', 'Restore required restic archive', 'Save restic archive']) {
+      const cache = step(title);
+      assert.match(cache, /uses: actions\/cache\/(?:restore|save)@[a-f0-9]{40}/);
+      assert.match(cache, /timeout-minutes: 3/);
+      assert.match(cache, /path: \$\{\{ runner.temp \}\}\/restic-archive.bz2/);
+      assert.match(cache, /key: \$\{\{ (?:steps.restic|needs.(?:inputs|plan)).outputs.(?:key|restic-key) \}\}/);
+      assert.doesNotMatch(cache, /restore-keys:/);
+      if (title.startsWith('Restore')) assert.match(cache, /SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2/);
+    }
+    assert.match(step('Restore required restic archive'), /fail-on-cache-miss: true/);
+    const download = step('Download and verify restic archive');
+    assert.match(download, /if: .*steps.resticcache.outputs.cache-hit != 'true'/);
+    assert.match(download, /timeout-minutes: 3/);
+    assert.match(download, /curl --silent --fail --location --connect-timeout 30 --max-time 120/);
+    assert.match(download, /"\$RESTIC_URL" 2>\/dev\/null; then\n.*::error::Restic release download failed.*\n\s+exit 1/);
+    assert.match(download, /if ! printf .*sha256sum --check --status; then\n.*checksum mismatch.*\n\s+exit 1/);
+    assert.doesNotMatch(download, /--retry|--show-error/);
+    assert.match(step('Save restic archive'), /if: .*steps.resticcache.outputs.cache-hit != 'true'/);
+    const install = step('Install checksum-pinned restic for the local encrypted restore test');
+    assert.match(install, /for tool in bzip2 prlimit/);
+    assert.match(install, /command -v "\$tool".*exit 1/);
+    assert.match(install, /scripts\/ops\/install-restic.mjs --archive-file "\$\{\{ runner.temp \}\}\/restic-archive.bz2"/);
+    assert.doesNotMatch(install, /curl|wget|https?:/);
+  }
+});
