@@ -4,6 +4,7 @@ if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { createWorkerCacheBudget, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
 import { createSerializedSnapshotCache } from './serialized-snapshot-cache.mjs';
+import { createSnapshotHotSet } from './snapshot-hot-set.mjs';
 import { createHowCache } from './how-cache.mjs';
 import { taskWhyDisplay, createTaskWhyIndex } from './task-why-display.mjs';
 import { startupPhase } from '../startup-timing.mjs';
@@ -189,7 +190,8 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSiz
 // One byte ledger spans both snapshot caches and all eligibility variants.
 // A picker owns at most half; all shared eligibility proofs own at most a third.
 // Remaining pressure evicts globally by recency. State transfer is independent.
-const snapshotOptions = { context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
+const snapshotOptions = { hotSet: createSnapshotHotSet({ entryLimit: Number(process.env.RS3_CALCULATOR_HOT_SNAPSHOTS ?? 1) }),
+  context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
   restoreContext: (result, value) => viewContexts.set(result, value),
   restoreLocations: (result, value) => mapLocationResults.set(result, value) };
 const completeCache = createSerializedSnapshotCache(snapshotBudget, snapshotOptions);
@@ -691,7 +693,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     notifyPredictionMetadata();
     parentPort.postMessage({ id, error: { name: error.name, message: error.message,
       ...(error.code === 'OWNED_CALCULATOR_BASE_REFUSED' ? { code: error.code } : {}) }, evaluationMs: timingMs.totalMs, timingMs });
-  } finally { requests.delete(id); }
+  } finally { completeCache.releaseTransient(); sandboxCache.releaseTransient(); requests.delete(id); }
 };
 if (PROFILE_ENABLED) profile.installWorker(parentPort, handleMessage);
 else parentPort.on('message', handleMessage);

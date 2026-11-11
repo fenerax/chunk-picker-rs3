@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSerializedSnapshotCache, serializedSnapshotBytes } from '../app/tasks/serialized-snapshot-cache.mjs';
 import { createWorkerCacheBudget } from '../app/tasks/snapshot-cache.mjs';
+import { createSnapshotHotSet, createSnapshotHeapMeter } from '../app/tasks/snapshot-hot-set.mjs';
 
-function fixture(limit = 1024 * 1024) {
+function fixture(limit = 1024 * 1024, hotSet) {
   const contexts = new WeakMap(), locations = new WeakMap(), budget = createWorkerCacheBudget(limit);
-  const cache = createSerializedSnapshotCache(budget, { context: value => contexts.get(value), locations: value => locations.get(value),
+  const cache = createSerializedSnapshotCache(budget, { hotSet, context: value => contexts.get(value), locations: value => locations.get(value),
     restoreContext: (value, context) => contexts.set(value, context), restoreLocations: (value, data) => locations.set(value, data) });
   const row = { id: 'synthetic', record: { label: '雪', bytes: new Uint8Array([3, 5]) }, explanation: 'source', blockers: [] };
   Object.defineProperty(row, 'processingPrimary', { value: true });
@@ -80,4 +81,57 @@ test('stale asynchronous projections cannot replace a newer snapshot through ref
   cache.refresh(stale);
   assert.equal(cache.isCurrent('key', stale), false);
   assert.equal(cache.entries.get('key').revision, 5);
+});
+
+test('one shared hot graph avoids decoding, charges heap growth and preserves lazy fields when demoted', () => {
+  const hotSet = createSnapshotHotSet({ entryLimit: 1, byteLimit: 512 * 1024 });
+  const { cache, budget, snapshot } = fixture(1024 * 1024, hotSet);
+  const other = createSerializedSnapshotCache(budget, { hotSet });
+  assert.equal(cache.set('key', snapshot, undefined, 'one'), true);
+  assert.equal(cache.entries.get('key'), snapshot);
+  const record = [...cache.entries.values()][0], before = budget.bytes;
+  assert.equal(record.bytes, undefined);
+  assert.equal(hotSet.bytes, before);
+  snapshot.whyIndex = { tasks: snapshot.baseline.tasks, byId: new Map([['synthetic', snapshot.baseline.tasks[0]]]) };
+  snapshot.estimates.set('chunk', { detail: '雪'.repeat(2000) });
+  cache.refresh(snapshot);
+  assert.ok(budget.bytes > before + 4000, 'UTF-16 strings and graph storage join the ledger');
+  assert.equal(budget.bytes, hotSet.bytes);
+  const expected = JSON.stringify(snapshot.baseline);
+  other.set('other', { baseline: { tasks: [], metrics: {} } }, undefined, 'two');
+  assert.equal(hotSet.size, 1);
+  assert.equal(record.value, undefined);
+  assert.ok(record.bytes instanceof Buffer);
+  assert.equal(record.cost, serializedSnapshotBytes('key', 'one', record.bytes));
+  assert.equal(budget.bytes, record.cost + [...other.entries.values()][0].cost);
+  const restored = cache.entries.get('key');
+  assert.notEqual(restored, snapshot);
+  assert.equal(JSON.stringify(restored.baseline), expected);
+  assert.equal(restored.whyIndex.byId.get('synthetic'), restored.baseline.tasks[0]);
+  assert.deepEqual(restored.estimates, snapshot.estimates);
+  assert.equal([...other.entries.values()][0].value, undefined);
+  cache.entries.clear(); other.entries.clear();
+  assert.equal(hotSet.size, 0); assert.equal(hotSet.bytes, 0); assert.equal(budget.bytes, 0);
+});
+
+test('hot set obeys heap and entry bounds, rejects executables and drops prediction closures', () => {
+  assert.throws(() => createSnapshotHotSet({ entryLimit: -1 }), TypeError);
+  const small = createSnapshotHotSet({ entryLimit: 2, byteLimit: 8192 });
+  const { cache, snapshot, budget } = fixture(1024 * 1024, small);
+  snapshot.baseline.large = 'x'.repeat(10000);
+  cache.set('oversize', snapshot, undefined, 'one');
+  assert.equal(small.size, 0, 'oversized decoded graphs stay as bytes');
+  assert.ok([...cache.entries.values()][0].bytes);
+  assert.ok(budget.bytes < 8192);
+  const bounded = createSnapshotHotSet({ entryLimit: 2, byteLimit: 8192 });
+  const full = createSerializedSnapshotCache(createWorkerCacheBudget(), { hotSet: bounded });
+  for (const key of ['a', 'b', 'c']) full.set(key, { baseline: { tasks: [], metrics: {} } }, undefined, key);
+  assert.equal(bounded.size, 2); assert.ok(bounded.bytes <= 8192);
+  const value = full.entries.get('c');
+  value.predict = () => snapshot;
+  full.capture(value); full.releaseTransient();
+  assert.equal(value.predict, undefined);
+  const meter = createSnapshotHeapMeter();
+  assert.throws(() => meter.visit({ executable() {} }), TypeError);
+  assert.throws(() => meter.visit({ get value() { assert.fail('Getter must not execute'); } }), TypeError);
 });

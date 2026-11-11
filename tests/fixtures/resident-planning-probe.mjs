@@ -47,12 +47,13 @@ registerHooks({ load(url, context, next) {
     anchor = 'const stage = (key, value, _state, owner) => {';
     replacement = `
   globalThis.__residentPlanningProbe.snapshots.push(() => [...entries].map(([key, record]) => {
-    const { snapshot: value } = decode(record.bytes);
-    return { owner: 'picker:' + record.owner, revision: value.revision, planning: !!value.planningIndex,
+    const value = record.value ?? decode(record.bytes).snapshot;
+    return { owner: 'picker:' + record.owner, revision: value.revision, planning: !!value.planningIndex, decoded: !!record.value,
       whyIndexId: globalThis.__residentPlanningProbe.indexId(value.whyIndex),
       whyIndexCharge: globalThis.__residentPlanningProbe.indexBytes(value.whyIndex),
       charge: record.cost, planningCharge: globalThis.__residentPlanningProbe.indexBytes(value.planningIndex),
-      measured: serializedSnapshotBytes(key, record.owner, record.bytes) };
+      measured: record.value ? globalThis.__residentPlanningProbe.hotBytes(value, context(value.baseline), locations(value.baseline))
+        : serializedSnapshotBytes(key, record.owner, record.bytes) };
   }));` + anchor;
   } else if (url.endsWith('/tasks/eligibility-cache.mjs')) {
     anchor = 'const retained = new Map();';
@@ -65,13 +66,20 @@ registerHooks({ load(url, context, next) {
   if (url.endsWith('/tasks/worker.mjs')) patched = patched.replace('if (cacheSizing) trackSnapshotCore(result);',
     'if (workerData.fixedEngineTiming) result.metrics.elapsedMs = 1.25;\n  if (cacheSizing) trackSnapshotCore(result);');
   if (url.endsWith('/tasks/chunk-planning-index.mjs')) patched = patched.replace('if (Array.isArray(record.SourceLocations)', "globalThis.__residentPlanningProbe.stage('scan');\n        if (Array.isArray(record.SourceLocations)");
-  if (url.endsWith('/tasks/serialized-snapshot-cache.mjs')) patched = patched.replace('const raw = serialize(', "globalThis.__residentPlanningProbe.stage('charge');\n      const raw = serialize(");
+  if (url.endsWith('/tasks/serialized-snapshot-cache.mjs')) patched = patched.replace('const raw = serialize(', "globalThis.__residentPlanningProbe.stage('charge');\n      const raw = serialize(")
+    .replace('const meter = entry.meter, prior = entry.heapVersion;', "globalThis.__residentPlanningProbe.stage('charge');\n        const meter = entry.meter, prior = entry.heapVersion;");
   if (url.endsWith('/tasks/worker.mjs')) patched = patched.replace('checkpoint();\n    yield row;', "globalThis.__residentPlanningProbe.stage('projection');\n    checkpoint();\n    yield row;");
   return { ...result, source: patched };
 } });
 // Identity now means the persisted index bytes, rather than a resident graph.
 probe.indexId = value => value ? createHash('sha256').update(serialize(value)).digest('hex') : undefined;
 probe.indexBytes = value => value ? serialize(value).byteLength : 0;
+const { createSnapshotHeapMeter } = await import('../../app/tasks/snapshot-hot-set.mjs');
+probe.hotBytes = (value, context, locations) => {
+  const meter = createSnapshotHeapMeter();
+  meter.visit({ ...value, predict: undefined }); meter.visit(context); meter.visit(locations);
+  return meter.bytes;
+};
 const post = parentPort.postMessage.bind(parentPort);
 parentPort.postMessage = (message, ...rest) => post(message.id === undefined || message.type === 'progress' ? message : {
   ...message, probe: { evaluateFull: probe.evaluateFull, locations,
