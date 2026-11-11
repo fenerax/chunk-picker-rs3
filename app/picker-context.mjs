@@ -25,6 +25,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { isImportRoute, readBackupRequest, sendPreparedBackup } from './backup-transfer.mjs';
 import { createTaskReuseFingerprint } from './tasks/unlock-reuse.mjs';
+import { deferredTaskInput } from './tasks/deferred-input.mjs';
 import { createPoolRanking } from './tasks/pool-ranking.mjs';
 import { openStore } from './storage/store.mjs';
 import { openInviteStore } from './storage/invites.mjs';
@@ -658,8 +659,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       calculationSnapshot = { metadata: { revision: captured.revision, members: captured.members }, input: captured.taskInputKey,
         get state() { return captured.residentState ?? captured.state; },
         get sandboxTaskIndex() { return taskIndex ??= sandboxTaskCatalogue(captured.residentState ?? captured.state, sandboxCatalogue); },
-        get stateInput() { return { get owned() { return captured.owned; }, get stateJSON() { return captured.stateJSON; }, inputKey: captured.taskInputKey,
-          get taskInputKey() { return captured.taskInputKey; } }; } };
+        get stateInput() { return deferredTaskInput(store, captured.taskInputKey); } };
     }
     return calculationSnapshot;
   }

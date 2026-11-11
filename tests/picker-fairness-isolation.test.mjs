@@ -40,7 +40,9 @@ function factory() {
 }
 const finish = ({ worker, message }, value = result('ok'), extra = {}) => worker.emit('message', { id: message.id, result: value, evaluationMs: 0, timingMs: {}, ...extra });
 async function fixture(t, options = {}) {
-  const f = factory(), scheduler = await createTaskScheduler({ fairness: { maxOutstandingJobsPerPicker: 4, maxWaitersPerJob: 4 }, workerFactory: f.create, ...options });
+  // These fairness probes deliberately use distinct opaque keys for independent
+  // work with identical synthetic inputs; admission coalescing has its own tests.
+  const f = factory(), scheduler = await createTaskScheduler({ coalesceQueued: false, fairness: { maxOutstandingJobsPerPicker: 4, maxWaitersPerJob: 4 }, workerFactory: f.create, ...options });
   t.after(() => scheduler.close());
   return { ...f, scheduler, a: scheduler.forPicker(A), b: scheduler.forPicker(B) };
 }

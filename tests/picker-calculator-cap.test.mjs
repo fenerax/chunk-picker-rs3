@@ -51,7 +51,7 @@ const finish = ({ worker, message }, marker = message.pickerId) => worker.emit('
 const evaluate = (scope, key, type = 'evaluate', lane = 'foreground', value = state()) =>
   scope.evaluate(value, 'one', type, type === 'predict' ? '12342' : undefined, key, 'input', undefined, [], lane === 'duo' ? 'play-v1' : 'full', undefined, lane);
 async function fixture(t, options = {}, factoryOptions) {
-  const f = factory(factoryOptions), scheduler = await createTaskScheduler({ maxCalculators: 2, maxQueue: 64,
+  const f = factory(factoryOptions), scheduler = await createTaskScheduler({ coalesceQueued: false, maxCalculators: 2, maxQueue: 64,
     maxPredictionQueue: 32, maxDeathQueue: 32, maxDuoQueue: 32,
     fairness: { maxOutstandingJobsPerPicker: 8 }, backoffMs: 1, workerFactory: f.create, ...options });
   t.after(async () => { for (const worker of f.workers) worker.exit(); await scheduler.close(); });

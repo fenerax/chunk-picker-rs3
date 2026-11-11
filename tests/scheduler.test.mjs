@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import { createTaskScheduler, nativeWorkerInput, predictionCacheKey } from '../app/tasks/scheduler.mjs';
 import { STATE_SNAPSHOT_LIMIT } from '../app/tasks/state-transfer.mjs';
 import { createProcessProfiles } from '../app/tasks/process-profiles.mjs';
+import { createManualClock } from './helpers/manual-clock.mjs';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate) {
@@ -528,9 +529,11 @@ test('active deadline restarts the worker', async t => {
 });
 
 test('queued deadline during backoff releases its snapshot without another restart', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { deadlineMs: 20, backoffMs: 100, maxBackoffMs: 100 });
+  const clock = createManualClock();
+  const { workers, scheduler, evaluate } = await fixture(t, { waitDeadlineMs: 20, idleClock: clock, deadlineClock: clock, backoffMs: 100, maxBackoffMs: 100 });
   workers[0].emit('error', new Error('crash'));
-  await assert.rejects(evaluate('queued'), { status: 504 });
+  const expired = assert.rejects(evaluate('queued'), { status: 504, code: 'CALCULATION_WAIT_TIMEOUT' });
+  await clock.advance(20); await expired;
   assert.equal(scheduler.getDiagnostics().queue.depth, 0); assert.equal(scheduler.getHealth().failures, 1);
 });
 
