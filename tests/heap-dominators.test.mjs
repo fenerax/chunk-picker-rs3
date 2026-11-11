@@ -4,7 +4,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { dominators, compareSnapshots } from '../scripts/perf/owned-acceptance/heap-dominators.mjs';
-import { attributionPairs, attributeSnapshots } from '../scripts/perf/owned-acceptance/attribution.mjs';
+import { attributionPairs, attributeSnapshots, uncoveredMaximum } from '../scripts/perf/owned-acceptance/attribution.mjs';
 
 function fixture(links, sizes = links.map(() => 1)) {
   return { snapshot: { meta: {
@@ -103,6 +103,25 @@ test('attribution covers every measured interval and refuses a missing isolate',
   assert.throws(() => attributionPairs(result), /same complete isolate inventory/);
 });
 
+test('a heap peak at an uncaptured sample is reported, never compared against a missing snapshot', () => {
+  const result = measuredResult();
+  assert.equal(uncoveredMaximum(result), null);
+  const captured = new Set([result.commandSamples[0], result.settled, result.readOnlyWarmup, ...result.repeated,
+    result.mutationWarmup, ...result.mutationRepeated].flatMap(row => row.isolates.map(isolate => isolate.sequence)));
+  const peakSample = structuredClone(result.commandSamples[0]);
+  peakSample.count = 1; peakSample.total.heapUsed = 9_000;
+  peakSample.isolates.forEach((row, index) => { row.sequence = 1_000 + index; });
+  result.commandSamples = [peakSample, { ...result.commandSamples[0], count: 2 }];
+  result.openSamples = [{ ...structuredClone(peakSample), count: 1, total: { heapUsed: 8_000 } }];
+  for (const pair of attributionPairs(result))
+    for (const row of pair.isolates) {
+      assert(captured.has(row.beforeSequence), `${pair.name} starts at an uncaptured sample`);
+      assert(captured.has(row.afterSequence), `${pair.name} ends at an uncaptured sample`);
+    }
+  assert.deepEqual(uncoveredMaximum(result), { sample: 'commands-1', heapUsedBytes: 9_000,
+    capturedMaximum: 'mutation-4', capturedHeapUsedBytes: 372 });
+});
+
 test('automatic artifact publication preserves all rejection reasons and cannot certify acceptance', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'synthetic-attribution-')), result = measuredResult();
   const original = structuredClone(result);
@@ -114,6 +133,7 @@ test('automatic artifact publication preserves all rejection reasons and cannot 
     assert.equal(receipt.status, 'diagnostic-only');
     const manifest = JSON.parse(await readFile(path.join(root, 'dominators/index.json'), 'utf8'));
     assert.deepEqual(manifest.gateReasons, result.decision.reasons);
+    assert.equal(manifest.uncoveredMaximum, null);
     assert.deepEqual(result, original);
     assert.equal(manifest.intervals.length, 12);
     const first = manifest.intervals[0].isolates[0];

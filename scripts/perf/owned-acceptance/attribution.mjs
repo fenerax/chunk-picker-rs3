@@ -2,17 +2,36 @@ import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { compareSnapshots } from './heap-dominators.mjs';
 
-export function attributionPairs(result) {
+const heapUsed = row => row.receipt.total.heapUsed;
+const peak = rows => rows.reduce((a, b) => heapUsed(a) >= heapUsed(b) ? a : b);
+
+// Only these barriers write snapshots (trial.mjs): the last serial command
+// sample, settling, and every read-only and mutation checkpoint.
+function capturedBarriers(result) {
   const serial = { name: 'serial', receipt: result.commandSamples.at(-1) };
-  const phases = [serial, { name: 'settled', receipt: result.settled },
+  return [serial, { name: 'settled', receipt: result.settled },
     { name: 'read-warmup', receipt: result.readOnlyWarmup },
     ...result.repeated.map(row => ({ name: `read-${row.round}`, receipt: row })),
     { name: 'mutation-warmup', receipt: result.mutationWarmup },
     ...result.mutationRepeated.map(row => ({ name: `mutation-${row.round}`, receipt: row }))];
-  const candidates = [
+}
+
+// A heap peak at an open or intermediate command sample has no snapshot, so it
+// cannot be attributed. Report it explicitly instead of comparing a missing file.
+export function uncoveredMaximum(result) {
+  const captured = peak(capturedBarriers(result));
+  const overall = peak([
     ...(result.openSamples ?? []).map(row => ({ name: `open-${row.count}`, receipt: row })),
-    ...result.commandSamples.map(row => ({ name: `commands-${row.count}`, receipt: row })), ...phases];
-  const maximum = candidates.reduce((a, b) => a.receipt.total.heapUsed >= b.receipt.total.heapUsed ? a : b);
+    ...result.commandSamples.map(row => ({ name: `commands-${row.count}`, receipt: row })),
+    ...capturedBarriers(result)]);
+  return heapUsed(overall) > heapUsed(captured)
+    ? { sample: overall.name, heapUsedBytes: heapUsed(overall), capturedMaximum: captured.name, capturedHeapUsedBytes: heapUsed(captured) }
+    : null;
+}
+
+export function attributionPairs(result) {
+  const phases = capturedBarriers(result), [serial] = phases;
+  const maximum = peak(phases);
   const intervals = phases.slice(1).map((after, i) => ({ name: `${phases[i].name}-to-${after.name}`, before: phases[i], after }));
   if (maximum.receipt !== serial.receipt && !intervals.some(row => row.before === serial && row.after.receipt === maximum.receipt))
     intervals.unshift({ name: 'serial-to-maximum', before: serial, after: maximum });
@@ -57,6 +76,7 @@ export async function attributeSnapshots(result, modeDirectory, { compare = comp
   }
   const report = { schemaVersion: 1, mode: result.mode, status: 'diagnostic-only',
     gateReasons: [...result.decision.reasons],
+    uncoveredMaximum: uncoveredMaximum(result),
     interpretation: 'Dominator paths, stable-owner comparisons and snapshot self-size differences are evidence for review. They do not prove a bound on future growth, waive gates, subtract History or native bytes from heapUsed, or replace raw heap limits.',
     intervals };
   await writeFile(path.join(directory, 'index.json'), JSON.stringify(report, null, 2), { flag: 'wx' });
