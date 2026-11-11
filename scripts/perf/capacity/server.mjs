@@ -76,7 +76,11 @@ if(mode==='fixture') {
         if(message.type==='sample') {
           const headers={Authorization:'Bearer '+app.store.getAccessToken()};
           const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw new Error('Telemetry HTTP failure');return res.json();};
-          const [health,diagnostics]=await Promise.all([get('/api/health'),get('/api/diagnostics')]);
+          // Send each HTTP observation immediately; calculator heap probes must
+          // not make an earlier health/residency result look fresh.
+          await Promise.all([['health','/api/health'],['diagnostics','/api/diagnostics']].map(async([part,route])=>{
+            const value=await get(route);process.send({type:`sample-${part}`,id:message.id,serverId,[part]:value});
+          }));
           const calculatorHeaps=await Promise.all([...workers].filter(worker=>typeof worker.getMemoryUsage==='function').map(async worker=>{
             try {const value=await worker.getMemoryUsage();return {pid:value.pid,hostHeapUsed:value.main?.heapUsed,threadHeapUsed:value.workers?.length?value.workers.reduce((n,w)=>n+(w.memoryUsage?.heapUsed??0),0):null};}catch{return null;}
           }));
@@ -84,7 +88,7 @@ if(mode==='fixture') {
           lastUtilization=currentUtilization;
           process.send({type:'sample',id:message.id,serverId,memory:process.memoryUsage(),cpu:process.cpuUsage(),
             eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
-              utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},health,diagnostics,calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
+              utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
           loop.reset();
         }
       } catch { process.send({type:'sample-error',id:message.id}); }

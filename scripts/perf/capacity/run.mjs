@@ -6,10 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { planFixture, integer, digest } from './model.mjs';
 import { createHash } from 'node:crypto';
-import { processTree, diskBytes } from './telemetry.mjs';
 import { drive, rotationInterval } from './driver.mjs';
 import { evaluate, markdown } from './report.mjs';
-import { stageWindow } from './scheduler.mjs';
+import { createSampleInbox, createSampleCollector } from './sampling.mjs';
 import { fixtureWorkers } from './fixture-pool.mjs';
 import { validateSustained, sustainedPhase } from './sustained.mjs';
 import { evaluateSustained, sustainedMarkdown } from './sustained-report.mjs';
@@ -58,7 +57,7 @@ const childLogs=child=>{
 };
 async function until(child,type) {
   return new Promise((resolve,reject)=>{
-    const message=m=>{if(m.type===type){cleanup();resolve(m);}else if(m.type==='failure'){cleanup();reject(new Error(`${m.name}: ${m.message}`));}};
+    const message=m=>{const receivedAt=performance.now();if(m.type===type){cleanup();resolve({...m,receivedAt});}else if(m.type==='failure'){cleanup();reject(new Error(`${m.name}: ${m.message}`));}};
     const exit=()=>{cleanup();reject(new Error(`Scratch child exited before ${type}.`));};
     const cleanup=()=>{child.off('message',message);child.off('exit',exit);child.off('error',error);};
     const error=e=>{cleanup();reject(e);};child.on('message',message);child.once('exit',exit);child.once('error',error);
@@ -95,30 +94,24 @@ try {
   } else {
   console.log(`Fixture ready: ${fixture.groups.length} groups, ${fixture.characters} slots. Starting measured server.`);
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
-  let id=0,busy=false,telemetryErrors=0,lastCpu,lastAt,lastWindowAt,lastDisk=0,disk=null,runStart;
-  const samples=[],contextOpens=[],admissionTransitions=[],pending=new Map();
+  let id=0,busy=false,telemetryErrors=0,runStart;
+  const samples=[],contextOpens=[],admissionTransitions=[],inbox=createSampleInbox();
   let generation=0,restarting=false;
   const attach=(child,childGeneration=generation)=>child.on('message',m=>{
-    const elapsedMs=runStart===undefined?null:performance.now()-runStart;
-    if(m.type==='context-open')contextOpens.push({...m,generation:childGeneration,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
-    if(m.type==='admission')admissionTransitions.push({...m,generation:childGeneration,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
-    if(m.type==='sample'||m.type==='sample-error'){const request=pending.get(m.id);if(request){pending.delete(m.id);request(m);}}});
+    const receivedAt=performance.now(),elapsedMs=runStart===undefined?null:receivedAt-runStart;
+    if(m.type==='context-open')contextOpens.push({...m,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    if(m.type==='admission')admissionTransitions.push({...m,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    inbox.receive(m,childGeneration,receivedAt);});
   attach(server);
+  const collector=createSampleCollector({profile,directory,requestSnapshot:childGeneration=>{
+    const request=++id,receipt=inbox.expect(request,childGeneration);
+    if(server.connected)server.send({type:'sample',id:request});return receipt;
+  }});
   const sample=async client=>{
     if(busy)return;busy=true;
     try {
-      if(restarting){const row={elapsedMs:performance.now()-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
-      const request=++id,windowAt=performance.now();
-      const data=await new Promise(resolve=>{const timer=setTimeout(()=>{pending.delete(request);resolve(null);},5000);pending.set(request,m=>{clearTimeout(timer);resolve(m);});if(server.connected)server.send({type:'sample',id:request});});
-      const at=performance.now(),tree=await processTree(server.pid);
-      if(tree.supported && !tree.processes)telemetryErrors++;
-      if(!disk||at-lastDisk>=profile.diskSampleSeconds*1000){disk=await diskBytes(directory);lastDisk=at;}
-      if(!data||data.type==='sample-error')telemetryErrors++;
-      const windowEnd=performance.now(),window=stageWindow(profile.stages,runStart,lastWindowAt??windowAt,windowEnd);
-      const row={elapsedMs:runStart===undefined?null:windowEnd-runStart,generation,...window,measured:client.phase?false:window.measured,
-        windowStartElapsedMs:runStart===undefined?null:(lastWindowAt??windowAt)-runStart,tree,disk,client,server:data?.type==='sample'?data:null,
-        treeCpuPercent:lastCpu!==undefined&&tree.cpuSeconds!==null?Math.max(0,(tree.cpuSeconds-lastCpu)/((at-lastAt)/1000)/cpus().length*100):null};
-      lastCpu=tree.cpuSeconds??undefined;lastAt=at;if(data?.type==='sample')lastWindowAt=windowAt;
+      if(restarting){const receivedAt=performance.now(),row={receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
+      const {row,errors}=await collector.collect({start:runStart,generation,pid:server.pid,client});telemetryErrors+=errors;
       samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
     } catch(error) {telemetryErrors++;throw error;} finally {busy=false;}
   };
@@ -128,10 +121,10 @@ try {
     try {
       while(busy)await new Promise(resolve=>setTimeout(resolve,10));
       const shutdown=await stop(server);
-      generation++;lastCpu=undefined;lastAt=undefined;lastWindowAt=undefined;
+      generation++;collector.reset();
       server=launch('server');childLogs(server);attach(server);
       const ready=await until(server,'ready');
-      return {base:ready.base,serverId:ready.serverId,shutdown,generation};
+      return {base:ready.base,serverId:ready.serverId,readyReceivedAt:ready.receivedAt,shutdown,generation};
     } finally {restarting=false;}
   };
   const load=await drive({base:ready.base,initialServerId:ready.serverId,profile,fixture,directory,onSample:sample,restartServer,startWorkload:()=>runStart=performance.now()});

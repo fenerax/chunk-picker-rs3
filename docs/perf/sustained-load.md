@@ -121,9 +121,15 @@ Both state and tasks must identify the replacement process, and the tasks
 revision must be at least the returned state revision. Successful responses
 from a draining process are discarded and cannot suppress later probes, even
 when the replacement reuses its port. The gate then requires healthy samples
-showing all 100 resident together through a post-deadline confirmation, no later
-than two sampling intervals after the deadline. Serial visits through an eviction
-loop and transient residency cannot pass. The other 400 resident disk groups remain
+showing all 100 resident together before the deadline, confirmed by a health
+observation received **strictly after** the deadline and within two sampling
+intervals. They must stay healthy and resident in every subsequent health
+observation through the final post-workload health receipt. A later unhealthy
+result invalidates recovery even after a successful confirmation; recovery
+after the deadline cannot repair that verdict. Sampling gaps remain bounded.
+This is stability as observed by periodic probes, not a claim about unobserved
+instants between them. Serial visits through an eviction loop and transient
+residency cannot pass. The other 400 resident disk groups remain
 dormant. “All groups ready” here means the active workload cohort; this does not
 prove that all 500 can open simultaneously. SSE recovery counts all 200 clients
 by distinct group/member identity. A successful event-stream handshake records
@@ -134,7 +140,11 @@ deadline and confirmation, lasting at least one sampling interval. A planned
 reconnect handoff may span that boundary for up to one sampling interval (or
 1.5 seconds, if larger, for normal reconnect jitter), provided its replacement
 is live at confirmation. Unexpected ends cannot bridge that boundary, and
-immediately closed handshakes cannot pass.
+immediately closed handshakes cannot pass. Established streams must remain live
+through workload stop, permitting the same bounded planned reconnect handoffs.
+An unexpected end after confirmation invalidates recovery even if the client
+later reconnects. Planned final disconnects happen at workload stop, before
+SSE teardown/drain; their cleanup duration cannot extend the workload horizon.
 Concurrent same-group edits may naturally return 409; those appear
 separately in statuses and fail the relevant speed bar rather than being hidden.
 
@@ -150,14 +160,38 @@ HTTP-attempt status counts and raw refusal Retry-After histograms.
 Session checks sharing an in-flight preflight record a confirmed coalesced check
 only after that HTTP request succeeds; zero-request completions need that proof.
 
+Observation times are local monotonic **receipt times**, captured before any
+unrelated collection or callback work. `collectedAt` records persistence assembly
+time only and never supplies recovery, coverage or phase evidence:
+
+| Observation | Timestamp and window used |
+| --- | --- |
+| Health and residency | Dedicated health IPC receipt, sent immediately after the health HTTP body arrives, before heap probes. The gate uses `server.healthObservation`, independently of the final memory snapshot receipt. |
+| Queue depth | Dedicated diagnostics IPC receipt in `server.diagnosticsObservation`. Coverage follows these receipts, not later memory or disk collection. |
+| Server memory and event loop | Final server IPC receipt; the event-loop window spans successive server receipts. |
+| Process tree and CPU | Process-tree return receipt and the interval between successive tree receipts; CPU delta uses that same interval. CPU/event-loop windows spanning stage boundaries are excluded from stage resource bars. RSS uses each source's instantaneous receipt. |
+| Disk | Scan return receipt. A cached disk reading retains its original receipt and phase when reused. |
+| Client and SSE | Client counters are stamped before requesting server telemetry. SSE header/open and body-end receipts are captured before notification/cleanup callbacks. Attempt starts and handshake receipts have separate per-stage counters; receipts outside configured stages stay in `tailStreams`. |
+| State/tasks and restart readiness | Each completed HTTP body and the replacement's ready IPC have their own receipts. Composite readiness uses the later body receipt, retaining both; it cannot inherit later processing time. |
+| Workload horizon | `workloadCompletedAt` is captured when scheduled work finishes; `streamShutdownAt` marks the start of planned SSE shutdown. `completedAt` includes teardown and cannot establish offered workload duration. |
+
+The `run.mjs`/`driver.mjs` await sweep also checked context-open/admission IPC
+events (already stamped in their handlers), restart placeholders (stamped before
+log writes), and setup/total durations (deliberately end-to-end completion
+durations). Action latency still includes all completion work and uses the
+**scheduled arrival phase**, as required for open-loop comparisons. Observation
+phase labels and deadline/coverage gates use each observation's own receipt.
+Missing or inconsistent receipt metadata fails validation; collection completion
+is never a fallback timestamp.
+
 | Speed bar | PASS requires |
 | --- | --- |
 | Everyday | Every planned action/phase completes, with valid p50/p95/p99, p95 < 300 ms, and no terminal failures. |
 | Heavy | All four expensive classes complete every planned action/phase, p95 < 3,000 ms, and no terminal failures. Actual task-miss coverage requires one successful cache-miss action per intended miss, not an aggregate of failed/repeated attempts. |
 | Cold open | One successful initial-process state + tasks readiness open for each distinct active group, p95 < 2,000 ms. Initial requests include HTTP queuing and client retries. |
-| Restart | Exactly one clean restart; distinct active groups return current replacement-process state/tasks and remain healthy/resident through the confirmation described above, with recovery before 300 seconds. Smoke uses a 30-second recovery window. |
+| Restart | Exactly one clean restart; distinct active groups return current replacement-process state/tasks before 300 seconds and remain healthy/resident through the final post-workload health receipt, with genuine post-deadline confirmation. Smoke uses a 30-second recovery window. |
 | Plugin / sync | Configured report, status, tasks and sync classes must complete every planned action/phase without terminal failures. Their p95 is reported per phase; browser latency limits do not apply. |
-| SSE recovery | Every expected client holds established replacement-process streams at the deadline and confirmation, with recorded lifetimes and closure reasons. Bounded planned reconnect handoffs require live replacements. |
+| SSE recovery | Every expected client holds established replacement-process streams at the deadline and confirmation, maintained through workload stop. Bounded planned reconnect handoffs require live replacements; later unexpected ends fail. |
 | Generator / controls | Explicit unforced exit-code-zero receipts with no signal for both shutdowns; no drops or telemetry errors; complete offered/completed/skipped accounting and full run duration; valid memory, queue and event-loop time series from both generations. Gaps may not exceed twice the larger of the sampling interval and five-second telemetry IPC timeout. Restart placeholders are allowed only during stop/start. |
 | Refusal headers | HTTP and SSE 429/503 totals reconcile with nonempty, valid Retry-After histograms, including cold opens. Missing counters or observations cannot stand in for zero refusals. |
 
@@ -313,9 +347,23 @@ missing telemetry/accounting/truncated duration, isolated telemetry snapshots,
 incomplete Retry-After evidence, and non-SSE HTTP 200 responses. The existing
 real-server capacity test also checks the scratch identity response header.
 
-Review-fix verification passed **52 cases in the same three files**: sustained
+The first review-fix verification passed **52 cases in the same three files**: sustained
 (24), harness (16), realism (12), with zero failures or skips, Node 24.20.0,
 complete `testRunPolicy` environments, one worker, BelowNormal priority and the
 shared lock. No new smoke, full suite, or hosted CI ran. Historical smoke artifacts
 are unchanged; they lack the new process/lifetime/accounting receipts and cannot
 satisfy the hardened gates or establish recovery under the new rules.
+
+The observation-timestamp follow-up adds the delayed healthy-receipt regression
+and nine sweep regressions: independent health/heap receipts, later unhealthy
+health observations, receipt validation/coverage, resource windows and cached
+disk/CPU timing, SSE callback receipts, cross-stage SSE counts, later unexpected
+SSE closure, HTTP/restart readiness receipts, and the pre-teardown workload
+horizon. All use logical clocks, without machine-timing assertions.
+
+Timestamp verification passed **62 cases in three capacity files**: sustained
+(34), harness (16), realism (12), with zero failures or skips, using Node 24.20.0,
+complete `testRunPolicy` environments, BelowNormal priority, the shared lock and
+`--test-concurrency=1`. No new smoke, full suite, or hosted CI ran. Application
+source and admission behavior are unchanged; only scratch-harness observation
+collection, evidence validation and reporting changed.

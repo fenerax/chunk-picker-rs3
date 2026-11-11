@@ -38,11 +38,13 @@ function speed(rows,actions,limitMs,offered) {
   return {...gate,status:gate.status==='pass'&&!rows.some(row=>actions.includes(row.action)&&row.latency.p95Ms>=limitMs)?'pass':'fail',p95LimitMs:limitMs,
     scope:'Scheduled arrival to full HTTP completion, including dispatch, preflights, cooldown/backoff and terminal failures; no browser render time.'};
 }
-function proof(row,serverId) {
+function proof(row,serverId,origin) {
   return !!serverId&&row.serverId===serverId&&row.stateServerId===serverId&&row.tasksServerId===serverId&&
-    count(row.stateRevision)&&count(row.tasksRevision)&&row.tasksRevision>=row.stateRevision&&time(row.elapsedMs);
+    count(row.stateRevision)&&count(row.tasksRevision)&&row.tasksRevision>=row.stateRevision&&time(row.elapsedMs)&&
+    time(row.stateReceivedAt)&&row.stateReceivedAt>=origin&&time(row.tasksReceivedAt)&&row.tasksReceivedAt>=row.stateReceivedAt&&
+    row.elapsedMs===row.tasksReceivedAt-origin;
 }
-function liveRecoveryStream(lifetimes,client,{serverId,startedAt,deadlineAt,confirmedAt,completedAt,sampleMs}) {
+function liveRecoveryStream(lifetimes,client,{serverId,startedAt,deadlineAt,confirmedAt,throughAt,completedAt,sampleMs}) {
   const reasons=['unexpected','reconnect','server-restart','cohort-change','workload-end'];
   const connections=lifetimes.filter(row=>row.clientId===client.clientId&&row.group===client.group&&row.serverId===serverId&&
     time(row.openedAt)&&row.openedAt>=startedAt&&time(row.closedAt)&&row.closedAt>=row.openedAt&&row.closedAt<=completedAt&&reasons.includes(row.closeReason))
@@ -54,21 +56,30 @@ function liveRecoveryStream(lifetimes,client,{serverId,startedAt,deadlineAt,conf
   const index=connections.findIndex(row=>row.openedAt<deadlineAt&&row.closedAt-row.openedAt>=sampleMs&&
     (row.closedAt>deadlineAt||row.closeReason==='reconnect'&&row.closedAt>=deadlineAt-handoffMs));
   if(index<0)return null;
-  const recovered=connections[index];let current=recovered;
-  for(let next=index+1;current.closedAt<=confirmedAt;next++) {
-    const replacement=connections[next];
-    if(current.closeReason!=='reconnect'||!replacement||replacement.openedAt<current.closedAt||
-      replacement.openedAt-current.closedAt>handoffMs||replacement.openedAt>confirmedAt)return null;
-    current=replacement;
-  }
-  return current.closedAt-current.openedAt>=sampleMs?recovered:null;
+  const recovered=connections[index];
+  const streamAt=until=>{
+    let current=recovered;
+    for(let next=index+1;current.closedAt<=until;next++) {
+      if(until===throughAt&&current.closedAt===until&&current.closeReason==='workload-end')break;
+      const replacement=connections[next];
+      if(current.closeReason!=='reconnect'||!replacement||replacement.openedAt<current.closedAt||
+        replacement.openedAt-current.closedAt>handoffMs||replacement.openedAt>until)return null;
+      current=replacement;
+    }
+    return current;
+  };
+  const confirmation=streamAt(confirmedAt);
+  return time(throughAt)&&throughAt>confirmedAt&&confirmation&&confirmation.closedAt-confirmation.openedAt>=sampleMs&&streamAt(throughAt)?recovered:null;
 }
-function headerEvidence(rows,streams,stages) {
+function headerEvidence(rows,stageStreams,tailStreams,stages) {
+  if(!Array.isArray(stageStreams)||stageStreams.length!==stages.length||!tailStreams)return false;
+  const streams=[...stageStreams,tailStreams];
   const histogram = (statuses,headers,missing) => values(statuses).every(count)&&values(headers).every(count)&&missing===0&&
     total(headers)===(statuses?.['429']??0)+(statuses?.['503']??0)&&Object.keys(headers??{}).every(value=>/^\d+(?:\.\d+)?$/.test(value)||Number.isFinite(Date.parse(value)));
   return rows.length>0&&rows.some(row=>row.httpRequests>0)&&rows.every(row=>count(row.httpRequests)&&count(row.httpRejects)&&total(row.httpStatuses)===row.httpRequests&&
     row.httpRejects===(row.httpStatuses?.['429']??0)+(row.httpStatuses?.['503']??0)&&histogram(row.httpStatuses,row.retryAfterValues,row.rejectsWithoutRetryAfter))&&
-    Array.isArray(streams)&&streams.length===stages.length&&streams.every(row=>count(row.attempted)&&total(row.statuses)<=row.attempted&&histogram(row.statuses,row.retryAfterValues,row.rejectsWithoutRetryAfter));
+    streams.every(row=>count(row.attempted)&&count(row.handshakes)&&total(row.statuses)===row.handshakes&&histogram(row.statuses,row.retryAfterValues,row.rejectsWithoutRetryAfter))&&
+    streams.reduce((n,row)=>n+row.handshakes,0)<=streams.reduce((n,row)=>n+row.attempted,0);
 }
 export function evaluateSustained(result) {
   const {load,profile} = result, measured = load.operations.filter(row=>profile.stages[row.stage]?.measured);
@@ -82,30 +93,40 @@ export function evaluateSustained(result) {
     time(restart.startedAt)&&time(restart.serverReadyMs)&&cleanExit(restart.shutdown);
   const limitMs=profile.sustained.recoveryDeadlineSeconds*1000;
   const groupProof=cohortValid&&replacement&&sameMembers(groups.map(row=>row.group),cohort.groups)&&
-    groups.every(row=>proof(row,restart.serverId)&&row.elapsedMs>=restart.serverReadyMs&&row.elapsedMs<limitMs);
+    groups.every(row=>proof(row,restart.serverId,restart.startedAt)&&row.elapsedMs>=restart.serverReadyMs&&row.elapsedMs<limitMs);
   const firstHTTPRecoveryMs = groupProof ? Math.max(...groups.map(row=>row.elapsedMs)) : null;
   const restartElapsedMs = restart?.startedAt - load.workloadStart;
   const deadlineAt=restart?.startedAt+limitMs,deadlineElapsed=restartElapsedMs+limitMs;
   const samples=(result.samples??[]).filter(row=>time(row.elapsedMs)).sort((a,b)=>a.elapsedMs-b.elapsedMs);
+  const receiptValid=row=>time(row?.receivedAt)&&time(row?.elapsedMs)&&row.receivedAt===load.workloadStart+row.elapsedMs;
+  const healthSamples=samples.map(row=>({...row,elapsedMs:row.server?.healthObservation?.elapsedMs??row.elapsedMs})).sort((a,b)=>a.elapsedMs-b.elapsedMs);
   const healthy=sample=>sample.generation===1&&sample.server?.serverId===restart?.serverId&&sample.server?.health?.ready===true&&
+    receiptValid(sample.server.healthObservation)&&sample.server.healthObservation.generation===1&&sample.server.healthObservation.serverId===restart.serverId&&
     sample.server.health.savesReady===true&&sample.server.health.worker?.ready===true&&sample.server.health.service?.registry==='ready'&&sample.server.health.service.openContexts>=activeGroups+1;
   // Confirm readiness through the deadline, rather than bless a transient open
   // count. A first post-deadline sample bounds how long the evidence can be stale.
-  const confirmation=samples.find(row=>row.elapsedMs>=deadlineElapsed);
+  const confirmation=healthSamples.find(row=>row.elapsedMs>deadlineElapsed);
   const confirmed=confirmation&&confirmation.elapsedMs<=deadlineElapsed+2*profile.sampleSeconds*1000&&healthy(confirmation);
-  const resident=groupProof&&confirmed&&samples.find(sample=>sample.elapsedMs>=restartElapsedMs+firstHTTPRecoveryMs&&sample.elapsedMs<deadlineElapsed&&healthy(sample)&&
-    samples.filter(row=>row.elapsedMs>=sample.elapsedMs&&row.elapsedMs<=confirmation.elapsedMs).every(healthy)&&
-    continuousSamples(samples,sample.elapsedMs,confirmation.elapsedMs,2*profile.sampleSeconds*1000));
+  const finalHealth=healthSamples.filter(row=>row.collectionPhase==='after').at(-1);
+  const finalObserved=finalHealth&&receiptValid(finalHealth.server?.healthObservation)&&finalHealth.server.healthObservation.receivedAt>=load.workloadCompletedAt;
+  // Recovery means timely readiness maintained through the final health
+  // observation. A later unhealthy result invalidates an earlier confirmation.
+  const resident=groupProof&&confirmed&&finalObserved&&healthSamples.find(sample=>sample.elapsedMs>=restartElapsedMs+firstHTTPRecoveryMs&&sample.elapsedMs<deadlineElapsed&&healthy(sample)&&
+    healthSamples.filter(row=>row.elapsedMs>=sample.elapsedMs&&row.elapsedMs<=finalHealth.elapsedMs).every(healthy)&&
+    continuousSamples(healthSamples,sample.elapsedMs,finalHealth.elapsedMs,2*profile.sampleSeconds*1000));
   const recoveryMs = resident ? resident.elapsedMs-restartElapsedMs : null;
   const cold = load.operations.filter(row=>row.action==='cold-open');
   const coldCount = cold.reduce((n,row)=>n+(row.latency?.count??0),0);
   const offered=load.offeredOperations,measuredOffered=(offered??[]).filter(row=>profile.stages[row.stage]?.measured);
   const coldGate = speed(cold,['cold-open'],2000,offered);
   if(!cohortValid||!sameMembers(cohort.coldGroups??[],cohort.groups??[])||!sameMembers((load.coldOpens??[]).map(row=>row.group),cohort.groups??[])||
-    !(load.coldOpens??[]).every(row=>proof(row,load.initialServerId))||coldCount!==activeGroups)coldGate.status='fail';
+    !(load.coldOpens??[]).every(row=>proof(row,load.initialServerId,load.workloadStart))||coldCount!==activeGroups)coldGate.status='fail';
   const drops = load.stats.clientDrops,missRows=measured.filter(row=>row.action==='task-miss');
   const misses=missRows.reduce((n,row)=>n+(row.successfulTaskMisses??0),0),heavyCount=missRows.reduce((n,row)=>n+(row.latency?.count??0),0);
-  const sampleValid=row=>row.server&&row.server.serverId===(row.generation===0?load.initialServerId:row.generation===1?restart?.serverId:null)&&
+  const sampleValid=row=>receiptValid(row)&&receiptValid(row.server)&&row.server.receivedAt===row.receivedAt&&
+    row.server.serverId===(row.generation===0?load.initialServerId:row.generation===1?restart?.serverId:null)&&
+    ['healthObservation','diagnosticsObservation'].every(key=>receiptValid(row.server[key])&&row.server[key].receivedAt<=row.server.receivedAt&&
+      row.server[key].generation===row.generation&&row.server[key].serverId===row.server.serverId)&&
     ['rss','heapUsed','external'].every(key=>time(row.server.memory?.[key]))&&time(row.server.eventLoop?.p99Ms)&&count(row.server.diagnostics?.queue?.depth);
   const expectedTotal=(offered??[]).reduce((n,row)=>n+row.count,0),durationMs=profile.stages.reduce((n,row)=>n+row.seconds*1000,0);
   // Sampling is serialized and its IPC request has a five-second deadline.
@@ -117,13 +138,16 @@ export function evaluateSustained(result) {
     count(load.stats.offered)&&load.stats.offered===expectedTotal&&count(load.stats.completed)&&count(load.stats.recoveryProbesSkipped??0)&&
     load.stats.completed+(load.stats.recoveryProbesSkipped??0)===load.stats.offered&&
     load.operations.reduce((n,row)=>n+(row.latency?.count??0),0)===load.stats.completed&&
-    time(load.workloadStart)&&time(load.completedAt)&&load.completedAt-load.workloadStart>=durationMs&&
-    continuousSamples(samples,0,durationMs,telemetryWindowMs)&&
+    time(load.workloadStart)&&time(load.workloadCompletedAt)&&load.workloadCompletedAt-load.workloadStart>=durationMs&&
+    time(load.streamShutdownAt)&&load.streamShutdownAt>=load.workloadCompletedAt&&time(load.completedAt)&&load.completedAt>=load.streamShutdownAt&&finalObserved&&
+    continuousSamples(samples,0,load.workloadCompletedAt-load.workloadStart,telemetryWindowMs)&&
+    ['healthObservation','diagnosticsObservation'].every(key=>continuousSamples(samples.map(row=>({elapsedMs:row.server?.[key]?.elapsedMs??row.elapsedMs}))
+      .sort((a,b)=>a.elapsedMs-b.elapsedMs),0,load.workloadCompletedAt-load.workloadStart,telemetryWindowMs))&&
     samples.some(row=>row.generation===0&&sampleValid(row))&&samples.some(row=>row.generation===1&&sampleValid(row))&&
     samples.every(row=>row.restarting===true?row.elapsedMs>=restartElapsedMs&&row.elapsedMs<=restartElapsedMs+restart.serverReadyMs:sampleValid(row));
   const clients=cohort.clients??[],lifetimes=load.recovery.streams??[];
   const live=cohortValid&&replacement&&confirmed?clients.map(client=>liveRecoveryStream(lifetimes,client,{serverId:restart.serverId,
-    startedAt:restart.startedAt,deadlineAt,confirmedAt:load.workloadStart+confirmation.elapsedMs,completedAt:load.completedAt,sampleMs:profile.sampleSeconds*1000})):[];
+    startedAt:restart.startedAt,deadlineAt,confirmedAt:load.workloadStart+confirmation.elapsedMs,throughAt:load.streamShutdownAt,completedAt:load.completedAt,sampleMs:profile.sampleSeconds*1000})):[];
   const configuredPlugin=profile.stages.some(row=>row.measured&&row.pluginPerSecond>0),configuredSync=profile.stages.some(row=>row.measured&&row.syncPerMinute>0);
   return {
     everyday:speed(measured,everydayActions,300,measuredOffered),heavy:speed(measured,heavyActions,3000,measuredOffered),coldOpen:{...coldGate,groups:coldCount},
@@ -131,12 +155,13 @@ export function evaluateSustained(result) {
     syncTraffic:configuredSync?completion(measured,['sync'],measuredOffered):{status:'not-configured'},
     restartRecovery:{status:recoveryMs!==null&&recoveryMs<limitMs?'pass':'fail',
       readyGroups:groups.length,expectedGroups:activeGroups,recoveryMs,firstHTTPRecoveryMs,allActiveResident:!!resident,limitMs:profile.sustained.recoveryDeadlineSeconds*1000,
-      scope:'Distinct active groups must return current state/tasks from the replacement process and remain healthy/resident through a bounded post-deadline confirmation. Dormant groups stay dormant.'},
+      healthyThroughElapsedMs:finalHealth?.elapsedMs??null,
+      scope:'Distinct active groups must return current replacement-process state/tasks before the deadline and remain healthy/resident through the final post-workload health receipt. Post-deadline confirmation uses its own health receipt; later unhealthy observations invalidate recovery.'},
     streamRecovery:{status:live.length===users&&live.every(Boolean)?'pass':'fail',reopened:live.filter(Boolean).length,expected:users,
-      latency:distribution(live.filter(Boolean).map(row=>row.openedAt-restart.startedAt)),scope:'Expected clients must hold established replacement-process SSE streams at the deadline and confirmation. Bounded planned reconnect handoffs require live replacements; unexpected ends and closed handshakes do not count.'},
+      latency:distribution(live.filter(Boolean).map(row=>row.openedAt-restart.startedAt)),scope:'Expected clients must hold established replacement-process SSE streams at the deadline and confirmation, maintained through workload stop. Bounded planned reconnect handoffs require live replacements; later unexpected ends invalidate recovery.'},
     generator:{status:validGenerator?'pass':'fail',droppedArrivals:drops,telemetryErrors:result.telemetryErrors,shutdownClean:cleanExit(result.shutdown),restartShutdownClean:cleanExit(restart?.shutdown)},
     calculationMissCoverage:{status:completion(measured,['task-miss'],measuredOffered).status==='pass'&&heavyCount>0&&missRows.every(row=>row.successfulTaskMisses===row.latency.count)?'pass':'fail',misses,offeredTaskMisses:heavyCount},
-    refusalHeaders:{status:headerEvidence(load.operations,load.stageStreams,profile.stages)?'pass':'fail'},
+    refusalHeaders:{status:headerEvidence(load.operations,load.stageStreams,load.tailStreams,profile.stages)?'pass':'fail'},
     format2Serving:{status:'blocked',reason:'HTTP format-2 activation and pinned catalogue preparation are not implemented (slice 7c).'},
     characterSwitch:{status:'blocked',offered:measured.filter(row=>row.action==='switch').reduce((n,row)=>n+row.latency.count,0),reason:'No durable character entity or authorized character switch API; offered switches are unsupported.'},
   };
@@ -155,8 +180,8 @@ export function sustainedMarkdown(result) {
     `| Phase / action | Count | p50 / p95 / p99 ms | Terminal statuses | HTTP attempts by status | Refusal Retry-After counts | Cache hit / miss |\n| --- | --- | --- | --- | --- | --- | --- |\n`+
     load.operations.map(row=>`| ${row.phase??profile.stages[row.stage].name} / ${row.action} | ${row.latency.count} | ${['p50Ms','p95Ms','p99Ms'].map(key=>n(row.latency[key])).join(' / ')} | ${JSON.stringify(row.statuses)} | ${JSON.stringify(row.httpStatuses)} | ${JSON.stringify(row.retryAfterValues)} | ${row.cacheHits} / ${row.cacheMisses} |`).join('\n')+'\n\n'+
     `## SSE handshakes\n\nHandshake timing starts at the connection attempt; reconnect backoff remains in restart-to-reconnect timing. Long-lived bodies are consumed until closure, never counted as an unfinished HTTP action.\n\n`+
-    `${JSON.stringify({latency:distribution((load.streamHandshakes??[]).map(row=>row.latencyMs)),stages:load.stageStreams},null,2)}\n\n`+
+    `${JSON.stringify({latency:distribution((load.streamHandshakes??[]).map(row=>row.latencyMs)),stages:load.stageStreams,outsideStages:load.tailStreams},null,2)}\n\n`+
     `## Restart and recovery\n\n${JSON.stringify({restarts:load.restarts,recovery:gates.restartRecovery,streams:gates.streamRecovery},null,2)}\n\n`+
-    `## Time series\n\nEvery sample in samples.jsonl includes server RSS, heapUsed, heapTotal, external and arrayBuffers; event-loop delay/utilization; diagnostics (calculator queues and routing residency); cold-open queue depth; process-tree memory/CPU on Linux; and generator active requests/CPU/memory. Admission transitions and open phases are also retained in results.json with server generation and run-relative receipt time. Missing/restart samples are explicit.\n\n`+
+    `## Time series\n\nEvery sample in samples.jsonl includes server RSS, heapUsed, heapTotal, external and arrayBuffers; event-loop delay/utilization; diagnostics (calculator queues and routing residency); cold-open queue depth; process-tree memory/CPU on Linux; and generator active requests/CPU/memory. Each source retains its own receivedAt/elapsedMs and phase/window; health and diagnostics have independent IPC receipts before heap probes. collectedAt is assembly time, never readiness or phase evidence. Admission transitions and open phases are also retained in results.json with server generation and run-relative receipt time. Missing/restart samples are explicit.\n\n`+
     diagnosticMarkdown(result)+`## Limits\n\n${result.fixture.gaps.map(gap=>'- '+gap).join('\n')}\n\nNo application behavior or admission limit is changed. Runtime defaults may refuse this target. Same-group revision races are visible as 409 outcomes and are never blindly retried. Safe reads use bounded retry/backoff; commands remain single-dispatch.\n`;
 }

@@ -5,6 +5,7 @@ import { loopback, random } from './model.mjs';
 import { createBrowserClient, reconnectStream, pause, retryAfterMs, retryRead } from './client.mjs';
 import { sustainedArrivals, sustainedAction, sustainedBrowserAction, sustainedPhase } from './sustained.mjs';
 import { SERVER_ID_HEADER, clientIdentity, plannedOperations, readinessProof } from './evidence.mjs';
+import { observation } from './sampling.mjs';
 
 export function percentile(values,p) {
   const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.max(0,Math.ceil(sorted.length*p)-1)] : null;
@@ -91,41 +92,47 @@ export function rotationInterval(profile) {
   if(!Number.isFinite(profile.rotationSeconds)||profile.rotationSeconds<=0)throw new Error('Invalid cohort rotation interval.');
   return profile.rotationSeconds*1000;
 }
-export async function consumeStream({base,client,controller,counters,stats,planned,onOpened=()=>{},onClosed=()=>{},onHandshake=()=>{},requireEventStream=false,headerDeadlineMs=5000,fetchRequest=fetch,timer=setTimeout,cancelTimer=clearTimeout}) {
-  const currentCounters=()=>typeof counters==='function'?counters():counters;
-  let headersReceived=false,headerExpired=false,opened=false;
-  currentCounters().attempted++;
+const streamCounters=()=>({attempted:0,handshakes:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,
+  rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{},retryAfterValues:{}});
+export async function consumeStream({base,client,controller,counters,stats,planned,onOpened=()=>{},onClosed=()=>{},onHandshake=()=>{},requireEventStream=false,headerDeadlineMs=5000,fetchRequest=fetch,timer=setTimeout,cancelTimer=clearTimeout,now=()=>performance.now()}) {
+  const currentCounters=at=>typeof counters==='function'?counters(at):counters;
+  let headersReceived=false,headerExpired=false,opened=false,closedAt;
+  currentCounters(now()).attempted++;
   const deadline=timer(()=>{headerExpired=true;controller.abort(new Error('SSE header deadline expired.'));},headerDeadlineMs);
   try {
     const response=await fetchRequest(base+'/api/events',{headers:{Cookie:client.cookie},signal:controller.signal,redirect:'error'});
+    const receivedAt=now(),count=currentCounters(receivedAt);
     headersReceived=true;cancelTimer(deadline);
     const retryAfter=response.headers?.get?.('retry-after')??null,serverId=response.headers?.get?.(SERVER_ID_HEADER)??null;
-    onHandshake({status:response.status,retryAfter,serverId});
-    currentCounters().statuses[response.status]=(currentCounters().statuses[response.status]??0)+1;
+    onHandshake({status:response.status,retryAfter,serverId,receivedAt});
+    count.handshakes=(count.handshakes??0)+1;
+    count.statuses[response.status]=(count.statuses[response.status]??0)+1;
     if(!response.ok){
-      stats.streamRejected++;currentCounters().rejected++;
+      stats.streamRejected++;count.rejected++;
       if([429,503].includes(response.status)){
-        if(!retryAfter)currentCounters().rejectsWithoutRetryAfter++;
-        const values=currentCounters().retryAfterValues??={};values[retryAfter??'(missing)']=(values[retryAfter??'(missing)']??0)+1;
+        if(!retryAfter)count.rejectsWithoutRetryAfter++;
+        const values=count.retryAfterValues??={};values[retryAfter??'(missing)']=(values[retryAfter??'(missing)']??0)+1;
       }
-      else currentCounters().unexpectedFailures++;
+      else count.unexpectedFailures++;
       await response.body?.cancel();
       return {opened:false,retryAfterMs:retryAfterMs(response)};
     }
     if(requireEventStream&&!/^text\/event-stream(?:;|$)/i.test(response.headers?.get?.('content-type')??'')) {
-      currentCounters().unexpectedFailures++;await response.body?.cancel();return {opened:false};
+      count.unexpectedFailures++;await response.body?.cancel();return {opened:false};
     }
-    opened=true;stats.streamOpened++;currentCounters().opened++;onOpened({serverId});
+    opened=true;stats.streamOpened++;count.opened++;onOpened({serverId,receivedAt});
     for await(const bytes of response.body)stats.httpBytes+=bytes.length;
-    if(!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
+    closedAt=now();
+    if(!planned()){stats.streamUnexpectedEnds++;currentCounters(closedAt).unexpectedEnds++;}
     return {opened:true};
   } catch {
-    if(!headersReceived&&(headerExpired||!planned())){stats.streamEstablishmentFailures++;currentCounters().establishmentFailures++;}
-    else if(headersReceived&&!planned()){stats.streamUnexpectedEnds++;currentCounters().unexpectedEnds++;}
+    closedAt=now();
+    if(!headersReceived&&(headerExpired||!planned())){stats.streamEstablishmentFailures++;currentCounters(closedAt).establishmentFailures++;}
+    else if(headersReceived&&!planned()){stats.streamUnexpectedEnds++;currentCounters(closedAt).unexpectedEnds++;}
     return {opened};
-  } finally {cancelTimer(deadline);onClosed({opened,planned:planned()});}
+  } finally {closedAt??=now();cancelTimer(deadline);onClosed({opened,planned:planned(),receivedAt:closedAt});}
 }
-export async function drive({base,initialServerId,profile,fixture,directory,onSample,restartServer,startWorkload=()=>performance.now(),fetchRequest=fetch,schedule=dispatch}) {
+export async function drive({base,initialServerId,profile,fixture,directory,onSample,restartServer,now=()=>performance.now(),startWorkload=()=>now(),fetchRequest=fetch,schedule=dispatch}) {
   base=loopback(base,{assigned:profile.port===0});
   const cohorts=prepareCohorts(profile,fixture),chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
   const workloadEvents=profile.sustained?sustainedArrivals(profile,cohorts):arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
@@ -134,24 +141,25 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
     .sort((a,b)=>a.atMs-b.atMs).map((event,i)=>({...event,id:i+1}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
     rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,recoveryProbesSkipped:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
-    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(()=>({attempted:0,opened:0,rejected:0,unexpectedEnds:0,unexpectedFailures:0,rejectsWithoutRetryAfter:0,establishmentFailures:0,statuses:{},retryAfterValues:{}})),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
+    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(streamCounters),tailStreams=streamCounters(),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
   const streamAttempts=new Map(),recovered=new Map(),restarts=[],streamHandshakes=[],streamLifetimes=[],coldOpens=[];
-  let streamShutdown=false, active=0, maxActive=0,restart;
+  let streamShutdown=false, active=0, maxActive=0,restart,workloadCompletedAt,streamShutdownAt;
   const request=async(client,route,body,extra={})=>{
     stats.httpRequests++;
-    const requestStart=performance.now();
+    const requestStart=now();
     const observation={route:route.split('?')[0],status:'pending',...(route.startsWith('/api/command')?{command:body?.command?.type}: {})};client.observations?.push(observation);
     let res;
     try {res=await fetchRequest(base+route,{method:body===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.timeout(profile.requestDeadlineMs),
       headers:{...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),
         ...(!extra.plugin&&route!=='/api/session'&&client.pickerId?{'X-Picker-Id':client.pickerId}:{}),...(body===undefined?{}:{'Content-Type':'application/json',Origin:base})},
       ...(body===undefined?{}:{body:JSON.stringify(body)})});
-    } catch(error) {observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.wallMs=performance.now()-requestStart;stats.httpErrors++;throw error;}
+    } catch(error) {observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
     let text;
-    try {text=await res.text();}catch(error){observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.wallMs=performance.now()-requestStart;stats.httpErrors++;throw error;}
+    try {text=await res.text();}catch(error){observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
+    const receivedAt=now();
     stats.httpBytes+=Buffer.byteLength(text);
     let value;try{value=JSON.parse(text);}catch{value=null;}
-    Object.assign(observation,{status:res.status,serverId:res.headers.get(SERVER_ID_HEADER),retryAfter:res.headers.get('retry-after'),wallMs:performance.now()-requestStart,
+    Object.assign(observation,{receivedAt,status:res.status,serverId:res.headers.get(SERVER_ID_HEADER),retryAfter:res.headers.get('retry-after'),wallMs:receivedAt-requestStart,
       cacheHit:typeof value?.cache?.hit==='boolean'?value.cache.hit:null,evaluationMs:value?.cache?.evaluationMs??null,timingMs:value?.cache?.timingMs??null});
     const revision=body?.expectedRevision??new URL(route,base).searchParams.get('revision');
     if(revision!==null&&revision!==undefined&&Number.isSafeInteger(Number(revision)))observation.requestRevision=Number(revision);
@@ -195,7 +203,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
   function openStreams(pool) {
     // Retained streams cross stage boundaries. Attribute reconnect failures and
     // disconnects when they happen, rather than to the original warm-up stage.
-    const counters=()=>stageStreams[currentStage];
+    const counters=at=>{const stage=observation(profile,workloadStart,at).stage;return stage===null?tailStreams:stageStreams[stage];};
     const wanted=new Set(pool.map(client=>client.cookie));
     for(const [key,controller] of streams)if(!wanted.has(key)){controller.abort();streams.delete(key);}
     for(const client of pool) {
@@ -205,15 +213,15 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
       const job=reconnectStream({signal:controller.signal,sleep:pause,rng,spreadMs:profile.streamConnectSpreadMs??1000,
         connect:async()=>{
           const attemptController=new AbortController(),attempt={controller:attemptController,planned:false},abort=()=>attemptController.abort();
-          const startedAt=performance.now();
+          const startedAt=now();
           let connection;
           streamAttempts.set(client.cookie,attempt);
           controller.signal.addEventListener('abort',abort,{once:true});
           if(controller.signal.aborted)abort();
-          try {return await consumeStream({base,client,controller:attemptController,counters,stats,fetchRequest,requireEventStream:!!profile.sustained,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
-            onOpened:({serverId})=>{if(profile.sustained){connection={clientId:clientIdentity(client),group:client.group,serverId,openedAt:performance.now(),closedAt:null,closeReason:null};streamLifetimes.push(connection);}},
-            onClosed:({planned})=>{if(connection){connection.closedAt=performance.now();connection.closeReason=planned||'unexpected';}},
-            onHandshake:observation=>{if(profile.sustained)streamHandshakes.push({...observation,stage:currentStage,phase:sustainedPhase(profile,performance.now()-workloadStart),latencyMs:performance.now()-startedAt});},
+          try {return await consumeStream({base,client,controller:attemptController,counters,stats,fetchRequest,now,requireEventStream:!!profile.sustained,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
+            onOpened:({serverId,receivedAt})=>{if(profile.sustained){connection={clientId:clientIdentity(client),group:client.group,serverId,openedAt:receivedAt,closedAt:null,closeReason:null};streamLifetimes.push(connection);}},
+            onClosed:({planned,receivedAt})=>{if(connection){connection.closedAt=receivedAt;connection.closeReason=planned||'unexpected';}},
+            onHandshake:receipt=>{if(profile.sustained)streamHandshakes.push({...receipt,...observation(profile,workloadStart,receipt.receivedAt),latencyMs:receipt.receivedAt-startedAt});},
             planned:()=>streamShutdown?'workload-end':controller.signal.aborted?'cohort-change':attempt.planned?'reconnect':profile.sustained&&restart&&restart.serverReadyMs==null?'server-restart':false});}
           finally {if(streamAttempts.get(client.cookie)===attempt)streamAttempts.delete(client.cookie);controller.signal.removeEventListener('abort',abort);}
         }});
@@ -257,7 +265,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
       if(!profile.sustained||event.stage>0)openStreams(pool);
     }
     const clientIndex=event.clientIndex??(profile.sustained&&event.kind==='heavy'?(event.ordinal%profile.stages[event.stage].activeGroups):event.kind==='browser'?Math.floor(rng()*pool.length):(event.ordinal??0)%pool.length);
-    const client={...pool[clientIndex],observations:[]},start=performance.now();
+    const client={...pool[clientIndex],observations:[]},start=now();
     if(event.kind==='recovery-open'&&recovered.has(client.group)){stats.recoveryProbesSkipped=(stats.recoveryProbesSkipped??0)+1;return;}
     let action=profile.sustained?sustainedAction(event):event.kind,intentional=false;active++;maxActive=Math.max(maxActive,active);
     try {
@@ -266,19 +274,20 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
       } else if(event.kind==='restart') {
         if(!restartServer)throw new Error('Sustained driver requires a restart callback.');
         restart={scheduledAt:event.scheduledAt,startedAt:start,scheduledMs:event.atMs};restarts.push(restart);
-        const result=await restartServer();base=loopback(result.base,{assigned:profile.port===0});
-        Object.assign(restart,{...result,serverReadyMs:performance.now()-start});
+        const result=await restartServer(),readyReceivedAt=result.readyReceivedAt??now();base=loopback(result.base,{assigned:profile.port===0});
+        Object.assign(restart,{...result,readyReceivedAt,serverReadyMs:readyReceivedAt-start});
       } else if(event.kind==='reconnect') {
         const attempt=streamAttempts.get(client.cookie);
         if(attempt){attempt.planned=true;attempt.controller.abort();}
       } else if(event.kind==='cold-open'||event.kind==='recovery-open') {
         const state=await call(client,'/api/state?view=play-v1');
-        const stateServerId=client.observations.findLast(row=>row.route==='/api/state')?.serverId;
+        const stateResponse=client.observations.findLast(row=>row.route==='/api/state');
         const tasks=await call(client,`/api/tasks?memberId=${client.memberId}&view=play-v1`);
-        const tasksServerId=client.observations.findLast(row=>row.route==='/api/tasks')?.serverId;
+        const tasksResponse=client.observations.findLast(row=>row.route==='/api/tasks');
         const expectedServerId=event.kind==='cold-open'?initialServerId:restart?.serverReadyMs!=null&&restart.serverId!==initialServerId?restart.serverId:null;
-        const proof=readinessProof({state,tasks,stateServerId,tasksServerId,expectedServerId,memberId:client.memberId});
-        const evidence={group:client.group,...proof,elapsedMs:performance.now()-(event.kind==='cold-open'?workloadStart:restart.startedAt)};
+        const proof=readinessProof({state,tasks,stateServerId:stateResponse?.serverId,tasksServerId:tasksResponse?.serverId,expectedServerId,memberId:client.memberId});
+        const evidence={group:client.group,...proof,stateReceivedAt:stateResponse.receivedAt,tasksReceivedAt:tasksResponse.receivedAt,
+          elapsedMs:Math.max(stateResponse.receivedAt,tasksResponse.receivedAt)-(event.kind==='cold-open'?workloadStart:restart.startedAt)};
         if(event.kind==='cold-open')coldOpens.push(evidence);
         else if(!recovered.has(client.group))recovered.set(client.group,evidence);
       } else if(event.kind==='session') await call(client,'/api/session');
@@ -339,24 +348,25 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
           }
         } else {action='lifecycle';throw Object.assign(new Error('Unsupported'),{status:'unsupported'});}
       }
-      record(action,event,start,performance.now(),{status:200,requests:client.observations,coalescedSessionChecks:client.coalescedSessionChecks??0});
+      record(action,event,start,now(),{status:200,requests:client.observations,coalescedSessionChecks:client.coalescedSessionChecks??0});
     } catch(error) {
       const lastStatus=client.observations.at(-1)?.status;
       const status=error.status??(error.name==='TimeoutError'||lastStatus==='timeout'?'timeout':'network-error');
       if(status==='timeout')stats.timeouts++;if(status==='unsupported')stats.unsupported++;
       const intentionalConflict=status===409&&client.observations.at(-1)?.intentionalConflict===true;
       if(intentionalConflict)stats.intentionalConflicts++;
-      record(action,event,start,performance.now(),{status,intentionalConflict,retryAfter:error.retryAfter??null,requests:client.observations});
+      record(action,event,start,now(),{status,intentionalConflict,retryAfter:error.retryAfter??null,requests:client.observations});
     } finally { active--; }
   };
   const workloadStart=startWorkload();
-  const sampleTimer=setInterval(()=>{void onSample({active,maxActive,completed:stats.completed,clientMemory:process.memoryUsage(),clientCpu:process.cpuUsage()}).catch(()=>{});},profile.sampleSeconds*1000);
+  const sampleTimer=setInterval(()=>{const client={active,maxActive,completed:stats.completed,clientMemory:process.memoryUsage(),clientCpu:process.cpuUsage(),receivedAt:now()};void onSample(client).catch(()=>{});},profile.sampleSeconds*1000);
   try {
-    await schedule(events,run,{startAt:workloadStart,maxInFlight:profile.maxClientInFlight,onDrop:event=>{stats.clientDrops++;record('client-drop',event,performance.now(),performance.now(),{status:'client-drop'});}});
+    await schedule(events,run,{startAt:workloadStart,maxInFlight:profile.maxClientInFlight,onDrop:event=>{stats.clientDrops++;const at=now();record('client-drop',event,at,at,{status:'client-drop'});}});
+    workloadCompletedAt=now();
     timing.push({maxActive});
-  } finally {clearInterval(sampleTimer);streamShutdown=true;for(const controller of streams.values())controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
+  } finally {clearInterval(sampleTimer);streamShutdownAt=now();streamShutdown=true;for(const controller of streams.values())controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
   const selected=profile.sustained?cohorts.get(`${profile.stages.length-1}:0`):[];
-  return {workloadStart,completedAt:performance.now(),initialServerId,stats,stageStreams,streamHandshakes,restarts,
+  return {workloadStart,workloadCompletedAt,streamShutdownAt,completedAt:now(),initialServerId,stats,stageStreams,tailStreams,streamHandshakes,restarts,
     offeredOperations:profile.sustained?plannedOperations(events,profile):undefined,coldOpens,
     cohort:{groups:[...new Set(selected.map(row=>row.group))],clients:selected.map(row=>({clientId:clientIdentity(row),group:row.group})),coldGroups:[...new Set(cohorts.get('0:0').map(row=>row.group))]},
     recovery:{groups:[...recovered.values()],streams:streamLifetimes},

@@ -12,6 +12,8 @@ import { retryRead } from '../scripts/perf/capacity/client.mjs';
 import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { SERVER_ID_HEADER, readinessProof } from '../scripts/perf/capacity/evidence.mjs';
+import { observation, createSampleInbox, createSampleCollector } from '../scripts/perf/capacity/sampling.mjs';
+import { evaluate } from '../scripts/perf/capacity/report.mjs';
 
 const profile = JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained.json',import.meta.url)));
 function fixture(settings=profile) {
@@ -101,20 +103,26 @@ function reportFixture() {
   const row=(action,n=10)=>({stage:1,phase:'before-restart',action,latency:{count:n,p50Ms:10,p95Ms:20,p99Ms:30},statuses:{200:n},
     httpRequests:n,httpRejects:0,httpStatuses:{200:n},retryAfterValues:{},rejectsWithoutRetryAfter:0,
     cacheMisses:action==='task-miss'?n:0,successfulTaskMisses:action==='task-miss'?n:0});
-  const ready=(group,serverId,elapsedMs)=>({group,serverId,stateServerId:serverId,tasksServerId:serverId,stateRevision:1,tasksRevision:1,elapsedMs});
+  const ready=(group,serverId,elapsedMs)=>({group,serverId,stateServerId:serverId,tasksServerId:serverId,stateRevision:1,tasksRevision:1,elapsedMs,
+    stateReceivedAt:(serverId==='old-process'?0:1020000)+elapsedMs-1,tasksReceivedAt:(serverId==='old-process'?0:1020000)+elapsedMs});
   const operations=[...everydayActions,...heavyActions,'pluginReport','pluginStatus','pluginTasks','sync'].map(action=>row(action));
   operations.push({...row('cold-open',2),stage:0,phase:'cold-open'},{...row('restart',1),phase:'restart-recovery'},{...row('workload-end',1),phase:'after-recovery'});
   const offeredOperations=operations.map(({stage,phase,action,latency})=>({stage,phase,action,count:latency.count}));
   const clients=[1,2].flatMap(group=>['owner','member2'].map(memberId=>({group,clientId:`${group}:${memberId}`})));
-  const sample=(generation,elapsedMs)=>({generation,elapsedMs,server:{serverId:generation?'new-process':'old-process',memory:{rss:1,heapUsed:1,external:0},
-    eventLoop:{p99Ms:1},diagnostics:{queue:{depth:0}},health:{ready:true,savesReady:true,worker:{ready:true},service:{registry:'ready',openContexts:3}}}});
+  const sample=(generation,elapsedMs)=>{
+    const receipt=observation(profile,0,elapsedMs),serverId=generation?'new-process':'old-process';
+    return {generation,...receipt,collectionPhase:elapsedMs>=1920000?'after':null,server:{serverId,...receipt,window:{...receipt},memory:{rss:1,heapUsed:1,external:0},
+      healthObservation:{...receipt,generation,serverId},diagnosticsObservation:{...receipt,generation,serverId},
+      eventLoop:{p99Ms:1},diagnostics:{queue:{depth:0}},health:{ready:true,savesReady:true,worker:{ready:true},service:{registry:'ready',openContexts:3}}}};
+  };
   const shutdown={forced:false,exitCode:0,signal:null};
   const offered=offeredOperations.reduce((n,row)=>n+row.count,0);
   return {profile:{...profile,stages:[profile.stages[0],{...profile.stages[1],activeGroups:2,users:4}]},format:'format1',
     load:{stats:{clientDrops:0,offered,completed:offered,recoveryProbesSkipped:0},operations,offeredOperations,initialServerId:'old-process',
       cohort:{groups:[1,2],coldGroups:[1,2],clients},coldOpens:[ready(1,'old-process',100),ready(2,'old-process',200)],
-      stageStreams:[{attempted:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},{attempted:4,statuses:{200:4},retryAfterValues:{},rejectsWithoutRetryAfter:0}],
-      workloadStart:0,completedAt:1920100,restarts:[{startedAt:1020000,serverReadyMs:10,generation:1,serverId:'new-process',shutdown:{...shutdown}}],
+      stageStreams:[{attempted:0,handshakes:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},{attempted:4,handshakes:4,statuses:{200:4},retryAfterValues:{},rejectsWithoutRetryAfter:0}],
+      tailStreams:{attempted:0,handshakes:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},
+      workloadStart:0,workloadCompletedAt:1920000,streamShutdownAt:1920000,completedAt:1920100,restarts:[{startedAt:1020000,serverReadyMs:10,generation:1,serverId:'new-process',shutdown:{...shutdown}}],
       recovery:{groups:[ready(1,'new-process',100),ready(2,'new-process',200)],
         streams:clients.map(client=>({...client,serverId:'new-process',openedAt:1020300,closedAt:1920000,closeReason:'workload-end'}))}},
     samples:[sample(0,100000),sample(1,1020300),sample(1,1321000),
@@ -296,7 +304,9 @@ test('sweep: an unhealthy, stale-generation or transient residency sample cannot
     sample=>sample.server.serverId='old-process',sample=>sample.server.health.service.openContexts=2]) {
     const result=reportFixture();change(result.samples[2]);assert.equal(evaluateSustained(result).restartRecovery.status,'fail');
   }
-  const transient=reportFixture(),bad=structuredClone(transient.samples[1]);bad.elapsedMs=1319999;bad.server.health.ready=false;
+  const transient=reportFixture(),bad=structuredClone(transient.samples[1]);
+  for(const receipt of [bad,bad.server,bad.server.healthObservation,bad.server.diagnosticsObservation]){receipt.receivedAt=1319999;receipt.elapsedMs=1319999;}
+  bad.server.health.ready=false;
   transient.samples.splice(2,0,bad);assert.equal(evaluateSustained(transient).restartRecovery.status,'fail');
 });
 test('sweep: failed or repeated cache-miss attempts cannot compensate for an intended action that hit cache',()=>{
@@ -322,7 +332,7 @@ test('sweep: missing or invalid Retry-After evidence in cold opens or SSE cannot
   cold.httpRequests++;cold.httpRejects=1;cold.httpStatuses[503]=1;
   assert.equal(evaluateSustained(result).refusalHeaders.status,'fail');
   cold.retryAfterValues={bananas:1};assert.equal(evaluateSustained(result).refusalHeaders.status,'fail');
-  const stream=reportFixture();stream.load.stageStreams[1].attempted++;stream.load.stageStreams[1].statuses[503]=1;
+  const stream=reportFixture();stream.load.stageStreams[1].attempted++;stream.load.stageStreams[1].handshakes++;stream.load.stageStreams[1].statuses[503]=1;
   assert.equal(evaluateSustained(stream).refusalHeaders.status,'fail');
 });
 test('sweep: a successful non-SSE HTTP response cannot establish a live event stream',async()=>{
@@ -331,4 +341,168 @@ test('sweep: a successful non-SSE HTTP response cannot establish a live event st
     planned:()=>false,requireEventStream:true,onOpened:()=>opened=true,onClosed:row=>closed=row,
     fetchRequest:async()=>Response.json({ready:true},{headers:{[SERVER_ID_HEADER]:'new-process'}})});
   assert.equal(result.opened,false);assert.equal(opened,false);assert.equal(closed.opened,false);assert.equal(counters.unexpectedFailures,1);
+});
+
+// Every clock below is logical; no wall-time performance assertions or sleeps.
+function sampleTransport({now,server,onPart=()=>{}}) {
+  const inbox=createSampleInbox({now});let id=0;
+  return generation=>{
+    const request=++id,pending=inbox.expect(request,generation);
+    for(const [part,value] of [['health',server.health],['diagnostics',server.diagnostics],['snapshot',server]]) {
+      onPart(part);
+      inbox.receive({type:part==='snapshot'?'sample':`sample-${part}`,id:request,...(part==='snapshot'?value:{serverId:server.serverId,[part]:value})},generation);
+    }
+    return pending;
+  };
+}
+test('P2: a pre-deadline healthy receipt delayed by tree/disk collection cannot confirm recovery',async()=>{
+  const result=reportFixture(),server=structuredClone(result.samples[2].server);
+  for(const row of result.samples)if(row.server.healthObservation.elapsedMs>1320000)row.server.health.ready=false;
+  let clock=1319999;
+  const collector=createSampleCollector({profile:result.profile,directory:'synthetic',now:()=>clock,
+    requestSnapshot:sampleTransport({now:()=>clock,server}),
+    readTree:async()=>{clock=1320000;return {supported:false,cpuSeconds:null};},
+    readDisk:async()=>{clock=1320001;return {bytes:0,files:0};}});
+  const {row,errors}=await collector.collect({start:0,generation:1,pid:0,client:{}});
+  assert.equal(errors,0);assert.equal(row.collectedAt,1320001);
+  assert.equal(row.elapsedMs,1319999);assert.equal(row.server.healthObservation.elapsedMs,1319999);
+  result.samples.push(row);
+  const gates=evaluateSustained(result);
+  assert.equal(gates.restartRecovery.status,'fail');
+  assert.equal(gates.generator.status,'pass','a correctly timed unhealthy run is valid measurement, with failed recovery');
+});
+test('receipt sweep: health and residency cannot inherit the later heap/IPC snapshot receipt',async()=>{
+  const result=reportFixture(),server=result.samples[2].server;let clock=1319999;
+  const collector=createSampleCollector({profile:result.profile,directory:'synthetic',now:()=>clock,
+    requestSnapshot:sampleTransport({now:()=>clock,server,onPart:part=>{if(part==='diagnostics')clock=1320001;if(part==='snapshot')clock=1320002;}}),
+    readTree:async()=>({supported:false,cpuSeconds:null}),readDisk:async()=>({bytes:0,files:0})});
+  const {row}=await collector.collect({start:0,generation:1,pid:0,client:{receivedAt:1319998}});
+  assert.equal(row.server.healthObservation.receivedAt,1319999);
+  assert.equal(row.server.diagnosticsObservation.receivedAt,1320001);
+  assert.equal(row.receivedAt,1320002);assert.equal(row.client.observation.receivedAt,1319998);
+  for(const sample of result.samples)if(sample.server.healthObservation.elapsedMs>1320000)sample.server.health.ready=false;
+  result.samples.push(row);assert.equal(evaluateSustained(result).restartRecovery.status,'fail');
+});
+test('receipt sweep: later unhealthy health receipts invalidate an earlier successful confirmation',()=>{
+  for(const field of ['ready','savesReady','residency']) {
+    const result=reportFixture(),later=result.samples.find(row=>row.elapsedMs===1601500);
+    if(field==='residency')later.server.health.service.openContexts=2;else later.server.health[field]=false;
+    assert.equal(evaluateSustained(result).restartRecovery.status,'fail');
+  }
+  const noFinal=reportFixture();noFinal.samples.forEach(row=>row.collectionPhase=null);
+  assert.equal(evaluateSustained(noFinal).restartRecovery.status,'fail');
+});
+test('receipt sweep: telemetry coverage rejects missing or inconsistent observation receipt times',()=>{
+  for(const change of [row=>delete row.server.healthObservation,row=>row.server.healthObservation.receivedAt--,
+    row=>row.elapsedMs+=1000,row=>delete row.server.diagnosticsObservation]) {
+    const result=reportFixture();change(result.samples[1]);assert.equal(evaluateSustained(result).generator.status,'fail');
+  }
+  const boundary=reportFixture();
+  // A receipt exactly at the deadline does not provide post-deadline confirmation.
+  boundary.samples[2].server.healthObservation={...boundary.samples[2].server.healthObservation,elapsedMs:1320000,receivedAt:1320000};
+  boundary.samples.find(row=>row.elapsedMs===1321500).server.health.ready=false;
+  assert.equal(evaluateSustained(boundary).restartRecovery.status,'fail');
+  const stale=reportFixture();
+  for(const row of stale.samples)if(row.elapsedMs>1300000&&row.elapsedMs<1600000)
+    Object.assign(row.server.diagnosticsObservation,{receivedAt:1300000,elapsedMs:1300000});
+  assert.equal(evaluateSustained(stale).generator.status,'fail','fresh memory receipts cannot conceal missing queue observations');
+});
+test('receipt sweep: resource windows, CPU deltas and cached disk use their own receipts and phases',async()=>{
+  const stages=[{seconds:1,measured:false,classification:'nominal'},{seconds:1,measured:true,classification:'nominal'},
+    {seconds:1,measured:true,classification:'overload'}];
+  const settings={stages,diskSampleSeconds:60,osReserveBytes:0},server=reportFixture().samples[0].server;
+  server.memory.rss=50;server.eventLoop.p99Ms=999;
+  let clock=900,cpu=0,reads=0;
+  const collector=createSampleCollector({profile:settings,directory:'synthetic',now:()=>clock,logicalCpus:1,
+    requestSnapshot:sampleTransport({now:()=>clock,server}),
+    readTree:async()=>{clock=reads++?1900:1100;cpu+=.8;return {supported:true,processes:1,cpuSeconds:cpu,rssBytes:900};},
+    readDisk:async()=>{clock=1500;return {bytes:123,files:1};}});
+  const first=(await collector.collect({start:0,generation:0,pid:0,client:{receivedAt:899}})).row;
+  clock=1600;
+  const second=(await collector.collect({start:0,generation:0,pid:0,client:{receivedAt:1599}})).row;
+  assert.equal(first.server.stage,0);assert.equal(first.server.window.measured,false);
+  assert.equal(first.tree.stage,1);assert.equal(first.tree.window.measured,false);
+  assert.equal(second.tree.window.windowStartElapsedMs,1100);assert.equal(second.tree.elapsedMs,1900);
+  assert.equal(second.tree.cpuPercent,100);assert.equal(second.tree.window.measured,true);
+  assert.equal(second.disk.receivedAt,1500);assert.equal(second.disk.stage,1);assert.equal(second.disk.bytes,123);
+  const result=reportFixture();Object.assign(result,{profile:settings,samples:[first,second],hardware:{ramBytes:1000}});
+  const gates=evaluate(result);assert.equal(gates.cpu.status,'fail');assert.equal(gates.cpu.averagePercent,100);
+  assert.equal(gates.eventLoop.status,'not-measured');assert.equal(gates.memory.status,'fail');
+});
+test('receipt sweep: SSE handshake, open and closure retain receipt times despite later callback work',async()=>{
+  let clock=999,handshake,opened,closed;
+  const stages=[{attempted:0,opened:0,statuses:{},unexpectedEnds:0},{attempted:0,opened:0,statuses:{},unexpectedEnds:0}];
+  await consumeStream({base:'http://synthetic.invalid',client:{cookie:'synthetic'},controller:new AbortController(),now:()=>clock,
+    counters:at=>stages[at<1000?0:1],stats:{httpBytes:0,streamOpened:0,streamUnexpectedEnds:0},planned:()=>false,
+    timer:()=>1,cancelTimer:()=>{clock+=1000;},requireEventStream:true,
+    onHandshake:row=>{handshake=row;clock+=1000;},onOpened:row=>opened=row,onClosed:row=>closed=row,
+    fetchRequest:async()=>({ok:true,status:200,headers:new Headers({'content-type':'text/event-stream',[SERVER_ID_HEADER]:'new-process'}),
+      body:{async *[Symbol.asyncIterator](){clock=7000;}}})});
+  assert.equal(handshake.receivedAt,999);assert.equal(opened.receivedAt,999);assert.equal(closed.receivedAt,7000);
+  assert.equal(stages[0].opened,1);assert.equal(stages[1].opened,0);assert.equal(stages[1].unexpectedEnds,1);
+});
+test('receipt sweep: SSE starts and handshake receipts on opposite stage boundaries reconcile independently',async t=>{
+  let clock=999;
+  const stages=[{attempted:0,handshakes:0,opened:0,statuses:{}},{attempted:0,handshakes:0,opened:0,statuses:{}}];
+  await consumeStream({base:'http://synthetic.invalid',client:{cookie:'synthetic'},controller:new AbortController(),now:()=>clock,
+    counters:at=>stages[at<1000?0:1],stats:{httpBytes:0,streamOpened:0},planned:()=>true,requireEventStream:true,
+    fetchRequest:async()=>{clock=1001;return new Response('',{headers:{'content-type':'text/event-stream'}});}});
+  assert.equal(stages[0].attempted,1);assert.equal(stages[0].handshakes,0);
+  assert.equal(stages[1].attempted,0);assert.equal(stages[1].handshakes,1);
+  const result=reportFixture();result.load.stageStreams[0].attempted=1;result.load.stageStreams[1].attempted=3;
+  assert.equal(evaluateSustained(result).refusalHeaders.status,'pass');
+  result.load.stageStreams[1].handshakes--;assert.equal(evaluateSustained(result).refusalHeaders.status,'fail');
+  const settings=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
+  settings.streamConnectSpreadMs=0;clock=120001;
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-sustained-tail-receipt-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  const load=await drive({base:'http://127.0.0.1:1',initialServerId:'old-process',profile:settings,fixture:fixture(settings),directory,now:()=>clock,startWorkload:()=>0,onSample:async()=>{},
+    fetchRequest:async()=>new Response('',{headers:{'content-type':'text/event-stream'}}),
+    schedule:async(events,run)=>run({...events.find(row=>row.kind==='workload-end'),scheduledAt:clock})});
+  assert.equal(load.stageStreams.reduce((n,row)=>n+row.handshakes,0),0);
+  assert.equal(load.tailStreams.handshakes,4,'receipts beyond the final stage cannot contaminate its measured counters');
+});
+test('receipt sweep: unexpected SSE ends after confirmation invalidate recovery, planned handoffs stay live',()=>{
+  const result=reportFixture(),first=result.load.recovery.streams[0];
+  result.load.recovery.streams.push({...first,openedAt:1500500});first.closedAt=1500000;first.closeReason='unexpected';
+  assert.equal(evaluateSustained(result).streamRecovery.status,'fail');
+  first.closeReason='reconnect';assert.equal(evaluateSustained(result).streamRecovery.status,'pass');
+});
+test('receipt sweep: readiness and restart evidence uses HTTP/ready receipts before later processing',async t=>{
+  const settings=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
+  settings.streamConnectSpreadMs=60000;
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-sustained-receipts-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  let clock=0,serverId='old-process';
+  const load=await drive({base:'http://127.0.0.1:1',initialServerId:serverId,profile:settings,fixture:fixture(settings),directory,now:()=>clock,onSample:async()=>{},
+    fetchRequest:async(url)=>{
+      const route=new URL(url).pathname;assert.notEqual(route,'/api/events');clock+=10;
+      const value=route==='/api/state'?{state:{revision:1,members:[{id:'owner'},{id:'member2'}]}}:route==='/api/tasks'?{stateRevision:1,tasks:[]}:{};
+      return {ok:true,status:200,text:async()=>JSON.stringify(value),headers:{get:name=>{if(name===SERVER_ID_HEADER){clock+=1000;return serverId;}return null;}}};
+    },restartServer:async()=>{const readyReceivedAt=clock+10;clock+=1000;serverId='new-process';return {base:'http://127.0.0.1:1',serverId,readyReceivedAt,generation:1,shutdown:{forced:false,exitCode:0,signal:null}};},
+    schedule:async(events,run)=>{
+      for(const kind of ['cold-open','restart','recovery-open']) {
+        const event=events.find(row=>row.kind===kind);clock=Math.max(clock,event.atMs);await run({...event,scheduledAt:event.atMs});
+      }
+    }});
+  assert.equal(load.restarts[0].serverReadyMs,10);
+  const records=(await readFile(path.join(directory,'events.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);
+  for(const evidence of [load.coldOpens[0],load.recovery.groups[0]]) {
+    const action=evidence.serverId==='old-process'?'cold-open':'recovery-open',record=records.find(row=>row.action===action);
+    const origin=action==='cold-open'?load.workloadStart:load.restarts[0].startedAt;
+    assert.equal(evidence.tasksReceivedAt,record.requests.findLast(row=>row.route==='/api/tasks').receivedAt);
+    assert.equal(evidence.elapsedMs,evidence.tasksReceivedAt-origin);
+    assert.ok(evidence.tasksReceivedAt<record.scheduledMs+record.latencyMs+load.workloadStart,'processing time is retained in action latency, outside receipt evidence');
+  }
+});
+test('receipt sweep: SSE teardown cannot extend the offered workload duration',async t=>{
+  const settings=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
+  settings.streamConnectSpreadMs=0;
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-sustained-end-receipt-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  let clock=0;
+  const load=await drive({base:'http://127.0.0.1:1',initialServerId:'old-process',profile:settings,fixture:fixture(settings),directory,now:()=>clock,onSample:async()=>{},
+    fetchRequest:async(_url,options)=>({ok:true,status:200,headers:new Headers({'content-type':'text/event-stream',[SERVER_ID_HEADER]:'old-process'}),
+      body:{async *[Symbol.asyncIterator](){await new Promise(resolve=>{options.signal.addEventListener('abort',resolve,{once:true});if(options.signal.aborted)resolve();});clock+=200000;}}}),
+    schedule:async(events,run)=>{await run({...events.find(row=>row.kind==='workload-end'),scheduledAt:clock});clock=1000;}});
+  assert.equal(load.workloadCompletedAt,1000);assert.equal(load.streamShutdownAt,1000);assert.ok(load.completedAt>=201000);
+  const result=reportFixture();result.load.workloadCompletedAt=1000;result.load.completedAt=2010000;
+  assert.equal(evaluateSustained(result).generator.status,'fail');
 });
