@@ -1,6 +1,6 @@
 import { datasetValue, selectedDataset } from "../dataset-runtime.mjs";
 import { trimTaskStars } from '../import-output.mjs';
-import { identityValue, isIdentityDictionary } from './identity-dictionary.mjs';
+import { identityValue, identityEntries, isIdentityDictionary } from './identity-dictionary.mjs';
 import { identityRegistryVersion, authoredTasks, authoredEntities, authoredGoals, authoredSources } from '../data/identity-registry.mjs';
 
 const normalized = value => String(value).normalize('NFC');
@@ -177,8 +177,9 @@ export function authoredIdentityRegistry() {
 }
 
 /** Compile aliases once at an import/catalogue boundary. lookup and resolve
- * are constant-time and never scan all labels during task evaluation. */
-export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}, history, mappingIds } = {}) {
+ * are constant-time and never scan all labels during task evaluation.
+ * lookupIds builds a narrow lookup-only index; omit it for resolve/snapshot. */
+export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}, history, mappingIds, lookupIds, onIndexBuiltForTests } = {}) {
   if (!Array.isArray(catalogue)) throw new TypeError('Identity catalogue must be an array');
   // Potential generated rows are a lookup surface. Snapshot mutable inputs,
   // but defer merged metadata until an objective needs a public entry.
@@ -213,12 +214,13 @@ export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}
     if (oldAlias) { addIndexAlias(oldAlias, id); addIndexAlias(value.rawLabel, id); }
     if (remappedId) addIndexAlias(remappedId, id);
   };
-  for (const [id, value] of Object.entries(savedRegistry?.entries ?? {})) registerEntry(id, value);
-  for (const [alias, ids] of Object.entries(savedRegistry?.aliases ?? {})) for (const id of candidatesOf(ids)) addIndexAlias(alias, id, true);
+  for (const [id, value] of identityEntries(savedRegistry?.entries)) if (!lookupIds || lookupIds.has(id)) registerEntry(id, value);
+  for (const [alias, ids] of identityEntries(savedRegistry?.aliases)) for (const id of candidatesOf(ids)) if (!lookupIds || lookupIds.has(id)) addIndexAlias(alias, id, true);
   for (const task of catalogue) {
     if (!record(task) || typeof task.id !== 'string') continue;
     const oldAlias = typeof task.rawLabel === 'string' && typeof task.category === 'string' ? legacyTaskId(task.category, task.rawLabel) : null;
     const permanent = isPermanentId(task.id) ? task.id : permanentTaskId(task.category, task.rawLabel ?? task.label);
+    if (lookupIds && !lookupIds.has(permanent)) continue;
     if (!isPermanentId(permanent)) continue;
     const value = isVerifiedProgressAlias(task.category, task.rawLabel ?? task.label)
       ? { ...task, category: entryMap.get(permanent)?.category ?? task.category } : task;
@@ -227,12 +229,71 @@ export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}
   const mappedLabels = new Map();
   const mappedGoalKinds = mappingIds ? new Set([...mappingIds].filter(id => typeof id === 'string' && id.startsWith('rs3:goal:')).map(id => id.split(':')[2])) : null;
   const collectionMappings = mappedGoalKinds && ['every-drop', 'all-droptables', 'all-shops'].some(kind => mappedGoalKinds.has(kind));
-  const addMapping = (label, oldId) => {
+  // A narrow lookup needs only membership in this identity's aliases. An
+  // omitted source can still shadow a semantic decoder; scan only when that
+  // decoder would otherwise add a wanted identity, without indexing all sources.
+  const sourceHasAlias = label => {
+    if (candidatesOf(identityValue(savedRegistry?.aliases, label)).length) return true;
+    for (const [id, value] of identityEntries(savedRegistry?.entries)) {
+      if (isPermanentId(id) && record(value) && (id === label || Array.isArray(value.aliases) && value.aliases.includes(label))) return true;
+    }
+    for (const task of catalogue) {
+      if (!record(task) || typeof task.id !== 'string') continue;
+      const permanent = isPermanentId(task.id) ? task.id : permanentTaskId(task.category, task.rawLabel ?? task.label);
+      if (!isPermanentId(permanent)) continue;
+      const oldAlias = typeof task.rawLabel === 'string' && typeof task.category === 'string' ? legacyTaskId(task.category, task.rawLabel) : null;
+      if (permanent === label || Array.isArray(task.aliases) && task.aliases.includes(label) || oldAlias === label
+        || (oldAlias && task.rawLabel === label) || (task.id !== permanent && task.id === label)) return true;
+    }
+    return false;
+  };
+  function* mappingRows() {
+    for (const source of [taskMap, history?.current, history?.historical, history?.mappings, history?.tombstones]) {
+      if (record(source)) for (const label in source) if (Object.hasOwn(source, label)) yield [label, source[label]];
+    }
+    for (const conflict of history?.conflicts ?? []) for (const id of conflict.ids ?? []) yield [conflict.label, id];
+  }
+  // Full indexes suppress a repeated label/code pair once its label is known,
+  // even if a wanted target joins that label later. Reconstruct earlier alias
+  // existence only for a wanted mapping, without a full per-group seen table.
+  const sourceResolvesBefore = (label, before) => {
+    const pending = [{ label, before }];
+    while (pending.length) {
+      const source = pending.pop();
+      if (aliasMap.has(source.label) || sourceHasAlias(source.label)) return true;
+      if (!source.label.startsWith('t_')) { if (semanticCandidates(source.label).length) return true; continue; }
+      let position = 0;
+      for (const [previousLabel, previousId] of mappingRows()) {
+        if (position >= source.before) break;
+        if (previousId === source.label && typeof previousLabel === 'string') pending.push({ label: normalized(previousLabel), before: position });
+        position++;
+      }
+    }
+    return false;
+  };
+  const recordedBefore = (label, oldId, before) => {
+    let position = 0;
+    for (const [previousLabel, previousId] of mappingRows()) {
+      if (position >= before) break;
+      if (previousId === oldId && typeof previousLabel === 'string' && normalized(previousLabel) === label
+        && (!label.startsWith('t_') || sourceResolvesBefore(label, position))) return true;
+      position++;
+    }
+    return false;
+  };
+  const addMapping = (label, oldId, position) => {
     if (typeof label !== 'string' || typeof oldId !== 'string' || !oldId.startsWith('t_')) return;
     label = normalized(label);
     // A later decoder source may establish this alias. Do not cache an empty
     // attempt: a repeated historical mapping must then be able to resolve it.
     if (label.startsWith('t_') && !aliases.has(label)) return;
+    if (lookupIds) {
+      const known = aliases.has(label);
+      const wanted = [...(known ? targets(aliases.get(label)) : semanticCandidates(label))].filter(id => lookupIds.has(id));
+      if (!wanted.length || !known && sourceHasAlias(label) || recordedBefore(label, oldId, position)) return;
+      for (const id of wanted) addIndexAlias(oldId, id, true);
+      return;
+    }
     const seen = mappedLabels.get(label);
     if (seen === oldId || seen instanceof Set && seen.has(oldId)) return;
     if (seen === undefined) mappedLabels.set(label, oldId);
@@ -255,9 +316,15 @@ export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}
     if (!record(value)) return;
     for (const label of Object.keys(value)) addMapping(label, value[label]);
   };
-  mapRows(taskMap); mapRows(history?.current); mapRows(history?.historical); mapRows(history?.mappings);
-  mapRows(history?.tombstones);
-  for (const conflict of history?.conflicts ?? []) for (const id of conflict.ids ?? []) addMapping(conflict.label, id);
+  if (lookupIds) {
+    let position = 0;
+    for (const [label, oldId] of mappingRows()) addMapping(label, oldId, position++);
+  } else {
+    mapRows(taskMap); mapRows(history?.current); mapRows(history?.historical); mapRows(history?.mappings);
+    mapRows(history?.tombstones);
+    for (const conflict of history?.conflicts ?? []) for (const id of conflict.ids ?? []) addMapping(conflict.label, id);
+  }
+  onIndexBuiltForTests?.({ entries: layers.size, aliases: added.size, mappedLabels: mappedLabels.size });
   const getEntry = id => {
     if (materialized.has(id)) return materialized.get(id);
     const chain = [];

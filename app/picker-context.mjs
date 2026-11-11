@@ -161,7 +161,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       const input = rollPoolCache.input(state), key = JSON.stringify(['roll-pool', memberId, input, draft]);
       const candidate = store?.getInfo().revision === state.revision ? store.getCalculationSnapshot() : undefined;
       const captured = candidate?.rollInputKey === input ? candidate : undefined;
-      const stateInput = captured ? { get stateJSON() { return captured.stateJSON; }, inputKey: input } : undefined;
+      const stateInput = captured ? { get owned() { return captured.owned; }, get stateJSON() { return captured.stateJSON; }, inputKey: input } : undefined;
       const evaluation = await taskWorker.evaluate(stateInput ? { revision: state.revision, members: captured.members } : state,
         memberId, 'roll-pool', draft, key, input, undefined, [], 'full', stateInput);
       Object.assign(timing, { source: evaluation.hit && !evaluation.coalesced ? 'cache' : 'computed', coalesced: evaluation.coalesced, calculatorStarted: evaluation.calculatorStarted, stages: evaluation.timingMs?.stages ?? evaluation.timingMs });
@@ -373,6 +373,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   }
   let identityLookupRevision = -1, identityLookup;
   const lookupIdentity = id => {
+    const resident = store.getCalculationSnapshot().owned;
+    if (resident) {
+      const state = store.getReadState();
+      return buildIdentityIndex([...state.tasks, ...(taskWorker?.catalogue ?? []), ...(taskWorker?.dynamicCatalogue ?? [])],
+        { savedRegistry: state.identityRegistry, taskMap: parsedTaskMap, history: identityHistory, lookupIds: new Set([id]) }).lookup(id);
+    }
     if (identityLookupRevision !== store.getInfo().revision) {
       const state = store.getState();
       identityLookup = buildIdentityIndex([...state.tasks, ...(taskWorker?.catalogue ?? []), ...(taskWorker?.dynamicCatalogue ?? [])],
@@ -650,9 +656,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       const captured = store.getCalculationSnapshot();
       let taskIndex;
       calculationSnapshot = { metadata: { revision: captured.revision, members: captured.members }, input: captured.taskInputKey,
-        get state() { return captured.state; },
-        get sandboxTaskIndex() { return taskIndex ??= sandboxTaskCatalogue(captured.state, sandboxCatalogue); },
-        get stateInput() { return { get stateJSON() { return captured.stateJSON; }, inputKey: captured.taskInputKey,
+        get state() { return captured.residentState ?? captured.state; },
+        get sandboxTaskIndex() { return taskIndex ??= sandboxTaskCatalogue(captured.residentState ?? captured.state, sandboxCatalogue); },
+        get stateInput() { return { get owned() { return captured.owned; }, get stateJSON() { return captured.stateJSON; }, inputKey: captured.taskInputKey,
           get taskInputKey() { return captured.taskInputKey; } }; } };
     }
     return calculationSnapshot;
@@ -1201,7 +1207,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             woodcutting: { hatchets: WOODCUTTING_HATCHETS } }); return; }
           if (route === '/api/helper-progress') { await json(request, response, 200, store.getProgress()); return; }
           if (route === '/api/xp-choices') {
-            const state = store.getState(), memberId = new URL(request.url, 'http://localhost').searchParams.get('memberId');
+            const state = store.getReadState(), memberId = new URL(request.url, 'http://localhost').searchParams.get('memberId');
             if (!state.members.some(member => member.id === memberId)) throw httpError(400, 'Choose a known player to view XP choices.');
             await json(request, response, 200, { stateRevision: state.revision, ...buildXpChoiceView(state, memberId, xpChoiceCatalogue) }); return;
           }
@@ -1453,7 +1459,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               ...(type === 'death-estimates' ? { candidateIds: chunkIds } : {}),
               cache: { ...evaluation.result.cache, hit: evaluation.hit, evaluationMs: evaluation.evaluationMs, timingMs: evaluation.timingMs, requestMs: performance.now() - started, worker: true } }); return;
           }
-          if (route === '/api/migration') { await json(request, response, 200, migrationSummary(store.getState())); return; }
+          if (route === '/api/migration') { await json(request, response, 200, migrationSummary(store.getReadState())); return; }
           if (route === '/api/rules') {
             await sendCached(request, response, cachedValue(`rules:${store.getInfo().revision}`, () => ({ cacheResources: dataset.capabilities.cacheResources, cacheArchaeology: dataset.capabilities.cacheArchaeology, definitions: ruleRegistry.definitions.map(({ candidates, exclude, ...metadata }) => metadata), defaults: ruleRegistry.defaults,
               settings: ruleRegistry.resolve(store.getRules()) }))); return;
@@ -1471,7 +1477,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           if (route === '/api/export/original-chunks') {
             const memberId = new URL(request.url, 'http://localhost').searchParams.get('memberId');
             if (!identity.admin && identity.role !== 'owner' && identity.memberId !== memberId) throw httpError(403, 'Export only your own member map.');
-            const member = store.getState().members.find(row => row.id === memberId);
+            const member = store.getReadState().members.find(row => row.id === memberId);
             if (!member) throw httpError(400, 'Choose a known player.');
             await json(request, response, 200, { url: originalChunkURL(member.unlocked, dataset, indexedWorld), message: 'Only unlocked chunks carry over. Tasks, rules, notes and History do not carry over. Importing the link replaces chunks in the original picker.' }); return;
           }
@@ -1540,7 +1546,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 : await store.openActionSession(body.clientId, { actor: identity.actor });
               await json(request, response, 200, session); return;
             }
-            const knownMember = value => value === undefined || value === null || store.getState().members.some(member => member.id === value);
+            const knownMember = value => value === undefined || value === null || store.getReadState().members.some(member => member.id === value);
             if (route === '/api/pool-ranking-intent') {
               if (!taskWorker) throw httpError(503, 'Task data is unavailable for this save.');
               const captured = calculationState();

@@ -3,12 +3,16 @@ const versions = new WeakMap(), roots = new WeakMap(), frozenTrees = new WeakSet
 const removed = Symbol('removed');
 const indexKey = key => /^(0|[1-9]\d*)$/.test(key) && Number(key) < 4294967295;
 let callsForTests;
+export function countOwnedFullCopyForTests() { if (callsForTests) callsForTests.fullCopies++; }
 /** Synchronous, opt-in call counts; never a timing assertion or live-path hook. */
 export function withIdentityDictionaryCallCountsForTests(callback) {
-  const previous = callsForTests, counts = { value: 0, keys: 0, entries: 0, validationEntries: 0 };
+  const previous = callsForTests, counts = { value: 0, keys: 0, entries: 0, validationEntries: 0, materializations: 0, fullCopies: 0 };
   callsForTests = counts;
-  try { return callback(counts); }
-  finally { callsForTests = previous; }
+  try {
+    const result = callback(counts);
+    if (result?.then) return result.finally(() => { callsForTests = previous; });
+    callsForTests = previous; return result;
+  } catch (error) { callsForTests = previous; throw error; }
 }
 class IdentityDictionary {
   toJSON() { throw new TypeError('Materialize resident identities explicitly'); }
@@ -97,12 +101,27 @@ export function createIdentityDictionary(base, source = base) {
     roots.set(base, root);
   }
   if (source === base) return root;
+  if (callsForTests) callsForTests.fullCopies++;
   const changes = [];
   for (const key of identityKeys(base)) if (!Object.hasOwn(source, key)) changes.push({ key, delete: true });
   for (const [key, value] of Object.entries(source)) if (JSON.stringify(value) !== JSON.stringify(base[key])) changes.push({ key, value });
   const result = changes.length ? editIdentityDictionary(root, changes) : root, keys = Object.keys(source);
   if (JSON.stringify([...identityKeys(result)]) !== JSON.stringify(keys)) return version({ ...versions.get(result), order: Object.freeze(keys) });
   return result;
+}
+/** Decode a checked codec delta without copying the base dictionary. */
+export function identityDictionaryFromDelta(base, { replacements, deleted, order }) {
+  const changes = [
+    ...deleted.map(key => ({ key, delete: true })),
+    ...Object.entries(replacements).map(([key, value]) => ({ key, value })),
+  ];
+  const root = createIdentityDictionary(base), result = changes.length ? editIdentityDictionary(root, changes) : root;
+  if (order === undefined) return result;
+  const keys = new Set(order);
+  if (keys.size !== order.length || [...identityKeys(result)].some(key => !keys.delete(key)) || keys.size) throw new TypeError('Invalid owned dictionary order.');
+  const numeric = order.filter(indexKey).sort((a, b) => Number(a) - Number(b));
+  if (order.some((key, index) => index < numeric.length ? key !== numeric[index] : indexKey(key))) throw new TypeError('Invalid owned dictionary enumeration order.');
+  return version({ ...versions.get(result), order: Object.freeze([...order]) });
 }
 export function reconcileIdentityDictionary(previous, source) {
   return createIdentityDictionary(versions.get(previous).base, source);
@@ -139,6 +158,7 @@ export function editIdentityDictionary(previous, changes) {
 /** Detached flat JSON for portable/hook/worker boundaries. Callers validate the
  * complete logical state before accepting untrusted input. No retained cache. */
 export function materializeIdentities(value) {
+  if (callsForTests) callsForTests.materializations++;
   function project(item) {
     if (isIdentityDictionary(item)) return Object.fromEntries(identityEntries(item));
     if (Array.isArray(item)) return item.map(project);
@@ -146,4 +166,31 @@ export function materializeIdentities(value) {
     return item;
   }
   return JSON.parse(JSON.stringify(project(value)));
+}
+/** Exact logical JSON, streamed into a hash or response without a flat copy or
+ * a retained per-group registry string. */
+export function* identityJSONParts(value) {
+  if (isIdentityDictionary(value)) {
+    yield '{'; let first = true;
+    for (const [key, child] of identityEntries(value)) {
+      if (!first) yield ','; first = false;
+      yield JSON.stringify(key); yield ':'; yield JSON.stringify(child);
+    }
+    yield '}';
+  } else if (Array.isArray(value)) {
+    yield '[';
+    for (let index = 0; index < value.length; index++) {
+      if (index) yield ',';
+      yield* identityJSONParts(value[index] === undefined ? null : value[index]);
+    }
+    yield ']';
+  } else if (value && typeof value === 'object') {
+    yield '{'; let first = true;
+    for (const [key, child] of Object.entries(value)) {
+      if (child === undefined) continue;
+      if (!first) yield ','; first = false;
+      yield JSON.stringify(key); yield ':'; yield* identityJSONParts(child);
+    }
+    yield '}';
+  } else yield JSON.stringify(value);
 }

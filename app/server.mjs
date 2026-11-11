@@ -37,7 +37,7 @@ import { loadDatasetInputs, loadOriginalSyncIntegration } from './dataset-bootst
 import { archaeologyTaskCorrections } from './data/archaeology-task-corrections.mjs';
 import { createGroupState } from './core/state.mjs';
 import { builtInRules, createRuleRegistry } from './core/rules.mjs';
-import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId } from './tasks/migration.mjs';
+import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId, hasCompleteMigrationCatalogue } from './tasks/migration.mjs';
 const trainingCatalogue = await datasetJSON("app/data/training/methods.f2p.json");
 const membersStartBanks = await datasetJSON("app/data/members-start-banks.2026-10-12.v1.json");
 import { createIconCatalogue, ICON_BUNDLES } from './data/icons.mjs';
@@ -317,8 +317,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const sandboxCatalogue = taskWorker ? [...taskWorker.catalogue, ...taskWorker.dynamicCatalogue] : [];
   const migrationIsCurrent = state => {
     const previous = state.legacy?.gameplayMigration;
-    const registeredIds = new Set(state.tasks.map(task => task.id));
-    const catalogueReady = [...catalogueIds].every(id => registeredIds.has(id));
+    const catalogueReady = hasCompleteMigrationCatalogue(state, catalogueIds);
     const ownersReady = state.members.every(member => member.sourceMapId == null || (previous?.schemaVersion >= 2 && hasGameplayMigration(state, member)));
     const identitiesReady = state.members.every(member => [...member.completedTasks, ...Object.keys(member.taskStatus ?? {})].every(id => resolveSavedTaskId(state.identityRegistry, id) === id)
       && Object.entries(member.taskAlternatives ?? {}).every(([category, groups]) => Object.values(groups).every(id => id === null || resolveSavedTaskId(state.identityRegistry, id, category) === id)));

@@ -11,6 +11,7 @@ import { atomicWrite } from './atomic-write.mjs';
 import { syncDirectory } from './publication.mjs';
 import { acquireProcessGuard } from './process-guard.mjs';
 import { withStoreWrite } from './snapshot.mjs';
+import { registerOwnedCalculatorBase } from '../tasks/owned-transport.mjs';
 
 const bases = new Map(), verifiedRoots = new Map(), admissions = new Map(), durableRoots = new Set(), lease = new AsyncLocalStorage();
 const artifactSources = new Map();
@@ -72,6 +73,7 @@ function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
     const shared = bases.get(pin.sha256);
     if (bytes && !shared.compressed) shared.compressed = gzipSync(bytes);
     base = shared.base;
+    registerOwnedCalculatorBase(base, pin);
     compressed = shared.compressed;
     return ownedCodec(base, pin);
   }

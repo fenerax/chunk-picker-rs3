@@ -13,6 +13,8 @@ import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 import { hasRandomStartChoices } from '../core/state.mjs';
 import { createWorkerPreparation } from './prepared-collection.mjs';
 import { eligibilityTransferList, releaseEligibilityChunk } from './eligibility-transfer.mjs';
+import { OWNED_CALCULATOR_TRANSPORT, ownedCalculatorInput } from './owned-transport.mjs';
+import { isResidentState, cloneResidentState } from '../core/resident-copy.mjs';
 
 // The server's compatibility context has one protocol identity.
 export function pickerJobId(pickerId = 'legacy-shared') {
@@ -92,6 +94,8 @@ function workerEvaluation(message, entry) {
     get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } });
 }
 function validStateInput(state, input, stateInput, type) {
+  if (stateInput.owned) return typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
+    && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members);
   return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
     && stateInput.stateJSON.byteLength > 0 && typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
     && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members)
@@ -576,6 +580,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   let supported = new Set();
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   let sentSnapshots = new Map();
+  const installedOwnedBases = new Set();
   const queue = [], warmQueue = [], pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
   function forgetPickerSnapshots(pickerId) {
     calculatorPool?.forgetPicker(pickerId);
@@ -915,9 +920,13 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     const sentKey = pickerKey(entry.pickerId, snapshotInput);
     const sent = sentSnapshots.get(sentKey);
     const sentKind = entry.type === 'area-check' && sent?.revision !== entry.state.revision ? undefined : sent?.kind;
-    const fresh = entry.stateInput ? sentKind !== 'json-shared-v1' : !sentKind;
-    const state = entry.stateInput || !fresh ? undefined : entry.state;
-    const serialized = entry.stateInput ? { stateTransport: 'json-shared-v1', stateRevision: entry.state.revision,
+    const owned = entry.stateInput?.owned ?? (isResidentState(entry.state) ? ownedCalculatorInput(entry.state) : undefined);
+    const fresh = owned ? true : entry.stateInput ? sentKind !== 'json-shared-v1' : !sentKind;
+    const state = owned || entry.stateInput || !fresh ? undefined : entry.state;
+    const installed = worker.ownedBaseDigests ?? installedOwnedBases;
+    const serialized = owned ? { stateTransport: OWNED_CALCULATOR_TRANSPORT, ownedDocument: owned.document,
+      ...(!installed.has(owned.document.storage.base.sha256) ? { ownedBase: owned.installation } : {}) }
+      : entry.stateInput ? { stateTransport: 'json-shared-v1', stateRevision: entry.state.revision,
       stateMemberIds: entry.state.members.map(member => member.id), stateJSONBytes: entry.stateInput.stateJSON.byteLength,
       ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
     entry.snapshotKey = snapshotKey;
@@ -945,6 +954,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     lastProgressAt = idleClock.now();
     const ownGeneration = ++generation;
     sentSnapshots.clear();
+    installedOwnedBases.clear();
     for (const [key, value] of cache) if (value.type === 'prepare-rules') cache.delete(key);
     // Custom factories retain their exact workerData contract. Reapply on every wake/restart.
     if (PROFILE_ENABLED) profile.workerStarting(profileLane);
@@ -1010,6 +1020,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return;
       }
       if (message.type === 'progress') {
+        if (message.ownedBaseInstalled) installedOwnedBases.add(message.ownedBaseInstalled);
         // Control metadata belongs only to this request and never reaches UI
         // observers, result payloads or the numeric timing-stage accumulator.
         if (active.type === 'predict' && typeof message.eligibilitySeeded === 'boolean') active.eligibilitySeeded = message.eligibilitySeeded === true;
@@ -1059,7 +1070,8 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         // LRU. Resend bodies until both caches have a known common order.
         sentSnapshots.clear();
         counts.errors++;
-        const error = message.error.name === 'TypeError' ? new TypeError(message.error.message)
+        const error = message.error.code === 'OWNED_CALCULATOR_BASE_REFUSED' ? Object.assign(unavailable(message.error.message), { code: message.error.code })
+          : message.error.name === 'TypeError' ? new TypeError(message.error.message)
           : message.error.name === 'RangeError' ? new RangeError(message.error.message) : unavailable('Task calculation failed. Retry the calculation.');
         settle(entry, error);
       } else {
@@ -1376,7 +1388,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         // share one defensive clone across this bounded batch.
         const releaseFair = admitFair(pickerId);
         if (!releaseFair) { warmCounts.skipped++; continue; }
-        snapshot ??= stateInput ? state : structuredClone(state);
+        snapshot ??= stateInput ? state : isResidentState(state) ? cloneResidentState(state) : structuredClone(state);
         const entry = { calculatorStarted: !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status)), releaseFair, key, originalKey, pickerId, input, state: snapshot, stateInput, memberId, type: 'evaluate', resultView,
           revision: state.revision, queuedAt: idleClock.now(), waiters: new Set(), warm: true };
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);
@@ -1411,7 +1423,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         if (cache.has(key) || pending.has(key) || warmQueue.length >= maxPrewarmQueue) { warmCounts.skipped++; continue; }
         const releaseFair = admitFair(pickerId);
         if (!releaseFair) { warmCounts.skipped++; continue; }
-        snapshot ??= structuredClone(state);
+        snapshot ??= isResidentState(state) ? cloneResidentState(state) : structuredClone(state);
         const entry = { releaseFair, key, originalKey: JSON.parse(key)[1], pickerId, input, state: snapshot, memberId, type: 'predict', chunkId, revision: state.revision,
           queuedAt: idleClock.now(), waiters: new Set(), warm: true, purpose };
         if (PROFILE_ENABLED) profile.queued(entry, profileLane);

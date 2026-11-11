@@ -1,4 +1,5 @@
-import { applyCommand, validateState, hasRandomStartChoices, seedRandomStartSections } from './state.mjs';
+import { applyCommand, validateState, validateOwnedState, hasRandomStartChoices, seedRandomStartSections } from './state.mjs';
+import { hasResidentIdentities, cloneCalculationState } from './resident-copy.mjs';
 import { createRuleRegistry } from './rules.mjs';
 
 export const RULE_PROFILE_FORMAT = 'rs3-chunk-rule-profile';
@@ -110,7 +111,7 @@ function predictionInputs(chunkId, { world, engine }) {
 /** Reuse one validated, immutable snapshot for a worker's bounded prediction
  * cache. Every candidate still evaluates its complete hypothetical state. */
 export function prepareChunkPrediction(state, registry) {
-  const baseline = freeze(validateState(state, registry));
+  const baseline = freeze(hasResidentIdentities(state) ? validateOwnedState(cloneCalculationState(state), registry) : validateState(state, registry));
   return (memberId, chunkId, options = {}) => {
     predictionInputs(chunkId, options);
     return predictionFromBaseline(baseline, memberId, chunkId, options);
@@ -119,7 +120,7 @@ export function prepareChunkPrediction(state, registry) {
 
 export function predictChunk(state, memberId, chunkId, { world, engine, registry } = {}) {
   predictionInputs(chunkId, { world, engine });
-  return predictionFromBaseline(freeze(validateState(state, registry)), memberId, chunkId, { world, engine });
+  return predictionFromBaseline(freeze(hasResidentIdentities(state) ? validateOwnedState(cloneCalculationState(state), registry) : validateState(state, registry)), memberId, chunkId, { world, engine });
 }
 
 function predictionFromBaseline(baseline, memberId, chunkId, { engine, world }) {

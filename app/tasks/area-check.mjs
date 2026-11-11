@@ -5,6 +5,7 @@ import { trainingMethodBlockers } from './training-planner.mjs';
 import { divinationEvidence } from '../data/divination-training.mjs';
 import { selectPresentedTasks } from './presentation.mjs';
 import { areaTaskDifference } from './area-check-tasks.mjs';
+import { cloneCalculationState } from '../core/resident-copy.mjs';
 
 export const AREA_CHECK_FORMAT = 'area-check-v1';
 export const AREA_CHECK_MAX_CHUNKS = 128;
@@ -33,7 +34,7 @@ export function normalizeAreaCheckRequest(draft, { state, world, memberId } = {}
 }
 
 function scenarioState(state, memberId, chunkIds, alone, asMembers) {
-  const copy = structuredClone(state);
+  const copy = cloneCalculationState(state);
   if (asMembers) copy.rules['content.f2p'] = false;
   for (const member of copy.members) {
     if (member.id === memberId) {

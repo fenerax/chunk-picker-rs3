@@ -1,9 +1,10 @@
 # Owned resident state: slice 2
 
-This is an inert, explicit opt-in. Only tests call `createResidentState`,
-`validateResidentState` and `applyResidentCommand` in `app/core/state.mjs`.
-No store, reader, writer, startup hook or legacy-shared path selects it.
-Envelope/state schemas, existing storage-1 serialization and History stay unchanged.
+Resident state is an explicit opt-in through the default-off storage-2 codec.
+`createResidentState`, `validateResidentState` and `applyResidentCommand` in
+`app/core/state.mjs` provide its validation and command boundaries. No production
+caller or legacy-shared path selects it. Envelope/state schemas, existing
+storage-1 serialization and History stay unchanged.
 
 `createResidentState(logical, verifiedBase)` crosses complete logical validation
 before sharing byte-identical rows and identity values from the frozen slice-1
@@ -46,13 +47,15 @@ History or Redo representation exists; Redo tests reapply the original command.
 and portable export use this boundary for resident input; ordinary flat input
 retains its existing path. Rare alias normalization explicitly materializes for
 the existing identity migration, then reconciles validated output into sparse
-versions. Hooks, workers, raw snapshots and portable import/export/rollback
-callers requiring flat JSON must materialize, validate where applicable and
-release their bounded working trees. Never structuredClone a resident dictionary.
+versions. Hooks, import/transfer workers, raw snapshots and portable
+import/export/rollback callers requiring flat JSON must materialize, validate
+where applicable and release their bounded working trees. Never structuredClone
+a resident dictionary.
 
 The default-off [slice-3 codec](owned-codec-contract.md) adopts these boundaries
 at store preparation, archive hydration, getState/response, hook and publication
-seams. It enables no production writer. Backup closure, rebase, rollback,
-calculator transport, residency acceptance, browser negotiation and collection
-remain later slices. No heap or 50-group acceptance claim follows from these
-small deterministic fixtures.
+seams. It enables no production writer. Native calculator transport and ordinary
+play projection now follow [slice 7a](owned-calculator-contract.md), which shares
+the verified base instead of materializing it at those boundaries. Residency
+acceptance, browser negotiation and collection remain later slices. No heap or
+50-group acceptance claim follows from these small deterministic fixtures.

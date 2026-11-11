@@ -35,6 +35,7 @@ import { serialize } from 'node:v8';
 import { createWarmResults, warmResultNamespace } from './warm-results.mjs';
 import { eligibilityTransferList, releaseEligibilityChunk } from './eligibility-transfer.mjs';
 import { preparedCollectionKey, decodePreparedCollection, encodePreparedCollection, readPreparedCollectionFile } from './prepared-collection.mjs';
+import { OWNED_CALCULATOR_TRANSPORT, createOwnedCalculatorReceiver } from './owned-transport.mjs';
 
 const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
 startupPhase('worker:modules');
@@ -424,6 +425,7 @@ function sharedJSON(value) {
 }
 // Wrapped by reassignment so the declaration above stays byte-identical for scripts/perf/unlock-calc.mjs.
 if (PROFILE_ENABLED) { const raw = sharedJSON; sharedJSON = value => profile.span('worker.resultSerialization', () => raw(value)); }
+const receiveOwnedState = createOwnedCalculatorReceiver(selectedDataset.digest);
 function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId }) {
   if (typeof input !== 'string' || !Number.isSafeInteger(stateRevision) || stateRevision < 0
     || typeof snapshotKey !== 'string' || snapshotKey !== JSON.stringify([stateRevision, input])
@@ -450,7 +452,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof, ownedDocument, ownedBase }) => {
   if (type === 'eligibility-seed') {
     const reply = requests.get(id)?.pickerId === pickerId ? requests.get(id).seedReply : undefined;
     if (reply) reply(proof); else releaseEligibilityChunk({ type, proof });
@@ -485,7 +487,11 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
   };
   requests.set(id, request);
   try {
-    if (stateTransport !== undefined || stateJSON !== undefined) {
+    if (stateTransport === OWNED_CALCULATOR_TRANSPORT) {
+      if (state !== undefined || stateJSON !== undefined || pickerId === 'legacy-shared') throw new TypeError('Worker owned state transport is invalid.');
+      state = receiveOwnedState({ document: ownedDocument, installation: ownedBase });
+      if (ownedBase) parentPort.postMessage({ id, type: 'progress', ownedBaseInstalled: ownedDocument.storage.base.sha256 });
+    } else if (stateTransport !== undefined || stateJSON !== undefined) {
       if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId });
     }
@@ -683,7 +689,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
     notifyPredictionMetadata();
-    parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
+    parentPort.postMessage({ id, error: { name: error.name, message: error.message,
+      ...(error.code === 'OWNED_CALCULATOR_BASE_REFUSED' ? { code: error.code } : {}) }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { requests.delete(id); }
 };
 if (PROFILE_ENABLED) profile.installWorker(parentPort, handleMessage);

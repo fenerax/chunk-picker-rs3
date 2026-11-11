@@ -67,7 +67,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
     slot.timer?.unref?.();
   }
   function allocate(pendingOwner, cold = true) {
-    const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, idleAt: clock.now(), cold: cold && !!pendingOwner, pendingOwner, group: pendingOwner?.group, snapshots: new Map() };
+    const slot = { worker: workerFactory(workerData(!ready, pendingOwner?.group)), ready: false, idleAt: clock.now(), cold: cold && !!pendingOwner, pendingOwner, group: pendingOwner?.group, snapshots: new Map(), ownedBases: new Set() };
     slot.exit = new Promise(resolve => { slot.resolveExit = resolve; });
     onWorker?.(slot.worker);
     slots.add(slot); peak = Math.max(peak, slots.size);
@@ -110,6 +110,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       }
       const owner = slot.owner;
       if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) { releaseEligibilityChunk(message); return; }
+      if (message.type === 'progress' && message.ownedBaseInstalled) slot.ownedBases.add(message.ownedBaseInstalled);
       const complete = !['progress', 'prediction-prepared'].includes(message.type);
       const response = { ...message, id: slot.originalId };
       if (complete) { owner.lastSlot = new WeakRef(slot); slot.owner = undefined; owner.slot = undefined; idle(slot); }
@@ -201,6 +202,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       boot.then(value => { if (!this.stopped) this.emit('message', { ...value }); }, error => { if (!this.stopped) this.emit('error', error); });
     }
     get snapshotHints() { return this.slot?.snapshots; }
+    get ownedBaseDigests() { return this.slot?.ownedBases; }
     // A snapshot probe never joins the allocator or the wake queue. Other
     // admitted pickers keep their turn; a busy/retired pool is an immediate miss.
     tryReadSnapshot(pickerId, run) {
