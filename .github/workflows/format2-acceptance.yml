@@ -1,0 +1,87 @@
+name: Owned format 2 acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshots:
+        description: Capture synthetic heap snapshots for dominator attribution (large artifacts)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: ${{ matrix.os }} / fresh run ${{ matrix.run }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        run: [1, 2, 3, 4, 5]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+      - name: Measure identical synthetic fixtures in fresh processes
+        shell: bash
+        env:
+          ACCEPTANCE_SNAPSHOTS: ${{ inputs.snapshots }}
+          ACCEPTANCE_FRESH_RUN: ${{ matrix.run }}
+        run: |
+          args=()
+          if [ "$ACCEPTANCE_SNAPSHOTS" = "true" ]; then args+=(--snapshots); fi
+          node scripts/perf/owned-acceptance.mjs --out var/owned-acceptance/ci "${args[@]}"
+      - name: Publish human summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f var/owned-acceptance/ci/summary.txt ]; then
+            cat var/owned-acceptance/ci/summary.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve results and outlier evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: owned-acceptance-${{ matrix.os }}-${{ matrix.run }}
+          path: |
+            var/owned-acceptance/ci/**/*.json
+            var/owned-acceptance/ci/**/*.txt
+            var/owned-acceptance/ci/**/*.error
+            var/owned-acceptance/ci/**/*.heapsnapshot
+          if-no-files-found: error
+          retention-days: 14
+
+  summarize:
+    name: All ten fresh runs
+    if: always()
+    needs: measure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: owned-acceptance-*
+          path: var/owned-acceptance-receipts
+      - name: Require every receipt and pool time percentiles by OS
+        run: node scripts/perf/owned-acceptance/aggregate.mjs var/owned-acceptance-receipts
+      - name: Preserve aggregate
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: owned-acceptance-aggregate
+          path: var/owned-acceptance-receipts/aggregate.json
+          if-no-files-found: error
