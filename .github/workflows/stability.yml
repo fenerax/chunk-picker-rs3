@@ -100,21 +100,34 @@ jobs:
       - name: Restore restic archive
         if: steps.plan.outputs.has-work == 'true' && contains(steps.plan.outputs.matrix, 'ubuntu-latest')
         id: resticcache
+        timeout-minutes: 3
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/restic-archive.bz2
           key: ${{ steps.restic.outputs.key }}
       - name: Download and verify restic archive
         if: steps.plan.outputs.has-work == 'true' && contains(steps.plan.outputs.matrix, 'ubuntu-latest') && steps.resticcache.outputs.cache-hit != 'true'
+        timeout-minutes: 3
         env:
           RESTIC_URL: ${{ steps.restic.outputs.url }}
           RESTIC_SHA256: ${{ steps.restic.outputs.sha256 }}
           RESTIC_ARCHIVE: ${{ runner.temp }}/restic-archive.bz2
         run: |
-          curl --fail --location --output "$RESTIC_ARCHIVE" "$RESTIC_URL"
-          printf '%s  %s\n' "$RESTIC_SHA256" "$RESTIC_ARCHIVE" | sha256sum --check --status
+          # One official release fetch; bound DNS/connect and total transfer time.
+          # Keep curl diagnostics private because they can contain IP addresses.
+          if ! curl --silent --fail --location --connect-timeout 30 --max-time 120 --output "$RESTIC_ARCHIVE" "$RESTIC_URL" 2>/dev/null; then
+            echo '::error::Restic release download failed (30s connection / 120s total limit).'
+            exit 1
+          fi
+          if ! printf '%s  %s\n' "$RESTIC_SHA256" "$RESTIC_ARCHIVE" | sha256sum --check --status; then
+            echo '::error::Restic archive checksum mismatch; refusing to cache or install.'
+            exit 1
+          fi
       - name: Save restic archive
         if: steps.plan.outputs.has-work == 'true' && contains(steps.plan.outputs.matrix, 'ubuntu-latest') && steps.resticcache.outputs.cache-hit != 'true'
+        timeout-minutes: 3
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/restic-archive.bz2
@@ -196,6 +209,9 @@ jobs:
           key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
       - name: Restore required restic archive
         if: runner.os == 'Linux'
+        timeout-minutes: 3
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/restic-archive.bz2
@@ -204,8 +220,10 @@ jobs:
       - name: Install checksum-pinned restic for the local encrypted restore test
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y bzip2 util-linux
+          # Hosted Ubuntu includes these tools. Never refresh apt in a test shard.
+          for tool in bzip2 prlimit; do
+            command -v "$tool" >/dev/null || { echo "::error::Runner is missing required tool: $tool"; exit 1; }
+          done
           sudo "$(command -v node)" scripts/ops/install-restic.mjs --archive-file "${{ runner.temp }}/restic-archive.bz2"
       - name: Linux first attempts
         if: runner.os == 'Linux'
