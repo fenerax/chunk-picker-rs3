@@ -8,7 +8,10 @@ between its full and sandbox caches. Its hot set is bounded by both entry count
 and **128 MiB of conservative heap charges**, inside the existing shared worker
 and picker budgets. Older snapshots become LZ4-encoded V8 bytes. Serialization is
 deferred until demotion, so unchanged hot reads neither decode nor rewrite the
-snapshot. Deferred views, processing descriptors and aliases survive hydration.
+snapshot. Hydrated hot entries also retain their canonical cold bytes, charging
+the complete backing allocation in addition to the heap graph; repeat demotion
+reuses those bytes. Deferred views, processing descriptors and aliases survive
+hydration.
 Validated prediction state is prepared lazily once per captured revision, charged
 inside the snapshot and serialized on demotion. Candidate requests reuse that
 state without retaining an opaque closure. The unused planning canonicalizer is
@@ -20,12 +23,22 @@ complete logical contents. No extra projection cache retains them off-ledger.
 Heap accounting walks producer-owned graphs, counting objects, properties,
 array/reference slots, Map/Set storage, UTF-16 strings and entire backing
 allocations, independently of serialized size. Aliased objects are counted once;
-strings and shared definitions are conservatively overcharged. Lazy additions
+string values and shared definitions are conservatively overcharged. V8
+internalized object property names are charged once per graph, including
+conservative storage for the meter's own name registry. Lazy additions
 extend the charge without walking the stable baseline again. Removed components
 retain their charge as slack until demotion; forced refreshes start a fresh walk.
 Unsupported graphs bypass reuse. Graphs too large for either heap budget stay as
 bytes. `RS3_CALCULATOR_HOT_SNAPSHOTS=0` selects byte-only snapshots for diagnostics;
 increasing the entry bound does not increase the 128 MiB hot heap ceiling.
+Removing repeated property-name charges lets the acceptance-sized graph fit
+without changing the ceiling. The shared worker/owner ledgers and the 15 MiB
+attributable-group / 750 MiB aggregate acceptance gates stay unchanged.
+Cold records preserve their measured heap cost as a scalar. Unchanged reads,
+failed promotions and refresh/admission pairs reuse it and the canonical bytes;
+content changes invalidate both once. Explicit forced refresh still marks
+in-place changes such as same-size estimate replacements. See the
+[acceptance-sized throughput comparison](snapshot-throughput.md).
 Both cache instances resolve preserved snapshots through a shared, ledger-scoped
 weak token registry. A rejected sandbox admission preserves the current baseline
 even when its metadata belongs to the complete-result cache.
