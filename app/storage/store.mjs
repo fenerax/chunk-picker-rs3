@@ -1,4 +1,5 @@
 import { isMainThread } from 'node:worker_threads';
+import { createDeltaCommandValidator } from '../core/delta-validation.mjs';
 import { pluginTestingMode, withPluginTestingMode } from '../core/plugin-testing.mjs';
 import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
@@ -101,11 +102,13 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, releaseCommandResponses = false } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
   if (typeof releaseCommandResponses !== 'boolean') throw new TypeError('releaseCommandResponses must be boolean.');
+  if (typeof deltaValidation !== 'boolean') throw new TypeError('deltaValidation must be boolean.');
+  const deltaCommands = deltaValidation ? createDeltaCommandValidator(registry) : undefined;
   const encodeCompletions = completionCodec ? createCompletionEncoder() : document => document;
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
   if (policy) {
@@ -126,7 +129,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const withCatalogue = ownedStorage ? (work, mode = 'shared') => ownedStorage.withLease(work, { mode }) : work => work();
   const writeState = ownedStorage ? (bytes, options) => ownedStorage.writeState(stateFile, bytes, options)
     : (bytes, options) => atomicWrite(stateFile, bytes, options);
-  const applyStoredCommand = ownedStorage ? applyResidentCommand : applyValidatedCommand;
+  const applyStoredCommand = deltaCommands?.apply ?? (ownedStorage ? applyResidentCommand : applyValidatedCommand);
   async function selectOwnedStartupBase(document) {
     if (document.storage?.schemaVersion === 2) await ownedStorage.select(document.storage.base);
     // Release hooks close over catalogue/world context the pinned base cannot
@@ -834,7 +837,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     if (forImport) await new Promise(resolve => setImmediate(resolve));
     if (ownedStorage && isResidentState(state)) inheritStateMetadata(state, complete);
-    const validated = ownedStorage && isResidentState(complete) ? validateResidentState(complete, registry)
+    const validated = deltaCommands ? deltaCommands.validate(complete) : ownedStorage && isResidentState(complete) ? validateResidentState(complete, registry)
       : importReader || validationCache ? validateOwnedState(complete, registry, validationCache) : validateState(complete, registry);
     inheritStateMetadata(state, validated);
     return { state: validated, archived };
@@ -1523,6 +1526,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const { undo, ...event } = found;
     return { stateRevision: captured.revision, event: structuredClone({ ...event, hasUndo: Boolean(undo) }) };
   }
+  try { if (deltaCommands) current = inheritStateMetadata(current, deltaCommands.validate(current)); }
+  catch (error) { await releaseLock(); throw error; }
   const store = {
     async prepareImportPublication(next, operation, { validateBackup, currencySource } = {}) {
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
