@@ -44,6 +44,31 @@ test('invitation quotas apply per account across memberships, per picker, and gl
   at = 60001; limits.invitation(account, A);
 });
 
+test('key changes share a nonrefundable login/member budget across create/revoke cycles and expire lazily', () => {
+  let at = 0;
+  const limits = createPickerLimits({ keyChangesPerAccount: 2, keyChangesPerMember: 2 }, { now: () => at });
+  limits.keyChange(account, A, 'one');
+  limits.reserveKey(account, A, 'one').finish('synthetic-key');
+  limits.keyChange(account, A, 'one');
+  limits.revokeKey('unknown');
+  refused(() => limits.keyChange(account, B, 'other')); // Same login, other group.
+  refused(() => limits.keyChange({ accountId: accountIds.other }, A, 'one')); // Same member, other login.
+  limits.keyChange({ accountId: accountIds.other }, B, 'one');
+  at = 60000; limits.keyChange(account, A, 'one');
+});
+
+test('bounded rate-bucket cleanup preserves rollover and shared overflow accounting', () => {
+  let at = 0;
+  const limits = createPickerLimits({ limitMaxAccounts: 1, keyChangesPerAccount: 1, keyChangesPerMember: 1 }, { now: () => at });
+  for (let n = 0; n < 24; n++) {
+    try { limits.keyChange({ accountId: `synthetic-${n}` }, `picker-${n}`, 'one'); }
+    catch (error) { assert.equal(error.status, 429); }
+  }
+  refused(() => limits.keyChange({ accountId: 'synthetic-overflow' }, 'picker-overflow', 'one'));
+  at = 60000; limits.keyChange({ accountId: 'synthetic-overflow' }, 'picker-overflow', 'one');
+  refused(() => limits.keyChange({ accountId: 'synthetic-overflow' }, 'picker-overflow', 'one'));
+});
+
 test('key reservations span asynchronous issuance and extra memberships cannot reset account/global counts', () => {
   const limits = createPickerLimits({ pluginKeysPerAccount: 1, pluginKeysPerPicker: 2, pluginKeysGlobal: 2 });
   const first = limits.reserveKey(account, A, 'one');

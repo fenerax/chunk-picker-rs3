@@ -794,6 +794,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     async create(identity, body) {
       fields(body, ['memberId', 'label'], 'key'); authorize(identity, body.memberId);
       if (typeof body.label !== 'string' || !body.label.trim() || body.label.length > 80 || /[\x00-\x1f\x7f]/.test(body.label)) throw fail(400, 'Use a key label from 1 to 80 characters.');
+      pickerLimits?.keyChange(identity, pickerId, body.memberId);
       const reservation = pickerLimits?.reserveKey(identity, pickerId, body.memberId);
       let result;
       try {
@@ -810,6 +811,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     async revoke(identity, id, body) {
       fields(body, [], 'revocation');
       if (identity.readOnly || !identity.admin && !identity.memberId) throw fail(403, 'Player access required.');
+      pickerLimits?.keyChange(identity, pickerId, identity.memberId);
       const result = await keys.revoke(id, identity.admin ? undefined : identity.memberId);
       if (removeKey || pickerLimits) {
         // The public key record redacts its hash. Read only this already-selected

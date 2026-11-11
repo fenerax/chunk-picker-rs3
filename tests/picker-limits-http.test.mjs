@@ -175,6 +175,27 @@ test('extra plugin keys cannot increase account traffic and another account cann
   assert.equal((await status(keys[2])).status, 200); assert.equal((await status(keys[2])).status, 429);
 });
 
+test('key create/revoke attempts share a login budget before any durable mutation, including duplicate revokes', async t => {
+  const f = await fixture(t, { keyChangesPerAccount: 4, keyChangesPerMember: 4 });
+  const cookie = await f.login('101');
+  const create = () => f.send('/api/game-plugin/keys', cookie, { body: { memberId: 'owner', label: 'Synthetic' } });
+  const first = await create(); assert.equal(first.status, 201);
+  const id = first.json().record.id;
+  const revoke = () => f.send(`/api/game-plugin/keys/${id}/revoke`, cookie, { body: {} });
+  assert.equal((await revoke()).status, 200);
+  assert.equal((await revoke()).status, 200);
+  assert.equal((await create()).status, 201);
+  const before = await f.registry();
+  const keyFile = path.join(f.multiPicker.pickerRoot, await f.picker('101'), 'plugin-keys.json');
+  const keyBytes = await readFile(keyFile, 'utf8');
+  for (const send of [create, revoke]) {
+    const denied = await send(); assert.equal(denied.status, 429);
+    assert.ok(denied.headers['retry-after']); assert.match(denied.text, /Wait before creating or revoking/);
+    assert.deepEqual(await f.registry(), before);
+    assert.equal(await readFile(keyFile, 'utf8'), keyBytes);
+  }
+});
+
 test('registration and provisioning limits reject with actionable retry responses', async t => {
   const f = await fixture(t, { registrationsPerAccount: 10, registrationsGlobal: 10, provisioningGlobal: 1 });
   await f.login('101');

@@ -182,6 +182,14 @@ Account, picker and plugin-key quota changes ship through a normal release later
 
 The largest blockers are the character/placement model, owner invitations, switching/leave/rejoin, safe handover/deletion, roster sizes 1–5, retained storage accounting, the timed off-site restore and actual alert delivery, the outside-duo test and the measured beta envelope. This checklist starts the launch track; it does not declare the beta ready.
 
+### Security follow-up: cap accounting and key churn
+
+Registry cap enforcement now builds membership, member-slot, per-picker capability and global counts at startup, then validates and publishes only each mutation's changes after its durable write. Ordinary saves validate changed records and update indexes instead of rescanning the registry. Plugin-key admission also maintains login, group, member-slot and global counts incrementally, including pending issuance, cancellation, revocation and picker deletion. Legacy issuer lookup uses a membership index. Startup still reconstructs and validates the complete registry and offline key population.
+
+The existing fixed-window limiter also covers combined plugin-key create/revoke attempts: `multiPicker.keyChangesPerAccount=12` per login across groups and `multiPicker.keyChangesPerMember=12` per `(pickerId, memberId)`, using `limitWindowMs=60000`. Authorized attempts are charged before storage work, including repeated revocations and creations refused by the active-key quota. Revocation does not refund this budget. Refusals return HTTP 429 with `Retry-After` and a request to wait before creating or revoking another key. Private administrator revocations use the administrator's login/fallback picker scope and an administrator member bucket. These in-memory windows reset on server restart, matching existing invite and registration limits. Rate-bucket cleanup visits at most 16 entries per request, with lazy expiry of selected buckets.
+
+The sweep found and removed the global key scan in `picker-limits.mjs`; `game-plugin.mjs` uses those indexed quotas. Its remaining key lookups, sidecar validation and per-member active-key check concern one picker's existing 1,000-record key file, independent of the global population. Registry JSON persistence still copies/serializes the existing array representation; deletion reconciliation can visit all affected memberships and keys. This follow-up removes full-registry cap/validation/index rebuilds from ordinary saves without changing save or wire formats, and makes no wall-time or measured-capacity claim. No live setting changes are made.
+
 ## Focused verification for this branch
 
 Node.js 24.20.0, each file's complete `testRunPolicy` environment, one worker, BelowNormal priority and the shared PC `heavy.lock`. Six distinct files, synthetic data and fake OAuth only; no full suite, repeated-run stability loop, timing assertion or live load test. The final relevant runs passed all 83 cases without skips or cancellations.
@@ -196,3 +204,22 @@ Node.js 24.20.0, each file's complete `testRunPolicy` environment, one worker, B
 | `tests/game-plugin-routes.test.mjs` | 13 passed | Existing key management, credential/origin isolation, report/read routes, progress review, journals and sidecar recovery. |
 
 The first HTTP run had four failures because the new synthetic Discord subjects used text instead of the provider fixture's required numeric IDs. Correcting those fixtures produced the passing run above; no production change was needed for those failures. The registry-cap file was rerun after adding the actual capability-boundary case. Whitespace checks also passed. Hosted CI/stability receipts and deployment verification remain future release work.
+
+### Security follow-up verification
+
+The follow-up used the same Node version, per-file environment, shared lock, BelowNormal priority and `--test-concurrency=1`. Synthetic fixtures only. Eight affected files cover 111 distinct passing cases:
+
+| Test file | Passing cases |
+| --- | --- |
+| `tests/registry-cap-accounting.test.mjs` | 2 |
+| `tests/launch-registry-caps.test.mjs` | 7 |
+| `tests/registry.test.mjs` | 30, including the targeted replay below |
+| `tests/account-reclaim.test.mjs` | 21 |
+| `tests/launch-plugin-caps.test.mjs` | 10 |
+| `tests/picker-limits.test.mjs` | 14 |
+| `tests/picker-limits-http.test.mjs` | 14 |
+| `tests/game-plugin-routes.test.mjs` | 13 |
+
+Seeded differential sequences compare registry and plugin quota indexes with independent full rescans after synthetic create, revoke, delete and restart steps, including pending issuance/cancellation and membership removal. At 3,000 logins, 3,500 pickers and 20,000 capabilities, cap-admission proxies prohibit unrelated array-entry reads; actual capability saves report one changed capability. At 9,000 active plugin keys, refusal checks one quota row, revocation updates four, and issuance checks/updates eight. These are operation-count assertions, with no wall-time assertion. Implementation anchors: `app/storage/registry-caps.mjs:6`, `app/storage/registry.mjs:197`, `app/security/picker-limits.mjs:105`, `app/game-plugin.mjs:797`.
+
+The new overflow-expiry regression initially exposed a limiter bucket reset after bounded cleanup; retaining the live shared overflow window fixed it, and all 14 limiter cases then passed. One existing registry crash-recovery case (`directory-created`) hit its 30-second test timeout; the file otherwise passed 29 cases, and that one case passed on a single targeted replay without changing its timeout or implementation. No test child remained running. Whitespace checks passed. No full suite, repetition loop, live data or capacity benchmark was used.
