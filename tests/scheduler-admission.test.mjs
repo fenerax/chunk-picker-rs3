@@ -160,6 +160,31 @@ test('bounded calculator admission', { timeout: 60000 }, async t => {
     assert.equal(f.scheduler.getDiagnostics().queue.inputBytes, 0);
   });
 
+  await t.test('a deferred provider resolves the current cached capture without recapturing or materializing state', () => {
+    let revision = 0, reads = 0, serializations = 0;
+    const capture = (input = 'input') => {
+      let bytes;
+      return { revision, members: [{ id: 'one' }], taskInputKey: input,
+        get state() { throw Error('Must not materialize state.'); },
+        get stateJSON() { if (!bytes) { serializations++; bytes = shared(state(revision)); } return bytes; } };
+    };
+    let cached = capture();
+    const store = { getInfo: () => ({ revision }), getCalculationSnapshot() { throw Error('Must reuse the context capture.'); } };
+    const provider = deferredTaskInput(store, 'input', () => { reads++; return cached; });
+    assert.equal(reads, 0); assert.equal(serializations, 0);
+    const first = provider.load(0), second = provider.load(0);
+    assert.equal(first.stateInput.stateJSON, second.stateInput.stateJSON);
+    assert.equal(serializations, 1);
+    revision = 1; cached = capture();
+    assert.throws(() => provider.load(0), { status: 409 });
+    assert.equal(reads, 2, 'a stale revision cannot even resolve its capture');
+    assert.equal(provider.load(1).state.revision, 1, 'display revisions resolve the current cached capture');
+    assert.equal(serializations, 2);
+    cached = capture('changed');
+    assert.throws(() => provider.load(1), { status: 409 });
+    assert.equal(serializations, 2, 'fingerprint mismatches are refused before serialization');
+  });
+
   await t.test('deferred state cannot bypass byte limits through large draft arguments or response keys', async t => {
     const f = await fixture(t, { maxCalculators: 1, maxQueuedInputBytes: 1024 });
     const first = f.request(1, 'blocker'), blocker = await f.next();

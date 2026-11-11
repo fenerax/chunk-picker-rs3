@@ -656,13 +656,16 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     if (!calculationSnapshot || calculationSnapshot.metadata.revision !== store.getInfo().revision) {
       const captured = store.getCalculationSnapshot();
       let taskIndex;
-      calculationSnapshot = { metadata: { revision: captured.revision, members: captured.members }, input: captured.taskInputKey,
+      calculationSnapshot = { capture: captured, metadata: { revision: captured.revision, members: captured.members }, input: captured.taskInputKey,
         get state() { return captured.residentState ?? captured.state; },
         get sandboxTaskIndex() { return taskIndex ??= sandboxTaskCatalogue(captured.residentState ?? captured.state, sandboxCatalogue); },
-        get stateInput() { return deferredTaskInput(store, captured.taskInputKey); } };
+        get stateInput() { return deferredTaskInput(store, captured.taskInputKey, currentCalculationCapture); } };
     }
     return calculationSnapshot;
   }
+  // Resolve through the context cache, without keeping an obsolete capture in
+  // each queued provider or asking the store to recapture it at every dispatch.
+  function currentCalculationCapture() { return calculationState().capture; }
   function schedulePredictions(delay = 1000) {
     if (!taskWorker || closed || liveSwap?.standby || !predictionPrewarm && !poolRanking.interestedMembers().size) return;
     schedulingClock.clearTimeout(prewarmTimer);
