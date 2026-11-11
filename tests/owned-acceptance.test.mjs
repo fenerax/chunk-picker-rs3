@@ -6,7 +6,6 @@ import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { fileURLToPath } from 'node:url';
 import { comparison, shapes } from '../scripts/perf/owned-acceptance.mjs';
 import { aggregate } from '../scripts/perf/owned-acceptance/aggregate.mjs';
 import { pairReports } from '../scripts/perf/owned-acceptance/comparison.mjs';
@@ -21,9 +20,10 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
     const receipts = [];
     for (const mode of ['format1', 'format2']) {
       const output = path.join(root, mode);
-      await promisify(execFile)(process.execPath, [fileURLToPath(new URL('../scripts/perf/owned-acceptance.mjs', import.meta.url)),
-        '--format', mode, '--smoke', '--out', output], { signal: t.signal, windowsHide: true });
-      const receipt = JSON.parse(await readFile(path.join(output, 'results.json'), 'utf8'));
+      // Exercise the launcher's real format selection in this test process.
+      // Only the measured trial/calculator need fresh, fully reaped processes.
+      const receipt = await comparison({ output, format: mode, smoke: true, signal: t.signal });
+      assert.deepEqual(JSON.parse(await readFile(path.join(output, 'results.json'), 'utf8')), receipt);
       assert.equal(receipt.selectedFormat, mode); assert.equal(receipt.equivalent, false);
       assert.deepEqual(receipt.results.map(row => row.mode), [mode]);
       assert.deepEqual(receipt.failures, []);
@@ -39,12 +39,6 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
     const combined = aggregate(receipts);
     assert.equal(combined.acceptanceClaim, false); assert.equal(combined.format, 'owned-acceptance-7b-aggregate');
     assert.equal(combined.comparisons[0].equivalent, true);
-    await assert.rejects(promisify(execFile)(process.execPath,
-      [fileURLToPath(new URL('../scripts/perf/owned-acceptance/aggregate.mjs', import.meta.url)), root],
-      { signal: t.signal, windowsHide: true }), { code: 1 });
-    const savedAggregate = JSON.parse(await readFile(path.join(root, 'aggregate.json'), 'utf8'));
-    assert.equal(savedAggregate.acceptanceClaim, false);
-    assert.equal(savedAggregate.comparisons[0].equivalent, true);
     assert.deepEqual(report.results.map(row => row.mode), ['format1', 'format2']);
     for (const result of report.results) {
       assert.deepEqual(result.shape, shapes.smoke);

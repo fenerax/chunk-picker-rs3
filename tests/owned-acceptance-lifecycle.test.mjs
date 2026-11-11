@@ -73,12 +73,14 @@ test('fifty deferred control requests fit unchanged queue limits and release eve
   const { scheduler, nextJob, evaluate } = await fixture(t);
   const blocking = evaluate('blocker'), blocker = await nextJob();
   let encodes = 0;
+  const stateJSON = new SharedArrayBuffer(2 * 1024 ** 2);
   // If encoded eagerly, each synthetic buffer's 2 MiB would exceed the default
-  // 64 MiB queued-input ceiling across fifty requests. Allocate only at dispatch.
+  // 64 MiB queued-input ceiling across fifty requests. Reuse backing bytes in
+  // this synthetic worker; the getter must still stay untouched until dispatch.
   const pending = Array.from({ length: 50 }, (_, index) => {
     const store = { getInfo: () => ({ revision: 0 }), getCalculationSnapshot: () => ({
       revision: 0, members: [{ id: 'synthetic-member' }], taskInputKey: `input-${index}`,
-      get stateJSON() { encodes++; return new SharedArrayBuffer(2 * 1024 ** 2); },
+      get stateJSON() { encodes++; return stateJSON; },
     }) };
     const { revision, members, inputKey, stateInput } = calculationInput(store);
     return scheduler.forPicker(`p_${(index + 1).toString(16).padStart(32, '0')}`).evaluate({ revision, members }, 'synthetic-member',
