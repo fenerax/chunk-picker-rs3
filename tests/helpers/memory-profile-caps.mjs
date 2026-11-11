@@ -40,6 +40,7 @@ if (!isMainThread) {
     const residentGroups = groups.map(cache => cache.size);
     for (const cache of groups) cache.clear();
     process.stdout.write(JSON.stringify({ profile: serviceMemoryBudget({ calculators: 4 }), workerLedgers,
+      hasStartupBudget: Object.hasOwn(data, 'memoryBudget'), startupBudget: data.memoryBudget ?? null,
       scheduler: scheduler.retentionLedger(), foreground: scheduler.getDiagnostics().cache,
       response, residentGroups, responses: Object.fromEntries(Object.entries(caches).map(([owner, cache]) => [owner, cache.retentionLedger()])) }));
   } finally {

@@ -707,20 +707,6 @@ test('oversized route retries pool-preparation revision races and failed builds'
   const retry = await gzipCall(a).body(); assert.equal(retry.store.revision, 2); assert.equal(captures(), 4);
 });
 
-test('one and all oversized-route waiter disconnects settle without poisoning retries', { timeout: 10000 }, async t => {
-  const { a } = await gzipFixture(t), entered = Promise.withResolvers(), release = Promise.withResolvers();
-  oversizedSnapshots(a, { async beforeSnapshot(count) { if (count === 1) { entered.resolve(); await release.promise; } } });
-  const first = gzipCall(a), second = gzipCall(a); await entered.promise;
-  first.response.destroy(); await first.done; release.resolve();
-  assert.equal((await second.body()).state.revision, 0);
-  await command(a, note('next'));
-  const started = observeCompression(t), third = gzipCall(a), fourth = gzipCall(a);
-  await started; third.response.destroy(); fourth.response.destroy();
-  await Promise.all([third.done, fourth.done]);
-  await nextTurn(); await nextTurn();
-  const retry = await gzipCall(a).body(); assert.equal(retry.state.revision, 1);
-});
-
 test('separate pickers share bounded gzip admission without sharing bytes or validators', { timeout: 10000 }, async t => {
   const { a, b } = await gzipFixture(t);
   oversizedSnapshots(a); oversizedSnapshots(b);

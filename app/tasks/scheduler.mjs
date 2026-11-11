@@ -146,7 +146,9 @@ export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs
   // Without a physical pool there are foreground/advisory/preview/duo lanes.
   // Their fixed shares also sum to the one service cache budget.
   const memoryBudget = serviceMemoryBudget({ calculators: maxCalculators ?? 4 });
-  options.workerData = { ...options.workerData, memoryBudget };
+  // Default workers derive the unchanged per-calculator caps locally. Only an
+  // enabled service profile needs the scheduler's divided calculator shares.
+  if (memoryBudget.enforced) options.workerData = { ...options.workerData, memoryBudget };
   options.cacheByteLimit = boundedMemoryOption(options.cacheByteLimit,
     memoryBudget.enforced ? Math.floor(memoryBudget.schedulerBytes * 3 / 8) : null) ?? 128 * 1024 ** 2;
   if (memoryBudget.enforced) {
