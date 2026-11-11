@@ -14,9 +14,30 @@ import { performance as nativePerformance } from 'node:perf_hooks';
 
 const nativePlatform = process.platform;
 const metadata = new Map(), sockets = new Set();
+const descriptions = new Map(), flocks = new Map();
+// Include birth time to distinguish reused inode numbers. Match native number
+// Stats' seconds/nanoseconds conversion so bigint and number callers share keys.
+const inode = info => `${info.dev}:${info.ino}:${info.birthtimeNs === undefined ? info.birthtimeMs
+  : Number(info.birthtimeNs / 1000000000n) * 1000 + Number(info.birthtimeNs % 1000000000n) / 1000000}`;
+const inodeAt = async file => inode(await fs.stat(file, { bigint: true }));
+function attributes(info, id) {
+  const saved = metadata.get(id), value = number => typeof info.mode === 'bigint' ? BigInt(number) : number;
+  return Object.assign(info, {
+    uid: value(saved?.uid ?? 0), gid: value(saved?.gid ?? 0),
+    mode: value((Number(info.mode) & ~0o777) | (saved?.mode ?? (nativePlatform === 'win32' ? info.isDirectory() ? 0o755 : 0o644 : Number(info.mode) & 0o777))),
+  });
+}
+function releaseDescription(description) {
+  if (--description.references) return;
+  const lock = flocks.get(description.inode);
+  if (lock?.owner === description) { lock.owner = null; lock.waiters.shift()?.(); }
+  if (lock && !lock.owner && !lock.waiters.length) flocks.delete(description.inode);
+}
 const boot = '00000000-0000-0000-0000-000000000001';
 export const effects = {
   epoch: 1, crashed: false, hook: null, handles: new Set(), commands: [], children: new Set(), syncs: [], now: 0,
+  programs: new Map(),
+  lockEvents: new EventEmitter(),
   restart() { this.crashed = false; this.hook = null; this.epoch++; },
 };
 const crash = () => Object.assign(Error('simulated process loss'), { code: 'TEST_PROCESS_LOST' });
@@ -52,35 +73,44 @@ export async function readFile(file, ...args) {
 }
 export async function lstat(file, ...args) {
   await boundary('lstat', file, 'before');
-  const info = await fs.lstat(file, ...args), saved = metadata.get(path.resolve(String(file)));
-  const value = number => typeof info.mode === 'bigint' ? BigInt(number) : number;
-  return Object.assign(info, {
-    uid: value(saved?.uid ?? 0), gid: value(saved?.gid ?? 0),
-    mode: value((Number(info.mode) & ~0o777) | (saved?.mode ?? (nativePlatform === 'win32' ? info.isDirectory() ? 0o755 : 0o644 : Number(info.mode) & 0o777))),
-  });
+  const info = await fs.lstat(file, ...args);
+  return attributes(info, inode(info));
 }
 export async function chmod(file, mode) {
   await boundary('chmod', file, 'before');
-  metadata.set(path.resolve(String(file)), { ...metadata.get(path.resolve(String(file))), mode });
+  const id = await inodeAt(file); metadata.set(id, { ...metadata.get(id), mode });
   await fs.chmod(file, mode);
 }
 export async function chown(file, uid, gid) {
   await boundary('chown', file, 'before');
-  metadata.set(path.resolve(String(file)), { ...metadata.get(path.resolve(String(file))), uid, gid });
+  const id = await inodeAt(file); metadata.set(id, { ...metadata.get(id), uid, gid });
 }
 export const symlink = (target, file, type) => fs.symlink(target, file, nativePlatform === 'win32' && type === 'dir' ? 'junction' : type);
 export async function open(file, ...args) {
   await boundary('open', file, 'before');
   const directory = args[0] === 'r' && (await fs.lstat(file)).isDirectory();
   const handle = nativePlatform === 'win32' && directory ? null : await fs.open(file, ...args);
+  const id = inode(await (handle ? handle.stat({ bigint: true }) : fs.stat(file, { bigint: true })));
   const owned = { file: String(file) }; effects.handles.add(owned);
+  const description = { inode: id, references: 1 };
+  if (handle) descriptions.set(handle.fd, description);
+  let closing;
   return new Proxy(handle ?? {}, { get(target, key) {
-    if (key === 'close') return async () => { effects.handles.delete(owned); await handle?.close(); };
+    if (key === 'close') return () => closing ??= (async () => {
+      const fd = handle?.fd; await handle?.close();
+      effects.handles.delete(owned); descriptions.delete(fd); releaseDescription(description);
+    })();
     if (key === 'sync') return async () => {
       await boundary('sync', file, 'before'); effects.syncs.push(String(file)); await boundary('sync', file, 'after');
     };
-    if (key === 'chmod') return mode => chmod(file, mode);
-    if (key === 'chown') return (uid, gid) => chown(file, uid, gid);
+    if (key === 'stat') return async (...args) => attributes(await (handle ? handle.stat(...args) : fs.stat(file, ...args)), id);
+    if (key === 'chmod') return async mode => {
+      await boundary('chmod', file, 'before');
+      metadata.set(id, { ...metadata.get(id), mode }); await (handle ? handle.chmod(mode) : fs.chmod(file, mode));
+    };
+    if (key === 'chown') return async (uid, gid) => {
+      await boundary('chown', file, 'before'); metadata.set(id, { ...metadata.get(id), uid, gid });
+    };
     const value = target[key];
     if (key === 'createReadStream' || key === 'createWriteStream') return value.bind(target);
     return typeof value === 'function' ? async (...values) => {
@@ -126,7 +156,10 @@ async function execute(command, args, options) {
   if (payload.length === 5) {
     const [root, uid, gid, entries] = payload;
     await readable(root, uid, gid);
-    for (const entry of entries) script(await fs.readFile(path.join(root, entry), 'utf8'), entry);
+    for (const entry of entries) {
+      const bytes = await fs.readFile(path.join(root, entry), 'utf8');
+      if (!effects.programs.has(bytes)) script(bytes, entry);
+    }
   } else if (payload.length === 8) {
     const [uid, gid, root, alias, , config, checks, linked] = payload;
     const settings = JSON.parse(await fs.readFile(config, 'utf8'));
@@ -138,9 +171,14 @@ async function execute(command, args, options) {
       let stdout = '', stderr = '';
       const process = { argv: ['synthetic-node', invoked, ...argv], exitCode: 0,
         stdout: { write: value => { stdout += value; } }, stderr: { write: value => { stderr += value; } } };
-      script(await fs.readFile(selected, 'utf8'), selected).runInNewContext({
-        process, URL, main: () => true, legacyMain: () => path.resolve(invoked) === selected,
-      });
+      const bytes = await fs.readFile(selected, 'utf8'), frozen = effects.programs.get(bytes);
+      if (frozen) {
+        const result = frozen.get(JSON.stringify(argv));
+        if (!result) throw Error('Unknown frozen CLI invocation');
+        process.exitCode = result.code; stdout = result.stdout; stderr = result.stderr;
+      } else script(bytes, selected).runInNewContext({
+          process, URL, main: () => true, legacyMain: () => path.resolve(invoked) === selected,
+        });
       if (process.exitCode !== 1 || stdout || !stderr.startsWith(diagnostic)) throw Error('Synthetic CLI contract refused');
     }
   } else throw Error('Unexpected Python probe');
@@ -149,8 +187,28 @@ async function execute(command, args, options) {
 export const execFile = Object.assign(() => { throw Error('Use the promised exec boundary'); }, { [promisify.custom]: execute });
 export function spawn(command, args, options) {
   if (command !== 'flock' || args.at(-1) !== '3' || !Number.isInteger(options.stdio[3])) throw Error('Unexpected spawned command');
+  const description = descriptions.get(options.stdio[3]);
+  if (!description) throw Error('Flock requires an owned open description');
   const child = new EventEmitter(); effects.children.add(child);
-  queueMicrotask(() => { child.emit('exit', 0); child.emit('close', 0); effects.children.delete(child); });
+  description.references++; // The child inherits the parent's open description.
+  let lock = flocks.get(description.inode);
+  if (!lock) { lock = { owner: null, waiters: [] }; flocks.set(description.inode, lock); }
+  let timer;
+  const finish = code => {
+    clearTimeout(timer);
+    child.emit('exit', code); child.emit('close', code);
+    effects.children.delete(child); releaseDescription(description);
+  };
+  const acquire = () => { clearTimeout(timer); lock.owner = description; queueMicrotask(() => finish(0)); };
+  if (!lock.owner || lock.owner === description) acquire();
+  else if (args.includes('--nonblock')) queueMicrotask(() => finish(1));
+  else {
+    lock.waiters.push(acquire);
+    timer = setTimeout(() => {
+      lock.waiters.splice(lock.waiters.indexOf(acquire), 1); finish(1);
+    }, Number(args[args.indexOf('--wait') + 1]) * 1000);
+    effects.lockEvents.emit('waiting', description.inode);
+  }
   return child;
 }
 // Bundle transport still checks its real manifest and hashes. The archive is a
@@ -208,7 +266,8 @@ export function installEffects() {
     for (const [key, descriptor] of properties) {
       if (descriptor) Object.defineProperty(process, key, descriptor); else delete process[key];
     }
-    if (effects.handles.size || effects.children.size || sockets.size) throw Error('Unreleased synthetic OS resource');
+    if (effects.handles.size || effects.children.size || sockets.size || descriptions.size || flocks.size) throw Error('Unreleased synthetic OS resource');
+    metadata.clear(); effects.programs.clear();
   };
 }
 export default { ...fs, ...childProcess, ...net, open, readFile, writeFile, mkdir, lstat, chmod, chown, symlink,

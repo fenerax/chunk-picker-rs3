@@ -5,6 +5,7 @@ import { tmpdir, hostname } from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { gunzipSync } from 'node:zlib';
+import { Script } from 'node:vm';
 import * as fs from 'node:fs/promises';
 import { effects, installEffects, chmod, chown, lstat, symlink } from './helpers/linux-ops-effects.mjs';
 import { runToolsHelper } from './helpers/run-tools-helper.mjs';
@@ -121,21 +122,49 @@ test('tools installer contracts with controlled OS effects', async file => {
   await file.test('historical archive identity and v1/v2/current install, upgrade, verify and rollback contracts', async t => {
     const archive = await fs.readFile(new URL('./fixtures/tools-128/package.tar.gz', import.meta.url));
     assert.equal(sha(archive), 'c0907c9ef7b14e29a94400afdb88edceb3e75131af242568f43418f2a417bbb9');
+    const f = await fixture(t), frozen = path.join(f.scratch, 'frozen-128');
+    await fs.mkdir(frozen);
     const tar = gunzipSync(archive); let historical;
     for (let offset = 0; offset + 512 <= tar.length;) {
       const name = tar.subarray(offset, offset + 100).toString().replace(/\0.*$/s, '');
       const size = parseInt(tar.subarray(offset + 124, offset + 136).toString().replace(/\0.*$/s, '').trim(), 8) || 0;
-      if (name.replace(/^\.\//, '') === 'tools-manifest.json') historical = JSON.parse(tar.subarray(offset + 512, offset + 512 + size));
+      if (!name) break;
+      const relative = name.replace(/^\.\//, '').replace(/\/$/, '');
+      assert(!path.posix.isAbsolute(relative) && !relative.split('/').includes('..'));
+      const target = path.join(frozen, relative), type = tar[offset + 156];
+      if (type === 53) await fs.mkdir(target, { recursive: true, mode: 0o755 });
+      else {
+        assert(type === 0 || type === 48, 'frozen archive contains only directories and ordinary files');
+        await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o755 });
+        const bytes = tar.subarray(offset + 512, offset + 512 + size);
+        await fs.writeFile(target, bytes, { mode: 0o644 });
+        if (relative === 'tools-manifest.json') historical = JSON.parse(bytes);
+      }
       offset += 512 + Math.ceil(size / 512) * 512;
     }
     assert.equal(historical.toolsIdentity, '79eb28369aa720d256d64ba088de6600cbc13522d81660bdaf9264c9632bc94c');
     assert.equal(historical.files.length, 49); assert.equal(Object.hasOwn(historical, 'contractVersion'), false);
-    const f = await fixture(t), latest = await packageAt(f);
+    assert.deepEqual(await verifyTools(frozen), historical);
+    // The process seam knows these immutable ESM programs, not today's v1
+    // contract. Freeze their refusal responses from the archived probe table;
+    // changed bytes or a newly required invocation cannot borrow a response.
+    for (const row of historical.files) if (row.path.endsWith('.mjs')) {
+      effects.programs.set(await fs.readFile(path.join(frozen, row.path), 'utf8'), new Map());
+    }
+    const checks = new Script((await fs.readFile(path.join(frozen, 'scripts/linux/entrypoint-checks.mjs'), 'utf8'))
+      .replaceAll('export const ', 'const ') + '\ntoolsCliChecks;').runInNewContext();
+    for (const [entry, args, diagnostic] of checks) {
+      effects.programs.get(await fs.readFile(path.join(frozen, entry), 'utf8'))
+        .set(JSON.stringify(args), { code: 1, stdout: '', stderr: diagnostic + '\n' });
+    }
+    const latest = await packageAt(f);
     for (const version of [1, 2]) {
-      const old = await packageAt(f, version); assert.equal(old.manifest.contractVersion, version === 1 ? undefined : 2);
+      const old = version === 1 ? { pkg: frozen, manifest: historical } : await packageAt(f, version);
+      assert.equal(old.manifest.contractVersion, version === 1 ? undefined : 2);
       if (version === 2) assert(!old.manifest.entries.includes('scripts/linux/inflate-owned-format-1.mjs'));
       if (!await exists(f.toolsRoot)) await legacy(f, old.pkg);
       await install(f, { packageRoot: old.pkg });
+      if (version === 1) assert.equal((await verifyTools(await fs.realpath(f.toolsRoot))).toolsIdentity, historical.toolsIdentity);
       const oldRoot = await selected(f, old.manifest.toolsIdentity), before = await inventory(oldRoot);
       const upgrade = await install(f, { packageRoot: latest.pkg }); await selected(f, latest.manifest.toolsIdentity);
       await install(f, { rollbackReceipt: upgrade.receiptFile });
