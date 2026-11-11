@@ -278,6 +278,13 @@ in public run `42294078968`. Regenerate from one recent complete Linux run with
 measurement per file supplies its weight and the median supplies new files.
 Avoid retaining inflated maxima from older execution environments.
 
+The rebuilt `linux-tools-install`, `linux-multi-picker` and new
+`linux-ops-effects` weights use focused passing Linux Node.js 24.20.0 measurements
+at `9262ab1`, recorded as a scoped `local-focused` source. The cancelled shard run
+had no completed samples for these files. Other weights and the new-file default
+retain their complete hosted-run calibration. A future complete Linux ledger
+regeneration replaces these focused measurements along with the rest of the table.
+
 The original unsharded Linux job took about 25 minutes (22m39s in the recorded
 baseline). Fresh weights predict about 6m14s execution per shard plus setup.
 Actual wall time varies with memory admission and contention; hosted ledgers
