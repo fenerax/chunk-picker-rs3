@@ -2,7 +2,8 @@ const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
 import { assertWorkerHeapLimit } from './worker-limits.mjs';
 if (workerData.enforceMemoryLimit) assertWorkerHeapLimit();
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
-import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
+import { createWorkerCacheBudget, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
+import { createSerializedSnapshotCache } from './serialized-snapshot-cache.mjs';
 import { createHowCache } from './how-cache.mjs';
 import { taskWhyDisplay, createTaskWhyIndex } from './task-why-display.mjs';
 import { startupPhase } from '../startup-timing.mjs';
@@ -188,10 +189,11 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSiz
 // One byte ledger spans both snapshot caches and all eligibility variants.
 // A picker owns at most half; all shared eligibility proofs own at most a third.
 // Remaining pressure evicts globally by recency. State transfer is independent.
-const snapshots = new Map();
-const completeCache = createSnapshotCache(snapshots, snapshotBudget, {
-  contextOwnsState: true, context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
-});
+const snapshotOptions = { context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
+  restoreContext: (result, value) => viewContexts.set(result, value),
+  restoreLocations: (result, value) => mapLocationResults.set(result, value) };
+const completeCache = createSerializedSnapshotCache(snapshotBudget, snapshotOptions);
+const snapshots = completeCache.entries;
 const stateSnapshots = new Map();
 const latestRevisions = new Map();
 const pickerRevision = pickerId => latestRevisions.get(pickerId) ?? -1;
@@ -273,7 +275,7 @@ function chunkPlanningFor(snapshot, chunkId) {
 async function residentChunkPlanningFor(state, memberId, chunkId, input, abandoned, pickerId) {
   const key = JSON.stringify(calculationKey(state, memberId, input)), snapshot = snapshots.get(key);
   if (!snapshot || snapshot.revision !== state.revision) return;
-  const isCurrent = () => !abandoned() && state.revision >= pickerRevision(pickerId) && snapshots.get(key) === snapshot;
+  const isCurrent = () => !abandoned() && state.revision >= pickerRevision(pickerId) && completeCache.isCurrent(key, snapshot);
   const checkpoint = () => {
     if (abandoned() || state.revision < pickerRevision(pickerId)) throw new Error('Resident planning cancelled.');
   };
@@ -306,10 +308,8 @@ async function residentChunkPlanningFor(state, memberId, chunkId, input, abandon
     throw error;
   }
 }
-const sandboxSnapshots = new Map();
-const sandboxCache = createSnapshotCache(sandboxSnapshots, snapshotBudget, {
-  context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
-});
+const sandboxCache = createSerializedSnapshotCache(snapshotBudget, snapshotOptions);
+const sandboxSnapshots = sandboxCache.entries;
 function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-shared') {
   let taskIndex = sandboxTaskIndexes.get(state);
   if (!taskIndex) { taskIndex = sandboxTaskCatalogue(state, getSandboxCatalogue()); sandboxTaskIndexes.set(state, taskIndex); }

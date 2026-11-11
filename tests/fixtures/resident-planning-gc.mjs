@@ -27,9 +27,10 @@ registerHooks({ load(url, context, next) {
     .replace("import { parentPort, workerData } from 'node:worker_threads';", '')
     .replace('const stateSnapshots = new Map();', `const stateSnapshots = new Map();
       globalThis.__planningGC.read = () => ({ transfers: stateSnapshots.size,
-        indexes: [...snapshots.values()].filter(value => value.planningIndex).length });`)
+        indexes: [...snapshots.keys()].filter(key => snapshots.get(key).planningIndex).length });`)
     .replace('const isCurrent = () => !abandoned()', 'globalThis.__planningGC.state = new WeakRef(state);\n  const isCurrent = () => !abandoned()');
-  return { ...result, source };
+  return { ...result, source: source.replace('  completeCache.set(key, snapshot, state, pickerId);',
+    '  globalThis.__planningGC.baseline = new WeakRef(snapshot.baseline);\n  completeCache.set(key, snapshot, state, pickerId);') };
 } });
 const ready = once(port, 'ready');
 await import('../../app/tasks/worker.mjs'); await ready;
@@ -62,7 +63,7 @@ await materialize();
 async function collect() {
   for (let i = 0; i < 12; i++) {
     await turn(); globalThis.gc(); await turn();
-    if (probe.state.deref() === undefined) return true;
+    if (probe.state.deref() === undefined && probe.baseline.deref() === undefined) return true;
   }
   return false;
 }
@@ -75,5 +76,6 @@ if (transfer) {
   assert.equal(probe.read().transfers, 2);
 }
 assert.equal(await collect(), true, 'no retained index or ledger callback may keep the request state');
+assert.equal(probe.baseline.deref(), undefined, 'the ledger retains bytes rather than the decoded evaluation graph');
 assert.equal(probe.read().indexes, 1, 'the completed index remains resident throughout GC');
 console.log('request state collected; planning index retained');

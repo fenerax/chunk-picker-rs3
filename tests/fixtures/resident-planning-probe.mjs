@@ -1,14 +1,14 @@
 // Test-only instrumentation, loaded from a file in the synthetic calculator.
 import { registerHooks } from 'node:module';
 import { parentPort, workerData } from 'node:worker_threads';
+import { serialize } from 'node:v8';
+import { createHash } from 'node:crypto';
 
 const snapshots = [];
-const whyIndexes = new WeakMap(); let whyIndexSequence = 0;
 let ledger = () => [], request, locations = 0, paused = false;
 const probe = globalThis.__residentPlanningProbe = {
   evaluateFull: 0,
   snapshots,
-  whyIndexId(index) { if (!index || typeof index !== 'object') return; if (!whyIndexes.has(index)) whyIndexes.set(index, ++whyIndexSequence); return whyIndexes.get(index); },
   setLedger: value => { ledger = value; },
   location() {
     locations++;
@@ -43,17 +43,17 @@ registerHooks({ load(url, context, next) {
   } else if (url.endsWith('/tasks/chunk-planning-index.mjs')) {
     anchor = 'const add = (task, location, reason) => {';
     replacement = anchor + '\n    globalThis.__residentPlanningProbe.location();';
-  } else if (url.endsWith('/tasks/snapshot-cache.mjs')) {
-    anchor = 'const metadata = new WeakMap(), results = new WeakMap(), slots = new Map();';
-    replacement = anchor + `
-  globalThis.__residentPlanningProbe.snapshots.push(() => [...entries].map(([key, value]) => {
-    const entry = metadata.get(value);
-    return { owner: 'picker:' + entry.owner, revision: value.revision, planning: !!value.planningIndex,
-      whyIndexId: globalThis.__residentPlanningProbe.whyIndexId(value.whyIndex), whyIndexCharge: entry.costs?.explanations ?? 0,
-      charge: entry.measuredCost, planningCharge: entry.costs?.planning ?? 0,
-      measured: snapshotBytes(value, entry.state, context(value.baseline), locations(value.baseline), entry.predictionBytes)
-        + Buffer.byteLength(key) + Buffer.byteLength(entry.owner) };
-  }));`;
+  } else if (url.endsWith('/tasks/serialized-snapshot-cache.mjs')) {
+    anchor = 'const stage = (key, value, _state, owner) => {';
+    replacement = `
+  globalThis.__residentPlanningProbe.snapshots.push(() => [...entries].map(([key, record]) => {
+    const { snapshot: value } = decode(record.bytes);
+    return { owner: 'picker:' + record.owner, revision: value.revision, planning: !!value.planningIndex,
+      whyIndexId: globalThis.__residentPlanningProbe.indexId(value.whyIndex),
+      whyIndexCharge: globalThis.__residentPlanningProbe.indexBytes(value.whyIndex),
+      charge: record.cost, planningCharge: globalThis.__residentPlanningProbe.indexBytes(value.planningIndex),
+      measured: serializedSnapshotBytes(key, record.owner, record.bytes) };
+  }));` + anchor;
   } else if (url.endsWith('/tasks/eligibility-cache.mjs')) {
     anchor = 'const retained = new Map();';
     replacement = anchor + `
@@ -65,10 +65,13 @@ registerHooks({ load(url, context, next) {
   if (url.endsWith('/tasks/worker.mjs')) patched = patched.replace('if (cacheSizing) trackSnapshotCore(result);',
     'if (workerData.fixedEngineTiming) result.metrics.elapsedMs = 1.25;\n  if (cacheSizing) trackSnapshotCore(result);');
   if (url.endsWith('/tasks/chunk-planning-index.mjs')) patched = patched.replace('if (Array.isArray(record.SourceLocations)', "globalThis.__residentPlanningProbe.stage('scan');\n        if (Array.isArray(record.SourceLocations)");
-  if (url.endsWith('/tasks/snapshot-cache.mjs')) patched = patched.replace('let cost = bytes.byteLength;', "let cost = bytes.byteLength;\n  globalThis.__residentPlanningProbe.stage('charge');");
+  if (url.endsWith('/tasks/serialized-snapshot-cache.mjs')) patched = patched.replace('const raw = serialize(', "globalThis.__residentPlanningProbe.stage('charge');\n      const raw = serialize(");
   if (url.endsWith('/tasks/worker.mjs')) patched = patched.replace('checkpoint();\n    yield row;', "globalThis.__residentPlanningProbe.stage('projection');\n    checkpoint();\n    yield row;");
   return { ...result, source: patched };
 } });
+// Identity now means the persisted index bytes, rather than a resident graph.
+probe.indexId = value => value ? createHash('sha256').update(serialize(value)).digest('hex') : undefined;
+probe.indexBytes = value => value ? serialize(value).byteLength : 0;
 const post = parentPort.postMessage.bind(parentPort);
 parentPort.postMessage = (message, ...rest) => post(message.id === undefined || message.type === 'progress' ? message : {
   ...message, probe: { evaluateFull: probe.evaluateFull, locations,

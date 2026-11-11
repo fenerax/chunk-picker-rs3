@@ -25,15 +25,16 @@ globalThis.__cacheAccounting = { measures, setLedger: value => { ledger = value;
 registerHooks({ load(url, context, next) {
   const result = next(url, context);
   let source = String(result.source), anchor, replacement;
-  if (url.endsWith('/tasks/snapshot-cache.mjs')) {
-    anchor = 'const metadata = new WeakMap(), results = new WeakMap(), slots = new Map();';
-    replacement = anchor + \`
-  globalThis.__cacheAccounting.measures.push(() => [...entries].map(([key, value]) => {
-      const entry = metadata.get(value);
-      return { projectionOnly: !value.baseline && !!value.playResult, sandbox: !!value.playResult, ownsState: !!entry.state || !!context(value.baseline)?.state, owner: 'picker:' + entry.owner, cost: snapshotBytes(value, entry.state,
-        context(value.baseline), locations(value.baseline), entry.predictionBytes)
-        + Buffer.byteLength(key) + Buffer.byteLength(entry.owner) };
-    }));\`;
+  if (url.endsWith('/tasks/serialized-snapshot-cache.mjs')) {
+    anchor = 'const stage = (key, value, _state, owner) => {';
+    replacement = \`
+  globalThis.__cacheAccounting.measures.push(() => [...entries].map(([key, record]) => {
+      if (Object.keys(record).some(key => !['bytes', 'owner', 'cost'].includes(key))) throw new Error('Decoded graph retained.');
+      const { snapshot, deferred } = decode(record.bytes);
+      return { projectionOnly: !snapshot.baseline && !!snapshot.playResult, sandbox: !!snapshot.playResult,
+        ownsState: !!deferred?.state, owner: 'picker:' + record.owner,
+        cost: serializedSnapshotBytes(key, record.owner, record.bytes) };
+    }));\` + anchor;
   } else if (url.endsWith('/tasks/eligibility-cache.mjs')) {
     anchor = 'const retained = new Map();';
     replacement = anchor + \`
