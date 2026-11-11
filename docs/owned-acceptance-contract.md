@@ -245,7 +245,37 @@ materialization/copy counts come from 7a's existing counting seam.
 
 Dispatch with `snapshots=true` to capture V8 heap snapshots for every live
 format-2 controller/relay/calculator isolate at the shared baseline, 1 and 50 groups,
-the first/last mutation rounds, and after bounded lanes. Load the `.heapsnapshot` artifacts in Chrome DevTools Memory.
+the end of serial commands, settling, every read-only and mutation round, and
+after bounded lanes. After the trial and its calculators have exited, the
+launcher automatically writes `<format>/dominators/index.json` and per-isolate
+interval reports. These cover the serial-to-maximum residual and all repeat
+intervals, preserving the raw heap/external/array-buffer deltas and snapshot
+SHA-256 identities. A missing snapshot or isolate fails diagnostic publication;
+it cannot silently remove an isolate from the comparison.
+
+The offline analyzer computes immediate dominators with Lengauer–Tarjan over
+V8's strong-edge graph (weak edges excluded). Reports include retained-size
+paths, shortest strong retainer paths, signed constructor/self-size changes,
+and stable closure-binding comparisons, including `current.history`. Stable
+binding comparisons distinguish a replacement History array or hot snapshot
+from additional retained copies. Retained subtrees overlap; never sum the
+largest-object deltas. Native self sizes include backing stores and are reported
+separately from non-native snapshot sizes. Neither snapshot size is a substitute
+for the measured `heapUsed` or a permitted subtraction from it.
+
+These reports are diagnostic evidence, not automatic certificates of a bound
+on future growth. They preserve all rejection reasons and change no decision,
+threshold, History accounting, cache policy or workload. An unexplained residual
+still rejects. `snapshotAttribution` in the outer receipt links the report index;
+the ordinary JSON artifact includes all reports. Raw snapshots remain in the
+separate explicitly requested artifact. To compare two generated snapshots
+independently, run:
+
+```sh
+node scripts/perf/owned-acceptance/heap-dominators.mjs before.heapsnapshot after.heapsnapshot dominators.json
+```
+
+Load the `.heapsnapshot` artifacts in Chrome DevTools Memory.
 Use Comparison against the same isolate's baseline, then Dominators/Retainers
 to attribute growth: `__ownedAcceptanceHandles`, store closures, dictionary
 WeakMaps, base/key arrays, task Maps, result caches and response buffers. A base
