@@ -4,6 +4,7 @@ import { createSerializedSnapshotCache, serializedSnapshotBytes } from '../app/t
 import { createWorkerCacheBudget } from '../app/tasks/snapshot-cache.mjs';
 import { createSnapshotHotSet, createSnapshotHeapMeter } from '../app/tasks/snapshot-hot-set.mjs';
 import { createEligibilityBudget } from '../app/tasks/eligibility-cache.mjs';
+import { registerHooks } from 'node:module';
 
 function fixture(limit = 1024 * 1024, hotSet) {
   const contexts = new WeakMap(), locations = new WeakMap(), budget = createWorkerCacheBudget(limit);
@@ -27,7 +28,7 @@ test('snapshots retain only charged wire bytes and restore complete aliased resu
   const expected = JSON.stringify(snapshot.baseline);
   assert.equal(cache.set('key', snapshot, context.state, 'one'), true);
   const record = [...cache.entries.values()][0];
-  assert.deepEqual(Object.keys(record).sort(), ['bytes', 'cost', 'owner']);
+  assert.deepEqual(Object.keys(record).sort(), ['bytes', 'cost', 'heapCost', 'owner']);
   assert.equal(record.cost, serializedSnapshotBytes('key', 'one', record.bytes));
   assert.equal(budget.bytes, record.cost);
   assert.ok(budget.bytes > record.bytes.buffer.byteLength);
@@ -139,6 +140,16 @@ test('hot set obeys heap and entry bounds, rejects executables and drops predict
   assert.throws(() => meter.visit({ get value() { assert.fail('Getter must not execute'); } }), TypeError);
 });
 
+test('heap charges share internalized property names while string values and meter storage stay charged', () => {
+  const repeated = createSnapshotHeapMeter(), distinct = createSnapshotHeapMeter();
+  repeated.visit(Array.from({ length: 1000 }, () => ({ sharedProperty: 0 })));
+  distinct.visit(Array.from({ length: 1000 }, (_, i) => ({ ['property-' + i]: 0 })));
+  assert.ok(distinct.bytes > repeated.bytes + 90000, 'each distinct name owns its string and a meter registry slot');
+  const strings = createSnapshotHeapMeter(), empty = createSnapshotHeapMeter();
+  strings.visit({ a: '雪'.repeat(1000), b: '雪'.repeat(1000) }); empty.visit({ a: '', b: '' });
+  assert.equal(strings.bytes - empty.bytes, 4000, 'equal string values still pay both UTF-16 charges');
+});
+
 test('refreshing a demoted snapshot re-admits its decoded graph to both budgets', () => {
   const hotSet = createSnapshotHotSet({ entryLimit: 1, byteLimit: 128 * 1024 });
   const { cache, budget, snapshot: a } = fixture(1024 * 1024, hotSet);
@@ -229,4 +240,100 @@ test('prepared prediction state joins the heap charge and survives cold demotion
   assert.equal(restored.predictionRevision, 4);
   assert.equal(hotSet.size, 1);
   cache.entries.clear(); assert.equal(budget.bytes, 0);
+});
+
+test('each cold content revision is measured, serialized and compressed once, including failed promotions', async () => {
+  const passes = { measure: 0, serialize: 0, compress: 0 };
+  const url = new URL('../app/tasks/serialized-snapshot-cache.mjs?count-passes', import.meta.url).href;
+  globalThis.__snapshotPasses = passes;
+  const hook = registerHooks({ load(urlToLoad, context, next) {
+    const result = next(urlToLoad, context);
+    if (urlToLoad !== url) return result;
+    const source = String(result.source)
+      .replace('serialize, DefaultDeserializer', 'serialize as rawSerialize, DefaultDeserializer')
+      .replace('encodeSnapshotBytes, decodeSnapshotBytes,', 'encodeSnapshotBytes as rawEncode, decodeSnapshotBytes,')
+      .replace('createSnapshotHeapMeter, createSnapshotHotSet', 'createSnapshotHeapMeter as rawMeter, createSnapshotHotSet');
+    return { ...result, source: source + `
+const serialize = value => { globalThis.__snapshotPasses.serialize++; return rawSerialize(value); };
+const encodeSnapshotBytes = value => { globalThis.__snapshotPasses.compress++; return rawEncode(value); };
+function createSnapshotHeapMeter() {
+  const meter = rawMeter();
+  return { visit: meter.visit, get bytes() { globalThis.__snapshotPasses.measure++; return meter.bytes; } };
+}
+` };
+  } });
+  try {
+    const { createSerializedSnapshotCache: countedCache } = await import(url);
+    const hotSet = createSnapshotHotSet({ entryLimit: 1, byteLimit: 8192 });
+    const budget = createWorkerCacheBudget(1024 * 1024), contexts = new WeakMap(), locations = new WeakMap();
+    const cache = countedCache(budget, { hotSet, context: value => contexts.get(value), locations: value => locations.get(value),
+      restoreContext: (value, context) => contexts.set(value, context), restoreLocations: (value, data) => locations.set(value, data) });
+    let value = { baseline: { tasks: [], metrics: {}, large: '雪'.repeat(10000) }, estimates: new Map(), revision: 0 };
+    cache.set('key', value, undefined, 'one');
+    assert.deepEqual(passes, { measure: 1, serialize: 1, compress: 1 });
+    const repeat = () => {
+      const record = Map.prototype.get.call(cache.entries, 'key'), cost = budget.bytes;
+      value = cache.entries.get('key');
+      cache.measure(value); cache.refresh(value); cache.set('key', value, undefined, 'one');
+      assert.equal(Map.prototype.get.call(cache.entries, 'key'), record);
+      assert.equal(budget.bytes, cost);
+      assert.equal(hotSet.size, 0);
+    };
+    repeat(); repeat();
+    assert.deepEqual(passes, { measure: 1, serialize: 1, compress: 1 });
+    const revisions = [
+      () => { value.revision++; },
+      () => { value.includeViews = true; value.baseline.currentBiS = { label: 'view' }; },
+      () => { value.planningIndex = { byLocation: new Map(), canonical: id => id }; },
+      () => { value.whyIndex = { tasks: value.baseline.tasks }; },
+      () => { value.estimates.set('chunk', { detail: 'estimate' }); },
+      () => { contexts.set(value.baseline, { memberId: 'one' }); },
+      () => { locations.set(value.baseline, { task: ['10000'] }); },
+      () => { value.predictionState = { members: [{ id: 'one' }] }; value.predictionRevision = 1; },
+    ];
+    for (const [index, change] of revisions.entries()) {
+      change(); cache.refresh(value);
+      assert.deepEqual(passes, { measure: index + 2, serialize: index + 2, compress: index + 2 });
+      repeat(); repeat();
+      assert.deepEqual(passes, { measure: index + 2, serialize: index + 2, compress: index + 2 });
+    }
+    value.estimates.set('chunk', { detail: 'same-size replacement' });
+    cache.refresh(value, true); // Explicit invalidation for an in-place mutation.
+    assert.deepEqual(cache.entries.get('key').estimates.get('chunk'), { detail: 'same-size replacement' });
+    repeat();
+    assert.deepEqual(passes, { measure: 10, serialize: 10, compress: 10 });
+    cache.entries.clear(); assert.equal(budget.bytes, 0);
+    Object.keys(passes).forEach(key => passes[key] = 0);
+    const hot = countedCache(budget, { hotSet: createSnapshotHotSet({ entryLimit: 1 }) });
+    const a = { baseline: { tasks: [], metrics: {} } }, b = { baseline: { tasks: [], metrics: {} } };
+    hot.set('a', a, undefined, 'one'); hot.set('b', b, undefined, 'two');
+    hot.entries.get('a'); // Serializes b once; reuses a's first demotion bytes.
+    assert.deepEqual(passes, { measure: 2, serialize: 2, compress: 2 });
+    for (let i = 0; i < 3; i++) { hot.entries.get('b'); hot.entries.get('a'); }
+    assert.deepEqual(passes, { measure: 2, serialize: 2, compress: 2 });
+    const changed = hot.entries.get('a'); changed.whyIndex = { tasks: [] }; hot.refresh(changed);
+    hot.entries.get('b');
+    assert.deepEqual(passes, { measure: 3, serialize: 3, compress: 3 });
+    hot.entries.get('a'); hot.entries.get('b');
+    assert.deepEqual(passes, { measure: 3, serialize: 3, compress: 3 });
+    hot.entries.clear(); assert.equal(budget.bytes, 0);
+  } finally { hook.deregister(); delete globalThis.__snapshotPasses; }
+});
+
+test('promotion and repeated demotion reuse canonical cold bytes and charge both hot allocations', () => {
+  const hotSet = createSnapshotHotSet({ entryLimit: 1 });
+  const { cache, snapshot, budget } = fixture(1024 * 1024, hotSet);
+  cache.set('a', snapshot, undefined, 'one');
+  cache.set('b', { baseline: { tasks: [], metrics: {} } }, undefined, 'two');
+  const cold = Map.prototype.get.call(cache.entries, 'a'), bytes = cold.bytes, heapCost = cold.heapCost;
+  for (let i = 0; i < 3; i++) {
+    cache.entries.get('a');
+    const hot = Map.prototype.get.call(cache.entries, 'a');
+    assert.equal(hot.bytes, bytes);
+    assert.equal(hot.cost, heapCost + bytes.buffer.byteLength);
+    cache.entries.get('b');
+    assert.equal(Map.prototype.get.call(cache.entries, 'a').bytes, bytes);
+    assert.equal(budget.bytes, [...cache.entries.values()].reduce((sum, record) => sum + record.cost, 0));
+  }
+  cache.entries.clear(); assert.equal(budget.bytes, 0); assert.equal(hotSet.bytes, 0);
 });

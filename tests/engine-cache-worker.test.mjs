@@ -29,13 +29,13 @@ registerHooks({ load(url, context, next) {
     anchor = 'const stage = (key, value, _state, owner) => {';
     replacement = \`
   globalThis.__cacheAccounting.measures.push(() => [...entries].map(([key, record]) => {
-      if (Object.keys(record).some(key => !['bytes', 'owner', 'cost', 'value'].includes(key))) throw new Error('Unknown retained representation.');
+      if (Object.keys(record).some(key => !['bytes', 'owner', 'cost', 'value', 'heapCost'].includes(key))) throw new Error('Unknown retained representation.');
       const { snapshot, deferred } = record.value ? { snapshot: record.value, deferred: context(record.value.baseline) } : decode(record.bytes);
       let minimum;
       if (record.value) {
         const meter = createSnapshotHeapMeter();
         meter.visit({ ...snapshot, predict: undefined }); meter.visit(deferred); meter.visit(locations(snapshot.baseline));
-        minimum = meter.bytes;
+        minimum = meter.bytes + (record.bytes?.buffer.byteLength ?? 0);
       } else minimum = serializedSnapshotBytes(key, record.owner, record.bytes);
       if (record.cost < minimum) throw new Error('Retained snapshot is undercharged.');
       return { projectionOnly: !snapshot.baseline && !!snapshot.playResult, sandbox: !!snapshot.playResult,
