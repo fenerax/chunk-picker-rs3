@@ -2,6 +2,7 @@ import path from 'node:path';
 import { readFile, readdir, writeFile, appendFile, mkdir } from 'node:fs/promises';
 import { totals, ioDelta, measuredTimes, decision } from './metrics.mjs';
 import { digest } from '../capacity/model.mjs';
+import { calculatorEvidence } from './lifecycle.mjs';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const probeURL = new URL('./probe.mjs', import.meta.url).href;
@@ -20,8 +21,10 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
   const probe = globalThis[Symbol.for('rs3.acceptance.probe')];
   if (!probe) throw new Error('Acceptance probe preload is required.');
   const directory = process.env.RS3_ACCEPTANCE_PROBE_DIR;
-  let sequence = 0, scheduler;
-  const workers = [], exitedWorkers = new Set(), handles = [], releases = [], records = [], errors = [];
+  let sequence = 0, lastCompletedBarrier = 0, stage = 'fixture-setup', scheduler;
+  const workers = [], handles = [], releases = [], records = [], errors = [];
+  const context = () => ({ stage, barrier: sequence, lastCompletedBarrier });
+  const evidence = calculatorEvidence({ context, diagnostics: () => scheduler?.getDiagnostics() });
   // Named root helps DevTools dominator/retainer inspection of optional snapshots.
   globalThis.__ownedAcceptanceHandles = handles;
   async function rows() {
@@ -39,13 +42,16 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     const end = Date.now() + 30000;
     while (true) {
       signal.throwIfAborted();
-      if (exitedWorkers.size) throw new Error('Calculator retired during measurement; refusing incomplete residency evidence.');
+      if (evidence.hasExited) throw new Error('Calculator retired during measurement; refusing incomplete residency evidence.');
       const failed = (await readdir(directory)).filter(file => /^\d+-\d+\.error$/.test(file));
       if (failed.length) throw new Error(`Isolate probe publication failed: ${await readFile(path.join(directory, failed[0]), 'utf8')}`);
       const samples = await rows();
       const complete = workers.every(worker => samples.some(row => row.pid === worker.pid && row.threadId === 0)
         && samples.some(row => row.pid === worker.pid && row.threadId !== 0));
-      if (complete && samples.every(row => row.sequence === sequence)) return { total: totals(samples), isolates: samples };
+      if (complete && samples.every(row => row.sequence === sequence)) {
+        lastCompletedBarrier = sequence;
+        return { total: totals(samples), isolates: samples };
+      }
       if (Date.now() >= end) throw new Error(`Incomplete isolate measurement at barrier ${sequence}: ${samples.map(row => `${row.pid}/${row.threadId}=${row.sequence}`).join(', ')}; refusing partial heap accounting.`);
       await pause(10);
     }
@@ -120,14 +126,17 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
   }
   let warm;
   try {
+    stage = 'scheduler-startup';
     scheduler = await createTaskScheduler({ maxCalculators: 1, residency: {}, maxRestarts: 0,
+      onCalculatorLifecycle: evidence.onLifecycle,
       workerFactory: input => {
         const worker = new ProcessWorker(input, { probeImport: probeURL, forkProcess });
-        workers.push(worker); worker.once('exit', () => exitedWorkers.add(worker)); return worker;
+        workers.push(worker); evidence.onWorker(worker); return worker;
       },
       workerData: { definitions: data.definitions, world: { chunks: data.world.chunks, surface: data.world.surface, neighbors: data.world.neighbors },
         datasetSelection: selectedDataset.workerSelection(), datasetDigest: selectedDataset.digest,
         datasetOptions: { reviewedOverlays: false, cacheWalking: false }, skillGuideCatalogue: { skills: [], tasks: [] } } });
+    stage = 'warmup';
     const warmGroup = fixture.groups[shape.groups];
     warm = { id: pickerId(warmGroup.index), store: await openStore(options(warmGroup)), lane: scheduler.forPicker(pickerId(warmGroup.index)), responses: responseCache() };
     // Populate all ordinary lazy indexes/transport paths before charging groups.
@@ -135,11 +144,13 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     warm.lane.cancelPicker(); await warm.store.close(); warm = undefined;
     records.length = 0;
     if (errors.length) throw new Error('Warmup failed; cannot establish shared baseline.');
+    stage = 'shared-baseline';
     const baseline = await checkpoint({ snapshot: snapshots, resetPeaks: true });
     if (process.env.RS3_ACCEPTANCE_NOTIFY_READY === '1')
       process.send?.({ kind: 'acceptance-ready', children: workers.map(worker => worker.pid) });
     const measuredBefore = probe.record().io, openSamples = [], groups = [], commandSamples = [];
     const readyStarted = performance.now();
+    stage = 'open-groups';
     for (let index = 0; index < shape.groups; index++) {
       let handle;
       await timed('open', index, async () => {
@@ -162,6 +173,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     const allGroupsReadyWallMs = performance.now() - readyStarted;
     let previous = openSamples.at(-1);
     let copyCounts;
+    stage = 'serial-commands';
     await withIdentityDictionaryCallCountsForTests(async counts => {
       for (const [index, handle] of handles.entries()) {
         await exercise(handle, index);
@@ -175,12 +187,15 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     });
     // Every store/session is retained while all 50 request streams overlap.
     // Keep queue/deadline/cache limits unchanged; record refusals, never retry.
+    stage = 'simultaneous-batch';
     const simultaneous = await timed('simultaneous-batch', -1,
       () => Promise.all(handles.map((handle, index) => exercise(handle, index, true))));
+    stage = 'settled';
     const settled = await checkpoint();
     // First read-only round saturates caches; following four rounds use exactly
     // the same keys and no History writes, so monotonic growth is actionable.
     for (let round = 0; round < rounds; round++) {
+      stage = `read-only-repeat-${round}`;
       const roundTimes = [];
       for (const [index, handle] of handles.entries()) roundTimes.push(await timed('read-only-repeat', index, async () => {
         await calculate(handle, index % shape.members); await stateResponse(handle);
@@ -197,6 +212,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     // task-status/note data from being confused with a revision-cache leak.
     const mutationHistoryBaseline = handles.map((handle, index) => ({ index, ...handle.store.getInfo().retention }));
     for (let round = 0; round < rounds; round++) {
+      stage = `mutation-repeat-${round}`;
       const roundTimes = [], history = [];
       for (const [index, handle] of handles.entries()) {
         const before = handle.store.getInfo();
@@ -246,7 +262,8 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       mutationHistoryBaseline, mutationWarmup: mutations[0], mutationRepeated: mutations.slice(1),
       sessionsRetained: handles.reduce((sum, handle) => sum + handle.sessions.length, 0),
       responseCaches: handles.map((handle, index) => ({ index, entries: handle.responses.size, bytes: handle.responses.bytes })),
-      scheduler: scheduler.getDiagnostics(), allGroupsReadyWallMs, bounded: [] };
+      scheduler: scheduler.getDiagnostics(), calculatorLifecycle: evidence.records, schedulerLifecycle: evidence.schedulerEvents,
+      allGroupsReadyWallMs, bounded: [] };
     // Capture ordinary measurements before explicit flat/export/stopped lanes.
     result.decision = decision(result);
     for (const kind of ['open', 'tick', 'note', 'undo', 'calculator', 'full-response', 'play-and-claims', 'read-only-repeat', 'mutation-repeat-read']) {
@@ -259,6 +276,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       restartReady: { targetApproxWallMs: 300000, measuredWallMs: allGroupsReadyWallMs,
         scope: 'warm shared runtime to all stores and sessions open; complete restart/load acceptance remains later' } };
     for (const kind of ['exceptional-order', 'full-hook', 'compatibility-export', 'stopped-rebase']) {
+      stage = kind;
       const before = await checkpoint({ resetPeaks: true });
       const priorIsolates = new Set((await readdir(directory)).filter(file => /^\d+-\d+\.jsonl$/.test(file)));
       const ioBefore = probe.record().io;
@@ -292,9 +310,11 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       result.bounded.push({ kind, applicable: kind !== 'stopped-rebase' || mode === 'format2', time, before, after, transientIsolates,
         io: ioDelta(ioBefore, probe.record().io), retainedHeapBytes: after.total.heapUsed - before.total.heapUsed });
     }
+    stage = 'post-lanes';
     result.postLanes = await checkpoint({ snapshot: snapshots });
     // Equivalence hashes are an explicit detached-snapshot lane AFTER ordinary
     // measurement; neither format gets to retain these as a group cache.
+    stage = 'final-hashes';
     result.finalHashes = [];
     for (const [index, handle] of handles.entries()) {
       const state = handle.store.getState();
@@ -311,7 +331,15 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     if (errors.length && !result.decision.reasons.includes('incomplete-command-workload')) result.decision.reasons.push('incomplete-command-workload');
     if (result.decision.reasons.length && !smoke) { result.decision.status = 'reject'; result.decision.acceptanceClaim = false; }
     return result;
+  } catch (error) {
+    // Capture before cleanup clears the scheduler and wait for owned process
+    // closure in finally, so the attached records also contain late exit codes.
+    Object.defineProperty(error, 'trialEvidence', { value: { ...context(),
+      calculatorLifecycle: evidence.records, schedulerLifecycle: evidence.schedulerEvents,
+      scheduler: scheduler?.getDiagnostics() ?? null, errors, records } });
+    throw error;
   } finally {
+    evidence.seal(); stage = 'cleanup';
     await warm?.store.close();
     for (const release of releases) release();
     for (const handle of handles) await handle.store.close();

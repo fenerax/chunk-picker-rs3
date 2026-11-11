@@ -7,17 +7,20 @@ import { parseArgs } from 'node:util';
 import { MiB } from './owned-acceptance/metrics.mjs';
 import { shapes, rounds, SEED } from './owned-acceptance/profile.mjs';
 import { childProcesses, command, runTrial } from './owned-acceptance/processes.mjs';
+import { lifecycleSummary, trialFailure } from './owned-acceptance/lifecycle.mjs';
 export { shapes } from './owned-acceptance/profile.mjs';
 
 const self = fileURLToPath(import.meta.url), repository = fileURLToPath(new URL('../../', import.meta.url));
 export function summary(report) {
   const f2 = report.results.find(row => row.mode === 'format2');
-  if (!f2 || report.failures.length) return `INCOMPLETE ${report.smoke ? 'SMOKE' : 'ACCEPTANCE'}; no acceptance claim. ${report.failures.length} failed process(es); see results.json.`;
+  if (!f2 || report.failures.length) return [`INCOMPLETE ${report.smoke ? 'SMOKE' : 'ACCEPTANCE'}; no acceptance claim. ${report.failures.length} failed process(es); see results.json.`,
+    ...lifecycleSummary(report)].join('\n');
   return [`${report.smoke ? 'SMOKE ONLY; no acceptance claim' : f2.decision.status}: ${f2.shape.groups} synthetic groups retained, seed ${report.seed}.`,
     `Format 2 max attributable group ${(f2.decision.perGroupBytes.max / MiB).toFixed(2)} MiB; peak post-GC group heap ${(f2.decision.maximumGroupHeapBytes / MiB).toFixed(2)} MiB.`,
     `Base writes after publication: ${f2.allPostPublicationIO.baseWrites}; command errors: ${f2.errors.length}.`,
     `Open wall p95 ${f2.times.open.wallMs.p95.toFixed(1)} ms; everyday p95 ${f2.speedBar.everyday.measured.wallMs.p95.toFixed(1)} ms; calculator p95 ${f2.times.calculator.wallMs.p95.toFixed(1)} ms (speed targets advisory).`,
-    `Five fresh runs per OS are required; this file is one run. ${report.equivalent ? 'Format fixtures/final states match.' : 'Format comparison incomplete or different.'}`].join('\n');
+    `Five fresh runs per OS are required; this file is one run. ${report.equivalent ? 'Format fixtures/final states match.' : 'Format comparison incomplete or different.'}`,
+    ...lifecycleSummary(report)].join('\n');
 }
 
 export async function comparison({ output, smoke = false, snapshots = false, signal, onReady }) {
@@ -61,7 +64,10 @@ export async function comparison({ output, smoke = false, snapshots = false, sig
       if (code !== 0) throw new Error(`${mode} process failed.`);
     } catch (error) {
       signal?.throwIfAborted();
-      report.failures.push({ mode, message: error.message });
+      let failure = trialFailure(mode, error);
+      try { failure = JSON.parse(await readFile(path.join(modeDir, 'failure.json'), 'utf8')); }
+      catch (cause) { if (cause.code !== 'ENOENT') failure.evidenceError = cause.message; }
+      report.failures.push(failure);
     } finally {
       // Exact mkdtemp-owned directory only; no input paths or links are accepted.
       await rm(root, { recursive: true, force: true });
@@ -100,6 +106,10 @@ async function main() {
         smoke: values.smoke, snapshots: values.snapshots && values.child === 'format2' });
       controller.signal.throwIfAborted();
       await writeFile(path.join(values.out, 'result.json'), JSON.stringify(result, null, 2), { flag: 'wx' });
+    } catch (error) {
+      if (!controller.signal.aborted)
+        await writeFile(path.join(values.out, 'failure.json'), JSON.stringify(trialFailure(values.child, error), null, 2), { flag: 'wx' });
+      throw error;
     } finally {
       controller.abort(); await processes.close();
       process.off('message', message); process.off('disconnect', abort);

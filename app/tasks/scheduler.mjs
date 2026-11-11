@@ -147,7 +147,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       workerData: (includeCatalogue, group) => native
         ? nativeWorkerInput(group === 'foreground' || options.workerPreparation.persistent ? options.workerPreparation.input() : options.workerData, includeCatalogue) : options.workerData,
       sessions, clock: options.idleClock, memoryUsage: options.calculatorMemoryUsage,
-      onWorker: options.onWorker,
+      onWorker: options.onWorker, onCalculatorLifecycle: options.onCalculatorLifecycle,
       onReady: native ? message => options.workerPreparation.accept(message) : undefined,
       idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
   }
@@ -565,7 +565,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
-  stuckMs = 120000, signal, fairness, calculatorPool, sessions, timings: liveTimings, onWorker, deadlineClock = { setTimeout, clearTimeout },
+  stuckMs = 120000, signal, fairness, calculatorPool, sessions, timings: liveTimings, onWorker, onCalculatorLifecycle, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
   for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
@@ -626,6 +626,23 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   let sleepTimer, lastRequestAt = idleClock.now(), idleStops = 0;
   let lastProgressAt = idleClock.now(), manualRestart;
   let initialAborted = false, cancelledGrace;
+  // Opt-in, in-process diagnostics only. Never retain job inputs or add fields
+  // to worker messages, client health notifications or calculation responses.
+  function lifecycleState() {
+    const time = idleClock.now();
+    return { ...scheduler.getDiagnostics(), startupDeadlineMs, activeJob: active ? { kind: active.type,
+      ageMs: Math.max(0, time - active.startedAt), queuedMs: Math.max(0, time - active.queuedAt),
+      deadlineMs: active.diagnosticDeadlineMs ?? deadlineMs,
+      deadlineAgeMs: active.deadlineStartedAt === undefined ? null : Math.max(0, time - active.deadlineStartedAt) } : null };
+  }
+  function observeLifecycle(event, initiator, reason, error) {
+    if (!onCalculatorLifecycle) return;
+    try {
+      const physical = calculatorPool ? worker?.lifecycleWorker : worker;
+      if (physical || event === 'restart' || event === 'failure')
+        onCalculatorLifecycle({ worker: physical, event, initiator, reason, error, scheduler: lifecycleState() });
+    } catch { /* Diagnostics cannot interrupt retirement or recovery. */ }
+  }
   function clearCancelledGrace(entry) {
     if (cancelledGrace && (!entry || cancelledGrace.entry === entry)) {
       deadlineClock.clearTimeout(cancelledGrace.timer); cancelledGrace = undefined;
@@ -636,7 +653,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     const timer = deadlineClock.setTimeout(() => {
       if (cancelledGrace?.entry !== entry) return;
       cancelledGrace = undefined;
-      if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retire();
+      if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retireWithDiagnostics(undefined, 'generation-retirement', 'cancelled-grace');
     }, 25);
     timer?.unref?.(); cancelledGrace = { entry, timer };
   }
@@ -665,6 +682,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     // Idle warming and abandoned work are expendable. Real requests keep their
     // worker until every waiter has received a complete response.
     if (active?.waiters.size || served(active) || active?.reuseWaiters?.size || queue.length) return;
+    observeLifecycle('retirement', 'idle', 'idle-sleep');
     clearCancelledGrace();
     scheduler.cancelPrewarm();
     if (active) { deadlineClock.clearTimeout(active.timer); active = undefined; }
@@ -766,6 +784,11 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     // another picker's request, with or without a physical calculator pool.
     if (entry.residentOnly && !retiring) armCancelledGrace(entry);
   }
+  function retireWithDiagnostics(error = superseded(), initiator = 'generation-retirement', reason = 'obsolete-generation') {
+    observeLifecycle('retirement', initiator, reason, error);
+    return retire(error);
+  }
+  // Keep this declaration stable: the y06 trace loader instruments this seam.
   function retire(error = superseded()) {
     clearCancelledGrace();
     if (active) {
@@ -787,8 +810,10 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     if (queue.length || warmQueue.length) wake();
     return true;
   }
-  function failure(kind) {
+  function failure(kind, error) {
     if (closed || status === 'restarting' || status === 'restart-required') return;
+    observeLifecycle('failure', kind.includes('deadline') ? 'deadline' : kind === 'worker-memory' ? 'memory-ceiling'
+      : kind === 'profile-retired' ? 'profile-retirement' : 'crash', kind, error);
     recovering = true;
     clearCancelledGrace();
     firstCalculation = true;
@@ -822,7 +847,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function pump() {
     if (closed || status !== 'ready') return;
-    if (!active && worker.profileRetiring) { retire(); return; }
+    if (!active && worker.profileRetiring) { retireWithDiagnostics(undefined, 'profile-retirement', 'profile-retired'); return; }
     if (active) {
       if (calculatorPool && queue.length) scheduler.yieldForInteractive();
       return;
@@ -874,10 +899,12 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   function deadline(entry, allowance = !active && firstCalculation && queue.length <= 1 && entry.type !== 'prepare-rules' && !entry.residentOnly
     ? Math.max(deadlineMs, firstCalculationDeadlineMs) : deadlineMs) {
     entry.deadlineStartedAt ??= idleClock.now();
+    if (onCalculatorLifecycle) entry.diagnosticDeadlineMs = allowance;
     deadlineClock.clearTimeout(entry.timer);
     entry.timer = deadlineClock.setTimeout(() => {
-      counts.expired++; settle(entry, Object.assign(new Error('Task calculation deadline exceeded. Retry shortly.'), { status: 504 }));
-      if (active === entry) failure('calculation-deadline'); else pump();
+      const error = Object.assign(new Error('Task calculation deadline exceeded. Retry shortly.'), { status: 504 });
+      counts.expired++; settle(entry, error);
+      if (active === entry) failure('calculation-deadline', error); else pump();
     }, Math.max(0, allowance - (idleClock.now() - entry.deadlineStartedAt)));
   }
   function dispatch(entry) {
@@ -961,13 +988,14 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     try { worker = calculatorPool ? calculatorPool.createEndpoint(includeReadyCatalogue)
       : workerFactory(workerFactory === nativeWorker
         ? nativeWorkerInput(includeReadyCatalogue || workerPreparation?.persistent ? workerPreparation?.input() ?? workerData : workerData, includeReadyCatalogue && !receivedCatalogue) : workerData); }
-    catch { failure('worker-start'); return; }
+    catch (error) { failure('worker-start', error); return; }
+    if (calculatorPool && onCalculatorLifecycle) worker.lifecycleState = lifecycleState;
     if (!calculatorPool) onWorker?.(worker);
     const launchedWorker = worker;
     if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
-    startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
+    startupTimer = setTimeout(() => failure('startup-deadline', new Error('Task worker startup deadline exceeded.')), startupDeadlineMs);
     worker.on('error', error => { if (ownGeneration === generation) failure(worker.profileRetiring ? 'profile-retired'
-      : error?.code === 'ERR_WORKER_OUT_OF_MEMORY' ? 'worker-memory' : 'worker-error'); });
+      : error?.code === 'ERR_WORKER_OUT_OF_MEMORY' ? 'worker-memory' : 'worker-error', error); });
     worker.on('exit', () => { drainSource(launchedWorker); if (ownGeneration === generation && !closed) failure(launchedWorker.profileRetiring ? 'profile-retired' : 'worker-exit'); });
     worker.on('profile-retiring', () => { if (ownGeneration === generation && !closed) pump(); });
     worker.on('profile-retired', () => { if (ownGeneration === generation && !closed) failure('profile-retired'); });
@@ -1105,7 +1133,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     yieldWhileStarting() {
       if (closed || active || queue.length) return false;
       scheduler.cancelPrewarm();
-      return retire();
+      return retireWithDiagnostics(undefined, 'generation-retirement', 'yield-starting');
     },
     isBackground() {
       return !!active && !active.waiters.size && !served(active) && !active.reuseWaiters?.size;
@@ -1113,7 +1141,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     stopForMemory() {
       if (closed || !active) return false;
       scheduler.cancelPrewarm();
-      return retire(unavailable('Task calculator exceeded its memory budget. Retry shortly.'));
+      return retireWithDiagnostics(unavailable('Task calculator exceeded its memory budget. Retry shortly.'), 'memory-ceiling', 'pool-memory-budget');
     },
     yieldForInteractive() {
       // Retain cooperative workers briefly; cancel() also arms retirement for
@@ -1132,7 +1160,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return false;
       }
       if (active.warm) { active.warm = false; warmCounts.cancelled++; }
-      return retire();
+      return retireWithDiagnostics(undefined, 'generation-retirement', 'yield-interactive');
     },
     yieldQueuedWarm(pickerId) {
       for (const entry of [...warmQueue]) if (entry.pickerId === pickerId && !entry.waiters.size) {
@@ -1360,7 +1388,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.revision < revision) {
         counts.superseded++; cancel(entry, superseded());
       }
-      return retire();
+      return retireWithDiagnostics();
     },
     // Display-only saves keep task inputs, so nothing is obsolete. While
     // someone edits notes, an unrequested calculation still yields its process
@@ -1372,7 +1400,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.warm && !entry.waiters.size && !served(entry)) {
         entry.warm = false; warmCounts.cancelled++; cancel(entry, unavailable('Background prediction cancelled.'));
       }
-      return retire();
+      return retireWithDiagnostics();
     },
     canPrewarm() {
       return !closed && ['starting', 'ready'].includes(status) && (idleClock.now() - lastRequestAt < idleMs || sessionRemaining() > 0);
@@ -1480,6 +1508,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     async restartUnhealthy() {
       if (manualRestart) { await manualRestart; return false; }
       if (closed || !(scheduler.getHealth().stuck || status === 'restart-required')) return false;
+      observeLifecycle('restart', 'explicit-restart', 'restart-unhealthy');
       manualRestart = (async () => {
         clearCancelledGrace();
         clearTimeout(restartTimer); clearTimeout(startupTimer); clearImmediate(idleTimer); idleTimer = undefined;
@@ -1512,6 +1541,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       if (closePromise) return closePromise;
       signal?.removeEventListener('abort', abortInitial);
       if (!closed) {
+        observeLifecycle('retirement', 'shutdown', 'scheduler-close');
         clearCancelledGrace();
         closed = true; status = 'closed'; generation++;
         initialReject(unavailable('The task server is closing.'));
