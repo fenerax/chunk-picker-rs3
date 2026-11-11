@@ -101,10 +101,11 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, releaseCommandResponses = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
+  if (typeof releaseCommandResponses !== 'boolean') throw new TypeError('releaseCommandResponses must be boolean.');
   const encodeCompletions = completionCodec ? createCompletionEncoder() : document => document;
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
   if (policy) {
@@ -622,6 +623,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function refreshSnapshots() {
     if (poolState !== current) { poolState = current; fullPools = undefined; playPools = undefined; calculationSnapshot = undefined; }
   }
+  function releaseObsoleteResponses(previous) {
+    if (!releaseCommandResponses || previous === current) return;
+    // Drop only store-owned references after publication. Captured responses
+    // and calculation inputs remain intact for their in-flight callers.
+    playProjections.delete(previous);
+    refreshSnapshots();
+  }
   function capturedCalculation() {
     refreshSnapshots();
     if (!calculationSnapshot) {
@@ -1028,7 +1036,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!allowClosing && (frozen && !(importReader && backupRead) || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
     maintenancePending++;
     const result = maintenanceQueue.then(() => withStoreWrite(directory, () => withCatalogue(work))).finally(() => { maintenancePending--; });
-    maintenanceQueue = result.catch(() => {});
+    maintenanceQueue = releaseCommandResponses ? result.then(() => {}, () => {}) : result.catch(() => {});
     return result;
   }
   try { await withStoreWrite(directory, () => withCatalogue(() => withPluginEvidence(directory, async () => {
@@ -1201,7 +1209,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (closing) return Promise.reject(new Error('The store is closed.'));
     if (frozen) return Promise.reject(Object.assign(new Error('The picker is updating.'), { status: 503, code: 'PICKER_UPDATING' }));
     const result = queue.then(() => withStoreWrite(directory, () => withCatalogue(() => withPluginEvidence(directory, work))));
-    queue = result.catch(() => {});
+    // The caller owns the response; sequencing needs only its settlement.
+    queue = releaseCommandResponses ? result.then(() => {}, () => {}) : result.catch(() => {});
     return result;
   }
   // Authoritative state publishes first. Frozen-readable review lowering is
@@ -1274,7 +1283,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       playProjections.set(validated, { ...previousPlay, state: { ...display,
         tasks: previousPlay.state.tasks, identityRegistry: previousPlay.state.identityRegistry } });
     }
+    const previous = current;
     current = validated;
+    releaseObsoleteResponses(previous);
     receipts = nextReceipts;
     pluginCurrency = currency;
     currentDiskSerialized = diskDocument;
@@ -1699,7 +1710,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           const next = await publicationState(current, current);
           const bytes = await serializedDiskState(next, result.ledger);
           const publication = await writeState(bytes, { onPostPublishSyncError: 'warn' });
+          const previous = current;
           current = next; receipts = result.ledger; currentDiskSerialized = bytes;
+          releaseObsoleteResponses(previous);
           reportDurability(publication);
         }
         return result.session;
@@ -1750,7 +1763,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           if (!sameState(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
           if (closing) throw new Error('Standby activation was cancelled by shutdown.');
+          const previous = current;
           current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
+          releaseObsoleteResponses(previous);
           pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
           receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
           releaseGuard = guard; releaseFileLock = fileLock;
@@ -1838,7 +1853,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         await publishDependencies(diagnostic);
         const published = await publishItemState(publication.state, publication.disk, prepared.operation,
           { ...publication, dependencies: dependencies.filter(row => !diagnostic.includes(row)) });
+        const previous = current;
         current = ownedStorage ? shareResidentCatalogue(copyState(publication.state), ownedStorage.base) : publication.state;
+        releaseObsoleteResponses(previous);
         currentDiskSerialized = publication.disk;
         receipts = publication.receipts;
         pluginCurrency = publication.pluginCurrency;
