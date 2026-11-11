@@ -8,10 +8,15 @@ import { MiB } from './owned-acceptance/metrics.mjs';
 import { shapes, rounds, SEED } from './owned-acceptance/profile.mjs';
 import { childProcesses, command, runTrial } from './owned-acceptance/processes.mjs';
 import { lifecycleSummary, trialFailure } from './owned-acceptance/lifecycle.mjs';
+import { compare, formats } from './owned-acceptance/comparison.mjs';
 export { shapes } from './owned-acceptance/profile.mjs';
 
 const self = fileURLToPath(import.meta.url), repository = fileURLToPath(new URL('../../', import.meta.url));
 export function summary(report) {
+  if (report.selectedFormat) return [
+    `${report.selectedFormat} ${report.smoke ? 'SMOKE ONLY' : 'MEASUREMENT ONLY'}; no acceptance claim until both formats are compared.`,
+    `${report.results.length} completed trial(s); ${report.failures.length} failed process(es); see results.json.`,
+    ...lifecycleSummary(report)].join('\n');
   const f2 = report.results.find(row => row.mode === 'format2');
   if (!f2 || report.failures.length) return [`INCOMPLETE ${report.smoke ? 'SMOKE' : 'ACCEPTANCE'}; no acceptance claim. ${report.failures.length} failed process(es); see results.json.`,
     ...lifecycleSummary(report)].join('\n');
@@ -20,18 +25,19 @@ export function summary(report) {
     `Base writes after publication: ${f2.allPostPublicationIO.baseWrites}; command errors: ${f2.errors.length}.`,
     `Open wall p95 ${f2.times.open.wallMs.p95.toFixed(1)} ms; everyday p95 ${f2.speedBar.everyday.measured.wallMs.p95.toFixed(1)} ms; calculator p95 ${f2.times.calculator.wallMs.p95.toFixed(1)} ms (speed targets advisory).`,
     `Five fresh runs per OS are required; this file is one run. ${report.equivalent ? 'Format fixtures/final states match.' : 'Format comparison incomplete or different.'}`,
-    ...lifecycleSummary(report)].join('\n');
+    ...(report.comparisonErrors ?? []), ...lifecycleSummary(report)].join('\n');
 }
 
-export async function comparison({ output, smoke = false, snapshots = false, signal, onReady }) {
+export async function comparison({ output, format, smoke = false, snapshots = false, signal, onReady }) {
   signal?.throwIfAborted();
+  if (format !== undefined && !formats.includes(format)) throw new Error('Use --format format1 or --format format2.');
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major !== 24 || minor < 20) throw new Error('Use Node 24.20+ within 24.x.');
   if (!smoke && process.env.GITHUB_ACTIONS !== 'true') throw new Error('50-group measurements run only in hosted CI; locally run the smoke test.');
   setPriority(constants.priority.PRIORITY_BELOW_NORMAL);
   await mkdir(output, { recursive: true });
   await writeFile(path.join(output, 'started.json'), JSON.stringify({ startedAt: new Date().toISOString() }), { flag: 'wx' });
-  const report = { format: 'owned-acceptance-7b', schemaVersion: 1, smoke, snapshots,
+  const report = { format: 'owned-acceptance-7b', schemaVersion: 1, smoke, snapshots, selectedFormat: format ?? null,
     seed: SEED,
     commit: (await command('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8', signal, windowsHide: true })).trim(),
     runtime: { node: process.versions.node, v8: process.versions.v8, arch: process.arch },
@@ -45,7 +51,7 @@ export async function comparison({ output, smoke = false, snapshots = false, sig
       'Serial operation CPU includes probe overhead; simultaneous per-request CPU is null, with process-tree CPU reported for the batch.',
       'Heap deltas include all measured isolates and hidden WeakMap graphs; incremental attribution can include allocator/GC noise.',
     ] };
-  for (const mode of ['format1', 'format2']) {
+  for (const mode of format ? [format] : formats) {
     signal?.throwIfAborted();
     const modeDir = path.join(output, mode), probes = path.join(modeDir, 'probes');
     await mkdir(probes, { recursive: true });
@@ -73,14 +79,8 @@ export async function comparison({ output, smoke = false, snapshots = false, sig
       await rm(root, { recursive: true, force: true });
     }
   }
-  report.equivalent = report.results.length === 2 && report.results[0].fixtureHashes.join() === report.results[1].fixtureHashes.join()
-    && report.results[0].finalHashes.join() === report.results[1].finalHashes.join();
-  const f2 = report.results.find(result => result.mode === 'format2');
-  if (!report.equivalent && f2) {
-    f2.decision.reasons.push('format-comparison-mismatch');
-    f2.decision.acceptanceClaim = false;
-    if (!smoke) f2.decision.status = 'reject';
-  }
+  if (format) report.equivalent = false;
+  else compare(report);
   report.summary = summary(report);
   await writeFile(path.join(output, 'results.json'), JSON.stringify(report, null, 2), { flag: 'wx' });
   await writeFile(path.join(output, 'summary.txt'), report.summary + '\n', { flag: 'wx' });
@@ -89,6 +89,7 @@ export async function comparison({ output, smoke = false, snapshots = false, sig
 
 async function main() {
   const { values } = parseArgs({ options: { out: { type: 'string' }, root: { type: 'string' }, child: { type: 'string' },
+    format: { type: 'string' },
     smoke: { type: 'boolean', default: false }, snapshots: { type: 'boolean', default: false } } });
   if (!values.out) throw new Error('--out is required; there is no input/save option.');
   if (values.child) {
@@ -116,9 +117,10 @@ async function main() {
       if (process.connected) process.disconnect();
     }
   } else {
-    const report = await comparison({ output: path.resolve(values.out), smoke: values.smoke, snapshots: values.snapshots });
+    const report = await comparison({ output: path.resolve(values.out), format: values.format, smoke: values.smoke, snapshots: values.snapshots });
     console.log(report.summary);
-    if (report.failures.length || !values.smoke && !report.results.find(result => result.mode === 'format2')?.decision.acceptanceClaim) process.exitCode = 1;
+    if (report.failures.length || !values.smoke && (report.results.some(result => result.errors.length || result.allPostPublicationIO.baseWrites !== 0)
+      || values.format !== 'format1' && !report.results.find(result => result.mode === 'format2')?.decision.acceptanceClaim)) process.exitCode = 1;
   }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === self) main().catch(error => { console.error(error); process.exitCode = 1; });

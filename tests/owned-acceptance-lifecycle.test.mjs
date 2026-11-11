@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 import { calculatorEvidence, trialFailure } from '../scripts/perf/owned-acceptance/lifecycle.mjs';
 import { summary } from '../scripts/perf/owned-acceptance.mjs';
+import { calculationInput } from '../scripts/perf/owned-acceptance/trial.mjs';
 import { createManualClock } from './helpers/manual-clock.mjs';
 
 // Entirely synthetic: no server, real calculation, wall-clock deadline or
@@ -44,6 +45,57 @@ async function fixture(t, options = {}) {
   return { scheduler, workers, clock, evidence, context, evaluate,
     nextJob: () => jobs.length ? Promise.resolve(jobs.shift()) : new Promise(resolve => jobWaiters.push(resolve)) };
 }
+
+test('both harness formats defer encoding and fence a changed store before dispatch', () => {
+  for (const mode of ['format1', 'format2']) {
+    let revision = 7, reads = 0, encodes = 0;
+    const stateJSON = new SharedArrayBuffer(2), owned = { document: { synthetic: true }, installation: {} };
+    const store = { getInfo: () => ({ revision }), getCalculationSnapshot() {
+      reads++;
+      return { revision, members: [{ id: 'synthetic-member' }], taskInputKey: `input-${revision}`,
+        get owned() { if (mode === 'format2') { encodes++; return owned; } },
+        get stateJSON() { encodes++; return stateJSON; } };
+    } };
+    const captured = calculationInput(store);
+    assert.equal(reads, 1); assert.equal(encodes, 0, 'admission reads metadata only');
+    assert.equal(typeof captured.stateInput.load, 'function');
+    assert.deepEqual(Object.keys(captured.stateInput), ['inputKey', 'taskInputKey', 'load']);
+    const loaded = captured.stateInput.load(captured.revision);
+    assert.equal(reads, 2); assert.equal(encodes, 1, 'payload is encoded only at dispatch');
+    assert.equal(loaded.stateInput[mode === 'format1' ? 'stateJSON' : 'owned'], mode === 'format1' ? stateJSON : owned);
+    revision++;
+    assert.throws(() => captured.stateInput.load(captured.revision), { status: 409 });
+    assert.equal(reads, 2); assert.equal(encodes, 1, 'stale providers never encode another save');
+  }
+});
+
+test('fifty deferred control requests fit unchanged queue limits and release every parked input', async t => {
+  const { scheduler, nextJob, evaluate } = await fixture(t);
+  const blocking = evaluate('blocker'), blocker = await nextJob();
+  let encodes = 0;
+  // If encoded eagerly, each synthetic buffer's 2 MiB would exceed the default
+  // 64 MiB queued-input ceiling across fifty requests. Allocate only at dispatch.
+  const pending = Array.from({ length: 50 }, (_, index) => {
+    const store = { getInfo: () => ({ revision: 0 }), getCalculationSnapshot: () => ({
+      revision: 0, members: [{ id: 'synthetic-member' }], taskInputKey: `input-${index}`,
+      get stateJSON() { encodes++; return new SharedArrayBuffer(2 * 1024 ** 2); },
+    }) };
+    const { revision, members, inputKey, stateInput } = calculationInput(store);
+    return scheduler.forPicker(`p_${(index + 1).toString(16).padStart(32, '0')}`).evaluate({ revision, members }, 'synthetic-member',
+      'evaluate', undefined, `request-${index}`, inputKey, undefined, [], 'full', stateInput);
+  });
+  assert.equal(encodes, 0);
+  assert.equal(scheduler.getDiagnostics().queue.depth, 50);
+  assert.equal(scheduler.getDiagnostics().queue.inputByteLimit, 64 * 1024 ** 2);
+  assert(scheduler.getDiagnostics().queue.inputBytes > 0);
+  // Finish the blocker, then one admitted job at a time with no real timers.
+  blocker.finish(); await blocking;
+  for (const request of pending) { (await nextJob()).finish(); await request; }
+  assert.equal(encodes, 50);
+  assert.equal(scheduler.getDiagnostics().queue.depth, 0);
+  assert.equal(scheduler.getDiagnostics().queue.inputBytes, 0);
+  assert.equal(scheduler.getDiagnostics().counts.rejected, 0);
+});
 
 test('active deadline retains its initiator, pre-recovery state and late exit in JSON and summary', async t => {
   const { scheduler, workers, clock, evidence, context, evaluate } = await fixture(t);

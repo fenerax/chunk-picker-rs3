@@ -13,13 +13,14 @@ permissions:
 
 jobs:
   measure:
-    name: ${{ matrix.os }} / fresh run ${{ matrix.run }}
+    name: ${{ matrix.os }} / fresh run ${{ matrix.run }} / ${{ matrix.format }}
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
         os: [ubuntu-latest, windows-latest]
         run: [1, 2, 3, 4, 5]
+        format: [format1, format2]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -30,15 +31,16 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24.21.0
-      - name: Measure identical synthetic fixtures in fresh processes
+      - name: Measure one format in a fresh process
         shell: bash
         env:
           ACCEPTANCE_SNAPSHOTS: ${{ inputs.snapshots }}
           ACCEPTANCE_FRESH_RUN: ${{ matrix.run }}
+          ACCEPTANCE_FORMAT: ${{ matrix.format }}
         run: |
           args=()
           if [ "$ACCEPTANCE_SNAPSHOTS" = "true" ]; then args+=(--snapshots); fi
-          node scripts/perf/owned-acceptance.mjs --out var/owned-acceptance/ci "${args[@]}"
+          node scripts/perf/owned-acceptance.mjs --format "$ACCEPTANCE_FORMAT" --out var/owned-acceptance/ci "${args[@]}"
       - name: Publish human summary
         if: always()
         shell: bash
@@ -50,7 +52,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: owned-acceptance-${{ matrix.os }}-${{ matrix.run }}
+          name: owned-acceptance-${{ matrix.os }}-${{ matrix.run }}-${{ matrix.format }}
           path: |
             var/owned-acceptance/ci/**/*.json
             var/owned-acceptance/ci/**/*.txt
@@ -58,7 +60,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Preserve explicitly requested raw snapshots
-        if: always() && inputs.snapshots
+        if: always() && inputs.snapshots && matrix.format == 'format2'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: owned-heap-snapshots-${{ matrix.os }}-${{ matrix.run }}
@@ -67,7 +69,7 @@ jobs:
           retention-days: 14
 
   summarize:
-    name: All ten fresh runs
+    name: Compare both formats for all ten fresh runs
     if: always()
     needs: measure
     runs-on: ubuntu-latest

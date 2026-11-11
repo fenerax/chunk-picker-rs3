@@ -6,22 +6,45 @@ import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { comparison, shapes } from '../scripts/perf/owned-acceptance.mjs';
 import { aggregate } from '../scripts/perf/owned-acceptance/aggregate.mjs';
+import { pairReports } from '../scripts/perf/owned-acceptance/comparison.mjs';
+import { SEED } from '../scripts/perf/owned-acceptance/profile.mjs';
 import { decision } from '../scripts/perf/owned-acceptance/metrics.mjs';
 
 // No per-test deadlines or timing/memory thresholds. The
 // tiny fixture exercises measurement plumbing, never the acceptance budget.
-test('synthetic acceptance smoke preserves both formats and complete measurement structure', async t => {
+test('per-format launcher smoke preserves both formats and complete aggregate measurement structure', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'owned-acceptance-smoke-'));
   try {
-    const report = await comparison({ output: path.join(root, 'report'), smoke: true, signal: t.signal });
+    const receipts = [];
+    for (const mode of ['format1', 'format2']) {
+      const output = path.join(root, mode);
+      await promisify(execFile)(process.execPath, [fileURLToPath(new URL('../scripts/perf/owned-acceptance.mjs', import.meta.url)),
+        '--format', mode, '--smoke', '--out', output], { signal: t.signal, windowsHide: true });
+      const receipt = JSON.parse(await readFile(path.join(output, 'results.json'), 'utf8'));
+      assert.equal(receipt.selectedFormat, mode); assert.equal(receipt.equivalent, false);
+      assert.deepEqual(receipt.results.map(row => row.mode), [mode]);
+      assert.deepEqual(receipt.failures, []);
+      assert.deepEqual((await readdir(output)).sort(), [mode, 'results.json', 'started.json', 'summary.txt'].sort());
+      assert.match(await readFile(path.join(output, 'summary.txt'), 'utf8'), /SMOKE ONLY; no acceptance claim until both formats/);
+      receipts.push(receipt);
+    }
+    const [report] = pairReports(receipts);
     assert.equal(report.format, 'owned-acceptance-7b');
     assert.equal(report.smoke, true); assert.equal(report.equivalent, true);
     assert.match(report.commit, /^[a-f0-9]{40}$/); assert.equal(typeof report.seed, 'string');
     assert.equal(typeof report.host.os, 'string'); assert.equal(report.runtime.node, process.versions.node);
-    const combined = aggregate([report]);
+    const combined = aggregate(receipts);
     assert.equal(combined.acceptanceClaim, false); assert.equal(combined.format, 'owned-acceptance-7b-aggregate');
+    assert.equal(combined.comparisons[0].equivalent, true);
+    await assert.rejects(promisify(execFile)(process.execPath,
+      [fileURLToPath(new URL('../scripts/perf/owned-acceptance/aggregate.mjs', import.meta.url)), root],
+      { signal: t.signal, windowsHide: true }), { code: 1 });
+    const savedAggregate = JSON.parse(await readFile(path.join(root, 'aggregate.json'), 'utf8'));
+    assert.equal(savedAggregate.acceptanceClaim, false);
+    assert.equal(savedAggregate.comparisons[0].equivalent, true);
     assert.deepEqual(report.results.map(row => row.mode), ['format1', 'format2']);
     for (const result of report.results) {
       assert.deepEqual(result.shape, shapes.smoke);
@@ -65,8 +88,89 @@ test('synthetic acceptance smoke preserves both formats and complete measurement
       assert(decision({ ...leak, postPublicationIO: { ...leak.postPublicationIO, baseWrites: 1 } })
         .reasons.includes('base-rewritten-after-publication'));
     }
-    assert.match(await readFile(path.join(root, 'report', 'summary.txt'), 'utf8'), /SMOKE ONLY; no acceptance claim/);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+// Fully synthetic receipts drive decisions, never measured GC sizes or elapsed
+// time. These are not acceptance evidence for the running implementation.
+function hostedReceipts() {
+  return ['linux', 'win32'].flatMap(os => [1, 2, 3, 4, 5].flatMap(run => ['format1', 'format2'].map(mode => ({
+    format: 'owned-acceptance-7b', schemaVersion: 1, selectedFormat: mode, smoke: false, snapshots: false,
+    commit: 'a'.repeat(40), seed: SEED, runtime: { node: '24.21.0', v8: 'synthetic-v8', arch: 'x64' },
+    host: { os, hostname: `${mode}-synthetic-host` }, ci: { run: 'synthetic-dispatch', attempt: '1', freshRun: String(run) },
+    failures: [], results: [{ mode, shape: shapes.acceptance, errors: [],
+      fixtureHashes: Array.from({ length: 54 }, (_, i) => `fixture-${i}`),
+      finalHashes: Array.from({ length: 50 }, (_, i) => `final-${i}`),
+      measuredIO: { baseWrites: 0 }, allPostPublicationIO: { baseWrites: 0 },
+      records: [{ kind: 'calculator', wallMs: run, mainCpuMs: run, childCpuMs: run, cpuMs: run * 2 }],
+      times: { open: { wallMs: { p95: 1 } }, calculator: { wallMs: { p95: 1 } } },
+      speedBar: { everyday: { measured: { wallMs: { p95: 1 } } } },
+      decision: { status: 'target-met', acceptanceClaim: true, reasons: [], groups: [{ attributableBytes: 1 }],
+        perGroupBytes: { max: 1 }, maximumGroupHeapBytes: 1, openSlopeBytesPerGroup: 1 },
+    }],
+  }))));
+}
+
+test('aggregate pairs twenty receipts into ten decisions without requiring identical hosts', () => {
+  const receipts = hostedReceipts(), result = aggregate(receipts.reverse());
+  assert.equal(result.acceptanceClaim, true); assert.deepEqual(result.errors, []);
+  assert.equal(result.comparisons.length, 10);
+  for (const pair of result.comparisons) {
+    assert.equal(pair.equivalent, true); assert.deepEqual(pair.errors, []);
+    assert.equal(pair.decision.acceptanceClaim, true);
+    assert.equal(pair.formatHosts.format1.hostname, 'format1-synthetic-host');
+    assert.equal(pair.formatHosts.format2.hostname, 'format2-synthetic-host');
+  }
+  assert.equal(result.platforms.linux.formats.format2.times.calculator.wallMs.p95, 5);
+  assert.equal(receipts[0].results[0].decision.reasons.length, 0, 'comparison does not mutate input receipts');
+});
+
+test('aggregate refuses absent, duplicate, mismatched, failed or non-accepting measurements', () => {
+  const cases = [
+    ['missing format', rows => rows.shift()],
+    ['missing pair', rows => rows.splice(0, 2)],
+    ['duplicate receipt', rows => rows.push(structuredClone(rows[0]))],
+    ['duplicate run', rows => { rows[2].ci.freshRun = '1'; rows[3].ci.freshRun = '1'; }],
+    ['wrong run', rows => { rows[0].ci.freshRun = '6'; rows[1].ci.freshRun = '6'; }],
+    ...['commit', 'seed', 'smoke', 'snapshots'].map(key => [key, rows => { rows[0][key] = 'mismatch'; }]),
+    ...['node', 'v8', 'arch'].map(key => [key, rows => { rows[0].runtime[key] = 'mismatch'; }]),
+    ...['run', 'attempt'].map(key => [key, rows => { rows[0].ci[key] = 'mismatch'; }]),
+    ...['fixtureHashes', 'finalHashes'].map(key => [key, rows => { rows[0].results[0][key][0] = 'mismatch'; }]),
+    ['wrong format', rows => { rows[0].results[0].mode = 'format2'; }],
+    ['failed control', rows => { rows[0].failures.push({ mode: 'format1', message: 'synthetic failure' }); }],
+    ['partial control', rows => { rows[0].results = []; }],
+    ['control refusal', rows => { rows[0].results[0].errors.push({ code: 429 }); }],
+    ['candidate refusal', rows => { rows[1].results[0].errors.push({ code: 429 }); }],
+    ['control base write', rows => { rows[0].results[0].allPostPublicationIO.baseWrites = 1; }],
+    ['candidate base write', rows => { rows[1].results[0].allPostPublicationIO.baseWrites = 1; }],
+    ['candidate target missed', rows => { Object.assign(rows[1].results[0].decision, { status: 'within-hard-limits-target-missed', acceptanceClaim: false }); }],
+    ['candidate growth rejection', rows => { Object.assign(rows[1].results[0].decision, { status: 'reject', acceptanceClaim: false, reasons: ['positive-mutation-repeat-heap-slope'] }); }],
+    ['candidate shape', rows => { rows[1].results[0].shape = shapes.smoke; }],
+    ['all smoke', rows => { for (const row of rows) row.smoke = true; }],
+  ];
+  for (const [name, change] of cases) {
+    const receipts = hostedReceipts(); change(receipts);
+    assert.equal(aggregate(receipts).acceptanceClaim, false, name);
+  }
+  const receipts = hostedReceipts();
+  Object.assign(receipts[0].results[0].decision, { status: 'reject', acceptanceClaim: false, reasons: ['aggregate-over-750-MiB'] });
+  assert.equal(aggregate(receipts).acceptanceClaim, true, 'control memory is reported, not applied as the candidate gate');
+  assert.equal(aggregate([]).acceptanceClaim, false);
+});
+
+test('CI matrix isolates both formats with unchanged timeout and snapshot separation', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/format2-acceptance.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
+  assert.match(workflow, /run: \[1, 2, 3, 4, 5\]/);
+  assert.match(workflow, /format: \[format1, format2\]/);
+  assert.match(workflow, /timeout-minutes: 60/);
+  assert.match(workflow, /max-parallel: 2/);
+  assert.match(workflow, /owned-acceptance\.mjs --format "\$ACCEPTANCE_FORMAT"/);
+  assert.match(workflow, /name: owned-acceptance-\$\{\{ matrix.os \}\}-\$\{\{ matrix.run \}\}-\$\{\{ matrix.format \}\}/);
+  assert.match(workflow, /inputs.snapshots && matrix.format == 'format2'/);
+  assert.match(workflow, /needs: measure/);
+  assert.match(workflow, /pattern: owned-acceptance-\*/);
+  assert.match(workflow, /owned-acceptance\/aggregate\.mjs var\/owned-acceptance-receipts/);
 });
 
 test('cancelling a ready comparison reaps the trial and calculator before rejecting', async t => {
@@ -74,7 +178,7 @@ test('cancelling a ready comparison reaps the trial and calculator before reject
   const controller = new AbortController();
   const signal = AbortSignal.any([t.signal, controller.signal]);
   let pids;
-  const pending = comparison({ output: root, smoke: true, signal, onReady: ready => {
+  const pending = comparison({ output: root, format: 'format2', smoke: true, signal, onReady: ready => {
     // This IPC event follows a complete baseline barrier from the real relay
     // and calculator thread. No delay, polling or host timing selects the abort.
     pids = [ready.controller, ...ready.children];
@@ -86,8 +190,8 @@ test('cancelling a ready comparison reaps the trial and calculator before reject
     await assert.rejects(pending, { name: 'AbortError' });
     assert.equal(pids?.length, 2, 'cancellation reached a live calculator');
     for (const pid of pids) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
-    assert.deepEqual((await readdir(root)).sort(), ['format1', 'started.json']);
-    assert.deepEqual(await readdir(path.join(root, 'format1')), ['probes']);
+    assert.deepEqual((await readdir(root)).sort(), ['format2', 'started.json']);
+    assert.deepEqual(await readdir(path.join(root, 'format2')), ['probes']);
   } finally {
     controller.abort(); await pending.catch(() => {});
     await rm(root, { recursive: true, force: true });
