@@ -9,6 +9,7 @@ import { shapes, rounds, SEED } from './owned-acceptance/profile.mjs';
 import { childProcesses, command, runTrial } from './owned-acceptance/processes.mjs';
 import { lifecycleSummary, trialFailure } from './owned-acceptance/lifecycle.mjs';
 import { compare, formats } from './owned-acceptance/comparison.mjs';
+import { acceptanceScope, scopeDecision } from './owned-acceptance/scope.mjs';
 export { shapes } from './owned-acceptance/profile.mjs';
 
 const self = fileURLToPath(import.meta.url), repository = fileURLToPath(new URL('../../', import.meta.url));
@@ -28,8 +29,11 @@ export function summary(report) {
     ...(report.comparisonErrors ?? []), ...lifecycleSummary(report)].join('\n');
 }
 
-export async function comparison({ output, format, smoke = false, snapshots = false, signal, onReady }) {
+export async function comparison({ output, format, smoke = false, spotCheck = false, snapshots = false,
+  scope = process.env.ACCEPTANCE_SCOPE ?? 'diagnostic', signal, onReady }) {
   signal?.throwIfAborted();
+  acceptanceScope(scope);
+  smoke ||= spotCheck;
   if (format !== undefined && !formats.includes(format)) throw new Error('Use --format format1 or --format format2.');
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major !== 24 || minor < 20) throw new Error('Use Node 24.20+ within 24.x.');
@@ -37,7 +41,7 @@ export async function comparison({ output, format, smoke = false, snapshots = fa
   setPriority(constants.priority.PRIORITY_BELOW_NORMAL);
   await mkdir(output, { recursive: true });
   await writeFile(path.join(output, 'started.json'), JSON.stringify({ startedAt: new Date().toISOString() }), { flag: 'wx' });
-  const report = { format: 'owned-acceptance-7b', schemaVersion: 1, smoke, snapshots, selectedFormat: format ?? null,
+  const report = { format: 'owned-acceptance-7b', schemaVersion: 1, smoke, snapshots, scope, spotCheck, selectedFormat: format ?? null,
     seed: SEED,
     commit: (await command('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8', signal, windowsHide: true })).trim(),
     runtime: { node: process.versions.node, v8: process.versions.v8, arch: process.arch },
@@ -58,11 +62,12 @@ export async function comparison({ output, format, smoke = false, snapshots = fa
     const root = await mkdtemp(path.join(modeDir, 'synthetic-stores-'));
     const env = { ...process.env };
     for (const key of Object.keys(env)) if (key.startsWith('RS3_') || ['NODE_OPTIONS', 'NODE_PATH'].includes(key)) delete env[key];
-    Object.assign(env, { RS3_DATASET: 'open-f2p', RS3_ACCEPTANCE_PROBE_DIR: probes, RS3_ACCEPTANCE_STORE_ROOT: root,
+    Object.assign(env, { ACCEPTANCE_SCOPE: scope, RS3_DATASET: 'open-f2p', RS3_ACCEPTANCE_PROBE_DIR: probes, RS3_ACCEPTANCE_STORE_ROOT: root,
       RS3_WORKER_MEMORY_PROBE_IMPORT: new URL('./owned-acceptance/probe.mjs', import.meta.url).href });
     if (onReady) env.RS3_ACCEPTANCE_NOTIFY_READY = '1';
     try {
-      const code = await runTrial(self, ['--child', mode, '--out', modeDir, '--root', root, ...(smoke ? ['--smoke'] : []), ...(snapshots ? ['--snapshots'] : [])],
+      const code = await runTrial(self, ['--child', mode, '--out', modeDir, '--root', root, ...(smoke ? ['--smoke'] : []),
+        ...(spotCheck ? ['--spot-check'] : []), ...(snapshots ? ['--snapshots'] : [])],
           { cwd: repository, env, execArgv: ['--expose-gc', '--import', env.RS3_WORKER_MEMORY_PROBE_IMPORT],
             stdio: ['ignore', 'inherit', 'inherit', 'ipc'], windowsHide: true }, { signal, onReady });
       const result = JSON.parse(await readFile(path.join(modeDir, 'result.json'), 'utf8'));
@@ -94,7 +99,8 @@ export async function comparison({ output, format, smoke = false, snapshots = fa
 async function main() {
   const { values } = parseArgs({ options: { out: { type: 'string' }, root: { type: 'string' }, child: { type: 'string' },
     format: { type: 'string' },
-    smoke: { type: 'boolean', default: false }, snapshots: { type: 'boolean', default: false } } });
+    smoke: { type: 'boolean', default: false }, 'spot-check': { type: 'boolean', default: false }, snapshots: { type: 'boolean', default: false } } });
+  if (values['spot-check']) values.smoke = true;
   if (!values.out) throw new Error('--out is required; there is no input/save option.');
   if (values.child) {
     if (!['format1', 'format2'].includes(values.child) || !values.root || (!values.smoke && process.env.GITHUB_ACTIONS !== 'true')) throw new Error('Invalid internal trial.');
@@ -105,11 +111,12 @@ async function main() {
     process.on('message', message); process.once('disconnect', abort);
     try {
       const { trial } = await import('./owned-acceptance/trial.mjs');
-      const profile = values.smoke ? 'smoke' : 'acceptance';
+      const profile = values['spot-check'] ? 'spotCheck' : values.smoke ? 'smoke' : 'acceptance';
       const result = await trial({ root: values.root, mode: values.child, shape: shapes[profile], rounds: rounds[profile],
         signal: controller.signal, forkProcess: processes.fork,
         smoke: values.smoke, snapshots: values.snapshots && values.child === 'format2' });
       controller.signal.throwIfAborted();
+      result.decision = scopeDecision(result.decision, process.env.ACCEPTANCE_SCOPE ?? 'diagnostic');
       await writeFile(path.join(values.out, 'result.json'), JSON.stringify(result, null, 2), { flag: 'wx' });
     } catch (error) {
       if (!controller.signal.aborted)
@@ -121,10 +128,12 @@ async function main() {
       if (process.connected) process.disconnect();
     }
   } else {
-    const report = await comparison({ output: path.resolve(values.out), format: values.format, smoke: values.smoke, snapshots: values.snapshots });
+    const report = await comparison({ output: path.resolve(values.out), format: values.format, smoke: values.smoke,
+      spotCheck: values['spot-check'], snapshots: values.snapshots });
     console.log(report.summary);
     if (report.failures.length || !values.smoke && (report.results.some(result => result.errors.length || result.allPostPublicationIO.baseWrites !== 0)
-      || values.format !== 'format1' && !report.results.find(result => result.mode === 'format2')?.decision.acceptanceClaim)) process.exitCode = 1;
+      || values.format !== 'format1' && !(report.results.find(result => result.mode === 'format2')?.decision.gatePassed
+        ?? report.results.find(result => result.mode === 'format2')?.decision.acceptanceClaim))) process.exitCode = 1;
   }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === self) main().catch(error => { console.error(error); process.exitCode = 1; });

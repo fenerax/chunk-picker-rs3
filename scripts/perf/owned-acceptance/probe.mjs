@@ -1,11 +1,11 @@
 // Harness-only preload for the controller, calculator relay and calculator
-// isolate. No application source/protocol hooks. No effect without this env.
+// isolate. Optional in-process ledger observers; no protocol changes.
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { syncBuiltinESMExports } from 'node:module';
 import { Session } from 'node:inspector';
-import { writeHeapSnapshot } from 'node:v8';
+import { writeHeapSnapshot, getHeapCodeStatistics } from 'node:v8';
 import { isMainThread, parentPort, threadId } from 'node:worker_threads';
 
 const directory = process.env.RS3_ACCEPTANCE_PROBE_DIR;
@@ -99,7 +99,8 @@ if (directory) {
       try {
         if (request.snapshot) writeHeapSnapshot(path.join(directory, `${process.pid}-${threadId}-${request.sequence}.heapsnapshot`));
         if (request.resetPeaks) peaks = {};
-        const row = { ...snapshot(), sequence: request.sequence };
+        const row = { ...snapshot(), sequence: request.sequence, code: getHeapCodeStatistics(),
+          ownerLedgers: request.ledgers ? globalThis[Symbol.for('rs3.acceptance.probe')].ownerLedgers?.() ?? [] : [] };
         // Each barrier has a fresh directory and immutable receipt. No reader
         // can hold the rename destination open: it does not exist yet.
         const checkpointFile = path.join(directory, 'checkpoints', String(request.sequence), `${isolate}.json`);

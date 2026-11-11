@@ -11,6 +11,7 @@ import { aggregate } from '../scripts/perf/owned-acceptance/aggregate.mjs';
 import { pairReports } from '../scripts/perf/owned-acceptance/comparison.mjs';
 import { SEED } from '../scripts/perf/owned-acceptance/profile.mjs';
 import { decision } from '../scripts/perf/owned-acceptance/metrics.mjs';
+const fullAggregate = receipts => aggregate(receipts, { scope: 'full' });
 
 // No per-test deadlines or timing/memory thresholds. The
 // tiny fixture exercises measurement plumbing, never the acceptance budget.
@@ -47,6 +48,15 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
       assert.deepEqual(result.openSamples.map(row => row.count), [1]);
       assert.equal(result.groups.length, 1); assert.equal(result.commandSamples.length, 1);
       assert.equal(result.sessionsRetained, 4); assert.equal(result.repeated.length, 1);
+      assert.equal(result.retention.warmup.status, 'blocked');
+      assert(result.retention.warmup.blockers.some(reason => reason.includes('archive-references-have-no-cap')));
+      assert.equal(result.retention.caps.complete, false);
+      assert.equal(result.retention.caps.projectedTotal100GroupBytes, null);
+      assert.equal(result.retention.caps.knownPerGroupByteCapSubtotal, 48 * 1024 ** 2);
+      assert.equal(result.retention.caps.knownSharedByteCapSubtotal, 384 * 1024 ** 2);
+      assert.equal(result.openSamples[0].ownerLedgers, undefined, 'opening censuses are not retained in the measured controller');
+      assert(result.commandSamples.at(-1).ownerLedgers.some(row => row.owner === 'History'));
+      assert(result.commandSamples.at(-1).isolates.every(row => row.ownerLedgers === undefined), 'censuses load after measurement, outside isolate receipts in memory');
       assert.equal(result.mutationRepeated.length, 1);
       assert.equal(result.decision.mutationGrowth.commandsPerGroupPerRound, 4);
       assert.equal(result.decision.mutationGrowth.historyBounded, true);
@@ -89,7 +99,7 @@ test('per-format launcher smoke preserves both formats and complete aggregate me
 // time. These are not acceptance evidence for the running implementation.
 function hostedReceipts() {
   return ['linux', 'win32'].flatMap(os => [1, 2, 3, 4, 5].flatMap(run => ['format1', 'format2'].map(mode => ({
-    format: 'owned-acceptance-7b', schemaVersion: 1, selectedFormat: mode, smoke: false, snapshots: false,
+    format: 'owned-acceptance-7b', schemaVersion: 1, selectedFormat: mode, smoke: false, snapshots: false, scope: 'full',
     commit: 'a'.repeat(40), seed: SEED, runtime: { node: '24.21.0', v8: 'synthetic-v8', arch: 'x64' },
     host: { os, hostname: `${mode}-synthetic-host` }, ci: { run: 'synthetic-dispatch', attempt: '1', freshRun: String(run) },
     failures: [], results: [{ mode, shape: shapes.acceptance, errors: [],
@@ -106,7 +116,7 @@ function hostedReceipts() {
 }
 
 test('aggregate pairs twenty receipts into ten decisions without requiring identical hosts', () => {
-  const receipts = hostedReceipts(), result = aggregate(receipts.reverse());
+  const receipts = hostedReceipts(), result = fullAggregate(receipts.reverse());
   assert.equal(result.acceptanceClaim, true); assert.deepEqual(result.errors, []);
   assert.equal(result.comparisons.length, 10);
   for (const pair of result.comparisons) {
@@ -126,7 +136,7 @@ test('aggregate refuses absent, duplicate, mismatched, failed or non-accepting m
     ['duplicate receipt', rows => rows.push(structuredClone(rows[0]))],
     ['duplicate run', rows => { rows[2].ci.freshRun = '1'; rows[3].ci.freshRun = '1'; }],
     ['wrong run', rows => { rows[0].ci.freshRun = '6'; rows[1].ci.freshRun = '6'; }],
-    ...['commit', 'seed', 'smoke', 'snapshots'].map(key => [key, rows => { rows[0][key] = 'mismatch'; }]),
+    ...['commit', 'seed', 'smoke', 'snapshots', 'scope'].map(key => [key, rows => { rows[0][key] = 'mismatch'; }]),
     ...['node', 'v8', 'arch'].map(key => [key, rows => { rows[0].runtime[key] = 'mismatch'; }]),
     ...['run', 'attempt'].map(key => [key, rows => { rows[0].ci[key] = 'mismatch'; }]),
     ...['fixtureHashes', 'finalHashes'].map(key => [key, rows => { rows[0].results[0][key][0] = 'mismatch'; }]),
@@ -144,24 +154,50 @@ test('aggregate refuses absent, duplicate, mismatched, failed or non-accepting m
   ];
   for (const [name, change] of cases) {
     const receipts = hostedReceipts(); change(receipts);
-    assert.equal(aggregate(receipts).acceptanceClaim, false, name);
+    assert.equal(fullAggregate(receipts).acceptanceClaim, false, name);
   }
   const receipts = hostedReceipts();
   Object.assign(receipts[0].results[0].decision, { status: 'reject', acceptanceClaim: false, reasons: ['aggregate-over-750-MiB'] });
-  assert.equal(aggregate(receipts).acceptanceClaim, true, 'control memory is reported, not applied as the candidate gate');
-  assert.equal(aggregate([]).acceptanceClaim, false);
+  assert.equal(fullAggregate(receipts).acceptanceClaim, true, 'control memory is reported, not applied as the candidate gate');
+  assert.equal(fullAggregate([]).acceptanceClaim, false);
 });
 
-test('CI matrix isolates both formats with unchanged timeout and snapshot separation', async () => {
+test('diagnostic scope pairs both formats on Linux once, checks hashes and never claims final acceptance', () => {
+  const receipts = hostedReceipts().filter(row => row.host.os === 'linux' && row.ci.freshRun === '1');
+  receipts.forEach(row => { row.scope = 'diagnostic'; row.results[0].decision.gatePassed = true; row.results[0].decision.acceptanceClaim = false; });
+  const result = aggregate(receipts);
+  assert.equal(result.scope, 'diagnostic'); assert.equal(result.scopePassed, true); assert.equal(result.acceptanceClaim, false);
+  assert.equal(result.comparisons.length, 1); assert.deepEqual(result.errors, []);
+  assert.equal(fullAggregate(receipts).acceptanceClaim, false);
+  receipts[1].results[0].finalHashes[0] = 'different';
+  assert.equal(aggregate(receipts).scopePassed, false);
+});
+
+test('full scope accepts goals missed within all hard gates and rejects diagnostic or extra receipts', () => {
+  const receipts = hostedReceipts();
+  for (const receipt of receipts) Object.assign(receipt.results[0].decision, { status: 'within-hard-limits-target-missed', targetMet: false });
+  assert.equal(fullAggregate(receipts).acceptanceClaim, true);
+  assert.equal(aggregate(receipts).scopePassed, false);
+  assert.throws(() => aggregate(receipts, { scope: 'typo' }), /Unknown acceptance scope/);
+});
+
+test('CI defaults to one diagnostic pair, expands full scope, and isolates reduced snapshots', async () => {
   const workflow = await readFile(new URL('../.github/workflows/format2-acceptance.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /os: \[ubuntu-latest, windows-latest\]/);
-  assert.match(workflow, /run: \[1, 2, 3, 4, 5\]/);
+  assert.match(workflow, /options: \[diagnostic, full\]/);
+  assert.match(workflow, /default: diagnostic/);
+  assert.match(workflow, /inputs.scope == 'full' && '\["ubuntu-latest","windows-latest"\]' \|\| '\["ubuntu-latest"\]'/);
+  assert.match(workflow, /inputs.scope == 'full' && '\[1,2,3,4,5\]' \|\| '\[1\]'/);
   assert.match(workflow, /format: \[format1, format2\]/);
   assert.match(workflow, /timeout-minutes: 60/);
   assert.match(workflow, /max-parallel: 2/);
   assert.match(workflow, /owned-acceptance\.mjs --format "\$ACCEPTANCE_FORMAT"/);
   assert.match(workflow, /name: owned-acceptance-\$\{\{ matrix.os \}\}-\$\{\{ matrix.run \}\}-\$\{\{ matrix.format \}\}/);
-  assert.match(workflow, /inputs.snapshots && matrix.format == 'format2'/);
+  assert.match(workflow, /if: always\(\) && inputs.snapshots/);
+  assert.match(workflow, /--spot-check --snapshots --format format2/);
+  assert.equal((workflow.match(/ref: \$\{\{ github.sha \}\}/g) ?? []).length, 3);
+  assert.doesNotMatch(workflow, /ref: main/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /contents: read/);
   assert.match(workflow, /needs: measure/);
   assert.match(workflow, /pattern: owned-acceptance-\*/);
   assert.match(workflow, /owned-acceptance\/aggregate\.mjs var\/owned-acceptance-receipts/);

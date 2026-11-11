@@ -212,6 +212,18 @@ const snapshotOptions = { hotSet: createSnapshotHotSet({ entryLimit: Number(proc
 const completeCache = createSerializedSnapshotCache(snapshotBudget, snapshotOptions);
 const snapshots = completeCache.entries;
 const stateSnapshots = new Map();
+// Optional in-process observer, never sent through the calculator wire.
+if (globalThis[Symbol.for('rs3.acceptance.probe')]) globalThis[Symbol.for('rs3.acceptance.probe')].ownerLedgers = () => {
+  if (stateSnapshots.size > STATE_SNAPSHOT_LIMIT) throw new Error('State snapshot entry cap exceeded.');
+  return [
+    { ...snapshotOptions.hotSet.retentionLedger(), id: 'hot-graph', scope: 'shared', includedInOtherCap: true, workload: { newEntriesPerCycle: 1 } },
+    { ...snapshotBudget.retentionLedger(), id: 'worker-cache', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
+    { ...engine.retentionLedger(), id: 'engine', scope: 'shared', workload: { newEntriesPerCycle: 1, workingSetEntries: 8 } },
+    { owner: 'stateSnapshots', id: 'state-inputs', scope: 'shared', complete: false,
+      dimensions: [{ unit: 'entries', used: stateSnapshots.size, cap: STATE_SNAPSHOT_LIMIT, enforced: true }],
+      workload: { newEntriesPerCycle: 1 }, blockers: ['state-snapshot-payload-bytes-have-no-ledger'] },
+  ];
+};
 const latestRevisions = new Map();
 const pickerRevision = pickerId => latestRevisions.get(pickerId) ?? -1;
 const pickerSnapshotKey = (pickerId, input) => JSON.stringify([pickerId, input]);

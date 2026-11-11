@@ -184,6 +184,7 @@ export async function sendRepresentation(request, response, representation, { st
 /** Bound retained bytes, including completed encodings. Pending encodings
  * coalesce, and failures can be retried without poisoning the cache. */
 export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 1024 } = {}) {
+  if (![maxEntries, maxBytes].every(value => Number.isSafeInteger(value) && value >= 0)) throw new TypeError('Invalid response cache bound.');
   const rows = new Map();
   const bytes = () => [...rows.values()].reduce((sum, row) => sum + row.retainedBytes, 0);
   const remove = key => {
@@ -216,5 +217,13 @@ export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 10
     delete: remove,
     get size() { return rows.size; },
     get bytes() { return bytes(); },
+    retentionLedger() {
+      const used = bytes();
+      if (rows.size > maxEntries || used > maxBytes) throw new Error('Response cache retention cap exceeded.');
+      return { owner: 'response-caches', complete: true, dimensions: [
+        { unit: 'entries', used: rows.size, cap: maxEntries, enforced: true },
+        { unit: 'chargeBytes', used, cap: maxBytes, enforced: true }],
+        accounting: 'Representation retainedBytes, including plain/gzip backing stores; not V8 heap bytes.' };
+    },
   };
 }
