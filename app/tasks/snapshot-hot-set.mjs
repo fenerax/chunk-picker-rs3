@@ -1,11 +1,12 @@
 // Conservative retained-heap accounting, independent of wire size. Charge
 // uncompressed pointers, object/property storage, UTF-16 strings and complete
 // ArrayBuffer allocations. Shared objects are visited once per snapshot;
-// strings are deliberately charged at every reference, including property names.
+// String values are deliberately charged at every reference. V8 internalizes
+// object property names, so charge each name once, plus the meter's name registry.
 // Producer-owned snapshots only grow lazy fields. Revisited mutable containers
 // keep their previous charge as slack; a forced refresh starts a fresh walk.
 export function createSnapshotHeapMeter() {
-  const seen = new WeakSet();
+  const seen = new WeakSet(), propertyNames = new Set();
   let bytes = 2048;
   function visit(value, revisit = false, checkpoint = () => {}) {
     checkpoint();
@@ -36,7 +37,12 @@ export function createSnapshotHeapMeter() {
     for (const key of keys) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (!('value' in descriptor)) throw new TypeError('Unsupported hot snapshot accessor.');
-      visit(key, false, checkpoint); visit(descriptor.value, false, checkpoint);
+      if (!propertyNames.has(key)) {
+        propertyNames.add(key);
+        bytes += 64; // Conservative storage for the meter's own retained Set slot.
+        visit(key, false, checkpoint);
+      }
+      visit(descriptor.value, false, checkpoint);
     }
   }
   return { visit, get bytes() { return Math.ceil(bytes / 8) * 8; } };

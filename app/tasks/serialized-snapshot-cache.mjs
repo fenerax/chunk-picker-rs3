@@ -43,7 +43,7 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
   const transient = new Set();
   const version = value => [value.baseline, value.includeViews, value.revision, value.playResult, value.sandboxDelta,
     value.planningIndex, value.whyIndex, value.estimates, value.estimates?.size,
-    value.baseline?.currentBiS, value.baseline?.activityInfo, context(value.baseline), locations(value.baseline), value.predictionState];
+    value.baseline?.currentBiS, value.baseline?.activityInfo, context(value.baseline), locations(value.baseline), value.predictionState, value.predictionRevision];
   const same = (a, b) => a?.length === b.length && a.every((part, i) => part === b[i]);
   const remember = (value, entry) => {
     metadata.set(value, entry);
@@ -68,7 +68,8 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
         if (deferred) restoreContext(value.baseline, deferred);
         if (mapLocations) restoreLocations(value.baseline, mapLocations);
       }
-      remember(value, { key, owner: record.owner, record, retainedRecord: record, version: version(value) });
+      remember(value, { key, owner: record.owner, record, retainedRecord: record, admittedCost: record.cost,
+        version: version(value), heapCost: record.heapCost });
       if (hotSet.entryLimit) set(key, value, undefined, record.owner);
       return value;
     }
@@ -97,7 +98,7 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
     const value = record.value, entry = metadata.get(value);
     if (!value || !entry || Map.prototype.get.call(entries, entry.key) !== record) return;
     try {
-      const bytes = wire(value);
+      const bytes = record.bytes ?? wire(value);
       budget.forget(record);
       record.bytes = bytes; record.cost = serializedSnapshotBytes(entry.key, entry.owner, bytes);
       record.value = undefined; entry.meter = undefined; entry.heapVersion = undefined;
@@ -111,8 +112,14 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
     const entry = metadata.get(value);
     if (!entry) return;
     const next = version(value);
-    if (!force && entry.record && same(entry.version, next)
-      && (entry.record.value === value || !entry.record.value && !hotSet.entryLimit)) return entry.record.cost;
+    if (!force && entry.record && same(entry.version, next)) {
+      // A cold record already owns the canonical bytes and measured heap cost
+      // for this revision. Promotion changes representation, never content.
+      const record = entry.record, cost = entry.heapCost + (record.bytes?.buffer.byteLength ?? 0);
+      if (!record.value && hotSet.canHold(cost) && budget.canAdmit({ cost, owner: 'picker:' + entry.owner }))
+        entry.record = { value, bytes: record.bytes, heapCost: entry.heapCost, owner: entry.owner, cost };
+      return entry.record.cost;
+    }
     try {
       if (hotSet.entryLimit) {
         // Keep the producer's index identity: cancellation rolls an uncharged
@@ -131,19 +138,18 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
         meter.visit({ ...value, predict: undefined }, false, checkpoint);
         meter.visit(entry.key); meter.visit(entry.owner);
         entry.heapVersion = roots;
-        const cost = meter.bytes;
+        const cost = entry.heapCost = meter.bytes;
         if (hotSet.canHold(cost) && budget.canAdmit({ cost, owner: 'picker:' + entry.owner })) {
           // Measurement only stages a candidate. A representation or charge
           // change must replace the resident token through set(), even when a
           // demoted graph happens to regain exactly its former hot cost.
-          if (entry.record?.value !== value || entry.record.cost !== cost)
-            entry.record = { value, bytes: undefined, owner: entry.owner, cost };
+          entry.record = { value, bytes: undefined, heapCost: cost, owner: entry.owner, cost };
           entry.version = version(value);
           return cost;
         }
       }
       const bytes = wire(value, checkpoint);
-      entry.record = { bytes, owner: entry.owner, cost: serializedSnapshotBytes(entry.key, entry.owner, bytes) };
+      entry.record = { bytes, heapCost: entry.heapCost, owner: entry.owner, cost: serializedSnapshotBytes(entry.key, entry.owner, bytes) };
       entry.meter = undefined; entry.heapVersion = undefined;
       entry.version = next;
       return entry.record.cost;
