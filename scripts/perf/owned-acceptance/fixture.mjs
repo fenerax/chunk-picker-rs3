@@ -56,7 +56,7 @@ function groupState(template, data, index, exceptionalOrder) {
   return state;
 }
 
-export async function prepareFixtures({ root, mode, shape, data, registry }) {
+export async function prepareFixtures({ root, mode, shape, data, registry, onPublished = () => {} }) {
   const catalogueRoot = path.join(root, 'catalogue'), manifest = createOwnedBaseManifest([data.pin]);
   const owned = index => ({ pickerId: pickerId(index), catalogueRoot, dataset: data.pin.dataset, manifest, releaseBytes: data.bytes });
   // This is the ONLY base publication. All measured opens/commands must perform
@@ -65,16 +65,22 @@ export async function prepareFixtures({ root, mode, shape, data, registry }) {
     await mkdir(path.join(root, 'publisher'), { recursive: true });
     const publisher = createOwnedStorage(owned(999), path.join(root, 'publisher'));
     await publisher.withLease(() => publisher.ensurePublished());
+    onPublished();
     // Reuse storage's verified singleton. Do not retain the fixture builder's
     // second parsed tree in addition to the one used by all live stores.
     data.base = publisher.base;
-  }
+  } else onPublished();
   const template = historyTemplate(shape, registry, data.world), groups = [], hashes = [];
   // Extra stores are prepared before the baseline; never close one of the 50
   // retained handles in order to run a stopped-writer or full-hook experiment.
   for (let index = 0; index < shape.groups + 4; index++) {
     const directory = path.join(root, 'groups', `synthetic-${index}`);
     await mkdir(path.join(directory, 'history'), { recursive: true });
+    // The stopped-rebase fixture never opens a writer. Provision the layout a
+    // writer normally creates: readers require its token, staging its backups.
+    await mkdir(path.join(directory, 'backups'), { recursive: true });
+    const token = Buffer.from(digest(`${SEED}:synthetic-access-token:${index}`), 'hex').toString('base64url');
+    await writeFile(path.join(directory, 'access-token'), token + '\n', { flag: 'wx' });
     const state = groupState(template, data, index, index === shape.groups + 1);
     const fullHash = digest(state), references = [];
     for (let segment = 0; segment < shape.archiveSegments; segment++) {

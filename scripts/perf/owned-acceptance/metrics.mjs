@@ -26,7 +26,8 @@ export const measuredTimes = rows => Object.fromEntries(['wallMs', 'mainCpuMs', 
 
 export function decision(result) {
   const baseline = result.baseline.total.heapUsed;
-  const states = [...result.openSamples, ...result.commandSamples, result.settled, result.readOnlyWarmup, ...result.repeated];
+  const states = [...result.openSamples, ...result.commandSamples, result.settled, result.readOnlyWarmup, ...result.repeated,
+    result.mutationWarmup, ...result.mutationRepeated];
   const maximum = Math.max(...states.map(row => row.total.heapUsed - baseline));
   const groups = result.groups.map(row => ({ index: row.index, openBytes: row.openBytes,
     commandBytes: row.commandBytes, attributableBytes: Math.max(0, row.openBytes) + Math.max(0, row.commandBytes) }));
@@ -34,6 +35,18 @@ export function decision(result) {
   const unattributedGrowthBytes = Math.max(0, maximum - postSerialHeap);
   const repeatDeltas = result.repeated.slice(1).map((row, i) => row.total.heapUsed - result.repeated[i].total.heapUsed);
   const sustainedGrowth = repeatDeltas.length >= 3 && repeatDeltas.every(bytes => bytes > 0);
+  const mutationSlopeBytesPerRound = slope(result.mutationRepeated.map(row => ({ x: row.round, y: row.total.heapUsed })));
+  const mutationDeltas = result.mutationRepeated.slice(1).map((row, i) => row.total.heapUsed - result.mutationRepeated[i].total.heapUsed);
+  const historyBounded = [result.mutationWarmup, ...result.mutationRepeated].every(row => row.history.length === result.shape.groups
+    && row.history.every(group => group.revisionDelta === 4 && group.activeEventDelta <= 4
+      && group.activeEvents <= result.mutationHistoryBaseline[group.index].activeHistoryEntries + (row.round + 1) * 4
+      && group.archiveSegmentDelta >= 0 && group.archiveSegmentDelta <= 4));
+  const mutationGrowth = { slopeBytesPerRound: mutationSlopeBytesPerRound,
+    slopeBytesPerCommand: mutationSlopeBytesPerRound / (result.shape.groups * 4), deltas: mutationDeltas,
+    commandsPerGroupPerRound: 4, maximumNewHistoryEventsPerGroup: 20, historyBounded,
+    historyLogicalBytesSlopePerRound: slope(result.mutationRepeated.map(row =>
+      ({ x: row.round, y: row.history.reduce((sum, group) => sum + group.logicalBytes, 0) }))),
+    historyAccounting: 'History stays in raw heap/limits. Logical bytes and event/archive bounds are diagnostic, not a guessed heap subtraction; a positive slope requires dominator attribution.' };
   const reasons = [];
   if (!result.smoke && !acceptanceShape(result.shape)) reasons.push('required-acceptance-shape-missing');
   if (groups.some(row => row.attributableBytes > 15 * MiB)) reasons.push('attributable-group-over-15-MiB');
@@ -44,7 +57,9 @@ export function decision(result) {
   if (worstPossibleGroupBytes > 15 * MiB) reasons.push('unattributed-growth-needs-dominators');
   if (maximum > 750 * MiB) reasons.push('aggregate-over-750-MiB');
   if (sustainedGrowth) reasons.push('growth-on-every-read-only-repeat');
-  if (result.measuredIO.baseWrites !== 0) reasons.push('base-rewritten-after-publication');
+  if (mutationSlopeBytesPerRound > 0) reasons.push('positive-mutation-repeat-heap-slope');
+  if (!historyBounded) reasons.push('mutation-history-outside-workload-bound');
+  if (result.postPublicationIO.baseWrites !== 0) reasons.push('base-rewritten-after-publication');
   if (result.errors.length) reasons.push('incomplete-command-workload');
   const targetMet = worstPossibleGroupBytes <= 5 * MiB && maximum <= 250 * MiB;
   return { status: result.smoke ? 'smoke-only' : reasons.length ? 'reject' : targetMet ? 'target-met' : 'within-hard-limits-target-missed',
@@ -52,6 +67,6 @@ export function decision(result) {
     maximumGroupHeapBytes: maximum, unattributedGrowthBytes, worstPossibleGroupBytes,
     perGroupBytes: percentiles(groups.map(row => row.attributableBytes)),
     openSlopeBytesPerGroup: slope([{ x: 0, y: 0 }, ...result.openSamples.map(row => ({ x: row.count, y: row.total.heapUsed - baseline }))]),
-    repeatDeltas, sustainedGrowth, thresholdsBytes: { targetPerGroup: 5 * MiB, rejectPerGroup: 15 * MiB,
+    repeatDeltas, sustainedGrowth, mutationGrowth, thresholdsBytes: { targetPerGroup: 5 * MiB, rejectPerGroup: 15 * MiB,
       targetTotal: 250 * MiB, rejectTotal: 750 * MiB } };
 }

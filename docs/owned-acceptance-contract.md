@@ -20,6 +20,11 @@ account identifiers, private saves, external fetches or operational inputs enter
 the fixture. Fixture/final logical hashes must match between formats. Final
 hashes replace entropy-bearing archive filenames with hashes of archive bytes,
 as the capacity fixture does; no History content is removed from the comparison.
+Fixture preparation provisions each store's `backups/` and a deterministic,
+synthetic-only `access-token`. The extra stopped-rebase store never opens a
+writer; its read-only source/import readers cannot create that required token,
+and rebase staging needs the backup directory for its pinned preimage. Neither
+input comes from a Windows checkout, a pack cache or an existing save.
 
 The parent launches format 1 and format 2 in separate fresh Node processes,
 clearing inherited dataset, asset, profile and Node options. Fixture preparation
@@ -34,9 +39,14 @@ retains all handles, bound scheduler facades, four action sessions and four
 live scheduler session leases per group. Each increment gets a GC sample;
 `checkpoints` selects 1/10/25/50. There is no group/session eviction or manual
 cache flushing. Existing bounded result/snapshot LRU policies remain intact.
-Post-GC barrier receipts are separate from periodic peak samples and cannot be
-overwritten by later allocations. A missing isolate or retired calculator
-invalidates the run instead of reducing its reported memory.
+Post-GC barrier receipts live in immutable per-sequence directories, separate
+from append-only peak-sample journals. The controller appends complete request
+lines; readers consume only complete lines. No publication replaces a target
+that a Windows reader may hold open. An isolate acknowledges a sequence only
+after publishing its receipt. Any publication/GC failure writes a terminal error
+receipt which the controller checks at each barrier; it fails immediately rather
+than skipping the request or retrying a rename. A missing isolate or retired
+calculator invalidates the run instead of reducing its reported memory.
 
 Every group receives ticks, notes, Undo, native digest/full calculator transport,
 full response serialization, play/claim projection and narrow identity lookup.
@@ -46,6 +56,18 @@ recorded without retry and prevent an acceptance claim. After settling and GC,
 one read-only round warms the resulting cache working set, followed by four
 identical rounds. Their receipts are written outside the store root and released
 between rounds, so growing measurement arrays do not cause the leak check.
+
+Five additional mutation rounds run **tick → Undo → note → Undo** on every
+retained group, then calculate and serialize full/play responses at the new
+revision. The first round warms this path; four subsequent rounds are measured
+as `mutationRepeated`. This tests revision-keyed caches that identical reads
+cannot exercise. Tick and note state are restored, while four real History events
+per group/round remain durable (at most 20 new events over the phase). Retention
+and guarded Undo can archive events or retain a longer suffix; their policies
+are unchanged. Each round records revisions, active-event deltas, archive counts
+and logical History bytes against `mutationHistoryBaseline`, and checks this
+workload bound. Mutation timing/History receipts are released before GC and read
+back only after all repeated measurements finish.
 
 ## Dispatch after merge
 
@@ -82,7 +104,7 @@ key arrays, task indexes, wire encoding, dataset engine and transport copies in
 each physical isolate are included in the measured heap. Baseline heap is never
 estimated by serializing the state or subtracting a guessed base size.
 
-`openSamples`, `commandSamples`, `settled` and `repeated` contain every measured
+`openSamples`, `commandSamples`, `settled`, `repeated` and `mutationRepeated` contain every measured
 isolate's post-GC heap used/total, external and array-buffer bytes; relay and
 calculator heaps are separate. RSS and process CPU are counted once per PID,
 because their values are process-wide. The total heap sums isolate-local heaps.
@@ -109,6 +131,14 @@ Targets are **every group ≤5 MiB** and **total group heap ≤250 MiB**. Any at
 group **>15 MiB**, aggregate **>750 MiB**, or positive heap growth in every interval
 of the four identical read-only rounds rejects the run. This strict growth flag
 needs snapshot attribution if noise is suspected; it is never silently waived.
+The mutation gate also rejects a positive least-squares retained-heap slope
+across the four measured mutation rounds. `decision.mutationGrowth` reports the
+raw slope per round/per command and deltas, alongside the bounded History
+accounting and logical-byte slope. History remains charged in every heap limit;
+JSON bytes are not a V8 retained-size estimate and are never subtracted. Positive
+growth is evidence needing dominator attribution, not by itself proof of a cache
+leak: legitimate bounded History/cache filling and GC noise can also reject a run.
+Neither a History allowance nor averaging groups can waive this conservative gate.
 `target-met` is emitted only when targets and hard limits hold, all commands
 complete, no base is rewritten, and the two formats agree. Missing the targets
 within the hard limits is reported distinctly and still exits unsuccessfully.
@@ -129,7 +159,11 @@ readiness; the later full load test owns that proof.
 
 The harness-only preload wraps successful filesystem writes and sync attempts
 in the generated store tree. `setupIO` separates fixture/base publication from
-`measuredIO`; `allPostPublicationIO` also includes bounded lanes. Counts include
+`measuredIO`. A callback immediately after the single base publication captures
+the independent counter origin for `postPublicationIO` and `allPostPublicationIO`;
+both include fixture completion, warm open and warm commands, and the latter
+also includes bounded lanes. Base rewrites during warmup therefore reject the
+run even though warmup is outside ordinary group timing. Counts include
 successful/attempted fsync, successful bytes/write calls, and catalogue file
 writes (including temporaries), which must be zero after publication. Windows
 directory sync remains best effort under the existing publication contract;
@@ -150,8 +184,8 @@ materialization/copy counts come from 7a's existing counting seam.
 ## Outlier attribution and next slice
 
 Dispatch with `snapshots=true` to capture V8 heap snapshots for every live
-format-2 controller/relay/calculator isolate at the shared baseline, 1 and 50 groups, and
-after bounded lanes. Load the `.heapsnapshot` artifacts in Chrome DevTools Memory.
+format-2 controller/relay/calculator isolate at the shared baseline, 1 and 50 groups,
+the first/last mutation rounds, and after bounded lanes. Load the `.heapsnapshot` artifacts in Chrome DevTools Memory.
 Use Comparison against the same isolate's baseline, then Dominators/Retainers
 to attribute growth: `__ownedAcceptanceHandles`, store closures, dictionary
 WeakMaps, base/key arrays, task Maps, result caches and response buffers. A base

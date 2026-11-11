@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readFile, readdir, writeFile, rename } from 'node:fs/promises';
+import { readFile, readdir, writeFile, appendFile, mkdir } from 'node:fs/promises';
 import { totals, ioDelta, measuredTimes, decision } from './metrics.mjs';
 import { digest } from '../capacity/model.mjs';
 
@@ -24,18 +24,21 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
   // Named root helps DevTools dominator/retainer inspection of optional snapshots.
   globalThis.__ownedAcceptanceHandles = handles;
   async function rows() {
-    const files = (await readdir(directory)).filter(file => /^\d+-\d+\.checkpoint\.json$/.test(file));
-    return (await Promise.all(files.map(async file => JSON.parse(await readFile(path.join(directory, file), 'utf8')))))
+    const receipts = path.join(directory, 'checkpoints', String(sequence));
+    const files = (await readdir(receipts)).filter(file => /^\d+-\d+\.json$/.test(file));
+    return (await Promise.all(files.map(async file => JSON.parse(await readFile(path.join(receipts, file), 'utf8')))))
       .filter(row => row.pid === process.pid ? row.threadId === 0 : workers.some(worker => worker.pid === row.pid));
   }
   async function checkpoint({ gc = true, snapshot = false, resetPeaks = false } = {}) {
     const request = { sequence: ++sequence, gc, snapshot, resetPeaks };
-    await writeFile(path.join(directory, 'control.tmp'), JSON.stringify(request));
-    await rename(path.join(directory, 'control.tmp'), path.join(directory, 'control.json'));
+    await mkdir(path.join(directory, 'checkpoints', String(sequence)), { recursive: true });
+    await appendFile(path.join(directory, 'control.jsonl'), JSON.stringify(request) + '\n');
     await probe.collect(request);
     const end = Date.now() + 30000;
     while (true) {
       if (exitedWorkers.size) throw new Error('Calculator retired during measurement; refusing incomplete residency evidence.');
+      const failed = (await readdir(directory)).filter(file => /^\d+-\d+\.error$/.test(file));
+      if (failed.length) throw new Error(`Isolate probe publication failed: ${await readFile(path.join(directory, failed[0]), 'utf8')}`);
       const samples = await rows();
       const complete = workers.every(worker => samples.some(row => row.pid === worker.pid && row.threadId === 0)
         && samples.some(row => row.pid === worker.pid && row.threadId !== 0));
@@ -66,7 +69,9 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
   const registry = createRuleRegistry(), beforeShared = await checkpoint();
   const data = makeCatalogue(shape, dataset);
   const setupBefore = probe.record().io;
-  const fixture = await prepareFixtures({ root, mode, shape, data, registry });
+  let publicationBefore;
+  const fixture = await prepareFixtures({ root, mode, shape, data, registry,
+    onPublished: () => { publicationBefore = probe.record().io; } });
   const setupIO = ioDelta(setupBefore, probe.record().io);
   const options = group => ({ dataDir: group.directory, world: data.world, registry, now: clock,
     completionCodec: false, ownedFormat2: group.owned, retention: { backupDays: 90, historyEntries: shape.history } });
@@ -181,23 +186,64 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
       roundTimes.length = 0;
       await writeFile(path.join(directory, `repeat-${round}.json`), JSON.stringify({ round, ...await checkpoint() }));
     }
+    // New revisions exercise mutation-keyed caches as well as the read-only
+    // working set above. Undo restores the tick and note, preventing unbounded
+    // task-status/note data from being confused with a revision-cache leak.
+    const mutationHistoryBaseline = handles.map((handle, index) => ({ index, ...handle.store.getInfo().retention }));
+    for (let round = 0; round < 5; round++) {
+      const roundTimes = [], history = [];
+      for (const [index, handle] of handles.entries()) {
+        const before = handle.store.getInfo();
+        const command = async (kind, input) => roundTimes.push(await timed(kind, index,
+          () => handle.store.commandSerialized(input, handle.store.getInfo().revision, { view: 'play-v1' }), { record: false }));
+        await command('tick', { type: 'tick-active-tasks', memberId: 'member-3', taskIds: [data.base.tasks[index % shape.tasks].id] });
+        await command('undo', { type: 'undo' });
+        await command('note', { type: 'set-note', memberId: 'member-1', chunkId: [...data.world.chunks.keys()][1], note: `Synthetic repeat ${index}` });
+        await command('undo', { type: 'undo' });
+        roundTimes.push(await timed('mutation-repeat-read', index, async () => {
+          await calculate(handle, index % shape.members); await stateResponse(handle); await stateResponse(handle, 'play-v1');
+        }, { record: false }));
+        const after = handle.store.getInfo();
+        // Metadata only: these logical bytes are NOT subtracted from V8 heap.
+        // The complete History, inverse guards and archive references stay
+        // charged; dominators distinguish their bounded growth from leaks.
+        history.push({ index, revisionDelta: after.revision - before.revision,
+          activeEvents: after.retention.activeHistoryEntries, archiveSegments: after.retention.historyArchives,
+          activeEventDelta: after.retention.activeHistoryEntries - before.retention.activeHistoryEntries,
+          archiveSegmentDelta: after.retention.historyArchives - before.retention.historyArchives,
+          logicalBytes: Buffer.byteLength(JSON.stringify(handle.store.getHistory())) });
+      }
+      await writeFile(path.join(directory, `mutation-times-${round}.json`), JSON.stringify(roundTimes));
+      await writeFile(path.join(directory, `mutation-history-${round}.json`), JSON.stringify(history));
+      roundTimes.length = 0; history.length = 0;
+      await writeFile(path.join(directory, `mutation-${round}.json`), JSON.stringify({ round,
+        ...await checkpoint({ snapshot: snapshots && (round === 0 || round === 4) }) }));
+    }
     const measuredIO = ioDelta(measuredBefore, probe.record().io);
+    const postPublicationIO = ioDelta(publicationBefore, probe.record().io);
     const repeated = await Promise.all(Array.from({ length: 5 }, (_, round) =>
       readFile(path.join(directory, `repeat-${round}.json`), 'utf8').then(JSON.parse)));
     const repeatTimes = await Promise.all(Array.from({ length: 5 }, (_, round) =>
       readFile(path.join(directory, `repeat-times-${round}.json`), 'utf8').then(JSON.parse)));
-    records.push(...repeatTimes.flat());
+    const mutations = await Promise.all(Array.from({ length: 5 }, async (_, round) => ({
+      ...JSON.parse(await readFile(path.join(directory, `mutation-${round}.json`), 'utf8')),
+      history: JSON.parse(await readFile(path.join(directory, `mutation-history-${round}.json`), 'utf8')),
+    })));
+    const mutationTimes = await Promise.all(Array.from({ length: 5 }, (_, round) =>
+      readFile(path.join(directory, `mutation-times-${round}.json`), 'utf8').then(JSON.parse)));
+    records.push(...repeatTimes.flat(), ...mutationTimes.flat());
     const result = { mode, smoke, shape, fixtureHashes: fixture.hashes, groups, beforeShared, baseline,
       sharedCharge: { total: baseline.total, allocationSinceImports: ioDelta(beforeShared.total, baseline.total),
         baseCanonicalBytes: data.bytes.length, note: 'All warm main/relay/calculator heaps charged once, including base/index/transport copies; no V8 size estimate subtraction.' },
-      setupIO, measuredIO, openSamples, checkpoints: openSamples.filter(row => [1, 10, 25, 50].includes(row.count)),
+      setupIO, measuredIO, postPublicationIO, openSamples, checkpoints: openSamples.filter(row => [1, 10, 25, 50].includes(row.count)),
       commandSamples, simultaneous, settled, repeated: repeated.slice(1), readOnlyWarmup: repeated[0], records, errors, copyCounts,
+      mutationHistoryBaseline, mutationWarmup: mutations[0], mutationRepeated: mutations.slice(1),
       sessionsRetained: handles.reduce((sum, handle) => sum + handle.sessions.length, 0),
       responseCaches: handles.map((handle, index) => ({ index, entries: handle.responses.size, bytes: handle.responses.bytes })),
       scheduler: scheduler.getDiagnostics(), allGroupsReadyWallMs, bounded: [] };
     // Capture ordinary measurements before explicit flat/export/stopped lanes.
     result.decision = decision(result);
-    for (const kind of ['open', 'tick', 'note', 'undo', 'calculator', 'full-response', 'play-and-claims', 'read-only-repeat']) {
+    for (const kind of ['open', 'tick', 'note', 'undo', 'calculator', 'full-response', 'play-and-claims', 'read-only-repeat', 'mutation-repeat-read']) {
       (result.times ??= {})[kind] = measuredTimes(records.filter(row => row.kind === kind));
     }
     result.speedBar = { gating: false,
@@ -208,7 +254,7 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
         scope: 'warm shared runtime to all stores and sessions open; complete restart/load acceptance remains later' } };
     for (const kind of ['exceptional-order', 'full-hook', 'compatibility-export', 'stopped-rebase']) {
       const before = await checkpoint({ resetPeaks: true });
-      const priorIsolates = new Set((await readdir(directory)).filter(file => /^\d+-\d+\.json$/.test(file)));
+      const priorIsolates = new Set((await readdir(directory)).filter(file => /^\d+-\d+\.jsonl$/.test(file)));
       const ioBefore = probe.record().io;
       let store;
       const time = await timed(kind, -1, async () => {
@@ -232,8 +278,11 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
       store = undefined;
       const after = await checkpoint();
       const transientIsolates = await Promise.all((await readdir(directory))
-        .filter(file => /^\d+-\d+\.json$/.test(file) && !priorIsolates.has(file))
-        .map(file => readFile(path.join(directory, file), 'utf8').then(JSON.parse)));
+        .filter(file => /^\d+-\d+\.jsonl$/.test(file) && !priorIsolates.has(file))
+        .map(async file => {
+          const text = await readFile(path.join(directory, file), 'utf8');
+          return JSON.parse(text.slice(0, text.lastIndexOf('\n')).split('\n').at(-1));
+        }));
       result.bounded.push({ kind, applicable: kind !== 'stopped-rebase' || mode === 'format2', time, before, after, transientIsolates,
         io: ioDelta(ioBefore, probe.record().io), retainedHeapBytes: after.total.heapUsed - before.total.heapUsed });
     }
@@ -250,7 +299,7 @@ export async function trial({ root, mode, shape, smoke, snapshots = false }) {
       result.finalHashes.push(digest(state));
     }
     result.compatibilitySnapshots = { calls: handles.length + 1, includedInOrdinaryBudget: false };
-    result.allPostPublicationIO = ioDelta(measuredBefore, probe.record().io);
+    result.allPostPublicationIO = ioDelta(publicationBefore, probe.record().io);
     if (result.allPostPublicationIO.baseWrites !== 0 && !result.decision.reasons.includes('base-rewritten-after-publication'))
       result.decision.reasons.push('base-rewritten-after-publication');
     if (errors.length && !result.decision.reasons.includes('incomplete-command-workload')) result.decision.reasons.push('incomplete-command-workload');
