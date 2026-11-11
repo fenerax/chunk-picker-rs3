@@ -653,7 +653,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     const timer = deadlineClock.setTimeout(() => {
       if (cancelledGrace?.entry !== entry) return;
       cancelledGrace = undefined;
-      if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retire(undefined, 'generation-retirement', 'cancelled-grace');
+      if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retireWithDiagnostics(undefined, 'generation-retirement', 'cancelled-grace');
     }, 25);
     timer?.unref?.(); cancelledGrace = { entry, timer };
   }
@@ -784,8 +784,12 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     // another picker's request, with or without a physical calculator pool.
     if (entry.residentOnly && !retiring) armCancelledGrace(entry);
   }
-  function retire(error = superseded(), initiator = 'generation-retirement', reason = 'obsolete-generation') {
+  function retireWithDiagnostics(error = superseded(), initiator = 'generation-retirement', reason = 'obsolete-generation') {
     observeLifecycle('retirement', initiator, reason, error);
+    return retire(error);
+  }
+  // Keep this declaration stable: the y06 trace loader instruments this seam.
+  function retire(error = superseded()) {
     clearCancelledGrace();
     if (active) {
       deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
@@ -843,7 +847,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function pump() {
     if (closed || status !== 'ready') return;
-    if (!active && worker.profileRetiring) { retire(undefined, 'profile-retirement', 'profile-retired'); return; }
+    if (!active && worker.profileRetiring) { retireWithDiagnostics(undefined, 'profile-retirement', 'profile-retired'); return; }
     if (active) {
       if (calculatorPool && queue.length) scheduler.yieldForInteractive();
       return;
@@ -1129,7 +1133,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     yieldWhileStarting() {
       if (closed || active || queue.length) return false;
       scheduler.cancelPrewarm();
-      return retire(undefined, 'generation-retirement', 'yield-starting');
+      return retireWithDiagnostics(undefined, 'generation-retirement', 'yield-starting');
     },
     isBackground() {
       return !!active && !active.waiters.size && !served(active) && !active.reuseWaiters?.size;
@@ -1137,7 +1141,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     stopForMemory() {
       if (closed || !active) return false;
       scheduler.cancelPrewarm();
-      return retire(unavailable('Task calculator exceeded its memory budget. Retry shortly.'), 'memory-ceiling', 'pool-memory-budget');
+      return retireWithDiagnostics(unavailable('Task calculator exceeded its memory budget. Retry shortly.'), 'memory-ceiling', 'pool-memory-budget');
     },
     yieldForInteractive() {
       // Retain cooperative workers briefly; cancel() also arms retirement for
@@ -1156,7 +1160,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return false;
       }
       if (active.warm) { active.warm = false; warmCounts.cancelled++; }
-      return retire(undefined, 'generation-retirement', 'yield-interactive');
+      return retireWithDiagnostics(undefined, 'generation-retirement', 'yield-interactive');
     },
     yieldQueuedWarm(pickerId) {
       for (const entry of [...warmQueue]) if (entry.pickerId === pickerId && !entry.waiters.size) {
@@ -1384,7 +1388,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.revision < revision) {
         counts.superseded++; cancel(entry, superseded());
       }
-      return retire();
+      return retireWithDiagnostics();
     },
     // Display-only saves keep task inputs, so nothing is obsolete. While
     // someone edits notes, an unrequested calculation still yields its process
@@ -1396,7 +1400,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.warm && !entry.waiters.size && !served(entry)) {
         entry.warm = false; warmCounts.cancelled++; cancel(entry, unavailable('Background prediction cancelled.'));
       }
-      return retire();
+      return retireWithDiagnostics();
     },
     canPrewarm() {
       return !closed && ['starting', 'ready'].includes(status) && (idleClock.now() - lastRequestAt < idleMs || sessionRemaining() > 0);
