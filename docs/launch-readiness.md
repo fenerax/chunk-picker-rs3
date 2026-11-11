@@ -207,13 +207,13 @@ The first HTTP run had four failures because the new synthetic Discord subjects 
 
 ### Security follow-up verification
 
-The follow-up used the same Node version, per-file environment, shared lock, BelowNormal priority and `--test-concurrency=1`. Synthetic fixtures only. Eight affected files cover 111 distinct passing cases:
+The follow-up used the same Node version, per-file environment, shared lock, BelowNormal priority and `--test-concurrency=1`. Synthetic fixtures only. It exercised 111 cases across eight files. The registry timeout invalidated its earlier all-passed claim; replay is not a pass:
 
-| Test file | Passing cases |
+| Test file | Historical result |
 | --- | --- |
 | `tests/registry-cap-accounting.test.mjs` | 2 |
 | `tests/launch-registry-caps.test.mjs` | 7 |
-| `tests/registry.test.mjs` | 30, including the targeted replay below |
+| `tests/registry.test.mjs` | 29 passed; 1 timed out. Replay does not qualify. |
 | `tests/account-reclaim.test.mjs` | 21 |
 | `tests/launch-plugin-caps.test.mjs` | 10 |
 | `tests/picker-limits.test.mjs` | 14 |
@@ -222,4 +222,21 @@ The follow-up used the same Node version, per-file environment, shared lock, Bel
 
 Seeded differential sequences compare registry and plugin quota indexes with independent full rescans after synthetic create, revoke, delete and restart steps, including pending issuance/cancellation and membership removal. At 3,000 logins, 3,500 pickers and 20,000 capabilities, cap-admission proxies prohibit unrelated array-entry reads; actual capability saves report one changed capability. At 9,000 active plugin keys, refusal checks one quota row, revocation updates four, and issuance checks/updates eight. These are operation-count assertions, with no wall-time assertion. Implementation anchors: `app/storage/registry-caps.mjs:6`, `app/storage/registry.mjs:197`, `app/security/picker-limits.mjs:105`, `app/game-plugin.mjs:797`.
 
-The new overflow-expiry regression initially exposed a limiter bucket reset after bounded cleanup; retaining the live shared overflow window fixed it, and all 14 limiter cases then passed. One existing registry crash-recovery case (`directory-created`) hit its 30-second test timeout; the file otherwise passed 29 cases, and that one case passed on a single targeted replay without changing its timeout or implementation. No test child remained running. Whitespace checks passed. No full suite, repetition loop, live data or capacity benchmark was used.
+The new overflow-expiry regression initially exposed a limiter bucket reset after bounded cleanup; retaining the live shared overflow window fixed it, and all 14 limiter cases then passed. The existing registry crash-recovery case (`directory-created`) hit its 30-second test timeout. Its later replay was incorrectly counted as passing verification. That claim is withdrawn. The test was subsequently rebuilt; the await trace, evidence limits and assertion map are in [the crash-test investigation](registry-crash-test-investigation.md). No live data or capacity benchmark was used.
+
+### Crash-test rebuild verification
+
+Each of the eight affected files was run once after the rebuild, under the same shared lock, BelowNormal priority, Node 24.20.0, per-file environment and `--test-concurrency=1`. This run is **not all passing**: 112 passed and one failed, with no cancellations or skips.
+
+| Test file | Single-run result |
+| --- | --- |
+| `tests/registry.test.mjs` | 31 passed, including all six acknowledged crash seams and the held-metadata recovery test |
+| `tests/picker-limits.test.mjs` | 15 passed, including zero timer resources across limiter instances |
+| `tests/registry-cap-accounting.test.mjs` | 2 passed |
+| `tests/launch-registry-caps.test.mjs` | 7 passed |
+| `tests/account-reclaim.test.mjs` | 21 passed |
+| `tests/launch-plugin-caps.test.mjs` | 10 passed |
+| `tests/picker-limits-http.test.mjs` | 13 passed; 1 failed |
+| `tests/game-plugin-routes.test.mjs` | 13 passed |
+
+The HTTP failure was `extra sessions share expensive account limits and unrelated accounts share the global budget`: the second account's first task request returned 503 where line 101 expected 200. The assertion did not retain the response body, so its cause is unresolved. That file was not replayed. After the fail-fast wrapper stopped, the remaining route file was run once separately. This failure and the missing historical await-level evidence remain explicit limits on readiness; the earlier diagnostic run is not counted as passing verification. No production code, live setting or timeout was raised. Hosted stability and full CI remain required before landing.

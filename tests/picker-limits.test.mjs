@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Readable, Writable } from 'node:stream';
+import { createHook } from 'node:async_hooks';
 import { createPickerLimits, pickerLimitOptions, MP7_DEFAULTS } from '../app/security/picker-limits.mjs';
 import { createPickerRouter } from '../app/picker-router.mjs';
 const accountIds = { same: 'same-account', other: 'other', third: 'third', two: 'two', three: 'three' };
@@ -13,6 +14,24 @@ const refused = operation => assert.throws(operation, error => [429, 503].includ
 test('every MP7 bound has a validated configurable default', () => {
   assert.deepEqual(pickerLimitOptions(), MP7_DEFAULTS);
   for (const key of Object.keys(MP7_DEFAULTS)) for (const value of [0, -1, NaN, 1.5, '2', Infinity]) assert.throws(() => pickerLimitOptions({ [key]: value }), TypeError);
+});
+
+test('limiter construction, key churn and window rollover create no timer resources', () => {
+  let at = 0, timers = 0;
+  const hook = createHook({ init(_id, type) { if (type === 'Timeout') timers++; } }).enable();
+  try {
+    // Separate instances must not acquire a periodic cleanup handle or share a
+    // timer across tests. Expiry is request-driven, using the injected clock.
+    for (const identity of [account, { accountId: 'synthetic-other' }]) {
+      const limits = createPickerLimits({}, { now: () => at });
+      limits.keyChange(identity, A, 'one');
+      limits.reserveKey(identity, A, 'one').finish();
+      limits.reserveKey(identity, A, 'one').finish('synthetic-key');
+      limits.revokeKey('unknown'); limits.invitation(identity, A);
+      at += 60000; limits.keyChange(identity, A, 'one');
+    }
+  } finally { hook.disable(); }
+  assert.equal(timers, 0);
 });
 
 test('one account across memberships shares expensive and stream budgets; global quotas remain independent', () => {
