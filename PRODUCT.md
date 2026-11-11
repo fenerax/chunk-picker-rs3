@@ -64,11 +64,15 @@ Checkpoints sequence work; they do not narrow the final feature scope.
 
 ## Capacity and groups (2026-11-08)
 
-- Design target: about 2,000 player characters in 500–1,000 groups, up to about 200 people online at once, on one server, with immutable game data stored once. A load test on disposable hardware must prove it before public launch; public sign-up remains a separate decision.
+- Design target: about 2,000 player characters in 500–1,000 groups, up to about 200 people online at once, on one server, with immutable game data stored once. Prove this ceiling on disposable hardware before raising admission caps beyond the population already proven.
 - Groups hold 1–5 characters. First sign-in creates a picker; its owner invites friends by link.
 - One Discord or Google login holds up to 10 RuneScape characters, each in exactly one group, with one switcher between their maps. Several of a login's characters may share a group.
 - A character that changes group takes on the destination's map; its previous map stays as a read-only past map, never merged or deleted.
 - [Groups and accounts](docs/groups-and-accounts.md) is the full contract.
+
+### Staged beta (owner decision, 2026-11-11)
+
+Open a capped, invite-only beta of roughly 25–50 groups once the [launch basics](docs/launch-readiness.md) pass, within a load-tested envelope of about 100 active groups. The 2,000-player design ceiling remains a later proof obligation before caps rise beyond demonstrated capacity. This replaces the requirement to prove 2,000 players before any public launch. Public sign-up itself still requires the owner's explicit OK. This decision does not deploy changes or enable sign-up.
 
 ## Sources of decisions
 

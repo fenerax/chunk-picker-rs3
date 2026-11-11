@@ -452,7 +452,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       await syncLegacy();
       await pickerLimits.initialize(pickerRegistry);
       pickerRouter = createPickerRouter({ registry: pickerRegistry, legacy: context, pickerLimits,
-        publicOrigin, requestContextFor, backupRetentionMs, onAdmission: multiPicker.onAdmission, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
+        publicOrigin, requestContextFor, backupRetentionMs, onAdmission: multiPicker.onAdmission, admissionClock: schedulingClock, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
         openContext: async pickerId => {
           const picker = pickerRegistry.getPicker(pickerId);
           if (picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') throw httpError(403, 'Picker access denied.');

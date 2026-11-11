@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { generateToken } from './security/tokens.mjs';
 import { reconcileTombstones, backupDeletionDisclosure } from './storage/tombstones.mjs';
 import { bodyJSON, httpError, json } from './picker-context-http.mjs';
 import { checkRequestOrigin } from './security/request.mjs';
@@ -14,7 +14,7 @@ export function createPickerDeletion({ registry, legacy, backupRetentionMs, fenc
     for (const [session, value] of confirmations) if (value.expiresAt <= time) confirmations.delete(session);
     let value = confirmations.get(identity.sessionId);
     if (!value || value.accountId !== identity.accountId) {
-      value = { token: randomBytes(32).toString('base64url'), accountId: identity.accountId, expiresAt: time + lifetimeMs };
+      value = { token: generateToken(), accountId: identity.accountId, expiresAt: time + lifetimeMs };
       confirmations.set(identity.sessionId, value);
       while (confirmations.size > 1000) confirmations.delete(confirmations.keys().next().value);
     }

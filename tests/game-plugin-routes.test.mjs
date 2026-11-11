@@ -10,6 +10,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { prepareGameStorage } from '../app/game-profile.mjs';
+import { openStore } from '../app/storage/store.mjs';
 
 const sentAt = '2026-10-19T12:00:00Z';
 const report = (seq = 0, extra = {}) => ({ v: 1, seq, sentAt, position: { x: 46, z: 49, floor: 0 }, ...extra });
@@ -18,12 +19,19 @@ const cookieFrom = response => response.headers.get('set-cookie')?.split(';')[0]
 
 async function fixture(t, options = {}) {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-test-'));
+  const { tokenRandomBytes, ...serverOptions } = options;
+  const initialState = createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['11825'], journal: 'Private journal' }, { id: 'reed', name: 'Reed', unlocked: ['11569'] }]);
+  if (tokenRandomBytes) {
+    await prepareGameStorage(dataDir, fixtureDataset);
+    const seed = await openStore({ dataDir, initialState, tokenRandomBytes });
+    await seed.close();
+  }
   let app, origin;
   async function start(initialState) {
-    app = await createServer({ dataset: fixtureDataset, dataDir, definitions, taskMap: {}, initialState, host: '127.0.0.1', port: 0, publicOrigin: undefined, loopbackPort: undefined, predictionPrewarm: false, ...options });
+    app = await createServer({ dataset: fixtureDataset, dataDir, definitions, taskMap: {}, initialState, host: '127.0.0.1', port: 0, publicOrigin: undefined, loopbackPort: undefined, predictionPrewarm: false, ...serverOptions });
     await app.listen(); origin = `http://127.0.0.1:${app.address().port}`;
   }
-  await start(createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['11825'], journal: 'Private journal' }, { id: 'reed', name: 'Reed', unlocked: ['11569'] }]));
+  await start(initialState);
   t.after(async () => { await app.close(); await rm(dataDir, { recursive: true, force: true }); });
   function request(route, { body, headers = {}, ...rest } = {}) {
     const requestHeaders = Object.fromEntries(Object.entries({ ...(body === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin }), ...headers }).filter(([, value]) => value !== undefined));
@@ -55,6 +63,24 @@ async function fixture(t, options = {}) {
   return { get app() { return app; }, get origin() { return origin; }, dataDir, request, admin, plugin, create, invite,
     async restart() { await app.close(); await start(); } };
 }
+
+test('a reserved-prefix access token draw is retried and the saved token opens picker routes after restart', async t => {
+  let calls = 0;
+  const f = await fixture(t, { tokenRandomBytes(size) {
+    assert.equal(size, 32);
+    assert.ok(calls < 2, 'unexpected extra random draw');
+    return calls++ === 0 ? Buffer.from(`GpK_${'A'.repeat(39)}`, 'base64url') : Buffer.alloc(32, 17);
+  } });
+  assert.equal(calls, 2);
+  const token = f.app.store.getAccessToken();
+  assert.ok(!/^gpk_/i.test(token));
+  assert.equal((await f.admin('/api/state')).status, 200);
+  assert.equal((await f.admin('/api/invites', { label: 'Player 1', memberId: 'actor1' })).status, 201);
+  await f.restart();
+  assert.ok(f.app.store.getAccessToken() === token);
+  assert.equal((await f.admin('/api/state')).status, 200);
+  assert.equal((await f.admin('/api/invites', { label: 'Player 2', memberId: 'reed' })).status, 201);
+});
 
 test('plugin keys allow self/admin management, enforce three active keys per player, and persist only hashes and revocation', async t => {
   const f = await fixture(t), owner = await f.invite({ label: 'Player', memberId: 'actor1' }), viewer = await f.invite({ label: 'Viewer', viewer: true });
@@ -91,6 +117,11 @@ test('plugin credentials and picker credentials are isolated in both directions,
   const f = await fixture(t), created = await f.create();
   const owner = await f.invite({ label: 'Player', memberId: 'actor1' });
   const adminCookie = cookieFrom(await f.request(`/join/${f.app.store.getAccessToken()}`));
+  for (const key of ['gpk_', 'GpK_invalid', `gpk_${'A'.repeat(43)}`, created.key]) {
+    for (const cookie of [owner.cookie, adminCookie]) {
+      assert.equal((await f.plugin('/api/state', key, undefined, { Cookie: cookie })).status, 401);
+    }
+  }
   const overlayResponse = await f.admin('/api/overlays', { label: 'OBS', widget: 'count', player: 'duo' }); assert.equal(overlayResponse.status, 201);
   const overlay = await overlayResponse.json(), overlayKey = new URLSearchParams(new URL(overlay.link).hash.slice(1)).get('key');
   for (const headers of [{}, { Cookie: owner.cookie }, { Cookie: adminCookie }, { Authorization: `Bearer ${f.app.store.getAccessToken()}` }, { Authorization: `Bearer ${overlayKey}` }, { Authorization: `Bearer ${new URL(owner.link).pathname.split('/').at(-1)}` }]) {

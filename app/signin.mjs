@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { generateToken } from './security/tokens.mjs';
 import path from 'node:path';
 import { renderSignInPage } from './signin-page.mjs';
 
@@ -11,7 +12,6 @@ const PREAUTH = '__Host-rs3_preauth';
 const PENDING_MS = 10 * 60 * 1000;
 const MAX_PENDING = 1000;
 const MAX_RESPONSE = 64 * 1024;
-const random = () => randomBytes(32).toString('base64url');
 const failure = (status, message) => Object.assign(new Error(message), { status });
 function equal(one, two) {
   if (typeof one !== 'string' || typeof two !== 'string') return false;
@@ -85,7 +85,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     const old = cookie(request);
     if (old) pending.delete(old);
     if (pending.size >= MAX_PENDING) throw failure(429, 'Please try again later.');
-    const key = random(), entry = { ...input, expires: now() + PENDING_MS };
+    const key = generateToken(), entry = { ...input, expires: now() + PENDING_MS };
     pending.set(key, entry);
     addCookie(response, preauthCookie(key));
     return entry;
@@ -337,7 +337,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
           accountId = identity.accountId; sessionId = identity.sessionId;
         }
         const inviteId = previous?.inviteId ?? (identity?.kind === 'invite' && !identity.admin && !identity.readOnly && identity.memberId ? identity.inviteId : undefined);
-        const entry = put(request, response, { provider: name, state: random(), verifier: random(), ...(name === 'google' ? { nonce: random() } : {}),
+        const entry = put(request, response, { provider: name, state: generateToken(), verifier: generateToken(), ...(name === 'google' ? { nonce: generateToken() } : {}),
           ...(previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : {}) });
         const destination = new URL(SIGN_IN_ENDPOINTS[name].authorize);
         destination.search = new URLSearchParams({ client_id: config.clientId, redirect_uri: `${publicOrigin}/auth/${name}/callback`, response_type: 'code',

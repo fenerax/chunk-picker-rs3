@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Readable, Writable } from 'node:stream';
+import { createHook } from 'node:async_hooks';
 import { createPickerLimits, pickerLimitOptions, MP7_DEFAULTS } from '../app/security/picker-limits.mjs';
 import { createPickerRouter } from '../app/picker-router.mjs';
 const accountIds = { same: 'same-account', other: 'other', third: 'third', two: 'two', three: 'three' };
@@ -13,6 +14,24 @@ const refused = operation => assert.throws(operation, error => [429, 503].includ
 test('every MP7 bound has a validated configurable default', () => {
   assert.deepEqual(pickerLimitOptions(), MP7_DEFAULTS);
   for (const key of Object.keys(MP7_DEFAULTS)) for (const value of [0, -1, NaN, 1.5, '2', Infinity]) assert.throws(() => pickerLimitOptions({ [key]: value }), TypeError);
+});
+
+test('limiter construction, key churn and window rollover create no timer resources', () => {
+  let at = 0, timers = 0;
+  const hook = createHook({ init(_id, type) { if (type === 'Timeout') timers++; } }).enable();
+  try {
+    // Separate instances must not acquire a periodic cleanup handle or share a
+    // timer across tests. Expiry is request-driven, using the injected clock.
+    for (const identity of [account, { accountId: 'synthetic-other' }]) {
+      const limits = createPickerLimits({}, { now: () => at });
+      limits.keyChange(identity, A, 'one');
+      limits.reserveKey(identity, A, 'one').finish();
+      limits.reserveKey(identity, A, 'one').finish('synthetic-key');
+      limits.revokeKey('unknown'); limits.invitation(identity, A);
+      at += 60000; limits.keyChange(identity, A, 'one');
+    }
+  } finally { hook.disable(); }
+  assert.equal(timers, 0);
 });
 
 test('one account across memberships shares expensive and stream budgets; global quotas remain independent', () => {
@@ -42,6 +61,31 @@ test('invitation quotas apply per account across memberships, per picker, and gl
   refused(() => limits.invitation({ accountId: accountIds.two }, A));
   limits.invitation({ accountId: accountIds.two }, B); refused(() => limits.invitation({ accountId: accountIds.three }, 'third'));
   at = 60001; limits.invitation(account, A);
+});
+
+test('key changes share a nonrefundable login/member budget across create/revoke cycles and expire lazily', () => {
+  let at = 0;
+  const limits = createPickerLimits({ keyChangesPerAccount: 2, keyChangesPerMember: 2 }, { now: () => at });
+  limits.keyChange(account, A, 'one');
+  limits.reserveKey(account, A, 'one').finish('synthetic-key');
+  limits.keyChange(account, A, 'one');
+  limits.revokeKey('unknown');
+  refused(() => limits.keyChange(account, B, 'other')); // Same login, other group.
+  refused(() => limits.keyChange({ accountId: accountIds.other }, A, 'one')); // Same member, other login.
+  limits.keyChange({ accountId: accountIds.other }, B, 'one');
+  at = 60000; limits.keyChange(account, A, 'one');
+});
+
+test('bounded rate-bucket cleanup preserves rollover and shared overflow accounting', () => {
+  let at = 0;
+  const limits = createPickerLimits({ limitMaxAccounts: 1, keyChangesPerAccount: 1, keyChangesPerMember: 1 }, { now: () => at });
+  for (let n = 0; n < 24; n++) {
+    try { limits.keyChange({ accountId: `synthetic-${n}` }, `picker-${n}`, 'one'); }
+    catch (error) { assert.equal(error.status, 429); }
+  }
+  refused(() => limits.keyChange({ accountId: 'synthetic-overflow' }, 'picker-overflow', 'one'));
+  at = 60000; limits.keyChange({ accountId: 'synthetic-overflow' }, 'picker-overflow', 'one');
+  refused(() => limits.keyChange({ accountId: 'synthetic-overflow' }, 'picker-overflow', 'one'));
 });
 
 test('key reservations span asynchronous issuance and extra memberships cannot reset account/global counts', () => {
