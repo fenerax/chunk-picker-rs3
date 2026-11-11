@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import { parseArgs } from 'node:util';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { constants, setPriority } from 'node:os';
-import { setImmediate as turn } from 'node:timers/promises';
 import { Session } from 'node:inspector';
 import { selectedDataset } from '../../app/dataset-runtime.mjs';
 import { createRuleRegistry } from '../../app/core/rules.mjs';
@@ -28,13 +27,11 @@ const shape = { groups: 3, tasks: 24000, aliases: 100000, members: 4, history: 4
 const data = makeCatalogue(shape, { id: selectedDataset.datasetId, contractVersion: selectedDataset.datasetContractVersion, digest: selectedDataset.digest });
 const registry = createRuleRegistry(), fixture = await prepareFixtures({ root, mode: 'format2', shape, data, registry });
 let label = 'setup', active;
-const events = [], records = [], sends = [], stores = [], completions = [], subscriptions = [];
+const events = [], records = [], sends = [], stores = [], completions = [];
 globalThis.__everydayTrace = (phase, directory, details) => {
   const row = { label, phase, group: path.basename(directory), at: performance.now(), ...details };
   events.push(row);
-  for (const sub of [...subscriptions]) if (sub.phase === phase && sub.group === row.group) { subscriptions.splice(subscriptions.indexOf(sub), 1); sub.resolve(row); }
 };
-const on = (phase, group) => new Promise(resolve => subscriptions.push({ phase, group, resolve }));
 let pauseGroup, pauseReached, resume;
 const pause = () => new Promise(resolve => { resume = resolve; });
 for (const group of fixture.groups.slice(0, 5)) stores.push(await openStore({ dataDir: group.directory, world: data.world, registry, now: clock,
@@ -89,19 +86,16 @@ try {
   const paused = new Promise(resolve => { pauseReached = resolve; });
   const first = command(0, 'note'); await paused;
   const secondRevision = stores[1].getInfo().revision;
-  const requested = on('lease-request', 'synthetic-1');
-  const second = command(1, 'note'); const request = await requested; await turn();
+  const second = command(1, 'note'); await second;
   const proof = { firstRevisionAlreadyPublished: stores[0].getInfo().revision,
-    secondQueuedBehindPriorLease: request.queued,
     secondEnteredWhileFirstPaused: events.some(e => e.label === label && e.group === 'synthetic-1' && e.phase === 'lease-enter'),
     secondRevisionBeforeRelease: stores[1].getInfo().revision, calculatorSendsDuringPause: sends.filter(e => e.label === label).length };
   resume(); await Promise.all([first, second]); pauseGroup = undefined;
   // Causal checks only. Wall/CPU measurements above are observations, never gates.
-  assert.equal(proof.secondEnteredWhileFirstPaused, false);
-  assert.equal(proof.secondQueuedBehindPriorLease, true);
-  assert.equal(proof.secondRevisionBeforeRelease, secondRevision);
+  assert.equal(proof.secondEnteredWhileFirstPaused, true);
+  assert.equal(proof.secondRevisionBeforeRelease, secondRevision + 1);
   assert.equal(proof.calculatorSendsDuringPause, 0);
-  assert.equal(stores[1].getInfo().revision, proof.secondRevisionBeforeRelease + 1);
+  assert.equal(stores[1].getInfo().revision, proof.secondRevisionBeforeRelease);
   assert.deepEqual(sends.map(row => row.type), ['evaluate', 'evaluate']);
   await writeFile(path.join(output, 'results.json'), JSON.stringify({ node: process.version, shape, root, proof, commandsFinished,
     completions, sends, records, events, scheduler: scheduler.getDiagnostics() }, null, 2), { flag: 'wx' });

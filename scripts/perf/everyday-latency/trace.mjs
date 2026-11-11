@@ -12,8 +12,8 @@ registerHooks({ load(url, context, next) {
     source = source.replace(anchor, replacement);
   };
   if (url.endsWith('/owned-storage.mjs')) {
-    patch('const previous = admissions.get(root) ?? Promise.resolve();', 'globalThis.__everydayEvent("lease-request", dataDir, { queued: admissions.has(root) }); const previous = admissions.get(root) ?? Promise.resolve();');
-    patch('try { return await lease.run(root, work); } finally { await release(); }', 'globalThis.__everydayEvent("lease-enter", dataDir); try { return await lease.run(root, work); } finally { globalThis.__everydayEvent("lease-exit", dataDir); await release(); }');
+    patch('return withStoreWrite(root, () => admission(async () => {', 'globalThis.__everydayEvent("lease-request", dataDir, { mode }); return withStoreWrite(root, () => admission(async () => { globalThis.__everydayEvent("lease-enter", dataDir, { mode });');
+    patch('finally { await crash?.(`catalogue-${mode}-releasing`); }', 'finally { globalThis.__everydayEvent("lease-exit", dataDir, { mode }); await crash?.(`catalogue-${mode}-releasing`); }');
   } else {
     for (const [anchor, phase] of [
       ['const baseline = current;\n      const reviewedItems', 'command-start'],

@@ -123,7 +123,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Select adapters once. Format 1 retains its existing serialization loops.
   const copyState = ownedStorage ? materializeResidentState : structuredClone;
   const sameState = ownedStorage ? ownedStorage.sameState : isDeepStrictEqual;
-  const withCatalogue = ownedStorage ? ownedStorage.withLease : work => work();
+  const withCatalogue = ownedStorage ? (work, mode = 'shared') => ownedStorage.withLease(work, { mode }) : work => work();
   const writeState = ownedStorage ? (bytes, options) => ownedStorage.writeState(stateFile, bytes, options)
     : (bytes, options) => atomicWrite(stateFile, bytes, options);
   const applyStoredCommand = ownedStorage ? applyResidentCommand : applyValidatedCommand;
@@ -1184,11 +1184,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     const retentionStarted = startupDiagnostics && performance.now();
     if (!readOnly && !liveSwapStrict) await maintainRetention();
+    // Existing-base commands can enter shared admission immediately. A flat
+    // save awaiting its explicit first format-2 write retains that write's
+    // exclusive dependency-publication path.
+    if (ownedStorage && !readOnly && ownedStartupBytes
+      && parseSavedDocument(ownedStartupBytes).storage?.schemaVersion === 2) await ownedStorage.ensurePublished();
     if (startupDiagnostics) {
       startupDiagnostics.retentionMs = performance.now() - retentionStarted;
       startupDiagnostics.storeMigrateValidateMs ??= 0;
     }
-  })));
+  }), 'exclusive'));
   } catch (error) { await releaseLock(); throw error; }
 
   const cloneCurrent = () => copyState(current);
@@ -1762,14 +1767,21 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           const ready = await prepareLoadedState(latest);
           if (!sameState(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
-          if (closing) throw new Error('Standby activation was cancelled by shutdown.');
+          const checkShutdown = () => {
+            if (closing) throw new Error('Standby activation was cancelled by shutdown.');
+          };
+          checkShutdown();
+          if (ownedStorage) {
+            await ownedStorage.activate(document.storage?.base, checkShutdown);
+            checkShutdown();
+          }
           const previous = current;
           current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
           releaseObsoleteResponses(previous);
           pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
           receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
           releaseGuard = guard; releaseFileLock = fileLock;
-          readOnly = false; ownedStorage?.activate(); frozen = false; liveSwapStrict = true;
+          readOnly = false; frozen = false; liveSwapStrict = true;
           unregisterArtifacts ??= ownedStorage?.registerArtifacts();
           phaseStarted = performance.now();
           for (const listener of listeners) { try { listener({ revision: current.revision, ownershipChanged: true }); } catch {} }
