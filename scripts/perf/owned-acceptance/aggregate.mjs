@@ -1,18 +1,26 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile, appendFile } from 'node:fs/promises';
 import { measuredTimes, percentiles } from './metrics.mjs';
 import { acceptanceShape, SEED } from './profile.mjs';
+import { pairReports } from './comparison.mjs';
+import { summary } from '../owned-acceptance.mjs';
 
 // Pool time samples, but require EVERY complete trial to meet the memory bar.
 // A fast/small trial can never average away a failed or absent run.
-export function aggregate(reports) {
+export function aggregate(receipts) {
+  const reports = pairReports(receipts);
   const expected = ['linux', 'win32'], first = reports[0];
   const result = { format: 'owned-acceptance-7b-aggregate', schemaVersion: 1, commit: first?.commit ?? null,
-    seed: first?.seed ?? null, acceptanceClaim: false, errors: [], platforms: {} };
+    seed: first?.seed ?? null, acceptanceClaim: false, errors: [], platforms: {},
+    comparisons: reports.map(report => ({ os: report.host.os, freshRun: report.ci.freshRun,
+      formatHosts: report.formatHosts ?? null, equivalent: report.equivalent, errors: report.comparisonErrors,
+      failures: report.failures, decision: report.results.find(row => row.mode === 'format2')?.decision ?? null,
+      summary: summary(report) })) };
   for (const os of expected) {
     const runs = reports.filter(report => report.host.os === os);
-    if (runs.length !== 5 || new Set(runs.map(report => report.ci.freshRun)).size !== 5) result.errors.push(`${os}: expected five distinct fresh runs`);
+    if (runs.length !== 5 || ![1, 2, 3, 4, 5].every(run => runs.filter(report => String(report.ci.freshRun) === String(run)).length === 1))
+      result.errors.push(`${os}: expected five distinct fresh runs`);
     const group = { runs: runs.length, runDecisions: [], formats: {} };
     for (const mode of ['format1', 'format2']) {
       const trials = runs.map(report => report.results.find(trial => trial.mode === mode)).filter(Boolean);
@@ -29,8 +37,9 @@ export function aggregate(reports) {
     result.platforms[os] = group;
   }
   for (const report of reports) {
-    if (report.smoke || !report.equivalent || report.commit !== first.commit || report.seed !== first.seed || report.seed !== SEED
-      || report.runtime.node !== first.runtime.node) result.errors.push('incomparable, smoke or mismatched receipt');
+    if (report.smoke || !report.equivalent || report.failures.length || report.comparisonErrors.length || report.commit !== first.commit || report.seed !== first.seed || report.seed !== SEED
+      || report.runtime.node !== first.runtime.node || report.ci.run !== first.ci.run || report.ci.attempt !== first.ci.attempt)
+      result.errors.push('incomparable, smoke or mismatched receipt');
     const trial = report.results.find(row => row.mode === 'format2');
     if (!trial?.decision.acceptanceClaim || !acceptanceShape(trial?.shape)) result.errors.push(`${report.host.os}/${report.ci.freshRun}: target not met`);
   }
@@ -50,6 +59,8 @@ async function main() {
   await visit(directory);
   const result = aggregate(await Promise.all(files.map(file => readFile(file, 'utf8').then(JSON.parse))));
   await writeFile(path.join(directory, 'aggregate.json'), JSON.stringify(result, null, 2));
+  if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY,
+    [result.summary, ...result.comparisons.map(row => `${row.os}/${row.freshRun}: ${row.summary}`)].join('\n\n') + '\n');
   console.log(result.summary);
   if (!result.acceptanceClaim) process.exitCode = 1;
 }

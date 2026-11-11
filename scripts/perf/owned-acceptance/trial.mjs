@@ -3,9 +3,16 @@ import { readFile, readdir, writeFile, appendFile, mkdir } from 'node:fs/promise
 import { totals, ioDelta, measuredTimes, decision } from './metrics.mjs';
 import { digest } from '../capacity/model.mjs';
 import { calculatorEvidence } from './lifecycle.mjs';
+import { deferredTaskInput } from '../../../app/tasks/deferred-input.mjs';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const probeURL = new URL('./probe.mjs', import.meta.url).href;
+
+export function calculationInput(store) {
+  const capture = store.getCalculationSnapshot(), inputKey = capture.taskInputKey;
+  return { revision: capture.revision, members: capture.members, inputKey,
+    stateInput: deferredTaskInput(store, inputKey) };
+}
 
 export async function trial({ root, mode, shape, rounds, smoke, snapshots = false, signal, forkProcess }) {
   signal.throwIfAborted();
@@ -99,11 +106,9 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     probe.record();
   }
   async function calculate(handle, memberIndex = 0, suffix = '') {
-    const capture = handle.store.getCalculationSnapshot(), key = capture.taskInputKey;
-    const stateInput = mode === 'format2' ? { owned: capture.owned, inputKey: key, taskInputKey: key }
-      : { stateJSON: capture.stateJSON, inputKey: key, taskInputKey: key };
-    const response = await handle.lane.evaluate({ revision: capture.revision, members: capture.members }, `member-${memberIndex}`,
-      'evaluate', undefined, `${handle.id}-${capture.revision}-${memberIndex}${suffix}`, key, undefined, [], 'full', stateInput);
+    const { revision, members, inputKey, stateInput } = calculationInput(handle.store);
+    const response = await handle.lane.evaluate({ revision, members }, `member-${memberIndex}`,
+      'evaluate', undefined, `${handle.id}-${revision}-${memberIndex}${suffix}`, inputKey, undefined, [], 'full', stateInput);
     if (response.cancelled || response.error) throw new Error('Calculator failed or cancelled.');
     // Access the ordinary result graph as well as shared bytes, then release our
     // reference. The application's bounded result/snapshot caches stay intact.

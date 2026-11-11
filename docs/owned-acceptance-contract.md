@@ -26,7 +26,7 @@ writer; its read-only source/import readers cannot create that required token,
 and rebase staging needs the backup directory for its pinned preimage. Neither
 input comes from a Windows checkout, a pack cache or an existing save.
 
-The parent launches format 1 and format 2 in separate fresh Node processes,
+The launcher runs each selected format in a separate fresh Node process,
 clearing inherited dataset, asset, profile and Node options. Fixture preparation
 is outside timed opens and writes; the base is durably published once. One
 shared rule/world runtime and one physical process calculator are warmed on the
@@ -57,6 +57,14 @@ one read-only round warms the resulting cache working set, followed by four
 identical rounds. Their receipts are written outside the store root and released
 between rounds, so growing measurement arrays do not cause the leak check.
 
+Both formats submit calculation input through the production
+`deferredTaskInput(store, taskInputKey)` provider used by native picker contexts.
+Admission retains the resident store and input identity, then the scheduler
+loads the revision-fenced capture only when a calculator is available. Format 1
+therefore encodes its full `stateJSON` at dispatch, while format 2 loads its owned
+input at dispatch. Neither queues an eagerly encoded full save. Command counts,
+full result transport, refusals, deadlines and byte/count limits are unchanged.
+
 Five additional mutation rounds run **tick → Undo → note → Undo** on every
 retained group, then calculate and serialize full/play responses at the new
 revision. The first round warms this path; four subsequent rounds are measured
@@ -79,8 +87,9 @@ gh workflow run format2-acceptance.yml --ref main -f snapshots=false
 ```
 
 The workflow always checks out `main`, has no unmerged-ref override, and runs
-Ubuntu and Windows five times each, with at most two jobs active. Each job runs
-one comparison; each format is a fresh process at BelowNormal priority, on Node
+Ubuntu and Windows five times each, with at most two measurement jobs active.
+The OS × run × format matrix has twenty jobs; each measures just one format
+with its own unchanged 60-minute timeout. Each format is a fresh process at BelowNormal priority, on Node
 24.21.0 (the harness requires 24.20+ within 24.x). There are no package dependencies.
 The full harness refuses execution outside hosted Actions. Never run its
 50-group mode on the shared PC. Normal tests discover the tiny deterministic
@@ -93,9 +102,31 @@ Test cancellation propagates over IPC to the trial's AbortSignal and every
 calculator child; the launcher waits for process closure before removing stores
 or returning. Cancellation does not start the second format.
 
-Artifacts `owned-acceptance-<OS>-<1..5>` contain `results.json`, `summary.txt`,
-per-format results and isolate probe receipts, also uploaded on failure. Keep
-all ten runs and their exact commit/runtime/host/OS/seed metadata. A failed
+`--format format1` and `--format format2` select individual measurements; omitting
+`--format` keeps the sequential local smoke/comparison path. Single-format
+summaries explicitly make no acceptance claim. The aggregate job reads both
+ordinary artifacts for each OS/run, recomputes fixture/final hash equivalence
+and the comparison decision, and requires all ten comparisons to pass as before.
+Missing/duplicate receipts, failed processes, command errors in either format,
+base rewrites in either format, or mismatched commit, seed, Node/V8/architecture,
+dispatch/attempt, smoke or snapshot settings prevent acceptance. Format 1 remains
+the control; its memory target is reported, while format 2 must meet every
+existing target, hard limit and growth gate. There are no retries or relaxed gates.
+
+The contract requires the same OS/run and runtime, not the same physical runner.
+Each format measures heap increments against its own warmed shared baseline;
+no gate divides or subtracts one format's measurement from the other. Separate
+hosted VMs therefore preserve those gates and logical equivalence. Both hosts'
+metadata remains in each aggregate comparison. Timing percentiles are descriptive
+samples across hosted machines, not a paired-hardware speedup claim; snapshots
+remain a separate diagnostic dispatch. Splitting jobs removes the combined
+timeout without extending either format's measurement allowance.
+
+Artifacts `owned-acceptance-<OS>-<1..5>-<format1|format2>` contain `results.json`,
+`summary.txt`, per-format results and isolate probe receipts, also uploaded on
+failure. The aggregate artifact records each OS/run comparison, decision and
+human summary alongside the existing pooled percentiles. Keep all twenty
+measurements and their exact commit/runtime/host/OS/seed metadata. A failed
 process can leave only partial probe evidence; that is an incomplete run. No
 single run, median across runs or average group cost establishes acceptance.
 
