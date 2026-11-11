@@ -68,6 +68,10 @@ export async function comparison({ output, format, smoke = false, snapshots = fa
       const result = JSON.parse(await readFile(path.join(modeDir, 'result.json'), 'utf8'));
       report.results.push(result);
       if (code !== 0) throw new Error(`${mode} process failed.`);
+      if (snapshots && mode === 'format2') {
+        const { attributeSnapshots } = await import('./owned-acceptance/attribution.mjs');
+        (report.snapshotAttribution ??= {})[mode] = await attributeSnapshots(result, modeDir);
+      }
     } catch (error) {
       signal?.throwIfAborted();
       let failure = trialFailure(mode, error);

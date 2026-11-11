@@ -182,7 +182,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     await withIdentityDictionaryCallCountsForTests(async counts => {
       for (const [index, handle] of handles.entries()) {
         await exercise(handle, index);
-        const sample = { count: index + 1, ...await checkpoint() };
+        const sample = { count: index + 1, ...await checkpoint({ snapshot: snapshots && index === handles.length - 1 }) };
         groups[index].commandBytes = sample.total.heapUsed - previous.total.heapUsed;
         groups[index].commandExternalBytes = sample.total.external - previous.total.external;
         groups[index].commandArrayBufferBytes = sample.total.arrayBuffers - previous.total.arrayBuffers;
@@ -196,7 +196,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
     const simultaneous = await timed('simultaneous-batch', -1,
       () => Promise.all(handles.map((handle, index) => exercise(handle, index, true))));
     stage = 'settled';
-    const settled = await checkpoint();
+    const settled = await checkpoint({ snapshot: snapshots });
     // First read-only round saturates caches; following four rounds use exactly
     // the same keys and no History writes, so monotonic growth is actionable.
     for (let round = 0; round < rounds; round++) {
@@ -210,7 +210,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       // growing application cache in the strict monotonic-growth rejection.
       await writeFile(path.join(directory, `repeat-times-${round}.json`), JSON.stringify(roundTimes));
       roundTimes.length = 0;
-      await writeFile(path.join(directory, `repeat-${round}.json`), JSON.stringify({ round, ...await checkpoint() }));
+      await writeFile(path.join(directory, `repeat-${round}.json`), JSON.stringify({ round, ...await checkpoint({ snapshot: snapshots }) }));
     }
     // New revisions exercise mutation-keyed caches as well as the read-only
     // working set above. Undo restores the tick and note, preventing unbounded
@@ -244,7 +244,7 @@ export async function trial({ root, mode, shape, rounds, smoke, snapshots = fals
       await writeFile(path.join(directory, `mutation-history-${round}.json`), JSON.stringify(history));
       roundTimes.length = 0; history.length = 0;
       await writeFile(path.join(directory, `mutation-${round}.json`), JSON.stringify({ round,
-        ...await checkpoint({ snapshot: snapshots && (round === 0 || round === rounds - 1) }) }));
+        ...await checkpoint({ snapshot: snapshots }) }));
     }
     const measuredIO = ioDelta(measuredBefore, probe.record().io);
     const postPublicationIO = ioDelta(publicationBefore, probe.record().io);
