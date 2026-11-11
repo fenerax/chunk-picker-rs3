@@ -889,7 +889,9 @@ Unreadable or partial monitor samples preserve unresolved faults and memory
 history; only a successful observation confirms recovery. Unresolved critical/urgent faults repeat every six hours
 (configurable within one to 24 hours); warnings repeat only on change. Messages
 contain fixed categories only, without journal text, paths, machine names, IPs
-or credentials. During a declared release, a root-owned release-window.json under
+or credentials. Every alert must need operator action. Routine backups and
+deploys hold maintenance evidence for minutes and send nothing; it alerts only
+when its owner died or the operation passes 30 minutes. During a declared release, a root-owned release-window.json under
 controlDir may contain startedAt/endsAt UTC timestamps for at most 30 minutes.
 It suppresses writer/maintenance notifications only. Resource/job faults still
 alert. Expired/invalid declarations alert until explicitly reconciled. The
