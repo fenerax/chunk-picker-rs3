@@ -222,8 +222,10 @@ The allowlist is History (active events and archive), response caches, the hot
 snapshot and shared snapshot/eligibility ledger, engine variants, stateSnapshots,
 and compiled code/feedback. In-code ledgers supply their current entries/charges
 and enforced caps at immutable isolate barriers. Sampling asserts existing caps;
-an over-cap or unlisted owner rejects. Logical/wire/backing bytes are explicitly
-labelled and never converted to guessed V8 bytes.
+a numerically proven owner cap violation rejects the trial. An unlisted owner
+or missing/malformed proof denies the waiver; the original raw gates then decide.
+Logical/wire/backing bytes are explicitly labelled and never converted to
+guessed V8 bytes.
 Ledger censuses remain in the immutable probe files during measurement and load
 after the repeat phases. They do not accumulate under retained open receipts.
 
@@ -236,8 +238,10 @@ a guessed number of rounds proves nothing. All owners must reach their cap or
 steady working set before the post-warm-up measurements. Each ledger dimension
 must then be flat, with the same complete owner inventory at every barrier.
 
-Any remaining positive heap growth rejects. Compiled code/feedback is the sole
-unledgered allowance: at most **1 MiB across the entire process tree and entire
+The waiver must account for the largest forward heap increase from any preceding
+checkpoint minimum across the measured interval. An earlier peak or decrease
+cannot hide growth within the read-only or mutation repeats. Compiled code/feedback
+is the sole unledgered allowance: at most **1 MiB across the entire process tree and entire
 measured interval**, backed by non-native compiled-code/feedback heap evidence.
 `getHeapCodeStatistics()` is reported for diagnosis but cannot certify that
 attribution. Missing code attribution permits no positive residual. Native and

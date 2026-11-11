@@ -117,7 +117,8 @@ export function steadyStateRule(evidence) {
     if (spot?.nativeGrowthBytes !== undefined && !Number.isSafeInteger(spot.nativeGrowthBytes)) reasons.push('invalid-spot-check-native-growth');
     for (const owner of list(spot?.owners)) {
       if (![...allowedOwners, 'compiled-code-feedback'].includes(owner?.owner)) reasons.push(`unlisted-owner:${owner?.owner}`);
-      if (!valid(owner?.cap) || !valid(owner?.used) || owner.used > owner.cap) reasons.push(`spot-check-owner-over-cap:${owner?.owner}`);
+      if (!valid(owner?.cap) || !valid(owner?.used)) reasons.push(`invalid-spot-check-owner:${owner?.owner}`);
+      else if (owner.used > owner.cap) reasons.push(`spot-check-owner-over-cap:${owner?.owner}`);
     }
   }
   // Code statistics are a bounded diagnostic, not a heap attribution oracle.
@@ -125,13 +126,24 @@ export function steadyStateRule(evidence) {
   // absent attribution leaves *all* positive heap growth unexplained.
   const code = evidence.compiledCode;
   const validSamples = samples.length >= 2 && samples.every(row => valid(row?.heapUsedBytes) && valid(row?.nativeBytes));
-  const heapGrowthBytes = validSamples ? Math.max(...samples.map(row => row.heapUsedBytes - first.heapUsedBytes)) : null;
+  let heapGrowthBytes = null;
+  if (validSamples) {
+    let minimum = first.heapUsedBytes;
+    heapGrowthBytes = 0;
+    // Compare every checkpoint with its preceding minimum: an earlier peak or
+    // decrease must not hide growth within either raw repeat phase.
+    for (const sample of samples) {
+      heapGrowthBytes = Math.max(heapGrowthBytes, sample.heapUsedBytes - minimum);
+      minimum = Math.min(minimum, sample.heapUsedBytes);
+    }
+  }
   const validCode = record(code) && valid(code.heapGrowthBytes) && code.heapGrowthBytes <= COMPILED_CODE_ALLOWANCE_BYTES
     && code.source === 'non-native-code-feedback-spot-check';
   if ((heapGrowthBytes !== null && heapGrowthBytes > 0 || code != null) && !validCode) reasons.push('compiled-code-attribution-unavailable-or-over-bound');
   if (!valid(heapGrowthBytes) || heapGrowthBytes > (validCode ? code.heapGrowthBytes : 0)) reasons.push('residual-heap-growth');
   return { eligible: reasons.length === 0, reasons: [...new Set(reasons)], heapGrowthBytes,
     compiledCodeAllowanceBytes: COMPILED_CODE_ALLOWANCE_BYTES,
+    // Signed end-to-end native delta is diagnostic only, never waiver headroom.
     nativeGrowthBytes: validSamples ? last.nativeBytes - first.nativeBytes : null,
     interpretation: 'All owner ledgers must be enforced, warmed and flat. Native/backing bytes cannot offset heap growth. Missing proof preserves every raw growth gate.' };
 }

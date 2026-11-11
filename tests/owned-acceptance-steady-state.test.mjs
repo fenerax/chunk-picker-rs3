@@ -66,7 +66,10 @@ test('missing and nonnumeric counters fail closed throughout the steady-state ru
   const invalid = [undefined, null, NaN, Infinity, -Infinity, -1, 0.5, '4', true, Number.MAX_SAFE_INTEGER + 1];
   for (const [name, set] of fields) for (const value of invalid) {
     const proof = evidence(); set(proof, value);
-    assert.equal(steadyStateRule(proof).eligible, false, `${name}: ${String(value)}`);
+    const verdict = steadyStateRule(proof);
+    assert.equal(verdict.eligible, false, `${name}: ${String(value)}`);
+    assert(!verdict.reasons.some(reason => reason.startsWith('owner-over-cap:') || reason.startsWith('spot-check-owner-over-cap:')),
+      `invalid evidence is not a proven cap violation: ${name}: ${String(value)}`);
   }
   const tooMany = evidence(); tooMany.warmup.owners[0].attainedEntries = 5;
   assert.equal(steadyStateRule(tooMany).eligible, false, 'attainment cannot exceed the enforced entry cap');
@@ -123,26 +126,94 @@ test('owner growth and changing inventories reject even if total ledger charges 
   assert(steadyStateRule(missing).reasons.includes('ledger-inventory-changed'));
 });
 
-function rawResult() {
+function rawResult({ heapMiB = 300, groupMiB = 6 } = {}) {
   const history = Array.from({ length: 50 }, (_, index) => ({ index, revisionDelta: 4, activeEventDelta: 0,
     activeEvents: 0, archiveSegmentDelta: 0, logicalBytes: 0 }));
-  const sample = round => ({ round, total: { heapUsed: 300 * MiB }, history });
+  const sample = round => ({ round, total: { heapUsed: heapMiB * MiB }, history });
   return { smoke: false, shape: shapes.acceptance, baseline: { total: { heapUsed: 0 } },
-    groups: Array.from({ length: 50 }, (_, index) => ({ index, openBytes: 6 * MiB, commandBytes: 0 })),
+    groups: Array.from({ length: 50 }, (_, index) => ({ index, openBytes: groupMiB * MiB, commandBytes: 0 })),
     openSamples: [{ count: 50, ...sample(0) }], commandSamples: [sample(0)], settled: sample(0), readOnlyWarmup: sample(0),
     repeated: [1, 2, 3, 4].map(sample), mutationWarmup: sample(0), mutationRepeated: [1, 2, 3, 4].map(sample),
     mutationHistoryBaseline: history.map(() => ({ activeHistoryEntries: 0 })), postPublicationIO: { baseWrites: 0 }, errors: [] };
 }
 
-test('an uncovered 201 MiB opening peak falls back to passing raw gates with flat 200 MiB repeats', () => {
-  const result = rawResult(), proof = evidence();
-  result.groups.forEach(group => { group.openBytes = 4 * MiB; });
-  result.openSamples[0].total.heapUsed = 201 * MiB;
+function withRetention(result) {
+  const proof = evidence();
   const covered = [result.commandSamples.at(-1), result.settled, result.readOnlyWarmup,
     ...result.repeated, result.mutationWarmup, ...result.mutationRepeated];
-  covered.forEach(sample => { sample.total.heapUsed = 200 * MiB; sample.ownerLedgers = structuredClone(proof.samples[0].owners); });
+  covered.forEach(sample => { sample.ownerLedgers = structuredClone(proof.samples[0].owners); });
   result.retention = { ...proof, compiledCode: null, spotChecks: [], samples: covered.map(sample => ({
     heapUsedBytes: sample.total.heapUsed, nativeBytes: 0, owners: sample.ownerLedgers })) };
+  return result;
+}
+
+test('a 210 MiB serial peak cannot hide growth within 201 to 204 MiB repeat phases', () => {
+  const result = rawResult({ heapMiB: 201, groupMiB: 4 });
+  result.commandSamples[0].total.heapUsed = 210 * MiB;
+  for (const phase of [result.repeated, result.mutationRepeated])
+    phase.forEach((sample, i) => { sample.total.heapUsed = (201 + i) * MiB; });
+  const verdict = decision(withRetention(result));
+  assert.equal(verdict.steadyState.heapGrowthBytes, 3 * MiB);
+  assert.equal(verdict.steadyState.eligible, false);
+  assert(verdict.steadyState.reasons.includes('residual-heap-growth'));
+  assert.deepEqual(verdict.reasons, ['growth-on-every-read-only-repeat', 'positive-mutation-repeat-heap-slope']);
+  assert.equal(verdict.acceptanceClaim, false);
+});
+
+test('malformed spot owner counters only deny the waiver for a flat 200 MiB raw pass', () => {
+  for (const owner of [{ owner: 'response-caches', cap: 128 }, { owner: 'response-caches', used: 64 }]) {
+    const result = withRetention(rawResult({ heapMiB: 200, groupMiB: 4 }));
+    result.retention.spotChecks.push({ owners: [owner], unattributedHeapGrowthBytes: 0 });
+    const verdict = decision(result);
+    assert.equal(verdict.steadyState.eligible, false);
+    assert.deepEqual(verdict.steadyState.reasons, ['invalid-spot-check-owner:response-caches']);
+    assert.deepEqual(verdict.reasons, []);
+    assert.equal(verdict.targetMet, true); assert.equal(verdict.acceptanceClaim, true);
+  }
+});
+
+test('unlisted ledger and spot owners deny a waiver without rejecting passing raw gates', () => {
+  for (const source of ['ledger', 'spot']) {
+    const result = withRetention(rawResult({ heapMiB: 200, groupMiB: 4 }));
+    if (source === 'ledger') {
+      for (const sample of result.retention.samples)
+        sample.owners.push({ ...structuredClone(sample.owners[0]), owner: 'unexpected-retainer', id: 'unexpected-retainer' });
+      result.retention.warmup.owners.push({ ...result.retention.warmup.owners[0], owner: 'unexpected-retainer', id: 'unexpected-retainer' });
+    } else result.retention.spotChecks.push({ owners: [{ owner: 'unexpected-retainer', used: 1, cap: 10 }], unattributedHeapGrowthBytes: 0 });
+    const verdict = decision(result);
+    assert.equal(verdict.steadyState.eligible, false, source);
+    assert.deepEqual(verdict.steadyState.reasons, ['unlisted-owner:unexpected-retainer'], source);
+    assert.deepEqual(verdict.reasons, [], source); assert.equal(verdict.acceptanceClaim, true, source);
+  }
+});
+
+test('cap violation words in incomplete-owner diagnostics cannot reject passing raw gates', () => {
+  const result = withRetention(rawResult({ heapMiB: 200, groupMiB: 4 }));
+  for (const sample of result.retention.samples) {
+    sample.owners[0].complete = false;
+    sample.owners[0].blockers = ['owner-over-cap'];
+  }
+  const verdict = decision(result);
+  assert.equal(verdict.steadyState.eligible, false);
+  assert.deepEqual(verdict.steadyState.reasons, ['incomplete-owner:History/History:owner-over-cap']);
+  assert.deepEqual(verdict.reasons, []); assert.equal(verdict.acceptanceClaim, true);
+});
+
+test('valid numeric ledger and spot cap violations still reject a flat raw pass', () => {
+  for (const source of ['ledger', 'spot']) {
+    const result = withRetention(rawResult({ heapMiB: 200, groupMiB: 4 }));
+    if (source === 'ledger') {
+      for (const sample of result.retention.samples) sample.owners[0].dimensions[1].used = 129;
+    } else result.retention.spotChecks.push({ owners: [{ owner: 'response-caches', used: 129, cap: 128 }], unattributedHeapGrowthBytes: 0 });
+    const verdict = decision(result);
+    assert.deepEqual(verdict.reasons, ['steady-state-owner-proof-rejected'], source);
+    assert.equal(verdict.acceptanceClaim, false, source);
+  }
+});
+
+test('an uncovered 201 MiB opening peak falls back to passing raw gates with flat 200 MiB repeats', () => {
+  const result = withRetention(rawResult({ heapMiB: 200, groupMiB: 4 }));
+  result.openSamples[0].total.heapUsed = 201 * MiB;
   const verdict = decision(result);
   assert.equal(verdict.steadyState.eligible, false);
   assert.deepEqual(verdict.steadyState.reasons, ['uncovered-maximum']);

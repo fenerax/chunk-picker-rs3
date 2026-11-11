@@ -70,8 +70,10 @@ export function decision(result) {
   if (maximum > 750 * MiB) reasons.push('aggregate-over-750-MiB');
   if (sustainedGrowth && !steadyState.eligible) reasons.push('growth-on-every-read-only-repeat');
   if (mutationSlopeBytesPerRound > 0 && !steadyState.eligible) reasons.push('positive-mutation-repeat-heap-slope');
-  // Missing attribution denies a waiver; actual cap/owner violations reject.
-  if (steadyState.reasons.some(reason => /owner-over-cap|unlisted-owner/.test(reason))) reasons.push('steady-state-owner-proof-rejected');
+  // Only numerically proven cap violations reject outright. Other proof
+  // failures deny a waiver; owner names/diagnostic text cannot name a violation.
+  if (steadyState.reasons.some(reason => reason.startsWith('owner-over-cap:') || reason.startsWith('spot-check-owner-over-cap:')))
+    reasons.push('steady-state-owner-proof-rejected');
   if (!historyBounded) reasons.push('mutation-history-outside-workload-bound');
   if (result.postPublicationIO.baseWrites !== 0) reasons.push('base-rewritten-after-publication');
   if (result.errors.length) reasons.push('incomplete-command-workload');
