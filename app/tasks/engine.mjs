@@ -15,7 +15,7 @@ import { splitEffigyGate, buildAccessIndex, calculateAccess, collectBaseItemSour
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { playerControlSkills, resolvePlayerControls } from '../core/player-controls.mjs';
 import { progressBelongsToMember, observedSkills } from '../core/game-progress.mjs';
-import { configureAutomaticTransport, registerAutomaticTransportEngineFactory } from '../core/automatic-transport.mjs';
+import { configureAutomaticTransport, registerAutomaticTransportEngineFactory, automaticTransportEnabled, hasUnledgeredAutomaticTransportCaches } from '../core/automatic-transport.mjs';
 import { taskRuleCutoffDefaults, taskRuleDiagnostics } from '../data/settings.mjs';
 import { parseDropRate, composeDropRates, passesRateCutoff as evaluateRateCutoff, rateEvidence } from './rates.mjs';
 import { evaluatePartnerConnections } from '../core/territory.mjs';
@@ -184,7 +184,7 @@ export function createTaskEngine(definitions, options = {}) {
   const variants = new Map();
   const accessIndexes = [];
   const versions = new Map();
-  let fixedRoots, fixedBytes = 0, retainedBytes = 0, evictions = 0;
+  let fixedRoots, fixedBytes = 0, retainedBytes = 0, evictions = 0, automaticTravelObserved = false;
   const sweepIndexes = () => {
     const live = new Set([...variants.values()].map(value => value.accessIndex()));
     for (let i = accessIndexes.length - 1; i >= 0; i--) if (!live.has(accessIndexes[i].index)) accessIndexes.splice(i, 1);
@@ -228,6 +228,7 @@ export function createTaskEngine(definitions, options = {}) {
     skillGuideCorrections ?? rules?.[SKILL_GUIDE_CORRECTIONS_RULE] === true,
     skillGuideMilestones ?? rules?.[SKILL_GUIDE_MILESTONES_RULE] === true, early);
   const variantForMember = (state, memberId) => {
+    automaticTravelObserved ||= automaticTransportEnabled(state);
     const member = state.members.find(member => member.id === memberId);
     if (!member) throw new TypeError(`Unknown member: ${memberId}`);
     const legacy = state.legacy?.maps?.[member?.sourceMapId]?.rules;
@@ -254,12 +255,14 @@ export function createTaskEngine(definitions, options = {}) {
     }
   }
   engine = Object.freeze({ datasetDigest: dataset?.digest, catalogue: initial.catalogue,
-    prepare(rules) { return use(variantForRules(rules), compiled => compiled.prepare()); },
+    prepare(rules) { automaticTravelObserved ||= rules?.['travel.automatic'] === true; return use(variantForRules(rules), compiled => compiled.prepare()); },
     retentionLedger() {
       if (variants.size > 16) throw new Error('Engine variant entry cap exceeded.');
       trimVariants();
       if (variantByteLimit !== null && retainedBytes > variantByteLimit) throw new Error('Engine variant byte cap exceeded.');
-      return { owner: 'engine-variants', complete: variantByteLimit !== null,
+      const automaticGap = automaticTravelObserved || hasUnledgeredAutomaticTransportCaches(engine);
+      return { owner: 'engine-variants', complete: variantByteLimit !== null && !automaticGap,
+        blockers: automaticGap ? ['automatic-transport-baseline-derived-bytes-unledgered'] : [],
         dimensions: [{ unit: 'entries', used: variants.size, cap: 16, enforced: true },
           { unit: 'chargeBytes', used: fixedBytes + retainedBytes, cap: variantByteLimit === null ? null : fixedBytes + variantByteLimit, enforced: variantByteLimit !== null }],
         fixedInputBytes: fixedBytes, parsedBytes: retainedBytes, parsedByteLimit: variantByteLimit, evictions,

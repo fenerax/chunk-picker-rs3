@@ -29,17 +29,41 @@ export function negotiateEncoding(header = '', compress = true) {
 export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true, identityETag } = {}) {
   const plain = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: identityETag ?? etag(plain) })]]);
-  let retainedBytes = plain.byteLength;
+  let retainedBytes = plain.byteLength, encodingPins = 0;
   const representation = { bytes: plain, type, cacheControl, compress,
+    get pinned() { return encodingPins > 0; },
     get byteLength() { return plain.byteLength; },
     get retainedBytes() { return retainedBytes; },
     encoded(encoding) {
-      if (!encodings.has(encoding)) encodings.set(encoding, (encoding === 'br'
-        ? brotliAsync(plain, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })
-        : gzipAsync(plain, { level: 1 })).then(bytes => {
-          retainedBytes += bytes.byteLength; representation.onSizeChange?.();
-          return { bytes, etag: etag(bytes) };
+      if (!encodings.has(encoding)) {
+        // Both codecs' maximum encoded size is below this input + 6.25% +
+        // 64 KiB charge. Reserve output before native work; input is already
+        // charged by a retained row, or included in an uncached reservation.
+        const outputCharge = plain.byteLength + Math.ceil(plain.byteLength / 16) + 65536;
+        const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
+        const permit = budget.reserveEncoding({
+          cost: () => outputCharge + (representation.isRetained?.() ? 0 : retainedBytes),
+          uncachedCost: () => outputCharge + retainedBytes,
+          detach: () => representation.detachEncodingInput?.(),
+          pin: () => { encodingPins++; }, unpin: () => { encodingPins--; },
+        });
+        encodings.set(encoding, permit.then(async release => {
+          let encoded;
+          try {
+            const bytes = await (encoding === 'br'
+              ? brotliAsync(plain, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })
+              : gzipAsync(plain, { level: 1 }));
+            encoded = { bytes, etag: etag(bytes) };
+          } finally {
+            // Release the conservative output reservation, then replace it with
+            // completed backing synchronously, before queued work can enter.
+            release();
+            if (encoded) retainedBytes += encoded.bytes.byteLength;
+            representation.onSizeChange?.();
+          }
+          return encoded;
         }).catch(error => { encodings.delete(encoding); throw error; }));
+      }
       return encodings.get(encoding);
     } };
   return representation;
@@ -196,15 +220,17 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
   if (![maxEntries, maxBytes].every(value => Number.isSafeInteger(value) && value >= 0)) throw new TypeError('Invalid response cache bound.');
   const rows = new Map();
   const tokens = new Map();
+  const retiring = new Set();
   const bytes = () => [...rows.values()].reduce((sum, row) => sum + row.retainedBytes, 0);
   const remove = key => {
     const row = rows.get(key);
     // In-flight decoders keep their reservation until their native operation
     // settles. Invalidation still cancels their reusable result immediately.
-    if (row?.pinned) { row.onEvict?.(); return false; }
+    if (row?.pinned) { retiring.add(key); row.onEvict?.(); return false; }
     rows.delete(key);
+    retiring.delete(key);
     budget.forget(tokens.get(key)); tokens.delete(key);
-    if (row) { row.onSizeChange = undefined; row.onEvict?.(); }
+    if (row) { row.onSizeChange = row.isRetained = row.detachEncodingInput = undefined; row.onEvict?.(); }
     return !!row;
   };
   const trim = () => {
@@ -215,18 +241,25 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
     }
   };
   return {
-    get(key) { const row = rows.get(key); if (row) { rows.delete(key); rows.set(key, row); budget.touch(tokens.get(key)); } return row; },
-    set(key, value) {
-      if (rows.has(key) && !remove(key)) return value;
+    get(key) { const row = retiring.has(key) ? undefined : rows.get(key); if (row) { rows.delete(key); rows.set(key, row); budget.touch(tokens.get(key)); } return row; },
+    set(key, value, { onRefused } = {}) {
+      value.encodingBudget = budget;
+      if (rows.has(key) && !remove(key)) { onRefused?.('owner'); return value; }
       const pinned = [...rows.values()].filter(row => row.pinned);
       if (value.retainedBytes > maxBytes || pinned.length >= maxEntries
-        || pinned.reduce((sum, row) => sum + row.retainedBytes, 0) + value.retainedBytes > maxBytes) return value;
+        || pinned.reduce((sum, row) => sum + row.retainedBytes, 0) + value.retainedBytes > maxBytes) { onRefused?.('owner'); return value; }
       const token = {};
       rows.set(key, value); tokens.set(key, token);
-      value.onSizeChange = () => { trim(); budget.resize(token, value.retainedBytes); };
+      value.isRetained = () => rows.get(key) === value;
+      value.detachEncodingInput = () => remove(key);
+      value.onSizeChange = () => {
+        if (retiring.has(key) && !value.pinned) remove(key);
+        else { trim(); budget.resize(token, value.retainedBytes); }
+      };
       if (!budget.admit(token, { group, cost: value.retainedBytes, pinned: () => !!value.pinned, evict: () => remove(key) })) {
         // Rejected reservations were never admitted; do not cancel their caller.
-        if (rows.get(key) === value) { rows.delete(key); tokens.delete(key); value.onSizeChange = undefined; }
+        if (rows.get(key) === value) { rows.delete(key); tokens.delete(key); value.onSizeChange = value.isRetained = value.detachEncodingInput = undefined; }
+        onRefused?.('service');
       }
       trim();
       return value;

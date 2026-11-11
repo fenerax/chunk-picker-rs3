@@ -34,7 +34,7 @@ import { buildChunkPlanningIndex, buildChunkPlanningIndexIncremental } from './c
 import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
-import { createStateSnapshotCache } from './retained-data.mjs';
+import { createStateSnapshotCache, stateInputRetentionLedger } from './retained-data.mjs';
 import { serviceMemoryBudget, boundedMemoryOption } from '../service-memory-budget.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { serialize } from 'node:v8';
@@ -230,8 +230,9 @@ if (globalThis[Symbol.for('rs3.acceptance.probe')]) globalThis[Symbol.for('rs3.a
     { ...snapshotOptions.hotSet.retentionLedger(), id: 'hot-graph', scope: 'shared', includedInOtherCap: true, chargedBy: 'worker-cache', workload: { newEntriesPerCycle: 1 } },
     { ...snapshotBudget.retentionLedger(), id: 'worker-cache', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
     { ...engine.retentionLedger(), id: 'engine', scope: 'shared', workload: { newEntriesPerCycle: 1, workingSetEntries: 8 } },
-    { ...stateSnapshots.retentionLedger(), id: 'state-inputs', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
-    { ...receiveOwnedState.retentionLedger(), id: 'installed-bases', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
+    { ...stateSnapshots.retentionLedger(), id: 'state-inputs', scope: 'shared', includedInOtherCap: true, chargedBy: 'state-input-budget', workload: { newEntriesPerCycle: 1 } },
+    { ...receiveOwnedState.retentionLedger(), id: 'installed-bases', scope: 'shared', includedInOtherCap: true, chargedBy: 'state-input-budget', workload: { newEntriesPerCycle: 1 } },
+    { ...stateInputRetentionLedger([stateSnapshots, receiveOwnedState]), id: 'state-input-budget', scope: 'shared', workload: { newEntriesPerCycle: 1 } },
   ];
 };
 const latestRevisions = new Map();

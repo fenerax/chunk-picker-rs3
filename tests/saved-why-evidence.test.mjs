@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createResponseCache } from '../app/http-response.mjs';
+import { createResponseCacheBudget } from '../app/response-cache-budget.mjs';
 import { createSavedWhyEvidence, forgetSavedWhyChain, savedWhyCharge } from '../app/saved-why-evidence.mjs';
 
 const makeEntry = () => ({ revision: 7, fullGzip: gzipSync(JSON.stringify({ tasks: [{ id: 'fixture', record: {} }] })) });
@@ -66,6 +67,30 @@ test('saved decode admission shares limits and keeps in-flight invalidations cha
   const invalid = { revision: 7, fullGzip: gzipSync('invalid json') };
   assert.equal(await owner.read(invalid, 7), undefined);
   assert.equal(owner.stats().bytes, 0); assert.equal(clock.active.size, 0);
+});
+
+test('peer-pinned global pressure preserves saved evidence without retaining a decoded fallback', async t => {
+  const entry = makeEntry(), raw = entry.fullGzip.readUInt32LE(entry.fullGzip.length - 4);
+  const charge = savedWhyCharge(raw, entry.fullGzip.buffer.byteLength);
+  const budget = createResponseCacheBudget({ maxBytes: charge, maxEntries: 1 });
+  const peer = createResponseCache({ budget, maxBytes: charge });
+  const reservation = { retainedBytes: charge, pinned: true };
+  peer.set('peer', reservation);
+  const cache = createResponseCache({ budget }), clock = timers();
+  const owner = createSavedWhyEvidence({ cache, clock }); t.after(() => owner.close());
+  const first = owner.read(entry, 7);
+  const shared = owner.read(entry, 7);
+  assert.equal(owner.stats().pending, 1); assert.equal(cache.bytes, 0);
+  const decoded = await first;
+  assert.equal(await shared, decoded, 'refused same-evidence callers share one bounded decode');
+  assert.deepEqual(decoded, { tasks: [{ id: 'fixture', record: {} }] });
+  assert.deepEqual(owner.stats(), { entries: 0, pending: 0, bytes: 0, maxRawBytes: 1024 ** 2 });
+  assert.equal(clock.active.size, 0); assert.equal(budget.bytes, charge);
+  const cancelled = owner.read(entry, 7); forgetSavedWhyChain(entry);
+  assert.equal(await cancelled, undefined);
+  reservation.pinned = false; peer.clear();
+  const retained = await owner.read(entry, 7);
+  assert.equal(await owner.read(entry, 7), retained);
 });
 
 test('invalidated saved graphs and entries collect while the owning context remains reachable', async () => {

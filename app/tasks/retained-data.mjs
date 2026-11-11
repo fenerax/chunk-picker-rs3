@@ -1,4 +1,6 @@
 import { identityRetentionRoots, isIdentityDictionary } from './identity-dictionary.mjs';
+import { residentBase } from '../core/resident-copy.mjs';
+import { OWNED_BASE_FORMAT } from '../storage/owned-base-schema.mjs';
 
 // Conservative data-graph charge, never a heap subtraction. Explicit roots
 // must include closure-owned data; functions themselves receive fixed slack.
@@ -11,6 +13,10 @@ export function retainedDataBytes(roots) {
     if (value === null || !['object', 'function'].includes(typeof value)) return;
     if (seen.has(value)) return;
     seen.add(value);
+    // A resident state retains its complete verified base through a WeakMap,
+    // even when its visible task/dictionary delta hides most of that base.
+    const base = residentBase(value);
+    if (base) visit(base);
     if (typeof value === 'function') { bytes += 256; return; }
     if (value instanceof ArrayBuffer || value instanceof SharedArrayBuffer) { bytes += 64 + value.byteLength; return; }
     if (ArrayBuffer.isView(value)) { bytes += 128; visit(value.buffer); return; }
@@ -27,6 +33,15 @@ export function retainedDataBytes(roots) {
     }
     if (Array.isArray(value)) { bytes += 64 + value.length * 16; for (const child of value) visit(child); return; }
     bytes += 64;
+    if (Object.getOwnPropertyDescriptor(value, 'baseFormat')?.value === OWNED_BASE_FORMAT) {
+      const tasks = Object.getOwnPropertyDescriptor(value, 'tasks')?.value;
+      if (Array.isArray(tasks)) {
+        // Reserve the resident-copy taskBases Map, including its keys, whether
+        // already built or still lazy. Row payloads are visited through tasks.
+        bytes += 128 + tasks.length * 64;
+        for (const task of tasks) visit(task.id);
+      }
+    }
     for (const key of Reflect.ownKeys(value)) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       bytes += 32; visit(key);
@@ -59,6 +74,7 @@ export function createStateSnapshotCache({ maxEntries = 2, maxBytes = null, onEv
       rows.set(key, { state, bytes: cost }); bytes += cost;
     },
     get size() { return rows.size; }, get bytes() { return bytes; },
+    retentionRoots: () => [...rows].flatMap(([key, row]) => [key, row.state]),
     retentionLedger() {
       if (rows.size > entryCeiling || bytes > byteCeiling) throw new Error('State input retention cap exceeded.');
       return { owner: 'stateSnapshots', complete: maxBytes !== null && maxEntries !== null, dimensions: [
@@ -67,4 +83,21 @@ export function createStateSnapshotCache({ maxEntries = 2, maxBytes = null, onEv
       accounting: 'Conservative input graph bytes, including resident identity payloads and keys. Each input is charged independently, never converted to V8 heap bytes.' };
     },
   });
+}
+
+// The two input caches have independent admission limits, but may retain the
+// same base. Their union owns the additive charge; individual rows are subsets.
+export function stateInputRetentionLedger(caches) {
+  const ledgers = caches.map(cache => cache.retentionLedger());
+  const dimension = (row, unit) => row.dimensions.find(d => d.unit === unit);
+  const cap = unit => ledgers.every(row => dimension(row, unit).enforced)
+    ? ledgers.reduce((sum, row) => sum + dimension(row, unit).cap, 0) : null;
+  const entries = caches.reduce((sum, cache) => sum + cache.size, 0);
+  const used = retainedDataBytes(caches.flatMap(cache => cache.retentionRoots())) + entries * 256;
+  const maxBytes = cap('chargeBytes'), maxEntries = cap('entries');
+  if (maxBytes !== null && used > maxBytes || maxEntries !== null && entries > maxEntries) throw new Error('Input union cap exceeded.');
+  return { owner: 'stateSnapshots', complete: maxBytes !== null && maxEntries !== null,
+    dimensions: [{ unit: 'entries', used: entries, cap: maxEntries, enforced: maxEntries !== null },
+      { unit: 'chargeBytes', used, cap: maxBytes, enforced: maxBytes !== null }],
+    accounting: 'Union of snapshot and installed-base roots, including residentBases and reserved taskBases indexes. Shared bases are charged once; both cache ledgers are subsets. Admission caps independently bound the union.' };
 }

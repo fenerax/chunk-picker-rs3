@@ -270,7 +270,7 @@ successful warm-up assertion and runs the original rounds/growth gates:
 | Scheduler aggregate | 320 MiB, derived from independent lane caps | **128 MiB service-wide** |
 | Hot snapshot | One graph / 128 MiB per calculator; included in worker charge | Same local cap, also limited by worker share |
 | Worker snapshot/eligibility cache | **512 entries / 384 MiB per calculator** | 512 entries per calculator / **256 MiB across calculators** |
-| Engine variants and lazy indexes | 16 combinations; byte ledger report-only | 16 combinations / **128 MiB parsed charge across calculators**, plus fixed input charge `B` |
+| Engine variants and lazy indexes | 16 combinations; byte ledger report-only | 16 combinations / **128 MiB parsed charge across calculators**, plus fixed input charge `B`; incomplete when automatic travel is observed |
 | stateSnapshots | Two entries per calculator; byte ledger report-only | Two entries per calculator / **16 MiB across calculators** |
 | Installed calculator bases | Entry and byte ledgers report-only | Two entries per calculator / **16 MiB across calculators** |
 | History | Existing compaction; byte ledger report-only | Unchanged; pending-roll/Undo suffixes, archives, payloads and provenance lack a hard cap |
@@ -280,13 +280,17 @@ Every owner reports real numeric byte usage in both profiles. Missing default
 bounds are `cap: null, enforced: false, complete: false`; report-only dimensions
 cannot establish a waiver. The opt-in acceptance census retains complete enforced
 entry/byte dimensions for the bounded owners; History still blocks a certificate.
+Automatic-transport baseline and derived caches have no enforced byte ledger;
+affected engines fail closed with `automatic-transport-baseline-derived-bytes-unledgered`.
 `includedInOtherCap` excludes
 subset rows only from additive projections; it never exempts their evidence
 from validation. The hot graph is charged by its worker, and group responses
 by the service response ledger. Those subset charges enter the total once.
-Independently retained inputs conservatively charge their complete reachable
-graphs, including any shared immutable base; those source charges are not exact
-physical heap attribution.
+The input union ledger charges snapshot and installed-base roots together,
+including hidden `residentBases` and reserved lazy `taskBases` indexes. Its two
+cache ledgers are subsets, so an installed base also held by resident snapshots
+is charged once. Rejected or evicted installations remain charged while a
+cached resident state holds the base. Charges are not physical heap attribution.
 
 ### One managed service budget (owner decision, 2026-11-11)
 
@@ -341,9 +345,31 @@ When global enforcement is enabled, response eviction prefers globally old entri
 floor, then falls back to global LRU. The floor cannot override the byte/entry
 cap. In-flight saved-Why decoder reservations remain charged and cannot be
 evicted until they settle. New admissions decline if pinned reservations leave
-insufficient room. Completed identity/gzip/brotli growth rebalances the same
+insufficient room. A service admission refusal still runs the bounded saved-Why
+decode for the request and returns its uncached result, preserving valid viewer
+replies. This transient work uses the existing raw/output bounds and is not a
+retained cache reservation. Completed identity/gzip/brotli growth rebalances the same
 ledger. The caller still receives uncached results; response bytes, ETags,
 conditional requests and saved bytes are unchanged.
+
+With global enforcement enabled, native gzip/Brotli work reserves its maximum
+output charge before starting, and pins the input row until settlement. An
+uncached input is included in the same reservation. Requests wait for admission;
+cross-group eviction cannot discard a running encoding's shared promise. Each
+reservation includes input length + 6.25% + 64 KiB, above both codecs' maximum
+output bound. Completed backing replaces the reservation before another job
+can enter. Explicit invalidation hides the entry immediately but keeps its
+charge until native work settles. `pendingEncodings` is separately capped by
+the byte allowance divided by 64 KiB; it does not consume reusable entry slots.
+The report-only default does not add encoding admission or change cache eviction.
+
+If a single uncacheable reply exceeds an explicitly undersized response quota,
+reply preservation requires an exclusive transient encoding. Its full charge is
+reported even above the quota, and `uncacheable-encoding-exceeds-response-quota`
+permanently denies that budget's completeness. It is never hidden as a cache
+eviction. The ordinary 48 MiB group input plus output reservation fits within
+the 128 MiB budget profile. This does not establish a bound for larger replies
+or queued request input lifetimes; see the residency gaps.
 
 In the budget profile, at **100 groups** and **500 groups**, the known managed subtotal is the same
 `704,643,072 + B` bytes, instead of multiplying the group response cap. The full

@@ -62,5 +62,7 @@ export function createOwnedCalculatorReceiver(datasetDigest, { limits: overrides
   };
   receive.retentionLedger = () => ({ ...bases.retentionLedger(),
     accounting: 'Verified calculator base graph bytes, including dictionary payloads and release pins. Oversized bases decode the current request without retention; private hints require a full installation on reuse.' });
+  receive.retentionRoots = bases.retentionRoots;
+  Object.defineProperty(receive, 'size', { get: () => bases.size });
   return receive;
 }

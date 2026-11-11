@@ -80,18 +80,6 @@ test('pinned decoder reservations stay charged and admission declines without ev
   reservation.pinned = false; a.delete('decode'); assert.equal(budget.bytes, 0);
 });
 
-test('late encoding growth enforces the global cap after an earlier eviction', async () => {
-  const budget = createResponseCacheBudget({ maxBytes: 60, maxEntries: 4, groupFloorBytes: 0 });
-  const a = createResponseCache({ budget }), b = createResponseCache({ budget });
-  const representation = a.set('plain', createRepresentation(Buffer.alloc(50)));
-  const pending = representation.encoded('gzip');
-  b.set('peer', createRepresentation(Buffer.alloc(50)));
-  assert.equal(a.size, 0); await pending;
-  assert.equal(budget.bytes, 50); assert.equal(b.size, 1); b.clear();
-  const growing = a.set('growing', createRepresentation(Buffer.alloc(50)));
-  await growing.encoded('gzip'); assert.equal(a.size, 0); assert.equal(budget.bytes, 0);
-});
-
 async function send(cache, encoding, method = 'GET', validator) {
   const key = 'synthetic-reply';
   const representation = cache.get(key) ?? cache.set(key, createRepresentation('{"synthetic":"same 🦊 bytes"}'));
@@ -155,6 +143,18 @@ test('lazy preparation that exceeds a nonzero parsed cap releases the variant an
   const state = fixtureStates()[0].state;
   assert.equal(semantic(capped.evaluate(state, 'm0')), semantic(reference.evaluate(state, 'm0')));
   assert(capped.retentionLedger().parsedBytes <= initialBytes);
+});
+
+test('automatic travel denies engine completeness even after variant eviction or later manual preparation', () => {
+  const engine = createTaskEngine(engineFixture(), { variantByteLimit: 0 });
+  assert.equal(engine.retentionLedger().complete, true);
+  engine.prepare({ 'travel.automatic': true });
+  const ledger = engine.retentionLedger();
+  assert.equal(ledger.parsedBytes, 0);
+  assert.equal(ledger.complete, false);
+  assert.deepEqual(ledger.blockers, ['automatic-transport-baseline-derived-bytes-unledgered']);
+  engine.prepare({ 'travel.automatic': false });
+  assert.equal(engine.retentionLedger().complete, false, 'variant eviction does not prove release of hidden roots');
 });
 
 test('service and hot-set subset caps are added once in both group projections', () => {

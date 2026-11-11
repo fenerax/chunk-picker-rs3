@@ -41,7 +41,7 @@ export function createSavedWhyEvidence({ cache = createResponseCache(), idleMs =
     } catch { retire(record); return undefined; }
     finally {
       record.pending = false; record.reservation.pinned = false;
-      if (record.retired) retire(record);
+      if (record.retired || !record.reusable) retire(record);
     }
   }
   async function read(entry, revision, { rawLimit = maxRawBytes } = {}) {
@@ -57,14 +57,20 @@ export function createSavedWhyEvidence({ cache = createResponseCache(), idleMs =
     if (!record) {
       record = { entry, revision, gzip, key: Symbol('saved-why'), pending: true };
       record.reservation = { retainedBytes: savedWhyCharge(size, gzip.buffer.byteLength), pinned: true, onEvict: () => retire(record) };
-      cache.set(record.key, record.reservation);
-      if (cache.get(record.key) !== record.reservation) return undefined;
-      records.set(entry, record); owners.set(entry, owner); reservations.add(record);
+      let refused;
+      cache.set(record.key, record.reservation, { onRefused: reason => { refused = reason; } });
+      record.reusable = cache.get(record.key) === record.reservation;
+      if (!record.reusable && refused !== 'service') return undefined;
+      // Admission controls retention, not availability. A refused reservation
+      // from service pressure still decodes within the same raw/output bounds
+      // for this request only. Existing local-owner refusal policy is unchanged.
+      records.set(entry, record); owners.set(entry, owner);
+      if (record.reusable) reservations.add(record);
       record.promise = decode(record, gzip, size);
       const job = record.promise; jobs.add(job);
       void job.then(() => jobs.delete(job), () => jobs.delete(job));
     } else cache.get(record.key); // Shared LRU, including other response types.
-    touch(record);
+    if (record.reusable) touch(record);
     return record.promise;
   }
   const owner = { read, forget,

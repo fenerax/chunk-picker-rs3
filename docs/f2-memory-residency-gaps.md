@@ -47,12 +47,49 @@ Oversized bases decode the current request without retention. Eviction hints
 invalidate scheduler and physical-pool installation hints so a later request
 resends its exact base. This root is no longer a missing ledger.
 
+Resident states also hold the complete base through `residentBases`, even when
+the installed-base cache rejects or evicts it and visible deltas omit its rows.
+Snapshot admission charges that hidden root and reserves the lazy `taskBases`
+index. The census charges the union of snapshot and installed-base roots once;
+the individual cache ledgers are subsets of that shared input ledger.
+
+## Automatic-transport baselines and derived facts: named engine gap
+
+`automatic-transport.mjs` keeps baseline results keyed by evaluator and derived
+facts keyed by world in WeakMaps. Neither has an enforced byte ledger. Variant
+eviction alone does not release evaluator-keyed baseline results. An engine that
+observes automatic travel therefore reports `complete: false` with the blocker
+`automatic-transport-baseline-derived-bytes-unledgered`, including when an
+external world evaluates a baseline with automatic travel temporarily disabled.
+The marker remains until the evaluator is collected. This conservative gap
+changes proof eligibility only; cache lifetime, replies and defaults are unchanged.
+
+A follow-up must expose all baseline/derived roots, account for shared payloads,
+enforce byte admission and establish release with the variant/world lifetime.
+Until then, the managed subtotal excludes these unknown bytes and automatic
+travel cannot receive a complete engine or service certificate.
+
 ## Scope of the current evidence
+
+Pending gzip/Brotli encodings now reserve output bytes and pin their admitted
+input before native work. Refused reusable inputs wait for the same native-work
+quota and include their input in its charge. This prevents group cycling from
+evicting running encodings and multiplying uncharged compression. Saved-Why
+reservations likewise pin before gunzip; a refused same-evidence decode is
+bounded by its raw limit, coalesced and released after the request.
+
+Queued request inputs remain transient request roots, outside the cache-residency
+proof. A reply too large for the configured response quota uses one exclusive
+encoding and reports its full excess with the permanent completeness blocker
+`uncacheable-encoding-exceeds-response-quota`. Ordinary group cache inputs fit
+the 128 MiB profile including their output reservation; larger uncacheable
+replies need streaming/spooling before claiming a hard whole-service bound.
 
 The acceptance fixture retains stores and its own response caches; it does not
 instantiate production picker contexts, viewer result Maps or plugin consumers.
 Its numeric known subtotal is the managed 672 MiB plus fixed engine inputs B.
 That is a scoped subtotal, not a complete production projection. History and
-saved viewer results prevent a production certificate. No acceptance gate is waived.
+saved viewer results prevent a production certificate. Automatic travel adds the
+named engine gap above. No acceptance gate is waived.
 
 Decision reference: owner decision, 2026-11-11.
