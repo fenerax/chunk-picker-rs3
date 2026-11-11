@@ -1,5 +1,6 @@
 import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
+import { generateToken } from '../security/tokens.mjs';
 import path from 'node:path';
 import { durableDirectory, lockRegistry, syncDirectory, writeRegistryJson } from './registry-lock.mjs';
 import { REGISTRY_ACCOUNT, registryIdentity, registryMembers, registryObject as object } from './registry-legacy.mjs';
@@ -349,7 +350,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const account = relinkTarget(accountId);
       if (!account) throw error(409, 'This account cannot be reclaimed.');
       if (!Number.isSafeInteger(expiresInMs) || expiresInMs <= 0 || expiresInMs > 24 * 60 * 60 * 1000) throw error(400, 'Invalid claim lifetime.');
-      const code = randomBytes(32).toString('base64url'), next = copy(current);
+      const code = generateToken(), next = copy(current);
       const expiresAt = new Date(now() + expiresInMs).toISOString();
       next.relinkCodes = (next.relinkCodes ?? []).filter(c => c.accountId !== accountId && Date.parse(c.expiresAt) > now());
       next.relinkCodes.push({ accountId, hash: createHash('sha256').update(code).digest('hex'), expiresAt });
