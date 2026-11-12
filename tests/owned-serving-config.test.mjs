@@ -115,6 +115,7 @@ test('retirement/current-name consumers preserve historical rows, aliases and Un
   assert(Object.isFrozen(certified.provenance.ownedCatalogue.retiredIds));
   assert.throws(() => { certified.provenance.ownedCatalogue.names[id] = 'Changed through old proof'; }, TypeError);
   const play = projectPlayState(state, { ownedCatalogueSemantics: true });
+  assert.deepEqual(projectPlayState(flat, { ownedCatalogueSemantics: true }), play, 'verified context semantics apply to detached replies too');
   assert.equal(play.tasks.find(row => row.id === id).label, 'Current synthetic name');
   const rows = applyOwnedCatalogueRows([{ id, label: 'Historical synthetic name', obligation: true }], state);
   assert.equal(rows[0].obligation, false); assert.equal(rows[0].hidden, true);

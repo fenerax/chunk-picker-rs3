@@ -16,6 +16,7 @@ import { createOwnedBaseManifest } from '../app/storage/owned-base-schema.mjs';
 import { retainOwnedServingRelease, verifyOwnedServingConfiguration, selectOwnedServingPicker } from '../app/storage/owned-serving.mjs';
 import { createOwnedStorage } from '../app/storage/owned-storage.mjs';
 import { ownedCodec } from '../app/storage/owned-codec.mjs';
+import { mergeCommandState } from '../app/web/command-state.mjs';
 
 const cleanups = new WeakMap();
 const cleanup = (t, callback) => cleanups.get(t).push(callback);
@@ -206,8 +207,18 @@ test('enabled HTTP consumers use retirement and current names while stored rows 
   assert.deepEqual(backup.value.state.tasks, original.value.state.tasks);
   assert.deepEqual(backup.value.state.identityRegistry, original.value.state.identityRegistry);
   assert.deepEqual(backup.value.state.history, original.value.state.history);
+  const get = await servingRequest(app, f.group, '/api/state?view=play-v1'); assert.equal(get.status, 200);
+  const command = { type: 'set-note', memberId: 'owner', chunkId: Object.keys(catalogue(profile.catalogue).chunks)[0], note: 'Synthetic catalogue reply' };
+  const changed = await servingRequest(app, f.group, '/api/command?view=play-v1', { command, expectedRevision: get.value.state.revision });
+  assert.equal(changed.status, 200);
+  const changedState = mergeCommandState(get.value.state, changed.value);
+  assert.deepEqual(changedState.tasks, get.value.state.tasks);
+  const conflict = await servingRequest(app, f.group, '/api/command?view=play-v1', { command, expectedRevision: get.value.state.revision });
+  assert.equal(conflict.status, 409); assert.match(conflict.value.message, /Revision conflict/);
+  assert.deepEqual(conflict.value.state, changedState, 'detached conflict state keeps current labels and retirement flags');
+  assert.deepEqual((await servingRequest(app, f.group, '/api/state?view=play-v1')).value.state, changedState);
   const preview = await servingRequest(app, f.group, '/api/restore/preview', { backup: backup.value }); assert.equal(preview.status, 200);
-  const restored = await servingRequest(app, f.group, '/api/restore?view=play-v1', { backup: backup.value, expectedRevision: original.value.state.revision, previewToken: preview.value.previewToken });
+  const restored = await servingRequest(app, f.group, '/api/restore?view=play-v1', { backup: backup.value, expectedRevision: changed.value.state.revision, previewToken: preview.value.previewToken });
   assert.equal(restored.status, 200);
   const restoredDisplay = restored.value.state.tasks.find(task => task.id === id);
   assert.equal(restoredDisplay.label, metadata.names[id]); assert.equal(restoredDisplay.obligation, false);
@@ -215,6 +226,26 @@ test('enabled HTTP consumers use retirement and current names while stored rows 
   assert.deepEqual(restoredFull.value.state.provenance.ownedCatalogue, metadata);
   await app.close(); app = await servingServer(f); await app.listen();
   assert.equal((await servingRequest(app, f.group, '/api/tasks?memberId=owner')).value.tasks.find(task => task.id === id).label, metadata.names[id]);
+});
+
+test('malformed owned metadata refuses HTTP preview and restore without changing bytes or subsequent replies', async t => {
+  const root = await scratch(t), f = await servingFixture(root), app = await servingServer(f);
+  cleanup(t, () => app.close()); await app.listen();
+  const full = await servingRequest(app, f.group, '/api/state'); assert.equal(full.status, 200);
+  const before = await readFile(stateFile(f)), play = await servingRequest(app, f.group, '/api/state?view=play-v1');
+  const tasks = await servingRequest(app, f.group, '/api/tasks?memberId=owner'); assert.equal(tasks.status, 200);
+  const taskFacts = value => { const { cache, ...facts } = value; return stableResult(facts); };
+  const backup = await servingRequest(app, f.group, '/api/backup'); assert.equal(backup.status, 200);
+  for (const metadata of [{ retiredIds: {} }, { names: { [f.manifest.groups[0].taskIds[0]]: false } }]) {
+    const malformed = structuredClone(backup.value); malformed.state.provenance.ownedCatalogue = metadata;
+    for (const route of ['/api/restore/preview', '/api/restore?view=play-v1']) {
+      const refused = await servingRequest(app, f.group, route, { backup: malformed, expectedRevision: full.value.state.revision });
+      assert.equal(refused.status, 422); assert.match(refused.value.message, /Invalid provenance\.ownedCatalogue/);
+      assert.deepEqual(await readFile(stateFile(f)), before);
+      assert.deepEqual((await servingRequest(app, f.group, '/api/state?view=play-v1')).value, play.value);
+      assert.deepEqual(taskFacts((await servingRequest(app, f.group, '/api/tasks?memberId=owner')).value), taskFacts(tasks.value));
+    }
+  }
 });
 
 test('server refuses unverifiable configuration and incompatible codec before group preparation', async t => {

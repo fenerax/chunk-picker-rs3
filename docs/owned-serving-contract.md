@@ -63,6 +63,19 @@ Calculation and eligibility caches include this metadata when the consumer is
 enabled. Default lower-level calculator and projection APIs retain slice-7a
 transport parity.
 
+The verified context's display option also applies to detached command,
+conflict and compatibility snapshots. Import jobs receive the effective option;
+storage format alone never enables the transfer reply's display overlay.
+Owned storage validates active catalogue provenance before load/import
+preparation and before publication: the optional `retiredIds` field contains
+unique nonempty string IDs, and optional `names` is an object mapping nonempty
+IDs to string labels. Unknown fields and malformed values refuse with an
+`Invalid provenance.ownedCatalogue` diagnostic. Existing malformed saves refuse
+to open; preparation never silently repairs or rewrites them. Invalid backups
+cannot pass preview or restore, and the preceding saved bytes/replies remain
+available. Historical provenance retained as restore evidence stays opaque.
+Format-1 storage retains its existing provenance validation and bytes.
+
 `deltaValidation` remains a separate, default-off `openStore` option. Neither
 `createServer` nor `createPickerContext` forwards it, so enabling owned HTTP
 serving does not enable delta validation. Explicit lower-level stores can combine

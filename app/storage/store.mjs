@@ -38,6 +38,7 @@ import { captureProgressSnapshot, buildProgressModel } from '../core/progress-ti
 import { createGameplayFingerprint, canReuseGameplayFieldBytes } from './gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../tasks/unlock-reuse.mjs';
 import { projectPlayState, projectPlayStateSteps, PLAY_VIEW } from '../play-view.mjs';
+import { validateOwnedCatalogueMetadata } from '../tasks/owned-catalogue-view.mjs';
 import { projectBrowserState } from '../web/browser-state.mjs';
 import { readHistoryEvents } from './history-reader.mjs';
 import { computeRollStats, selectRollStatsEvent } from '../core/roll-stats.mjs';
@@ -199,6 +200,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   let current;
   async function publicationState(state, previous) {
+    if (ownedStorage) validateOwnedCatalogueMetadata(state);
     const original = state;
     // A preparation hook may rebuild provenance. Already committed replay
     // decisions remain authoritative even before the legacy bridge catches up.
@@ -452,6 +454,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function importStoredBackup(document, ownsDocument = false, forImport = false, retentionCache) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport, retentionCache);
+    if (ownedStorage) validateOwnedCatalogueMetadata(document.state);
     const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
     let state = materializeOptionalSidecarEvidence(reconcileOptionalSidecarEvidence(importSavedState(document, registry, retentionCache?.validation)), document.optionalSidecarEvidence ?? document.state?.provenance?.optionalSidecarEvidence);
     if (state.provenance?.pluginItemEvidence) {
@@ -774,6 +777,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       && (!migrateState || migrateState.isCurrent?.(state) === true);
   }
   async function prepared(state, operation) {
+    if (ownedStorage) validateOwnedCatalogueMetadata(state);
     // Explicit read-only proofs may repeat authorization before certifying a
     // no-op. Hooks without a proof keep their full copy/validation path.
     if (operation === 'command' && prepareState?.commandIsCurrent?.(state)
@@ -793,12 +797,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (migrateState) {
       input = await migrateState(input, context) ?? input;
       input = validateOwnedState(input, registry);
+      if (ownedStorage) validateOwnedCatalogueMetadata(input);
       if (input.revision !== state.revision) throw new TypeError('Migration must preserve the authoritative revision.');
     }
     if (!prepareState) return inheritStateMetadata(state, input);
     const history = operation === 'load' ? JSON.stringify(input.history) : undefined;
     const output = await prepareState(input, context);
     const ready = importReader ? validateOwnedState(output ?? input, registry) : validateState(output ?? input, registry);
+    if (ownedStorage) validateOwnedCatalogueMetadata(ready);
     if (operation === 'load' && (ready.revision !== state.revision || JSON.stringify(ready.history) !== history)) {
       throw new TypeError('Load preparation must preserve the authoritative revision and history.');
     }
@@ -1853,7 +1859,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const checkpoint = currentDiskSerialized;
       const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options: { ...options, now: timestamp() },
         rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec,
-        ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions } : {}) }, { budget: options.importBudget, userId: options.importUserId,
+        ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions, ownedCatalogueSemantics } : {}) }, { budget: options.importBudget, userId: options.importUserId,
         prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
       const ticket = {};
       importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint });

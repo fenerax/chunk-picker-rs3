@@ -1,7 +1,6 @@
 import { lookupPermanentId, resolveIdentity } from './tasks/identity.mjs';
 import { helperTaskLevels } from './helper-task-levels.mjs';
 import { identityValue } from './tasks/identity-dictionary.mjs';
-import { hasResidentIdentities } from './core/resident-copy.mjs';
 import { ownedCatalogueRow } from './tasks/owned-catalogue-view.mjs';
 
 export const PLAY_VIEW = 'play-v1';
@@ -95,7 +94,7 @@ export function* projectPlayStateSteps(state, { ownedCatalogueSemantics = false 
   for (const goal of state.groupGoals ?? []) { if (goal.link?.kind === 'task') add(goal.link.id); if (++visited % 256 === 0) yield; }
   const tasks = [];
   for (const task of state.tasks ?? []) {
-    if (task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id)) tasks.push(ownedCatalogueSemantics && hasResidentIdentities(state) ? ownedCatalogueRow(task, provenance?.ownedCatalogue) : task);
+    if (task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id)) tasks.push(ownedCatalogueSemantics ? ownedCatalogueRow(task, provenance?.ownedCatalogue) : task);
     if (++visited % 256 === 0) yield;
   }
   const projectedRegistry = yield* projectRegistrySteps({ ...state, tasks }, resolve);
