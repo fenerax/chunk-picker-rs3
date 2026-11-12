@@ -1526,6 +1526,9 @@ export function applyValidatedCommand(state, command, options = {}) {
   // prepareUndo owns the member copy for sparse undo; catalogue, archives and
   // historical inverse values remain read-only shared storage trees.
   const next = { ...state, members: sparseUndo ? state.members : jsonClone(state.members), rules: { ...state.rules }, history: [...state.history] };
+  // Keep sparse resident identity registration and immutable catalogue sharing
+  // on this same private, already-validated command boundary as format 1.
+  if (isResidentState(state)) reconcileResidentIdentities(next, state);
   validatedCommandBaselines.set(next, state);
   try { return applyCommandCopy(next, command, options, state); }
   finally { validatedCommandBaselines.delete(next); }

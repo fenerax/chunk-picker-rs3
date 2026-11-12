@@ -140,7 +140,24 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const withCatalogue = ownedStorage ? (work, mode = 'shared') => ownedStorage.withLease(work, { mode }) : work => work();
   const writeState = ownedStorage ? (bytes, options) => ownedStorage.writeState(stateFile, bytes, options)
     : (bytes, options) => atomicWrite(stateFile, bytes, options);
-  const applyStoredCommand = deltaCommands?.apply ?? (ownedStorage ? applyResidentCommand : applyValidatedCommand);
+  const applyStoredCommand = deltaCommands?.apply ?? applyValidatedCommand;
+  const residentCommandProofs = new WeakSet(), residentTaskIds = new WeakMap();
+  function everydayResidentCommand(state, command) {
+    // Reuse only an exact private, fully validated baseline. Alias restoration,
+    // catalogue edits and claim cleanup keep their established normalization.
+    if (!Object.isFrozen(registry) || Object.keys(state.taskClaims ?? {}).length) return false;
+    if (command.type === 'set-note') return true;
+    if (command.type !== 'tick-active-tasks' || !Array.isArray(command.taskIds)) return false;
+    let ids = residentTaskIds.get(state.tasks);
+    if (!ids) { ids = new Set(state.tasks.map(task => task.id)); residentTaskIds.set(state.tasks, ids); }
+    return command.taskIds.every(id => ids.has(id) && resolveSavedTaskId(state.identityRegistry, id) === id);
+  }
+  // A trusted hook may declare the operations it observes. General caller hooks
+  // retain detached mutable input; skipped operations never materialize it.
+  async function committing(operation, state, details = {}) {
+    if (!beforeCommit || beforeCommit.operations && !beforeCommit.operations.includes(operation)) return;
+    await beforeCommit({ operation, state: details.summary ?? copyState(state), ...(details.digest ? { digest: details.digest } : {}) });
+  }
   async function selectOwnedStartupBase(document) {
     if (ownedFormat2.servingPin && (document.storage?.schemaVersion !== 2
       || document.storage.base?.datasetDigest !== ownedFormat2.servingPin.dataset.digest
@@ -1193,7 +1210,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           await retainBackup(current, 'catalogue-refresh');
           const diskDocument = await serializedDiskState(ready);
           const publication = await writeState(diskDocument, { onPostPublishSyncError: 'warn', beforeRename: async () => {
-            await beforeCommit?.({ operation: 'catalogue-refresh', state: copyState(ready) });
+            await committing('catalogue-refresh', ready);
             await publishDependencies(pending.dependencies);
           } });
           pending.published = true;
@@ -1209,7 +1226,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           const diskDocument = await serializedDiskState(current);
           reportDurability(await writeState(diskDocument, { onPostPublishSyncError: 'warn',
             beforeRename: async () => {
-              await beforeCommit?.({ operation: 'plugin-item-evidence', state: copyState(current) });
+              await committing('plugin-item-evidence', current);
               await publishDependencies(pending.dependencies);
             } }));
           pending.published = true;
@@ -1289,7 +1306,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       catch { warnOptionalPluginData('item review lowering preparation'); }
       try {
         const result = await writeState(bytes, { onPostPublishSyncError: 'warn', beforeRename: async () => {
-          await beforeCommit?.({ operation, state: details.summary ?? copyState(state), ...(details.digest ? { digest: details.digest } : {}) });
+          await committing(operation, state, details);
           await publishDependencies(details.dependencies ?? []);
         } });
         try { await staged?.publish(); } catch { warnOptionalPluginData('item review lowering'); }
@@ -1404,7 +1421,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         await computeRollPool(input.state, command.memberId);
         if (!ownedStorage) precomputedPool = rollPoolCache.prepare(input.state, command.memberId);
       }
-      const next = applyStoredCommand(input.state, command, { expectedRevision, world, registry, precomputedPool,
+      const everydayResident = ownedStorage && !deltaCommands && everydayResidentCommand(input.state, command);
+      const apply = ownedStorage && !deltaCommands && !(everydayResident && residentCommandProofs.has(input.state))
+        ? applyResidentCommand : applyStoredCommand;
+      const next = apply(input.state, command, { expectedRevision, world, registry, precomputedPool,
         random: ['go-members', 'setup-start'].includes(command.type) ? random ?? (() => randomBytes(6).readUIntBE(0, 6) / 2 ** 48) : random,
         now, taskCatalogue, actor: attribution, membersStartBanks, xpChoiceCatalogue });
       inheritStateMetadata(input.state, next);
@@ -1426,10 +1446,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           coordination.set(ready, { ...previous, invalidatedUndo });
         }
       }
-      return persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
+      const result = await persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
         receipt, noteEdit: command.type === 'set-note', reuseNoteProjection: command.type === 'set-note' && ready === next,
         currency: currencyAfterCommand(pluginCurrency, command, input.state, ready),
         ...(command.type === 'go-members' ? { backupLabel: 'Before going members' } : {}) });
+      // Full fallback normalizes its input too. A note/existing canonical tick
+      // preserves that proof; every other command must earn it again. Mark only
+      // after publication, including its authored evidence/retention changes.
+      if (everydayResident) residentCommandProofs.add(current);
+      return result;
     };
     return enqueue(() => itemReview ? withPluginItemEvidenceWrite(directory, work) : work());
   }
@@ -1590,6 +1615,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   try { if (deltaCommands) current = inheritStateMetadata(current, deltaCommands.validate(current)); }
   catch (error) { await releaseLock(); throw error; }
+  if (ownedStorage) residentCommandProofs.add(current);
   const store = {
     async prepareImportPublication(next, operation, { validateBackup, currencySource } = {}) {
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');

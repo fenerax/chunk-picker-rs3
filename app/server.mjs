@@ -479,10 +479,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             opened = await createPickerContext({ pickerId, dataDir: directory, runtime: pickerRuntime, prepareStateResponse: false,
               ownedFormat2: pinned?.ownedFormat2 ?? false,
               openDiagnostics,
-              initialState: initial, now, random, beforeCommit: async change => {
+              initialState: initial, now, random, beforeCommit: Object.assign(async change => {
                 await beforeCommit?.(change);
                 if (change.operation === 'replace') await pickerRegistry.reserveTransferMembers(pickerId, change.state.members.map(m => m.id));
-              }, retention, runeMetrics, progressSources, originalSync,
+              }, { operations: beforeCommit ? undefined : Object.freeze(['replace']) }), retention, runeMetrics, progressSources, originalSync,
               prepareState: prepareOwnedPickerState(pickerDataset, pickerRegistry, pickerId),
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
               pickerRouting: { requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
