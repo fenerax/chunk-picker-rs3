@@ -1,4 +1,4 @@
-import { diagnosticMarkdown } from './report.mjs';
+import { diagnosticMarkdown, fixtureReuseMarkdown } from './report.mjs';
 import { distribution } from './driver.mjs';
 import { cleanExit } from './evidence.mjs';
 import { assertMemoryProfile, memoryProfileMarkdown, evaluateMemoryProfile } from './memory-profile.mjs';
@@ -184,6 +184,7 @@ export function sustainedMarkdown(result) {
   const {load,profile} = result,gates=evaluateSustained(result);
   const failures = Object.entries(gates).filter(([,value])=>value.status==='fail').map(([name])=>name);
   return `# Sustained HTTP capacity run\n\nSource: \`${result.sourceCommit}\`; source tree: \`${result.sourceTreeDigest}\`; Node ${result.node}; **${result.format}**; seed \`${profile.seed}\`.\n\n`+
+    fixtureReuseMarkdown(result)+
     memoryProfileMarkdown(result)+
     `Result: **${failures.length?'FAIL':'BLOCKED'}**. Failed measured gates: ${failures.join(', ')||'none'}. Activation and character switching remain blocked; this run cannot approve launch. Smoke-sized results do not prove capacity.\n\n`+
     `${result.fixture.groups} resident disk groups plus one legacy context; ${profile.stages.at(-1).activeGroups} active groups and ${profile.stages.at(-1).users} online clients. Setup ${n(result.setupSeconds)} s; total ${n(result.elapsedSeconds)} s.\n\n`+

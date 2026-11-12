@@ -27,8 +27,10 @@ export function configureMemoryProfile(value, env = process.env) {
   return selected;
 }
 
-export const runManifest = ({ profile, format, sourceCommit, sourceTreeDigest, node = process.version, verification }) => ({
+export const runManifest = ({ profile, format, sourceCommit, sourceTreeDigest, node = process.version, verification,
+  fixtureReuse = null, fixtureDigest = null }) => ({
   schemaVersion: 1, sourceCommit, sourceTreeDigest, node, format,
+  fixtureReuse, fixtureDigest,
   requestedMemoryProfile: memoryProfile(profile.requestedMemoryProfile ?? profile.memoryProfile),
   memoryProfile: verification?.status === 'pass' ? verification.memoryProfile : null,
   memoryProfileVerification: verification ?? { status: 'unverified', availability: 'unavailable' },

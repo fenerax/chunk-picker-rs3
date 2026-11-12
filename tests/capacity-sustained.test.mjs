@@ -213,6 +213,36 @@ function reportFixture(memoryProfile='default') {
       ...Array.from({length:384},(_,i)=>(i+1)*5000+1500).map(at=>sample(at>=1020010?1:0,at))],telemetryErrors:0,shutdown};
 }
 
+test('run artifacts retain exact and cross-version fixture reuse provenance', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'synthetic-fixture-provenance-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  for (const acrossVersions of [false, true]) {
+    const fixtureReuse = { reused: true, acrossVersions,
+      fixtureImplementationDigest: 'synthetic-fixture-implementation',
+      currentImplementationDigest: acrossVersions ? 'synthetic-current-implementation' : 'synthetic-fixture-implementation',
+      sourceCommit: 'synthetic-fixture-source' };
+    const result = reportFixture();
+    result.manifest = runManifest({ profile: result.profile, format: result.format,
+      sourceCommit: 'synthetic-current-source', sourceTreeDigest: 'synthetic-tree', fixtureReuse,
+      fixtureDigest: 'synthetic-fixture-content', verification: verifyMemoryProfile('default', {}, {}) });
+    assert.deepEqual(result.manifest.fixtureReuse, fixtureReuse);
+    Object.assign(result, result.manifest);
+    const { writeRunManifest, writeRunResults } = await import('../scripts/perf/capacity/run-artifacts.mjs');
+    await writeRunManifest(directory, result.manifest);
+    await writeRunResults(directory, result);
+    for (const filename of ['run-manifest.json', 'results.json']) {
+      const stored = JSON.parse(await readFile(path.join(directory, filename), 'utf8'));
+      assert.deepEqual(stored.fixtureReuse, fixtureReuse);
+      assert.equal(stored.fixtureDigest, 'synthetic-fixture-content');
+    }
+    const summary = await readFile(path.join(directory, 'summary.md'), 'utf8');
+    assert.match(summary, acrossVersions ? /reused across versions/ : /reused with exact implementation match/);
+    for (const value of [...Object.values(fixtureReuse).filter(value => typeof value === 'string'), 'synthetic-fixture-content']) {
+      assert.ok(summary.includes(value), value);
+    }
+  }
+});
+
 test('both profiles get separate labelled speed verdicts and observed caps in their reports',()=>{
   for(const selected of ['default','budget-672']) {
     const result=reportFixture(selected);
