@@ -263,11 +263,12 @@ export async function buildSaveCorpus(t) {
   assert.ok(before.members[0].itemProgress && before.members[0].achievementProgress);
   await store.close(); store = undefined;
   // Retention archives are an independent file family. Age only synthetic
-  // backups so startup invokes the real packing writer without clock sleeps.
+  // backups and await the real packing writer before capturing its output.
   for (const file of await readdir(path.join(dataDir, 'backups'))) if (file.endsWith('.json.gz')) {
     await utimes(path.join(dataDir, 'backups', file), new Date('2026-10-01T12:00:00Z'), new Date('2026-10-01T12:00:00Z'));
   }
   store = await openStore({ ...storeOptions, dataDir });
+  await store.prepareSnapshot();
   await capture('retention-archive');
   await store.close(); store = undefined;
   // Codec and recovery paths use independent synthetic saves. Fault injection
