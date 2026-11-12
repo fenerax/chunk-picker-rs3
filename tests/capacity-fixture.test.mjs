@@ -83,15 +83,19 @@ test('a worker failure propagates and cannot publish fixture completion', async 
   await assert.rejects(readFile(path.join(directory, 'fixture-complete.json')), /ENOENT/);
 });
 
-test('one and three real fixture workers produce the same tiny logical fixture digest',
+test('one and three real fixture workers produce the same tiny logical fixture digest in both formats',
   { skip: process.platform === 'win32' ? 'Windows generation is deliberately limited to one worker; real parallel proof runs on Linux CI.' : false }, async t => {
-    const directory = await scratch(t), serial = path.join(directory, 'serial'), parallel = path.join(directory, 'parallel');
-    await mkdir(serial); await mkdir(parallel);
-    const one = await generate(profile, serial, { workers: 1 }), many = await generate(profile, parallel, { workers: 3 });
-    assert.equal(one.fixtureDigest, many.fixtureDigest);
-    assert.deepEqual(one.groups.map(group => group.logicalStateDigest), many.groups.map(group => group.logicalStateDigest));
-    assert.equal(one.keys, many.keys); assert.equal(one.characters, many.characters);
-    await verifyFixture(parallel, profile, selectedDataset.digest);
+    const directory = await scratch(t);
+    for (const storageFormat of ['format1', 'format2']) {
+      const serial = path.join(directory, `${storageFormat}-serial`), parallel = path.join(directory, `${storageFormat}-parallel`);
+      await mkdir(serial); await mkdir(parallel);
+      const shape = { ...profile, storageFormat };
+      const one = await generate(shape, serial, { workers: 1 }), many = await generate(shape, parallel, { workers: 3 });
+      assert.equal(one.fixtureDigest, many.fixtureDigest);
+      assert.deepEqual(one.groups.map(group => group.logicalStateDigest), many.groups.map(group => group.logicalStateDigest));
+      assert.equal(one.keys, many.keys); assert.equal(one.characters, many.characters);
+      await verifyFixture(parallel, shape, selectedDataset.digest);
+    }
   });
 
 test('Why needs a calculated task row; a stale revision still receives a genuine unexpected 409', async t => {
