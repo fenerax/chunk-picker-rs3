@@ -263,6 +263,11 @@ activation the operator durably retains those records in `dataset-evidence.json`
 multi-picker deployment retains them for every active, non-quarantined store
 after all stores pass. The former blanket service pack-change refusal allows
 only this proven transition; art and addon changes still use sequential recovery.
+Both hash-pinned selections are checked against their declared data, rules-text
+and art manifest pins, including id, version and the path runtime will select.
+The actual art choices must stay identical: retaining an art manifest pin while
+selecting `art: null` is refused. A changed selection is admitted only after the
+data/rules-text manifests prove the evidence-only transition.
 
 Keep historical manifests for pickers whose stamp predates the current release.
 Newly created bindings carry an evidence witness, so the pre-open gate can

@@ -6,6 +6,7 @@ import { datasetEvidencePath, datasetEvidenceRecord, readDatasetEvidence, proves
 import { atomic, encode, noLinks, sha, exists } from './files.mjs';
 import { readStaticFieldBytes } from '../../app/storage/static-field.mjs';
 import { bindingBytes } from '../private-companion/release-pack-check.mjs';
+import { PACK_VERSION } from '../../app/packs.mjs';
 
 async function pinned(pin) {
   await noLinks(pin.path);
@@ -33,12 +34,41 @@ export async function releaseEvidenceRecords(current, candidate) {
   return { current: datasets[0], candidate: datasets[1], records: datasets.map(dataset => dataset && datasetEvidenceRecord(dataset)).filter(Boolean) };
 }
 
+async function serviceSelection(config) {
+  const fail = () => { throw new Error('Service selection does not match its declared pack pins; sequential recovery required.'); };
+  if (!config.selection) {
+    if (Object.values(config.packs ?? {}).some(Boolean)) fail();
+    return undefined;
+  }
+  const selection = await pinned(config.selection);
+  if (!selection || selection.schemaVersion !== 1 || Array.isArray(selection)
+    || Object.keys(selection).some(key => !['schemaVersion', 'data', 'rulesText', 'art'].includes(key))) fail();
+  for (const [kind, id] of Object.entries({ data: 'duo-data', rulesText: 'duo-rules-text', art: 'duo-art' })) {
+    const choice = selection[kind], pin = config.packs?.[kind];
+    if (choice == null) { if (pin) fail(); continue; }
+    if (!pin || choice.id !== id || !PACK_VERSION.test(choice.version ?? '')
+      || !/^[a-f0-9]{64}$/.test(choice.sha256 ?? '') || choice.sha256 !== pin.sha256
+      || Object.keys(choice).some(key => !['id', 'version', 'sha256'].includes(key))) fail();
+    const manifest = await pinned(pin);
+    // Match the file runtime will select, not merely an unrelated manifest
+    // with a declared hash. Selection and manifest identity must agree too.
+    const packsDir = config.packsDir ?? path.join(config.coreRoot, '.local', 'packs');
+    if (manifest.id !== choice.id || manifest.version !== choice.version
+      || manifest.kind !== (kind === 'rulesText' ? 'rules-text' : kind)
+      || path.resolve(pin.path) !== path.resolve(packsDir, choice.id, choice.version, 'pack.json')) fail();
+  }
+  return selection;
+}
+
 export async function serviceEvidenceBinding(current, candidate) {
   const [from, to] = [current.config, candidate.config];
   const changed = ['data', 'rulesText'].some(key => from.packs?.[key]?.sha256 !== to.packs?.[key]?.sha256)
     || ['profile', 'selection'].some(key => from[key]?.sha256 !== to[key]?.sha256);
   if (from.datasetId !== to.datasetId || from.packs?.art?.sha256 !== to.packs?.art?.sha256
     || from.addons?.sha256 !== to.addons?.sha256) throw new Error('Service pack changes require sequential recovery; in-place deploy refused.');
+  const [fromSelection, toSelection] = await Promise.all([serviceSelection(from), serviceSelection(to)]);
+  if (!isDeepStrictEqual(fromSelection?.art, toSelection?.art))
+    throw new Error('Service art selection changes require sequential recovery; in-place deploy refused.');
   if (!changed) return undefined;
   const transition = await releaseEvidenceRecords(current, candidate), old = transition.current && datasetEvidenceRecord(transition.current);
   if (!transition.candidate || !old || !provesEvidenceOnly(transition.candidate,

@@ -21,15 +21,20 @@ async function fixture(t) {
   const old = syntheticDataset(), next = syntheticDataset({ evidence: 'new source' });
   await bindDatasetStorage(dataDir, old);
   const first = await openStore({ ...storageOptions(dataDir, old), prepareState: undefined }); await first.close();
-  async function release(name, dataset, supportsEvidence = true) {
+  async function release(name, dataset, supportsEvidence = true, selectionOverrides = {}) {
     const coreRoot = path.join(root, name); await mkdir(path.join(coreRoot, 'app'), { recursive: true });
     if (supportsEvidence) await writeFile(path.join(coreRoot, 'app/dataset-evidence.mjs'), '// synthetic capability marker');
-    const put = async (name, value) => { const file = path.join(coreRoot, name), bytes = encode(value); await writeFile(file, bytes); return { path: file, sha256: sha(bytes) }; };
-    const data = await put('data.json', { requires: DATASET_CONTRACT, overlayOrder: DATASET_OVERLAY_ORDER,
+    const put = async (name, value) => { const file = path.join(coreRoot, name), bytes = encode(value); await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, bytes); return { path: file, sha256: sha(bytes) }; };
+    const packsDir = path.join(coreRoot, 'packs');
+    const data = await put('packs/duo-data/1.0.0/pack.json', { id: 'duo-data', version: '1.0.0', kind: 'data', requires: DATASET_CONTRACT, overlayOrder: DATASET_OVERLAY_ORDER,
       files: dataset.files, capabilities: dataset.capabilities, datasetDigest: dataset.digest });
-    const rulesText = await put('text.json', { files: [] });
+    const rulesText = await put('packs/duo-rules-text/1.0.0/pack.json', { id: 'duo-rules-text', version: '1.0.0', kind: 'rules-text', files: [] });
+    const art = await put('packs/duo-art/1.0.0/pack.json', { id: 'duo-art', version: '1.0.0', kind: 'art', files: [] });
+    const selection = await put('packs/selection.json', { schemaVersion: 1,
+      ...Object.fromEntries(Object.entries({ data, rulesText, art }).map(([key, pin]) => [key,
+        { id: { data: 'duo-data', rulesText: 'duo-rules-text', art: 'duo-art' }[key], version: '1.0.0', sha256: pin.sha256 }])), ...selectionOverrides });
     const profile = await put('profile.json', { catalogue: { definitionOverlays: dataset.definitionOverlays } });
-    const config = await put('config.json', { coreRoot, dataDir, packs: { data, rulesText }, profile });
+    const config = await put('config.json', { coreRoot, dataDir, packsDir, packs: { data, rulesText, art }, selection, profile });
     const pointer = await put('pointer.json', { config });
     return readRelease(pointer.path, dataDir);
   }
@@ -91,8 +96,41 @@ test('service pack preflight admits only evidence-compatible manifests and keeps
   assert.equal(await serviceEvidenceBinding(f.current, f.current), undefined);
   const input = await f.release('service-input-change', syntheticDataset({ input: 'different data' }));
   await assert.rejects(serviceEvidenceBinding(f.current, input), /not proven evidence-only/);
-  await assert.rejects(serviceEvidenceBinding({ config: { ...f.current.config, packs: undefined, profile: undefined } }, f.candidate), /not proven evidence-only/);
+  await assert.rejects(serviceEvidenceBinding({ config: { ...f.current.config, packs: undefined, profile: undefined } }, f.candidate), /sequential recovery/);
   for (const config of [{ ...f.candidate.config, addons: { sha256: 'changed' } },
     { ...f.candidate.config, packs: { ...f.candidate.config.packs, art: { sha256: 'changed' } } }])
     await assert.rejects(serviceEvidenceBinding(f.current, { config }), /sequential recovery/);
+});
+
+test('service preflight refuses disabling selected art behind an unchanged manifest pin', async t => {
+  const f = await fixture(t), candidate = await f.release('disabled-art', f.old, true, { art: null });
+  assert.equal(candidate.config.packs.art.sha256, f.current.config.packs.art.sha256);
+  assert.equal((await releaseEvidenceDataset(candidate)).digest, f.old.digest);
+  await assert.rejects(serviceEvidenceBinding(f.current, candidate), /selection.*pack pin|art.*sequential recovery/);
+});
+
+test('service selection identities, hashes and runtime paths must match declared packs', async t => {
+  const f = await fixture(t);
+  for (const kind of ['data', 'rulesText', 'art']) {
+    const current = JSON.parse(await readFile(f.candidate.config.selection.path));
+    for (const [field, value] of [['sha256', 'f'.repeat(64)], ['version', '2.0.0'], ['id', 'unrelated-pack']]) {
+      const candidate = await f.release(`mismatch-${kind}-${field}`, f.next, true,
+        { [kind]: { ...current[kind], [field]: value } });
+      await assert.rejects(serviceEvidenceBinding(f.current, candidate), /selection.*pack pins/);
+    }
+  }
+  await assert.rejects(serviceEvidenceBinding(f.current, { config: { ...f.candidate.config,
+    packsDir: path.join(f.root, 'unrelated-packs') } }), /selection.*pack pins/);
+  await assert.rejects(serviceEvidenceBinding(f.current, { config: { ...f.candidate.config, selection: undefined } }), /selection.*pack pins/);
+  // Even internally consistent art choices may not change during this path.
+  const version = await f.release('art-version', f.next), art = version.config.packs.art;
+  const manifest = JSON.parse(await readFile(art.path)); manifest.version = '2.0.0';
+  const bytes = encode(manifest), file = path.join(version.config.packsDir, 'duo-art/2.0.0/pack.json');
+  await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, bytes);
+  const selection = JSON.parse(await readFile(version.config.selection.path));
+  selection.art = { ...selection.art, version: '2.0.0', sha256: sha(bytes) };
+  const selected = encode(selection); await writeFile(version.config.selection.path, selected);
+  await assert.rejects(serviceEvidenceBinding(f.current, { config: { ...version.config,
+    packs: { ...version.config.packs, art: { path: file, sha256: sha(bytes) } },
+    selection: { ...version.config.selection, sha256: sha(selected) } } }), /sequential recovery/);
 });
