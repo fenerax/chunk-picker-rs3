@@ -7,7 +7,7 @@ import { observeServerIdentity } from './evidence.mjs';
 import { configureMemoryProfile, verifyServerMemoryProfile } from './memory-profile.mjs';
 import { residency as selectResidency, residencyOptions, verifyServerResidency } from './residency.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
-const [directory,profileFile,mode,workers,fixtureFrom]=process.argv.slice(2);
+const [directory,profileFile,mode,workers,fixtureFrom,fixtureEvidenceFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
 const memoryProfile=configureMemoryProfile(profile.requestedMemoryProfile ?? profile.memoryProfile);
 const residency=selectResidency(profile.requestedResidency ?? profile.residency);
@@ -24,7 +24,9 @@ if(mode==='fixture') {
     let fixtureReuse;
     if(fixtureFrom) {
       const {selectedDataset}=await import('../../../app/dataset-runtime.mjs');
-      fixtureReuse=(await cache.copyFixture(fixtureFrom,directory,profile,selectedDataset.digest)).fixtureReuse;
+      const evidenceRecords=fixtureEvidenceFrom?await (await import('../../../app/dataset-evidence.mjs')).readDatasetEvidence(fixtureEvidenceFrom):[];
+      if(fixtureEvidenceFrom&&!evidenceRecords.length)throw new Error('No retained dataset evidence records found in --fixture-evidence-from.');
+      fixtureReuse=(await cache.copyFixture(fixtureFrom,directory,profile,selectedDataset,{evidenceRecords})).fixtureReuse;
     } else {
       let sourceCommit;
       try { ({sourceCommit}=JSON.parse(await readFile(path.join(directory,'run-manifest.json'),'utf8'))); }

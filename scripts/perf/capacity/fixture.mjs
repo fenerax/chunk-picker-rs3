@@ -6,6 +6,7 @@ import { fixtureConfigDigest, logicalFixtureDigest, sealFixture } from './fixtur
 import { fixtureMigration } from './fixture-migration.mjs';
 import { prepareCapacityOwnedRelease } from './owned-release.mjs';
 import { prepareFixtureInputs } from './fixture-inputs.mjs';
+import { datasetEvidenceRecord } from '../../../app/dataset-evidence.mjs';
 
 // The parent alone owns registry/invites/keys. Workers exclusively own the
 // disjoint picker stores between provisioning and ordered capability indexing.
@@ -44,6 +45,7 @@ export async function generate(profile, directory, { workers: requestedWorkers, 
   const legacy = path.join(directory, 'legacy'); await mkdir(legacy, { recursive: true });
   const registry = await openRegistry({ ...paths, caps: profile.entityCaps });
   const manifest = { schemaVersion: 1, storageFormat, seed: profile.seed, planDigest: digest(plan), catalogueDigest: digest(data), datasetDigest: selectedDataset.digest,
+    ...(datasetEvidenceRecord(selectedDataset) ? { datasetEvidence: datasetEvidenceRecord(selectedDataset) } : {}),
     ...(ownedServing ? { ownedBasePin: ownedServing.manifest.bases[selectedDataset.digest] } : {}),
     configDigest: fixtureConfigDigest(profile, selectedDataset.digest), catalogueBytes: Buffer.byteLength(JSON.stringify(data)), engineCatalogueTasks: tasks.length,
     shape: profile.catalogue, groups: [], characters: 0, logins: 0, keys: 0, gaps: knownGaps, workers,

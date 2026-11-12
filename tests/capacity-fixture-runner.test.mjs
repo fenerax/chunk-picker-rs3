@@ -22,12 +22,17 @@ test('fixture-only CLI carries old-seal reuse provenance through IPC and protect
     fixture: { groups: 2, rosterMix: [0, 1, 0, 0, 0], freshFraction: .5, unlockFraction: .5,
       historyEvents: 1, snapshots: 1, keysPerMember: 1 } };
   const profileFile = path.join(root, 'profile.json'); await writeFile(profileFile, JSON.stringify(profile));
-  const source = path.join(root, 'source'), output = path.join(root, 'output');
+  const source = path.join(root, 'source'), output = path.join(root, 'output'), evidence = path.join(root, 'evidence');
   const run = (destination, reuse = false) => execute(process.execPath, [runner, '--profile', profileFile, '--format', 'format2',
-    '--fixture-workers', '1', '--fixture-only', '--output', destination, ...(reuse ? ['--residency', 'trial', '--fixture-from', source] : [])],
+    '--fixture-workers', '1', '--fixture-only', '--output', destination, ...(reuse ? ['--residency', 'trial', '--fixture-from', source, '--fixture-evidence-from', evidence] : [])],
   { windowsHide: true, maxBuffer: 1024 * 1024 });
   // This prepares tiny data only. No measured server or arrival driver runs.
   await run(source);
+  const sourceFixture = await json(path.join(source, 'fixture.json'));
+  assert.ok(sourceFixture.datasetEvidence);
+  await mkdir(evidence); const evidenceFile = path.join(evidence, 'dataset-evidence.json');
+  const evidenceBytes = JSON.stringify({ schemaVersion: 1, records: [sourceFixture.datasetEvidence] });
+  await writeFile(evidenceFile, evidenceBytes);
   const originalRun = await json(path.join(source, 'run-manifest.json'));
   const sealPath = path.join(source, 'fixture-complete.json'), seal = await json(sealPath);
   for (const key of ['fixtureContentVersion', 'storageSchema', 'sourceCommit']) delete seal[key];
@@ -37,10 +42,12 @@ test('fixture-only CLI carries old-seal reuse provenance through IPC and protect
   const sourceProgress = await readFile(path.join(source, 'fixture-progress.json')), inventory = await fixtureInventory(source);
   await run(output, true);
   const reused = await json(path.join(output, 'run-manifest.json'));
+  const datasetDigest = (await json(path.join(source, 'fixture.json'))).datasetDigest;
   assert.equal(reused.fixtureDigest, seal.fixtureDigest);
   assert.deepEqual(reused.fixtureReuse, { reused: true, acrossVersions: true,
     fixtureImplementationDigest: seal.implementationDigest,
-    currentImplementationDigest: originalRun.fixtureReuse.currentImplementationDigest, sourceCommit: originalRun.sourceCommit });
+    currentImplementationDigest: originalRun.fixtureReuse.currentImplementationDigest, sourceCommit: originalRun.sourceCommit,
+    datasetTransition: { oldDigest: datasetDigest, newDigest: datasetDigest, applied: 'none', refreshedPickers: 0 } });
   assert.deepEqual((await json(path.join(output, 'setup-summary.json'))).fixtureReuse, reused.fixtureReuse);
   assert.equal(reused.memoryProfile, null, 'fixture-only setup makes no measured-memory claim');
   assert.equal(originalRun.requestedResidency, 'default');
@@ -49,6 +56,7 @@ test('fixture-only CLI carries old-seal reuse provenance through IPC and protect
   assert.deepEqual(await readFile(sealPath), sourceSeal);
   assert.deepEqual(await readFile(path.join(source, 'run-manifest.json')), sourceManifest);
   assert.deepEqual(await readFile(path.join(source, 'fixture-progress.json')), sourceProgress);
+  assert.equal(await readFile(evidenceFile, 'utf8'), evidenceBytes);
   await assert.rejects(readFile(path.join(output, 'results.json')), { code: 'ENOENT' });
   const nested = path.join(source, '..-nested-output');
   await assert.rejects(run(nested, true), /outside|overlap/);

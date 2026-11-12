@@ -334,8 +334,9 @@ the same fixture and memory selection.
 ## Sealed fixture reuse across code versions
 
 `--fixture-from` accepts a different implementation digest. It still requires a
-complete schema-1 seal, the requested fixture-content configuration/dataset digest
-and format label, the exact file inventory (including sizes and `modifiedMs`),
+complete schema-1 seal, the requested fixture-content configuration and a matching
+or proven evidence-only dataset digest and format label, the exact file inventory
+(including sizes and `modifiedMs`),
 every file checksum, the logical fixture digest, and the physical group storage
 format. Format 2 also verifies the retained catalogue release and requires its
 owned base pin and bytes to match what the current runtime prepares. These
@@ -344,7 +345,7 @@ compatible saves models the deployment case; a server-only change does not
 require rebuilding 500 groups.
 
 Rebuild when the content configuration changes (seed, catalogue shape, fixture
-population/growth/history/keys, entity caps, dataset digest or format), the
+population/growth/history/keys, entity caps, dataset inputs or format), the
 application's writer schema changes, the synthetic builder's output changes, or
 the format-2 runtime's canonical owned base changes. Writer schemas come from
 `SCHEMA_VERSION`, `COMPLETION_BACKUP_VERSION`, and, for format 2,
@@ -366,15 +367,43 @@ incomplete or relabelled fixtures are refused; restore an intact original or
 rebuild rather than editing its seal.
 
 Original seals from format-1 main `12f402c2` and format-2 main `0a543b7e`
-remain valid without resealing. Missing content/schema metadata means the original
-content version 1 and historical writer versions (state 1, completion 2, flat static 1; owned 2,
+remain valid without resealing when the dataset matches. Missing content/schema
+metadata means the original content version 1 and historical writer versions
+(state 1, completion 2, flat static 1; owned 2,
 base 1, base generator 1 for format 2). New seals add `fixtureContentVersion`,
 `storageSchema`, and `sourceCommit` when the builder receives it (the runner
 supplies it). The existing seal `schemaVersion` stays 1.
 
+For format 1, an evidence-only dataset update can reuse the fixture. The same
+production proof must reconstruct the old digest with the running dataset's
+identical input records, id/contract, capabilities, overlay order and definition
+overlays. New fixture manifests retain `datasetEvidence`. A sealed
+`legacy/dataset-evidence.json` can also supply old records. An old seal or source
+commit alone cannot prove compatibility. With a retained operator evidence
+history for that exact old digest, pass
+`--fixture-evidence-from /absolute/store-or-evidence-directory` alongside
+`--fixture-from`; the reader uses that directory's `dataset-evidence.json` and
+checks the same cryptographic proof. It never writes that directory. Without a
+matching proof, an original `12f402c2` fixture with digest `6e8cefd8…` is refused
+by a different running dataset, even if its only actual changes were evidence.
+Never edit an old source seal to bypass this check.
+
+The harness first verifies every source byte and copies it with historical
+mtimes. Only the copy is opened through production owned-picker preparation and
+the normal store migration: each picker receives a preimage backup, one revision
+increment and a `catalogue-refresh` event. The copy receives the new dataset
+stamp, updated logical metrics and its own new completion seal. The original
+source remains byte-identical and its seal remains valid. Input changes and
+unprovable stamps fail closed. Format 2 still requires its explicit base rebase;
+this option cannot change an immutable base pin.
+
 The run manifest, `results.json` and `summary.md` report exact implementation
 reuse or reuse across versions, the fixture implementation digest, the current
-implementation digest, and the fixture source commit when recorded. Old runner
+implementation digest, and the fixture source commit when recorded. Reuse also
+records `fixtureReuse.datasetTransition`: old/new digests, what was applied,
+refreshed-picker/backup/revision/event counts, and original/upgraded logical
+fixture digests. Exact dataset reuse records `applied: none`. Fixture-only runs
+carry this receipt in `run-manifest.json` and `setup-summary.json`. Old runner
 fixtures can supply that commit from their original `run-manifest.json`; absent
 provenance is explicitly unknown. `fixtureDigest`, the fixture-content digest,
 remains the comparison key between runs. The current run's source commit/tree

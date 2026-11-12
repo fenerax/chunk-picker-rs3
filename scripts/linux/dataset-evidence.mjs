@@ -30,7 +30,7 @@ export async function releaseEvidenceDataset(release) {
 
 export async function releaseEvidenceRecords(current, candidate) {
   const datasets = await Promise.all([releaseEvidenceDataset(current), releaseEvidenceDataset(candidate)]);
-  return { candidate: datasets[1], records: datasets.map(dataset => dataset && datasetEvidenceRecord(dataset)).filter(Boolean) };
+  return { current: datasets[0], candidate: datasets[1], records: datasets.map(dataset => dataset && datasetEvidenceRecord(dataset)).filter(Boolean) };
 }
 
 export async function serviceEvidenceBinding(current, candidate) {
@@ -40,7 +40,7 @@ export async function serviceEvidenceBinding(current, candidate) {
   if (from.datasetId !== to.datasetId || from.packs?.art?.sha256 !== to.packs?.art?.sha256
     || from.addons?.sha256 !== to.addons?.sha256) throw new Error('Service pack changes require sequential recovery; in-place deploy refused.');
   if (!changed) return undefined;
-  const transition = await releaseEvidenceRecords(current, candidate), old = transition.records[0];
+  const transition = await releaseEvidenceRecords(current, candidate), old = transition.current && datasetEvidenceRecord(transition.current);
   if (!transition.candidate || !old || !provesEvidenceOnly(transition.candidate,
     { id: transition.candidate.datasetId, contractVersion: transition.candidate.datasetContractVersion, digest: old.digest }, [old]))
     throw new Error('Service pack changes require sequential recovery; transition is not proven evidence-only.');

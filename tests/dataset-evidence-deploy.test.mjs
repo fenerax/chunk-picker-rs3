@@ -91,6 +91,7 @@ test('service pack preflight admits only evidence-compatible manifests and keeps
   assert.equal(await serviceEvidenceBinding(f.current, f.current), undefined);
   const input = await f.release('service-input-change', syntheticDataset({ input: 'different data' }));
   await assert.rejects(serviceEvidenceBinding(f.current, input), /not proven evidence-only/);
+  await assert.rejects(serviceEvidenceBinding({ config: { ...f.current.config, packs: undefined, profile: undefined } }, f.candidate), /not proven evidence-only/);
   for (const config of [{ ...f.candidate.config, addons: { sha256: 'changed' } },
     { ...f.candidate.config, packs: { ...f.candidate.config.packs, art: { sha256: 'changed' } } }])
     await assert.rejects(serviceEvidenceBinding(f.current, { config }), /sequential recovery/);
