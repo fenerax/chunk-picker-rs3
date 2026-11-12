@@ -309,6 +309,7 @@ test('retention leaves old standalone snapshots intact when their static depende
   await unlink(path.join(dataDir, 'static', reference.id));
   const resumed = await openStore({ dataDir, retention: { backupDays: 1 }, now: () => '2026-10-07T00:00:00.000Z' });
   t.after(() => resumed.close());
+  await resumed.prepareSnapshot();
   assert.match(resumed.getInfo().retention.failure, /Missing static field dependency/);
   assert.deepEqual(await readFile(path.join(dataDir, 'backups', old.id)), oldBytes);
   await writeFile(path.join(dataDir, 'static', reference.id), staticBytes);

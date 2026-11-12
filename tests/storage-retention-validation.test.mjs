@@ -64,6 +64,10 @@ async function seed(t, { staticFields = false, count = 6, compactHistory = false
 async function writable(t, dataDir, extra = {}) {
   const store = await openStore({ dataDir, retention: { backupDays: 1 }, now, ...extra });
   t.after(() => store.close());
+  // Drain the startup pass without running a second pass (fault injection may
+  // deliberately corrupt its published pack). A malformed index can also
+  // refuse listing; it must report exactly the maintenance failure under test.
+  await store.listBackups().catch(error => assert.equal(error.message, store.getInfo().retention.failure));
   return store;
 }
 async function packs(dataDir) {
@@ -169,6 +173,7 @@ for (const boundary of ['escaped', 'envelope-overhead', 'exact-limit']) test(`${
   await before.close();
   const store = await bounded.openStore({ dataDir: fixture.dataDir, retention: { backupDays: 1 }, now });
   t.after(() => store.close());
+  await store.prepareSnapshot();
   assert.equal(store.getInfo().retention.failure, undefined);
   assert.deepEqual(await store.readBackup(row.id, { forImport: true }), expected);
   if (boundary === 'exact-limit') {
@@ -213,6 +218,7 @@ test('static retention cache evicts distinct fields by byte budget and skips ove
   reset();
   const store = await bounded.openStore({ dataDir: fixture.dataDir, retention: { backupDays: 1 }, now });
   t.after(() => store.close());
+  await store.prepareSnapshot();
   assert.equal(store.getInfo().retention.failure, undefined);
   assert.ok(stats.cacheSamples.length >= 34, 'observe insertions across multiple published batches');
   assert.ok(stats.cacheSamples.every(sample => sample.bytes <= limit), JSON.stringify(stats.cacheSamples));

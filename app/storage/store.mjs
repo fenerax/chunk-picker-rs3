@@ -1048,12 +1048,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Backup readers share maintenance ownership so pruning cannot remove a
   // standalone file midway through a read or race archive-index initialization.
   // This queue is separate from gameplay: commits do not await packing.
-  function enqueueMaintenance(work, { allowClosing = false, backupRead = false } = {}) {
+  function enqueueMaintenance(work, { allowClosing = false, backupRead = false, defer = false } = {}) {
     // Backup browsing remains a pure disk/cache read after an ordinary close.
     // A frozen handover still refuses new reads before writer ownership moves.
     if (!allowClosing && (frozen && !(importReader && backupRead) || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
     maintenancePending++;
-    const result = maintenanceQueue.then(() => withStoreWrite(directory, () => withCatalogue(work))).finally(() => { maintenancePending--; });
+    const result = maintenanceQueue.then(async () => {
+      if (defer) await new Promise(resolve => setImmediate(resolve));
+      return withStoreWrite(directory, () => withCatalogue(work));
+    }).finally(() => { maintenancePending--; });
     maintenanceQueue = releaseCommandResponses ? result.then(() => {}, () => {}) : result.catch(() => {});
     return result;
   }
@@ -1200,15 +1203,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = folded;
       }
     }
-    const retentionStarted = startupDiagnostics && performance.now();
-    if (!readOnly && !liveSwapStrict) await maintainRetention();
     // Existing-base commands can enter shared admission immediately. A flat
     // save awaiting its explicit first format-2 write retains that write's
     // exclusive dependency-publication path.
     if (ownedStorage && !readOnly && ownedStartupBytes
       && parseSavedDocument(ownedStartupBytes).storage?.schemaVersion === 2) await ownedStorage.ensurePublished();
     if (startupDiagnostics) {
-      startupDiagnostics.retentionMs = performance.now() - retentionStarted;
+      startupDiagnostics.retentionMs = 0; // Retention runs after open, outside startup admission.
       startupDiagnostics.storeMigrateValidateMs ??= 0;
     }
   }), 'exclusive'));
@@ -1945,5 +1946,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return closePromise;
     },
   };
+  // Reserve queue ownership now so backup readers, freeze and close see this
+  // pass, but yield before admission: open must resolve before any retained
+  // backup is read, parsed or validated. Current-save recovery is complete.
+  if (policy && !readOnly && !liveSwapStrict) void enqueueMaintenance(maintainRetention, { defer: true });
   return store;
 }

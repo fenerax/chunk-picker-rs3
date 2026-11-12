@@ -289,6 +289,7 @@ for (const corruption of ['document', 'dependency', 'content']) {
       format: 'rs3-chunk-picker-retained-archive', snapshots: [{ ...target, document }],
     })));
     const resumed = await trackedStore(t, { dataDir, retention: { backupDays: 1 }, now: () => '2026-10-07T00:00:00.000Z' });
+    await resumed.prepareSnapshot();
     assert.ok(resumed.getInfo().retention.failure);
     assert.deepEqual(await readFile(path.join(dataDir, 'backups', target.id)), original);
     assert.equal((await resumed.readBackup(target.id)).state.revision, 1);
