@@ -111,6 +111,17 @@ test('sealed fixture reuse compatibility and source isolation', async t => {
     assert.equal(copied.fixtureReuse.sourceCommit, 'synthetic-legacy-source');
   });
 
+  await t.test('a reused copy reports its original builder, not the code that copied it', async () => {
+    for (const [original, expected] of [['synthetic-legacy-source', 'synthetic-legacy-source'], [null, null]]) {
+      const f = await clone();
+      await editSeal(f.directory, seal => { delete seal.sourceCommit; });
+      await writeFile(path.join(f.directory, 'run-manifest.json'), JSON.stringify({ sourceCommit: 'synthetic-copier-source',
+        fixtureReuse: { reused: true, acrossVersions: true, sourceCommit: original } }));
+      const copied = await cache.copyFixture(f.directory, path.join(root, `run-${++next}`), f.profile, selectedDataset.digest);
+      assert.equal(copied.fixtureReuse.sourceCommit, expected);
+    }
+  });
+
   const sealCases = [
     ['incomplete seal', seal => { seal.complete = false; }, /completion|configuration/],
     ['seal schema', seal => { seal.schemaVersion = 0; }, /completion|configuration/],

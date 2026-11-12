@@ -121,7 +121,10 @@ export async function fixtureReuseProvenance(directory, { reused, seal, manifest
     sourceCommit = manifest.sourceCommit;
   }
   if (!sourceCommit) {
-    try { sourceCommit = JSON.parse(await readFile(path.join(directory, 'run-manifest.json'), 'utf8')).sourceCommit; }
+    // A reused fixture-only output keeps the original builder in fixtureReuse;
+    // its top-level sourceCommit names the code that copied it.
+    try { const run = JSON.parse(await readFile(path.join(directory, 'run-manifest.json'), 'utf8'));
+      sourceCommit = run.fixtureReuse?.reused ? run.fixtureReuse.sourceCommit : run.sourceCommit; }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   return { reused, acrossVersions: reused && seal.implementationDigest !== currentImplementationDigest,
