@@ -1,7 +1,7 @@
 import { diagnosticMarkdown } from './report.mjs';
 import { distribution } from './driver.mjs';
 import { cleanExit } from './evidence.mjs';
-import { assertMemoryProfile, memoryProfileMarkdown } from './memory-profile.mjs';
+import { assertMemoryProfile, memoryProfileMarkdown, evaluateMemoryProfile } from './memory-profile.mjs';
 
 // Both profiles must meet the same user-requested bars, evaluated separately.
 export const profileSpeedBars = Object.freeze(Object.fromEntries(['default','budget-672'].map(name=>
@@ -87,7 +87,7 @@ function headerEvidence(rows,stageStreams,tailStreams,stages) {
     streams.reduce((n,row)=>n+row.handshakes,0)<=streams.reduce((n,row)=>n+row.attempted,0);
 }
 export function evaluateSustained(result) {
-  const memoryProfile=assertMemoryProfile(result),bars=profileSpeedBars[memoryProfile];
+  const memoryProfile=assertMemoryProfile(result),bars=profileSpeedBars[memoryProfile],profileVerification=evaluateMemoryProfile(result);
   const {load,profile} = result, measured = load.operations.filter(row=>profile.stages[row.stage]?.measured);
   const activeGroups = profile.stages.at(-1).activeGroups, users = profile.stages.at(-1).users;
   const restart = load.restarts[0], groups = load.recovery.groups, cohort=load.cohort??{};
@@ -159,6 +159,7 @@ export function evaluateSustained(result) {
     startedAt:restart.startedAt,deadlineAt,confirmedAt:load.workloadStart+confirmation.elapsedMs,throughAt:load.streamShutdownAt,completedAt:load.completedAt,sampleMs:profile.sampleSeconds*1000})):[];
   const configuredPlugin=profile.stages.some(row=>row.measured&&row.pluginPerSecond>0),configuredSync=profile.stages.some(row=>row.measured&&row.syncPerMinute>0);
   const gates={
+    memoryProfile:profileVerification,
     everyday:speed(measured,everydayActions,bars.everydayMs,measuredOffered),heavy:speed(measured,heavyActions,bars.heavyMs,measuredOffered),coldOpen:{...coldGate,groups:coldCount},
     pluginTraffic:configuredPlugin?completion(measured,['pluginReport','pluginStatus','pluginTasks'],measuredOffered):{status:'not-configured'},
     syncTraffic:configuredSync?completion(measured,['sync'],measuredOffered):{status:'not-configured'},
@@ -175,7 +176,8 @@ export function evaluateSustained(result) {
       reason:format2Serving?'Synthetic owned format-2 cold opens and post-restart HTTP recovery with independently retained release inputs.':'This run supplies no complete format-2 HTTP/restart evidence.'},
     characterSwitch:{status:'blocked',offered:measured.filter(row=>row.action==='switch').reduce((n,row)=>n+row.latency.count,0),reason:'No durable character entity or authorized character switch API; offered switches are unsupported.'},
   };
-  return Object.fromEntries(Object.entries(gates).map(([name,gate])=>[name,{...gate,memoryProfile}]));
+  return Object.fromEntries(Object.entries(gates).map(([name,gate])=>[name,{...gate,memoryProfile:profileVerification.memoryProfile,
+    ...(profileVerification.status==='fail'&&gate.status==='pass'?{status:'fail',reason:'memory-profile-unverified'}:{})}]));
 }
 const n = value => Number.isFinite(value)?value.toFixed(1):'n/a';
 export function sustainedMarkdown(result) {

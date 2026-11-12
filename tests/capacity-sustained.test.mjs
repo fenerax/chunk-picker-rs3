@@ -8,7 +8,7 @@ import { prepareCohorts, drive, consumeStream } from '../scripts/perf/capacity/d
 import { planFixture, catalogue, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
 import { sustainedArrivals, sustainedAction, sustainedPhase, sustainedBrowserAction, validateSustained } from '../scripts/perf/capacity/sustained.mjs';
 import { evaluateSustained, sustainedMarkdown, everydayActions, heavyActions } from '../scripts/perf/capacity/sustained-report.mjs';
-import { parseRunOptions, childEnvironment, configureMemoryProfile, runManifest, effectiveCaps } from '../scripts/perf/capacity/memory-profile.mjs';
+import { parseRunOptions, childEnvironment, configureMemoryProfile, runManifest, effectiveCaps, verifyMemoryProfile, verifyServerMemoryProfile } from '../scripts/perf/capacity/memory-profile.mjs';
 import { fixtureConfigDigest } from '../scripts/perf/capacity/fixture-cache.mjs';
 import { retryRead } from '../scripts/perf/capacity/client.mjs';
 import { createGroupState, applyCommand } from '../app/core/state.mjs';
@@ -46,12 +46,48 @@ test('child environment stays OS-only and the server sets only the explicit opt-
 });
 
 test('run manifests bind the selected profile without invalidating reusable fixture contents',()=>{
-  const settings=memoryProfile=>({...profile,memoryProfile,storageFormat:'format1'});
-  const manifest=memoryProfile=>runManifest({profile:settings(memoryProfile),format:'format1',sourceCommit:'synthetic-commit',sourceTreeDigest:'synthetic-tree'});
+  const settings=requestedMemoryProfile=>({...profile,requestedMemoryProfile,storageFormat:'format1'});
+  const manifest=(memoryProfile,verification)=>runManifest({profile:settings(memoryProfile),verification,format:'format1',sourceCommit:'synthetic-commit',sourceTreeDigest:'synthetic-tree'});
   const defaults=manifest('default'),budget=manifest('budget-672');
-  assert.equal(defaults.memoryProfile,'default');assert.equal(budget.memoryProfile,'budget-672');
+  assert.equal(defaults.requestedMemoryProfile,'default');assert.equal(budget.requestedMemoryProfile,'budget-672');
+  assert.equal(defaults.memoryProfile,null);assert.equal(budget.memoryProfile,null);
+  assert.equal(budget.memoryProfileVerification.status,'unverified');
+  assert.equal(manifest('budget-672',verifyMemoryProfile('budget-672',{},{})).memoryProfile,null);
+  const proof=verifyMemoryProfile('budget-672',null,{memoryBudget:{profile:'budget-672',enforced:true,totalBytes:704643072}});
+  assert.equal(manifest('budget-672',proof).memoryProfile,'budget-672');
   assert.notEqual(defaults.profileDigest,budget.profileDigest);
   assert.equal(fixtureConfigDigest(settings('default'),'synthetic-dataset'),fixtureConfigDigest(settings('budget-672'),'synthetic-dataset'));
+});
+
+test('budget startup refuses missing HTTP proof and accepts the server diagnostics budget without retries',async()=>{
+  const calls=[],get=async route=>{calls.push(route);return {cache:{byteLimit:704643072}};};
+  await assert.rejects(verifyServerMemoryProfile('budget-672',get),error=>{
+    assert.equal(error.code,'memory-profile-unverified');assert.equal(error.verification.memoryProfile,null);
+    assert.equal(error.verification.availability,'unavailable');return true;
+  });
+  assert.deepEqual(calls,['/api/health','/api/diagnostics']);
+  await assert.rejects(verifyServerMemoryProfile('budget-672',async()=>{throw new Error('Synthetic HTTP failure');}),{code:'memory-profile-unverified'});
+  const summary={profile:'budget-672',enforced:true,totalBytes:704643072};
+  const proof=await verifyServerMemoryProfile('budget-672',async route=>route==='/api/diagnostics'?{memoryBudget:summary}:{});
+  assert.equal(proof.status,'pass');assert.equal(proof.memoryProfile,'budget-672');
+  assert.deepEqual(proof.evidence,[{source:'diagnostics.memoryBudget',summary}]);
+  const health=verifyMemoryProfile('budget-672',{service:{memoryBudget:summary}},null);
+  assert.equal(health.status,'pass');assert.equal(health.evidence[0].source,'health.service.memoryBudget');
+});
+
+test('profile verification rejects disabled, custom, contradictory and enforced default budgets',async()=>{
+  for(const summary of [{profile:'budget-672',enforced:false},{profile:'budget-custom',enforced:true},
+    {profile:'budget-672',enforced:'true'},{}]) {
+    const gate=verifyMemoryProfile('budget-672',null,{memoryBudget:summary});
+    assert.equal(gate.status,'fail');assert.equal(gate.reason,'memory-profile-unverified');assert.equal(gate.memoryProfile,null);
+  }
+  const enforced={profile:'budget-672',enforced:true,totalBytes:704643072};
+  assert.equal(verifyMemoryProfile('budget-672',{memoryBudget:{profile:'default',enforced:false}},{memoryBudget:enforced}).status,'fail');
+  await assert.rejects(verifyServerMemoryProfile('default',async()=>({memoryBudget:enforced})),{code:'memory-profile-unverified'});
+  const absent=verifyMemoryProfile('default',{},{});
+  assert.equal(absent.status,'pass');assert.equal(absent.availability,'unavailable');
+  const defaults=verifyMemoryProfile('default',null,{memoryBudget:{profile:'default',enforced:false,totalBytes:null}});
+  assert.equal(defaults.status,'pass');assert.equal(defaults.availability,'available');
 });
 
 test('effective caps preserve observed health and cache summaries and mark absent summaries unavailable',()=>{
@@ -159,7 +195,8 @@ function reportFixture(memoryProfile='default') {
     const receipt=observation({...profile,memoryProfile},0,elapsedMs),serverId=generation?'new-process':'old-process';
     return {generation,...receipt,collectionPhase:elapsedMs>=1920000?'after':null,server:{serverId,...receipt,window:{...receipt},memory:{rss:1,heapUsed:1,external:0},
       healthObservation:{...receipt,generation,serverId},diagnosticsObservation:{...receipt,generation,serverId},
-      eventLoop:{p99Ms:1},diagnostics:{queue:{depth:0}},health:{ready:true,savesReady:true,worker:{ready:true},service:{registry:'ready',openContexts:3}}}};
+      eventLoop:{p99Ms:1},diagnostics:{queue:{depth:0},...(memoryProfile==='budget-672'?{memoryBudget:{profile:memoryProfile,enforced:true,totalBytes:704643072}}:{})},
+      health:{ready:true,savesReady:true,worker:{ready:true},service:{registry:'ready',openContexts:3}}}};
   };
   const shutdown={forced:false,exitCode:0,signal:null};
   const offered=offeredOperations.reduce((n,row)=>n+row.count,0);
@@ -179,7 +216,8 @@ function reportFixture(memoryProfile='default') {
 test('both profiles get separate labelled speed verdicts and observed caps in their reports',()=>{
   for(const selected of ['default','budget-672']) {
     const result=reportFixture(selected);
-    result.manifest=runManifest({profile:result.profile,format:result.format,sourceCommit:'synthetic-commit',sourceTreeDigest:'synthetic-tree'});
+    result.manifest=runManifest({profile:result.profile,format:result.format,sourceCommit:'synthetic-commit',sourceTreeDigest:'synthetic-tree',
+      verification:verifyMemoryProfile(selected,result.samples[0].server.health,result.samples[0].server.diagnostics)});
     for(const row of result.samples)row.server.effectiveCaps=effectiveCaps(row.server.health,{cache:{byteLimit:123}});
     const gates=evaluateSustained(result),report=sustainedMarkdown(result);
     for(const gate of Object.values(gates))assert.equal(gate.memoryProfile,selected);
@@ -194,6 +232,28 @@ test('both profiles get separate labelled speed verdicts and observed caps in th
     assert.match(sustainedMarkdown(result),/everyday \| FAIL/,'the report recomputes verdicts from this profile, not cached gates');
   }
   assert.match(sustainedMarkdown(reportFixture()),/"status": "unavailable"/);
+});
+
+test('budget profile gates require HTTP proof in both generations and never label unverified speed verdicts',()=>{
+  const verified=reportFixture('budget-672');
+  assert.equal(evaluateSustained(verified).memoryProfile.status,'pass');
+  for(const change of [
+    result=>result.samples.forEach(row=>delete row.server.diagnostics.memoryBudget),
+    result=>result.samples.filter(row=>row.generation===1).forEach(row=>delete row.server.diagnostics.memoryBudget),
+    result=>{result.samples[2].server.diagnostics.memoryBudget.enforced=false;},
+    result=>{result.samples[2].server.diagnosticsObservation.serverId='old-process';},
+  ]) {
+    const result=reportFixture('budget-672');change(result);
+    const gates=evaluateSustained(result),report=sustainedMarkdown(result);
+    assert.equal(gates.memoryProfile.status,'fail');assert.equal(gates.memoryProfile.reason,'memory-profile-unverified');
+    assert.ok(Object.values(gates).every(gate=>gate.memoryProfile===null&&gate.status!=='pass'));
+    assert.match(report,/Memory profile: \*\*unverified\*\*/);assert.match(report,/memory-profile-unverified/);
+    assert.doesNotMatch(report,/Memory profile: \*\*budget-672\*\*/);
+  }
+  const defaults=reportFixture();
+  assert.equal(evaluateSustained(defaults).memoryProfile.availability,'unavailable');
+  defaults.samples[0].server.health.memoryBudget={profile:'budget-672',enforced:true,totalBytes:704643072};
+  assert.equal(evaluateSustained(defaults).memoryProfile.status,'fail');
 });
 
 test('verdicts and reports refuse stitched profiles, contradictory labels and unlabelled historical data',()=>{
@@ -306,6 +366,17 @@ test('driver retains its schedule through restart, updates the scratch origin an
   assert.equal(records.find(row=>row.action==='restart').scheduledMs,65000);
   assert.deepEqual(new Set(records.filter(row=>row.action==='recovery-open').map(row=>row.status)),new Set([200]));
   assert.ok(records.filter(row=>row.action==='recovery-open').every(row=>row.phase==='restart-recovery'));
+});
+
+test('an unverified replacement aborts the driver rather than becoming a successful profile receipt',async t=>{
+  const settings=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
+  settings.memoryProfile='budget-672';
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-profile-refusal-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  await assert.rejects(drive({base:'http://127.0.0.1:1',initialServerId:'old-process',profile:settings,fixture:fixture(settings),directory,
+    onSample:async()=>{},fetchRequest:async()=>new Response('',{status:503,headers:{'retry-after':'1'}}),
+    restartServer:()=>verifyServerMemoryProfile('budget-672',async()=>({})),
+    schedule:async(events,run)=>{const event=events.find(row=>row.kind==='restart');await run({...event,scheduledAt:0});},
+  }),{code:'memory-profile-unverified'});
 });
 
 test('P1: successful probes on the draining process do not recover groups, even when the port is reused',async t=>{

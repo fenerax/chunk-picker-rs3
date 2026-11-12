@@ -167,14 +167,38 @@ The application implementation of `budget-672` comes from **PR #213**, which is
 separate from this harness change. The scratch checkout must include that change
 before a budget-profile measurement can establish its effect. Its profile flag
 selects the 704,643,072-byte service cache budget; this harness supplies the flag,
-without implementing or inferring those caps. Selecting it on an older app does
-not prove that app applied it. Format-2 synthetic serving is already on main
+without implementing or inferring those caps. Before announcing readiness, each
+server generation must report `memoryBudget` in its own health or diagnostics
+HTTP output. A budget run requires `profile: "budget-672"` and `enforced: true`;
+missing, disabled, custom or contradictory summaries refuse the run with
+`memory-profile-unverified` and a nonzero exit, before measured traffic starts.
+Default runs require `enforced: false` when a summary exists; an absent summary
+is recorded as `unavailable` and is acceptable for default only. Every retained
+sample is rechecked, so a replacement process or later contradictory observation
+cannot inherit earlier proof. Format-2 synthetic serving is already on main
 through **PR #215**; it does not depend on #213.
+
+At `origin/codex/f2-memory-budget` commit `30725f30`, #213 constructs the budget
+internally but **does not expose it over health or diagnostics HTTP**. The
+minimal required addition there is `memoryBudget` in the scheduler's
+`getDiagnostics()` return value, using the actual budget object constructed for
+that scheduler. `app/picker-context.mjs` already spreads those diagnostics into
+the authenticated `GET /api/diagnostics` body, which would expose
+`diagnostics.memoryBudget: { profile, enforced, totalBytes, ... }` to this runner.
+Alternatively, expose that same effective object as `health.memoryBudget` or
+`health.service.memoryBudget`. Recomputing a budget from the requested environment
+inside the harness is not proof and is deliberately refused. Until #213 exposes
+one of these summaries, its budget runs fail this check too.
 
 `profile.json`, `run-manifest.json`, `setup-summary.json` / `failure.json`,
 `results.json`, action/HTTP receipts in `events.jsonl`, and telemetry receipts in
-`samples.jsonl` record `memoryProfile`. The manifest's `profileDigest` includes
-the selection. Reports label the selection and compare it with the speed bars
+`samples.jsonl` distinguish the requested profile from a verified applied
+`memoryProfile`. Before verification (including fixture-only setup), and on a
+verification failure, the manifest keeps `requestedMemoryProfile` while
+`memoryProfile` is null. No measured result or speed report is published for an
+unverified run. Offline reports also label failed proof as `unverified` and fail
+the profile and speed gates. The manifest's `profileDigest` includes the selection.
+Reports label verified selections and compare them with the speed bars
 below independently: **both profiles must meet the same bars**. The report
 evaluator rejects missing or contradictory labels and mixed-profile operations,
 readiness, restart or telemetry receipts; results from the two profiles cannot
@@ -274,8 +298,8 @@ fixture was about 22 GB. Keep other load off the host. The generator shares this
 host, so inspect its utilization before attributing a failure solely to the app.
 
 Before transferring source, export this committed branch locally (PowerShell,
-from the worktree). Include both this harness change and #213 in this branch
-before export, using the same commit for both measurements. These commands use
+from the worktree). Include both this harness change and #213 with the HTTP
+summary described above before export, using the same commit for both measurements. These commands use
 the implementation branch name; if integrating into another branch, replace that
 name in both bundle and clone commands. This is a local Git bundle, not a push:
 

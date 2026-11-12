@@ -27,10 +27,64 @@ export function configureMemoryProfile(value, env = process.env) {
   return selected;
 }
 
-export const runManifest = ({ profile, format, sourceCommit, sourceTreeDigest, node = process.version }) => ({
+export const runManifest = ({ profile, format, sourceCommit, sourceTreeDigest, node = process.version, verification }) => ({
   schemaVersion: 1, sourceCommit, sourceTreeDigest, node, format,
-  memoryProfile: memoryProfile(profile.memoryProfile), profileDigest: digest(profile),
+  requestedMemoryProfile: memoryProfile(profile.requestedMemoryProfile ?? profile.memoryProfile),
+  memoryProfile: verification?.status === 'pass' ? verification.memoryProfile : null,
+  memoryProfileVerification: verification ?? { status: 'unverified', availability: 'unavailable' },
+  profileDigest: digest(profile),
 });
+
+// Only server HTTP output can prove application. Never call the environment-based
+// serviceMemoryBudget() factory here: it would only repeat the requested setting.
+export function verifyMemoryProfile(requested, health, diagnostics) {
+  const selected = memoryProfile(requested), evidence = [];
+  for (const [source, summary] of [
+    ['health.memoryBudget', health?.memoryBudget], ['health.service.memoryBudget', health?.service?.memoryBudget],
+    ['diagnostics.memoryBudget', diagnostics?.memoryBudget], ['diagnostics.service.memoryBudget', diagnostics?.service?.memoryBudget],
+  ]) if (summary !== undefined && summary !== null) evidence.push({ source, summary });
+  const valid = selected === 'budget-672'
+    ? evidence.length > 0 && evidence.every(({ summary }) => summary.profile === selected && summary.enforced === true)
+    : evidence.every(({ summary }) => summary.enforced === false);
+  return { status: valid ? 'pass' : 'fail', ...(valid ? {} : { reason: 'memory-profile-unverified' }),
+    requestedMemoryProfile: selected, memoryProfile: valid ? selected : null,
+    availability: evidence.length ? 'available' : 'unavailable', evidence };
+}
+
+export function requireMemoryProfile(verification) {
+  if (verification?.status !== 'pass') throw Object.assign(new Error('memory-profile-unverified: server HTTP output does not prove the requested memory profile.'),
+    { code: 'memory-profile-unverified', verification: verification ?? { status: 'fail', reason: 'memory-profile-unverified', memoryProfile: null, availability: 'unavailable' } });
+  return verification;
+}
+
+export async function verifyServerMemoryProfile(requested, get) {
+  let health, diagnostics;
+  try { [health, diagnostics] = await Promise.all(['/api/health', '/api/diagnostics'].map(get)); }
+  catch { return requireMemoryProfile({ ...verifyMemoryProfile(requested), status: 'fail', memoryProfile: null, reason: 'memory-profile-unverified' }); }
+  return requireMemoryProfile(verifyMemoryProfile(requested, health, diagnostics));
+}
+
+export function evaluateMemoryProfile(result) {
+  const selected = memoryProfile(result.memoryProfile), generations = new Map();
+  const failure = evidence => ({ ...verifyMemoryProfile(selected), status: 'fail', memoryProfile: null,
+    reason: 'memory-profile-unverified', evidence });
+  for (const row of result.samples ?? []) if (row.server) {
+    const server = row.server, verification = verifyMemoryProfile(selected, server.health, server.diagnostics);
+    const evidence = { generation: row.generation, serverId: server.serverId,
+      healthObservation: server.healthObservation, diagnosticsObservation: server.diagnosticsObservation, ...verification };
+    if (verification.status === 'fail') return failure([evidence]);
+    for (const { source } of verification.evidence) {
+      const receipt = source.startsWith('health.') ? server.healthObservation : server.diagnosticsObservation;
+      if (!receipt || receipt.serverId !== server.serverId || receipt.generation !== row.generation) return failure([evidence]);
+    }
+    if (!generations.has(server.serverId) || verification.availability === 'available') generations.set(server.serverId, evidence);
+  }
+  const expected = [result.load?.initialServerId, ...(result.load?.restarts ?? []).map(row => row.serverId)];
+  if (selected === 'budget-672' && expected.some(id => !id || !generations.has(id))) return failure([...generations.values()]);
+  return { status: 'pass', requestedMemoryProfile: selected, memoryProfile: selected,
+    availability: [...generations.values()].some(row => row.availability === 'available') ? 'available' : 'unavailable',
+    evidence: [...generations.values()] };
+}
 
 // These are observed HTTP summaries, never inferred from the requested profile.
 // Main exposes calculator cache limits but no complete service memory budget.
@@ -72,13 +126,14 @@ export function assertMemoryProfile(result) {
 }
 
 export function memoryProfileMarkdown(result) {
-  const selected = assertMemoryProfile(result), generations = new Map();
+  const selected = assertMemoryProfile(result), verification = evaluateMemoryProfile(result), generations = new Map();
   for (const row of result.samples ?? []) if (row.server && !generations.has(row.generation)) {
-    generations.set(row.generation, { memoryProfile: selected, generation: row.generation, serverId: row.server.serverId,
+    generations.set(row.generation, { requestedMemoryProfile: selected, memoryProfile: verification.memoryProfile, generation: row.generation, serverId: row.server.serverId,
       healthObservation: row.server.healthObservation, diagnosticsObservation: row.server.diagnosticsObservation,
       effectiveCaps: row.server.effectiveCaps ?? { status: 'unavailable', summaries: {} } });
   }
-  return `Memory profile: **${selected}**. Each verdict applies only to this profile.\n\n` +
+  return (verification.status === 'pass' ? `Memory profile: **${selected}**. Each verdict applies only to this profile.\n\n`
+    : `Memory profile: **unverified**; requested \`${selected}\`. Reason: **memory-profile-unverified**. No speed verdict establishes this profile.\n\n`) +
     `## Effective caps evidence\n\nObserved health/diagnostics memory and cache summaries, once per server generation; all observations remain in samples.jsonl. Missing summaries are unavailable. Cache usage alone does not establish a service budget or prove the requested profile is implemented.\n\n` +
     '```json\n' + JSON.stringify(generations.size ? [...generations.values()] : { status: 'unavailable' }, null, 2) + '\n```\n\n';
 }

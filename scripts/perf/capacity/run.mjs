@@ -11,7 +11,7 @@ import { createSampleInbox, createSampleCollector } from './sampling.mjs';
 import { fixtureWorkers } from './fixture-pool.mjs';
 import { validateSustained, sustainedPhase } from './sustained.mjs';
 import { evaluateSustained, sustainedMarkdown } from './sustained-report.mjs';
-import { parseRunOptions, childEnvironment, runManifest } from './memory-profile.mjs';
+import { parseRunOptions, childEnvironment, runManifest, verifyMemoryProfile, requireMemoryProfile, evaluateMemoryProfile } from './memory-profile.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const args=parseRunOptions();
@@ -21,7 +21,8 @@ const profilePath=['smoke','nominal','step-up','churn','sustained','sustained-sm
 const profile=JSON.parse(await readFile(profilePath,'utf8'));
 validateSustained(profile,args.format);
 profile.storageFormat=args.format;
-profile.memoryProfile=args['memory-profile'];
+profile.requestedMemoryProfile=args['memory-profile'];
+delete profile.memoryProfile;
 profile.streamHeaderDeadlineMs??=5000;
 if(process.platform==='win32' && !['smoke','sustained-smoke'].includes(profile.name))throw new Error('Only smoke is allowed on the shared PC.');
 planFixture(profile);
@@ -51,6 +52,7 @@ if(!args.output)throw new Error('Use --output NEW_DIRECTORY (must not exist).');
 const directory=path.resolve(args.output);await mkdir(directory,{mode:0o700});
 const profileFile=path.join(directory,'profile.json');await writeFile(profileFile,JSON.stringify(profile,null,2),{flag:'wx'});
 const env=childEnvironment();
+let memoryProfileFailure;
 const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
 const childLogs=child=>{
   // Synthetic-only child output, bounded independently of the run length.
@@ -59,8 +61,8 @@ const childLogs=child=>{
 async function until(child,type) {
   return new Promise((resolve,reject)=>{
     const message=m=>{const receivedAt=performance.now();if(m.type===type){cleanup();
-      if(type==='ready'&&m.memoryProfile!==profile.memoryProfile)reject(new Error('Server memory profile does not match the run manifest.'));
-      else resolve({...m,receivedAt});}else if(m.type==='failure'){cleanup();reject(new Error(`${m.name}: ${m.message}`));}};
+      if(type==='ready'&&m.memoryProfile!==profile.requestedMemoryProfile)reject(new Error('Server memory profile does not match the requested profile.'));
+      else resolve({...m,receivedAt});}else if(m.type==='failure'){cleanup();reject(Object.assign(new Error(`${m.name}: ${m.message}`),{code:m.code,verification:m.verification}));}};
     const exit=()=>{cleanup();reject(new Error(`Scratch child exited before ${type}.`));};
     const cleanup=()=>{child.off('message',message);child.off('exit',exit);child.off('error',error);};
     const error=e=>{cleanup();reject(e);};child.on('message',message);child.once('exit',exit);child.once('error',error);
@@ -99,6 +101,11 @@ try {
   } else {
   console.log(`Fixture ready: ${fixture.groups.length} groups, ${fixture.characters} slots. Starting measured server.`);
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
+  const verification=requireMemoryProfile(ready.memoryProfileVerification);
+  profile.memoryProfile=verification.memoryProfile;
+  Object.assign(manifest,runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest,verification}));
+  await writeFile(profileFile,JSON.stringify(profile,null,2));
+  await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2));
   let id=0,busy=false,telemetryErrors=0,runStart;
   const samples=[],contextOpens=[],admissionTransitions=[],inbox=createSampleInbox();
   let generation=0,restarting=false;
@@ -117,6 +124,8 @@ try {
     try {
       if(restarting){const receivedAt=performance.now(),row={memoryProfile:profile.memoryProfile,receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
       const {row,errors}=await collector.collect({start:runStart,generation,pid:server.pid,client});telemetryErrors+=errors;
+      try { requireMemoryProfile(verifyMemoryProfile(profile.memoryProfile,row.server?.health,row.server?.diagnostics)); }
+      catch(error) { memoryProfileFailure=error;throw error; }
       samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
     } catch(error) {telemetryErrors++;throw error;} finally {busy=false;}
   };
@@ -129,11 +138,13 @@ try {
       generation++;collector.reset();
       server=launch('server');childLogs(server);attach(server);
       const ready=await until(server,'ready');
+      requireMemoryProfile(ready.memoryProfileVerification);
       return {memoryProfile:ready.memoryProfile,base:ready.base,serverId:ready.serverId,readyReceivedAt:ready.receivedAt,shutdown,generation};
     } finally {restarting=false;}
   };
   const load=await drive({base:ready.base,initialServerId:ready.serverId,profile,fixture,directory,onSample:sample,restartServer,startWorkload:()=>runStart=performance.now()});
   while(busy)await new Promise(resolve=>setTimeout(resolve,10));
+  if(memoryProfileFailure)throw memoryProfileFailure;
   await sample({phase:'after'});
   const shutdown=await stop(server);server=undefined;
   const result={...manifest,manifest,platform:process.platform,hardware:{cpuModel:cpus()[0].model,logicalCpus:cpus().length,ramBytes:totalmem()},
@@ -145,12 +156,19 @@ try {
       setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})=>({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})),
       datasetDigest:fixture.datasetDigest,retention:fixture.groups.map(g=>({index:g.index,stateDigest:g.stateDigest,...g.retention,snapshots:g.retainedSnapshots}))},
     load,samples,contextOpens,admissionTransitions,telemetryErrors,shutdown};
+  requireMemoryProfile(evaluateMemoryProfile(result));
   result.gates=profile.sustained?evaluateSustained(result):evaluate(result);
   await writeFile(path.join(directory,'results.json'),JSON.stringify(result,null,2));await writeFile(path.join(directory,'summary.md'),profile.sustained?sustainedMarkdown(result):markdown(result));
   console.log(`Results: ${path.join(directory,'summary.md')}; ${load.stats.offered} arrivals, ${load.stats.rejects} rejects, ${load.stats.timeouts} timeouts.`);
   }
   // Capacity failures are data, not harness execution failures. Inspect gates.
 } catch(error) {
-  await writeFile(path.join(directory,'failure.json'),JSON.stringify({...manifest,name:error.name,message:error.message}));
+  if(error.code==='memory-profile-unverified') {
+    profile.memoryProfile=null;
+    manifest.memoryProfile=null;manifest.memoryProfileVerification=error.verification;manifest.profileDigest=digest(profile);
+    await writeFile(profileFile,JSON.stringify(profile,null,2));
+    await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2));
+  }
+  await writeFile(path.join(directory,'failure.json'),JSON.stringify({...manifest,reason:error.code,name:error.name,message:error.message}));
   throw error;
 } finally {if(server)await stop(server);if(setup)await stop(setup);}

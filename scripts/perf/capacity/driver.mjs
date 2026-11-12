@@ -359,6 +359,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
       const intentionalConflict=status===409&&client.observations.at(-1)?.intentionalConflict===true;
       if(intentionalConflict)stats.intentionalConflicts++;
       record(action,event,start,now(),{status,intentionalConflict,retryAfter:error.retryAfter??null,requests:client.observations});
+      if(error.code==='memory-profile-unverified')throw error;
     } finally { active--; }
   };
   const workloadStart=startWorkload();
