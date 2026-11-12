@@ -112,7 +112,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   // play result, so a fresh list costs no extra memory; after a tick clears the
   // saved results, this reference keeps the list readable until the next load.
   const retainedTasks = new Map(), taskRows = new Map(), activeLocations = new Map();
-  function state() { return store.getCalculationSnapshot().state; }
+  function state() {
+    const snapshot = store.getCalculationSnapshot();
+    return snapshot.readState ?? snapshot.state;
+  }
+  function claimState() { return store.getTaskClaimReadState?.() ?? store.getTaskClaimState?.() ?? state(); }
   function member(player) {
     const owner = state().members.find(owner => owner.id === player);
     if (!owner) throw fail(403, 'This player is no longer available.'); return owner;
@@ -578,7 +582,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const history = store.getTaskCompletionHistory?.(player, { since: clock() - PLUGIN_DONE_AGE_MS });
     let snapshot, result;
     if (cached?.bytes !== bytes || cached.revision !== revision) {
-      snapshot = store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
+      snapshot = claimState();
       result = JSON.parse(bytes.toString('utf8'));
       const doneLocations = cached?.revision === revision ? cached.doneLocations : new Map();
       cached = { bytes, revision, stale: !current, doneLocations,
@@ -591,7 +595,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       cached.history = history;
       // Reparse only if the background ledger changed; do not keep a second
       // expanded copy of every saved task and the gameplay snapshot in memory.
-      snapshot ??= store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
+      snapshot ??= claimState();
       result ??= JSON.parse(bytes.toString('utf8'));
       const rows = pluginDoneRows({ state: { ...snapshot, history: history ?? snapshot.history ?? [] },
         result, registry, memberId: player });

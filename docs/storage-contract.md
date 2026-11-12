@@ -1,5 +1,38 @@
 # Multiplayer storage contract
 
+## State ownership and hot command reads
+
+Serialized command replies and state snapshots use field serialization from the
+committed private revision; they do not clone the whole save. Publication keeps
+the preimage backup and synced-temporary/before-rename ordering. A general
+`beforeCommit` hook still receives a detached mutable copy and can veto the
+rename. A trusted hook can declare an `operations` array; the multiplayer
+server's registry hook declares only `replace` when no caller hook is present.
+Other writes skip that hook and its unused copy. Hook mutation never changes
+the already serialized validated bytes.
+
+`getCalculationSnapshot().readState` and `getTaskClaimReadState()` are additive
+read-only APIs used by the game plugin. They capture a revision's field
+references, copy and deeply freeze each field only when read, and reuse the
+frozen copy while its source identity is unchanged. They never expose or freeze
+storage's normalization inputs. Old views retain their captured values across
+publication. The existing `.state`, `getState()` and `getTaskClaimState()` APIs
+retain detached mutable JSON; `getReadState()` keeps its detached group payload
+and shared immutable resident catalogue. No plugin wire
+field, ordering, save schema, backup or archive representation changes.
+
+Format 1 retains its private command validator for changed gameplay and new
+Undo deltas. Format 2 can use that boundary for notes and ticks of already saved
+canonical task IDs, with an immutable rule registry, no task claims, and an exact
+private baseline proof. Open supplies a fully validated baseline. Successful
+hot publications preserve the proof; other commands discard it. The next
+eligible command on an unproved root takes the original full resident path
+before a new proof can be retained. Catalogue registration, alias restoration,
+claims and other exceptional resident commands keep full validation. General
+preparation hooks, imports, restores and migrations keep their complete
+copy/validation boundaries. `deltaValidation`, `releaseCommandResponses` and
+format-2 serving defaults are unchanged.
+
 ## Evidence-only dataset updates
 
 Owned format-1 pickers may load an older `provenance.dataset.digest` only when
