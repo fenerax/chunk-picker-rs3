@@ -26,6 +26,15 @@ It binds its own child to loopback on port 0 (or a configured 8900–8999 port).
 secrets, Node flags and external provider transports are not used. The only
 outbound app integration supplied to this server is an in-process fake.
 
+Startup and replacement-server readiness must prove the requested residency and
+memory selections before measured traffic. A periodic sample with missing HTTP
+evidence is retained as unverified; observed mismatches still abort the run.
+`results.json` and `summary.md` count verified and unverified samples for each
+selection, including separate measured counts. Boundary samples cannot prove a
+measured verdict: each server generation needs measured evidence. Missing proof
+produces an unverified verdict while preserving results and the summary. Missing
+telemetry still affects the existing telemetry/generator gates.
+
 The complete bundled `duo-legacy` **public runtime metadata** is used with an
 injected synthetic catalogue and world through existing `createServer` options.
 No legacy save is read. The small `open-f2p` dataset disables account sync and

@@ -2,8 +2,16 @@ import { cpus } from 'node:os';
 import { processTree, diskBytes } from './telemetry.mjs';
 import { stageWindow } from './scheduler.mjs';
 import { sustainedPhase } from './sustained.mjs';
-import { memoryProfile, effectiveCaps } from './memory-profile.mjs';
-import { residency } from './residency.mjs';
+import { memoryProfile, effectiveCaps, verifyMemoryProfileSample, requireMemoryProfile } from './memory-profile.mjs';
+import { residency, verifyResidencySample, requireResidency } from './residency.mjs';
+
+export function verifySampleProfiles(profile,row) {
+  row.memoryProfileVerification=verifyMemoryProfileSample(profile.memoryProfile,row.server?.health,row.server?.diagnostics);
+  row.residencyVerification=verifyResidencySample(profile.residency,row.server?.diagnostics);
+  if(row.memoryProfileVerification.status!=='unverified')requireMemoryProfile(row.memoryProfileVerification);
+  if(row.residencyVerification.status!=='unverified')requireResidency(row.residencyVerification);
+  return row;
+}
 
 export function observation(profile,start,receivedAt,from=receivedAt) {
   const elapsedMs=start===undefined?null:receivedAt-start;
