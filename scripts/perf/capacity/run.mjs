@@ -3,7 +3,6 @@ import { mkdir, readFile, writeFile, appendFile, readdir } from 'node:fs/promise
 import { cpus, totalmem } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
 import { planFixture, integer, digest } from './model.mjs';
 import { createHash } from 'node:crypto';
 import { drive, rotationInterval } from './driver.mjs';
@@ -12,16 +11,18 @@ import { createSampleInbox, createSampleCollector } from './sampling.mjs';
 import { fixtureWorkers } from './fixture-pool.mjs';
 import { validateSustained, sustainedPhase } from './sustained.mjs';
 import { evaluateSustained, sustainedMarkdown } from './sustained-report.mjs';
+import { parseRunOptions, childEnvironment, runManifest, verifyMemoryProfile, requireMemoryProfile, evaluateMemoryProfile } from './memory-profile.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
-const {values:args}=parseArgs({options:{profile:{type:'string',default:'smoke'},output:{type:'string'},host:{type:'string',default:'127.0.0.1'},
-  'fixture-workers':{type:'string'},'fixture-from':{type:'string'},'fixture-only':{type:'boolean',default:false},format:{type:'string',default:'format1'}}});
+const args=parseRunOptions();
 if(!['127.0.0.1','localhost','::1'].includes(args.host))throw new Error('Scratch runner refuses every non-loopback hostname.');
 if(Number(process.versions.node.split('.')[0])!==24)throw new Error('Use Node 24.');
 const profilePath=['smoke','nominal','step-up','churn','sustained','sustained-smoke'].includes(args.profile)?new URL(`./profiles/${args.profile}.json`,import.meta.url):path.resolve(args.profile);
 const profile=JSON.parse(await readFile(profilePath,'utf8'));
 validateSustained(profile,args.format);
 profile.storageFormat=args.format;
+profile.requestedMemoryProfile=args['memory-profile'];
+delete profile.memoryProfile;
 profile.streamHeaderDeadlineMs??=5000;
 if(process.platform==='win32' && !['smoke','sustained-smoke'].includes(profile.name))throw new Error('Only smoke is allowed on the shared PC.');
 planFixture(profile);
@@ -50,7 +51,8 @@ if(process.platform==='win32' && (profile.fixture.groups>5 || profile.catalogue.
 if(!args.output)throw new Error('Use --output NEW_DIRECTORY (must not exist).');
 const directory=path.resolve(args.output);await mkdir(directory,{mode:0o700});
 const profileFile=path.join(directory,'profile.json');await writeFile(profileFile,JSON.stringify(profile,null,2),{flag:'wx'});
-const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>/^(PATH|SystemRoot|WINDIR|TEMP|TMP|HOME|USERPROFILE|COMSPEC|PATHEXT)$/i.test(key)));
+const env=childEnvironment();
+let memoryProfileFailure;
 const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
 const childLogs=child=>{
   // Synthetic-only child output, bounded independently of the run length.
@@ -58,7 +60,9 @@ const childLogs=child=>{
 };
 async function until(child,type) {
   return new Promise((resolve,reject)=>{
-    const message=m=>{const receivedAt=performance.now();if(m.type===type){cleanup();resolve({...m,receivedAt});}else if(m.type==='failure'){cleanup();reject(new Error(`${m.name}: ${m.message}`));}};
+    const message=m=>{const receivedAt=performance.now();if(m.type===type){cleanup();
+      if(type==='ready'&&m.memoryProfile!==profile.requestedMemoryProfile)reject(new Error('Server memory profile does not match the requested profile.'));
+      else resolve({...m,receivedAt});}else if(m.type==='failure'){cleanup();reject(Object.assign(new Error(`${m.name}: ${m.message}`),{code:m.code,verification:m.verification}));}};
     const exit=()=>{cleanup();reject(new Error(`Scratch child exited before ${type}.`));};
     const cleanup=()=>{child.off('message',message);child.off('exit',exit);child.off('error',error);};
     const error=e=>{cleanup();reject(e);};child.on('message',message);child.once('exit',exit);child.once('error',error);
@@ -83,25 +87,32 @@ for(const subdirectory of ['app','scripts/lib','scripts/perf/capacity']) {
 }
 const sourceTreeDigest=sourceHash.digest('hex');
 const started=Date.now(),sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
+const manifest=runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest});
+await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2),{flag:'wx'});
 try {
   console.log(fixtureFrom?'Verifying and copying completed synthetic fixture.':`Generating synthetic fixture with ${workers} workers; progress is fixture-progress.json.`);
   setup=launch('fixture');childLogs(setup);await until(setup,'generated');await new Promise(resolve=>setup.exitCode!==null?resolve():setup.once('exit',resolve));
   const fixture=JSON.parse(await readFile(path.join(directory,'fixture.json'),'utf8'));
   const setupSeconds=(Date.now()-started)/1000;
   if(args['fixture-only']) {
-    await writeFile(path.join(directory,'setup-summary.json'),JSON.stringify({sourceCommit,sourceTreeDigest,setupSeconds,
+    await writeFile(path.join(directory,'setup-summary.json'),JSON.stringify({...manifest,setupSeconds,
       fixtureDigest:fixture.fixtureDigest,workers:fixture.workers,reused:Boolean(fixtureFrom)},null,2));
     console.log(`Completed reusable fixture: ${fixture.groups.length} groups, ${setupSeconds.toFixed(1)} s setup.`);
   } else {
   console.log(`Fixture ready: ${fixture.groups.length} groups, ${fixture.characters} slots. Starting measured server.`);
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
+  const verification=requireMemoryProfile(ready.memoryProfileVerification);
+  profile.memoryProfile=verification.memoryProfile;
+  Object.assign(manifest,runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest,verification}));
+  await writeFile(profileFile,JSON.stringify(profile,null,2));
+  await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2));
   let id=0,busy=false,telemetryErrors=0,runStart;
   const samples=[],contextOpens=[],admissionTransitions=[],inbox=createSampleInbox();
   let generation=0,restarting=false;
   const attach=(child,childGeneration=generation)=>child.on('message',m=>{
     const receivedAt=performance.now(),elapsedMs=runStart===undefined?null:receivedAt-runStart;
-    if(m.type==='context-open')contextOpens.push({...m,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
-    if(m.type==='admission')admissionTransitions.push({...m,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    if(m.type==='context-open')contextOpens.push({...m,memoryProfile:profile.memoryProfile,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    if(m.type==='admission')admissionTransitions.push({...m,memoryProfile:profile.memoryProfile,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
     inbox.receive(m,childGeneration,receivedAt);});
   attach(server);
   const collector=createSampleCollector({profile,directory,requestSnapshot:childGeneration=>{
@@ -111,8 +122,10 @@ try {
   const sample=async client=>{
     if(busy)return;busy=true;
     try {
-      if(restarting){const receivedAt=performance.now(),row={receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
+      if(restarting){const receivedAt=performance.now(),row={memoryProfile:profile.memoryProfile,receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
       const {row,errors}=await collector.collect({start:runStart,generation,pid:server.pid,client});telemetryErrors+=errors;
+      try { requireMemoryProfile(verifyMemoryProfile(profile.memoryProfile,row.server?.health,row.server?.diagnostics)); }
+      catch(error) { memoryProfileFailure=error;throw error; }
       samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
     } catch(error) {telemetryErrors++;throw error;} finally {busy=false;}
   };
@@ -125,14 +138,16 @@ try {
       generation++;collector.reset();
       server=launch('server');childLogs(server);attach(server);
       const ready=await until(server,'ready');
-      return {base:ready.base,serverId:ready.serverId,readyReceivedAt:ready.receivedAt,shutdown,generation};
+      requireMemoryProfile(ready.memoryProfileVerification);
+      return {memoryProfile:ready.memoryProfile,base:ready.base,serverId:ready.serverId,readyReceivedAt:ready.receivedAt,shutdown,generation};
     } finally {restarting=false;}
   };
   const load=await drive({base:ready.base,initialServerId:ready.serverId,profile,fixture,directory,onSample:sample,restartServer,startWorkload:()=>runStart=performance.now()});
   while(busy)await new Promise(resolve=>setTimeout(resolve,10));
+  if(memoryProfileFailure)throw memoryProfileFailure;
   await sample({phase:'after'});
   const shutdown=await stop(server);server=undefined;
-  const result={schemaVersion:1,sourceCommit,sourceTreeDigest,node:process.version,platform:process.platform,hardware:{cpuModel:cpus()[0].model,logicalCpus:cpus().length,ramBytes:totalmem()},
+  const result={...manifest,manifest,platform:process.platform,hardware:{cpuModel:cpus()[0].model,logicalCpus:cpus().length,ramBytes:totalmem()},
     profile,format:args.format,profileDigest:digest(profile),setupSeconds,elapsedSeconds:(Date.now()-started)/1000,
     fixture:{storageFormat:fixture.storageFormat,ownedBasePin:fixture.ownedBasePin,groups:fixture.groups.length,characters:fixture.characters,logins:fixture.logins,keys:fixture.keys,gaps:fixture.gaps,planDigest:fixture.planDigest,
       catalogueDigest:fixture.catalogueDigest,catalogueBytes:fixture.catalogueBytes,engineCatalogueTasks:fixture.engineCatalogueTasks,
@@ -141,12 +156,19 @@ try {
       setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})=>({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})),
       datasetDigest:fixture.datasetDigest,retention:fixture.groups.map(g=>({index:g.index,stateDigest:g.stateDigest,...g.retention,snapshots:g.retainedSnapshots}))},
     load,samples,contextOpens,admissionTransitions,telemetryErrors,shutdown};
+  requireMemoryProfile(evaluateMemoryProfile(result));
   result.gates=profile.sustained?evaluateSustained(result):evaluate(result);
   await writeFile(path.join(directory,'results.json'),JSON.stringify(result,null,2));await writeFile(path.join(directory,'summary.md'),profile.sustained?sustainedMarkdown(result):markdown(result));
   console.log(`Results: ${path.join(directory,'summary.md')}; ${load.stats.offered} arrivals, ${load.stats.rejects} rejects, ${load.stats.timeouts} timeouts.`);
   }
   // Capacity failures are data, not harness execution failures. Inspect gates.
 } catch(error) {
-  await writeFile(path.join(directory,'failure.json'),JSON.stringify({sourceCommit,profileDigest:digest(profile),name:error.name,message:error.message}));
+  if(error.code==='memory-profile-unverified') {
+    profile.memoryProfile=null;
+    manifest.memoryProfile=null;manifest.memoryProfileVerification=error.verification;manifest.profileDigest=digest(profile);
+    await writeFile(profileFile,JSON.stringify(profile,null,2));
+    await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2));
+  }
+  await writeFile(path.join(directory,'failure.json'),JSON.stringify({...manifest,reason:error.code,name:error.name,message:error.message}));
   throw error;
 } finally {if(server)await stop(server);if(setup)await stop(setup);}

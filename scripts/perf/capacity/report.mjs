@@ -1,3 +1,5 @@
+import { memoryProfileMarkdown } from './memory-profile.mjs';
+
 const cheap=['state','history','edit','session'];
 const expensive=['task-view','group-task-view','how','why','task-miss','preview','roll-accept','pool-undo'];
 const number=value=>Number.isFinite(value)?value.toFixed(2):'n/a';
@@ -85,6 +87,7 @@ export function evaluate(result) {
 export function markdown(result) {
   const gates=result.gates,failed=Object.entries(gates).filter(([,v])=>v.status==='fail').map(([name])=>name);
   return `# Synthetic capacity run\n\nSource: \`${result.sourceCommit}\`; Node ${result.node}; seed \`${result.profile.seed}\`.\n\n`+
+    memoryProfileMarkdown(result)+
     `Result: **${failed.length?'FAIL':'INCOMPLETE'}**. Failed measured gates: ${failed.join(', ')||'none'}. Unmeasured gates prevent capacity acceptance.\n\n`+
     `${result.fixture.groups} groups, ${result.fixture.characters} roster slots, ${result.fixture.logins} logins, ${result.fixture.keys} stored keys; plus 1 synthetic legacy context with 2 unowned slots.\n\n`+
     `Offered ${result.load.stats.offered} actions; HTTP requests ${result.load.stats.httpRequests}; rejects ${result.load.stats.rejects}; timeouts ${result.load.stats.timeouts}; unsupported actions ${result.load.stats.unsupported}; client drops ${result.load.stats.clientDrops}.\n\n`+

@@ -9,9 +9,9 @@ injected configuration. **Activation and character switching remain blocked.**
 A passing format-1 comparison cannot approve format-2 launch.
 
 The harness uses injected synthetic definitions/world, diagnostics, context-open and
-admission observers. Existing runtime admission/residency/calculator defaults
-remain enabled. The scratch wrapper adds an `x-capacity-server-id` response
-header and includes that random per-process identity in readiness and telemetry
+admission observers. Runtime admission/residency/calculator limits follow the
+explicitly selected memory profile. The scratch wrapper adds an
+`x-capacity-server-id` response header and includes that random per-process identity in readiness and telemetry
 IPC receipts. Synthetic offline
 provisioning uses the existing proposed
 entity caps (3,000 accounts / 3,500 pickers / 20,000 capabilities), just as the
@@ -155,6 +155,63 @@ separately in statuses and fail the relevant speed bar rather than being hidden.
 
 ## Measurements and verdicts
 
+`--memory-profile default|budget-672` selects server memory caps independently
+of the workload `--profile` and storage `--format`; omission means `default`.
+The runner still forwards only its OS-variable allowlist. The child purges every
+inherited `RS3_*` setting, then sets `RS3_MEMORY_PROFILE=budget-672` only for that
+explicit selection. A default run sets no `RS3_MEMORY_PROFILE`, even if the
+operator's shell has it or `RS3_SERVICE_CACHE_BYTES` set. Unknown selections fail
+before output creation. Arbitrary environment overrides are never forwarded.
+
+The application implementation of `budget-672` comes from **PR #213**, which is
+separate from this harness change. The scratch checkout must include that change
+before a budget-profile measurement can establish its effect. Its profile flag
+selects the 704,643,072-byte service cache budget; this harness supplies the flag,
+without implementing or inferring those caps. Before announcing readiness, each
+server generation must report `memoryBudget` in its own health or diagnostics
+HTTP output. A budget run requires `profile: "budget-672"` and `enforced: true`;
+missing, disabled, custom or contradictory summaries refuse the run with
+`memory-profile-unverified` and a nonzero exit, before measured traffic starts.
+Default runs require `enforced: false` when a summary exists; an absent summary
+is recorded as `unavailable` and is acceptable for default only. Every retained
+sample is rechecked, so a replacement process or later contradictory observation
+cannot inherit earlier proof. Format-2 synthetic serving is already on main
+through **PR #215**; it does not depend on #213.
+
+At `origin/codex/f2-memory-budget` commit `30725f30`, #213 constructs the budget
+internally but **does not expose it over health or diagnostics HTTP**. The
+minimal required addition there is `memoryBudget` in the scheduler's
+`getDiagnostics()` return value, using the actual budget object constructed for
+that scheduler. `app/picker-context.mjs` already spreads those diagnostics into
+the authenticated `GET /api/diagnostics` body, which would expose
+`diagnostics.memoryBudget: { profile, enforced, totalBytes, ... }` to this runner.
+Alternatively, expose that same effective object as `health.memoryBudget` or
+`health.service.memoryBudget`. Recomputing a budget from the requested environment
+inside the harness is not proof and is deliberately refused. Until #213 exposes
+one of these summaries, its budget runs fail this check too.
+
+`profile.json`, `run-manifest.json`, `setup-summary.json` / `failure.json`,
+`results.json`, action/HTTP receipts in `events.jsonl`, and telemetry receipts in
+`samples.jsonl` distinguish the requested profile from a verified applied
+`memoryProfile`. Before verification (including fixture-only setup), and on a
+verification failure, the manifest keeps `requestedMemoryProfile` while
+`memoryProfile` is null. No measured result or speed report is published for an
+unverified run. Offline reports also label failed proof as `unverified` and fail
+the profile and speed gates. The manifest's `profileDigest` includes the selection.
+Reports label verified selections and compare them with the speed bars
+below independently: **both profiles must meet the same bars**. The report
+evaluator rejects missing or contradictory labels and mixed-profile operations,
+readiness, restart or telemetry receipts; results from the two profiles cannot
+be combined into one verdict. Historical unlabelled runs need fresh evidence.
+
+Every server sample retains the actual health/diagnostics responses and an
+`effectiveCaps` summary of their exposed memory/cache fields. The report includes
+one such receipt per process generation, including its independent HTTP receipt
+times. Main already exposes calculator cache entry/byte limits and cache usage;
+it does not expose a complete service memory budget. Missing summaries are
+explicitly `unavailable`; usage is never converted into an invented cap.
+#213 can add richer summaries without changing this collection rule.
+
 Every product receipt measures **scheduled arrival to full HTTP completion**,
 including dispatch lag, preflights, HTTP amplification, queue time, client
 cooldown and retries. A slow server never reduces offered arrivals. The bounded
@@ -223,10 +280,11 @@ automation must read the gate verdicts. A harness failure writes `failure.json`
 and exits nonzero. These files include synthetic credentials in `fixture.json`;
 retain full artifacts locally and share only reviewed summaries.
 
-Default runtime limits still include 7 resident contexts (legacy included),
-64 global streams, one concurrent cold open and 192 global key admissions.
+With `--memory-profile default`, runtime limits still include 7 resident contexts
+(legacy included), 64 global streams, one concurrent cold open and 192 global key admissions.
 They may refuse this workload. No proposed higher limit is silently enabled to
-make the graph pass. `profile.json`, exact source/tree digest and health/diagnostic
+make the graph pass. The opt-in selection requests the application's budget
+profile instead. `profile.json`, exact source/tree digest and health/diagnostic
 samples bind each run to its settings. If another track changes defaults, use a
 fresh fixture from that exact source and compare both reports.
 
@@ -240,10 +298,14 @@ fixture was about 22 GB. Keep other load off the host. The generator shares this
 host, so inspect its utilization before attributing a failure solely to the app.
 
 Before transferring source, export this committed branch locally (PowerShell,
-from the worktree). This is a local Git bundle, not a push:
+from the worktree). Include both this harness change and #213 with the HTTP
+summary described above before export, using the same commit for both measurements. These commands use
+the implementation branch name; if integrating into another branch, replace that
+name in both bundle and clone commands. This is a local Git bundle, not a push:
 
 ```powershell
-git bundle create .local/sustained/sustained.bundle codex/f2-serving
+New-Item -ItemType Directory -Force .local/sustained | Out-Null
+git bundle create .local/sustained/sustained.bundle perf/load-memory-profile
 git bundle verify .local/sustained/sustained.bundle
 ```
 
@@ -253,7 +315,7 @@ must be new. These commands do not provision or contact a host:
 
 ```sh
 cd /srv/scratch
-git clone --branch codex/f2-serving ./sustained.bundle picker-sustained
+git clone --branch perf/load-memory-profile ./sustained.bundle picker-sustained
 cd picker-sustained
 node --version
 git rev-parse HEAD
@@ -264,31 +326,42 @@ nice -n 10 node scripts/perf/capacity/run.mjs \
   --profile sustained --format format1 --fixture-workers 14 --fixture-only \
   --output /srv/scratch/sustained-results/fixture-f1
 
-# Verify/copy the sealed fixture, then cold opens + the 30-minute workload.
+# Default caps: verify/copy the sealed fixture, then cold opens + 30 minutes.
 nice -n 10 node scripts/perf/capacity/run.mjs \
-  --profile sustained --format format1 --fixture-workers 14 \
+  --profile sustained --format format1 --memory-profile default --fixture-workers 14 \
   --fixture-from /srv/scratch/sustained-results/fixture-f1 \
-  --output /srv/scratch/sustained-results/run-f1
+  --output /srv/scratch/sustained-results/run-f1-default
 
-cat /srv/scratch/sustained-results/run-f1/summary.md
+# Immediately after the first run exits, on this same host and source.
+nice -n 10 node scripts/perf/capacity/run.mjs \
+  --profile sustained --format format1 --memory-profile budget-672 --fixture-workers 14 \
+  --fixture-from /srv/scratch/sustained-results/fixture-f1 \
+  --output /srv/scratch/sustained-results/run-f1-budget-672
+
+cat /srv/scratch/sustained-results/run-f1-default/summary.md
+cat /srv/scratch/sustained-results/run-f1-budget-672/summary.md
 ```
 
 Expected durations are planning estimates, not measurements of this new profile:
 budget **about four hours for fixture generation**, plus **32 minutes of
-scheduled load**, fixture verification/copy (allow roughly 5–15 minutes on local
-SSD), and up to a few minutes for pending HTTP/backoff/shutdown drain. Reserve
-about **4 h 50 min total** initially and inspect `fixture-progress.json` rather
-than interpreting a long history/retention phase as a hung run. A previous
+scheduled load per measured run**, fixture verification/copy (allow roughly
+5–15 minutes on local SSD per copy), and up to a few minutes for pending
+HTTP/backoff/shutdown drain. Reserve about **5 h 40 min total for the back-to-back
+pair** initially and inspect `fixture-progress.json` rather than interpreting a
+long history/retention phase as a hung run. A previous
 500-group, 14-worker, larger-catalogue run took 227 minutes for setup; the new
 23,939-task plus alias/state calibration has **not** been timed at full scale.
 It may exceed this budget. `setup-summary.json.setupSeconds` and per-group setup
 timings provide the actual fixture cost; the measured run's `setupSeconds`
-includes verified copying. Reuse requires the exact same implementation/config
-digest and preserves historical mtimes. Never use a previously measured/mutated
+includes verified copying. Both profiles copy the same sealed fixture; memory
+selection changes the run digest but not the fixture-content digest. Reuse
+requires the exact same implementation and fixture-content configuration digests
+and preserves historical mtimes. Never use a previously measured/mutated
 run as the reusable fixture.
 
 For a synthetic format-2 comparison on this branch, prepare a separate fixture
-and run directory. Preserve the format-1 results; its fixture cannot be reused
+and two separate run directories, again back to back on the same host. Preserve
+the format-1 results; its fixture cannot be reused
 or relabelled as format 2. These scratch-host commands enable only the synthetic
 owned fixture. Real-save use and deployment remain at the owner approval boundary.
 
@@ -298,11 +371,17 @@ nice -n 10 node scripts/perf/capacity/run.mjs \
   --output /srv/scratch/sustained-results/fixture-f2
 
 nice -n 10 node scripts/perf/capacity/run.mjs \
-  --profile sustained --format format2 --fixture-workers 14 \
+  --profile sustained --format format2 --memory-profile default --fixture-workers 14 \
   --fixture-from /srv/scratch/sustained-results/fixture-f2 \
-  --output /srv/scratch/sustained-results/run-f2
+  --output /srv/scratch/sustained-results/run-f2-default
 
-cat /srv/scratch/sustained-results/run-f2/summary.md
+nice -n 10 node scripts/perf/capacity/run.mjs \
+  --profile sustained --format format2 --memory-profile budget-672 --fixture-workers 14 \
+  --fixture-from /srv/scratch/sustained-results/fixture-f2 \
+  --output /srv/scratch/sustained-results/run-f2-budget-672
+
+cat /srv/scratch/sustained-results/run-f2-default/summary.md
+cat /srv/scratch/sustained-results/run-f2-budget-672/summary.md
 ```
 
 The fixture retains its release manifest, exact release bytes and published base

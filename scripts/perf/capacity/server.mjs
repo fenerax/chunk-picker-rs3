@@ -4,10 +4,11 @@ import path from 'node:path';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
 import { observeServerIdentity } from './evidence.mjs';
+import { configureMemoryProfile, verifyServerMemoryProfile } from './memory-profile.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
 const [directory,profileFile,mode,workers,fixtureFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
-for(const key of Object.keys(process.env)) if(key.startsWith('RS3_')) delete process.env[key];
+const memoryProfile=configureMemoryProfile(profile.requestedMemoryProfile ?? profile.memoryProfile);
 process.env.RS3_DATASET='duo-legacy'; process.env.RS3_TASK_WORKER_MODE='process';
 process.env.RS3_PACKS_DIR=path.join(directory,'no-packs');
 process.env.RS3_GAME_DATA_DIR=path.join(directory,'no-game-data');
@@ -71,24 +72,26 @@ if(mode==='fixture') {
     const serverId=observeServerIdentity(app.server);
     await app.listen();
     const base=loopback(`http://127.0.0.1:${app.address().port}`,{assigned:profile.port===0});
-    process.send({type:'ready',base,serverId});
+    const headers={Authorization:'Bearer '+app.store.getAccessToken()};
+    const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw new Error('Telemetry HTTP failure');return res.json();};
+    // Verify the running app before announcing ready, on every process generation.
+    const memoryProfileVerification=await verifyServerMemoryProfile(memoryProfile,get);
+    process.send({type:'ready',base,serverId,memoryProfile,memoryProfileVerification});
     process.on('message',async message=>{
       try {
         if(message.type==='stop') return await stop();
         if(message.type==='sample') {
-          const headers={Authorization:'Bearer '+app.store.getAccessToken()};
-          const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw new Error('Telemetry HTTP failure');return res.json();};
           // Send each HTTP observation immediately; calculator heap probes must
           // not make an earlier health/residency result look fresh.
           await Promise.all([['health','/api/health'],['diagnostics','/api/diagnostics']].map(async([part,route])=>{
-            const value=await get(route);process.send({type:`sample-${part}`,id:message.id,serverId,[part]:value});
+            const value=await get(route);process.send({type:`sample-${part}`,id:message.id,serverId,memoryProfile,[part]:value});
           }));
           const calculatorHeaps=await Promise.all([...workers].filter(worker=>typeof worker.getMemoryUsage==='function').map(async worker=>{
             try {const value=await worker.getMemoryUsage();return {pid:value.pid,hostHeapUsed:value.main?.heapUsed,threadHeapUsed:value.workers?.length?value.workers.reduce((n,w)=>n+(w.memoryUsage?.heapUsed??0),0):null};}catch{return null;}
           }));
           const currentUtilization=performance.eventLoopUtilization(), utilization=performance.eventLoopUtilization(currentUtilization,lastUtilization);
           lastUtilization=currentUtilization;
-          process.send({type:'sample',id:message.id,serverId,memory:process.memoryUsage(),cpu:process.cpuUsage(),
+          process.send({type:'sample',id:message.id,serverId,memoryProfile,memory:process.memoryUsage(),cpu:process.cpuUsage(),
             eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
               utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
           loop.reset();
@@ -97,5 +100,5 @@ if(mode==='fixture') {
     });
     process.once('disconnect',()=>{void stop();});
     process.once('SIGTERM',()=>{void stop();});
-  } catch(error) { process.stderr.write(`${error?.stack ?? error}\n`); process.send({type:'failure',name:error.name,message:error.message}); await app?.close(); process.disconnect();process.exitCode=1; }
+  } catch(error) { process.stderr.write(`${error?.stack ?? error}\n`); process.send({type:'failure',name:error.name,message:error.message,code:error.code,verification:error.verification}); await app?.close(); process.disconnect();process.exitCode=1; }
 }

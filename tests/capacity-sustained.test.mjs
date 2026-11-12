@@ -7,7 +7,9 @@ import path from 'node:path';
 import { prepareCohorts, drive, consumeStream } from '../scripts/perf/capacity/driver.mjs';
 import { planFixture, catalogue, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
 import { sustainedArrivals, sustainedAction, sustainedPhase, sustainedBrowserAction, validateSustained } from '../scripts/perf/capacity/sustained.mjs';
-import { evaluateSustained, everydayActions, heavyActions } from '../scripts/perf/capacity/sustained-report.mjs';
+import { evaluateSustained, sustainedMarkdown, everydayActions, heavyActions } from '../scripts/perf/capacity/sustained-report.mjs';
+import { parseRunOptions, childEnvironment, configureMemoryProfile, runManifest, effectiveCaps, verifyMemoryProfile, verifyServerMemoryProfile } from '../scripts/perf/capacity/memory-profile.mjs';
+import { fixtureConfigDigest } from '../scripts/perf/capacity/fixture-cache.mjs';
 import { retryRead } from '../scripts/perf/capacity/client.mjs';
 import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
@@ -16,6 +18,86 @@ import { observation, createSampleInbox, createSampleCollector } from '../script
 import { evaluate } from '../scripts/perf/capacity/report.mjs';
 
 const profile = JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained.json',import.meta.url)));
+
+test('memory profile option defaults explicitly and rejects unknown or missing values',()=>{
+  assert.equal(parseRunOptions([])['memory-profile'],'default');
+  for(const selected of ['default','budget-672']) {
+    const args=parseRunOptions(['--profile','sustained','--format','format2','--memory-profile',selected]);
+    assert.equal(args['memory-profile'],selected);assert.equal(args.format,'format2');
+  }
+  assert.equal(parseRunOptions(['--memory-profile=budget-672'])['memory-profile'],'budget-672');
+  for(const selected of ['other','', 'DEFAULT'])assert.throws(()=>parseRunOptions(['--memory-profile',selected]),/--memory-profile default or budget-672/);
+  assert.throws(()=>parseRunOptions(['--memory-profile']),/argument missing|requires an argument/i);
+});
+
+test('child environment stays OS-only and the server sets only the explicit opt-in after its purge',()=>{
+  const inherited={PATH:'synthetic-path',SystemRoot:'synthetic-root',TEMP:'synthetic-temp',
+    RS3_MEMORY_PROFILE:'budget-672',RS3_SERVICE_CACHE_BYTES:'704643072',RS3_SIGNIN:'synthetic',OTHER_SECRET:'synthetic'};
+  assert.deepEqual(childEnvironment(inherited),{PATH:'synthetic-path',SystemRoot:'synthetic-root',TEMP:'synthetic-temp'});
+  const defaultEnv={...inherited};assert.equal(configureMemoryProfile('default',defaultEnv),'default');
+  assert.equal(Object.hasOwn(defaultEnv,'RS3_MEMORY_PROFILE'),false);
+  assert.ok(!Object.keys(defaultEnv).some(key=>key.startsWith('RS3_')));
+  const budgetEnv={...inherited};configureMemoryProfile('budget-672',budgetEnv);
+  assert.equal(budgetEnv.RS3_MEMORY_PROFILE,'budget-672');
+  assert.deepEqual(Object.keys(budgetEnv).filter(key=>key.startsWith('RS3_')),['RS3_MEMORY_PROFILE']);
+  const omitted={...inherited};configureMemoryProfile(undefined,omitted);assert.equal(Object.hasOwn(omitted,'RS3_MEMORY_PROFILE'),false);
+  assert.throws(()=>configureMemoryProfile('other',inherited),/memory-profile/);
+  assert.equal(inherited.RS3_SERVICE_CACHE_BYTES,'704643072','invalid selection leaves the caller environment untouched');
+});
+
+test('run manifests bind the selected profile without invalidating reusable fixture contents',()=>{
+  const settings=requestedMemoryProfile=>({...profile,requestedMemoryProfile,storageFormat:'format1'});
+  const manifest=(memoryProfile,verification)=>runManifest({profile:settings(memoryProfile),verification,format:'format1',sourceCommit:'synthetic-commit',sourceTreeDigest:'synthetic-tree'});
+  const defaults=manifest('default'),budget=manifest('budget-672');
+  assert.equal(defaults.requestedMemoryProfile,'default');assert.equal(budget.requestedMemoryProfile,'budget-672');
+  assert.equal(defaults.memoryProfile,null);assert.equal(budget.memoryProfile,null);
+  assert.equal(budget.memoryProfileVerification.status,'unverified');
+  assert.equal(manifest('budget-672',verifyMemoryProfile('budget-672',{},{})).memoryProfile,null);
+  const proof=verifyMemoryProfile('budget-672',null,{memoryBudget:{profile:'budget-672',enforced:true,totalBytes:704643072}});
+  assert.equal(manifest('budget-672',proof).memoryProfile,'budget-672');
+  assert.notEqual(defaults.profileDigest,budget.profileDigest);
+  assert.equal(fixtureConfigDigest(settings('default'),'synthetic-dataset'),fixtureConfigDigest(settings('budget-672'),'synthetic-dataset'));
+});
+
+test('budget startup refuses missing HTTP proof and accepts the server diagnostics budget without retries',async()=>{
+  const calls=[],get=async route=>{calls.push(route);return {cache:{byteLimit:704643072}};};
+  await assert.rejects(verifyServerMemoryProfile('budget-672',get),error=>{
+    assert.equal(error.code,'memory-profile-unverified');assert.equal(error.verification.memoryProfile,null);
+    assert.equal(error.verification.availability,'unavailable');return true;
+  });
+  assert.deepEqual(calls,['/api/health','/api/diagnostics']);
+  await assert.rejects(verifyServerMemoryProfile('budget-672',async()=>{throw new Error('Synthetic HTTP failure');}),{code:'memory-profile-unverified'});
+  const summary={profile:'budget-672',enforced:true,totalBytes:704643072};
+  const proof=await verifyServerMemoryProfile('budget-672',async route=>route==='/api/diagnostics'?{memoryBudget:summary}:{});
+  assert.equal(proof.status,'pass');assert.equal(proof.memoryProfile,'budget-672');
+  assert.deepEqual(proof.evidence,[{source:'diagnostics.memoryBudget',summary}]);
+  const health=verifyMemoryProfile('budget-672',{service:{memoryBudget:summary}},null);
+  assert.equal(health.status,'pass');assert.equal(health.evidence[0].source,'health.service.memoryBudget');
+});
+
+test('profile verification rejects disabled, custom, contradictory and enforced default budgets',async()=>{
+  for(const summary of [{profile:'budget-672',enforced:false},{profile:'budget-custom',enforced:true},
+    {profile:'budget-672',enforced:'true'},{}]) {
+    const gate=verifyMemoryProfile('budget-672',null,{memoryBudget:summary});
+    assert.equal(gate.status,'fail');assert.equal(gate.reason,'memory-profile-unverified');assert.equal(gate.memoryProfile,null);
+  }
+  const enforced={profile:'budget-672',enforced:true,totalBytes:704643072};
+  assert.equal(verifyMemoryProfile('budget-672',{memoryBudget:{profile:'default',enforced:false}},{memoryBudget:enforced}).status,'fail');
+  await assert.rejects(verifyServerMemoryProfile('default',async()=>({memoryBudget:enforced})),{code:'memory-profile-unverified'});
+  const absent=verifyMemoryProfile('default',{},{});
+  assert.equal(absent.status,'pass');assert.equal(absent.availability,'unavailable');
+  const defaults=verifyMemoryProfile('default',null,{memoryBudget:{profile:'default',enforced:false,totalBytes:null}});
+  assert.equal(defaults.status,'pass');assert.equal(defaults.availability,'available');
+});
+
+test('effective caps preserve observed health and cache summaries and mark absent summaries unavailable',()=>{
+  const cache={entries:0,byteLimit:123,limit:2,bytes:0},memory={serviceCacheBytes:456};
+  assert.deepEqual(effectiveCaps({service:{memory}},{cache,calculators:{memoryBytes:789}}),
+    {status:'available',summaries:{'health.service.memory':memory,'diagnostics.cache':cache,'diagnostics.calculators.memoryBytes':789}});
+  assert.deepEqual(effectiveCaps({ready:true},{queue:{depth:0}}),{status:'unavailable',summaries:{}});
+  assert.deepEqual(effectiveCaps(null,null),{status:'unavailable',summaries:{}});
+});
+
 function fixture(settings=profile) {
   return {groups:planFixture(settings).map(group=>({...group,members:group.members.map(member=>({memberId:member.id,cookie:`synthetic-${group.index}-${member.id}`}))}))};
 }
@@ -99,35 +181,131 @@ test('fresh-map Undo offers valid durable work and restores the note through rea
   await sustainedBrowserAction({call,client,event:{kind:'undo',id:1},chunks:Object.keys(data.chunks)});
   assert.deepEqual(commands,['set-note','undo']);assert.deepEqual(state.members[0].notes,initialNotes);
 });
-function reportFixture() {
-  const row=(action,n=10)=>({stage:1,phase:'before-restart',action,latency:{count:n,p50Ms:10,p95Ms:20,p99Ms:30},statuses:{200:n},
+function reportFixture(memoryProfile='default') {
+  const row=(action,n=10)=>({memoryProfile,stage:1,phase:'before-restart',action,latency:{count:n,p50Ms:10,p95Ms:20,p99Ms:30},statuses:{200:n},
     httpRequests:n,httpRejects:0,httpStatuses:{200:n},retryAfterValues:{},rejectsWithoutRetryAfter:0,
     cacheMisses:action==='task-miss'?n:0,successfulTaskMisses:action==='task-miss'?n:0});
-  const ready=(group,serverId,elapsedMs)=>({group,serverId,stateServerId:serverId,tasksServerId:serverId,stateRevision:1,tasksRevision:1,elapsedMs,
+  const ready=(group,serverId,elapsedMs)=>({memoryProfile,group,serverId,stateServerId:serverId,tasksServerId:serverId,stateRevision:1,tasksRevision:1,elapsedMs,
     stateReceivedAt:(serverId==='old-process'?0:1020000)+elapsedMs-1,tasksReceivedAt:(serverId==='old-process'?0:1020000)+elapsedMs});
   const operations=[...everydayActions,...heavyActions,'pluginReport','pluginStatus','pluginTasks','sync'].map(action=>row(action));
   operations.push({...row('cold-open',2),stage:0,phase:'cold-open'},{...row('restart',1),phase:'restart-recovery'},{...row('workload-end',1),phase:'after-recovery'});
-  const offeredOperations=operations.map(({stage,phase,action,latency})=>({stage,phase,action,count:latency.count}));
+  const offeredOperations=operations.map(({stage,phase,action,latency})=>({memoryProfile,stage,phase,action,count:latency.count}));
   const clients=[1,2].flatMap(group=>['owner','member2'].map(memberId=>({group,clientId:`${group}:${memberId}`})));
   const sample=(generation,elapsedMs)=>{
-    const receipt=observation(profile,0,elapsedMs),serverId=generation?'new-process':'old-process';
+    const receipt=observation({...profile,memoryProfile},0,elapsedMs),serverId=generation?'new-process':'old-process';
     return {generation,...receipt,collectionPhase:elapsedMs>=1920000?'after':null,server:{serverId,...receipt,window:{...receipt},memory:{rss:1,heapUsed:1,external:0},
       healthObservation:{...receipt,generation,serverId},diagnosticsObservation:{...receipt,generation,serverId},
-      eventLoop:{p99Ms:1},diagnostics:{queue:{depth:0}},health:{ready:true,savesReady:true,worker:{ready:true},service:{registry:'ready',openContexts:3}}}};
+      eventLoop:{p99Ms:1},diagnostics:{queue:{depth:0},...(memoryProfile==='budget-672'?{memoryBudget:{profile:memoryProfile,enforced:true,totalBytes:704643072}}:{})},
+      health:{ready:true,savesReady:true,worker:{ready:true},service:{registry:'ready',openContexts:3}}}};
   };
   const shutdown={forced:false,exitCode:0,signal:null};
   const offered=offeredOperations.reduce((n,row)=>n+row.count,0);
-  return {profile:{...profile,stages:[profile.stages[0],{...profile.stages[1],activeGroups:2,users:4}]},format:'format1',
-    load:{stats:{clientDrops:0,offered,completed:offered,recoveryProbesSkipped:0},operations,offeredOperations,initialServerId:'old-process',
+  return {memoryProfile,profile:{...profile,memoryProfile,stages:[profile.stages[0],{...profile.stages[1],activeGroups:2,users:4}]},format:'format1',
+    fixture:{groups:2,gaps:[]},
+    load:{memoryProfile,stats:{clientDrops:0,offered,completed:offered,recoveryProbesSkipped:0},operations,offeredOperations,initialServerId:'old-process',
       cohort:{groups:[1,2],coldGroups:[1,2],clients},coldOpens:[ready(1,'old-process',100),ready(2,'old-process',200)],
-      stageStreams:[{attempted:0,handshakes:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},{attempted:4,handshakes:4,statuses:{200:4},retryAfterValues:{},rejectsWithoutRetryAfter:0}],
-      tailStreams:{attempted:0,handshakes:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},
-      workloadStart:0,workloadCompletedAt:1920000,streamShutdownAt:1920000,completedAt:1920100,restarts:[{startedAt:1020000,serverReadyMs:10,generation:1,serverId:'new-process',shutdown:{...shutdown}}],
+      stageStreams:[{memoryProfile,attempted:0,handshakes:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},{memoryProfile,attempted:4,handshakes:4,statuses:{200:4},retryAfterValues:{},rejectsWithoutRetryAfter:0}],
+      tailStreams:{memoryProfile,attempted:0,handshakes:0,statuses:{},retryAfterValues:{},rejectsWithoutRetryAfter:0},
+      workloadStart:0,workloadCompletedAt:1920000,streamShutdownAt:1920000,completedAt:1920100,restarts:[{memoryProfile,startedAt:1020000,serverReadyMs:10,generation:1,serverId:'new-process',shutdown:{...shutdown}}],
       recovery:{groups:[ready(1,'new-process',100),ready(2,'new-process',200)],
-        streams:clients.map(client=>({...client,serverId:'new-process',openedAt:1020300,closedAt:1920000,closeReason:'workload-end'}))}},
+        streams:clients.map(client=>({...client,memoryProfile,serverId:'new-process',openedAt:1020300,closedAt:1920000,closeReason:'workload-end'}))}},
     samples:[sample(0,100000),sample(1,1020300),sample(1,1321000),
       ...Array.from({length:384},(_,i)=>(i+1)*5000+1500).map(at=>sample(at>=1020010?1:0,at))],telemetryErrors:0,shutdown};
 }
+
+test('both profiles get separate labelled speed verdicts and observed caps in their reports',()=>{
+  for(const selected of ['default','budget-672']) {
+    const result=reportFixture(selected);
+    result.manifest=runManifest({profile:result.profile,format:result.format,sourceCommit:'synthetic-commit',sourceTreeDigest:'synthetic-tree',
+      verification:verifyMemoryProfile(selected,result.samples[0].server.health,result.samples[0].server.diagnostics)});
+    for(const row of result.samples)row.server.effectiveCaps=effectiveCaps(row.server.health,{cache:{byteLimit:123}});
+    const gates=evaluateSustained(result),report=sustainedMarkdown(result);
+    for(const gate of Object.values(gates))assert.equal(gate.memoryProfile,selected);
+    assert.equal(gates.everyday.p95LimitMs,300);assert.equal(gates.heavy.p95LimitMs,3000);assert.equal(gates.coldOpen.p95LimitMs,2000);
+    assert.match(report,new RegExp(`Memory profile: \\*\\*${selected}\\*\\*`));
+    assert.match(report,/diagnostics.cache/);assert.match(report,/"byteLimit": 123/);
+    assert.match(report,/"generation": 0/);assert.match(report,/"generation": 1/);
+    assert.equal((report.match(/"effectiveCaps"/g)??[]).length,2);
+    result.load.operations.find(row=>row.action==='state').latency.p95Ms=300;
+    result.load.operations.find(row=>row.action==='state').latency.p99Ms=300;
+    assert.equal(evaluateSustained(result).everyday.status,'fail');
+    assert.match(sustainedMarkdown(result),/everyday \| FAIL/,'the report recomputes verdicts from this profile, not cached gates');
+  }
+  assert.match(sustainedMarkdown(reportFixture()),/"status": "unavailable"/);
+});
+
+test('budget profile gates require HTTP proof in both generations and never label unverified speed verdicts',()=>{
+  const verified=reportFixture('budget-672');
+  assert.equal(evaluateSustained(verified).memoryProfile.status,'pass');
+  for(const change of [
+    result=>result.samples.forEach(row=>delete row.server.diagnostics.memoryBudget),
+    result=>result.samples.filter(row=>row.generation===1).forEach(row=>delete row.server.diagnostics.memoryBudget),
+    result=>{result.samples[2].server.diagnostics.memoryBudget.enforced=false;},
+    result=>{result.samples[2].server.diagnosticsObservation.serverId='old-process';},
+  ]) {
+    const result=reportFixture('budget-672');change(result);
+    const gates=evaluateSustained(result),report=sustainedMarkdown(result);
+    assert.equal(gates.memoryProfile.status,'fail');assert.equal(gates.memoryProfile.reason,'memory-profile-unverified');
+    assert.ok(Object.values(gates).every(gate=>gate.memoryProfile===null&&gate.status!=='pass'));
+    assert.match(report,/Memory profile: \*\*unverified\*\*/);assert.match(report,/memory-profile-unverified/);
+    assert.doesNotMatch(report,/Memory profile: \*\*budget-672\*\*/);
+  }
+  const defaults=reportFixture();
+  assert.equal(evaluateSustained(defaults).memoryProfile.availability,'unavailable');
+  defaults.samples[0].server.health.memoryBudget={profile:'budget-672',enforced:true,totalBytes:704643072};
+  assert.equal(evaluateSustained(defaults).memoryProfile.status,'fail');
+  // A default run is verified only by received health and diagnostics from every server generation.
+  for(const change of [
+    result=>{result.samples=[];},
+    result=>result.samples.filter(row=>row.generation===1).forEach(row=>{row.server.health=null;delete row.server.healthObservation;}),
+    result=>result.samples.filter(row=>row.generation===0).forEach(row=>{row.server.diagnostics=null;delete row.server.diagnosticsObservation;}),
+    result=>result.samples.filter(row=>row.generation===1).forEach(row=>{row.server.diagnosticsObservation.serverId='old-process';}),
+  ]) {
+    const result=reportFixture();change(result);
+    const gates=evaluateSustained(result),report=sustainedMarkdown(result);
+    assert.equal(gates.memoryProfile.status,'fail');assert.equal(gates.memoryProfile.reason,'memory-profile-unverified');
+    assert.ok(Object.values(gates).every(gate=>gate.memoryProfile===null&&gate.status!=='pass'));
+    assert.match(report,/Memory profile: \*\*unverified\*\*/);assert.doesNotMatch(report,/Memory profile: \*\*default\*\*/);
+  }
+});
+
+test('verdicts and reports refuse stitched profiles, contradictory labels and unlabelled historical data',()=>{
+  for(const change of [
+    result=>{result.load.operations.push(...reportFixture('budget-672').load.operations);},
+    result=>{result.samples.push(...reportFixture('budget-672').samples);},
+    result=>{result.profile.memoryProfile='budget-672';},
+    result=>{result.load.memoryProfile='budget-672';},
+    result=>{result.manifest={memoryProfile:'budget-672'};},
+    result=>{result.requestedMemoryProfile='budget-672';result.profile.requestedMemoryProfile='budget-672';},
+    result=>{result.profile.requestedMemoryProfile='budget-672';},
+    result=>{result.manifest={memoryProfile:'default',requestedMemoryProfile:'budget-672'};},
+    result=>{result.samples[0].server.memoryProfile='budget-672';},
+    result=>{result.samples[0].server.healthObservation.memoryProfile='budget-672';},
+    result=>{result.load.restarts[0].memoryProfile='budget-672';},
+    result=>{result.load.stageStreams.push(...reportFixture('budget-672').load.stageStreams);},
+    result=>{result.load.coldOpens.push(...reportFixture('budget-672').load.coldOpens);},
+    result=>{delete result.memoryProfile;},
+    result=>{delete result.load.operations[0].memoryProfile;},
+  ]) {
+    const result=reportFixture();change(result);
+    assert.throws(()=>evaluateSustained(result),/Cannot combine memory profiles/);
+    assert.throws(()=>sustainedMarkdown(result),/Cannot combine memory profiles/);
+  }
+});
+
+test('sampling retains server profile labels and cache evidence without substituting the requested profile',async()=>{
+  const result=reportFixture('budget-672'),server=result.samples[0].server;
+  server.diagnostics.cache={byteLimit:123};
+  const collector=createSampleCollector({profile:result.profile,directory:'synthetic',now:()=>100,
+    requestSnapshot:sampleTransport({now:()=>100,server}),readTree:async()=>({supported:false,cpuSeconds:null}),readDisk:async()=>({bytes:0,files:0})});
+  const {row,errors}=await collector.collect({start:0,generation:0,pid:0,client:{}});
+  assert.equal(errors,0);assert.equal(row.memoryProfile,'budget-672');assert.equal(row.server.memoryProfile,'budget-672');
+  assert.equal(row.server.effectiveCaps.summaries['diagnostics.cache'].byteLimit,123);
+  server.memoryProfile='default';
+  const mixed=await collector.collect({start:0,generation:0,pid:0,client:{}});
+  assert.equal(mixed.row.memoryProfile,'budget-672');assert.equal(mixed.row.server.memoryProfile,'default');
+  result.samples.push(mixed.row);assert.throws(()=>evaluateSustained(result),/Cannot combine memory profiles/);
+});
 test('speed verdicts cannot pass fast refusals, missing classes, dropped work or incomplete recovery',()=>{
   const result=reportFixture(),gates=evaluateSustained(result);
   assert.equal(gates.everyday.status,'pass');assert.equal(gates.heavy.status,'pass');assert.equal(gates.coldOpen.status,'pass');
@@ -204,6 +382,17 @@ test('driver retains its schedule through restart, updates the scratch origin an
   assert.equal(records.find(row=>row.action==='restart').scheduledMs,65000);
   assert.deepEqual(new Set(records.filter(row=>row.action==='recovery-open').map(row=>row.status)),new Set([200]));
   assert.ok(records.filter(row=>row.action==='recovery-open').every(row=>row.phase==='restart-recovery'));
+});
+
+test('an unverified replacement aborts the driver rather than becoming a successful profile receipt',async t=>{
+  const settings=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));
+  settings.memoryProfile='budget-672';
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-profile-refusal-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  await assert.rejects(drive({base:'http://127.0.0.1:1',initialServerId:'old-process',profile:settings,fixture:fixture(settings),directory,
+    onSample:async()=>{},fetchRequest:async()=>new Response('',{status:503,headers:{'retry-after':'1'}}),
+    restartServer:()=>verifyServerMemoryProfile('budget-672',async()=>({})),
+    schedule:async(events,run)=>{const event=events.find(row=>row.kind==='restart');await run({...event,scheduledAt:0});},
+  }),{code:'memory-profile-unverified'});
 });
 
 test('P1: successful probes on the draining process do not recover groups, even when the port is reused',async t=>{
@@ -298,7 +487,7 @@ test('sweep: session completions require successful HTTP or confirmed coalesced 
   assert.equal(observed.latency.count,2);assert.equal(observed.httpRequests,1);assert.equal(observed.coalescedSessionChecks,1);
 });
 test('sweep: partial phases and duplicate cold/recovery identities cannot replace the planned cohort',()=>{
-  const partial=reportFixture();partial.load.offeredOperations.push({stage:1,phase:'after-recovery',action:'state',count:10});
+  const partial=reportFixture();partial.load.offeredOperations.push({memoryProfile:'default',stage:1,phase:'after-recovery',action:'state',count:10});
   assert.equal(evaluateSustained(partial).everyday.status,'fail');
   for(const evidence of ['coldOpens','groups']) {
     const result=reportFixture(),rows=evidence==='coldOpens'?result.load.coldOpens:result.load.recovery.groups;
@@ -375,7 +564,7 @@ function sampleTransport({now,server,onPart=()=>{}}) {
     const request=++id,pending=inbox.expect(request,generation);
     for(const [part,value] of [['health',server.health],['diagnostics',server.diagnostics],['snapshot',server]]) {
       onPart(part);
-      inbox.receive({type:part==='snapshot'?'sample':`sample-${part}`,id:request,...(part==='snapshot'?value:{serverId:server.serverId,[part]:value})},generation);
+      inbox.receive({type:part==='snapshot'?'sample':`sample-${part}`,id:request,...(part==='snapshot'?value:{serverId:server.serverId,memoryProfile:server.memoryProfile,[part]:value})},generation);
     }
     return pending;
   };
