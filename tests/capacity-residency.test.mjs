@@ -9,6 +9,7 @@ import { parseRunOptions, runManifest } from '../scripts/perf/capacity/memory-pr
 import { COLD_OPEN_ADMISSION } from '../app/picker-admission.mjs';
 import { MP7_DEFAULTS, createPickerLimits } from '../app/security/picker-limits.mjs';
 import { createPickerRouter } from '../app/picker-router.mjs';
+import { verifySampleProfiles } from '../scripts/perf/capacity/sampling.mjs';
 
 const defaults = { maxOpenContexts: 7, idleCloseMs: 600000, coldStartsPerAccount: 1, coldStartsGlobal: 1,
   coldAdmission: { maxPending: 64, perAccount: 2, deadlineMs: 2000 } };
@@ -123,7 +124,7 @@ function artifactFixture() {
   const profile = { ...label, requestedResidency: residency, seed: 'synthetic-residency-artifacts', stages: [], osReserveBytes: 0 };
   const sample = generation => {
     const serverId = `synthetic-generation-${generation}`, receipt = { ...label, generation, serverId };
-    return { ...label, generation, server: { ...receipt, health: {}, diagnostics: { residency: structuredClone(trial) },
+    return { ...label, generation, measured: true, server: { ...receipt, health: {}, diagnostics: { residency: structuredClone(trial) },
       healthObservation: { ...receipt }, diagnosticsObservation: { ...receipt }, eventLoop: {} } };
   };
   return { ...label, requestedResidency: residency, profile, fixture: { groups: 0, gaps: [] }, hardware: { ramBytes: 1024 },
@@ -153,6 +154,118 @@ test('manifest results and summary retain requested and observed residency per g
   assert.match(summary, /Residency: \*\*trial\*\*; requested `trial`/);
   assert.match(summary, /"maxOpenContexts": 128/); assert.match(summary, /"deadlineMs": 30000/);
   assert.match(summary, /synthetic-generation-0/); assert.match(summary, /synthetic-generation-1/);
+});
+
+test('periodic samples retain missing diagnostics and HTTP evidence for both memory selections', () => {
+  for (const memoryProfile of ['default', 'budget-672']) {
+    const profile = { memoryProfile, residency: 'trial' };
+    for (const server of [null, { health: {} }, { diagnostics: null }]) {
+      const row = { measured: true, server };
+      assert.equal(verifySampleProfiles(profile, row), row);
+      assert.equal(row.residencyVerification.status, 'unverified');
+      assert.equal(row.memoryProfileVerification.status, 'unverified');
+    }
+    const row = { server: { health: { memoryBudget: { profile: memoryProfile, enforced: memoryProfile === 'budget-672' } } } };
+    verifySampleProfiles(profile, row);
+    assert.equal(row.memoryProfileVerification.status, 'pass');
+    assert.equal(row.residencyVerification.status, 'unverified');
+  }
+});
+
+test('periodic samples still abort on observed residency or memory mismatches', () => {
+  const profile = { memoryProfile: 'budget-672', residency: 'trial' };
+  const memoryBudget = { profile: 'budget-672', enforced: true };
+  for (const residency of [defaults, { ...trial, coldStartsGlobal: 1 }, {}]) {
+    assert.throws(() => verifySampleProfiles(profile, { server: { health: { memoryBudget }, diagnostics: { residency } } }),
+      { code: 'residency-unverified' });
+  }
+  for (const memoryProfile of ['default', 'budget-672']) {
+    for (const source of ['health', 'diagnostics']) {
+      const summary = { profile: memoryProfile, enforced: memoryProfile === 'default' };
+      assert.throws(() => verifySampleProfiles({ ...profile, memoryProfile }, { server: { [source]: { memoryBudget: summary } } }),
+        { code: 'memory-profile-unverified' });
+    }
+  }
+});
+
+test('startup and replacement readiness still refuse missing residency diagnostics before traffic', async t => {
+  const { verifyServerResidency } = await import('../scripts/perf/capacity/residency.mjs');
+  const { drive } = await import('../scripts/perf/capacity/driver.mjs');
+  const { planFixture } = await import('../scripts/perf/capacity/model.mjs');
+  await mkdir(new URL('../.local/', import.meta.url), { recursive: true });
+  const directory = await mkdtemp(new URL('../.local/residency-readiness-', import.meta.url));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const profile = JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json', import.meta.url)));
+  profile.residency = 'trial';
+  const fixture = { groups: planFixture(profile).map(group => ({ ...group,
+    members: group.members.map(member => ({ memberId: member.id, cookie: `synthetic-${group.index}-${member.id}` })) })) };
+  let ready = false;
+  const readiness = async () => {
+    await verifyServerResidency('trial', async () => { throw new Error('Synthetic missing diagnostics'); });
+    ready = true;
+  };
+  await assert.rejects(readiness(), { code: 'residency-unverified' });
+  assert.equal(ready, false);
+  await assert.rejects(drive({ base: 'http://127.0.0.1:0', initialServerId: 'synthetic-old', profile, fixture, directory,
+    onSample: async () => {}, fetchRequest: async () => new Response('', { status: 503, headers: { 'retry-after': '1' } }),
+    restartServer: readiness, schedule: async (events, run) => {
+      await run({ ...events.find(event => event.kind === 'restart'), scheduledAt: 0 });
+    } }), { code: 'residency-unverified' });
+  assert.equal(ready, false);
+});
+
+test('results and summary count verified and missing samples without losing the run', async t => {
+  const { writeRunResults } = await import('../scripts/perf/capacity/run-artifacts.mjs');
+  await mkdir(new URL('../.local/', import.meta.url), { recursive: true });
+  const directory = await mkdtemp(new URL('../.local/residency-sample-counts-', import.meta.url));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const result = artifactFixture();
+  const missing = structuredClone(result.samples[1]);
+  delete missing.server.diagnostics; delete missing.server.diagnosticsObservation;
+  const restart = { residency: 'trial', memoryProfile: 'default', generation: 1, measured: true, restarting: true };
+  const before = { ...structuredClone(result.samples[0]), measured: false };
+  result.samples.push(missing, restart, before);
+  await writeRunResults(directory, result);
+  const stored = JSON.parse(await readFile(path.join(directory, 'results.json'), 'utf8'));
+  for (const key of ['residencyVerification', 'memoryProfileVerification']) {
+    assert.equal(stored[key].status, 'pass');
+    assert.deepEqual(stored[key].samples, { verified: 3, unverified: 2, mismatched: 0, measured: { verified: 2, unverified: 2, mismatched: 0 } });
+  }
+  const summary = await readFile(path.join(directory, 'summary.md'), 'utf8');
+  assert.match(summary, /Residency samples: 3 verified; 2 lacked evidence\. Measured: 2 verified; 2 lacked evidence/);
+  assert.match(summary, /Memory profile samples: 3 verified; 2 lacked evidence\. Measured: 2 verified; 2 lacked evidence/);
+});
+
+test('results survive without measured proof and report unverified instead of claiming residency', async t => {
+  const { writeRunResults } = await import('../scripts/perf/capacity/run-artifacts.mjs');
+  await mkdir(new URL('../.local/', import.meta.url), { recursive: true });
+  const directory = await mkdtemp(new URL('../.local/residency-no-proof-', import.meta.url));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const result = artifactFixture();
+  result.samples = result.samples.flatMap(row => {
+    const missing = structuredClone(row); delete missing.server.diagnostics; delete missing.server.diagnosticsObservation;
+    return [{ ...row, measured: false }, missing];
+  });
+  await writeRunResults(directory, result);
+  const stored = JSON.parse(await readFile(path.join(directory, 'results.json'), 'utf8'));
+  assert.equal(stored.residencyVerification.residency, null);
+  assert.equal(stored.memoryProfileVerification.memoryProfile, null);
+  assert.equal(stored.gates.residency.reason, 'residency-unverified');
+  assert.equal(stored.residencyVerification.samples.measured.verified, 0);
+  const summary = await readFile(path.join(directory, 'summary.md'), 'utf8');
+  assert.match(summary, /Residency: \*\*unverified\*\*/);
+  assert.match(summary, /Memory profile: \*\*unverified\*\*/);
+});
+
+test('artifact writing still refuses observed mismatches', async t => {
+  const { writeRunResults } = await import('../scripts/perf/capacity/run-artifacts.mjs');
+  await mkdir(new URL('../.local/', import.meta.url), { recursive: true });
+  const directory = await mkdtemp(new URL('../.local/residency-mismatch-', import.meta.url));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const result = artifactFixture(); result.samples[1].server.diagnostics.residency = defaults;
+  await assert.rejects(writeRunResults(directory, result), { code: 'residency-unverified' });
+  const memory = artifactFixture(); memory.samples[1].server.health.memoryBudget = { enforced: true };
+  await assert.rejects(writeRunResults(directory, memory), { code: 'memory-profile-unverified' });
 });
 
 test('verdicts reject mixed residency labels and unverified replacement diagnostics', async () => {

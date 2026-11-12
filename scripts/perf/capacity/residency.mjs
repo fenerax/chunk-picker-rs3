@@ -1,3 +1,5 @@
+import { sampleCounts, countSample, sampleReceiptStatus, sampleCountsMarkdown } from './sample-verification.mjs';
+
 // Scratch-only selections. Application defaults remain owned by the router,
 // picker limits and admission modules; default injects no overrides.
 export function residency(value = 'default') {
@@ -30,6 +32,11 @@ export function requireResidency(verification) {
   if (verification?.status !== 'pass') throw Object.assign(new Error('residency-unverified: server diagnostics do not prove the requested residency limits.'),
     { code: 'residency-unverified', verification: verification ?? { status: 'fail', reason: 'residency-unverified', residency: null, observed: null } });
   return verification;
+}
+
+export function verifyResidencySample(requested, diagnostics) {
+  const proof = verifyResidency(requested, diagnostics);
+  return diagnostics == null ? { ...proof, status: 'unverified' } : proof;
 }
 
 export async function verifyServerResidency(requested, get) {
@@ -71,21 +78,24 @@ export function assertResidency(result) {
 }
 
 export function evaluateResidency(result) {
-  const selected = assertResidency(result), evidence = new Map();
-  for (const row of result.samples ?? []) if (row.server) {
-    const { server } = row, proof = verifyResidency(selected, server.diagnostics), receipt = server.diagnosticsObservation;
-    if (proof.status !== 'pass' || receipt?.serverId !== server.serverId || receipt.generation !== row.generation)
-      return { ...proof, status: 'fail', reason: 'residency-unverified', residency: null };
-    evidence.set(server.serverId, { generation: row.generation, serverId: server.serverId, ...proof });
+  const selected = assertResidency(result), evidence = new Map(), samples = sampleCounts(), mismatches = [];
+  for (const row of result.samples ?? []) {
+    const { server } = row, proof = verifyResidencySample(selected, server?.diagnostics);
+    const status = proof.status === 'pass' ? sampleReceiptStatus(row, 'diagnostics') : proof.status;
+    countSample(samples, row, status);
+    if (status === 'fail') mismatches.push({ generation: row.generation, serverId: server?.serverId, ...proof });
+    if (status === 'pass' && row.measured === true)
+      evidence.set(server.serverId, { generation: row.generation, serverId: server.serverId, ...proof });
   }
   const expected = [result.load?.initialServerId, ...(result.load?.restarts ?? []).map(row => row.serverId)];
-  const valid = expected.every(id => id && evidence.has(id));
+  const valid = samples.mismatched === 0 && samples.measured.verified > 0 && expected.every(id => id && evidence.has(id));
   return { status: valid ? 'pass' : 'fail', ...(valid ? {} : { reason: 'residency-unverified' }),
-    requestedResidency: selected, residency: valid ? selected : null, evidence: [...evidence.values()] };
+    requestedResidency: selected, residency: valid ? selected : null, samples, evidence: [...mismatches, ...evidence.values()] };
 }
 
 export function residencyMarkdown(result) {
   const selected = assertResidency(result), proof = evaluateResidency(result);
   return `Residency: **${proof.residency ?? 'unverified'}**; requested \`${selected}\`. Each verdict applies only to this residency and memory selection.\n\n` +
+    sampleCountsMarkdown('Residency', proof.samples) +
     'Observed residency limits by server generation:\n\n```json\n' + JSON.stringify(proof, null, 2) + '\n```\n\n';
 }

@@ -6,13 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { planFixture, integer, digest } from './model.mjs';
 import { createHash } from 'node:crypto';
 import { drive, rotationInterval } from './driver.mjs';
-import { createSampleInbox, createSampleCollector } from './sampling.mjs';
+import { createSampleInbox, createSampleCollector, verifySampleProfiles } from './sampling.mjs';
 import { fixtureWorkers } from './fixture-pool.mjs';
 import { validateSustained, sustainedPhase } from './sustained.mjs';
-import { parseRunOptions, childEnvironment, runManifest, verifyMemoryProfile, requireMemoryProfile } from './memory-profile.mjs';
+import { parseRunOptions, childEnvironment, runManifest, requireMemoryProfile } from './memory-profile.mjs';
 import { writeRunManifest, writeRunResults } from './run-artifacts.mjs';
 import { assertFixtureCopyDestination } from './fixture-paths.mjs';
-import { verifyResidency, requireResidency } from './residency.mjs';
+import { requireResidency } from './residency.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const args=parseRunOptions();
@@ -135,10 +135,12 @@ try {
     try {
       if(restarting){const receivedAt=performance.now(),row={memoryProfile:profile.memoryProfile,residency:profile.residency,receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
       const {row,errors}=await collector.collect({start:runStart,generation,pid:server.pid,client});telemetryErrors+=errors;
-      try { requireMemoryProfile(verifyMemoryProfile(profile.memoryProfile,row.server?.health,row.server?.diagnostics)); }
-      catch(error) { memoryProfileFailure=error;throw error; }
-      try { requireResidency(verifyResidency(profile.residency,row.server?.diagnostics)); }
-      catch(error) { residencyFailure=error;throw error; }
+      try { verifySampleProfiles(profile,row); }
+      catch(error) {
+        if(error.code==='memory-profile-unverified')memoryProfileFailure=error;
+        if(error.code==='residency-unverified')residencyFailure=error;
+        throw error;
+      }
       samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
     } catch(error) {telemetryErrors++;throw error;} finally {busy=false;}
   };

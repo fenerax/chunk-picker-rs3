@@ -299,6 +299,29 @@ test('budget profile gates require HTTP proof in both generations and never labe
   }
 });
 
+test('sustained artifacts retain missing memory evidence and count it for both selections',async t=>{
+  const { writeRunResults }=await import('../scripts/perf/capacity/run-artifacts.mjs');
+  const directory=await mkdtemp(path.join(tmpdir(),'rs3-missing-profile-samples-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  for(const selected of ['default','budget-672'])for(const allMissing of [false,true]) {
+    const result=reportFixture(selected),total=result.samples.length;
+    for(const row of allMissing?result.samples:[result.samples[2]]) {
+      row.server.health=null;row.server.diagnostics=null;
+      row.server.healthObservation=null;row.server.diagnosticsObservation=null;
+    }
+    await writeRunResults(directory,result);
+    const stored=JSON.parse(await readFile(path.join(directory,'results.json'),'utf8'));
+    const proof=stored.memoryProfileVerification;
+    assert.equal(proof.status,allMissing?'fail':'pass');
+    assert.equal(proof.memoryProfile,allMissing?null:selected);
+    assert.equal(proof.samples.unverified,allMissing?total:1);
+    assert.equal(proof.samples.verified,allMissing?0:total-1);
+    assert.equal(proof.samples.mismatched,0);
+    const summary=await readFile(path.join(directory,'summary.md'),'utf8');
+    assert.match(summary,new RegExp(`Memory profile samples: ${proof.samples.verified} verified; ${proof.samples.unverified} lacked evidence`));
+    if(allMissing)assert.match(summary,/Memory profile: \*\*unverified\*\*/);
+  }
+});
+
 test('verdicts and reports refuse stitched profiles, contradictory labels and unlabelled historical data',()=>{
   for(const change of [
     result=>{result.load.operations.push(...reportFixture('budget-672').load.operations);},

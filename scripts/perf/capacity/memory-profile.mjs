@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util';
 import { digest } from './model.mjs';
 import { residency, residencyManifest } from './residency.mjs';
+import { sampleCounts, countSample, sampleReceiptStatus, sampleCountsMarkdown } from './sample-verification.mjs';
 
 export function memoryProfile(value = 'default') {
   if (!['default', 'budget-672'].includes(value)) throw new TypeError('Use --memory-profile default or budget-672.');
@@ -63,6 +64,14 @@ export function requireMemoryProfile(verification) {
   return verification;
 }
 
+export function verifyMemoryProfileSample(requested, health, diagnostics) {
+  const proof = verifyMemoryProfile(requested, health, diagnostics);
+  // A received contradictory budget still fails even if the other fetch was
+  // lost. Without any budget, both responses are needed to judge its absence.
+  return !proof.evidence.length && (health == null || diagnostics == null)
+    ? { ...proof, status: 'unverified', reason: 'memory-profile-unverified', memoryProfile: null } : proof;
+}
+
 export async function verifyServerMemoryProfile(requested, get) {
   let health, diagnostics;
   try { [health, diagnostics] = await Promise.all(['/api/health', '/api/diagnostics'].map(get)); }
@@ -71,32 +80,27 @@ export async function verifyServerMemoryProfile(requested, get) {
 }
 
 export function evaluateMemoryProfile(result) {
-  const selected = memoryProfile(result.memoryProfile), generations = new Map();
-  const failure = evidence => ({ ...verifyMemoryProfile(selected), status: 'fail', memoryProfile: null,
-    reason: 'memory-profile-unverified', evidence });
-  // An absent summary means "unavailable" only when this server generation's
-  // health and diagnostics were both actually received; no receipt, no verdict.
-  const observed = (server, generation) => ['health', 'diagnostics'].every(name => {
-    const receipt = server[`${name}Observation`];
-    return server[name] && typeof server[name] === 'object' && receipt?.serverId === server.serverId && receipt.generation === generation;
-  });
-  for (const row of result.samples ?? []) if (row.server) {
-    const server = row.server, verification = verifyMemoryProfile(selected, server.health, server.diagnostics);
-    const evidence = { generation: row.generation, serverId: server.serverId,
-      healthObservation: server.healthObservation, diagnosticsObservation: server.diagnosticsObservation, ...verification };
-    if (verification.status === 'fail') return failure([evidence]);
-    for (const { source } of verification.evidence) {
-      const receipt = source.startsWith('health.') ? server.healthObservation : server.diagnosticsObservation;
-      if (!receipt || receipt.serverId !== server.serverId || receipt.generation !== row.generation) return failure([evidence]);
-    }
-    if (verification.availability !== 'available' && !observed(server, row.generation)) continue;
-    if (!generations.has(server.serverId) || verification.availability === 'available') generations.set(server.serverId, evidence);
+  const selected = memoryProfile(result.memoryProfile), generations = new Map(), samples = sampleCounts();
+  const mismatches = [];
+  for (const row of result.samples ?? []) {
+    const server = row.server, verification = verifyMemoryProfileSample(selected, server?.health, server?.diagnostics);
+    const sources = verification.evidence.length ? verification.evidence.map(({ source }) => source.split('.')[0]) : ['health', 'diagnostics'];
+    const receipts = sources.map(source => sampleReceiptStatus(row, source));
+    const status = verification.status === 'pass' ? receipts.includes('fail') ? 'fail' : receipts.includes('unverified') ? 'unverified' : 'pass' : verification.status;
+    countSample(samples, row, status);
+    const evidence = { generation: row.generation, serverId: server?.serverId,
+      healthObservation: server?.healthObservation, diagnosticsObservation: server?.diagnosticsObservation, ...verification };
+    if (status === 'fail') mismatches.push(evidence);
+    if (status === 'pass' && row.measured === true && (!generations.has(server.serverId) || verification.availability === 'available'))
+      generations.set(server.serverId, evidence);
   }
   const expected = [result.load?.initialServerId, ...(result.load?.restarts ?? []).map(row => row.serverId)];
-  if (expected.some(id => !id || !generations.has(id))) return failure([...generations.values()]);
+  if (samples.mismatched || !samples.measured.verified || expected.some(id => !id || !generations.has(id)))
+    return { ...verifyMemoryProfile(selected), status: 'fail', memoryProfile: null,
+      reason: 'memory-profile-unverified', samples, evidence: [...mismatches, ...generations.values()] };
   return { status: 'pass', requestedMemoryProfile: selected, memoryProfile: selected,
     availability: [...generations.values()].some(row => row.availability === 'available') ? 'available' : 'unavailable',
-    evidence: [...generations.values()] };
+    samples, evidence: [...generations.values()] };
 }
 
 // These are observed HTTP summaries, never inferred from the requested profile.
@@ -152,6 +156,7 @@ export function memoryProfileMarkdown(result) {
   }
   return (verification.status === 'pass' ? `Memory profile: **${selected}**. Each verdict applies only to this profile.\n\n`
     : `Memory profile: **unverified**; requested \`${selected}\`. Reason: **memory-profile-unverified**. No speed verdict establishes this profile.\n\n`) +
+    sampleCountsMarkdown('Memory profile', verification.samples) +
     `## Effective caps evidence\n\nObserved health/diagnostics memory and cache summaries, once per server generation; all observations remain in samples.jsonl. Missing summaries are unavailable. Cache usage alone does not establish a service budget or prove the requested profile is implemented.\n\n` +
     '```json\n' + JSON.stringify(generations.size ? [...generations.values()] : { status: 'unavailable' }, null, 2) + '\n```\n\n';
 }
