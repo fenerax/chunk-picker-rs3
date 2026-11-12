@@ -94,10 +94,18 @@ async function limitedStore({ portableBytes, staticCacheBytes, frozenSource } = 
   const hook = registerHooks({ load(target, context, next) {
     if (target !== url) return next(target, context);
     let source = frozenSource ?? String(next(target, context).source);
-    // Exercise the real byte comparisons with small synthetic documents. Only
-    // constants change; publication, compression, import and parsing stay real.
+    // Exercise the real byte comparisons with small synthetic documents;
+    // publication, compression, import and parsing stay real.
     // The frozen release has no portable-limit import and its readBackup ignores
     // forImport, so frozen runs are format-compatibility checks only.
+    if (!frozenSource) {
+      // Expose this bounded module's actual startup pass, so checking its result
+      // cannot queue a successful retry that clears an earlier failure.
+      const scheduling = 'void enqueueMaintenance(maintainRetention, { defer: true })';
+      assert.equal(source.split(scheduling).length, 2);
+      source = `export let startupRetention;\n${source.replace(scheduling,
+        '(startupRetention = enqueueMaintenance(maintainRetention, { defer: true }))')}`;
+    }
     if (portableBytes && !frozenSource) {
       const limitImport = 'MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL';
       assert.equal(source.split(limitImport).length, 2);
@@ -174,7 +182,8 @@ for (const boundary of ['escaped', 'envelope-overhead', 'exact-limit']) test(`${
   await before.close();
   const store = await bounded.openStore({ dataDir: fixture.dataDir, retention: { backupDays: 1 }, now });
   t.after(() => store.close());
-  await store.prepareSnapshot();
+  assert(bounded.startupRetention instanceof Promise, 'capture the bounded module startup pass');
+  await bounded.startupRetention;
   assert.equal(store.getInfo().retention.failure, undefined);
   assert.deepEqual(await store.readBackup(row.id, { forImport: true }), expected);
   if (boundary === 'exact-limit') {
@@ -219,7 +228,8 @@ test('static retention cache evicts distinct fields by byte budget and skips ove
   reset();
   const store = await bounded.openStore({ dataDir: fixture.dataDir, retention: { backupDays: 1 }, now });
   t.after(() => store.close());
-  await store.prepareSnapshot();
+  assert(bounded.startupRetention instanceof Promise, 'capture the bounded module startup pass');
+  await bounded.startupRetention;
   assert.equal(store.getInfo().retention.failure, undefined);
   assert.ok(stats.cacheSamples.length >= 34, 'observe insertions across multiple published batches');
   assert.ok(stats.cacheSamples.every(sample => sample.bytes <= limit), JSON.stringify(stats.cacheSamples));
