@@ -6,12 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { planFixture, integer, digest } from './model.mjs';
 import { createHash } from 'node:crypto';
 import { drive, rotationInterval } from './driver.mjs';
-import { evaluate, markdown } from './report.mjs';
 import { createSampleInbox, createSampleCollector } from './sampling.mjs';
 import { fixtureWorkers } from './fixture-pool.mjs';
 import { validateSustained, sustainedPhase } from './sustained.mjs';
-import { evaluateSustained, sustainedMarkdown } from './sustained-report.mjs';
-import { parseRunOptions, childEnvironment, runManifest, verifyMemoryProfile, requireMemoryProfile, evaluateMemoryProfile } from './memory-profile.mjs';
+import { parseRunOptions, childEnvironment, runManifest, verifyMemoryProfile, requireMemoryProfile } from './memory-profile.mjs';
+import { writeRunManifest, writeRunResults } from './run-artifacts.mjs';
+import { assertFixtureCopyDestination } from './fixture-paths.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const args=parseRunOptions();
@@ -49,7 +49,9 @@ for(const stage of profile.stages) {
 if(process.platform==='win32' && profile.stages.reduce((n,s)=>n+s.seconds,0)>120)throw new Error('PC smoke must stay under two minutes.');
 if(process.platform==='win32' && (profile.fixture.groups>5 || profile.catalogue.tasks>500 || profile.catalogue.chunks>64 || profile.fixture.historyEvents>20 || profile.fixture.snapshots>10 || profile.stages.some(s=>s.users>10||s.pluginPerSecond>10||s.browserPerSecond>10)))throw new Error('PC smoke fixture/rates must remain tiny.');
 if(!args.output)throw new Error('Use --output NEW_DIRECTORY (must not exist).');
-const directory=path.resolve(args.output);await mkdir(directory,{mode:0o700});
+const directory=path.resolve(args.output);
+if(fixtureFrom)await assertFixtureCopyDestination(fixtureFrom,directory);
+await mkdir(directory,{mode:0o700});
 const profileFile=path.join(directory,'profile.json');await writeFile(profileFile,JSON.stringify(profile,null,2),{flag:'wx'});
 const env=childEnvironment();
 let memoryProfileFailure;
@@ -88,11 +90,14 @@ for(const subdirectory of ['app','scripts/lib','scripts/perf/capacity']) {
 const sourceTreeDigest=sourceHash.digest('hex');
 const started=Date.now(),sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 const manifest=runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest});
-await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2),{flag:'wx'});
+await writeRunManifest(directory,manifest,{flag:'wx'});
 try {
   console.log(fixtureFrom?'Verifying and copying completed synthetic fixture.':`Generating synthetic fixture with ${workers} workers; progress is fixture-progress.json.`);
-  setup=launch('fixture');childLogs(setup);await until(setup,'generated');await new Promise(resolve=>setup.exitCode!==null?resolve():setup.once('exit',resolve));
+  setup=launch('fixture');childLogs(setup);const prepared=await until(setup,'generated');await new Promise(resolve=>setup.exitCode!==null?resolve():setup.once('exit',resolve));
   const fixture=JSON.parse(await readFile(path.join(directory,'fixture.json'),'utf8'));
+  const fixtureReuse=prepared.fixtureReuse;
+  Object.assign(manifest,{fixtureDigest:fixture.fixtureDigest,fixtureReuse});
+  await writeRunManifest(directory,manifest);
   const setupSeconds=(Date.now()-started)/1000;
   if(args['fixture-only']) {
     await writeFile(path.join(directory,'setup-summary.json'),JSON.stringify({...manifest,setupSeconds,
@@ -103,9 +108,9 @@ try {
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
   const verification=requireMemoryProfile(ready.memoryProfileVerification);
   profile.memoryProfile=verification.memoryProfile;
-  Object.assign(manifest,runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest,verification}));
+  Object.assign(manifest,runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest,verification,fixtureReuse,fixtureDigest:fixture.fixtureDigest}));
   await writeFile(profileFile,JSON.stringify(profile,null,2));
-  await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2));
+  await writeRunManifest(directory,manifest);
   let id=0,busy=false,telemetryErrors=0,runStart;
   const samples=[],contextOpens=[],admissionTransitions=[],inbox=createSampleInbox();
   let generation=0,restarting=false;
@@ -156,9 +161,7 @@ try {
       setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})=>({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})),
       datasetDigest:fixture.datasetDigest,retention:fixture.groups.map(g=>({index:g.index,stateDigest:g.stateDigest,...g.retention,snapshots:g.retainedSnapshots}))},
     load,samples,contextOpens,admissionTransitions,telemetryErrors,shutdown};
-  requireMemoryProfile(evaluateMemoryProfile(result));
-  result.gates=profile.sustained?evaluateSustained(result):evaluate(result);
-  await writeFile(path.join(directory,'results.json'),JSON.stringify(result,null,2));await writeFile(path.join(directory,'summary.md'),profile.sustained?sustainedMarkdown(result):markdown(result));
+  await writeRunResults(directory,result);
   console.log(`Results: ${path.join(directory,'summary.md')}; ${load.stats.offered} arrivals, ${load.stats.rejects} rejects, ${load.stats.timeouts} timeouts.`);
   }
   // Capacity failures are data, not harness execution failures. Inspect gates.
@@ -167,7 +170,7 @@ try {
     profile.memoryProfile=null;
     manifest.memoryProfile=null;manifest.memoryProfileVerification=error.verification;manifest.profileDigest=digest(profile);
     await writeFile(profileFile,JSON.stringify(profile,null,2));
-    await writeFile(path.join(directory,'run-manifest.json'),JSON.stringify(manifest,null,2));
+    await writeRunManifest(directory,manifest);
   }
   await writeFile(path.join(directory,'failure.json'),JSON.stringify({...manifest,reason:error.code,name:error.name,message:error.message}));
   throw error;

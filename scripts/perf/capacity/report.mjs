@@ -3,6 +3,14 @@ import { memoryProfileMarkdown } from './memory-profile.mjs';
 const cheap=['state','history','edit','session'];
 const expensive=['task-view','group-task-view','how','why','task-miss','preview','roll-accept','pool-undo'];
 const number=value=>Number.isFinite(value)?value.toFixed(2):'n/a';
+export function fixtureReuseMarkdown(result) {
+  const reuse=result.fixtureReuse??result.manifest?.fixtureReuse;
+  if(!reuse)return 'Fixture reuse provenance: unavailable.\n\n';
+  const status=!reuse.reused?'newly generated':reuse.acrossVersions?'reused across versions':'reused with exact implementation match';
+  return `Fixture: **${status}**. Fixture-content comparison key: \`${result.fixtureDigest??result.fixture?.fixtureDigest}\`.\n\n`+
+    `Fixture implementation digest: \`${reuse.fixtureImplementationDigest}\`; current implementation digest: \`${reuse.currentImplementationDigest}\`.\n\n`+
+    `Fixture source commit: ${reuse.sourceCommit?`\`${reuse.sourceCommit}\``:'not recorded'}.\n\n`;
+}
 export function diagnosticMarkdown(result) {
   const opens=result.contextOpens??[], transitions=result.admissionTransitions??[], samples=result.samples??[];
   const phases=['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'];
@@ -87,6 +95,7 @@ export function evaluate(result) {
 export function markdown(result) {
   const gates=result.gates,failed=Object.entries(gates).filter(([,v])=>v.status==='fail').map(([name])=>name);
   return `# Synthetic capacity run\n\nSource: \`${result.sourceCommit}\`; Node ${result.node}; seed \`${result.profile.seed}\`.\n\n`+
+    fixtureReuseMarkdown(result)+
     memoryProfileMarkdown(result)+
     `Result: **${failed.length?'FAIL':'INCOMPLETE'}**. Failed measured gates: ${failed.join(', ')||'none'}. Unmeasured gates prevent capacity acceptance.\n\n`+
     `${result.fixture.groups} groups, ${result.fixture.characters} roster slots, ${result.fixture.logins} logins, ${result.fixture.keys} stored keys; plus 1 synthetic legacy context with 2 unowned slots.\n\n`+

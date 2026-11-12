@@ -18,11 +18,19 @@ if(mode==='fixture') {
   const lostParent=()=>process.exit(1);
   process.once('disconnect',lostParent);
   try {
+    const cache=await import('./fixture-cache.mjs');
+    let fixtureReuse;
     if(fixtureFrom) {
       const {selectedDataset}=await import('../../../app/dataset-runtime.mjs');
-      await (await import('./fixture-cache.mjs')).copyFixture(fixtureFrom,directory,profile,selectedDataset.digest);
-    } else await (await import('./fixture.mjs')).generate(profile,directory,{workers:Number(workers)});
-    process.send({type:'generated'});
+      fixtureReuse=(await cache.copyFixture(fixtureFrom,directory,profile,selectedDataset.digest)).fixtureReuse;
+    } else {
+      let sourceCommit;
+      try { ({sourceCommit}=JSON.parse(await readFile(path.join(directory,'run-manifest.json'),'utf8'))); }
+      catch(error) { if(error.code!=='ENOENT')throw error; }
+      await (await import('./fixture.mjs')).generate(profile,directory,{workers:Number(workers),sourceCommit});
+      fixtureReuse=await cache.fixtureReuseProvenance(directory,{reused:false});
+    }
+    process.send({type:'generated',fixtureReuse});
   }
   catch(error) { process.stderr.write(`${error?.stack ?? error}\n`); process.send({type:'failure',name:error.name,message:error.message}); process.exitCode=1; }
   process.off('disconnect',lostParent); process.disconnect();

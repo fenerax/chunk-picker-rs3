@@ -285,8 +285,69 @@ With `--memory-profile default`, runtime limits still include 7 resident context
 They may refuse this workload. No proposed higher limit is silently enabled to
 make the graph pass. The opt-in selection requests the application's budget
 profile instead. `profile.json`, exact source/tree digest and health/diagnostic
-samples bind each run to its settings. If another track changes defaults, use a
-fresh fixture from that exact source and compare both reports.
+samples bind each run to its settings. If another track changes defaults, reuse
+the same compatible sealed fixture and compare both reports; the server source
+and fixture source are recorded independently.
+
+## Sealed fixture reuse across code versions
+
+`--fixture-from` accepts a different implementation digest. It still requires a
+complete schema-1 seal, the requested fixture-content configuration/dataset digest
+and format label, the exact file inventory (including sizes and `modifiedMs`),
+every file checksum, the logical fixture digest, and the physical group storage
+format. Format 2 also verifies the retained catalogue release and requires its
+owned base pin and bytes to match what the current runtime prepares. These
+checks run before a measured server starts. Running new server code on older
+compatible saves models the deployment case; a server-only change does not
+require rebuilding 500 groups.
+
+Rebuild when the content configuration changes (seed, catalogue shape, fixture
+population/growth/history/keys, entity caps, dataset digest or format), the
+application's writer schema changes, the synthetic builder's output changes, or
+the format-2 runtime's canonical owned base changes. Writer schemas come from
+`SCHEMA_VERSION`, `COMPLETION_BACKUP_VERSION`, and, for format 2,
+`OWNED_STORAGE_SCHEMA_VERSION`, `OWNED_BASE_FORMAT` and
+`OWNED_BASE_GENERATOR_VERSION`. Flat static-field metadata has no exported
+application constant; its writer version is recorded explicitly as `flatStatic`
+and tested with a tiny fixture large enough to use static fields.
+The separate `fixtureContentVersion` covers
+builder semantics with no application version constant: plan/catalogue generation,
+growth commands, migration/identity preparation and retention output. Tests pin
+the deterministic output of tiny fresh/grown fixtures for both formats to that
+version; an output change requires advancing it and adding a new golden. Keep
+the old golden as the historical content-version definition. The goldens cover
+logical saved states/History, revisions, retention, roster/key counts, task
+identities and physical document schemas; random credentials, file names and
+setup timings are excluded. Ordinary traffic, memory-profile, reporting and
+server changes leave that version alone. Damaged,
+incomplete or relabelled fixtures are refused; restore an intact original or
+rebuild rather than editing its seal.
+
+Original seals from format-1 main `12f402c2` and format-2 main `0a543b7e`
+remain valid without resealing. Missing content/schema metadata means the original
+content version 1 and historical writer versions (state 1, completion 2, flat static 1; owned 2,
+base 1, base generator 1 for format 2). New seals add `fixtureContentVersion`,
+`storageSchema`, and `sourceCommit` when the builder receives it (the runner
+supplies it). The existing seal `schemaVersion` stays 1.
+
+The run manifest, `results.json` and `summary.md` report exact implementation
+reuse or reuse across versions, the fixture implementation digest, the current
+implementation digest, and the fixture source commit when recorded. Old runner
+fixtures can supply that commit from their original `run-manifest.json`; absent
+provenance is explicitly unknown. `fixtureDigest`, the fixture-content digest,
+remains the comparison key between runs. The current run's source commit/tree
+digest continues to identify the measured server code.
+
+Keep the sealed source immutable. The harness verifies and streams copies into
+the new output directory, preserves file mtimes, then runs the measured server
+only on that copy. It never opens a source store or reseals the source. Output
+trees overlapping the source are refused, including directory aliases. A fixture
+may live on a separate disk: pass that directory to `--fixture-from` directly;
+there is no need to first copy it beside the checkout. **Preserve file modification
+times when storing, transferring and restoring a fixture** (for example, use an
+archive or copy tool that retains mtimes). The inventory compares `modifiedMs`,
+and retention uses historical ages. Preserve the original seal and, for old
+fixtures, the original run manifest alongside its managed files.
 
 ## Exact scratch-host commands
 
@@ -355,8 +416,8 @@ It may exceed this budget. `setup-summary.json.setupSeconds` and per-group setup
 timings provide the actual fixture cost; the measured run's `setupSeconds`
 includes verified copying. Both profiles copy the same sealed fixture; memory
 selection changes the run digest but not the fixture-content digest. Reuse
-requires the exact same implementation and fixture-content configuration digests
-and preserves historical mtimes. Never use a previously measured/mutated
+follows the compatibility rule above and preserves historical mtimes across
+storage/restore and measured-run copying. Never use a previously measured/mutated
 run as the reusable fixture.
 
 For a synthetic format-2 comparison on this branch, prepare a separate fixture

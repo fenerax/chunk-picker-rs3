@@ -1,14 +1,15 @@
 import path from 'node:path';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
-import { catalogue, planFixture, digest, knownGaps, integer, syntheticWorld } from './model.mjs';
+import { planFixture, digest, knownGaps, integer, syntheticWorld } from './model.mjs';
 import { fixtureWorkers, buildGroups } from './fixture-pool.mjs';
 import { fixtureConfigDigest, logicalFixtureDigest, sealFixture } from './fixture-cache.mjs';
 import { fixtureMigration } from './fixture-migration.mjs';
 import { prepareCapacityOwnedRelease } from './owned-release.mjs';
+import { prepareFixtureInputs } from './fixture-inputs.mjs';
 
 // The parent alone owns registry/invites/keys. Workers exclusively own the
 // disjoint picker stores between provisioning and ordered capability indexing.
-export async function generate(profile, directory, { workers: requestedWorkers } = {}) {
+export async function generate(profile, directory, { workers: requestedWorkers, sourceCommit } = {}) {
   const started = performance.now(), plan = planFixture(profile), workers = fixtureWorkers(requestedWorkers, { groups: plan.length });
   const active = new Map();
   let groups = 0, characters = 0, builtGroups = 0, sequence = 0, writes = Promise.resolve();
@@ -23,22 +24,11 @@ export async function generate(profile, directory, { workers: requestedWorkers }
   };
   await progress({ phase: 'catalogue' });
   const [{ openRegistry }, { openStore }, { openInviteStore }, { openPluginKeys }, { createGroupState },
-    { createRuleRegistry }, { buildWorld }, { selectedDataset }, { bindDatasetStorage }] = await Promise.all([
+    { buildWorld }, { selectedDataset }, { bindDatasetStorage }] = await Promise.all([
     import('../../../app/storage/registry.mjs'), import('../../../app/storage/store.mjs'), import('../../../app/storage/invites.mjs'),
-    import('../../../app/plugin-keys.mjs'), import('../../../app/core/state.mjs'), import('../../../app/core/rules.mjs'),
+    import('../../../app/plugin-keys.mjs'), import('../../../app/core/state.mjs'),
     import('../../../app/data/world.mjs'), import('../../../app/dataset-runtime.mjs'), import('../../../app/dataset-binding.mjs')]);
-  const data = catalogue(profile.catalogue), rules = createRuleRegistry();
-  const { createTaskScheduler } = await import('../../../app/tasks/scheduler.mjs');
-  const { prepareServerDefinitions, preparedDefinitionStages } = await import('../../../app/dataset-pipeline.mjs');
-  const definitions = prepareServerDefinitions(structuredClone(data), selectedDataset, { reviewedOverlays: false });
-  const calculator = await createTaskScheduler({ workerData: { definitions, datasetSelection: selectedDataset.workerSelection(),
-    datasetDigest: selectedDataset.digest, datasetOptions: { reviewedOverlays: false, cacheWalking: false },
-    preparedDatasetStages: preparedDefinitionStages(definitions), world: { ...syntheticWorld(data, buildWorld) } } });
-  let migrationInputs;
-  try {
-    migrationInputs = { definitions, catalogue: calculator.catalogue, dynamicCatalogue: calculator.dynamicCatalogue,
-      taskMap: {}, taskMapHistory: selectedDataset.capabilities.legacyHistory === false ? {} : await selectedDataset.json('app/data/legacy-task-history.json') };
-  } finally { await calculator.close(); }
+  const { data, rules, migrationInputs } = await prepareFixtureInputs(profile);
   const tasks = migrationInputs.catalogue.map(({ id, label, category }) => ({ id, label, category }));
   const { challenges, ...worldData } = data; // The world does not need task dependencies.
   const taskBytes = Buffer.from(JSON.stringify({ tasks, migrationInputs })), sharedTasks = new SharedArrayBuffer(taskBytes.length);
@@ -114,7 +104,7 @@ export async function generate(profile, directory, { workers: requestedWorkers }
   manifest.fixtureDigest = logicalFixtureDigest(manifest);
   await progress({ phase: 'verifying' });
   await writeFile(path.join(directory, 'fixture.json'), JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });
-  await sealFixture(directory, manifest);
+  await sealFixture(directory, manifest, { sourceCommit });
   await progress({ phase: 'complete', fixtureDigest: manifest.fixtureDigest });
   return manifest;
 }

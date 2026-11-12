@@ -1,6 +1,10 @@
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
-import { prepareOwnedServingRelease, retainOwnedServingRelease } from '../../../app/storage/owned-serving.mjs';
+import { prepareOwnedServingRelease, retainOwnedServingRelease, verifyOwnedRuntimeRelease } from '../../../app/storage/owned-serving.mjs';
+import { verifyOwnedBaseBytes } from '../../../app/storage/owned-base.mjs';
+import { isDeepStrictEqual } from 'node:util';
+import { prepareFixtureInputs } from './fixture-inputs.mjs';
+import { fixtureMigration } from './fixture-migration.mjs';
 
 export async function prepareCapacityOwnedRelease(directory, inputs) {
   const release = await prepareOwnedServingRelease(inputs);
@@ -17,4 +21,17 @@ export async function loadCapacityOwnedRelease(directory) {
   const manifestPath = path.join(catalogueRoot, descriptor.manifestFile), releasePath = path.join(catalogueRoot, descriptor.releaseFile);
   return { catalogueRoot, dataset: descriptor.dataset, manifestPath, releasePath, retainedManifestPaths: [],
     manifest: JSON.parse(await readFile(manifestPath, 'utf8')), releaseBytes: await readFile(releasePath) };
+}
+
+// Read only: verify the retained trust inputs and compare with what the current
+// server prepares. Preparing an in-memory base never publishes into the fixture.
+export async function verifyCapacityOwnedRelease(directory, profile, pin) {
+  const { selectedDataset } = await import('../../../app/dataset-runtime.mjs');
+  const { rules, migrationInputs } = await prepareFixtureInputs(profile);
+  const current = await prepareOwnedServingRelease({ dataset: selectedDataset, registry: rules,
+    migrateState: fixtureMigration(migrationInputs, selectedDataset).migrateState });
+  if (!isDeepStrictEqual(pin, current.pin)) throw new Error('Fixture current runtime owned base pin mismatch; rebuild required.');
+  const retained = await loadCapacityOwnedRelease(directory);
+  verifyOwnedBaseBytes(retained.releaseBytes, retained);
+  verifyOwnedRuntimeRelease(retained, current);
 }
