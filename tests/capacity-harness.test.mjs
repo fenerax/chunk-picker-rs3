@@ -283,7 +283,7 @@ test('the same seed offers identical actions and clients with fast and slow fake
   // Only remove this test's newly created directory, inside the checkout's ignored scratch area.
   assert.equal(path.dirname(directory),path.resolve(fileURLToPath(scratch)));
   t.after(()=>rm(directory,{recursive:true,force:true}));
-  const profile={seed:'synthetic-response-order',port:0,catalogue:{chunks:8,tasks:12,dependencyDepth:4,crossLinks:2},
+  const profile={seed:'synthetic-response-order',memoryProfile:'budget-672',port:0,catalogue:{chunks:8,tasks:12,dependencyDepth:4,crossLinks:2},
     requestDeadlineMs:30000,sampleSeconds:60,maxClientInFlight:1000,stages:[{seconds:1,users:2,activeGroups:1,browserPerSecond:100,pluginPerSecond:0,syncPerMinute:0}]};
   const fixture={groups:[{index:0,taskIds:['synthetic-task'],members:[{memberId:'owner',cookie:'synthetic-one'},
     {memberId:'member2',cookie:'synthetic-two'}]}]};
@@ -302,7 +302,11 @@ test('the same seed offers identical actions and clients with fast and slow fake
         const offer=event=>run({...event,scheduledAt:performance.now()});
         if(slow)await Promise.all(events.map(offer));else for(const event of events)await offer(event);
       }});
-    const offered=(await readFile(output+'/events.jsonl','utf8')).trim().split('\n').map(line=>JSON.parse(line))
+    const receipts=(await readFile(output+'/events.jsonl','utf8')).trim().split('\n').map(line=>JSON.parse(line));
+    assert.equal(load.memoryProfile,'budget-672');
+    assert.ok(load.operations.every(row=>row.memoryProfile==='budget-672'));
+    assert.ok(receipts.every(row=>row.memoryProfile==='budget-672'&&row.requests.every(request=>request.memoryProfile==='budget-672')));
+    const offered=receipts
       .sort((a,b)=>a.id-b.id).map(row=>({id:row.id,action:row.action,intentionalConflict:row.intentionalConflict,requests:row.requests.filter(r=>r.route!=='/api/session').map(r=>r.route)}));
     assert.equal(load.stats.completed,load.stats.offered);
     assert.equal(offered.filter(row=>row.action!=='session').length,100);

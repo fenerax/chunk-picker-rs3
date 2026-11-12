@@ -1,6 +1,11 @@
 import { diagnosticMarkdown } from './report.mjs';
 import { distribution } from './driver.mjs';
 import { cleanExit } from './evidence.mjs';
+import { assertMemoryProfile, memoryProfileMarkdown } from './memory-profile.mjs';
+
+// Both profiles must meet the same user-requested bars, evaluated separately.
+export const profileSpeedBars = Object.freeze(Object.fromEntries(['default','budget-672'].map(name=>
+  [name,Object.freeze({everydayMs:300,heavyMs:3000,coldOpenMs:2000})])));
 
 export const everydayActions = ['state','history','task-view','group-task-view','how','why','note','tick','undo','session'];
 export const heavyActions = ['task-miss','preview','roll-accept','pool-undo'];
@@ -82,6 +87,7 @@ function headerEvidence(rows,stageStreams,tailStreams,stages) {
     streams.reduce((n,row)=>n+row.handshakes,0)<=streams.reduce((n,row)=>n+row.attempted,0);
 }
 export function evaluateSustained(result) {
+  const memoryProfile=assertMemoryProfile(result),bars=profileSpeedBars[memoryProfile];
   const {load,profile} = result, measured = load.operations.filter(row=>profile.stages[row.stage]?.measured);
   const activeGroups = profile.stages.at(-1).activeGroups, users = profile.stages.at(-1).users;
   const restart = load.restarts[0], groups = load.recovery.groups, cohort=load.cohort??{};
@@ -118,7 +124,7 @@ export function evaluateSustained(result) {
   const cold = load.operations.filter(row=>row.action==='cold-open');
   const coldCount = cold.reduce((n,row)=>n+(row.latency?.count??0),0);
   const offered=load.offeredOperations,measuredOffered=(offered??[]).filter(row=>profile.stages[row.stage]?.measured);
-  const coldGate = speed(cold,['cold-open'],2000,offered);
+  const coldGate = speed(cold,['cold-open'],bars.coldOpenMs,offered);
   const coldProof=cohortValid&&sameMembers(cohort.coldGroups??[],cohort.groups??[])&&sameMembers((load.coldOpens??[]).map(row=>row.group),cohort.groups??[])&&
     (load.coldOpens??[]).every(row=>proof(row,load.initialServerId,load.workloadStart))&&coldCount===activeGroups;
   if(!coldProof)coldGate.status='fail';
@@ -152,8 +158,8 @@ export function evaluateSustained(result) {
   const live=cohortValid&&replacement&&confirmed?clients.map(client=>liveRecoveryStream(lifetimes,client,{serverId:restart.serverId,
     startedAt:restart.startedAt,deadlineAt,confirmedAt:load.workloadStart+confirmation.elapsedMs,throughAt:load.streamShutdownAt,completedAt:load.completedAt,sampleMs:profile.sampleSeconds*1000})):[];
   const configuredPlugin=profile.stages.some(row=>row.measured&&row.pluginPerSecond>0),configuredSync=profile.stages.some(row=>row.measured&&row.syncPerMinute>0);
-  return {
-    everyday:speed(measured,everydayActions,300,measuredOffered),heavy:speed(measured,heavyActions,3000,measuredOffered),coldOpen:{...coldGate,groups:coldCount},
+  const gates={
+    everyday:speed(measured,everydayActions,bars.everydayMs,measuredOffered),heavy:speed(measured,heavyActions,bars.heavyMs,measuredOffered),coldOpen:{...coldGate,groups:coldCount},
     pluginTraffic:configuredPlugin?completion(measured,['pluginReport','pluginStatus','pluginTasks'],measuredOffered):{status:'not-configured'},
     syncTraffic:configuredSync?completion(measured,['sync'],measuredOffered):{status:'not-configured'},
     restartRecovery:{status:recoveryMs!==null&&recoveryMs<limitMs?'pass':'fail',
@@ -169,12 +175,14 @@ export function evaluateSustained(result) {
       reason:format2Serving?'Synthetic owned format-2 cold opens and post-restart HTTP recovery with independently retained release inputs.':'This run supplies no complete format-2 HTTP/restart evidence.'},
     characterSwitch:{status:'blocked',offered:measured.filter(row=>row.action==='switch').reduce((n,row)=>n+row.latency.count,0),reason:'No durable character entity or authorized character switch API; offered switches are unsupported.'},
   };
+  return Object.fromEntries(Object.entries(gates).map(([name,gate])=>[name,{...gate,memoryProfile}]));
 }
 const n = value => Number.isFinite(value)?value.toFixed(1):'n/a';
 export function sustainedMarkdown(result) {
-  const {load,gates,profile} = result;
+  const {load,profile} = result,gates=evaluateSustained(result);
   const failures = Object.entries(gates).filter(([,value])=>value.status==='fail').map(([name])=>name);
   return `# Sustained HTTP capacity run\n\nSource: \`${result.sourceCommit}\`; source tree: \`${result.sourceTreeDigest}\`; Node ${result.node}; **${result.format}**; seed \`${profile.seed}\`.\n\n`+
+    memoryProfileMarkdown(result)+
     `Result: **${failures.length?'FAIL':'BLOCKED'}**. Failed measured gates: ${failures.join(', ')||'none'}. Activation and character switching remain blocked; this run cannot approve launch. Smoke-sized results do not prove capacity.\n\n`+
     `${result.fixture.groups} resident disk groups plus one legacy context; ${profile.stages.at(-1).activeGroups} active groups and ${profile.stages.at(-1).users} online clients. Setup ${n(result.setupSeconds)} s; total ${n(result.elapsedSeconds)} s.\n\n`+
     `Open-loop arrivals ${load.stats.offered}; completed ${load.stats.completed}; already-ready recovery probes skipped ${load.stats.recoveryProbesSkipped??0}; HTTP requests ${load.stats.httpRequests}; refusals ${load.stats.rejects}; timeouts ${load.stats.timeouts}; unsupported ${load.stats.unsupported}; client drops ${load.stats.clientDrops}.\n\n`+
@@ -187,5 +195,5 @@ export function sustainedMarkdown(result) {
     `${JSON.stringify({latency:distribution((load.streamHandshakes??[]).map(row=>row.latencyMs)),stages:load.stageStreams,outsideStages:load.tailStreams},null,2)}\n\n`+
     `## Restart and recovery\n\n${JSON.stringify({restarts:load.restarts,recovery:gates.restartRecovery,streams:gates.streamRecovery},null,2)}\n\n`+
     `## Time series\n\nEvery sample in samples.jsonl includes server RSS, heapUsed, heapTotal, external and arrayBuffers; event-loop delay/utilization; diagnostics (calculator queues and routing residency); cold-open queue depth; process-tree memory/CPU on Linux; and generator active requests/CPU/memory. Each source retains its own receivedAt/elapsedMs and phase/window; health and diagnostics have independent IPC receipts before heap probes. collectedAt is assembly time, never readiness or phase evidence. Admission transitions and open phases are also retained in results.json with server generation and run-relative receipt time. Missing/restart samples are explicit.\n\n`+
-    diagnosticMarkdown(result)+`## Limits\n\n${result.fixture.gaps.map(gap=>'- '+gap).join('\n')}\n\nNo application behavior or admission limit is changed. Runtime defaults may refuse this target. Same-group revision races are visible as 409 outcomes and are never blindly retried. Safe reads use bounded retry/backoff; commands remain single-dispatch.\n`;
+    diagnosticMarkdown(result)+`## Limits\n\n${result.fixture.gaps.map(gap=>'- '+gap).join('\n')}\n\nThe selected memory profile uses application support from this exact source; the harness does not implement new caps. Either profile may refuse this target. Same-group revision races are visible as 409 outcomes and are never blindly retried. Safe reads use bounded retry/backoff; commands remain single-dispatch.\n`;
 }

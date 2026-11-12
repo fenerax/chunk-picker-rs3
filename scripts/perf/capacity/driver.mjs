@@ -6,6 +6,7 @@ import { createBrowserClient, reconnectStream, pause, retryAfterMs, retryRead } 
 import { sustainedArrivals, sustainedAction, sustainedBrowserAction, sustainedPhase } from './sustained.mjs';
 import { SERVER_ID_HEADER, clientIdentity, plannedOperations, readinessProof } from './evidence.mjs';
 import { observation } from './sampling.mjs';
+import { memoryProfile as selectMemoryProfile } from './memory-profile.mjs';
 
 export function percentile(values,p) {
   const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.max(0,Math.ceil(sorted.length*p)-1)] : null;
@@ -133,6 +134,8 @@ export async function consumeStream({base,client,controller,counters,stats,plann
   } finally {closedAt??=now();cancelTimer(deadline);onClosed({opened,planned:planned(),receivedAt:closedAt});}
 }
 export async function drive({base,initialServerId,profile,fixture,directory,onSample,restartServer,now=()=>performance.now(),startWorkload=()=>now(),fetchRequest=fetch,schedule=dispatch}) {
+  const memoryProfile=selectMemoryProfile(profile.memoryProfile);
+  const profiledStreamCounters=()=>({...streamCounters(),memoryProfile});
   base=loopback(base,{assigned:profile.port===0});
   const cohorts=prepareCohorts(profile,fixture),chunks=Object.keys((await import('./model.mjs')).catalogue(profile.catalogue).chunks);
   const workloadEvents=profile.sustained?sustainedArrivals(profile,cohorts):arrivals(profile.stages,profile.seed,stage=>({browser:stage.browserPerSecond,pluginReport:stage.pluginPerSecond*.4,
@@ -141,13 +144,13 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
     .sort((a,b)=>a.atMs-b.atMs).map((event,i)=>({...event,id:i+1}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
     rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,recoveryProbesSkipped:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
-    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(streamCounters),tailStreams=streamCounters(),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
+    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(profiledStreamCounters),tailStreams=profiledStreamCounters(),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
   const streamAttempts=new Map(),recovered=new Map(),restarts=[],streamHandshakes=[],streamLifetimes=[],coldOpens=[];
   let streamShutdown=false, active=0, maxActive=0,restart,workloadCompletedAt,streamShutdownAt;
   const request=async(client,route,body,extra={})=>{
     stats.httpRequests++;
     const requestStart=now();
-    const observation={route:route.split('?')[0],status:'pending',...(route.startsWith('/api/command')?{command:body?.command?.type}: {})};client.observations?.push(observation);
+    const observation={memoryProfile,route:route.split('?')[0],status:'pending',...(route.startsWith('/api/command')?{command:body?.command?.type}: {})};client.observations?.push(observation);
     let res;
     try {res=await fetchRequest(base+route,{method:body===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.timeout(profile.requestDeadlineMs),
       headers:{...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),
@@ -219,7 +222,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
           controller.signal.addEventListener('abort',abort,{once:true});
           if(controller.signal.aborted)abort();
           try {return await consumeStream({base,client,controller:attemptController,counters,stats,fetchRequest,now,requireEventStream:!!profile.sustained,headerDeadlineMs:profile.streamHeaderDeadlineMs??5000,
-            onOpened:({serverId,receivedAt})=>{if(profile.sustained){connection={clientId:clientIdentity(client),group:client.group,serverId,openedAt:receivedAt,closedAt:null,closeReason:null};streamLifetimes.push(connection);}},
+            onOpened:({serverId,receivedAt})=>{if(profile.sustained){connection={memoryProfile,clientId:clientIdentity(client),group:client.group,serverId,openedAt:receivedAt,closedAt:null,closeReason:null};streamLifetimes.push(connection);}},
             onClosed:({planned,receivedAt})=>{if(connection){connection.closedAt=receivedAt;connection.closeReason=planned||'unexpected';}},
             onHandshake:receipt=>{if(profile.sustained)streamHandshakes.push({...receipt,...observation(profile,workloadStart,receipt.receivedAt),latencyMs:receipt.receivedAt-startedAt});},
             planned:()=>streamShutdown?'workload-end':controller.signal.aborted?'cohort-change':attempt.planned?'reconnect':profile.sustained&&restart&&restart.serverReadyMs==null?'server-restart':false});}
@@ -231,12 +234,12 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
   const timing=[];
   const record=(action,event,start,end,outcome)=>{
     for(const observation of outcome.requests??[])if(observation.command) {
-      const key=`${observation.command}:${observation.status}`,row=commands.get(key)??{command:observation.command,status:observation.status,values:[]};
+      const key=`${observation.command}:${observation.status}`,row=commands.get(key)??{memoryProfile,command:observation.command,status:observation.status,values:[]};
       row.values.push(observation.wallMs);commands.set(key,row);
     }
     const phase=sustainedPhase(profile,event.atMs);
-    const row={id:event.id,stage:event.stage,...(phase?{phase}:{}),action,scheduledMs:event.atMs,startLagMs:start-event.scheduledAt,latencyMs:end-event.scheduledAt,httpWallMs:end-start,...outcome};
-    const group=records[`${event.stage}:${phase??''}:${action}`]??={stage:event.stage,...(phase?{phase}:{}),action,all:[],valid:[],success:[],lag:[],statuses:{},httpRequests:0,httpRejects:0,timeouts:0,
+    const row={memoryProfile,id:event.id,stage:event.stage,...(phase?{phase}:{}),action,scheduledMs:event.atMs,startLagMs:start-event.scheduledAt,latencyMs:end-event.scheduledAt,httpWallMs:end-start,...outcome};
+    const group=records[`${event.stage}:${phase??''}:${action}`]??={memoryProfile,stage:event.stage,...(phase?{phase}:{}),action,all:[],valid:[],success:[],lag:[],statuses:{},httpRequests:0,httpRejects:0,timeouts:0,
       rejectsWithoutRetryAfter:0,unexpectedFailures:0,intentionalConflicts:0,unsupported:0,cacheHits:0,cacheMisses:0,successfulTaskMisses:0,coalescedSessionChecks:0,httpStatuses:{},retryAfterValues:{}};
     group.all.push(row.latencyMs);group.lag.push(row.startLagMs);if(outcome.status===200)group.success.push(row.latencyMs);
     if(measuredOutcome(outcome))group.valid.push(row.latencyMs);
@@ -273,7 +276,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
         // Keep the full advertised duration even when the last jittered arrival is early.
       } else if(event.kind==='restart') {
         if(!restartServer)throw new Error('Sustained driver requires a restart callback.');
-        restart={scheduledAt:event.scheduledAt,startedAt:start,scheduledMs:event.atMs};restarts.push(restart);
+        restart={memoryProfile,scheduledAt:event.scheduledAt,startedAt:start,scheduledMs:event.atMs};restarts.push(restart);
         const result=await restartServer(),readyReceivedAt=result.readyReceivedAt??now();base=loopback(result.base,{assigned:profile.port===0});
         Object.assign(restart,{...result,readyReceivedAt,serverReadyMs:readyReceivedAt-start});
       } else if(event.kind==='reconnect') {
@@ -286,7 +289,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
         const tasksResponse=client.observations.findLast(row=>row.route==='/api/tasks');
         const expectedServerId=event.kind==='cold-open'?initialServerId:restart?.serverReadyMs!=null&&restart.serverId!==initialServerId?restart.serverId:null;
         const proof=readinessProof({state,tasks,stateServerId:stateResponse?.serverId,tasksServerId:tasksResponse?.serverId,expectedServerId,memberId:client.memberId});
-        const evidence={group:client.group,...proof,stateReceivedAt:stateResponse.receivedAt,tasksReceivedAt:tasksResponse.receivedAt,
+        const evidence={memoryProfile,group:client.group,...proof,stateReceivedAt:stateResponse.receivedAt,tasksReceivedAt:tasksResponse.receivedAt,
           elapsedMs:Math.max(stateResponse.receivedAt,tasksResponse.receivedAt)-(event.kind==='cold-open'?workloadStart:restart.startedAt)};
         if(event.kind==='cold-open')coldOpens.push(evidence);
         else if(!recovered.has(client.group))recovered.set(client.group,evidence);
@@ -366,8 +369,8 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
     timing.push({maxActive});
   } finally {clearInterval(sampleTimer);streamShutdownAt=now();streamShutdown=true;for(const controller of streams.values())controller.abort();await Promise.allSettled(streamJobs);closeSync(log);}
   const selected=profile.sustained?cohorts.get(`${profile.stages.length-1}:0`):[];
-  return {workloadStart,workloadCompletedAt,streamShutdownAt,completedAt:now(),initialServerId,stats,stageStreams,tailStreams,streamHandshakes,restarts,
-    offeredOperations:profile.sustained?plannedOperations(events,profile):undefined,coldOpens,
+  return {memoryProfile,workloadStart,workloadCompletedAt,streamShutdownAt,completedAt:now(),initialServerId,stats,stageStreams,tailStreams,streamHandshakes,restarts,
+    offeredOperations:profile.sustained?plannedOperations(events,profile).map(row=>({...row,memoryProfile})):undefined,coldOpens,
     cohort:{groups:[...new Set(selected.map(row=>row.group))],clients:selected.map(row=>({clientId:clientIdentity(row),group:row.group})),coldGroups:[...new Set(cohorts.get('0:0').map(row=>row.group))]},
     recovery:{groups:[...recovered.values()],streams:streamLifetimes},
     commands:[...commands.values()].map(({values,...row})=>({...row,latency:distribution(values)})),operations:Object.values(records).map(({all,valid,success,lag,...rest})=>({...rest,latency:distribution(all),validLatency:distribution(valid),successfulLatency:distribution(success),clientDispatchLag:distribution(lag)})),timing};
