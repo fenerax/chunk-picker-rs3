@@ -1,8 +1,8 @@
 // @test dataset=open-f2p
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
-import { registerHooks } from 'node:module';
+import fs, { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { registerHooks, syncBuiltinESMExports } from 'node:module';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fixture as ownedFixture, options as ownedOptions } from './helpers/owned-format2-fixture.mjs';
@@ -192,20 +192,39 @@ for (const format of [1, 2]) {
     assert.equal((await reopened.readBackup(row.id, { forImport: true })).state.revision, 2);
   });
 
-  test(`format ${format}: a cached archive never authorizes removal of a changed duplicate`, async t => {
+  test(`format ${format}: a cached archive never authorizes removal after a stat fingerprint collision`, async t => {
     const f = await fixture(t, format), store = await f.open(); await probe.startup;
     const pack = await archive(f.dataDir), row = f.snapshots.find(row => row.revision === 2);
-    const source = path.join(f.dataDir, 'backups', row.id), info = await stat(pack.file);
+    const source = path.join(f.dataDir, 'backups', row.id), nativeStat = fs.stat;
+    const info = await nativeStat(pack.file, { bigint: true });
     await writeFile(source, f.sources.get(row.id));
     await utimes(source, new Date(row.at), new Date(row.at));
     const snapshot = pack.document.snapshots.find(snapshot => snapshot.id === row.id);
     snapshot.document += ' ';
     await writeFile(pack.file, gzipSync(JSON.stringify(pack.document)));
-    await utimes(pack.file, info.atime, info.mtime);
-    reset(); await store.prepareSnapshot();
-    assert.equal(probe.candidates, 1, 'the duplicate crosses full validation again');
-    assert.match(store.getInfo().retention.failure, /differs from its preserved standalone/);
-    assert.deepEqual(await readFile(source), f.sources.get(row.id));
+    // Hold the complete reported fingerprint fixed, including size and ctime.
+    // Restoring mtime alone would invalidate the cache and miss this boundary.
+    let archiveStats = 0;
+    const statHook = t.mock.method(fs, 'stat', async (file, options) => {
+      if (file !== pack.file) return nativeStat(file, options);
+      assert.deepEqual(options, { bigint: true });
+      archiveStats++;
+      return info;
+    });
+    syncBuiltinESMExports();
+    try {
+      reset(); await store.listBackups();
+      assert.equal(probe.decodes, 0, 'changed bytes still reuse the cached archive index');
+      assert.equal(probe.parses, 0);
+      assert(archiveStats > 0, 'the archive version was checked through the stat hook');
+      const beforeMaintenanceStats = archiveStats;
+      reset(); await store.prepareSnapshot();
+      assert(archiveStats > beforeMaintenanceStats, 'maintenance sees the same reported archive version');
+      assert.equal(probe.decodes, 2, 'validate the standalone and freshly reread the cached archive before removal');
+      assert.equal(probe.candidates, 1, 'the duplicate crosses full validation again');
+      assert.match(store.getInfo().retention.failure, /differs from its preserved standalone/);
+      assert.deepEqual(await readFile(source), f.sources.get(row.id));
+    } finally { statHook.mock.restore(); syncBuiltinESMExports(); }
     await writeFile(pack.file, pack.bytes);
     await utimes(pack.file, info.atime, info.mtime);
     reset(); await store.prepareSnapshot();
