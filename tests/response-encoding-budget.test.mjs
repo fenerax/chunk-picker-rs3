@@ -31,7 +31,7 @@ for (const encoding of ['gzip', 'br']) test(`${encoding} is charged and pinned t
 });
 
 test('uncached encodings wait for charged native work and invalidation releases pins on settlement', async () => {
-  const budget = createResponseCacheBudget({ maxBytes: 4 * MiB });
+  const budget = createResponseCacheBudget({ maxBytes: 4 * MiB, maxQueuedBytes: 2 * MiB });
   const a = createResponseCache({ budget, maxBytes: 2 * MiB }), b = createResponseCache({ budget, maxBytes: 0 });
   const bytes = Buffer.alloc(MiB, 'Z'), retained = a.set('a', createRepresentation(bytes));
   const first = retained.encoded('br');

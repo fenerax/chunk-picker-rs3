@@ -66,7 +66,7 @@ import { projectPlayState, projectPlayResult, PLAY_VIEW } from './play-view.mjs'
 import { projectBrowserState } from './web/browser-state.mjs';
 import { projectDuoPlayResult, projectDuoInspectionJSON, DUO_INSPECTION_VIEW } from './duo-play-view.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
-import { createRepresentation as rawCreateRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, RESPONSE_CACHE_DEFAULTS, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
+import { createRepresentation as rawCreateRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, RESPONSE_CACHE_DEFAULTS, RESPONSE_ENCODING_SIGNAL, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
 import { crc32, deflateRawSync } from 'node:zlib';
 import { normalizeSandboxRequest, sandboxTaskCatalogue, applySandboxChanges } from './sandbox.mjs';
 import { normalizeAreaCheckRequest } from './tasks/area-check.mjs';
@@ -287,6 +287,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   const savedWhyEvidence = createSavedWhyEvidence({ cache: responseCache });
   const stateResponseBuilds = createStateResponseBuilds();
   const stateResponses = new Set();
+  const responseEncodingShutdown = new AbortController();
   const stateResponseLeases = createResponseLeases({ maxBytes: responseBudget });
   const sandboxPools = createResponseCache({ ...RESPONSE_CACHE_DEFAULTS.sandbox, group: responseGroup });
   const poolRanking = createPoolRanking(), rankingPools = new Map();
@@ -896,6 +897,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   const admittedImports = new WeakSet();
   const importBodyChecks = new WeakMap();
   const applicationRequestHandler = async (request, response, lease, listener) => {
+    request[RESPONSE_ENCODING_SIGNAL] = responseEncodingShutdown.signal;
     // Listener policy is supplied by the socket dispatcher, never HTTP input.
     const listenerOptions = { ...listener, publicOrigin };
     const security = listener.ingressRole === 'public' ? requestContext(request, listenerOptions) : requestContextFor(request, listenerOptions);
@@ -2126,6 +2128,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     },
     fenceDeletion() {
       closed = true;
+      responseEncodingShutdown.abort();
       void savedWhyEvidence.close();
       stateResponseBuilds.close();
       for (const response of stateResponses) response.destroy();
@@ -2249,6 +2252,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     close() {
       if (closePromise) return closePromise;
       closed = true;
+      responseEncodingShutdown.abort();
       const evidenceClosed = savedWhyEvidence.close();
       stateResponseBuilds.close();
       for (const response of stateResponses) response.destroy();

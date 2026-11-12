@@ -69,7 +69,9 @@ if (!isMainThread) {
     return map;
   };
   const rules = {
-    '/tasks/worker.mjs': ['snapshots', 'sandboxSnapshots', 'stateSnapshots', 'mapLocationResults', 'sandboxTaskIndexes', 'viewContexts', 'serializedStateSizes'],
+    '/tasks/worker.mjs': ['mapLocationResults', 'sandboxTaskIndexes', 'viewContexts', 'serializedStateSizes'],
+    '/tasks/retained-data.mjs': ['rows'],
+    '/tasks/serialized-snapshot-cache.mjs': [],
     '/tasks/engine.mjs': ['variants'],
     '/tasks/eligibility-cache.mjs': ['entries'],
     '/tasks/obligation-cache.mjs': ['entries', 'masks'],
@@ -113,7 +115,23 @@ if (!isMainThread) {
       });
       if (!found) throw new Error('Cache probe anchor changed: ' + match + ':' + anchor);
     }
-    if (match === '/tasks/worker.mjs') source = source.replace(/(const snapshotBudget = [^\n]+\n)/, '$1globalThis[Symbol.for("rs3.cacheBudgetProbe")] = snapshotBudget;\n');
+    if (match === '/tasks/worker.mjs') {
+      const anchor = 'const engineOptions = ';
+      if (source.split(anchor).length !== 2) throw new Error('Cache budget probe anchor changed.');
+      source = source.replace(anchor, 'globalThis[Symbol.for("rs3.cacheBudgetProbe")] = snapshotBudget;\n' + anchor);
+      for (const [name, cache] of [['snapshots', 'completeCache'], ['sandboxSnapshots', 'sandboxCache']]) {
+        const anchor = `const ${name} = ${cache}.entries;`;
+        if (source.split(anchor).length !== 2) throw new Error('Serialized cache probe anchor changed.');
+        source = source.replace(anchor, `const ${name} = globalThis[Symbol.for('rs3.engineCacheProbe')](${JSON.stringify(match + ':' + name)}, ${cache}.entries);`);
+      }
+    }
+    if (match === '/tasks/serialized-snapshot-cache.mjs') {
+      const anchor = 'Map.prototype.set.call(entries, key, record);';
+      if (source.split(anchor).length !== 2) throw new Error('Serialized cache insertion probe anchor changed.');
+      // This diagnostic's entries.set wraps the same native insertion; the
+      // production code deliberately bypasses facade methods for raw records.
+      source = source.replace(anchor, 'entries.set(key, record);');
+    }
     const nested = match === '/core/automatic-transport.mjs' ? [['entries = new Map()', 'baseline-signatures'], ['byMember: new Map()', 'baseline-members']]
       : match === '/core/teleport-return-cache.mjs' ? [['entries = new Map()', 'return-decisions']]
       : match === '/tasks/worker.mjs' ? [['estimates: new Map()', 'death-estimates']] : [];

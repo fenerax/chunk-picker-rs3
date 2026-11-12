@@ -9,6 +9,7 @@ const gzipAsync = promisify(gzip), brotliAsync = promisify(brotliCompress);
 const etag = bytes => `"${createHash('sha256').update(bytes).digest('hex')}"`;
 export const PRIVATE_REVALIDATE = 'private, max-age=0, must-revalidate';
 export const PRIVATE_NO_STORE = 'private, no-store';
+export const RESPONSE_ENCODING_SIGNAL = Symbol('response-encoding-shutdown');
 
 export function negotiateEncoding(header = '', compress = true) {
   const qualities = new Map();
@@ -29,27 +30,38 @@ export function negotiateEncoding(header = '', compress = true) {
 export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true, identityETag } = {}) {
   const plain = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: identityETag ?? etag(plain) })]]);
+  const jobs = new Map();
   let retainedBytes = plain.byteLength, encodingPins = 0;
   const representation = { bytes: plain, type, cacheControl, compress,
     get pinned() { return encodingPins > 0; },
     get byteLength() { return plain.byteLength; },
     get retainedBytes() { return retainedBytes; },
-    encoded(encoding) {
+    cancelPendingEncodings() {
+      for (const job of jobs.values()) if (!job.admitted) job.controller.abort(Object.assign(new Error('Queued encoding was evicted.'), { status: 503, code: 'RESPONSE_ENCODING_BUSY' }));
+    },
+    encoded(encoding, { signal } = {}) {
+      const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
+      if (budget.enforced && signal?.aborted) return Promise.reject(signal.reason);
       if (!encodings.has(encoding)) {
         // Both codecs' maximum encoded size is below this input + 6.25% +
         // 64 KiB charge. Reserve output before native work; input is already
         // charged by a retained row, or included in an uncached reservation.
         const outputCharge = plain.byteLength + Math.ceil(plain.byteLength / 16) + 65536;
-        const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
+        const job = { controller: new AbortController(), clients: new Set(), admitted: false, background: false };
+        jobs.set(encoding, job);
         const permit = budget.reserveEncoding({
           cost: () => outputCharge + (representation.isRetained?.() ? 0 : retainedBytes),
           uncachedCost: () => outputCharge + retainedBytes,
+          inputBytes: () => retainedBytes,
+          inputCost: () => representation.isRetained?.() ? 0 : retainedBytes,
           detach: () => representation.detachEncodingInput?.(),
-          pin: () => { encodingPins++; }, unpin: () => { encodingPins--; },
+          pin: () => { encodingPins++; job.admitted = true; }, unpin: () => { encodingPins--; job.admitted = false; },
+          signal: job.controller.signal,
         });
         encodings.set(encoding, permit.then(async release => {
           let encoded;
           try {
+            if (budget.enforced) job.controller.signal.throwIfAborted();
             const bytes = await (encoding === 'br'
               ? brotliAsync(plain, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })
               : gzipAsync(plain, { level: 1 }));
@@ -62,9 +74,26 @@ export function createRepresentation(bytes, { type = 'application/json; charset=
             representation.onSizeChange?.();
           }
           return encoded;
-        }).catch(error => { encodings.delete(encoding); throw error; }));
+        }).catch(error => {
+          if (jobs.get(encoding) === job) encodings.delete(encoding);
+          throw error;
+        }).finally(() => { if (jobs.get(encoding) === job) jobs.delete(encoding); }));
       }
-      return encodings.get(encoding);
+      const promise = encodings.get(encoding), job = jobs.get(encoding);
+      if (!job || !budget.enforced) return promise;
+      if (!signal) { job.background = true; return promise; }
+      if (job.clients.size >= 32) return Promise.reject(Object.assign(new Error('Too many encoding callers.'), { status: 503, code: 'RESPONSE_ENCODING_BUSY' }));
+      const client = {}; job.clients.add(client);
+      return new Promise((resolve, reject) => {
+        const cleanup = () => { job.clients.delete(client); signal.removeEventListener('abort', abort); };
+        const abort = () => {
+          cleanup();
+          if (!job.clients.size && !job.background) job.controller.abort(signal.reason);
+          reject(signal.reason);
+        };
+        signal.addEventListener('abort', abort, { once: true });
+        promise.then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
+      });
     } };
   return representation;
 }
@@ -193,8 +222,28 @@ export function createResponseLeases({ maxBytes = 48 * 1024 * 1024 } = {}) {
 }
 
 export async function sendRepresentation(request, response, representation, { status = 200, headers = {}, conditional = true } = {}) {
-  const encoding = negotiateEncoding(request.headers['accept-encoding'], representation.compress);
-  const encoded = await representation.encoded(encoding);
+  let encoding = negotiateEncoding(request.headers['accept-encoding'], representation.compress), encoded;
+  const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
+  const controller = new AbortController(), abort = () => controller.abort();
+  const shutdown = request[RESPONSE_ENCODING_SIGNAL];
+  if (budget.enforced) {
+    response.once?.('close', abort); request.once?.('aborted', abort);
+    shutdown?.addEventListener('abort', abort, { once: true });
+    if (response.destroyed || request.aborted || shutdown?.aborted) abort();
+  }
+  try {
+    encoded = await representation.encoded(encoding, { signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) { response.destroy?.(); return; }
+    if (error.code !== 'RESPONSE_ENCODING_BUSY') throw error;
+    // An enforced queue may decline work. Identity preserves the payload and
+    // its existing validator; a client refusing identity gets a clean 503.
+    try { encoding = negotiateEncoding(request.headers['accept-encoding'], false); } catch { throw error; }
+    encoded = await representation.encoded(encoding);
+  } finally {
+    response.off?.('close', abort); request.off?.('aborted', abort);
+    shutdown?.removeEventListener('abort', abort);
+  }
   if (response.destroyed) return;
   const fields = { 'Content-Type': representation.type, 'Cache-Control': representation.cacheControl,
     Vary: 'Accept-Encoding', ETag: encoded.etag, ...(encoding !== 'identity' ? { 'Content-Encoding': encoding } : {}), ...headers };
@@ -222,8 +271,9 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
   const tokens = new Map();
   const retiring = new Set();
   const bytes = () => [...rows.values()].reduce((sum, row) => sum + row.retainedBytes, 0);
-  const remove = key => {
+  const remove = (key, cancelPending = true) => {
     const row = rows.get(key);
+    if (cancelPending && budget.enforced) row?.cancelPendingEncodings?.();
     // In-flight decoders keep their reservation until their native operation
     // settles. Invalidation still cancels their reusable result immediately.
     if (row?.pinned) { retiring.add(key); row.onEvict?.(); return false; }
@@ -251,7 +301,7 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
       const token = {};
       rows.set(key, value); tokens.set(key, token);
       value.isRetained = () => rows.get(key) === value;
-      value.detachEncodingInput = () => remove(key);
+      value.detachEncodingInput = () => remove(key, false);
       value.onSizeChange = () => {
         if (retiring.has(key) && !value.pinned) remove(key);
         else { trim(); budget.resize(token, value.retainedBytes); }
@@ -265,6 +315,7 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
       return value;
     },
     clear() { for (const key of rows.keys()) remove(key); },
+    notifyUnpinned: () => budget.notifyUnpinned(),
     delete: remove,
     get size() { return rows.size; },
     get bytes() { return bytes(); },

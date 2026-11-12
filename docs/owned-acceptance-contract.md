@@ -361,7 +361,19 @@ output bound. Completed backing replaces the reservation before another job
 can enter. Explicit invalidation hides the entry immediately but keeps its
 charge until native work settles. `pendingEncodings` is separately capped by
 the byte allowance divided by 64 KiB; it does not consume reusable entry slots.
-The report-only default does not add encoding admission or change cache eviction.
+Waiting encodings use a strict FIFO queue capped at 32 operations and the smaller
+of 32 MiB or one quarter of the response quota (including 16 KiB of metadata per
+operation). `queuedEncodings` and `queuedInputBytes` expose these enforced bounds.
+Queued uncached backing and metadata enter the same response byte ledger;
+cached backing aliases its existing charge. Evicting that backing cancels the
+waiter before releasing its charge. A socket close, request abort or context
+shutdown removes its caller; work with no remaining callers never starts.
+Unpinning saved-Why or an encoding notifies admission, which starts only live
+waiters that fit. A full queue serves the existing identity representation and
+validator, or returns 503 if the client forbids identity. These limits reserve
+space inside the 128 MiB partition, without adding to the 672 MiB allocation.
+The report-only default does not add encoding admission, queueing, cancellation
+or change cache eviction.
 
 If a single uncacheable reply exceeds an explicitly undersized response quota,
 reply preservation requires an exclusive transient encoding. Its full charge is
@@ -369,7 +381,7 @@ reported even above the quota, and `uncacheable-encoding-exceeds-response-quota`
 permanently denies that budget's completeness. It is never hidden as a cache
 eviction. The ordinary 48 MiB group input plus output reservation fits within
 the 128 MiB budget profile. This does not establish a bound for larger replies
-or queued request input lifetimes; see the residency gaps.
+or all other transient request lifetimes; see the residency gaps.
 
 In the budget profile, at **100 groups** and **500 groups**, the known managed subtotal is the same
 `704,643,072 + B` bytes, instead of multiplying the group response cap. The full

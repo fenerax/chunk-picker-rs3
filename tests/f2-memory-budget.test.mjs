@@ -114,6 +114,8 @@ test('input payload and entry caps evict and charge complete backing buffers and
   assert.deepEqual(evicted, ['a']);
   cache.set('huge', { payload: 'x'.repeat(cost) }); assert.equal(cache.get('huge'), undefined);
   assert(charge(cache.retentionLedger()).used <= cost);
+  cache.clear(); assert.equal(cache.size, 0); assert.equal(cache.bytes, 0);
+  assert.equal(cache.get('b'), undefined); assert(evicted.includes('b'));
 });
 
 test('parsed variants and lazy indexes are evicted without changing engine answers or input bytes', () => {

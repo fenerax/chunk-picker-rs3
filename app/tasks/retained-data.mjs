@@ -74,6 +74,7 @@ export function createStateSnapshotCache({ maxEntries = 2, maxBytes = null, onEv
       rows.set(key, { state, bytes: cost }); bytes += cost;
     },
     get size() { return rows.size; }, get bytes() { return bytes; },
+    clear() { for (const key of rows.keys()) remove(key); },
     retentionRoots: () => [...rows].flatMap(([key, row]) => [key, row.state]),
     retentionLedger() {
       if (rows.size > entryCeiling || bytes > byteCeiling) throw new Error('State input retention cap exceeded.');

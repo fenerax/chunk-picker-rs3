@@ -16,6 +16,7 @@ import { buildWorld } from '../app/data/world.mjs';
 import { selectedDataset } from '../app/dataset-runtime.mjs';
 import { createRateLimits, createStreamLimits, requestContext } from '../app/security/request.mjs';
 import { createRepresentation, createResponseCache } from '../app/http-response.mjs';
+import { createResponseCacheBudget } from '../app/response-cache-budget.mjs';
 import { EventEmitter } from 'node:events';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 
@@ -72,12 +73,12 @@ function sharedRuntime() {
   };
 }
 
-async function send(context, route, { body, key, cookie, stream = false } = {}) {
+async function send(context, route, { body, key, cookie, stream = false, encoding = 'identity' } = {}) {
   const bytes = body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body));
   const request = Readable.from(bytes.length ? [bytes] : []);
   Object.assign(request, { method: body === undefined ? 'GET' : 'POST', url: route,
     socket: { remoteAddress: '127.0.0.1' }, complete: true,
-    headers: { host: '127.0.0.1:8788', 'accept-encoding': 'identity',
+    headers: { host: '127.0.0.1:8788', 'accept-encoding': encoding,
       ...(cookie ? { cookie } : { authorization: `Bearer ${key ?? context.store.getAccessToken()}` }),
       ...(body === undefined ? {} : { 'content-type': 'application/json', 'content-length': String(bytes.length) }) } });
   const chunks = [], headers = new Map();
@@ -115,6 +116,28 @@ async function fixture(t, { runtimeOptions = {}, ...options } = {}) {
   const a = await open('a'), b = await open('b');
   return { root, runtime, a, b, open };
 }
+
+for (const action of ['close', 'fenceDeletion']) test(`picker ${action} cancels queued encodings before request drain`, async t => {
+  const budget = createResponseCacheBudget({ maxBytes: 4 * 1024 ** 2 });
+  const peer = createResponseCache({ budget, maxBytes: 4 * 1024 ** 2 });
+  const pin = { retainedBytes: 4 * 1024 ** 2 - 32 * 1024, pinned: true };
+  peer.set('peer', pin);
+  t.after(() => { pin.pinned = false; peer.clear(); });
+  const cache = createResponseCache({ budget, maxBytes: 0 });
+  const row = cache.set('definitions', createRepresentation('{}'));
+  const entered = Promise.withResolvers(), encoded = row.encoded.bind(row);
+  row.encoded = (...args) => { const result = encoded(...args); entered.resolve(); return result; };
+  const { a } = await fixture(t, { runtimeOptions: { definitionCache: row } });
+  const pending = send(a, '/api/definitions', { stream: true, encoding: 'br, identity;q=0' });
+  await entered.promise;
+  const queued = () => budget.retentionLedger().dimensions.find(d => d.unit === 'queuedEncodings').used;
+  assert.equal(queued(), 1);
+  await a[action]();
+  const reply = await pending;
+  assert.equal(reply.response.destroyed, true);
+  assert.equal(queued(), 0);
+  assert.equal(budget.retentionLedger().encodingStarts, 0);
+});
 async function command(context, command, expectedRevision = context.store.getInfo().revision, extra = {}) {
   const result = await send(context, '/api/command?view=play-v1', { body: { command, expectedRevision, ...extra } });
   assert.equal(result.status, 200, JSON.stringify(result.body)); return result.body;

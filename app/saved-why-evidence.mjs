@@ -41,6 +41,8 @@ export function createSavedWhyEvidence({ cache = createResponseCache(), idleMs =
     } catch { retire(record); return undefined; }
     finally {
       record.pending = false; record.reservation.pinned = false;
+      record.reservation.onSizeChange?.();
+      cache.notifyUnpinned();
       if (record.retired || !record.reusable) retire(record);
     }
   }

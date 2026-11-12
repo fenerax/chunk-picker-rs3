@@ -78,8 +78,13 @@ evicting running encodings and multiplying uncharged compression. Saved-Why
 reservations likewise pin before gunzip; a refused same-evidence decode is
 bounded by its raw limit, coalesced and released after the request.
 
-Queued request inputs remain transient request roots, outside the cache-residency
-proof. A reply too large for the configured response quota uses one exclusive
+Queued encoding inputs now enter the response ledger: uncached backing and
+16 KiB of metadata per operation are charged, while cached backing aliases its
+existing charge. The FIFO has enforced count and byte bounds, and cancellation
+removes disconnected, aborted, evicted and shutdown waiters before native work.
+Every decoder/encoding unpin notifies admission; only live work that fits starts.
+Other transient request roots remain outside the cache-residency proof.
+A reply too large for the configured response quota uses one exclusive
 encoding and reports its full excess with the permanent completeness blocker
 `uncacheable-encoding-exceeds-response-quota`. Ordinary group cache inputs fit
 the 128 MiB profile including their output reservation; larger uncacheable
