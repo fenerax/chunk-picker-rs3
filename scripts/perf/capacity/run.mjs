@@ -36,6 +36,8 @@ if(profile.catalogue.aliases!==undefined)integer(profile.catalogue.aliases,1,100
 if(profile.catalogue.stateBytes!==undefined)integer(profile.catalogue.stateBytes,1,100000000,'state bytes');
 const workers=fixtureWorkers(args['fixture-workers'],{groups:profile.fixture.groups});
 const fixtureFrom=args['fixture-from']?path.resolve(args['fixture-from']):'';
+const fixtureEvidenceFrom=args['fixture-evidence-from']?path.resolve(args['fixture-evidence-from']):'';
+if(fixtureEvidenceFrom&&!fixtureFrom)throw new Error('--fixture-evidence-from requires --fixture-from.');
 integer(profile.catalogue.chunks,2,10000,'chunks');integer(profile.catalogue.tasks,1,200000,'tasks');
 integer(profile.catalogue.dependencyDepth,1,32,'dependencyDepth');integer(profile.catalogue.crossLinks,1,8,'crossLinks');
 integer(profile.port,0,8999,'port');if(profile.port!==0&&profile.port<8900)throw new Error('Use port 0 or 8900–8999.');
@@ -58,7 +60,7 @@ await mkdir(directory,{mode:0o700});
 const profileFile=path.join(directory,'profile.json');await writeFile(profileFile,JSON.stringify(profile,null,2),{flag:'wx'});
 const env=childEnvironment();
 let memoryProfileFailure,residencyFailure;
-const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
+const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom,fixtureEvidenceFrom],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
 const childLogs=child=>{
   // Synthetic-only child output, bounded independently of the run length.
   let bytes=0;for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{if((bytes+=chunk.length)<=1024*1024)void appendFile(path.join(directory,'server.log'),chunk);});

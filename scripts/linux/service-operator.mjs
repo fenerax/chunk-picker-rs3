@@ -13,6 +13,7 @@ import { captureOnline } from './online.mjs';
 import { serviceOperation } from './service-lock.mjs';
 import { checkStoppedCompatibility, writeBackupStatus } from './recovery.mjs';
 import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
+import { retainReleaseDatasetEvidence, serviceEvidenceBinding } from './dataset-evidence.mjs';
 
 // Hands restored service files back to the service user. The tombstone
 // ledger is repaired explicitly: an operator that died after MP5 replaced it
@@ -93,9 +94,10 @@ export async function runServiceOperator({ settings, command, argument, evidence
   // evidence or maintenance publication, just as the single-picker operator does.
   const candidate = command === 'deploy' ? await readRelease(argument, settings.dataDir) : null;
   let savedIdentityAdditions;
+  let candidateBinding;
   if (candidate) {
     sameService(settings, candidate);
-    if (release.config.datasetId !== candidate.config.datasetId || ['data', 'rulesText', 'art'].some(key => release.config.packs?.[key]?.sha256 !== candidate.config.packs?.[key]?.sha256) || ['profile', 'addons', 'selection'].some(key => release.config[key]?.sha256 !== candidate.config[key]?.sha256)) throw new Error('Service pack changes require sequential recovery; in-place deploy refused.');
+    candidateBinding = await serviceEvidenceBinding(release, candidate);
     savedIdentityAdditions = await reviewedDeploymentAdditions(evidence, argument, release, candidate);
   }
   await directory(settings.controlDir);
@@ -163,10 +165,22 @@ export async function runServiceOperator({ settings, command, argument, evidence
         for (const picker of document.pickers.filter(p => p.lifecycle === 'active')) {
           const dataDir = pickerPath(settings, picker);
           if (await exists(path.join(dataDir, 'operator-quarantine.json'))) continue;
-          if (await exists(path.join(dataDir, 'state.json'))) await checkStoppedCompatibility({ ...options, dataDir, assertStopped: stopped });
+          if (await exists(path.join(dataDir, 'state.json'))) {
+            await checkStoppedCompatibility({ ...options, dataDir, assertStopped: stopped });
+          }
         }
       };
-      try { result = await deployStopped({ settings, current: release, candidate, controller, request, check, savedIdentityAdditions }); }
+      const retain = async options => {
+        await check(options);
+        // All stores must pass before any live proof metadata is published.
+        const document = registryRecoveryDocument(await json(path.join(settings.multiPicker.registryDir, 'registry.json')));
+        for (const picker of document.pickers.filter(p => p.lifecycle === 'active')) {
+          const dataDir = pickerPath(settings, picker);
+          if (!await exists(path.join(dataDir, 'operator-quarantine.json')) && await exists(path.join(dataDir, 'state.json')))
+            await retainReleaseDatasetEvidence(dataDir, options.current, options.candidate);
+        }
+      };
+      try { result = await deployStopped({ settings, current: release, candidate, candidateBinding, controller, request, check: retain, savedIdentityAdditions }); }
       catch (error) {
         // Receipt preflight happens before drain; this invocation owns the pause.
         if (error.code === 'PHASE_RECEIPT_UNWRITABLE') await rm(pause);

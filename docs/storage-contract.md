@@ -1,5 +1,54 @@
 # Multiplayer storage contract
 
+## Evidence-only dataset updates
+
+Owned format-1 pickers may load an older `provenance.dataset.digest` only when
+the running provider can reconstruct that exact digest using its current input
+file records, dataset contract (including id and version), capabilities, overlay
+order and definition overlays, substituting only the old `evidence` file records.
+The legacy dataset provider exposes its original digest algorithm for this
+purpose. Other providers without that proof API retain exact-digest behavior.
+An input, capability or overlay change, missing proof, or unknown old digest
+remains refused. No user-supplied claim of an input-only hash grants an upgrade.
+
+Newly prepared saves retain `provenance.datasetEvidence` (the digest and source
+evidence records). Newly created sibling bindings retain the same witness in
+their optional `datasetEvidence` field. The pre-open gate checks that witness
+against the bound digest using the running provider's input records, without
+reading gameplay storage. Thus a new owned save can reopen after an evidence
+change even without retained release history. Binding creation publishes the
+whole receipt before the server creates the save; a partial witness cannot be
+published separately. Gate verification is read-only and explicit rebinding
+still requires an exact digest. Proofless existing bindings need retained
+release history for a changed digest, even if the save itself has provenance.
+For older saves, stopped deployment retains records from the
+hash-pinned current and candidate data/rules-text manifests in the store's
+`dataset-evidence.json`. Records are data, not executable code; each use rebuilds
+and checks the old digest. They survive ordinary snapshots and recovery copies.
+Retain this file with the save and release manifests. An older stamp absent from
+both provenance and retained manifests needs an operator-supplied matching
+manifest; it is never inferred from a release name or commit id.
+
+This adds one durable file family beyond the SC1 inventory below:
+`<store>/dataset-evidence.json`, owned by the stopped deployment operator. Its
+temporary sibling is synced before rename and its parent is synced on Linux.
+It contains no gameplay or credentials. Normal store/service snapshots retain
+it; only the stopped operator publishes it, and runtime readers never modify it.
+
+The authorized load hook updates the stamp on a detached state through the normal
+store preparation path: a durable preimage backup, one revision increment and a
+`catalogue-refresh` event precede atomic checkpoint publication. Reopening is a
+no-op. A crash after the backup leaves the old checkpoint authoritative; a later
+attempt preserves another preimage and commits one refresh. Existing read-only
+and live-swap opens refuse migrations without writing. Restore/import hooks and
+`requireGameBackup` keep their exact-digest checks. Explicit binding commands
+still refuse replacing a different digest. Runtime checks can read an older
+binding only with the same proof, and never rewrite that receipt.
+
+The non-owned duo legacy path has no owned stamp check and needs no re-stamp.
+Owned format 2 continues to serve its immutable base pin and requires its existing
+explicit rebase procedure; evidence refresh does not change that pin.
+
 Audited START: `b42defc930df99262b36ade59b157b201f309145` (SC1).
 This is a description of the existing file backend and a proposed boundary for a
 SQLite trial. The SC3 startup rule below updates the implementation; gameplay
@@ -239,7 +288,7 @@ reusing an issued ID. Evidence: `tests/registry.test.mjs:69`, `:101`,
 **5. `<dataDir>.dataset.json` sibling bindings**
 
 Owner: `app/dataset-binding.mjs`; JSON schemaVersion 1, datasetId,
-datasetContractVersion, digest, optional requiresPack (`:8`).
+datasetContractVersion, digest, optional requiresPack and datasetEvidence (`:8`).
 Writer `bindDatasetStorage` (`:42`) writes exclusive temp (`:49`), links
 for first creation (`:55`, `:56`), or renames a verified matching promotion
 (`:54`), then revalidates. **No fsync**; not independently locked.

@@ -12,6 +12,7 @@ export function parseRunOptions(args = process.argv.slice(2)) {
   const { values } = parseArgs({ args, options: {
     profile: { type: 'string', default: 'smoke' }, output: { type: 'string' }, host: { type: 'string', default: '127.0.0.1' },
     'fixture-workers': { type: 'string' }, 'fixture-from': { type: 'string' }, 'fixture-only': { type: 'boolean', default: false },
+    'fixture-evidence-from': { type: 'string' },
     format: { type: 'string', default: 'format1' }, 'memory-profile': { type: 'string', default: 'default' },
     residency: { type: 'string', default: 'default' },
   } });

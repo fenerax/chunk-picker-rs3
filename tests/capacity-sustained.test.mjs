@@ -26,6 +26,7 @@ test('memory profile option defaults explicitly and rejects unknown or missing v
     assert.equal(args['memory-profile'],selected);assert.equal(args.format,'format2');
   }
   assert.equal(parseRunOptions(['--memory-profile=budget-672'])['memory-profile'],'budget-672');
+  assert.equal(parseRunOptions(['--fixture-from','synthetic-fixture','--fixture-evidence-from','synthetic-history'])['fixture-evidence-from'],'synthetic-history');
   for(const selected of ['other','', 'DEFAULT'])assert.throws(()=>parseRunOptions(['--memory-profile',selected]),/--memory-profile default or budget-672/);
   assert.throws(()=>parseRunOptions(['--memory-profile']),/argument missing|requires an argument/i);
 });
@@ -220,7 +221,9 @@ test('run artifacts retain exact and cross-version fixture reuse provenance', as
     const fixtureReuse = { reused: true, acrossVersions,
       fixtureImplementationDigest: 'synthetic-fixture-implementation',
       currentImplementationDigest: acrossVersions ? 'synthetic-current-implementation' : 'synthetic-fixture-implementation',
-      sourceCommit: 'synthetic-fixture-source' };
+      sourceCommit: 'synthetic-fixture-source', datasetTransition: {
+        oldDigest: 'a'.repeat(64), newDigest: (acrossVersions ? 'b' : 'a').repeat(64),
+        applied: acrossVersions ? 'evidence-only catalogue-refresh' : 'none', refreshedPickers: acrossVersions ? 2 : 0 } };
     const result = reportFixture();
     result.manifest = runManifest({ profile: result.profile, format: result.format,
       sourceCommit: 'synthetic-current-source', sourceTreeDigest: 'synthetic-tree', fixtureReuse,
@@ -237,7 +240,8 @@ test('run artifacts retain exact and cross-version fixture reuse provenance', as
     }
     const summary = await readFile(path.join(directory, 'summary.md'), 'utf8');
     assert.match(summary, acrossVersions ? /reused across versions/ : /reused with exact implementation match/);
-    for (const value of [...Object.values(fixtureReuse).filter(value => typeof value === 'string'), 'synthetic-fixture-content']) {
+    for (const value of [...Object.values(fixtureReuse).filter(value => typeof value === 'string'),
+      fixtureReuse.datasetTransition.oldDigest, fixtureReuse.datasetTransition.newDigest, fixtureReuse.datasetTransition.applied, 'synthetic-fixture-content']) {
       assert.ok(summary.includes(value), value);
     }
   }

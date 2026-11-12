@@ -429,7 +429,9 @@ test('selected-pack binding requires a pack even when tracked inputs have the id
   await assert.rejects(bindDatasetStorage(dataDir, tracked), { code: 'DATASET_BINDING_MISMATCH' });
   assert.deepEqual(await readFile(bindingPath(dataDir)), receipt);
   const oldDir = path.join(options.temp, 'old-tracked-binding'); await bindDatasetStorage(oldDir, tracked);
-  const oldReceipt = await readFile(bindingPath(oldDir)); assert.equal(Object.keys(JSON.parse(oldReceipt)).length, 4);
+  const oldReceipt = await readFile(bindingPath(oldDir));
+  assert.deepEqual(Object.keys(JSON.parse(oldReceipt)).sort(), ['datasetContractVersion', 'datasetEvidence', 'datasetId', 'digest', 'schemaVersion']);
+  assert.equal(JSON.parse(oldReceipt).datasetEvidence.digest, tracked.digest);
   assert.equal((await verifyDatasetBinding(oldDir, tracked)).bound, true);
   assert.equal((await verifyDatasetBinding(oldDir, packed)).bound, true);
   assert.deepEqual(await readFile(bindingPath(oldDir)), oldReceipt);

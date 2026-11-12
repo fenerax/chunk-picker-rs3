@@ -17,6 +17,7 @@ import { assertStartOwnershipReleased } from './plugin-suppression-gate.mjs';
 import { reviewedDeploymentAdditions } from './deployment-receipt.mjs';
 import { deadman, recordStatus, withStatus } from './ops-status.mjs';
 import { phaseReceipt, inPhase } from './phases.mjs';
+import { retainReleaseDatasetEvidence } from './dataset-evidence.mjs';
 
 const execute = promisify(execFile);
 export function systemd(settings, { executeCommand = execute } = {}) {
@@ -173,6 +174,7 @@ async function deployStoppedImpl({ settings, current, candidate, controller, can
     await inPhase(timings, 'pointer', async () => {
       await atomic(path.join(settings.controlDir, 'activation.json'), encode({ phase: 'prepared', previousPointerBase64: current.pointerBytes.toString('base64'),
         previousBindingBase64: originalBinding.toString('base64'), candidatePointerSha256: sha(candidate.pointerBytes) }));
+      await retainReleaseDatasetEvidence(settings.dataDir, current, candidate);
       if (candidateBinding) { await atomic(settings.dataDir + '.dataset.json', candidateBinding, 0o644); rebound = true; }
       if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Current pointer changed before activation.');
       await atomic(settings.current, candidate.pointerBytes, 0o644); swapped = true;

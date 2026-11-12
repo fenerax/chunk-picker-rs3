@@ -254,6 +254,34 @@ and restore. The local retained count is not an off-host retention policy.
 
 ## Final stopped-save compatibility and activation
 
+Evidence-only legacy dataset changes now use the same proof as owned picker
+startup. The stopped check rejects a stamped format-1 save unless the candidate
+can reconstruct its old digest with identical input records and configuration.
+Probe copies receive evidence records from the pinned current/candidate pack
+manifests. Source saves stay untouched during compatibility checks. Before
+activation the operator durably retains those records in `dataset-evidence.json`;
+multi-picker deployment retains them for every active, non-quarantined store
+after all stores pass. The former blanket service pack-change refusal allows
+only this proven transition; art and addon changes still use sequential recovery.
+Both hash-pinned selections are checked against their declared data, rules-text
+and art manifest pins, including id, version and the path runtime will select.
+The actual art choices must stay identical: retaining an art manifest pin while
+selecting `art: null` is refused. A changed selection is admitted only after the
+data/rules-text manifests prove the evidence-only transition.
+
+Keep historical manifests for pickers whose stamp predates the current release.
+Newly created bindings carry an evidence witness, so the pre-open gate can
+verify those receipts without opening gameplay files or requiring retained
+release history. Existing proofless bindings still need that history after a
+digest change. Older runtimes that reject the new optional receipt field are
+also incompatible receivers; the stopped probes must pass before rollback.
+Unknown stamps fail closed. The first deployment of this support has a rollback
+boundary: once a picker is re-stamped, an older receiver without this support
+cannot open it. The reverse stopped check detects that case and leaves the
+service stopped instead of starting an incompatible writer. Plan a compatible
+rollback receiver before approving production activation. Ordinary backup
+restore authorization and the explicit format-2 rebase procedure are unchanged.
+
 `checkStoppedCompatibility()` in `scripts/linux/recovery.mjs` is the deployer
 interface. Call it under the shared operation lock **after** graceful stop and
 ownership verification, immediately before changing binding/pointer. Supply

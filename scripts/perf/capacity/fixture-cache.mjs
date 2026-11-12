@@ -10,6 +10,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { fixtureContentVersion, fixtureStorageSchema, legacyFixtureStorageSchema } from './fixture-contract.mjs';
 import { verifyCapacityOwnedRelease } from './owned-release.mjs';
 import { assertFixtureCopyDestination } from './fixture-paths.mjs';
+import { datasetEvidenceRecord, provesEvidenceOnly, readDatasetEvidence } from '../../../app/dataset-evidence.mjs';
 export { fixtureContentVersion } from './fixture-contract.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -85,9 +86,11 @@ async function assertFixtureStorageFormat(directory, manifest) {
       || document.storage.base.sha256 !== manifest.ownedBasePin?.sha256)) throw new Error('Fixture owned base pin mismatch.');
   }
 }
-async function inspect(directory, profile, datasetDigest) {
+async function inspect(directory, profile, targetDataset, { evidenceRecords = [] } = {}) {
   const seal = JSON.parse(await readFile(path.join(directory, sealName), 'utf8'));
-  if (seal.schemaVersion !== 1 || seal.complete !== true || seal.configDigest !== fixtureConfigDigest(profile, datasetDigest)
+  const manifest = JSON.parse(await readFile(path.join(directory, 'fixture.json'), 'utf8'));
+  const datasetDigest = typeof targetDataset === 'string' ? targetDataset : targetDataset.digest;
+  if (seal.schemaVersion !== 1 || seal.complete !== true || seal.configDigest !== fixtureConfigDigest(profile, manifest.datasetDigest)
     || seal.storageFormat !== (profile.storageFormat ?? 'format1')
     || typeof seal.implementationDigest !== 'string' || !/^[a-f0-9]{64}$/.test(seal.implementationDigest)
     || seal.inventoryDigest !== digest(seal.files)) throw new Error('Fixture completion/configuration digest mismatch.');
@@ -98,14 +101,22 @@ async function inspect(directory, profile, datasetDigest) {
   // Compare with an actual directory walk before trusting paths from the seal.
   const inventory = await fixtureInventory(directory);
   if (JSON.stringify(inventory) !== JSON.stringify(seal.files.map(({ path, bytes, modifiedMs }) => ({ path, bytes, modifiedMs })))) throw new Error('Fixture file inventory mismatch.');
-  const manifest = JSON.parse(await readFile(path.join(directory, 'fixture.json'), 'utf8'));
   if (manifest.storageFormat !== seal.storageFormat || JSON.stringify(manifest.ownedBasePin) !== JSON.stringify(seal.ownedBasePin)
     || manifest.configDigest !== seal.configDigest || manifest.fixtureDigest !== seal.fixtureDigest
     || logicalFixtureDigest(manifest) !== seal.fixtureDigest) throw new Error('Fixture logical digest mismatch.');
-  return { seal, manifest };
+  let dataset, records = [];
+  if (manifest.datasetDigest !== datasetDigest) {
+    dataset = typeof targetDataset === 'string' ? (await import('../../../app/dataset-runtime.mjs')).selectedDataset : targetDataset;
+    records = [manifest.datasetEvidence, ...await readDatasetEvidence(path.join(directory, 'legacy')), ...evidenceRecords].filter(Boolean);
+    if (dataset.digest !== datasetDigest || !provesEvidenceOnly(dataset,
+      { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: manifest.datasetDigest }, records))
+      throw new Error('Fixture completion/configuration digest mismatch: dataset mismatch cannot be proven evidence-only; retain a matching dataset evidence manifest or rebuild the fixture. A source commit or old seal alone is insufficient.');
+    if (manifest.storageFormat !== 'format1') throw new Error('Evidence-only fixture refresh requires format 1; format 2 needs an explicit pinned-base rebase.');
+  }
+  return { seal, manifest, dataset, records };
 }
-export async function verifyFixture(directory, profile, datasetDigest) {
-  const result = await inspect(directory, profile, datasetDigest);
+export async function verifyFixture(directory, profile, datasetDigest, options) {
+  const result = await inspect(directory, profile, datasetDigest, options);
   for (const entry of result.seal.files) if (await fileDigest(path.join(directory, entry.path)) !== entry.digest) throw new Error(`Fixture file digest mismatch: ${entry.path}`);
   await assertFixtureStorageFormat(directory, result.manifest);
   if (result.seal.storageFormat === 'format2') await verifyCapacityOwnedRelease(directory, profile, result.seal.ownedBasePin);
@@ -130,7 +141,7 @@ export async function fixtureReuseProvenance(directory, { reused, seal, manifest
   return { reused, acrossVersions: reused && seal.implementationDigest !== currentImplementationDigest,
     fixtureImplementationDigest: seal.implementationDigest, currentImplementationDigest, sourceCommit: sourceCommit ?? null };
 }
-export async function copyFixture(source, destination, profile, datasetDigest) {
+export async function copyFixture(source, destination, profile, datasetDigest, options) {
   source = path.resolve(source); destination = path.resolve(destination);
   await assertFixtureCopyDestination(source, destination);
   await mkdir(destination, { recursive: true, mode: 0o700 });
@@ -140,7 +151,7 @@ export async function copyFixture(source, destination, profile, datasetDigest) {
     await rename(filename + '.tmp', filename);
   };
   await progress({ phase: 'verifying-reuse', groups: 0 });
-  const { seal, manifest } = await inspect(source, profile, datasetDigest);
+  const { seal, manifest, dataset, records } = await inspect(source, profile, datasetDigest, options);
   let completedFiles = 0, copiedBytes = 0, lastAt = 0;
   // Only fixture-owned files are copied, never logs/profile/results from a run.
   // Hash the exact stream being copied, avoiding a second full read of snapshots.
@@ -162,9 +173,23 @@ export async function copyFixture(source, destination, profile, datasetDigest) {
   // Corrupt inputs retain the established checksum refusal before decoding.
   await assertFixtureStorageFormat(destination, manifest);
   if (seal.storageFormat === 'format2') await verifyCapacityOwnedRelease(destination, profile, seal.ownedBasePin);
-  // Publish completion only after every copied byte has passed verification.
-  await writeFile(path.join(destination, sealName), JSON.stringify(seal), { flag: 'wx', mode: 0o600 });
+  const fixtureReuse = await fixtureReuseProvenance(source, { reused: true, seal, manifest });
+  if (dataset) {
+    const { refreshFixtureEvidence } = await import('./fixture-evidence.mjs');
+    fixtureReuse.datasetTransition = await refreshFixtureEvidence(destination, profile, manifest, dataset, records);
+    manifest.datasetDigest = dataset.digest; manifest.datasetEvidence = datasetEvidenceRecord(dataset);
+    manifest.configDigest = fixtureConfigDigest(profile, dataset.digest);
+    manifest.fixtureDigest = logicalFixtureDigest(manifest);
+    fixtureReuse.datasetTransition.upgradedFixtureDigest = manifest.fixtureDigest;
+    manifest.datasetTransition = fixtureReuse.datasetTransition;
+    await writeFile(path.join(destination, 'fixture.json'), JSON.stringify(manifest));
+    await sealFixture(destination, manifest, { sourceCommit: fixtureReuse.sourceCommit });
+  } else {
+    fixtureReuse.datasetTransition = { oldDigest: manifest.datasetDigest, newDigest: manifest.datasetDigest, applied: 'none', refreshedPickers: 0 };
+    // Publish completion only after every copied byte has passed verification.
+    await writeFile(path.join(destination, sealName), JSON.stringify(seal), { flag: 'wx', mode: 0o600 });
+  }
   await progress({ phase: 'reused', groups: manifest.groups.length,
     characters: manifest.characters, fixtureDigest: manifest.fixtureDigest, completedFiles, copiedBytes });
-  return { ...manifest, fixtureReuse: await fixtureReuseProvenance(source, { reused: true, seal, manifest }) };
+  return { ...manifest, fixtureReuse };
 }

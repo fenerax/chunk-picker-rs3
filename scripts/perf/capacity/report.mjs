@@ -10,7 +10,8 @@ export function fixtureReuseMarkdown(result) {
   const status=!reuse.reused?'newly generated':reuse.acrossVersions?'reused across versions':'reused with exact implementation match';
   return `Fixture: **${status}**. Fixture-content comparison key: \`${result.fixtureDigest??result.fixture?.fixtureDigest}\`.\n\n`+
     `Fixture implementation digest: \`${reuse.fixtureImplementationDigest}\`; current implementation digest: \`${reuse.currentImplementationDigest}\`.\n\n`+
-    `Fixture source commit: ${reuse.sourceCommit?`\`${reuse.sourceCommit}\``:'not recorded'}.\n\n`;
+    `Fixture source commit: ${reuse.sourceCommit?`\`${reuse.sourceCommit}\``:'not recorded'}.\n\n`+
+    (reuse.datasetTransition?`Dataset transition: \`${reuse.datasetTransition.oldDigest}\` → \`${reuse.datasetTransition.newDigest}\`; applied: ${reuse.datasetTransition.applied}; refreshed pickers: ${reuse.datasetTransition.refreshedPickers}.\n\n`:'');
 }
 export function diagnosticMarkdown(result) {
   const opens=result.contextOpens??[], transitions=result.admissionTransitions??[], samples=result.samples??[];

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { readdir } from 'node:fs/promises';
 import { bindDatasetStorage, verifyDatasetBinding } from './dataset-binding.mjs';
+import { datasetEvidenceRecord, provesEvidenceOnly } from './dataset-evidence.mjs';
 
 export const datasetFeature = (dataset, feature) => dataset.capabilities?.features?.[feature] !== false;
 export const defaultGameDirectory = (root, dataset) => path.join(root, '.local', dataset.capabilities?.independent ? 'open-starter' : 'duo');
@@ -15,7 +16,7 @@ export async function prepareGameStorage(dataDir, dataset) {
     const directory = path.resolve(dataDir);
     if (path.basename(directory).toLowerCase() === 'duo' && path.basename(path.dirname(directory)).toLowerCase() === '.local') throw storageError();
   }
-  const checked = await verifyDatasetBinding(dataDir, dataset);
+  const checked = await verifyDatasetBinding(dataDir, dataset, { evidenceOnly: true });
   if (!dataset.capabilities?.independent || checked.bound) return checked;
   try { if ((await readdir(dataDir)).length) throw storageError(); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -57,10 +58,10 @@ export function requireGameBackup(dataset, backup) {
   return backup;
 }
 
-/** Read-only owned-picker checks. Currency proofs must repeat authorization;
+/** Owned-picker preparation. Read-only currency proofs repeat authorization;
  * a matching dataset stamp alone never proves registry membership. */
 export function prepareOwnedPickerState(dataset, pickerRegistry, pickerId) {
-  const prepare = (state, { operation }) => {
+  const check = (state, operation) => {
     const registered = pickerRegistry.getPicker(pickerId);
     const ids = state.members.map(member => member.id);
     const required = pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId));
@@ -68,13 +69,23 @@ export function prepareOwnedPickerState(dataset, pickerRegistry, pickerId) {
       throw Object.assign(new Error('Picker membership does not match its registry.'), { status: 403 });
     }
     const identity = state.provenance?.dataset;
-    if (!identity || identity.id !== dataset.datasetId || identity.contractVersion !== dataset.datasetContractVersion || identity.digest !== dataset.digest) {
+    const exact = identity && identity.id === dataset.datasetId && identity.contractVersion === dataset.datasetContractVersion && identity.digest === dataset.digest;
+    if (!exact && !(operation === 'load' && provesEvidenceOnly(dataset, identity,
+      [state.provenance?.datasetEvidence, ...(dataset.evidenceHistory ?? [])]))) {
       throw Object.assign(new Error('Choose a backup from this picker’s dataset.'), { status: 422 });
     }
+    return exact;
+  };
+  const prepare = (state, { operation }) => {
+    check(state, operation);
+    const proof = datasetEvidenceRecord(dataset);
+    state.provenance = { ...state.provenance,
+      dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest },
+      ...(proof ? { datasetEvidence: proof } : {}) };
     return state;
   };
   const current = (state, operation) => {
-    prepare(state, { operation });
+    if (!check(state, operation)) return false;
     // Even a reusable gameplay migration refreshes this derived count. Give
     // the full preparation path that opportunity after catalogue size changes,
     // without changing the migration's own readiness/reuse semantics.
