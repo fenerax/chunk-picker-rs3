@@ -17,11 +17,21 @@ async function effective(profile) {
   return JSON.parse(stdout);
 }
 
-test('default effective caps preserve the origin/main cache policy', async () => {
+function inspectDiagnostics(result) {
+  assert.deepEqual(result.diagnosticBudget, result.profile);
+  assert.deepEqual(result.http.budget, result.diagnosticBudget, 'Admin HTTP diagnostics expose the effective scheduler budget');
+  assert.deepEqual(result.http.refused, [403, 403], 'Players and viewers cannot read diagnostics');
+  assert.equal(result.http.hasStartupBudget, result.hasStartupBudget);
+  assert.deepEqual(result.http.startupBudget, result.startupBudget);
+}
+
+test('default effective caps and admin diagnostics preserve the origin/main cache policy', async () => {
   // Pinned review baseline; tests need no network or mutable Git refs.
   const baseline = JSON.parse(await readFile(new URL('./fixtures/cache-caps-origin-main.json', import.meta.url)));
   const result = await effective();
+  inspectDiagnostics(result);
   assert.equal(result.profile.profile, 'default');
+  assert.equal(result.http.budget.enforced, false);
   assert.equal(result.hasStartupBudget, false, 'default startup data keeps the existing descriptor shape');
   assert.equal(result.startupBudget, null);
   assert.equal(result.profile.totalBytes, null); assert.equal(result.profile.allocatedBytes, null);
@@ -50,8 +60,10 @@ test('default effective caps preserve the origin/main cache policy', async () =>
   }
 });
 
-test('budget-672 effective caps enforce the original service allocation across four calculators', async () => {
+test('budget-672 effective caps and admin diagnostics report enforcement across four calculators', async () => {
   const result = await effective('budget-672');
+  inspectDiagnostics(result);
+  assert.equal(result.http.budget.profile, 'budget-672'); assert.equal(result.http.budget.enforced, true);
   assert.equal(result.hasStartupBudget, true);
   assert.deepEqual(result.startupBudget, result.profile, 'enabled profiles send the scheduler calculator shares exactly');
   assert.equal(result.profile.allocatedBytes, 672 * MiB);

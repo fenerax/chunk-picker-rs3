@@ -423,6 +423,12 @@ The full worst case is unbounded at both 100 and 500 groups in both profiles.
 
 ### Sustained load harness forwarding
 
+The admin-only `/api/diagnostics` response includes `memoryBudget`, the same
+effective budget object the scheduler sends to workers when enforcement is
+enabled. It reports the default profile too, without adding budget data to
+default worker startup payloads or non-admin replies. Load receipts can verify
+the applied `profile`, `enforced`, `totalBytes` and calculator shares directly.
+
 The sustained-load harness, now included from main, cannot yet forward either selector.
 `scripts/perf/capacity/run.mjs` constructs an OS-only child environment, and
 `scripts/perf/capacity/server.mjs` deletes every `RS3_` key before importing the

@@ -572,7 +572,7 @@ export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs
       if (restarted.length) clearUnlockResults();
       return { restarted, worker: scheduler.getHealth() };
     },
-    getDiagnostics: pickerId => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics(pickerId) } : {}), unlockReuse: pickerState(pickerId ?? 'legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
+    getDiagnostics: pickerId => ({ ...foreground.getDiagnostics(), memoryBudget, ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics(pickerId) } : {}), unlockReuse: pickerState(pickerId ?? 'legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDeathQueue, deadlineMs: deathDeadlineMs },
     }, duoLane: duo?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDuoQueue, deadlineMs: duoDeadlineMs },
