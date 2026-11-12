@@ -49,8 +49,8 @@ test('sustained contract keeps a nested 100-group active set, calibrated catalog
   assert.equal(new Set(recoveries.map(event=>event.clientIndex)).size,100);
   assert.ok(recoveries.every(event=>event.atMs>=1020000&&event.atMs<1320000));
 });
-test('format 2 refuses activation and invalid restart windows fail before fixture setup',()=>{
-  assert.throws(()=>validateSustained(profile,'format2'),/slice 7c/);
+test('synthetic format 2 is accepted and invalid restart windows fail before fixture setup',()=>{
+  assert.doesNotThrow(()=>validateSustained(profile,'format2'));
   assert.throws(()=>validateSustained(profile,'other'),/format1 or format2/);
   assert.throws(()=>validateSustained({...profile,rotationSeconds:300}),/fixed/);
   assert.throws(()=>validateSustained({...profile,sustained:{...profile.sustained,restartAtSeconds:1900}}),/recovery window/);
@@ -132,6 +132,17 @@ test('speed verdicts cannot pass fast refusals, missing classes, dropped work or
   const result=reportFixture(),gates=evaluateSustained(result);
   assert.equal(gates.everyday.status,'pass');assert.equal(gates.heavy.status,'pass');assert.equal(gates.coldOpen.status,'pass');
   assert.equal(gates.restartRecovery.status,'pass');assert.equal(gates.format2Serving.status,'blocked');assert.equal(gates.characterSwitch.status,'blocked');
+  const owned={...reportFixture(),format:'format2',fixture:{storageFormat:'format2'}};
+  assert.equal(evaluateSustained(owned).format2Serving.status,'pass');
+  owned.load.restarts=[];assert.equal(evaluateSustained(owned).format2Serving.status,'blocked');
+  owned.load.restarts=reportFixture().load.restarts;
+  owned.load.restarts[0].serverReadyMs=null;assert.equal(evaluateSustained(owned).format2Serving.status,'blocked');
+  owned.load.restarts[0].serverReadyMs=10;
+  Object.assign(owned.load.operations.find(row=>row.action==='cold-open').latency,{p95Ms:5000,p99Ms:6000});
+  assert.equal(evaluateSustained(owned).format2Serving.status,'pass','format coverage does not approve a speed bar');
+  owned.fixture.storageFormat='format1';assert.equal(evaluateSustained(owned).format2Serving.status,'blocked');
+  owned.fixture.storageFormat='format2';owned.load.recovery.groups.pop();
+  assert.equal(evaluateSustained(owned).format2Serving.status,'blocked');
   result.samples.filter(row=>row.generation===1).forEach(row=>row.server.health.service.openContexts=2);
   assert.equal(evaluateSustained(result).restartRecovery.status,'fail','visiting groups serially cannot stand in for simultaneous readiness');
   result.samples.filter(row=>row.generation===1).forEach(row=>row.server.health.service.openContexts=3);
@@ -142,6 +153,20 @@ test('speed verdicts cannot pass fast refusals, missing classes, dropped work or
   result.load.recovery.groups.pop();assert.equal(evaluateSustained(result).restartRecovery.status,'fail');
   result.load.stats.clientDrops=1;assert.equal(evaluateSustained(result).generator.status,'fail');
   result.load.operations.find(row=>row.action==='task-miss').successfulTaskMisses=0;assert.equal(evaluateSustained(result).calculationMissCoverage.status,'fail');
+});
+test('format-2 coverage retains distinct cohort, process and receipt proofs',()=>{
+  for (const corrupt of [
+    result=>{result.load.recovery.groups[1]={...result.load.recovery.groups[0]};},
+    result=>{result.load.recovery.groups[0].tasksServerId='old-process';},
+    result=>{result.load.recovery.groups[0].tasksReceivedAt--;},
+    result=>{result.load.coldOpens[0].stateServerId='new-process';},
+    result=>{result.load.coldOpens[0].tasksReceivedAt--;},
+    result=>{result.load.operations.find(row=>row.action==='cold-open').statuses={503:2};},
+  ]) {
+    const result={...reportFixture(),format:'format2',fixture:{storageFormat:'format2'}};
+    assert.equal(evaluateSustained(result).format2Serving.status,'pass');
+    corrupt(result);assert.equal(evaluateSustained(result).format2Serving.status,'blocked');
+  }
 });
 test('smoke stays tiny, with a full recovery window and one scheduled restart',async()=>{
   const smoke=JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json',import.meta.url)));

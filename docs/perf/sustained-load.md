@@ -4,15 +4,15 @@ This is the human-rate speed experiment that replaces a simultaneous 50-group
 burst as the proposed speed evidence for launch. It drives the actual
 `createServer` HTTP server, its router, file stores, process calculators and SSE.
 It does not establish browser render time, usability, isolation or backup restore
-correctness. **Format 2 serving and character switching are blocked.** A passing
-format-1 comparison cannot approve format-2 launch.
+correctness. Synthetic format-2 serving is available through a default-off
+injected configuration. **Activation and character switching remain blocked.**
+A passing format-1 comparison cannot approve format-2 launch.
 
-No application source or behavior changes are included. The harness uses
-existing injected synthetic definitions/world, diagnostics, context-open and
+The harness uses injected synthetic definitions/world, diagnostics, context-open and
 admission observers. Existing runtime admission/residency/calculator defaults
 remain enabled. The scratch wrapper adds an `x-capacity-server-id` response
 header and includes that random per-process identity in readiness and telemetry
-IPC receipts; production application code is unchanged. Synthetic offline
+IPC receipts. Synthetic offline
 provisioning uses the existing proposed
 entity caps (3,000 accounts / 3,500 pickers / 20,000 capabilities), just as the
 earlier capacity profiles do. Those caps do not implement product account quotas.
@@ -21,41 +21,46 @@ are used. The runner accepts only loopback HTTP and port 0 or 8900–8999.
 
 ## Format 2 prerequisites: stop at the activation boundary
 
-There is no environment flag that safely enables format 2 for this server.
-`--format format2` deliberately refuses **before output creation, fixture setup
-or server startup**, including `--fixture-only`. Do not patch a loader or force a
-store flag to obtain a result. Minimum missing serving work is:
+There is no environment flag that enables format 2 for this server. Slice 7c
+adds an explicitly injected, default-off configuration for owned contexts only.
+`--format format2` now prepares and serves a synthetic format-2 fixture, including
+`--fixture-only`; omitting it keeps format 1. Real-save use or deployment still
+requires explicit approval (owner decision, 2026-11-11).
 
-1. Prepare a canonical synthetic catalogue base and independent release manifest
+1. The fixture prepares a canonical synthetic catalogue base and independent
+   release manifest
    from the **same prepared dataset and migration identities** as the runtime.
-   Supply its dataset pin, manifest, exact release bytes and external catalogue
-   directory; keep that directory outside picker/deletion trees. The existing
+   It supplies the dataset pin, manifest, exact release bytes and external
+   catalogue directory, kept outside picker/deletion trees. The existing
    building blocks are `app/storage/owned-base.mjs:buildOwnedBase`,
    `app/storage/owned-base-schema.mjs:createOwnedBaseManifest` and
    `app/storage/owned-storage.mjs:createPinnedStorage`. The lower-level acceptance
    harness in `scripts/perf/owned-acceptance/` is not HTTP server activation.
-2. Thread a verified, owned-picker-only configuration through
+2. A verified, owned-picker-only configuration travels through
    `app/server.mjs:createServer`'s `openContext` into
    `app/picker-context.mjs:createPickerContext`, then into `openStore`.
    `app/storage/store.mjs:openStore` defaults `ownedFormat2 = false`;
-   `createPickerContext` currently has no such option and omits it at its store
-   call. Legacy must remain outside owned storage. The fixture builder also
-   currently uses format-1 stores (`scripts/perf/capacity/fixture-group.mjs`).
-3. Prepare load/command/import hooks against the save's pinned dataset and
+   `createPickerContext` passes that option for owned contexts. Legacy stays in
+   format 1. The fixture builder uses the requested physical storage format.
+3. Load/command/import hooks prepare against the save's pinned dataset and
    identity base, with independently retained manifests across a restart.
-   `app/game-profile.mjs:prepareOwnedPickerState` and
-   `app/server.mjs`'s current migration pipeline assume the running dataset.
+   The selected process must already run that pinned dataset; another dataset
+   refuses before preparation. The pinned catalogue supplies migration currency
+   and identities rather than selecting a newer release's base.
    A base alone cannot reconstruct an older runtime's semantics. Existing
    `app/storage/owned-rebase.mjs` is a stopped-writer API, not startup activation.
-   Retirement filtering and current-name display also remain 7c work.
+   Enabled owned consumers filter retired obligations and display current names
+   without rewriting saved rows or History/Undo.
 
 These are the explicit boundaries in
 [the calculator contract](../owned-calculator-contract.md),
 [the acceptance contract](../owned-acceptance-contract.md) (last paragraph), and
-[the rebase contract](../owned-rebase-contract.md). No activation, migration,
-retirement or browser-negotiation work is implemented here. Future activation
-must add a format-specific fixture/seal identity and a genuine HTTP/restart proof
-before removing the refusal. It must not relabel a format-1 fixture as format 2.
+[the rebase contract](../owned-rebase-contract.md). The
+[serving contract](../owned-serving-contract.md) records slice 7c's configuration,
+refusals and tiny HTTP/process-restart proof. Fixture configuration and seals
+include the storage format and verify physical group documents/base pins;
+format-1 fixtures cannot be relabelled as format 2. No real-save migration,
+retirement/name-change rebase commit, browser negotiation or deployment is enabled.
 
 Character switches have a separate product gap: no durable character entity,
 multi-character login or authorized cross-picker switch exists. See
@@ -238,7 +243,7 @@ Before transferring source, export this committed branch locally (PowerShell,
 from the worktree). This is a local Git bundle, not a push:
 
 ```powershell
-git bundle create .local/sustained/sustained.bundle perf/sustained-load
+git bundle create .local/sustained/sustained.bundle codex/f2-serving
 git bundle verify .local/sustained/sustained.bundle
 ```
 
@@ -248,7 +253,7 @@ must be new. These commands do not provision or contact a host:
 
 ```sh
 cd /srv/scratch
-git clone --branch perf/sustained-load ./sustained.bundle picker-sustained
+git clone --branch codex/f2-serving ./sustained.bundle picker-sustained
 cd picker-sustained
 node --version
 git rev-parse HEAD
@@ -282,9 +287,28 @@ includes verified copying. Reuse requires the exact same implementation/config
 digest and preserves historical mtimes. Never use a previously measured/mutated
 run as the reusable fixture.
 
-For a future format-2 comparison, stop here until the activation prerequisites
-above land; `--format format2` currently returns the deliberate 7c diagnostic.
-There is no valid format-2 scratch command yet. Preserve the format-1 results.
+For a synthetic format-2 comparison on this branch, prepare a separate fixture
+and run directory. Preserve the format-1 results; its fixture cannot be reused
+or relabelled as format 2. These scratch-host commands enable only the synthetic
+owned fixture. Real-save use and deployment remain at the owner approval boundary.
+
+```sh
+nice -n 10 node scripts/perf/capacity/run.mjs \
+  --profile sustained --format format2 --fixture-workers 14 --fixture-only \
+  --output /srv/scratch/sustained-results/fixture-f2
+
+nice -n 10 node scripts/perf/capacity/run.mjs \
+  --profile sustained --format format2 --fixture-workers 14 \
+  --fixture-from /srv/scratch/sustained-results/fixture-f2 \
+  --output /srv/scratch/sustained-results/run-f2
+
+cat /srv/scratch/sustained-results/run-f2/summary.md
+```
+
+The fixture retains its release manifest, exact release bytes and published base
+in its external `catalogue/` directory. Verification and copying include that
+directory, so the replacement server reloads the same independent trust inputs.
+No full-scale format-2 timing or disk-size estimate has been measured.
 
 ## Local verification
 
@@ -334,8 +358,10 @@ and `tests/capacity-realism.test.mjs` (12), using Node 24.20.0, their complete
 `testRunPolicy` environments, `--test-concurrency=1`, BelowNormal priority and
 the shared lock for the combined run. The reused SSE regressions caught and
 verified a correction to handshake observation with injected headerless test
-responses. Syntax checks, `git diff --check`, and the real CLI's format-2
-refusal before output creation also passed. No full suite or hosted CI ran.
+responses. Syntax checks, `git diff --check`, and the then-required CLI format-2
+refusal before output creation also passed at that harness revision. Slice 7c
+replaces the refusal with the synthetic serving proof above. No full suite or
+hosted CI ran.
 
 PR #211 gate review added four regressions for replacement-generation readiness,
 failed/missing plugin and sync work, signal exits, and immediately closed SSE.
@@ -367,3 +393,9 @@ complete `testRunPolicy` environments, BelowNormal priority, the shared lock and
 `--test-concurrency=1`. No new smoke, full suite, or hosted CI ran. Application
 source and admission behavior are unchanged; only scratch-harness observation
 collection, evidence validation and reporting changed.
+
+Slice 7c preserves those receipt timestamps and evidence gates while adding
+default-off synthetic owned format-2 serving. Its format coverage uses the same
+distinct-group and process/receipt proofs; it cannot replace speed, resident-cohort,
+telemetry or generator evidence. The historical smoke remains format 1. No
+format-2 sustained speed result, full suite or hosted CI is claimed.

@@ -3,7 +3,6 @@ import { integer } from './model.mjs';
 
 export function validateSustained(profile, format = 'format1') {
   if (!['format1', 'format2'].includes(format)) throw new Error('Use --format format1 or format2.');
-  if (format === 'format2') throw new Error('Format 2 HTTP serving is blocked on activation slice 7c. See docs/perf/sustained-load.md; no fixture or server was started.');
   if (!profile.sustained) return;
   if (profile.rotationSeconds != null) throw new Error('Sustained cohorts must stay fixed.');
   const duration = profile.stages.reduce((n, stage) => n + stage.seconds, 0);

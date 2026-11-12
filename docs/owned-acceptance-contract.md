@@ -372,8 +372,9 @@ reports and raw snapshots. Its name and directory are outside the aggregate's
 ordinary `owned-acceptance-*` receipt selection. Locally use `--spot-check`
 for the same reduced shape; it always implies smoke/no acceptance claim.
 
-7c still owns synthetic activation, pinned-dataset preparation, retirement
-filtering and current-name display, plus investigation/fixes for any failed
-measurement and the later full load/restart/speed proof. Browser negotiation
-and catalogue GC remain slices 8 and 9. This change authorizes no production
-activation or real-save migration.
+The [slice-7c serving contract](owned-serving-contract.md) adds default-off
+synthetic HTTP serving, pinned preparation, retirement filtering and current-name
+display with a tiny HTTP/process-restart proof. Investigation of failed
+measurements and full sustained load/speed evidence remain required. Browser
+negotiation and catalogue GC remain slices 8 and 9. Neither proof authorizes
+production activation or real-save migration (owner decision, 2026-11-11).

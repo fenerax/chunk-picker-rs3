@@ -97,7 +97,7 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
   };
   return storage;
 }
-function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
+export function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
   if (!options || typeof options !== 'object' || !options.pickerId || options.pickerId === 'legacy-shared'
     || typeof options.catalogueRoot !== 'string') throw new TypeError('Owned storage requires an owned picker and external catalogueRoot.');
   const pin = resolveOwnedBasePin(options.manifest, options.dataset), root = path.resolve(options.catalogueRoot);

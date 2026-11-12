@@ -117,3 +117,63 @@ test('default-off delta sessions preserve saved state and serialized replies in 
     for (const store of stores) await store.close();
   });
 });
+
+test('owned catalogue display and command snapshots agree with delta validation off and on', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'rs3-owned-catalogue-delta-')), stores = [], directories = [], controls = [];
+  t.after(async () => { for (const store of stores) await store.close(); await rm(root, { recursive: true, force: true }); });
+  const initial = fixture().state;
+  initial.members[0].completedTasks = [first];
+  initial.provenance = { ownedCatalogue: { retiredIds: [first], names: { [first]: 'Current synthetic label' } } };
+  for (const deltaValidation of [false, true]) {
+    const dataDir = path.join(root, String(deltaValidation)), control = { label: null, refuse: false };
+    const prepareState = state => {
+      if (control.label) state.provenance = { ...state.provenance,
+        ownedCatalogue: { retiredIds: [first], names: { [first]: control.label } } };
+      return state;
+    };
+    prepareState.isCurrent = () => true;
+    prepareState.commandIsCurrent = () => !control.label;
+    const store = await openStore({ ...settings, dataDir, initialState: initial, retention: false, deltaValidation,
+      ownedFormat2: options(path.join(root, 'catalogue')), ownedCatalogueSemantics: true, prepareState,
+      beforeCommit() { if (control.refuse) throw new Error('Synthetic catalogue commit refusal'); } });
+    stores.push(store); directories.push(dataDir); controls.push(control);
+  }
+  const play = store => store.getStateSnapshot({ view: 'play-v1' }).stateJSON;
+  const previous = stores.map(play), historical = stores[0].getState().tasks;
+  const checkDisplay = (reply, label) => {
+    const row = JSON.parse(reply).tasks.find(task => task.id === first);
+    assert.equal(row.label, label); assert.equal(row.obligation, false); assert.equal(row.hidden, true);
+  };
+  previous.forEach(reply => checkDisplay(reply, 'Current synthetic label'));
+  const run = async command => {
+    const replies = [];
+    for (const store of stores) replies.push(await store.commandSerialized(command, store.getInfo().revision, { view: 'play-v1' }));
+    assert.deepEqual(replies[1], replies[0]);
+    assert.deepEqual(stores[1].getState(), stores[0].getState());
+    assert.deepEqual(await readFile(path.join(directories[1], 'state.json')), await readFile(path.join(directories[0], 'state.json')));
+    return replies;
+  };
+  for (const command of [
+    { type: 'set-note', memberId: 'member-1', chunkId: '100', note: 'Synthetic frozen note' },
+    { type: 'tick-active-tasks', memberId: 'member-1', taskIds: [first] }, { type: 'undo' },
+  ]) (await run(command)).forEach(reply => checkDisplay(reply.stateJSON, 'Current synthetic label'));
+  controls.forEach(control => { control.label = 'New synthetic label'; control.refuse = true; });
+  const before = await Promise.all(directories.map(dataDir => readFile(path.join(dataDir, 'state.json'))));
+  for (const [index, store] of stores.entries()) {
+    await assert.rejects(store.commandSerialized({ type: 'set-note', memberId: 'member-1', chunkId: '100', note: 'Synthetic refused' }, store.getInfo().revision,
+      { view: 'play-v1' }), /Synthetic catalogue commit refusal/);
+    assert.deepEqual(await readFile(path.join(directories[index], 'state.json')), before[index]);
+    checkDisplay(play(store), 'Current synthetic label');
+  }
+  controls.forEach(control => { control.refuse = false; });
+  (await run({ type: 'set-note', memberId: 'member-1', chunkId: '100', note: 'Synthetic new metadata' }))
+    .forEach(reply => checkDisplay(reply.stateJSON, 'New synthetic label'));
+  previous.forEach(reply => checkDisplay(reply, 'Current synthetic label'));
+  for (const store of stores) { assert.deepEqual(store.getState().tasks, historical); await store.close(); }
+  for (const [index, dataDir] of directories.entries()) {
+    const reopened = await openStore({ ...settings, dataDir, retention: false, deltaValidation: index === 1,
+      ownedFormat2: options(path.join(root, 'catalogue')), ownedCatalogueSemantics: true });
+    stores.push(reopened); checkDisplay(play(reopened), 'New synthetic label');
+    assert.deepEqual(reopened.getState().tasks, historical); await reopened.close();
+  }
+});

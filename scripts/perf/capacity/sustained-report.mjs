@@ -119,8 +119,11 @@ export function evaluateSustained(result) {
   const coldCount = cold.reduce((n,row)=>n+(row.latency?.count??0),0);
   const offered=load.offeredOperations,measuredOffered=(offered??[]).filter(row=>profile.stages[row.stage]?.measured);
   const coldGate = speed(cold,['cold-open'],2000,offered);
-  if(!cohortValid||!sameMembers(cohort.coldGroups??[],cohort.groups??[])||!sameMembers((load.coldOpens??[]).map(row=>row.group),cohort.groups??[])||
-    !(load.coldOpens??[]).every(row=>proof(row,load.initialServerId,load.workloadStart))||coldCount!==activeGroups)coldGate.status='fail';
+  const coldProof=cohortValid&&sameMembers(cohort.coldGroups??[],cohort.groups??[])&&sameMembers((load.coldOpens??[]).map(row=>row.group),cohort.groups??[])&&
+    (load.coldOpens??[]).every(row=>proof(row,load.initialServerId,load.workloadStart))&&coldCount===activeGroups;
+  if(!coldProof)coldGate.status='fail';
+  const format2Serving=result.format==='format2'&&result.fixture?.storageFormat==='format2'
+    &&coldProof&&completion(cold,['cold-open'],offered).status==='pass'&&groupProof;
   const drops = load.stats.clientDrops,missRows=measured.filter(row=>row.action==='task-miss');
   const misses=missRows.reduce((n,row)=>n+(row.successfulTaskMisses??0),0),heavyCount=missRows.reduce((n,row)=>n+(row.latency?.count??0),0);
   const sampleValid=row=>receiptValid(row)&&receiptValid(row.server)&&row.server.receivedAt===row.receivedAt&&
@@ -162,7 +165,8 @@ export function evaluateSustained(result) {
     generator:{status:validGenerator?'pass':'fail',droppedArrivals:drops,telemetryErrors:result.telemetryErrors,shutdownClean:cleanExit(result.shutdown),restartShutdownClean:cleanExit(restart?.shutdown)},
     calculationMissCoverage:{status:completion(measured,['task-miss'],measuredOffered).status==='pass'&&heavyCount>0&&missRows.every(row=>row.successfulTaskMisses===row.latency.count)?'pass':'fail',misses,offeredTaskMisses:heavyCount},
     refusalHeaders:{status:headerEvidence(load.operations,load.stageStreams,load.tailStreams,profile.stages)?'pass':'fail'},
-    format2Serving:{status:'blocked',reason:'HTTP format-2 activation and pinned catalogue preparation are not implemented (slice 7c).'},
+    format2Serving:{status:format2Serving?'pass':'blocked',
+      reason:format2Serving?'Synthetic owned format-2 cold opens and post-restart HTTP recovery with independently retained release inputs.':'This run supplies no complete format-2 HTTP/restart evidence.'},
     characterSwitch:{status:'blocked',offered:measured.filter(row=>row.action==='switch').reduce((n,row)=>n+row.latency.count,0),reason:'No durable character entity or authorized character switch API; offered switches are unsupported.'},
   };
 }
@@ -171,7 +175,7 @@ export function sustainedMarkdown(result) {
   const {load,gates,profile} = result;
   const failures = Object.entries(gates).filter(([,value])=>value.status==='fail').map(([name])=>name);
   return `# Sustained HTTP capacity run\n\nSource: \`${result.sourceCommit}\`; source tree: \`${result.sourceTreeDigest}\`; Node ${result.node}; **${result.format}**; seed \`${profile.seed}\`.\n\n`+
-    `Result: **${failures.length?'FAIL':'BLOCKED'}**. Failed measured gates: ${failures.join(', ')||'none'}. Format 2 and character switching remain blocked; this run cannot approve launch. Smoke-sized results do not prove capacity.\n\n`+
+    `Result: **${failures.length?'FAIL':'BLOCKED'}**. Failed measured gates: ${failures.join(', ')||'none'}. Activation and character switching remain blocked; this run cannot approve launch. Smoke-sized results do not prove capacity.\n\n`+
     `${result.fixture.groups} resident disk groups plus one legacy context; ${profile.stages.at(-1).activeGroups} active groups and ${profile.stages.at(-1).users} online clients. Setup ${n(result.setupSeconds)} s; total ${n(result.elapsedSeconds)} s.\n\n`+
     `Open-loop arrivals ${load.stats.offered}; completed ${load.stats.completed}; already-ready recovery probes skipped ${load.stats.recoveryProbesSkipped??0}; HTTP requests ${load.stats.httpRequests}; refusals ${load.stats.rejects}; timeouts ${load.stats.timeouts}; unsupported ${load.stats.unsupported}; client drops ${load.stats.clientDrops}.\n\n`+
     `| Speed / coverage bar | Verdict | Detail |\n| --- | --- | --- |\n`+
