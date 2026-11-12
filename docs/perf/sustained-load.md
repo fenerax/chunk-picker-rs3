@@ -9,8 +9,8 @@ injected configuration. **Activation and character switching remain blocked.**
 A passing format-1 comparison cannot approve format-2 launch.
 
 The harness uses injected synthetic definitions/world, diagnostics, context-open and
-admission observers. Runtime admission/residency/calculator limits follow the
-explicitly selected memory profile. The scratch wrapper adds an
+admission observers. Memory and residency are separate explicit selections;
+omitting both keeps the application's defaults. The scratch wrapper adds an
 `x-capacity-server-id` response header and includes that random per-process identity in readiness and telemetry
 IPC receipts. Synthetic offline
 provisioning uses the existing proposed
@@ -280,7 +280,7 @@ automation must read the gate verdicts. A harness failure writes `failure.json`
 and exits nonzero. These files include synthetic credentials in `fixture.json`;
 retain full artifacts locally and share only reviewed summaries.
 
-With `--memory-profile default`, runtime limits still include 7 resident contexts
+With `--memory-profile default --residency default`, runtime limits still include 7 resident contexts
 (legacy included), 64 global streams, one concurrent cold open and 192 global key admissions.
 They may refuse this workload. No proposed higher limit is silently enabled to
 make the graph pass. The opt-in selection requests the application's budget
@@ -288,6 +288,48 @@ profile instead. `profile.json`, exact source/tree digest and health/diagnostic
 samples bind each run to its settings. If another track changes defaults, reuse
 the same compatible sealed fixture and compare both reports; the server source
 and fixture source are recorded independently.
+
+## Opt-in residency trial
+
+`--residency default|trial` defaults to `default`, which injects no residency
+overrides. The independent `--memory-profile` option retains its current default.
+The trial implements the proposed limits in [groups and accounts](../groups-and-accounts.md),
+rows `coldStartsPerAccount / Global`, Router `maxOpenContexts / idleCloseMs`,
+and Cold admission `maxPending / perAccount / deadlineMs`:
+
+| Effective limit | Default | Trial |
+| --- | --- | --- |
+| Open contexts, including legacy | 7 | 128 |
+| Idle close | 600,000 ms | 600,000 ms |
+| Concurrent cold opens per account / global | 1 / 1 | 1 / 4 |
+| Cold admission pending / per account | 64 / 2 | 256 / 2 |
+| Cold admission deadline | 2,000 ms | 30,000 ms |
+
+These are scratch-server injections, with no environment variable or production
+default change. The longer deadline does not relax cold latency gates. The
+server's admin diagnostics report the effective router, picker-limits and cold
+admission values. Before measured traffic, and again after restart, the harness
+requires those observed values to match the request; missing or mismatched
+evidence fails with `residency-unverified`. Telemetry and final verdicts retain
+the same check. The run manifest, `results.json` and `summary.md` record requested
+and observed residency beside memory selection, including each server generation.
+Different residency selections cannot be combined into one verdict. Historical
+unlabelled artifacts supply no verified residency claim.
+
+Reuse an intact stored format-1 fixture on the scratch host with this exact command
+(the output directory must be new):
+
+```sh
+nice -n 10 node scripts/perf/capacity/run.mjs \
+  --profile sustained --format format1 --fixture-workers 14 \
+  --residency trial --memory-profile default \
+  --fixture-from /srv/scratch/sustained-results/fixture-f1 \
+  --output /srv/scratch/sustained-results/run-f1-residency-trial
+```
+
+Residency selection changes the run digest, while leaving the fixture-content
+digest unchanged. Keep default and trial reports separate, even when they use
+the same fixture and memory selection.
 
 ## Sealed fixture reuse across code versions
 

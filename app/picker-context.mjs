@@ -1190,6 +1190,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           if (route === '/api/diagnostics') {
             requireAdmin();
             await json(request, response, 200, { status: closed ? 'stopping' : 'running', ...(taskWorker?.getDiagnostics() ?? { worker: { status: 'not-configured' } }),
+              ...(runtime.getResidencyLimits?.() ? { residency: runtime.getResidencyLimits() } : {}),
               poolRanking: poolRanking.diagnostics(),
               referenceCache: { entries: 2, bytes: runtime.definitionCache.retainedBytes + runtime.taskCache.retainedBytes },
               startupTimingMs: { ...startupTimingMs },

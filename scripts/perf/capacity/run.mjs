@@ -12,6 +12,7 @@ import { validateSustained, sustainedPhase } from './sustained.mjs';
 import { parseRunOptions, childEnvironment, runManifest, verifyMemoryProfile, requireMemoryProfile } from './memory-profile.mjs';
 import { writeRunManifest, writeRunResults } from './run-artifacts.mjs';
 import { assertFixtureCopyDestination } from './fixture-paths.mjs';
+import { verifyResidency, requireResidency } from './residency.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const args=parseRunOptions();
@@ -23,6 +24,8 @@ validateSustained(profile,args.format);
 profile.storageFormat=args.format;
 profile.requestedMemoryProfile=args['memory-profile'];
 delete profile.memoryProfile;
+profile.requestedResidency=args.residency;
+delete profile.residency;
 profile.streamHeaderDeadlineMs??=5000;
 if(process.platform==='win32' && !['smoke','sustained-smoke'].includes(profile.name))throw new Error('Only smoke is allowed on the shared PC.');
 planFixture(profile);
@@ -54,7 +57,7 @@ if(fixtureFrom)await assertFixtureCopyDestination(fixtureFrom,directory);
 await mkdir(directory,{mode:0o700});
 const profileFile=path.join(directory,'profile.json');await writeFile(profileFile,JSON.stringify(profile,null,2),{flag:'wx'});
 const env=childEnvironment();
-let memoryProfileFailure;
+let memoryProfileFailure,residencyFailure;
 const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
 const childLogs=child=>{
   // Synthetic-only child output, bounded independently of the run length.
@@ -64,6 +67,7 @@ async function until(child,type) {
   return new Promise((resolve,reject)=>{
     const message=m=>{const receivedAt=performance.now();if(m.type===type){cleanup();
       if(type==='ready'&&m.memoryProfile!==profile.requestedMemoryProfile)reject(new Error('Server memory profile does not match the requested profile.'));
+      else if(type==='ready'&&m.residency!==profile.requestedResidency)reject(Object.assign(new Error('residency-unverified: server selection does not match the requested residency.'),{code:'residency-unverified',verification:m.residencyVerification}));
       else resolve({...m,receivedAt});}else if(m.type==='failure'){cleanup();reject(Object.assign(new Error(`${m.name}: ${m.message}`),{code:m.code,verification:m.verification}));}};
     const exit=()=>{cleanup();reject(new Error(`Scratch child exited before ${type}.`));};
     const cleanup=()=>{child.off('message',message);child.off('exit',exit);child.off('error',error);};
@@ -107,8 +111,10 @@ try {
   console.log(`Fixture ready: ${fixture.groups.length} groups, ${fixture.characters} slots. Starting measured server.`);
   server=launch('server');childLogs(server);const ready=await until(server,'ready');
   const verification=requireMemoryProfile(ready.memoryProfileVerification);
+  const residencyVerification=requireResidency(ready.residencyVerification);
   profile.memoryProfile=verification.memoryProfile;
-  Object.assign(manifest,runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest,verification,fixtureReuse,fixtureDigest:fixture.fixtureDigest}));
+  profile.residency=residencyVerification.residency;
+  Object.assign(manifest,runManifest({profile,format:args.format,sourceCommit,sourceTreeDigest,verification,residencyVerification,fixtureReuse,fixtureDigest:fixture.fixtureDigest}));
   await writeFile(profileFile,JSON.stringify(profile,null,2));
   await writeRunManifest(directory,manifest);
   let id=0,busy=false,telemetryErrors=0,runStart;
@@ -116,8 +122,8 @@ try {
   let generation=0,restarting=false;
   const attach=(child,childGeneration=generation)=>child.on('message',m=>{
     const receivedAt=performance.now(),elapsedMs=runStart===undefined?null:receivedAt-runStart;
-    if(m.type==='context-open')contextOpens.push({...m,memoryProfile:profile.memoryProfile,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
-    if(m.type==='admission')admissionTransitions.push({...m,memoryProfile:profile.memoryProfile,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    if(m.type==='context-open')contextOpens.push({...m,memoryProfile:profile.memoryProfile,residency:profile.residency,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    if(m.type==='admission')admissionTransitions.push({...m,memoryProfile:profile.memoryProfile,residency:profile.residency,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
     inbox.receive(m,childGeneration,receivedAt);});
   attach(server);
   const collector=createSampleCollector({profile,directory,requestSnapshot:childGeneration=>{
@@ -127,10 +133,12 @@ try {
   const sample=async client=>{
     if(busy)return;busy=true;
     try {
-      if(restarting){const receivedAt=performance.now(),row={memoryProfile:profile.memoryProfile,receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
+      if(restarting){const receivedAt=performance.now(),row={memoryProfile:profile.memoryProfile,residency:profile.residency,receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
       const {row,errors}=await collector.collect({start:runStart,generation,pid:server.pid,client});telemetryErrors+=errors;
       try { requireMemoryProfile(verifyMemoryProfile(profile.memoryProfile,row.server?.health,row.server?.diagnostics)); }
       catch(error) { memoryProfileFailure=error;throw error; }
+      try { requireResidency(verifyResidency(profile.residency,row.server?.diagnostics)); }
+      catch(error) { residencyFailure=error;throw error; }
       samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
     } catch(error) {telemetryErrors++;throw error;} finally {busy=false;}
   };
@@ -144,12 +152,14 @@ try {
       server=launch('server');childLogs(server);attach(server);
       const ready=await until(server,'ready');
       requireMemoryProfile(ready.memoryProfileVerification);
-      return {memoryProfile:ready.memoryProfile,base:ready.base,serverId:ready.serverId,readyReceivedAt:ready.receivedAt,shutdown,generation};
+      requireResidency(ready.residencyVerification);
+      return {memoryProfile:ready.memoryProfile,residency:ready.residency,base:ready.base,serverId:ready.serverId,readyReceivedAt:ready.receivedAt,shutdown,generation};
     } finally {restarting=false;}
   };
   const load=await drive({base:ready.base,initialServerId:ready.serverId,profile,fixture,directory,onSample:sample,restartServer,startWorkload:()=>runStart=performance.now()});
   while(busy)await new Promise(resolve=>setTimeout(resolve,10));
   if(memoryProfileFailure)throw memoryProfileFailure;
+  if(residencyFailure)throw residencyFailure;
   await sample({phase:'after'});
   const shutdown=await stop(server);server=undefined;
   const result={...manifest,manifest,platform:process.platform,hardware:{cpuModel:cpus()[0].model,logicalCpus:cpus().length,ramBytes:totalmem()},
@@ -166,6 +176,12 @@ try {
   }
   // Capacity failures are data, not harness execution failures. Inspect gates.
 } catch(error) {
+  if(error.code==='residency-unverified') {
+    profile.residency=null;
+    manifest.residency=null;manifest.residencyVerification=error.verification;manifest.profileDigest=digest(profile);
+    await writeFile(profileFile,JSON.stringify(profile,null,2));
+    await writeRunManifest(directory,manifest);
+  }
   if(error.code==='memory-profile-unverified') {
     profile.memoryProfile=null;
     manifest.memoryProfile=null;manifest.memoryProfileVerification=error.verification;manifest.profileDigest=digest(profile);

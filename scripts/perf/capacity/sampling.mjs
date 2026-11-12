@@ -3,10 +3,11 @@ import { processTree, diskBytes } from './telemetry.mjs';
 import { stageWindow } from './scheduler.mjs';
 import { sustainedPhase } from './sustained.mjs';
 import { memoryProfile, effectiveCaps } from './memory-profile.mjs';
+import { residency } from './residency.mjs';
 
 export function observation(profile,start,receivedAt,from=receivedAt) {
   const elapsedMs=start===undefined?null:receivedAt-start;
-  return {memoryProfile:memoryProfile(profile.memoryProfile),receivedAt,elapsedMs,windowStartElapsedMs:start===undefined?null:from-start,
+  return {memoryProfile:memoryProfile(profile.memoryProfile),residency:residency(profile.residency),receivedAt,elapsedMs,windowStartElapsedMs:start===undefined?null:from-start,
     ...(start===undefined?{stage:null,classification:null,measured:false}:stageWindow(profile.stages,start,from,receivedAt)),
     phase:elapsedMs===null?null:sustainedPhase(profile,elapsedMs)};
 }
@@ -45,9 +46,10 @@ export function createSampleCollector({profile,directory,requestSnapshot,now=()=
         packet[name].receivedAt<=snapshot.receivedAt?packet[name]:null;
       const health=part('health'),diagnostics=part('diagnostics');
       const metadata=receipt=>receipt?{...observation(profile,start,receipt.receivedAt),generation,serverId:receipt.data.serverId,
-        memoryProfile:receipt.data.memoryProfile}:null;
+        memoryProfile:receipt.data.memoryProfile,residency:receipt.data.residency}:null;
       const server=data?.type==='sample'?{...data,...observation(profile,start,snapshot.receivedAt),window:serverWindow,
         memoryProfile:data.memoryProfile,
+        residency:data.residency,
         health:health?.data.health??null,healthObservation:metadata(health),
         diagnostics:diagnostics?.data.diagnostics??null,diagnosticsObservation:metadata(diagnostics),
         effectiveCaps:effectiveCaps(health?.data.health,diagnostics?.data.diagnostics)}:null;
