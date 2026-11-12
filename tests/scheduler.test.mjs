@@ -852,6 +852,14 @@ test('native worker input always sets the ready-catalogue flag without changing 
   assert.equal(workerData.omitReadyCatalogue, true);
 });
 
+function assertMemoryDiagnostics(scheduler, calculators) {
+  const { memoryBudget, ...diagnostics } = scheduler.getDiagnostics();
+  assert.ok(!/profil/i.test(JSON.stringify(diagnostics)), 'CPU profiling state stays private');
+  assert.deepEqual(memoryBudget, { profile: 'default', enforced: false, totalBytes: null, allocatedBytes: null,
+    responseBytes: null, responseEntries: null, calculators, workerBytes: 384 * 1024 ** 2,
+    engineBytes: null, stateBytes: null, schedulerBytes: 320 * 1024 ** 2 });
+}
+
 for (const pooled of [false, true]) {
   test(`${pooled ? 'pooled' : 'dedicated'} profiling retirements finish foreground work and never spend the restart budget`, async t => {
     const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, ...(pooled ? { maxCalculators: 1 } : {}) });
@@ -867,7 +875,7 @@ for (const pooled of [false, true]) {
       assert.equal(scheduler.getHealth().restarts, 0); assert.equal(scheduler.getHealth().failures, 0);
       assert.equal(scheduler.getHealth().restartRequired, false); assert.equal(scheduler.getHealth().status, 'ready');
     }
-    assert.equal(JSON.stringify(scheduler.getDiagnostics()).includes('profile'), false);
+    assertMemoryDiagnostics(scheduler, pooled ? 1 : 4);
   });
 
   for (const event of ['exit', 'error']) test(`${pooled ? 'pooled' : 'dedicated'} crash via ${event} during idle retirement preserves the restart budget`, async t => {
@@ -930,7 +938,9 @@ for (const pooled of [false, true]) {
     worker.finish(); await request;
     const second = evaluate('next-cleanup'); worker.finish(); await second;
     assert.equal(workers.length, 1); assert.equal(worker.terminated, false);
-    for (const value of [scheduler.getHealth(), scheduler.getDiagnostics(), ...events]) {
+    assertMemoryDiagnostics(scheduler, pooled ? 1 : 4);
+    for (const value of [scheduler.getHealth(), ...events]) {
+      assert.equal(Object.hasOwn(value, 'memoryBudget'), false);
       assert.ok(!/profil/i.test(JSON.stringify(value)));
     }
   });

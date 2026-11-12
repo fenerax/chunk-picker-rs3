@@ -94,28 +94,25 @@ existing serialized/backing-byte ledgers; no separate overlay cache is added.
 
 ## Scope of the current evidence
 
-Pending gzip/Brotli encodings now reserve output bytes and pin their admitted
-input before native work. Refused reusable inputs wait for the same native-work
-quota and include their input in its charge. This prevents group cycling from
-evicting running encodings and multiplying uncharged compression. Saved-Why
-reservations likewise pin before gunzip. Refused reusable decodes now acquire
-service-wide transient leases before gunzip/JSON parsing, capped at four jobs
-and 64 MiB within the response partition. Identical in-flight bytes coalesce.
-The charge survives settlement until the final consumer releases its graph;
-routes first detach the narrow projection. Queued compressed inputs and metadata
-are charged in the shared bounded FIFO. Full admission returns 503 with
-`SAVED_WHY_BUSY` and `Retry-After`, rather than decoding without a charge.
+Pending gzip/Brotli encodings reserve output bytes and pin their input before
+native work. Uncached inputs enter the same charge. Admission never waits or
+retains refused inputs: the opt-in profile serves the existing identity reply
+and validator under pressure, or `503 RESPONSE_ENCODING_BUSY` with `Retry-After`
+when identity is forbidden. Running work stays charged through native settlement,
+including disconnect, invalidation and shutdown.
 
-Queued encoding inputs now enter the response ledger: uncached backing and
-16 KiB of metadata per operation are charged, while cached backing aliases its
-existing charge. The FIFO has enforced count and byte bounds, and cancellation
-removes disconnected, aborted, evicted and shutdown waiters before native work.
-Every decoder/encoding unpin notifies admission; only live work that fits starts.
-Other transient request roots remain outside the cache-residency proof.
-A reply too large for the configured response quota uses one exclusive
-encoding and reports its full excess with the permanent completeness blocker
-`uncacheable-encoding-exceeds-response-quota`. Ordinary group cache inputs fit
-the 128 MiB profile including their output reservation; larger uncacheable
+Saved-Why reservations likewise pin before gunzip. Refused reusable decodes
+require a synchronous service-wide lease before gunzip/JSON parsing, capped at
+four jobs and 64 MiB within the response partition. Identical in-flight bytes
+coalesce; charges last until native settlement and the final consumer's release.
+Without room, admission immediately returns `503 SAVED_WHY_BUSY` with
+`Retry-After`. There is no queue or uncharged fallback. Default-profile replies
+and cache policy are unchanged.
+
+An encoding too large for the response quota also uses identity or 503; no
+exclusive above-quota encoding runs. The permanent completeness blocker
+`uncacheable-encoding-exceeds-response-quota` still records the attempted work.
+Other transient request roots remain outside the cache-residency proof; larger
 replies need streaming/spooling before claiming a hard whole-service bound.
 
 The acceptance fixture retains stores and its own response caches; it does not

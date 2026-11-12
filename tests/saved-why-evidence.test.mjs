@@ -5,7 +5,7 @@ import { gzipSync } from 'node:zlib';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { createResponseCache, createRepresentation } from '../app/http-response.mjs';
+import { createResponseCache } from '../app/http-response.mjs';
 import { createResponseCacheBudget } from '../app/response-cache-budget.mjs';
 import { createSavedWhyEvidence, forgetSavedWhyChain, savedWhyCharge } from '../app/saved-why-evidence.mjs';
 
@@ -88,8 +88,6 @@ test('peer-pinned global pressure preserves saved evidence without retaining a d
   decoded.release(); second.release();
   assert.deepEqual(owner.stats(), { entries: 0, pending: 0, bytes: 0, maxRawBytes: 1024 ** 2 });
   assert.equal(clock.active.size, 0); assert.equal(budget.bytes, 65536);
-  const cancelled = owner.acquire(entry, 7); forgetSavedWhyChain(entry);
-  await assert.rejects(cancelled, { name: 'AbortError' });
   reservation.pinned = false; peer.clear();
   const retained = await owner.acquire(entry, 7), again = await owner.acquire(entry, 7);
   assert.equal(again.value, retained.value); retained.release(); again.release();
@@ -99,24 +97,6 @@ test('invalidated saved graphs and entries collect while the owning context rema
   // GC is enabled only in this test-owned child, never in application/global config.
   const { stdout } = await promisify(execFile)(process.execPath, ['--expose-gc', fileURLToPath(new URL('./helpers/saved-why-gc.mjs', import.meta.url))], { timeout: 30_000 });
   assert.match(stdout, /collected all saved evidence/);
-});
-
-test('successful saved-Why unpin wakes a queued encoding without idle eviction or owner close', async t => {
-  const entry = { revision: 7, fullGzip: gzipSync(JSON.stringify({ tasks: [{ id: 'synthetic', label: 'Z'.repeat(5000) }] })) };
-  const charge = savedWhyCharge(entry.fullGzip.readUInt32LE(entry.fullGzip.length - 4), entry.fullGzip.buffer.byteLength);
-  const budget = createResponseCacheBudget({ maxBytes: charge + 32 * 1024 });
-  const cache = createResponseCache({ budget }), clock = timers(), owner = createSavedWhyEvidence({ cache, clock });
-  t.after(() => owner.close());
-  const decoding = owner.acquire(entry, 7);
-  const replies = createResponseCache({ budget, maxBytes: 0 });
-  const row = replies.set('reply', createRepresentation('synthetic reply')), encoding = row.encoded('gzip');
-  const queued = () => budget.retentionLedger().dimensions.find(d => d.unit === 'queuedEncodings').used;
-  assert.equal(queued(), 1); assert.equal(budget.retentionLedger().encodingStarts, 0);
-  const lease = await decoding; assert(lease.value); lease.release();
-  assert.deepEqual(await encoding, await createRepresentation('synthetic reply').encoded('gzip'));
-  assert.equal(queued(), 0); assert.equal(budget.retentionLedger().encodingStarts, 1);
-  assert.equal(owner.stats().pending, 0);
-  assert(clock.active.size <= 1, 'no idle callback or close is needed to wake the live head');
 });
 
 test('every saved-Why decode settlement releases charges, including failure, abort and uncached fallback', async () => {

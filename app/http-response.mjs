@@ -9,7 +9,6 @@ const gzipAsync = promisify(gzip), brotliAsync = promisify(brotliCompress);
 const etag = bytes => `"${createHash('sha256').update(bytes).digest('hex')}"`;
 export const PRIVATE_REVALIDATE = 'private, max-age=0, must-revalidate';
 export const PRIVATE_NO_STORE = 'private, no-store';
-export const RESPONSE_ENCODING_SIGNAL = Symbol('response-encoding-shutdown');
 
 export function negotiateEncoding(header = '', compress = true) {
   const qualities = new Map();
@@ -30,70 +29,48 @@ export function negotiateEncoding(header = '', compress = true) {
 export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true, identityETag } = {}) {
   const plain = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: identityETag ?? etag(plain) })]]);
-  const jobs = new Map();
   let retainedBytes = plain.byteLength, encodingPins = 0;
   const representation = { bytes: plain, type, cacheControl, compress,
     get pinned() { return encodingPins > 0; },
     get byteLength() { return plain.byteLength; },
     get retainedBytes() { return retainedBytes; },
-    cancelPendingEncodings() {
-      for (const job of jobs.values()) if (!job.admitted) job.controller.abort(Object.assign(new Error('Queued encoding was evicted.'), { status: 503, code: 'RESPONSE_ENCODING_BUSY' }));
-    },
-    encoded(encoding, { signal } = {}) {
+    encoded(encoding) {
       const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
-      if (budget.enforced && signal?.aborted) return Promise.reject(signal.reason);
       if (!encodings.has(encoding)) {
         // Both codecs' maximum encoded size is below this input + 6.25% +
         // 64 KiB charge. Reserve output before native work; input is already
         // charged by a retained row, or included in an uncached reservation.
         const outputCharge = plain.byteLength + Math.ceil(plain.byteLength / 16) + 65536;
-        const job = { controller: new AbortController(), clients: new Set(), admitted: false, background: false };
-        jobs.set(encoding, job);
-        const permit = budget.reserveEncoding({
+        const release = budget.reserveEncoding({
           cost: () => outputCharge + (representation.isRetained?.() ? 0 : retainedBytes),
           uncachedCost: () => outputCharge + retainedBytes,
-          inputBytes: () => retainedBytes,
-          inputCost: () => representation.isRetained?.() ? 0 : retainedBytes,
-          detach: () => representation.detachEncodingInput?.(),
-          pin: () => { encodingPins++; job.admitted = true; }, unpin: () => { encodingPins--; job.admitted = false; },
-          signal: job.controller.signal,
+          pin: () => encodingPins++, unpin: () => encodingPins--,
         });
-        encodings.set(encoding, permit.then(async release => {
+        if (!release) return Promise.reject(Object.assign(new Error('Response encoding admission is full. Retry shortly.'), {
+          status: 503, code: 'RESPONSE_ENCODING_BUSY', retryAfter: 1,
+        }));
+        encodings.set(encoding, Promise.resolve().then(async () => {
           let encoded;
           try {
-            if (budget.enforced) job.controller.signal.throwIfAborted();
             const bytes = await (encoding === 'br'
               ? brotliAsync(plain, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })
               : gzipAsync(plain, { level: 1 }));
             encoded = { bytes, etag: etag(bytes) };
           } finally {
             // Release the conservative output reservation, then replace it with
-            // completed backing synchronously, before queued work can enter.
+            // completed backing synchronously. Native work remains charged
+            // even if all sockets disconnect or the cache is invalidated.
             release();
             if (encoded) retainedBytes += encoded.bytes.byteLength;
             representation.onSizeChange?.();
           }
           return encoded;
         }).catch(error => {
-          if (jobs.get(encoding) === job) encodings.delete(encoding);
+          encodings.delete(encoding);
           throw error;
-        }).finally(() => { if (jobs.get(encoding) === job) jobs.delete(encoding); }));
+        }));
       }
-      const promise = encodings.get(encoding), job = jobs.get(encoding);
-      if (!job || !budget.enforced) return promise;
-      if (!signal) { job.background = true; return promise; }
-      if (job.clients.size >= 32) return Promise.reject(Object.assign(new Error('Too many encoding callers.'), { status: 503, code: 'RESPONSE_ENCODING_BUSY' }));
-      const client = {}; job.clients.add(client);
-      return new Promise((resolve, reject) => {
-        const cleanup = () => { job.clients.delete(client); signal.removeEventListener('abort', abort); };
-        const abort = () => {
-          cleanup();
-          if (!job.clients.size && !job.background) job.controller.abort(signal.reason);
-          reject(signal.reason);
-        };
-        signal.addEventListener('abort', abort, { once: true });
-        promise.then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
-      });
+      return encodings.get(encoding);
     } };
   return representation;
 }
@@ -224,27 +201,18 @@ export function createResponseLeases({ maxBytes = 48 * 1024 * 1024 } = {}) {
 export async function sendRepresentation(request, response, representation, { status = 200, headers = {}, conditional = true } = {}) {
   let encoding = negotiateEncoding(request.headers['accept-encoding'], representation.compress), encoded;
   const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
-  const controller = new AbortController(), abort = () => controller.abort();
-  const shutdown = request[RESPONSE_ENCODING_SIGNAL];
-  if (budget.enforced) {
-    response.once?.('close', abort); request.once?.('aborted', abort);
-    shutdown?.addEventListener('abort', abort, { once: true });
-    if (response.destroyed || request.aborted || shutdown?.aborted) abort();
-  }
+  if (budget.enforced && (response.destroyed || request.aborted)) return;
   try {
-    encoded = await representation.encoded(encoding, { signal: controller.signal });
+    encoded = await representation.encoded(encoding);
   } catch (error) {
-    if (controller.signal.aborted) { response.destroy?.(); return; }
     if (error.code !== 'RESPONSE_ENCODING_BUSY') throw error;
-    // An enforced queue may decline work. Identity preserves the payload and
-    // its existing validator; a client refusing identity gets a clean 503.
+    // Refusal never becomes a cached compressed variant. Identity uses its
+    // existing bytes and validator; an identity-forbidden request gets 503.
+    if (representation.encoding && representation.encoding !== 'identity') throw error;
     try { encoding = negotiateEncoding(request.headers['accept-encoding'], false); } catch { throw error; }
     encoded = await representation.encoded(encoding);
-  } finally {
-    response.off?.('close', abort); request.off?.('aborted', abort);
-    shutdown?.removeEventListener('abort', abort);
   }
-  if (response.destroyed) return;
+  if (response.destroyed || budget.enforced && request.aborted) return;
   const fields = { 'Content-Type': representation.type, 'Cache-Control': representation.cacheControl,
     Vary: 'Accept-Encoding', ETag: encoded.etag, ...(encoding !== 'identity' ? { 'Content-Encoding': encoding } : {}), ...headers };
   const matches = (request.headers['if-none-match'] ?? '').split(',').some(value => value.trim() === '*' || value.trim().replace(/^W\//, '') === encoded.etag);
@@ -271,16 +239,15 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
   const tokens = new Map();
   const retiring = new Set();
   const bytes = () => [...rows.values()].reduce((sum, row) => sum + row.retainedBytes, 0);
-  const remove = (key, cancelPending = true) => {
+  const remove = key => {
     const row = rows.get(key);
-    if (cancelPending && budget.enforced) row?.cancelPendingEncodings?.();
     // In-flight decoders keep their reservation until their native operation
     // settles. Invalidation still cancels their reusable result immediately.
     if (row?.pinned) { retiring.add(key); row.onEvict?.(); return false; }
     rows.delete(key);
     retiring.delete(key);
     budget.forget(tokens.get(key)); tokens.delete(key);
-    if (row) { row.onSizeChange = row.isRetained = row.detachEncodingInput = undefined; row.onEvict?.(); }
+    if (row) { row.onSizeChange = row.isRetained = undefined; row.onEvict?.(); }
     return !!row;
   };
   const trim = () => {
@@ -301,21 +268,19 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
       const token = {};
       rows.set(key, value); tokens.set(key, token);
       value.isRetained = () => rows.get(key) === value;
-      value.detachEncodingInput = () => remove(key, false);
       value.onSizeChange = () => {
         if (retiring.has(key) && !value.pinned) remove(key);
         else { trim(); budget.resize(token, value.retainedBytes); }
       };
       if (!budget.admit(token, { group, cost: value.retainedBytes, pinned: () => !!value.pinned, evict: () => remove(key) })) {
         // Rejected reservations were never admitted; do not cancel their caller.
-        if (rows.get(key) === value) { rows.delete(key); tokens.delete(key); value.onSizeChange = value.isRetained = value.detachEncodingInput = undefined; }
+        if (rows.get(key) === value) { rows.delete(key); tokens.delete(key); value.onSizeChange = value.isRetained = undefined; }
         onRefused?.('service');
       }
       trim();
       return value;
     },
     clear() { for (const key of rows.keys()) remove(key); },
-    notifyUnpinned: () => budget.notifyUnpinned(),
     get budget() { return budget; },
     delete: remove,
     get size() { return rows.size; },

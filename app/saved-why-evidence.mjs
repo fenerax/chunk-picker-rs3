@@ -49,7 +49,6 @@ export function createSavedWhyEvidence({ cache = createResponseCache(), idleMs =
     finally {
       record.pending = false; record.reservation.pinned = false;
       record.reservation.onSizeChange?.();
-      cache.notifyUnpinned();
       if (record.retired || !record.reusable) retire(record);
     }
   }
@@ -122,7 +121,6 @@ function reservedEvidence({ cache, idleMs, clock, maxRawBytes, decodeGzip }) {
   }
   function finish(job) {
     if (job.pending || job.users.size || job.cleaned) return;
-    cache.budget.notifyUnpinned();
     if (job.reusable && !job.retired) {
       job.reservation.onSizeChange?.();
       job.clock.clearTimeout(job.timer);
@@ -143,10 +141,9 @@ function reservedEvidence({ cache, idleMs, clock, maxRawBytes, decodeGzip }) {
     if (!job.users.size) job.controller.abort();
     finish(job);
   }
-  function start(job, size, permit) {
+  function start(job, size) {
     job.promise = (async () => {
       try {
-        if (permit) job.release = await permit;
         job.controller.signal.throwIfAborted();
         const bytes = await decodeGzip(job.gzip, { maxOutputLength: size });
         job.controller.signal.throwIfAborted();
@@ -157,10 +154,10 @@ function reservedEvidence({ cache, idleMs, clock, maxRawBytes, decodeGzip }) {
         if (error.code === 'SAVED_WHY_BUSY' || job.controller.signal.aborted) throw error;
       } finally {
         job.pending = false;
-        job.reservation.onSizeChange?.(); budget.notifyUnpinned(); finish(job);
+        job.reservation.onSizeChange?.(); finish(job);
       }
     })();
-    // Queue rejection can precede a caller's await; all consumers still observe it.
+    // Invalidation can precede a caller's await; all consumers observe settlement.
     void job.promise.catch(() => {});
   }
   function create(entry, size) {
@@ -176,8 +173,10 @@ function reservedEvidence({ cache, idleMs, clock, maxRawBytes, decodeGzip }) {
       const hash = `${entry.revision}:${createHash('sha256').update(gzip).digest('hex')}`;
       const existing = pool.get(hash);
       if (existing && !existing.retired && !existing.cleaned && !existing.controller.signal.aborted) return existing;
+      job.release = budget.reserveDecode({ cost: charge });
+      if (!job.release) throw capacityError();
       job.hash = hash; job.cache = undefined; pool.set(hash, job);
-      start(job, size, budget.reserveDecode({ cost: charge, inputBytes: gzip.buffer.byteLength, signal: job.controller.signal }));
+      start(job, size);
     } else start(job, size);
     return job;
   }
@@ -233,7 +232,7 @@ function reservedEvidence({ cache, idleMs, clock, maxRawBytes, decodeGzip }) {
     stats() {
       const jobs = [...new Set([...records.values()].map(binding => binding.job).concat([...consumers].map(user => user.job), [...inFlight]))];
       return { entries: records.size, pending: jobs.filter(job => job.pending).length,
-        bytes: jobs.reduce((sum, job) => sum + (job.reusable || job.release ? job.charge : job.gzip.buffer.byteLength + 16 * 1024), 0), maxRawBytes };
+        bytes: jobs.reduce((sum, job) => sum + job.charge, 0), maxRawBytes };
     },
     close() {
       if (!closing) {

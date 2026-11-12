@@ -345,48 +345,40 @@ When global enforcement is enabled, response eviction prefers globally old entri
 floor, then falls back to global LRU. The floor cannot override the byte/entry
 cap. In-flight saved-Why decoder reservations remain charged and cannot be
 evicted until they settle. New admissions decline if pinned reservations leave
-insufficient room. A service admission refusal still runs the bounded saved-Why
-decode for the request and returns its uncached result, preserving valid viewer
-replies. This transient work uses the existing raw/output bounds and is not a
-retained cache reservation. Completed identity/gzip/brotli growth rebalances the same
-ledger. The caller still receives uncached results; response bytes, ETags,
-conditional requests and saved bytes are unchanged.
+insufficient room. Every decode must have a reusable or transient reservation;
+capacity refusal immediately returns `503 SAVED_WHY_BUSY` with `Retry-After: 1`,
+never a 409 for valid evidence. Completed identity/gzip/brotli growth rebalances
+the same ledger. Successful representations retain their bytes and ETags;
+saved bytes are unchanged.
 
 With global enforcement enabled, native gzip/Brotli work reserves its maximum
 output charge before starting, and pins the input row until settlement. An
-uncached input is included in the same reservation. Requests wait for admission;
+uncached input is included in the same reservation. Admission never waits;
 cross-group eviction cannot discard a running encoding's shared promise. Each
 reservation includes input length + 6.25% + 64 KiB, above both codecs' maximum
 output bound. Completed backing replaces the reservation before another job
 can enter. Explicit invalidation hides the entry immediately but keeps its
 charge until native work settles. `pendingEncodings` is separately capped by
 the byte allowance divided by 64 KiB; it does not consume reusable entry slots.
-Waiting encodings use a strict FIFO queue capped at 32 operations and the smaller
-of 32 MiB or one quarter of the response quota (including 16 KiB of metadata per
-operation). `queuedEncodings` and `queuedInputBytes` expose these enforced bounds.
-Queued uncached backing and metadata enter the same response byte ledger;
-cached backing aliases its existing charge. Evicting that backing cancels the
-waiter before releasing its charge. A socket close, request abort or context
-shutdown removes its caller; work with no remaining callers never starts.
-Unpinning saved-Why or an encoding notifies admission, which starts only live
-waiters that fit. A full queue serves the existing identity representation and
-validator, or returns 503 if the client forbids identity. These limits reserve
-space inside the 128 MiB partition, without adding to the 672 MiB allocation.
-The report-only default does not add encoding admission, queueing, cancellation
-or change cache eviction.
+Refused encodings retain no inputs or callbacks. That request sends the existing
+identity representation with its identity ETag, including custom validators,
+HEAD and conditional-request behavior. When identity is forbidden, it returns
+`503 RESPONSE_ENCODING_BUSY` with `Retry-After: 1`. Refusal never populates a
+compressed cache variant. A disconnect suppresses writing to that socket; active
+native work keeps its charge and pin until settlement. The report-only default
+does not add encoding admission or change cache eviction.
 
-Saved-Why fallbacks in an enforced profile use the same FIFO and response
+Saved-Why fallbacks in an enforced profile use the same response
 partition. At most four fallback decodes may hold leases, with at most 64 MiB
 of conservative decode charges (or the response quota, if smaller). The charge
 starts before gunzip/JSON parsing and lasts through the final result lease.
-Identical revision/gzip bytes coalesce across owners while in flight. Queued
-gzip backing and 16 KiB metadata per operation are charged; the shared queue
-still has 32 slots and its existing byte ceiling. Cancellation removes waiting
-work on disconnect, abort, invalidation and shutdown. Active native work keeps
-its charge until settlement, and a live result keeps it until release.
-Admission failure returns 503 with `Retry-After: 1` and `SAVED_WHY_BUSY`, never
-an unavailable-evidence 409. `pendingDecodes`, `decodeBytes` and `queuedDecodes`
-are subsets of the global response ledger. No extra service allocation is added.
+Identical revision/gzip bytes coalesce across owners while in flight. Admission
+is one synchronous attempt; there is no queue. Disconnect, abort, invalidation
+and shutdown release consumers; active native work keeps its charge until
+settlement, and a live result keeps it until release. Admission failure returns
+503 with `Retry-After: 1` and `SAVED_WHY_BUSY`, never an unavailable-evidence 409.
+`pendingDecodes` and `decodeBytes` are subsets of the global response ledger.
+No extra service allocation is added.
 
 The enforced evidence API is `acquire()`/`release()` or `use()`; bare `read()`
 fails explicitly because its caller cannot declare the result's lifetime.
@@ -395,12 +387,12 @@ the full graph. The narrow reply enters ordinary response admission. The default
 profile retains its original parse/cache policy and reply bytes.
 
 If a single uncacheable reply exceeds an explicitly undersized response quota,
-reply preservation requires an exclusive transient encoding. Its full charge is
-reported even above the quota, and `uncacheable-encoding-exceeds-response-quota`
-permanently denies that budget's completeness. It is never hidden as a cache
-eviction. The ordinary 48 MiB group input plus output reservation fits within
-the 128 MiB budget profile. This does not establish a bound for larger replies
-or all other transient request lifetimes; see the residency gaps.
+it uses the same identity-or-503 policy, without running above-quota work.
+`uncacheable-encoding-exceeds-response-quota` permanently records the attempted
+encoding and denies that budget's completeness. The ordinary 48 MiB group input
+plus output reservation fits within the 128 MiB budget profile. This does not
+establish a bound for larger replies or all other transient request lifetimes;
+see the residency gaps.
 
 In the budget profile, at **100 groups** and **500 groups**, the known managed subtotal is the same
 `704,643,072 + B` bytes, instead of multiplying the group response cap. The full

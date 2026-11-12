@@ -94,15 +94,16 @@ async function send(cache, encoding, method = 'GET', validator) {
   return { status: output.status, headers: output.headers, body: output.body };
 }
 test('global eviction preserves exact identity/gzip/brotli replies, validators, HEAD and 304', async () => {
-  const roomy = createResponseCache({ budget: createResponseCacheBudget({ maxBytes: 4096 }) });
-  const evicted = createResponseCache({ budget: createResponseCacheBudget({ maxBytes: 0 }) });
+  const roomy = createResponseCache({ budget: createResponseCacheBudget({ maxBytes: 1024 ** 2 }) });
+  const evicted = createResponseCache({ budget: createResponseCacheBudget({ maxBytes: 128 * 1024 }) });
   for (const encoding of ['identity', 'gzip', 'br']) {
+    evicted.clear();
     const expected = await send(roomy, encoding), actual = await send(evicted, encoding);
     assert.deepEqual(actual, expected);
     assert.deepEqual(await send(evicted, encoding, 'HEAD'), await send(roomy, encoding, 'HEAD'));
     assert.deepEqual(await send(evicted, encoding, 'GET', expected.headers.ETag), await send(roomy, encoding, 'GET', expected.headers.ETag));
   }
-  roomy.clear();
+  roomy.clear(); evicted.clear();
 });
 
 test('input payload and entry caps evict and charge complete backing buffers and resident identities', () => {
@@ -256,7 +257,7 @@ test('response cache pressure preserves durable save bytes while archived Histor
   for (const cache of [roomy, noCache]) {
     const representation = cache.set('save', createRepresentation(snapshot.stateJSON));
     assert.deepEqual((await representation.encoded('identity')).bytes, Buffer.from(snapshot.stateJSON));
-    await representation.encoded('gzip');
+    await sendRepresentation({ method: 'GET', headers: { 'accept-encoding': 'gzip' } }, { writeHead() {}, end() {} }, representation);
     assert.deepEqual(await readFile(path.join(directory, 'state.json')), saved);
   }
   roomy.clear(); await store.close();
