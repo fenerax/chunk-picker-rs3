@@ -33,8 +33,17 @@ export async function buildGroup({ item, dataDir, pickerId }, { profile, worldDa
   await bindDatasetStorage(dataDir, selectedDataset);
   await update({ phase: 'open-store', completed: 0, total: 1 });
   const durableStarted = performance.now();
+  let catalogueAdmitted = false;
   const store = await openStore({ dataDir, world, registry: rules, initialState: state, now, random: rng, ...hooks,
-    ownedFormat2: ownedServing ? { ...ownedServing, pickerId, releaseBytes: Buffer.from(ownedServing.releaseBytes) } : false });
+    ownedFormat2: ownedServing ? { ...ownedServing, pickerId, releaseBytes: Buffer.from(ownedServing.releaseBytes),
+      // Acknowledged progress exposes the first real catalogue admission while
+      // its lease is held, including a deterministic overlap seam for tests.
+      crash: async phase => {
+        if (phase === 'catalogue-exclusive-admitted' && !catalogueAdmitted) {
+          catalogueAdmitted = true;
+          await update({ phase: 'catalogue-admitted', completed: 0, total: 1 });
+        }
+      } } : false });
   const result = { index: item.index, grown: item.grown, variant: item.variant, growthMs, growthCommands: growthCount };
   try {
     if (item.grown) {

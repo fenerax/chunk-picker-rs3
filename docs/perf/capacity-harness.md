@@ -68,6 +68,22 @@ reports actual generation or verified-copy cost. A setup failure is preserved
 in `failure.json`; it is a failure envelope observation, not an invitation to
 change app limits.
 
+Parallel format-2 fixture workers use temporary, independent catalogue roots.
+The parent publishes the canonical pinned base through the normal storage API
+and copies that catalogue once per worker; every worker keeps the normal
+catalogue process guard and writes its disjoint picker stores concurrently.
+All temporary roots are removed after the workers exit, including on failure,
+before sealing. The finished fixture retains one catalogue, the same base pins,
+content version and writer schemas as serial generation. Existing sealed
+format-1 and format-2 fixtures remain reusable. `catalogue-admitted` progress
+acknowledges the first actual catalogue lease for each group while it is held.
+Workers announce readiness after module initialization. On completion or failure,
+the pool sends STOP, cancels blocked progress acknowledgements, and waits for
+active store cleanup, channel closure and natural worker exit before removing
+the temporary catalogues. It never forcibly terminates a fixture worker during
+module evaluation or storage I/O, and late progress observers cannot send ACKs
+after shutdown.
+
 On the shared Windows PC, run **only smoke**, at BelowNormal priority under
 the shared heavy lock from [testing](../testing.md), releasing within ten
 minutes. Do not use nominal/step-up there. The runner refuses their profile
