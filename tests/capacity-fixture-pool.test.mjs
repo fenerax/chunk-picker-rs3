@@ -17,7 +17,7 @@ const profile = { name: 'smoke', seed: 'synthetic-catalogue-overlap', port: 0, s
   fixture: { groups: 6, rosterMix: [0, 1, 0, 0, 0], freshFraction: .5, unlockFraction: .5,
     historyEvents: 1, snapshots: 1, keysPerMember: 0 } };
 
-test('format-2 fixture workers overlap real catalogue leases and preserve serial output', async t => {
+test('format-2 fixture pool preserves content and drains workers before removing catalogues', async t => {
   const base = new URL('../.local/', import.meta.url); await mkdir(base, { recursive: true });
   const root = await mkdtemp(new URL('capacity-pool-test-', base));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -65,7 +65,9 @@ test('format-2 fixture workers overlap real catalogue leases and preserve serial
   };
   // Exercise the pool on Windows too; the public generator's one-worker
   // Windows policy is unchanged. No server or fixed network port is needed.
-  assert.deepEqual(await run('parallel', 3), await run('serial', 1));
-  await run('failed', 3, 'progress');
-  await run('blocked', 3, 'guard');
+  await t.test('three overlapping real catalogue leases preserve serial output', async () => {
+    assert.deepEqual(await run('parallel', 3), await run('serial', 1));
+  });
+  await t.test('observer failure drains real workers and removes their catalogues', () => run('failed', 3, 'progress'));
+  await t.test('an occupied canonical guard still refuses the build', () => run('blocked', 3, 'guard'));
 });

@@ -77,6 +77,12 @@ before sealing. The finished fixture retains one catalogue, the same base pins,
 content version and writer schemas as serial generation. Existing sealed
 format-1 and format-2 fixtures remain reusable. `catalogue-admitted` progress
 acknowledges the first actual catalogue lease for each group while it is held.
+Workers announce readiness after module initialization. On completion or failure,
+the pool sends STOP, cancels blocked progress acknowledgements, and waits for
+active store cleanup, channel closure and natural worker exit before removing
+the temporary catalogues. It never forcibly terminates a fixture worker during
+module evaluation or storage I/O, and late progress observers cannot send ACKs
+after shutdown.
 
 On the shared Windows PC, run **only smoke**, at BelowNormal priority under
 the shared heavy lock from [testing](../testing.md), releasing within ten
