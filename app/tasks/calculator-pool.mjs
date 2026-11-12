@@ -125,6 +125,7 @@ export function createCalculatorPool({ limit, workerFactory, workerData, onReady
       const owner = slot.owner;
       if (!owner || message.id !== slot.id || message.pickerId !== undefined && message.pickerId !== slot.pickerId) { releaseEligibilityChunk(message); return; }
       if (message.type === 'progress' && message.ownedBaseInstalled) slot.ownedBases.add(message.ownedBaseInstalled);
+      if (message.type === 'progress') for (const digest of message.evictedOwnedBases ?? []) slot.ownedBases.delete(digest);
       const complete = !['progress', 'prediction-prepared'].includes(message.type);
       const response = { ...message, id: slot.originalId };
       if (complete) {

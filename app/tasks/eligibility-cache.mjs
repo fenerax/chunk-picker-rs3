@@ -168,7 +168,7 @@ export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLi
         dimensions: [{ unit: 'entries', used: retained.size, cap: entryLimit, enforced: true },
           { unit: 'chargeBytes', used: retainedBytes, cap: byteLimit, enforced: true }],
         partitions: { snapshotBytes: snapshotRetainedBytes, snapshotByteLimit, eligibilityByteLimit, ownerByteLimit },
-        accounting: 'Shared snapshot/eligibility ledger including cold wire backing. Hot charge overlaps; diagnostic caps identify that overlap.' };
+        accounting: 'Sole charge owner for hot graphs plus cold snapshot/eligibility backing. The hot-set ledger is a subset, never added to this charge.' };
     },
     // Reserve every transient native/IPC copy before requesting a proof. This
     // uses the existing eligibility partition and cannot displace any entry.
@@ -265,6 +265,7 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
     discard(key, bytes);
   };
   return {
+    clear() { for (const [key, bytes] of entries) discard(key, bytes); },
     get size() { return entries.size; },
     get bytes() { return retainedBytes; },
     exportProof(key, maxBytes) {

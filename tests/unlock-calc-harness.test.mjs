@@ -109,6 +109,11 @@ test('heap instrumentation anchors match current and available archived worker s
       assert(worker.includes('setImmediate(() => parentPort.postMessage'), 'instrumentation preserves deferred readiness');
     }
     assert(worker.includes(pathToFileURL(path.join(appDir, 'play-view.mjs')).href));
+    const engine = writes.get(path.join(scratch, 'engine.mjs'));
+    if (readFileSync(path.join(appDir, 'tasks/engine.mjs'), 'utf8').includes('return use(variantForMember')) {
+      assert(engine.includes('return engineEvaluation(() => use(variantForMember(state, memberId), compiled => compiled.evaluate(state, memberId, evaluateOptions)));'),
+        'the diagnostic must preserve variant ledger refresh');
+    }
     assert(writes.get(path.join(scratch, 'probe-runtime.mjs')).includes('export function sampleHeap'));
   }
 });

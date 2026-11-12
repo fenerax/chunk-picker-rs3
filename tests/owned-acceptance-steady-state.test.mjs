@@ -266,6 +266,8 @@ test('source ledgers assert existing caps and retain only the admitted response/
   hot.retain(first, 40, () => { demoted = first; }); hot.retain(second, 80, () => {});
   assert.equal(demoted, first); assert.equal(hot.retentionLedger().dimensions[0].used, 1);
   assert.equal(hot.retentionLedger().dimensions[1].used, 80);
+  assert.equal(hot.retentionLedger().dimensions[1].unit, 'chargeBytes');
+  assert.equal(hot.retentionLedger().includedInOtherCap, true, 'only the worker ledger adds this byte charge to the projection');
   const budget = createEligibilityBudget({ byteLimit: 10, entryLimit: 1 }); const token = {};
   assert.equal(budget.admit(token, () => {}, { cost: 10 }), true);
   assert.equal(budget.retentionLedger().dimensions[1].used, 10);

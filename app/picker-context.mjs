@@ -67,7 +67,7 @@ import { pinnedOwnedMigrationInputs } from './owned-preparation.mjs';
 import { projectBrowserState } from './web/browser-state.mjs';
 import { projectDuoPlayResult, projectDuoInspectionJSON, DUO_INSPECTION_VIEW } from './duo-play-view.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
-import { createRepresentation as rawCreateRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
+import { createRepresentation as rawCreateRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, RESPONSE_CACHE_DEFAULTS, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
 import { crc32, deflateRawSync } from 'node:zlib';
 import { normalizeSandboxRequest, sandboxTaskCatalogue, applySandboxChanges } from './sandbox.mjs';
 import { normalizeAreaCheckRequest } from './tasks/area-check.mjs';
@@ -285,13 +285,15 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   };
   // Enable explicitly after measuring the deployment's full-state cache misses.
   const gzipFullStateParts = process.env.RS3_FULL_STATE_GZIP_PARTS === '1';
-  const responseBudget = 48 * 1024 * 1024;
-  const responseCache = createResponseCache({ maxEntries: 32, maxBytes: responseBudget });
+  const responseBudget = RESPONSE_CACHE_DEFAULTS.group.maxBytes;
+  const responseGroup = Symbol('picker-responses');
+  const responseCache = createResponseCache({ ...RESPONSE_CACHE_DEFAULTS.group, group: responseGroup });
   const savedWhyEvidence = createSavedWhyEvidence({ cache: responseCache });
   const stateResponseBuilds = createStateResponseBuilds();
   const stateResponses = new Set();
+  const evidenceShutdown = new AbortController();
   const stateResponseLeases = createResponseLeases({ maxBytes: responseBudget });
-  const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024 });
+  const sandboxPools = createResponseCache({ ...RESPONSE_CACHE_DEFAULTS.sandbox, group: responseGroup });
   const poolRanking = createPoolRanking(), rankingPools = new Map();
   if (PROFILE_ENABLED) profile.wrapMethods(poolRanking, ['read', 'record', 'missing'], 'poolRanking');
   let rankingPoolInput, rankingLeaseTimer;
@@ -1042,13 +1044,22 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await json(request, response, 200, { ...ranking, pickerId: identity.pickerId ?? (pickerRouting?.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id) ?? pickerId, datasetDigest: dataset.digest }); return;
           }
           if (route === '/api/task-why') {
+            const evidenceRequest = savedWhyEvidence.enforced ? new AbortController() : undefined;
+            const disconnectEvidence = () => evidenceRequest?.abort();
+            const shutdown = evidenceShutdown.signal;
+            if (evidenceRequest) {
+              request.once('aborted', disconnectEvidence); response.once('close', disconnectEvidence);
+              shutdown?.addEventListener('abort', disconnectEvidence, { once: true });
+              if (request.aborted || response.destroyed || shutdown?.aborted) disconnectEvidence();
+            }
+            try {
             noteTiming({ source: 'computed' });
             const query = new URL(request.url, 'http://localhost').searchParams;
             if (query.has('view')) {
               const revision = store.getInfo().revision;
               validateWhyDisplay(query, { revision, members: knownTaskMembers });
               let display = await savedWhyDisplay(query, { revision, entry: savedTaskResults.get(query.get('memberId')),
-                currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence });
+                currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence, signal: evidenceRequest?.signal });
               if (!display && !identity.readOnly && taskWorker?.supports('why-task')) {
                 const captured = calculationState(), controller = new AbortController();
                 const disconnected = () => { if (!response.writableEnded) controller.abort(); };
@@ -1067,7 +1078,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               await json(request, response, 200, display); return;
             }
             await json(request, response, 200, await savedWhyChain(query, { revision: store.getInfo().revision, members: knownTaskMembers,
-              entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence })); return;
+              entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision,
+              evidence: savedWhyEvidence, signal: evidenceRequest?.signal })); return;
+            } catch (error) {
+              if (evidenceRequest?.signal.aborted) { response.destroy(); return; }
+              throw error;
+            } finally {
+              if (evidenceRequest) {
+                request.off('aborted', disconnectEvidence); response.off('close', disconnectEvidence);
+                shutdown?.removeEventListener('abort', disconnectEvidence);
+              }
+            }
           }
           if (route === '/api/tasks' && identity.readOnly) { await readSavedTasks(request, response); return; }
           if (route === '/api/backlog-search') {
@@ -2076,7 +2097,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         return;
       }
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),
@@ -2130,6 +2151,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     },
     fenceDeletion() {
       closed = true;
+      evidenceShutdown.abort();
       void savedWhyEvidence.close();
       stateResponseBuilds.close();
       for (const response of stateResponses) response.destroy();
@@ -2253,6 +2275,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     close() {
       if (closePromise) return closePromise;
       closed = true;
+      evidenceShutdown.abort();
       const evidenceClosed = savedWhyEvidence.close();
       stateResponseBuilds.close();
       for (const response of stateResponses) response.destroy();

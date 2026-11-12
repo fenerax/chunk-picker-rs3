@@ -68,8 +68,10 @@ export function capProjection(owners) {
   return { diagnosticOnly: true, complete, incompleteLedgers, missingByteCaps: missing,
     perGroupByteCapSum: complete ? perGroup : null,
     projectedTotal100GroupBytes: complete ? perGroup * 100 + shared : null,
+    projectedTotal500GroupBytes: complete ? perGroup * 500 + shared : null,
     knownPerGroupByteCapSubtotal: perGroup, knownSharedByteCapSubtotal: shared,
     knownProjected100GroupByteCapSubtotal: perGroup * 100 + shared,
+    knownProjected500GroupByteCapSubtotal: perGroup * 500 + shared,
     note: 'Source ledger charge units; incomplete totals are null, never zero. No heap subtraction or new threshold.' };
 }
 

@@ -9,6 +9,10 @@ export const automaticTransportEnabled = state => state.rules?.[AUTOMATIC_TRANSP
 // supplies; a force-usable declaration still bypasses that personal gate.
 export const automaticConfirmationRequiresDeclaration = key => key === 'wilderness-pvp-warning-accepted';
 const configurations = new WeakMap(), engines = new WeakMap(), baselines = new WeakMap(), derived = new WeakMap();
+// Sticky until the evaluator dies: neither these hidden roots nor their full
+// lifetime has an enforced byte census yet. Never certify an affected engine.
+const unledgeredEngines = new WeakSet();
+export const hasUnledgeredAutomaticTransportCaches = engine => unledgeredEngines.has(engine);
 const renewableCount = 1e12;
 const normalize = name => String(name).trim().toLowerCase();
 let engineFactory;
@@ -49,6 +53,7 @@ function baselineFor(world, state, memberId, supplied, signature) {
     engine = engineFactory(definitions, configuration.options ?? world.automaticTransportOptions ?? {});
     engines.set(world, engine);
   }
+  unledgeredEngines.add(engine);
   // The evaluator's catalogue is compiled from definitions, not state.tasks.
   // Saved quest labels affect the personal quest projection below and are
   // included by content in the capability key.
@@ -85,6 +90,8 @@ export function deriveAutomaticTransport(world, state, memberId, { baseline, tra
   if (!member) throw new TypeError(`Unknown member: ${memberId}`);
   const explicit = transportFactsByMember?.[memberId] ?? member.transportFacts ?? {};
   const signature = automaticTransportEnabled(state) ? automaticTravelInputKey(state, transportFactsByMember) : null;
+  const owner = configurations.get(world)?.engine ?? engines.get(world);
+  if (signature && owner) unledgeredEngines.add(owner);
   let cached = derived.get(world);
   if (signature && !baseline && cached?.signature === signature && cached.byMember.has(memberId)) return cached.byMember.get(memberId);
   if (signature && (!cached || cached.signature !== signature)) {

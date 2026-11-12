@@ -226,7 +226,8 @@ export function buildAccessIndex(definitions, { dataset, cacheWalking, cacheReso
   };
   const retainedResourceWorld = retained && { ...retained.world, sectionTopology: new Map([...retained.world.sectionTopology].map(([base, parts]) => [base,
     new Map([...parts].map(([part, sources]) => [part, sources.filter(source => resourceBoundaryAllowed(source, `${base}-${part}`))]))])) };
-  return { definitions, nodes, aliases, reverse, topology, baseSections, connectors, resourceCompatibility, invalidSourceGates, diagnostics, resolve, world: travelWorld, retained, retainedResourceWorld, resourceBoundaryAllowed, membersOnlyBases };
+  return { definitions, nodes, aliases, reverse, topology, baseSections, connectors, resourceCompatibility, invalidSourceGates, diagnostics, resolve, world: travelWorld, retained, retainedResourceWorld, resourceBoundaryAllowed, membersOnlyBases,
+    retentionRoots: { world, sectionEntrances, mixedBases, diagnosticKeys: diagnosticKeys.get(diagnostics) } };
 }
 
 function taskRequirements(requirements, validTasks, diagnostics, context) {
@@ -718,10 +719,15 @@ function compileItems(definitions) {
     if (!parsedRates.has(raw)) parsedRates.set(raw, parseDropRate(raw));
     return parsedRates.get(raw);
   };
-  const index = { gates, tables: definitions.codeItems?.dropTables ?? {}, parseRate };
+  const index = { gates, tables: definitions.codeItems?.dropTables ?? {}, parseRate, parsedRates };
   itemCache.set(definitions, index);
   return index;
 }
+
+// Explicitly expose data held by the WeakMap while its definitions are live.
+export const accessRetentionRoots = definitions => itemCache.get(definitions);
+export const accessRetentionVersion = definitions => itemCache.has(definitions) ? itemCache.get(definitions).parsedRates.size : -1;
+export const releaseAccessRetention = definitions => itemCache.delete(definitions);
 
 /** Spawn, shop and monster sources only; crafting belongs to the task engine. */
 /** Exact resource inputs read by the base collector, excluding task gates and

@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createResponseCache } from '../app/http-response.mjs';
+import { createResponseCacheBudget } from '../app/response-cache-budget.mjs';
 import { createSavedWhyEvidence, forgetSavedWhyChain, savedWhyCharge } from '../app/saved-why-evidence.mjs';
 
 const makeEntry = () => ({ revision: 7, fullGzip: gzipSync(JSON.stringify({ tasks: [{ id: 'fixture', record: {} }] })) });
@@ -68,8 +69,51 @@ test('saved decode admission shares limits and keeps in-flight invalidations cha
   assert.equal(owner.stats().bytes, 0); assert.equal(clock.active.size, 0);
 });
 
+test('peer-pinned global pressure preserves saved evidence without retaining a decoded fallback', async t => {
+  const entry = makeEntry(), raw = entry.fullGzip.readUInt32LE(entry.fullGzip.length - 4);
+  const charge = savedWhyCharge(raw, entry.fullGzip.buffer.byteLength);
+  const budget = createResponseCacheBudget({ maxBytes: charge + 65536, maxEntries: 1 });
+  const peer = createResponseCache({ budget, maxBytes: charge + 65536 });
+  const reservation = { retainedBytes: 65536, pinned: true };
+  peer.set('peer', reservation);
+  const cache = createResponseCache({ budget }), clock = timers();
+  const owner = createSavedWhyEvidence({ cache, clock }); t.after(() => owner.close());
+  const first = owner.acquire(entry, 7);
+  const shared = owner.acquire(entry, 7);
+  assert.equal(owner.stats().pending, 1); assert.equal(cache.bytes, 0);
+  const decoded = await first, second = await shared;
+  assert.equal(second.value, decoded.value, 'refused same-evidence callers share one bounded decode');
+  assert.deepEqual(decoded.value, { tasks: [{ id: 'fixture', record: {} }] });
+  assert.equal(owner.stats().bytes, charge);
+  decoded.release(); second.release();
+  assert.deepEqual(owner.stats(), { entries: 0, pending: 0, bytes: 0, maxRawBytes: 1024 ** 2 });
+  assert.equal(clock.active.size, 0); assert.equal(budget.bytes, 65536);
+  reservation.pinned = false; peer.clear();
+  const retained = await owner.acquire(entry, 7), again = await owner.acquire(entry, 7);
+  assert.equal(again.value, retained.value); retained.release(); again.release();
+});
+
 test('invalidated saved graphs and entries collect while the owning context remains reachable', async () => {
   // GC is enabled only in this test-owned child, never in application/global config.
   const { stdout } = await promisify(execFile)(process.execPath, ['--expose-gc', fileURLToPath(new URL('./helpers/saved-why-gc.mjs', import.meta.url))], { timeout: 30_000 });
   assert.match(stdout, /collected all saved evidence/);
+});
+
+test('every saved-Why decode settlement releases charges, including failure, abort and uncached fallback', async () => {
+  for (const mode of ['success', 'invalid-json', 'forgotten', 'closed', 'uncached']) {
+    const budget = createResponseCacheBudget({ maxBytes: 256 * 1024, maxEntries: 1 });
+    const peer = createResponseCache({ budget }), reservation = { retainedBytes: 128 * 1024, pinned: true };
+    if (mode === 'uncached') peer.set('peer', reservation);
+    const cache = createResponseCache({ budget });
+    const owner = createSavedWhyEvidence({ cache, clock: timers() }), entry = makeEntry();
+    if (mode === 'invalid-json') entry.fullGzip = gzipSync('not json');
+    const decoding = owner.acquire(entry, 7);
+    const result = decoding.catch(error => { assert.equal(error.name, 'AbortError', mode); });
+    if (mode === 'forgotten') forgetSavedWhyChain(entry);
+    const closing = mode === 'closed' ? owner.close() : undefined;
+    const lease = await result; lease?.release(); await closing;
+    await owner.close(); reservation.pinned = false; peer.clear();
+    assert.equal(budget.bytes, 0, mode);
+    assert.equal(budget.retentionLedger().dimensions.find(d => d.unit === 'pendingDecodes').used, 0, mode);
+  }
 });

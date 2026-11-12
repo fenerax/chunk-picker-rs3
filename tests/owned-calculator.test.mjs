@@ -12,7 +12,8 @@ import { createOwnedBaseManifest } from '../app/storage/owned-base-schema.mjs';
 import { ownedCodec } from '../app/storage/owned-codec.mjs';
 import { openStore } from '../app/storage/store.mjs';
 import { createResidentState, applyResidentCommand, materializeResidentState } from '../app/core/state.mjs';
-import { hasResidentIdentities } from '../app/core/resident-copy.mjs';
+import { hasResidentIdentities, residentBase } from '../app/core/resident-copy.mjs';
+import { createStateSnapshotCache, retainedDataBytes, stateInputRetentionLedger } from '../app/tasks/retained-data.mjs';
 import { withIdentityDictionaryCallCountsForTests, identityValue, identityJSONParts } from '../app/tasks/identity-dictionary.mjs';
 import { buildIdentityIndex } from '../app/tasks/identity.mjs';
 import { hasCompleteMigrationCatalogue } from '../app/tasks/migration.mjs';
@@ -35,11 +36,11 @@ const definitions = { challenges: { Synthetic: { 'Synthetic first': { PickerId: 
 const world = buildWorld(definitions);
 const workerData = genericWorkerData({ definitions, world: { chunks: world.chunks, surface: world.surface },
   skillGuideCatalogue: { skills: [], tasks: [] } });
-const clock = 'data:text/javascript,' + encodeURIComponent("Object.defineProperty(performance, 'now', { value: () => 0 });");
-function data() {
+const clock = new URL('./helpers/fixed-performance-clock.mjs', import.meta.url).href;
+function data(deletedLabel = 'Deleted base row') {
   const original = fixture();
   const built = buildOwnedBase({ dataset: { id: selectedDataset.datasetId, contractVersion: selectedDataset.datasetContractVersion,
-    digest: selectedDataset.digest }, tasks: [...original.base.tasks, { id: deleted, label: 'Deleted base row', category: 'Synthetic' }],
+    digest: selectedDataset.digest }, tasks: [...original.base.tasks, { id: deleted, label: deletedLabel, category: 'Synthetic' }],
   identityRegistry: original.base.identityRegistry });
   const state = original.state;
   state.members[0].unlocked = ['12850'];
@@ -64,6 +65,36 @@ function canonical(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([key]) => !['evaluationMs', 'timingMs'].includes(key)).map(([key, child]) => [key, canonical(child)]));
   return value;
 }
+
+test('resident input ledger charges an oversized rejected base and deduplicates installed ownership', () => {
+  const label = 'Synthetic hidden base payload '.repeat(32768), f = data(label);
+  const input = ownedCalculatorInput(f.resident);
+  const charge = cache => cache.retentionLedger().dimensions.find(d => d.unit === 'chargeBytes').used;
+  const rejected = createOwnedCalculatorReceiver(selectedDataset.digest, { maxBytes: 0, maxEntries: 2 });
+  const state = rejected(input);
+  assert.equal(charge(rejected), 0);
+  assert(!state.tasks.some(task => task.id === deleted));
+  assert.equal(residentBase(state).tasks.find(task => task.id === deleted).label, label);
+  const snapshots = createStateSnapshotCache({ maxBytes: 8 * 1024 ** 2 });
+  snapshots.set('resident', state);
+  assert.equal(snapshots.size, 1);
+  assert(charge(snapshots) >= label.length * 2, 'hidden base survives rejected installation');
+  assert(charge({ retentionLedger: () => stateInputRetentionLedger([snapshots, rejected]) }) >= label.length * 2);
+  const tooSmall = createStateSnapshotCache({ maxBytes: label.length });
+  tooSmall.set('resident', state);
+  assert.equal(tooSmall.size, 0, 'snapshot admission includes its hidden base');
+
+  const installed = createOwnedCalculatorReceiver(selectedDataset.digest, { maxBytes: 8 * 1024 ** 2, maxEntries: 2 });
+  const shared = installed(input), retained = createStateSnapshotCache({ maxBytes: 8 * 1024 ** 2 });
+  retained.set('resident', shared);
+  const union = stateInputRetentionLedger([retained, installed]);
+  const bytes = union.dimensions.find(d => d.unit === 'chargeBytes');
+  assert.equal(union.complete, true); assert(bytes.used <= bytes.cap);
+  assert(charge(retained) + charge(installed) - bytes.used >= label.length * 2, 'shared base charged once');
+  assert(bytes.used >= retainedDataBytes([residentBase(shared)]));
+  assert.equal(JSON.stringify(ownedCodec(residentBase(state), f.pin).encode(state)),
+    JSON.stringify(ownedCodec(residentBase(shared), f.pin).encode(shared)), 'admission preserves saved delta bytes');
+});
 async function client(worker) {
   const [ready] = await once(worker, 'message'); assert.equal(ready.type, 'ready');
   let sequence = 0, installations = 0;
@@ -166,6 +197,47 @@ test('prediction-first owned state stays resident and matches flat state after d
       }
     } finally { await worker.terminate(); }
   }
+});
+
+test('verified base byte eviction reloads exact input and saved delta bytes', () => {
+  const f = data(), input = ownedCalculatorInput(f.resident), evicted = [];
+  const original = JSON.stringify(input.document), reference = createOwnedCalculatorReceiver(f.pin.dataset.digest)(input);
+  const expected = JSON.stringify(ownedCodec(f.base, f.pin).encode(reference));
+  const receive = createOwnedCalculatorReceiver(f.pin.dataset.digest, { maxEntries: 2, maxBytes: 0, onEvict: digest => evicted.push(digest) });
+  for (const packet of [input, structuredClone(input)]) {
+    const state = receive(packet);
+    assert.deepEqual(materializeResidentState(state), f.logical);
+    assert.equal(JSON.stringify(ownedCodec(f.base, f.pin).encode(state)), expected);
+  }
+  assert.equal(JSON.stringify(input.document), original);
+  assert.deepEqual(evicted, [f.pin.sha256, f.pin.sha256]);
+  const ledger = receive.retentionLedger();
+  assert.equal(ledger.complete, true);
+  assert.deepEqual(ledger.dimensions.map(row => [row.unit, row.used, row.cap]), [['entries', 0, 2], ['chargeBytes', 0, 0]]);
+});
+
+test('pooled base eviction requests installations again without changing calculator reply bytes', async t => {
+  const f = data(), input = ownedCalculatorInput(f.resident), replies = [], sends = [];
+  for (const cap of [1024 ** 2, 0]) {
+    const sent = [];
+    const scheduler = await createTaskScheduler({ maxCalculators: 1, workerData, workerFactory: data => {
+      const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), { workerData: data,
+        env: { ...process.env, RS3_STATE_SNAPSHOT_BYTES: String(cap), RS3_CALCULATOR_CACHE_BYTES: '0' }, execArgv: ['--import', clock] });
+      const post = worker.postMessage.bind(worker);
+      worker.postMessage = message => { if (message.type === 'evaluate') sent.push(!!message.ownedBase); return post(message); };
+      return worker;
+    } });
+    t.after(() => scheduler.close());
+    const values = [];
+    for (const key of ['first', 'second']) {
+      const value = await scheduler.forPicker(A).evaluate({ revision: f.logical.revision, members: f.logical.members }, 'member-1',
+        'evaluate', undefined, key, 'synthetic-input', undefined, [], 'full', { owned: input, inputKey: 'synthetic-input' });
+      values.push(JSON.stringify(value.result));
+    }
+    replies.push(values); sends.push(sent); await scheduler.close();
+  }
+  assert.deepEqual(replies[1], replies[0]);
+  assert.deepEqual(sends, [[true, false], [true, true]]);
 });
 
 test('owned commands, responses and pooled requests make no full identity copies', async t => {

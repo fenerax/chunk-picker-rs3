@@ -3,6 +3,7 @@ import { gzip, createGzip, brotliCompress, constants } from 'node:zlib';
 import { promisify } from 'node:util';
 import { Readable, Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { serviceResponseCacheBudget } from './response-cache-budget.mjs';
 
 const gzipAsync = promisify(gzip), brotliAsync = promisify(brotliCompress);
 const etag = bytes => `"${createHash('sha256').update(bytes).digest('hex')}"`;
@@ -28,17 +29,47 @@ export function negotiateEncoding(header = '', compress = true) {
 export function createRepresentation(bytes, { type = 'application/json; charset=utf-8', cacheControl = PRIVATE_REVALIDATE, compress = true, identityETag } = {}) {
   const plain = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   const encodings = new Map([['identity', Promise.resolve({ bytes: plain, etag: identityETag ?? etag(plain) })]]);
-  let retainedBytes = plain.byteLength;
+  let retainedBytes = plain.byteLength, encodingPins = 0;
   const representation = { bytes: plain, type, cacheControl, compress,
+    get pinned() { return encodingPins > 0; },
     get byteLength() { return plain.byteLength; },
     get retainedBytes() { return retainedBytes; },
     encoded(encoding) {
-      if (!encodings.has(encoding)) encodings.set(encoding, (encoding === 'br'
-        ? brotliAsync(plain, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })
-        : gzipAsync(plain, { level: 1 })).then(bytes => {
-          retainedBytes += bytes.byteLength; representation.onSizeChange?.();
-          return { bytes, etag: etag(bytes) };
-        }).catch(error => { encodings.delete(encoding); throw error; }));
+      const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
+      if (!encodings.has(encoding)) {
+        // Both codecs' maximum encoded size is below this input + 6.25% +
+        // 64 KiB charge. Reserve output before native work; input is already
+        // charged by a retained row, or included in an uncached reservation.
+        const outputCharge = plain.byteLength + Math.ceil(plain.byteLength / 16) + 65536;
+        const release = budget.reserveEncoding({
+          cost: () => outputCharge + (representation.isRetained?.() ? 0 : retainedBytes),
+          uncachedCost: () => outputCharge + retainedBytes,
+          pin: () => encodingPins++, unpin: () => encodingPins--,
+        });
+        if (!release) return Promise.reject(Object.assign(new Error('Response encoding admission is full. Retry shortly.'), {
+          status: 503, code: 'RESPONSE_ENCODING_BUSY', retryAfter: 1,
+        }));
+        encodings.set(encoding, Promise.resolve().then(async () => {
+          let encoded;
+          try {
+            const bytes = await (encoding === 'br'
+              ? brotliAsync(plain, { params: { [constants.BROTLI_PARAM_QUALITY]: 4 } })
+              : gzipAsync(plain, { level: 1 }));
+            encoded = { bytes, etag: etag(bytes) };
+          } finally {
+            // Release the conservative output reservation, then replace it with
+            // completed backing synchronously. Native work remains charged
+            // even if all sockets disconnect or the cache is invalidated.
+            release();
+            if (encoded) retainedBytes += encoded.bytes.byteLength;
+            representation.onSizeChange?.();
+          }
+          return encoded;
+        }).catch(error => {
+          encodings.delete(encoding);
+          throw error;
+        }));
+      }
       return encodings.get(encoding);
     } };
   return representation;
@@ -168,9 +199,20 @@ export function createResponseLeases({ maxBytes = 48 * 1024 * 1024 } = {}) {
 }
 
 export async function sendRepresentation(request, response, representation, { status = 200, headers = {}, conditional = true } = {}) {
-  const encoding = negotiateEncoding(request.headers['accept-encoding'], representation.compress);
-  const encoded = await representation.encoded(encoding);
-  if (response.destroyed) return;
+  let encoding = negotiateEncoding(request.headers['accept-encoding'], representation.compress), encoded;
+  const budget = representation.encodingBudget ?? serviceResponseCacheBudget;
+  if (budget.enforced && (response.destroyed || request.aborted)) return;
+  try {
+    encoded = await representation.encoded(encoding);
+  } catch (error) {
+    if (error.code !== 'RESPONSE_ENCODING_BUSY') throw error;
+    // Refusal never becomes a cached compressed variant. Identity uses its
+    // existing bytes and validator; an identity-forbidden request gets 503.
+    if (representation.encoding && representation.encoding !== 'identity') throw error;
+    try { encoding = negotiateEncoding(request.headers['accept-encoding'], false); } catch { throw error; }
+    encoded = await representation.encoded(encoding);
+  }
+  if (response.destroyed || budget.enforced && request.aborted) return;
   const fields = { 'Content-Type': representation.type, 'Cache-Control': representation.cacheControl,
     Vary: 'Accept-Encoding', ETag: encoded.etag, ...(encoding !== 'identity' ? { 'Content-Encoding': encoding } : {}), ...headers };
   const matches = (request.headers['if-none-match'] ?? '').split(',').some(value => value.trim() === '*' || value.trim().replace(/^W\//, '') === encoded.etag);
@@ -183,17 +225,29 @@ export async function sendRepresentation(request, response, representation, { st
 
 /** Bound retained bytes, including completed encodings. Pending encodings
  * coalesce, and failures can be retried without poisoning the cache. */
-export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 1024 } = {}) {
+export const RESPONSE_CACHE_DEFAULTS = Object.freeze(Object.fromEntries(Object.entries({
+  generic: { maxEntries: 64, maxBytes: 32 * 1024 ** 2 },
+  group: { maxEntries: 32, maxBytes: 48 * 1024 ** 2 },
+  sandbox: { maxEntries: 32, maxBytes: 4 * 1024 ** 2 },
+  static: { maxEntries: 128, maxBytes: 48 * 1024 ** 2 },
+}).map(([owner, limits]) => [owner, Object.freeze(limits)])));
+
+export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.generic.maxEntries, maxBytes = RESPONSE_CACHE_DEFAULTS.generic.maxBytes,
+  budget = serviceResponseCacheBudget, group = Symbol('response-owner') } = {}) {
   if (![maxEntries, maxBytes].every(value => Number.isSafeInteger(value) && value >= 0)) throw new TypeError('Invalid response cache bound.');
   const rows = new Map();
+  const tokens = new Map();
+  const retiring = new Set();
   const bytes = () => [...rows.values()].reduce((sum, row) => sum + row.retainedBytes, 0);
   const remove = key => {
     const row = rows.get(key);
     // In-flight decoders keep their reservation until their native operation
     // settles. Invalidation still cancels their reusable result immediately.
-    if (row?.pinned) { row.onEvict?.(); return false; }
+    if (row?.pinned) { retiring.add(key); row.onEvict?.(); return false; }
     rows.delete(key);
-    if (row) { row.onSizeChange = undefined; row.onEvict?.(); }
+    retiring.delete(key);
+    budget.forget(tokens.get(key)); tokens.delete(key);
+    if (row) { row.onSizeChange = row.isRetained = undefined; row.onEvict?.(); }
     return !!row;
   };
   const trim = () => {
@@ -204,23 +258,37 @@ export function createResponseCache({ maxEntries = 64, maxBytes = 32 * 1024 * 10
     }
   };
   return {
-    get(key) { const row = rows.get(key); if (row) { rows.delete(key); rows.set(key, row); } return row; },
-    set(key, value) {
-      if (rows.has(key) && !remove(key)) return value;
+    get(key) { const row = retiring.has(key) ? undefined : rows.get(key); if (row) { rows.delete(key); rows.set(key, row); budget.touch(tokens.get(key)); } return row; },
+    set(key, value, { onRefused } = {}) {
+      value.encodingBudget = budget;
+      if (rows.has(key) && !remove(key)) { onRefused?.('owner'); return value; }
       const pinned = [...rows.values()].filter(row => row.pinned);
       if (value.retainedBytes > maxBytes || pinned.length >= maxEntries
-        || pinned.reduce((sum, row) => sum + row.retainedBytes, 0) + value.retainedBytes > maxBytes) return value;
-      rows.set(key, value); value.onSizeChange = trim; trim();
+        || pinned.reduce((sum, row) => sum + row.retainedBytes, 0) + value.retainedBytes > maxBytes) { onRefused?.('owner'); return value; }
+      const token = {};
+      rows.set(key, value); tokens.set(key, token);
+      value.isRetained = () => rows.get(key) === value;
+      value.onSizeChange = () => {
+        if (retiring.has(key) && !value.pinned) remove(key);
+        else { trim(); budget.resize(token, value.retainedBytes); }
+      };
+      if (!budget.admit(token, { group, cost: value.retainedBytes, pinned: () => !!value.pinned, evict: () => remove(key) })) {
+        // Rejected reservations were never admitted; do not cancel their caller.
+        if (rows.get(key) === value) { rows.delete(key); tokens.delete(key); value.onSizeChange = value.isRetained = undefined; }
+        onRefused?.('service');
+      }
+      trim();
       return value;
     },
     clear() { for (const key of rows.keys()) remove(key); },
+    get budget() { return budget; },
     delete: remove,
     get size() { return rows.size; },
     get bytes() { return bytes(); },
-    retentionLedger() {
+    retentionLedger({ subset = false } = {}) {
       const used = bytes();
       if (rows.size > maxEntries || used > maxBytes) throw new Error('Response cache retention cap exceeded.');
-      return { owner: 'response-caches', complete: true, dimensions: [
+      return { owner: 'response-caches', complete: true, includedInOtherCap: subset, dimensions: [
         { unit: 'entries', used: rows.size, cap: maxEntries, enforced: true },
         { unit: 'chargeBytes', used, cap: maxBytes, enforced: true }],
         accounting: 'Representation retainedBytes, including plain/gzip backing stores; not V8 heap bytes.' };

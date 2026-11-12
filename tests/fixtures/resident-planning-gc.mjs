@@ -23,14 +23,22 @@ const probe = globalThis.__planningGC = { parentPort: port, workerData: genericW
 registerHooks({ load(url, context, next) {
   const result = next(url, context);
   if (!url.endsWith('/tasks/worker.mjs')) return result;
-  const source = 'const { parentPort, workerData } = globalThis.__planningGC;\n' + String(result.source)
-    .replace("import { parentPort, workerData } from 'node:worker_threads';", '')
-    .replace('const stateSnapshots = new Map();', `const stateSnapshots = new Map();
+  let source = String(result.source);
+  const replace = (before, after) => {
+    assert.equal(source.split(before).length, 2, `Planning GC fixture anchor changed: ${before}`);
+    source = source.replace(before, after);
+  };
+  replace("import { parentPort, workerData } from 'node:worker_threads';", '');
+  // The real import is hoisted; the synthetic binding must precede the worker's
+  // early heap-limit guard too, rather than replacing the import in place.
+  source = 'const { parentPort, workerData } = globalThis.__planningGC;\n' + source;
+  replace('const snapshots = completeCache.entries;', `const snapshots = completeCache.entries;
       globalThis.__planningGC.read = () => ({ transfers: stateSnapshots.size,
-        indexes: [...snapshots.keys()].filter(key => snapshots.get(key).planningIndex).length });`)
-    .replace('const isCurrent = () => !abandoned()', 'globalThis.__planningGC.state = new WeakRef(state);\n  const isCurrent = () => !abandoned()');
-  return { ...result, source: source.replace('  completeCache.set(key, snapshot, state, pickerId);',
-    '  globalThis.__planningGC.baseline ??= new WeakRef(snapshot.baseline);\n  completeCache.set(key, snapshot, state, pickerId);') };
+        indexes: [...snapshots.keys()].filter(key => snapshots.get(key).planningIndex).length });`);
+  replace('const isCurrent = () => !abandoned()', 'globalThis.__planningGC.state = new WeakRef(state);\n  const isCurrent = () => !abandoned()');
+  replace('snapshot.revision = state.revision;\n  completeCache.set(key, snapshot, state, pickerId);',
+    'snapshot.revision = state.revision;\n  globalThis.__planningGC.baseline ??= new WeakRef(snapshot.baseline);\n  completeCache.set(key, snapshot, state, pickerId);');
+  return { ...result, source };
 } });
 const ready = once(port, 'ready');
 await import('../../app/tasks/worker.mjs'); await ready;

@@ -136,10 +136,11 @@ function fakeFactory(digest) {
 }
 const flush = async () => { for (let index = 0; index < 30; index++) await Promise.resolve(); };
 
-test('eager, lazy and restarted worker lanes retain the pinned descriptor after operator receipt edits', async t => {
+for (const ownedCatalogueSemantics of [false, true]) test(`eager, lazy and restarted worker lanes retain the pinned descriptor after operator receipt edits (owned semantics ${ownedCatalogueSemantics})`, async t => {
   const options = await fixture(t), digest = 'a'.repeat(64), selection = { schemaVersion: 1, data: { id: 'duo-data', version: '1.0.0', sha256: 'c'.repeat(64) }, rulesText: { id: 'duo-rules-text', version: '1.0.0', sha256: 'd'.repeat(64) } };
   await writeFile(options.selectionPath, encode(selection));
-  const workerData = { datasetDigest: digest, datasetSelection: { root, packsDir: options.packsDir, selection, digest } }, factory = fakeFactory(digest);
+  const workerData = { datasetDigest: digest, datasetSelection: { root, packsDir: options.packsDir, selection, digest },
+    ...(ownedCatalogueSemantics ? { ownedCatalogueSemantics: true } : {}) }, factory = fakeFactory(digest);
   const scheduler = await createTaskScheduler({ workerData, workerFactory: factory.create, maxRestarts: 0, deadlineMs: 1000, startupDeadlineMs: 1000 }); t.after(() => scheduler.close());
   await writeFile(options.selectionPath, encode({ schemaVersion: 1, data: null }));
   await scheduler.evaluate({ revision: 0 }, 'fixture', 'evaluate', undefined, 'lazy-fixture', 'lazy-input', undefined, [], 'full', undefined, 'side');

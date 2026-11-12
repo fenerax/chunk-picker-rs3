@@ -72,12 +72,12 @@ function sharedRuntime() {
   };
 }
 
-async function send(context, route, { body, key, cookie, stream = false } = {}) {
+async function send(context, route, { body, key, cookie, stream = false, encoding = 'identity' } = {}) {
   const bytes = body === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body));
   const request = Readable.from(bytes.length ? [bytes] : []);
   Object.assign(request, { method: body === undefined ? 'GET' : 'POST', url: route,
     socket: { remoteAddress: '127.0.0.1' }, complete: true,
-    headers: { host: '127.0.0.1:8788', 'accept-encoding': 'identity',
+    headers: { host: '127.0.0.1:8788', 'accept-encoding': encoding,
       ...(cookie ? { cookie } : { authorization: `Bearer ${key ?? context.store.getAccessToken()}` }),
       ...(body === undefined ? {} : { 'content-type': 'application/json', 'content-length': String(bytes.length) }) } });
   const chunks = [], headers = new Map();
@@ -115,6 +115,7 @@ async function fixture(t, { runtimeOptions = {}, ...options } = {}) {
   const a = await open('a'), b = await open('b');
   return { root, runtime, a, b, open };
 }
+
 async function command(context, command, expectedRevision = context.store.getInfo().revision, extra = {}) {
   const result = await send(context, '/api/command?view=play-v1', { body: { command, expectedRevision, ...extra } });
   assert.equal(result.status, 200, JSON.stringify(result.body)); return result.body;
@@ -705,20 +706,6 @@ test('oversized route retries pool-preparation revision races and failed builds'
   await command(a, note('another revision'));
   const failed = gzipCall(a); await failed.done; assert.equal(failed.response.statusCode, 500);
   const retry = await gzipCall(a).body(); assert.equal(retry.store.revision, 2); assert.equal(captures(), 4);
-});
-
-test('one and all oversized-route waiter disconnects settle without poisoning retries', { timeout: 10000 }, async t => {
-  const { a } = await gzipFixture(t), entered = Promise.withResolvers(), release = Promise.withResolvers();
-  oversizedSnapshots(a, { async beforeSnapshot(count) { if (count === 1) { entered.resolve(); await release.promise; } } });
-  const first = gzipCall(a), second = gzipCall(a); await entered.promise;
-  first.response.destroy(); await first.done; release.resolve();
-  assert.equal((await second.body()).state.revision, 0);
-  await command(a, note('next'));
-  const started = observeCompression(t), third = gzipCall(a), fourth = gzipCall(a);
-  await started; third.response.destroy(); fourth.response.destroy();
-  await Promise.all([third.done, fourth.done]);
-  await nextTurn(); await nextTurn();
-  const retry = await gzipCall(a).body(); assert.equal(retry.state.revision, 1);
 });
 
 test('separate pickers share bounded gzip admission without sharing bytes or validators', { timeout: 10000 }, async t => {

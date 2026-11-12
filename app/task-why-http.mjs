@@ -15,15 +15,19 @@ export function validateWhyDisplay(query, { revision, members }) {
 
 // Reuse the existing saved-evidence owner/parse when available. The derived
 // display is request-local and adds no retained bytes to saved list responses.
-export async function savedWhyDisplay(query, { revision, entry, currentRevision, evidence }) {
+export async function savedWhyDisplay(query, { revision, entry, currentRevision, evidence, signal }) {
   if (entry?.revision !== revision || !entry.fullGzip) return undefined;
-  const result = await evidence?.read(entry, revision, { rawLimit: 256 * 1024 });
-  if (currentRevision() !== revision) throw failure(409, 'The saved map changed. Open Why again.');
-  return taskWhyDisplay(result, query.get('taskId'), query.get('memberId'), revision, { limits: WRITER_WHY_BUDGET });
+  return evidence?.use(entry, revision, { rawLimit: 256 * 1024, signal }, result => {
+    if (currentRevision() !== revision) throw failure(409, 'The saved map changed. Open Why again.');
+    const display = taskWhyDisplay(result, query.get('taskId'), query.get('memberId'), revision, { limits: WRITER_WHY_BUDGET });
+    // Detach selected rows before releasing the full decoded graph. The narrow
+    // response then owns its own input through ordinary response admission.
+    return evidence.enforced ? structuredClone(display) : display;
+  });
 }
 
 // Saved evidence only, including for viewers. Never wake a calculation worker.
-export async function savedWhyChain(query, { revision, members, entry, definitions, currentRevision, evidence }) {
+export async function savedWhyChain(query, { revision, members, entry, definitions, currentRevision, evidence, signal }) {
   const allowed = new Set(['memberId', 'revision', 'taskId', 'master', 'assignment']);
   if ([...query.keys()].some(key => !allowed.has(key) || query.getAll(key).length !== 1)) throw failure(400, 'Choose one task to explain.');
   const memberId = query.get('memberId');
@@ -32,8 +36,11 @@ export async function savedWhyChain(query, { revision, members, entry, definitio
   const taskId = query.get('taskId'), master = query.get('master'), assignment = query.get('assignment');
   if (taskId ? master !== null || assignment !== null : !master || !assignment) throw failure(400, 'Choose one task or assignment to explain.');
   if (entry?.revision !== revision || !entry.fullGzip) throw unavailable('Saved task details are still loading.');
-  const result = await evidence?.read(entry, revision);
-  if (currentRevision() !== revision) throw failure(409, 'The saved map changed. Open Why not? again.');
-  if (!result || result.tasks?.length > 2048) throw unavailable('Saved evidence exceeds the explanation budget.');
-  return { ...buildWhyChain(result, definitions, { taskId, master, assignment }), memberId, stateRevision: revision };
+  const project = result => {
+    if (currentRevision() !== revision) throw failure(409, 'The saved map changed. Open Why not? again.');
+    if (!result || result.tasks?.length > 2048) throw unavailable('Saved evidence exceeds the explanation budget.');
+    const chain = { ...buildWhyChain(result, definitions, { taskId, master, assignment }), memberId, stateRevision: revision };
+    return evidence.enforced ? structuredClone(chain) : chain;
+  };
+  return evidence ? evidence.use(entry, revision, { signal }, project) : project(undefined);
 }

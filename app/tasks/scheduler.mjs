@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { deserialize, serialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
+import { serviceMemoryBudget, boundedMemoryOption } from '../service-memory-budget.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 import { hasRandomStartChoices } from '../core/state.mjs';
 import { createWorkerPreparation } from './prepared-collection.mjs';
@@ -142,6 +143,19 @@ export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs
   // applies while keep-warm is enabled (disabled or memory-suspended pools retire).
   if (sessions) options.idleMs ??= Number(process.env.RS3_WORKER_IDLE_MS ?? 600000);
   if (sessions) maxCalculators = Math.min(maxCalculators ?? sessions.maxResident, sessions.maxResident, Math.max(1, Math.floor(sessions.memoryBytes / sessions.estimatedBytes)));
+  // Without a physical pool there are foreground/advisory/preview/duo lanes.
+  // Their fixed shares also sum to the one service cache budget.
+  const memoryBudget = serviceMemoryBudget({ calculators: maxCalculators ?? 4 });
+  // Default workers derive the unchanged per-calculator caps locally. Only an
+  // enabled service profile needs the scheduler's divided calculator shares.
+  if (memoryBudget.enforced) options.workerData = { ...options.workerData, memoryBudget };
+  options.cacheByteLimit = boundedMemoryOption(options.cacheByteLimit,
+    memoryBudget.enforced ? Math.floor(memoryBudget.schedulerBytes * 3 / 8) : null) ?? 128 * 1024 ** 2;
+  if (memoryBudget.enforced) {
+    duoCacheBytes = Math.min(duoCacheBytes, Math.floor(memoryBudget.schedulerBytes / 8));
+    predictionCacheBytes = Math.min(predictionCacheBytes, Math.floor(memoryBudget.schedulerBytes / 8));
+  }
+  const resultByteCap = 2 * options.cacheByteLimit + duoCacheBytes + predictionCacheBytes;
   if (options.warmStoreDirectory) options.workerData = { ...options.workerData, warmStoreDirectory: options.warmStoreDirectory };
   options.workerPreparation = createWorkerPreparation(options.workerData, { persistentDirectory: options.warmStoreDirectory });
   if (maxCalculators !== undefined) {
@@ -244,6 +258,20 @@ export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs
     return prediction;
   }
   const scheduler = {
+    retentionLedger() {
+      const caches = [foreground, death, prediction, duo].filter(Boolean).map(lane => lane.getDiagnostics().cache).filter(Boolean);
+      const unlocks = [...pickers.values()].map(picker => picker.unlockResults.getDiagnostics());
+      const used = caches.reduce((sum, row) => sum + row.bytes, 0) + unlocks.reduce((sum, row) => sum + row.bytes, 0);
+      const entries = caches.reduce((sum, row) => sum + row.entries, 0) + unlocks.reduce((sum, row) => sum + row.entries, 0);
+      const entryCap = 2 * (options.cacheLimit ?? 8) + duoCacheLimit + 2 * predictionCacheLimit;
+      if (used > resultByteCap || entries > entryCap) throw new Error('Scheduler result retention cap exceeded.');
+      return { owner: 'response-caches', complete: true, dimensions: [
+        { unit: 'entries', used: entries, cap: entryCap, enforced: true },
+        { unit: 'chargeBytes', used, cap: resultByteCap, enforced: true }],
+      partitions: { foregroundBytes: options.cacheByteLimit, advisoryBytes: options.cacheByteLimit, duoBytes: duoCacheBytes,
+        predictionBytes: predictionCacheBytes - Math.floor(predictionCacheBytes / 2), unlockBytes: Math.floor(predictionCacheBytes / 2) },
+      accounting: 'Service partition for foreground/advisory/preview/duo results and global saved-unlock results. Byte quotas are divided before lane creation.' };
+    },
     forPicker(id) {
       const pickerId = pickerJobId(id);
       pickerState(pickerId).closed = false;
@@ -544,7 +572,7 @@ export async function createTaskScheduler({ maxDeathQueue = 128, deathDeadlineMs
       if (restarted.length) clearUnlockResults();
       return { restarted, worker: scheduler.getHealth() };
     },
-    getDiagnostics: pickerId => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics(pickerId) } : {}), unlockReuse: pickerState(pickerId ?? 'legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
+    getDiagnostics: pickerId => ({ ...foreground.getDiagnostics(), memoryBudget, ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics(pickerId) } : {}), unlockReuse: pickerState(pickerId ?? 'legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDeathQueue, deadlineMs: deathDeadlineMs },
     }, duoLane: duo?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDuoQueue, deadlineMs: duoDeadlineMs },
@@ -1122,6 +1150,10 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         return;
       }
       if (message.type === 'progress') {
+        for (const key of message.evictedStateInputs ?? []) sentSnapshots.delete(key);
+        for (const key of message.evictedOwnedBases ?? []) {
+          installedOwnedBases.delete(key); worker.ownedBaseDigests?.delete(key);
+        }
         if (message.ownedBaseInstalled) installedOwnedBases.add(message.ownedBaseInstalled);
         // Control metadata belongs only to this request and never reaches UI
         // observers, result payloads or the numeric timing-stage accumulator.

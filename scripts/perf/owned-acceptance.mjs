@@ -42,7 +42,7 @@ export async function comparison({ output, format, smoke = false, spotCheck = fa
   await mkdir(output, { recursive: true });
   await writeFile(path.join(output, 'started.json'), JSON.stringify({ startedAt: new Date().toISOString() }), { flag: 'wx' });
   const report = { format: 'owned-acceptance-7b', schemaVersion: 1, smoke, snapshots, scope, spotCheck, selectedFormat: format ?? null,
-    seed: SEED,
+    seed: SEED, memoryProfile: 'budget-672',
     commit: (await command('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8', signal, windowsHide: true })).trim(),
     runtime: { node: process.versions.node, v8: process.versions.v8, arch: process.arch },
     host: { hostname: hostname(), os: platform(), release: release(), cpu: cpus()[0]?.model, cpuCount: cpus().length, ramBytes: totalmem() },
@@ -50,7 +50,7 @@ export async function comparison({ output, format, smoke = false, spotCheck = fa
     results: [], failures: [], limitations: [
       'Synthetic topology, dependencies and alias distributions; no private saves or user traffic.',
       'Store/scheduler/session seams; no HTTP server, authentication, browser or plugin protocol.',
-      'Bounded application result/snapshot caches keep their default policy; no group handle or session is evicted.',
+      'Both formats explicitly use the opt-in budget-672 cache profile; no group handle or session is evicted.',
       'Temporary heap peaks are sampled lower bounds plus process OS maxRSS high-water marks, not exact allocation maxima.',
       'Serial operation CPU includes probe overhead; simultaneous per-request CPU is null, with process-tree CPU reported for the batch.',
       'Heap deltas include all measured isolates and hidden WeakMap graphs; incremental attribution can include allocator/GC noise.',
@@ -62,7 +62,7 @@ export async function comparison({ output, format, smoke = false, spotCheck = fa
     const root = await mkdtemp(path.join(modeDir, 'synthetic-stores-'));
     const env = { ...process.env };
     for (const key of Object.keys(env)) if (key.startsWith('RS3_') || ['NODE_OPTIONS', 'NODE_PATH'].includes(key)) delete env[key];
-    Object.assign(env, { ACCEPTANCE_SCOPE: scope, RS3_DATASET: 'open-f2p', RS3_ACCEPTANCE_PROBE_DIR: probes, RS3_ACCEPTANCE_STORE_ROOT: root,
+    Object.assign(env, { ACCEPTANCE_SCOPE: scope, RS3_MEMORY_PROFILE: 'budget-672', RS3_DATASET: 'open-f2p', RS3_ACCEPTANCE_PROBE_DIR: probes, RS3_ACCEPTANCE_STORE_ROOT: root,
       RS3_WORKER_MEMORY_PROBE_IMPORT: new URL('./owned-acceptance/probe.mjs', import.meta.url).href });
     if (onReady) env.RS3_ACCEPTANCE_NOTIFY_READY = '1';
     try {

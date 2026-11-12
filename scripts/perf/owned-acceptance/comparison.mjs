@@ -52,7 +52,7 @@ export function pairReports(receipts) {
     }
     if (reports.length !== 2) report.comparisonErrors.push('expected two format receipts');
     for (const receipt of reports) {
-      if (['commit', 'seed', 'smoke', 'snapshots', 'scope'].some(key => receipt[key] !== first[key])
+      if (['commit', 'seed', 'smoke', 'snapshots', 'scope', 'memoryProfile'].some(key => receipt[key] !== first[key])
         || ['node', 'v8', 'arch'].some(key => receipt.runtime[key] !== first.runtime[key])
         || ['run', 'attempt', 'freshRun'].some(key => receipt.ci[key] !== first.ci[key]))
         report.comparisonErrors.push('mismatched format receipt metadata');
