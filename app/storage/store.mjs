@@ -20,6 +20,7 @@ import path from 'node:path';
 import { acquireProcessGuard } from './process-guard.mjs';
 import { acquireStoreFileLock as acquireLock } from './store-lock.mjs';
 import { atomicWrite } from './atomic-write.mjs';
+import { createReadSnapshot } from './read-snapshot.mjs';
 export { prepareStoreProcessIdentity } from './store-lock.mjs';
 import { readStaticFieldBytes, validateStaticFieldReference } from './static-field.mjs';
 import { createOwnedStorage } from './owned-storage.mjs';
@@ -560,6 +561,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     fingerprint.seedStatic(state, digests); taskReuseFingerprint.seedStatic(state, digests);
   }
   let poolState, fullPools, playPools, calculationSnapshot;
+  const readSnapshot = createReadSnapshot(value => structuredClone(value)), claimReadSnapshots = new WeakMap();
   const taskReuseFingerprint = createTaskReuseFingerprint({ ownedCatalogueSemantics });
   rollPoolCache ??= createRollPoolCache(world, registry, { inputKey: taskReuseFingerprint });
   const playProjections = new WeakMap();
@@ -660,7 +662,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       input.history = randomStarts.length ? history : [];
       if (ownedStorage && provenance?.ownedCatalogue) input.provenance = { ownedCatalogue: provenance.ownedCatalogue };
       if (ownedStorage) adoptResidentState(input, residentBase(current));
-      let state, stateJSON, taskInputKey, rollInputKey, residentState, ownedInput;
+      let state, stateJSON, taskInputKey, rollInputKey, residentState, ownedInput, readState;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
       const inputKey = gameplayFingerprint();
       calculationSnapshot = { revision, members, inputKey, hasPendingRoll: current.members.some(member => member.pendingRoll.length > 0),
@@ -673,6 +675,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         get residentState() { return ownedStorage ? residentState ??= cloneResidentState(input) : undefined; },
         get owned() { return ownedStorage ? ownedInput ??= ownedCalculatorInput(input) : undefined; },
         get state() { return state ??= copyState(input); },
+        get readState() { return readState ??= readSnapshot(input); },
         get stateJSON() {
           if (!stateJSON) {
             // Reuse the verified static-field strings rather than cloning the
@@ -1637,6 +1640,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // Select before cloning: History and private retained evidence can be large.
       return structuredClone({ schemaVersion, revision, rules, members, tasks, identityRegistry,
         ...(taskClaims !== undefined ? { taskClaims } : {}) });
+    },
+    getTaskClaimReadState() {
+      if (!claimReadSnapshots.has(current)) {
+        const { schemaVersion, revision, rules, members, tasks, identityRegistry, taskClaims } = playProjection(current).state;
+        claimReadSnapshots.set(current, readSnapshot({ schemaVersion, revision, rules, members, tasks, identityRegistry,
+          ...(taskClaims !== undefined ? { taskClaims } : {}) }));
+      }
+      return claimReadSnapshots.get(current);
     },
     // Stable per-revision views: an archive fill replaces the view on a later read.
     getTaskCompletionHistory(memberId, { since = Date.parse(timestamp()) - 7 * 24 * 60 * 60 * 1000 } = {}) {
