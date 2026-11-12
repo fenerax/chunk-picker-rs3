@@ -12,7 +12,16 @@ An input, capability or overlay change, missing proof, or unknown old digest
 remains refused. No user-supplied claim of an input-only hash grants an upgrade.
 
 Newly prepared saves retain `provenance.datasetEvidence` (the digest and source
-evidence records). For older saves, stopped deployment retains records from the
+evidence records). Newly created sibling bindings retain the same witness in
+their optional `datasetEvidence` field. The pre-open gate checks that witness
+against the bound digest using the running provider's input records, without
+reading gameplay storage. Thus a new owned save can reopen after an evidence
+change even without retained release history. Binding creation publishes the
+whole receipt before the server creates the save; a partial witness cannot be
+published separately. Gate verification is read-only and explicit rebinding
+still requires an exact digest. Proofless existing bindings need retained
+release history for a changed digest, even if the save itself has provenance.
+For older saves, stopped deployment retains records from the
 hash-pinned current and candidate data/rules-text manifests in the store's
 `dataset-evidence.json`. Records are data, not executable code; each use rebuilds
 and checks the old digest. They survive ordinary snapshots and recovery copies.
@@ -279,7 +288,7 @@ reusing an issued ID. Evidence: `tests/registry.test.mjs:69`, `:101`,
 **5. `<dataDir>.dataset.json` sibling bindings**
 
 Owner: `app/dataset-binding.mjs`; JSON schemaVersion 1, datasetId,
-datasetContractVersion, digest, optional requiresPack (`:8`).
+datasetContractVersion, digest, optional requiresPack and datasetEvidence (`:8`).
 Writer `bindDatasetStorage` (`:42`) writes exclusive temp (`:49`), links
 for first creation (`:55`, `:56`), or renames a verified matching promotion
 (`:54`), then revalidates. **No fsync**; not independently locked.

@@ -265,6 +265,11 @@ after all stores pass. The former blanket service pack-change refusal allows
 only this proven transition; art and addon changes still use sequential recovery.
 
 Keep historical manifests for pickers whose stamp predates the current release.
+Newly created bindings carry an evidence witness, so the pre-open gate can
+verify those receipts without opening gameplay files or requiring retained
+release history. Existing proofless bindings still need that history after a
+digest change. Older runtimes that reject the new optional receipt field are
+also incompatible receivers; the stopped probes must pass before rollback.
 Unknown stamps fail closed. The first deployment of this support has a rollback
 boundary: once a picker is re-stamped, an older receiver without this support
 cannot open it. The reverse stopped check detects that case and leaves the

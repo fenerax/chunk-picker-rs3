@@ -12,6 +12,12 @@ import { datasetEvidencePath, datasetEvidenceRecord, datasetWithEvidenceHistory,
 import { prepareOwnedPickerState, preserveGameIdentity, requireGameBackup } from '../app/game-profile.mjs';
 import { inventory } from '../scripts/linux/files.mjs';
 import { storageOptions, syntheticDataset, pickerId, pickerRegistry } from './helpers/dataset-evidence.mjs';
+import { createServer } from '../app/server.mjs';
+import { selectedDataset } from '../app/dataset-runtime.mjs';
+import { datasetDigest } from '../app/datasets.mjs';
+import { openRegistry } from '../app/storage/registry.mjs';
+import { openInviteStore } from '../app/storage/invites.mjs';
+import { createGroupState } from '../app/core/state.mjs';
 
 async function fixture(t, { proof = true, savedProof = false } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'dataset-evidence-')), dataDir = path.join(root, 'save');
@@ -52,6 +58,96 @@ test('new provenance itself proves an evidence-only transition', async t => {
   const f = await fixture(t, { proof: false, savedProof: true });
   const store = await openStore(f.options);
   assert.equal(store.getState().provenance.dataset.digest, f.next.digest); await store.close();
+});
+
+test('server reopens a newly prepared owned save without retained release evidence', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'dataset-evidence-server-'));
+  let app;
+  t.after(async () => { await app?.close(); await rm(root, { recursive: true, force: true }); });
+  const dataDir = path.join(root, 'legacy'), multiPicker = { registryDir: path.join(root, 'registry'),
+    pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') };
+  const base = selectedDataset;
+  const provider = options => {
+    // Constructor injection permits local metadata records to differ while
+    // retaining the bootstrapped input catalogue. Model source evidence there
+    // so both HTTP opens exercise the gate in one process without changing any
+    // repository source or bypassing its dataset-switch protection.
+    const evidence = syntheticDataset(options).files.filter(row => row.kind === 'evidence')
+      .map(row => ({ ...row, path: 'local-map/synthetic-engine.mjs' }));
+    const files = [...base.files, ...evidence], digestWithEvidence = rows => datasetDigest(
+      [...files.filter(row => row.kind === 'input'), ...rows], base.capabilities, base.definitionOverlays);
+    const dataset = { ...base, files, digest: digestWithEvidence(files.filter(row => row.kind === 'evidence')), digestWithEvidence };
+    dataset.status = () => ({ id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest });
+    return dataset;
+  };
+  const previous = provider(), next = provider({ evidence: 'new source' });
+  await bindDatasetStorage(dataDir, previous);
+  const options = storageOptions(dataDir, previous), legacy = await openStore({ ...options, prepareState: undefined,
+    initialState: createGroupState([1, 2].map(i => ({ id: `synthetic-legacy-${i}`, name: `Synthetic ${i}` })), options.registry) });
+  const registry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
+  let login, cookie;
+  try {
+    login = await registry.firstLogin('discord', 'synthetic-evidence-reopen');
+    const invites = await openInviteStore({ dataDir, masterToken: legacy.getAccessToken(), pickerRegistry: registry });
+    try { cookie = 'duo_access=' + await invites.issuePickerSession(login.account.id, login.picker.id, 'discord'); }
+    finally { await invites.close(); }
+  } finally { await registry.close(); await legacy.close(); }
+  const directory = path.join(multiPicker.pickerRoot, login.picker.id);
+  // No calculator is needed: this regression exercises HTTP routing, the real
+  // binding gate and owned store preparation against a tiny synthetic world.
+  const start = dataset => createServer({ dataDir, multiPicker, dataset, definitions: { chunks: {} }, taskMap: {},
+    world: options.world, port: 0, loopbackPort: undefined, predictionPrewarm: false, retention: false,
+    now: () => Date.parse('2026-11-11T12:00:00Z'), random: () => .25 });
+  const request = () => fetch(`http://127.0.0.1:${app.address().port}/api/state`, { headers: { Cookie: cookie } });
+  app = await start(previous); await app.listen();
+  assert.equal((await request()).status, 200); await app.close();
+  const before = JSON.parse(await readFile(path.join(directory, 'state.json'))).state;
+  assert.ok(before.provenance.datasetEvidence);
+  assert.deepEqual(before.provenance.datasetEvidence, datasetEvidenceRecord(previous));
+  await assert.rejects(readFile(datasetEvidencePath(directory)), { code: 'ENOENT' });
+  const binding = await readFile(bindingPath(directory));
+  // A stopped deploy has updated the legacy root receipt; the owned receipt
+  // remains the one created by the first real server open.
+  const rootBinding = JSON.parse(await readFile(bindingPath(dataDir)));
+  rootBinding.digest = next.digest;
+  delete rootBinding.datasetEvidence;
+  await writeFile(bindingPath(dataDir), JSON.stringify(rootBinding));
+  app = await start(next); await app.listen();
+  const response = await request();
+  assert.equal(response.status, 200, await response.text()); await app.close();
+  const store = await openStore({ ...options, dataDir: directory, prepareState: undefined });
+  try {
+    const state = store.getState();
+    assert.equal(state.provenance.dataset.digest, next.digest);
+    assert.equal(state.revision, before.revision + 1);
+    assert.equal(state.history.at(-1).type, 'catalogue-refresh');
+    assert.equal((await store.listBackups()).length, 1);
+  } finally { await store.close(); }
+  assert.deepEqual(await readFile(bindingPath(directory)), binding);
+  assert.deepEqual(JSON.parse(binding).datasetEvidence, before.provenance.datasetEvidence);
+  await assert.rejects(readFile(datasetEvidencePath(directory)), { code: 'ENOENT' });
+});
+
+test('binding witnesses prove only evidence changes without opening gameplay storage', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'dataset-evidence-binding-')), directory = path.join(root, 'absent-store');
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const previous = syntheticDataset(), next = syntheticDataset({ evidence: 'new source' });
+  await bindDatasetStorage(directory, previous);
+  const receipt = await readFile(bindingPath(directory));
+  assert.equal((await verifyDatasetBinding(directory, next, { evidenceOnly: true })).bound, true);
+  await assert.rejects(bindDatasetStorage(directory, next), { code: 'DATASET_BINDING_MISMATCH' });
+  await assert.rejects(verifyDatasetBinding(directory, syntheticDataset({ input: 'changed data' }), { evidenceOnly: true }),
+    { code: 'DATASET_BINDING_MISMATCH' });
+  assert.deepEqual(await readFile(bindingPath(directory)), receipt);
+  await assert.rejects(readdir(directory), { code: 'ENOENT' }, 'The gate must not create or open a gameplay store.');
+  const document = JSON.parse(receipt);
+  document.datasetEvidence.files[0].sha256 = 'f'.repeat(64);
+  await writeFile(bindingPath(directory), JSON.stringify(document));
+  await assert.rejects(verifyDatasetBinding(directory, next, { evidenceOnly: true }), { code: 'DATASET_BINDING_MISMATCH' });
+  delete document.datasetEvidence;
+  await writeFile(bindingPath(directory), JSON.stringify(document));
+  assert.equal((await verifyDatasetBinding(directory, previous)).bound, true, 'Old exact receipts stay valid.');
+  await assert.rejects(verifyDatasetBinding(directory, next, { evidenceOnly: true }), { code: 'DATASET_BINDING_MISMATCH' });
 });
 
 test('changed inputs, capabilities, definition overlays, id and contract remain refused', async t => {

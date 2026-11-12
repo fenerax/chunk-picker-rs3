@@ -2,15 +2,17 @@ import path from 'node:path';
 import { readFile, mkdir, writeFile, link, unlink, rename, lstat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { safeArtFile } from './packs.mjs';
-import { provesEvidenceOnly, readDatasetEvidence } from './dataset-evidence.mjs';
+import { datasetEvidenceRecord, provesEvidenceOnly, readDatasetEvidence } from './dataset-evidence.mjs';
 
 export const bindingPath = dataDir => `${path.resolve(dataDir)}.dataset.json`;
 function mismatch() { const error = new Error('This storage directory needs its bound data pack.'); error.code = 'DATASET_BINDING_MISMATCH'; return error; }
 function expected(dataset) {
   const status = typeof dataset.status === 'function' ? dataset.status() : dataset;
+  const proof = datasetEvidenceRecord(dataset);
   const receipt = { schemaVersion: 1, datasetId: dataset.datasetId ?? status.id, datasetContractVersion: dataset.datasetContractVersion ?? status.contractVersion, digest: dataset.digest ?? status.digest,
-    ...(dataset.packed === true ? { requiresPack: true } : {}) };
+    ...(dataset.packed === true ? { requiresPack: true } : {}), ...(proof ? { datasetEvidence: proof } : {}) };
   if (typeof receipt.datasetId !== 'string' || !Number.isSafeInteger(receipt.datasetContractVersion) || !/^[a-f0-9]{64}$/.test(receipt.digest ?? '')) throw mismatch();
+  if (Buffer.byteLength(JSON.stringify(receipt, null, 2) + '\n') > 65536) throw mismatch();
   return receipt;
 }
 /** Pre-open check only; this never reads or prepares gameplay storage. */
@@ -27,11 +29,12 @@ export async function verifyDatasetBinding(dataDir, dataset, { evidenceOnly = fa
     if ((await lstat(target)).size > 65536) throw mismatch();
     const existing = JSON.parse(await readFile(target, 'utf8'));
     const fields = ['schemaVersion', 'datasetId', 'datasetContractVersion', 'digest'];
-    if (!existing || typeof existing !== 'object' || Array.isArray(existing) || Object.keys(existing).some(key => ![...fields, 'requiresPack'].includes(key))
+    const identity = { id: existing?.datasetId, contractVersion: existing?.datasetContractVersion, digest: existing?.digest };
+    if (!existing || typeof existing !== 'object' || Array.isArray(existing) || Object.keys(existing).some(key => ![...fields, 'requiresPack', 'datasetEvidence'].includes(key))
       || fields.some(key => key !== 'digest' && existing[key] !== receipt[key])
+      || (Object.hasOwn(existing, 'datasetEvidence') && !provesEvidenceOnly(dataset, identity, [existing.datasetEvidence]))
       || (existing.digest !== receipt.digest && !(evidenceOnly && provesEvidenceOnly(dataset,
-        { id: existing.datasetId, contractVersion: existing.datasetContractVersion, digest: existing.digest },
-        [...(dataset.evidenceHistory ?? []), ...await readDatasetEvidence(dataDir)])))
+        identity, [existing.datasetEvidence, ...(dataset.evidenceHistory ?? []), ...await readDatasetEvidence(dataDir)])))
       || (Object.hasOwn(existing, 'requiresPack') && existing.requiresPack !== true)
       || (existing.requiresPack === true && dataset.packed !== true)) throw mismatch();
     return { bound: true, ...existing };
