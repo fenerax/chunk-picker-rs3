@@ -38,8 +38,9 @@ export function catalogue(shape) {
     data.chunks[id]={Name:`Synthetic chunk ${i}`,Spawn:{[`Synthetic item ${i}`]:1}};
     data.sections[id]={'0':[ids[i-1],ids[i+1]].filter(Boolean)};
   }
+  // Every fixture needs resolvable identities; alias calibration only sets volume.
   for(let i=0;i<tasks;i++) data.challenges.Extra[`Synthetic task ${i}`]={Chunks:[ids[i%count]],
-    ...(shape.aliases?{PickerId:`rs3:task:capacity-${i}`} : {}),
+    PickerId:`rs3:task:capacity-${i}`,
     Skills:{Mining:1+i%90}, ...(i%depth ? {Items:Array.from({length:links},(_,j)=>`Synthetic item ${((i-j)%count+count)%count}`)} : {}),
     ...(i%depth ? {Tasks:Object.fromEntries(Array.from({length:Math.min(links,i%depth)},(_,j)=>[`Synthetic task ${i-1-j}`,'Extra']))} : {})};
   return data;

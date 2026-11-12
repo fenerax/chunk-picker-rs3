@@ -13,6 +13,8 @@ import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { catalogue, syntheticWorld } from '../scripts/perf/capacity/model.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
+import { loadCapacityOwnedRelease } from '../scripts/perf/capacity/owned-release.mjs';
+import { verifyOwnedBaseBytes } from '../app/storage/owned-base.mjs';
 
 const profile = { name: 'smoke', seed: 'synthetic-pool-42', port: 0,
   catalogue: { chunks: 4, tasks: 4, dependencyDepth: 2, crossLinks: 1 },
@@ -24,6 +26,29 @@ async function scratch(t, close = async () => {}) {
   t.after(async () => { await close(); await rm(directory, { recursive: true, force: true }); });
   return directory;
 }
+
+test('sustained-smoke builds and seals a format-2 fixture without alias calibration', async t => {
+  const directory = await scratch(t);
+  const smoke = { ...JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained-smoke.json', import.meta.url))),
+    storageFormat: 'format2', port: 0 };
+  assert.equal(smoke.catalogue.aliases, undefined);
+  const manifest = await generate(smoke, directory, { workers: 1 });
+  assert.equal(manifest.storageFormat, 'format2');
+  assert.equal(manifest.groups.length, smoke.fixture.groups);
+  assert.deepEqual(manifest.groups.map(group => group.grown), [false, true]);
+  const release = await loadCapacityOwnedRelease(directory);
+  const base = verifyOwnedBaseBytes(release.releaseBytes, release);
+  assert.equal(base.tasks.length, smoke.catalogue.tasks);
+  assert.equal(base.identityRegistry.schemaVersion, 1);
+  assert.deepEqual(base.identityRegistry.unresolved, []);
+  for (const task of base.tasks) assert.ok(base.identityRegistry.entries[task.id]);
+  for (const group of manifest.groups) {
+    const document = JSON.parse(await readFile(path.join(directory, 'pickers', group.pickerId, 'state.json'), 'utf8'));
+    assert.equal(document.storage.schemaVersion, 2);
+    assert.deepEqual(document.storage.base, { datasetDigest: manifest.ownedBasePin.dataset.digest, sha256: manifest.ownedBasePin.sha256 });
+  }
+  assert.equal((await verifyFixture(directory, smoke, selectedDataset.digest)).fixtureDigest, manifest.fixtureDigest);
+});
 
 test('a sealed serial fixture reuses exact bytes and refuses mutations, mismatches and incomplete inputs', async t => {
   const directory = await scratch(t), source = path.join(directory, 'source'), copy = path.join(directory, 'copy');
