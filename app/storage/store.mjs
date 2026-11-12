@@ -85,6 +85,12 @@ const STATIC_THRESHOLD = 256 * 1024;
 // fields, normalized strings and validation indexes live only while their
 // weakly keyed field is reachable; one-off versions must not accumulate.
 const RETENTION_STATIC_CACHE_BYTES = 32 * 1024 * 1024;
+// Only a pin flag, never state/dependency validation or permission to remove a
+// source. Keep bounded receipts across context closes in this process. A cold
+// process must rediscover pins not excluded by filename/date selection.
+const retainedPins = new Map();
+const RETAINED_PIN_CACHE_ENTRIES = 1024;
+const retainedFileVersion = info => [info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(':');
 export const DEFAULT_RETENTION = Object.freeze({ backupDays: 90, historyEntries: 1000 });
 const COMPLETION_HISTORY_TYPES = new Set(['set-task-status', 'tick-active-tasks', 'complete-task', 'apply-runemetrics', 'apply-game-progress', 'sync-original']);
 function taskCompletionEvent({ revision, type, at, command, undoneRevision }) {
@@ -305,7 +311,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   let maintenancePending = 0;
   let maintenanceWrites = 0;
   let retentionFailure;
-  let archiveIndex;
+  const archiveIndexes = new Map();
   const listeners = new Set();
   const envelope = ownedStorage ? state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state: copyState(state) })
     : state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state });
@@ -913,13 +919,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     return inheritStateMetadata(state, ready);
   }
-  async function standaloneBackups() {
+  async function standaloneBackups(versions) {
     const entries = await readdir(backupsDir, { withFileTypes: true });
     const metadata = new Set(entries.filter(entry => entry.isFile()).map(entry => entry.name));
     return Promise.all(entries.filter(entry => entry.isFile() && BACKUP_ID.test(entry.name)).map(async entry => {
-      const info = await stat(path.join(backupsDir, entry.name));
+      const info = await stat(path.join(backupsDir, entry.name), { bigint: true });
+      versions?.set(entry.name, retainedFileVersion(info));
       const label = metadata.has(`${entry.name}.meta.json`) ? (await readDocument(path.join(backupsDir, `${entry.name}.meta.json`), false)).label : undefined;
-      return { id: entry.name, revision: Number(BACKUP_ID.exec(entry.name)[1]), bytes: info.size, at: info.mtime.toISOString(), ...(label ? { label } : {}) };
+      return { id: entry.name, revision: Number(BACKUP_ID.exec(entry.name)[1]), bytes: Number(info.size), at: info.mtime.toISOString(), ...(label ? { label } : {}) };
     }));
   }
   async function readDocument(file, compressed = true, forImport = false) {
@@ -928,12 +935,19 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return forImport ? importDocument(bytes) : JSON.parse(bytes.toString('utf8'));
   }
   async function retainedArchiveIndex(forImport = false) {
-    if (archiveIndex) return archiveIndex;
     const entries = await readdir(archivesDir, { withFileTypes: true }).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+    const present = new Set(entries.filter(entry => entry.isFile() && ARCHIVE_ID.test(entry.name)).map(entry => entry.name));
+    for (const id of archiveIndexes.keys()) if (!present.has(id)) archiveIndexes.delete(id);
     const index = new Map();
-    for (const entry of entries) {
-      if (!entry.isFile() || !ARCHIVE_ID.test(entry.name)) continue;
-      const pack = await readDocument(path.join(archivesDir, entry.name), true, forImport);
+    for (const id of present) {
+      const file = path.join(archivesDir, id), version = retainedFileVersion(await stat(file, { bigint: true }));
+      const cached = archiveIndexes.get(id);
+      if (cached?.version === version) {
+        for (const [id, location] of cached.index) index.set(id, location);
+        continue;
+      }
+      archiveIndexes.delete(id);
+      const pack = await readDocument(file, true, forImport), packIndex = new Map();
       if (pack.format !== 'rs3-chunk-picker-retained-archive' || !Array.isArray(pack.snapshots)) throw new TypeError('Invalid retained backup archive.');
       for (const snapshot of pack.snapshots) {
         if (!BACKUP_ID.test(snapshot?.id)) throw new TypeError('Invalid archived backup ID.');
@@ -941,37 +955,46 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         if (document?.format !== BACKUP_FORMAT) throw new TypeError('Unsupported backup format');
         if (![SCHEMA_VERSION, COMPLETION_BACKUP_VERSION].includes(document.schemaVersion)) throw new TypeError(`Unsupported backup schema version: ${document.schemaVersion}`);
         if (!Number.isSafeInteger(document?.state?.revision) || document.state.revision !== Number(BACKUP_ID.exec(snapshot.id)[1])) throw new TypeError('Archived backup revision does not match its ID.');
-        index.set(snapshot.id, { packId: entry.name, metadata: { id: snapshot.id, revision: Number(BACKUP_ID.exec(snapshot.id)[1]), bytes: snapshot.bytes, at: snapshot.at } });
+        packIndex.set(snapshot.id, { packId: id, metadata: { id: snapshot.id, revision: Number(BACKUP_ID.exec(snapshot.id)[1]), bytes: snapshot.bytes, at: snapshot.at } });
       }
+      if (version === retainedFileVersion(await stat(file, { bigint: true }))) archiveIndexes.set(id, { version, index: packIndex });
+      for (const [id, location] of packIndex) index.set(id, location);
     }
-    archiveIndex = index;
     return index;
   }
   async function pruneBackups() {
     if (!policy) return;
-    const backups = (await standaloneBackups()).sort((a, b) => b.revision - a.revision || b.at.localeCompare(a.at));
+    const versions = new Map();
+    const backups = (await standaloneBackups(versions)).sort((a, b) => b.revision - a.revision || b.at.localeCompare(a.at));
     if (backups.length < 2) return;
-    const archived = await retainedArchiveIndex();
     const keep = new Set([backups[0].id, backups.at(-1).id]);
     const days = new Set();
     const cutoff = Date.parse(timestamp()) - policy.backupDays * 86_400_000;
     const candidates = [];
-    const historyCache = { documents: new Map(), bytes: 0 };
-    // Cached immutable content is checked once while resident, never inherited
-    // from the current save or a prior pass. Unknown-provenance candidates cross
-    // the complete state/Undo boundary before any source can be removed.
-    const retentionCache = { fields: new Map(), bytes: 0, normalized: new WeakSet(), validation: createOwnedStateValidationCache() };
     for (const backup of backups) {
       const day = backup.at.slice(0, 10);
       const checkpoint = !days.has(day);
       days.add(day);
       if (Date.parse(backup.at) >= cutoff || checkpoint || keep.has(backup.id)) continue;
+      const file = path.join(backupsDir, backup.id);
+      if (retainedPins.get(file) === versions.get(backup.id)) continue;
       candidates.push(backup);
     }
+    // Selection is metadata-only. In particular, do not rebuild an archive
+    // index (and parse every preserved document) just to discover no work.
+    if (!candidates.length) return;
+    let archived;
+    const historyCache = { documents: new Map(), bytes: 0 };
+    // Cached immutable content is checked once while resident, never inherited
+    // from the current save or a prior pass. Unknown-provenance candidates cross
+    // the complete state/Undo boundary before any source can be removed.
+    const retentionCache = { fields: new Map(), bytes: 0, normalized: new WeakSet(), validation: createOwnedStateValidationCache() };
     async function archiveSnapshots(removable) {
       if (!removable.length) return;
+      archived ??= await retainedArchiveIndex();
       const locations = new Map(removable.map(snapshot => [snapshot.id, archived.get(snapshot.id)]));
       const verifiedPacks = new Map();
+      let published;
       const snapshots = removable.filter(snapshot => !archived.has(snapshot.id));
       if (snapshots.length) {
         const packId = `archive-${randomBytes(8).toString('hex')}.json.gz`;
@@ -984,12 +1007,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const bytes = await gzipAsync(json, { level: constants.Z_BEST_COMPRESSION });
         await mkdir(archivesDir, { recursive: true });
         reportDurability(await atomicWrite(path.join(archivesDir, packId), bytes));
-        const reread = await decodeStoredBytes(await readFile(path.join(archivesDir, packId)), true);
+        const file = path.join(archivesDir, packId), version = retainedFileVersion(await stat(file, { bigint: true }));
+        const reread = await decodeStoredBytes(await readFile(file), true);
         if (!reread.equals(Buffer.from(json))) throw new TypeError('Retained archive bytes differ after publication.');
         verifiedPacks.set(packId, parseSavedDocument(reread));
         for (const snapshot of snapshots) {
           locations.set(snapshot.id, { packId, metadata: { id: snapshot.id, revision: snapshot.revision, bytes: snapshot.bytes, at: snapshot.at } });
         }
+        if (version === retainedFileVersion(await stat(file, { bigint: true }))) published = { id: packId, version };
       }
       // The synchronized and re-read archive is a second durable copy first.
       // Crashing midway leaves harmless duplicates; no sole snapshot is deleted.
@@ -1014,15 +1039,29 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // Publish index entries only after the WHOLE batch rereads and matches.
       // A failed write/read/verification leaves every source in this batch.
       for (const [id, location] of locations) archived.set(id, location);
+      // The exact reread and complete comparison above already checked these
+      // authored documents. Retain only index metadata, never their state bytes.
+      // This receipt cannot authorize removal of a future standalone duplicate:
+      // that path still validates the source and rereads/compares its archive.
+      if (published) archiveIndexes.set(published.id, { version: published.version,
+        index: new Map(snapshots.map(snapshot => [snapshot.id, locations.get(snapshot.id)])) });
       for (const snapshot of removable) await unlink(path.join(backupsDir, snapshot.id));
     }
     let batch = [];
     let batchBytes = 0;
     for (const backup of candidates) {
-      const source = await readFile(path.join(backupsDir, backup.id));
+      const file = path.join(backupsDir, backup.id), version = versions.get(backup.id);
+      retainedPins.delete(file);
+      const source = await readFile(file);
       const documentBytes = backup.id.endsWith('.gz') ? await decodeStoredBytes(source) : source;
       const document = parseSavedDocument(documentBytes);
-      if (document.retentionPinned) continue;
+      if (document.retentionPinned) {
+        if (version === retainedFileVersion(await stat(file, { bigint: true }))) {
+          if (retainedPins.size >= RETAINED_PIN_CACHE_ENTRIES) retainedPins.delete(retainedPins.keys().next().value);
+          retainedPins.set(file, version);
+        }
+        continue;
+      }
       const state = await importStoredBackup(document, false, false, retentionCache);
       if (state.revision !== backup.revision) throw new TypeError('Retained backup revision does not match its ID.');
       if (state.provenance?.historyArchive !== undefined) await hydrateHistory(state, historyCache, false, retentionCache.validation);
@@ -1048,12 +1087,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Backup readers share maintenance ownership so pruning cannot remove a
   // standalone file midway through a read or race archive-index initialization.
   // This queue is separate from gameplay: commits do not await packing.
-  function enqueueMaintenance(work, { allowClosing = false, backupRead = false } = {}) {
+  function enqueueMaintenance(work, { allowClosing = false, backupRead = false, defer = false } = {}) {
     // Backup browsing remains a pure disk/cache read after an ordinary close.
     // A frozen handover still refuses new reads before writer ownership moves.
     if (!allowClosing && (frozen && !(importReader && backupRead) || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
     maintenancePending++;
-    const result = maintenanceQueue.then(() => withStoreWrite(directory, () => withCatalogue(work))).finally(() => { maintenancePending--; });
+    const result = maintenanceQueue.then(async () => {
+      if (defer) await new Promise(resolve => setImmediate(resolve));
+      return withStoreWrite(directory, () => withCatalogue(work));
+    }).finally(() => { maintenancePending--; });
     maintenanceQueue = releaseCommandResponses ? result.then(() => {}, () => {}) : result.catch(() => {});
     return result;
   }
@@ -1200,15 +1242,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = folded;
       }
     }
-    const retentionStarted = startupDiagnostics && performance.now();
-    if (!readOnly && !liveSwapStrict) await maintainRetention();
     // Existing-base commands can enter shared admission immediately. A flat
     // save awaiting its explicit first format-2 write retains that write's
     // exclusive dependency-publication path.
     if (ownedStorage && !readOnly && ownedStartupBytes
       && parseSavedDocument(ownedStartupBytes).storage?.schemaVersion === 2) await ownedStorage.ensurePublished();
     if (startupDiagnostics) {
-      startupDiagnostics.retentionMs = performance.now() - retentionStarted;
+      startupDiagnostics.retentionMs = 0; // Retention runs after open, outside startup admission.
       startupDiagnostics.storeMigrateValidateMs ??= 0;
     }
   }), 'exclusive'));
@@ -1945,5 +1985,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return closePromise;
     },
   };
+  // Reserve queue ownership now so backup readers, freeze and close see this
+  // pass, but yield before admission: open must resolve before any retained
+  // backup is read, parsed or validated. Current-save recovery is complete.
+  if (policy && !readOnly && !liveSwapStrict) void enqueueMaintenance(maintainRetention, { defer: true });
   return store;
 }

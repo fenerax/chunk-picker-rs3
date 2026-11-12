@@ -346,6 +346,16 @@ before the fallible commit hook. A refused attempt and a successful retry leave
 two independently named snapshots of that same pre-command state, even when
 their revision and timestamp match. Refusal never broadcasts proposed progress;
 close drains the write queues and releases store ownership.
+Ordinary writable open resolves after current-save/dependency validation,
+recovery and required startup publications, without reading or validating
+retained backups. Retention is reserved on the existing maintenance queue before
+returning, then starts on a later event-loop turn outside startup admission.
+Backup browsing and `prepareSnapshot()` queue behind that pass; close drains it
+and its final pass before releasing ownership. Freeze refuses while it is pending.
+Read-only, strict live-swap and retention-disabled opens schedule no such pass.
+`startupDiagnostics.retentionMs` is zero because retention is outside open;
+maintenance failures become visible through `getInfo().retention.failure` after
+the pass completes. Gameplay publication does not await the maintenance queue.
 Live recovery can replace it by copying/moving the whole store (bypass list).
 Evidence: `tests/storage.test.mjs:42`, `:81`, `:103`, `:191`;
 `tests/live-swap-storage.test.mjs:22`, `:38`, `:236`, `:248`;
@@ -392,10 +402,32 @@ Owner/writer: `store.mjs:784` / `:792`; gzip
 A, separate maintenance queue/barrier. Store re-reads and validates preserved
 documents and dependencies before unlinking standalone backups (`:793`–`:818`).
 Crashes may leave duplicate copies; caller expects no sole snapshot removed.
+Deferred startup maintenance reconciles these duplicates with the same full
+source/dependency validation and archive reread/comparison before unlinking.
+Open can serve the authoritative current save while duplicates remain. Temporary
+unpublished siblings and orphan dependencies are ignored, as before; retention
+does not clean them up. Standalone selection uses filename revision, stat size
+and mtime, with optional label sidecars. A pass with no eligible work returns
+before reading any archive or retained document. It does not audit unrelated
+archive corruption; listing and restore still refuse that corruption on use.
+Unknown pins are discovered by decoding their source. A bounded process-local
+cache remembers only pin flags across context closes, matched by path, device,
+inode, size and nanosecond mtime/ctime. Changed or uncached files are checked
+again; process restart or cache eviction may require rediscovering a pin.
+Archive index metadata is cached per pack for the store lifetime with the same
+file-version checks. Successful exact publication/reread/comparison seeds that
+metadata directly. Changed or renamed packs are reindexed, and removed packs
+leave the index. Caches retain no document/state bytes or dependency-validation
+results. Every removal still validates the source and its dependencies in that
+pass and rereads/compares its archive, even when an index receipt is cached.
+Archive indexing remains lazy under maintenance ownership. No backup or save
+bytes/formats change.
 Reads initialize archive index and retrieve historical backups under maintenance
 ownership. No directory fsync: this is not proven power-loss-safe copy-before-delete.
 Evidence: `tests/storage-reliability.test.mjs:235`, `:263`, `:296`;
 `tests/storage-static.test.mjs:219`, `:267`.
+Deferred open, close ordering, retention tiers and interrupted duplicates are
+also covered for both storage formats by `tests/storage-retention-open.test.mjs`.
 
 **12. `action-acknowledgements.json`**
 

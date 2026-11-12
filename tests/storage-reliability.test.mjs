@@ -233,14 +233,15 @@ test('retention validates configuration before creating files and reports failed
     await assert.rejects(() => openStore({ dataDir, retention }), /retention|Unknown retention/);
     assert.deepEqual(await readdir(dataDir), []);
   }
-  const store = await trackedStore(t, { dataDir, retention: { backupDays: 1, historyEntries: 5 } });
+  let date = '2026-01-01T00:00:00.000Z';
+  const store = await trackedStore(t, { dataDir, retention: { backupDays: 1, historyEntries: 5 }, now: () => date });
   await mkdir(path.join(dataDir, 'backups', 'archives'));
   await writeFile(path.join(dataDir, 'backups', 'archives', 'archive-aaaaaaaaaaaaaaaa.json.gz'), 'broken');
   // The committed save remains successful even when maintenance is deferred.
-  await store.command(setRule(false), 0);
-  await store.command(setRule(true), 1);
+  for (let revision = 0; revision < 4; revision++) await store.command(setRule(Boolean(revision % 2)), revision);
+  date = '2026-10-07T00:00:00.000Z';
   await store.close();
-  assert.equal(importBackup(await readFile(path.join(dataDir, 'state.json'), 'utf8')).revision, 2);
+  assert.equal(importBackup(await readFile(path.join(dataDir, 'state.json'), 'utf8')).revision, 4);
   assert.match(store.getInfo().retention.failure, /header|gzip|incorrect/i);
 });
 
@@ -289,6 +290,7 @@ for (const corruption of ['document', 'dependency', 'content']) {
       format: 'rs3-chunk-picker-retained-archive', snapshots: [{ ...target, document }],
     })));
     const resumed = await trackedStore(t, { dataDir, retention: { backupDays: 1 }, now: () => '2026-10-07T00:00:00.000Z' });
+    await resumed.prepareSnapshot();
     assert.ok(resumed.getInfo().retention.failure);
     assert.deepEqual(await readFile(path.join(dataDir, 'backups', target.id)), original);
     assert.equal((await resumed.readBackup(target.id)).state.revision, 1);
