@@ -1,4 +1,5 @@
 import { memoryProfileMarkdown } from './memory-profile.mjs';
+import { assertResidency, evaluateResidency, residencyMarkdown } from './residency.mjs';
 
 const cheap=['state','history','edit','session'];
 const expensive=['task-view','group-task-view','how','why','task-miss','preview','roll-accept','pool-undo'];
@@ -50,6 +51,7 @@ function admission(ops,streams) {
     ...total,unexpectedRejects:total.httpRejects,limitFraction:.001};
 }
 export function evaluate(result) {
+  assertResidency(result);
   const stages=result.profile.stages,stats=result.load.stats;
   const inClass=(stage,classification)=>stages[stage]?.measured&&stages[stage].classification===classification;
   const operations=classification=>result.load.operations.filter(row=>inClass(row.stage,classification));
@@ -90,13 +92,17 @@ export function evaluate(result) {
     backupRecovery:{status:'not-measured',reason:'No off-site RPO, capture overlap or recovery rehearsal in this tools-only run.'},
     workloadCoverage:{status:'incomplete',unsupportedActions:stats.unsupported,reason:'See fixture gaps, graph calibration and three-trial/soak requirements.'},
   };
-  return gates;
+  if (result.requestedResidency === undefined) return gates;
+  const verification = evaluateResidency(result);
+  return Object.fromEntries(Object.entries({ residency: verification, ...gates }).map(([key, gate]) => [key, { ...gate, residency: verification.residency,
+    ...(verification.status !== 'pass' && gate.status === 'pass' ? { status: 'fail', reason: 'residency-unverified' } : {}) }]));
 }
 export function markdown(result) {
   const gates=result.gates,failed=Object.entries(gates).filter(([,v])=>v.status==='fail').map(([name])=>name);
   return `# Synthetic capacity run\n\nSource: \`${result.sourceCommit}\`; Node ${result.node}; seed \`${result.profile.seed}\`.\n\n`+
     fixtureReuseMarkdown(result)+
     memoryProfileMarkdown(result)+
+    residencyMarkdown(result)+
     `Result: **${failed.length?'FAIL':'INCOMPLETE'}**. Failed measured gates: ${failed.join(', ')||'none'}. Unmeasured gates prevent capacity acceptance.\n\n`+
     `${result.fixture.groups} groups, ${result.fixture.characters} roster slots, ${result.fixture.logins} logins, ${result.fixture.keys} stored keys; plus 1 synthetic legacy context with 2 unowned slots.\n\n`+
     `Offered ${result.load.stats.offered} actions; HTTP requests ${result.load.stats.httpRequests}; rejects ${result.load.stats.rejects}; timeouts ${result.load.stats.timeouts}; unsupported actions ${result.load.stats.unsupported}; client drops ${result.load.stats.clientDrops}.\n\n`+

@@ -363,6 +363,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
     limits, admitStream, usageAdmission, requestContextFor, pickerLimits,
+    getResidencyLimits: () => pickerRouter?.getResidencyLimits(),
     get definitionCache() { return definitionCache; }, get taskCache() { return taskCache; },
     staticCache: createResponseCache(RESPONSE_CACHE_DEFAULTS.static),
     releaseReferences() {
@@ -452,7 +453,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       await syncLegacy();
       await pickerLimits.initialize(pickerRegistry);
       pickerRouter = createPickerRouter({ registry: pickerRegistry, legacy: context, pickerLimits,
-        publicOrigin, requestContextFor, backupRetentionMs, onAdmission: multiPicker.onAdmission, admissionClock: schedulingClock, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
+        publicOrigin, requestContextFor, backupRetentionMs, onAdmission: multiPicker.onAdmission, admissionClock: schedulingClock, coldOpenAdmission: multiPicker.coldOpenAdmission, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
         openContext: async pickerId => {
           const picker = pickerRegistry.getPicker(pickerId);
           if (picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') throw httpError(403, 'Picker access denied.');

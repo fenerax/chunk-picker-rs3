@@ -20,11 +20,13 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  pickerLimits, onAdmission, admissionClock, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  pickerLimits, onAdmission, admissionClock, coldOpenAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
+  const admissionBounds = Object.freeze({ ...COLD_OPEN_ADMISSION, ...coldOpenAdmission });
+  for (const key of Object.keys(COLD_OPEN_ADMISSION)) if (!Number.isSafeInteger(admissionBounds[key]) || admissionBounds[key] < 1) throw new TypeError(`Invalid cold admission ${key}.`);
   const entries = new Map();
-  const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission, clock: admissionClock });
+  const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission, bounds: admissionBounds, clock: admissionClock });
   // Process-wide budget for owned backup parsers, on top of each context's own
   // single-import guard, so many owners cannot each materialize a large backup
   // at once. Legacy keeps its own guard and is outside this budget.
@@ -126,8 +128,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         signal?.throwIfAborted();
         const entry = await attempt();
         if (entry) return entry;
-        if (!admission || retries >= COLD_OPEN_ADMISSION.maxRetries) throw retry();
-        await admissionDelay(COLD_OPEN_ADMISSION.retryMs, undefined, { signal });
+        if (!admission || retries >= admissionBounds.maxRetries) throw retry();
+        await admissionDelay(admissionBounds.retryMs, undefined, { signal });
       }
     };
     const work = PROFILE_ENABLED ? profile.bind(signal => profile.span('context.open', () => open(signal))) : open;
@@ -224,6 +226,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   }
   return {
     checkpoint,
+    getResidencyLimits: () => ({ maxOpenContexts, idleCloseMs,
+      coldStartsPerAccount: pickerLimits?.config.coldStartsPerAccount, coldStartsGlobal: pickerLimits?.config.coldStartsGlobal,
+      coldAdmission: { maxPending: admissionBounds.maxPending, perAccount: admissionBounds.perAccount, deadlineMs: admissionBounds.deadlineMs } }),
     async reclaimIdentity(code, provider, subject) {
       const { source } = registry.checkRelink(code, provider, subject);
       let entry;

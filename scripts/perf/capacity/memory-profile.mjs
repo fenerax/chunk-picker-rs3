@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { digest } from './model.mjs';
+import { residency, residencyManifest } from './residency.mjs';
 
 export function memoryProfile(value = 'default') {
   if (!['default', 'budget-672'].includes(value)) throw new TypeError('Use --memory-profile default or budget-672.');
@@ -11,8 +12,10 @@ export function parseRunOptions(args = process.argv.slice(2)) {
     profile: { type: 'string', default: 'smoke' }, output: { type: 'string' }, host: { type: 'string', default: '127.0.0.1' },
     'fixture-workers': { type: 'string' }, 'fixture-from': { type: 'string' }, 'fixture-only': { type: 'boolean', default: false },
     format: { type: 'string', default: 'format1' }, 'memory-profile': { type: 'string', default: 'default' },
+    residency: { type: 'string', default: 'default' },
   } });
   memoryProfile(values['memory-profile']);
+  residency(values.residency);
   return values;
 }
 
@@ -27,13 +30,14 @@ export function configureMemoryProfile(value, env = process.env) {
   return selected;
 }
 
-export const runManifest = ({ profile, format, sourceCommit, sourceTreeDigest, node = process.version, verification,
+export const runManifest = ({ profile, format, sourceCommit, sourceTreeDigest, node = process.version, verification, residencyVerification,
   fixtureReuse = null, fixtureDigest = null }) => ({
   schemaVersion: 1, sourceCommit, sourceTreeDigest, node, format,
   fixtureReuse, fixtureDigest,
   requestedMemoryProfile: memoryProfile(profile.requestedMemoryProfile ?? profile.memoryProfile),
   memoryProfile: verification?.status === 'pass' ? verification.memoryProfile : null,
   memoryProfileVerification: verification ?? { status: 'unverified', availability: 'unavailable' },
+  ...(profile.requestedResidency !== undefined || profile.residency !== undefined || residencyVerification ? residencyManifest(profile, residencyVerification) : {}),
   profileDigest: digest(profile),
 });
 

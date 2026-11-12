@@ -24,7 +24,7 @@ test('fixture-only CLI carries old-seal reuse provenance through IPC and protect
   const profileFile = path.join(root, 'profile.json'); await writeFile(profileFile, JSON.stringify(profile));
   const source = path.join(root, 'source'), output = path.join(root, 'output');
   const run = (destination, reuse = false) => execute(process.execPath, [runner, '--profile', profileFile, '--format', 'format2',
-    '--fixture-workers', '1', '--fixture-only', '--output', destination, ...(reuse ? ['--fixture-from', source] : [])],
+    '--fixture-workers', '1', '--fixture-only', '--output', destination, ...(reuse ? ['--residency', 'trial', '--fixture-from', source] : [])],
   { windowsHide: true, maxBuffer: 1024 * 1024 });
   // This prepares tiny data only. No measured server or arrival driver runs.
   await run(source);
@@ -43,6 +43,8 @@ test('fixture-only CLI carries old-seal reuse provenance through IPC and protect
     currentImplementationDigest: originalRun.fixtureReuse.currentImplementationDigest, sourceCommit: originalRun.sourceCommit });
   assert.deepEqual((await json(path.join(output, 'setup-summary.json'))).fixtureReuse, reused.fixtureReuse);
   assert.equal(reused.memoryProfile, null, 'fixture-only setup makes no measured-memory claim');
+  assert.equal(originalRun.requestedResidency, 'default');
+  assert.equal(reused.requestedResidency, 'trial'); assert.equal(reused.residency, null, 'fixture-only setup makes no residency claim');
   assert.deepEqual(await fixtureInventory(source), inventory);
   assert.deepEqual(await readFile(sealPath), sourceSeal);
   assert.deepEqual(await readFile(path.join(source, 'run-manifest.json')), sourceManifest);

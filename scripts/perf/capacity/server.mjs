@@ -5,10 +5,12 @@ import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
 import { observeServerIdentity } from './evidence.mjs';
 import { configureMemoryProfile, verifyServerMemoryProfile } from './memory-profile.mjs';
+import { residency as selectResidency, residencyOptions, verifyServerResidency } from './residency.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
 const [directory,profileFile,mode,workers,fixtureFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
 const memoryProfile=configureMemoryProfile(profile.requestedMemoryProfile ?? profile.memoryProfile);
+const residency=selectResidency(profile.requestedResidency ?? profile.residency);
 process.env.RS3_DATASET='duo-legacy'; process.env.RS3_TASK_WORKER_MODE='process';
 process.env.RS3_PACKS_DIR=path.join(directory,'no-packs');
 process.env.RS3_GAME_DATA_DIR=path.join(directory,'no-game-data');
@@ -71,7 +73,7 @@ if(mode==='fixture') {
       originalSync:{fetchImpl:async()=>{throw new Error('Disabled synthetic upstream');}},
       taskWorkerOptions:{onWorker(worker){workers.add(worker);worker.once('exit',()=>workers.delete(worker));}},
       multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),
-        caps:profile.entityCaps,
+        caps:profile.entityCaps,...residencyOptions(residency),
         onContextOpen:event=>process.send({type:'context-open',atMs:performance.now(),...event}),
         onAdmission:event=>{const kind=event.kind??event.type??event.event??'event';admission[kind]=(admission[kind]??0)+1;
           process.send({type:'admission',atMs:performance.now(),...event});
@@ -84,7 +86,8 @@ if(mode==='fixture') {
     const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw new Error('Telemetry HTTP failure');return res.json();};
     // Verify the running app before announcing ready, on every process generation.
     const memoryProfileVerification=await verifyServerMemoryProfile(memoryProfile,get);
-    process.send({type:'ready',base,serverId,memoryProfile,memoryProfileVerification});
+    const residencyVerification=await verifyServerResidency(residency,get);
+    process.send({type:'ready',base,serverId,memoryProfile,memoryProfileVerification,residency:residencyVerification.residency,residencyVerification});
     process.on('message',async message=>{
       try {
         if(message.type==='stop') return await stop();
@@ -92,14 +95,14 @@ if(mode==='fixture') {
           // Send each HTTP observation immediately; calculator heap probes must
           // not make an earlier health/residency result look fresh.
           await Promise.all([['health','/api/health'],['diagnostics','/api/diagnostics']].map(async([part,route])=>{
-            const value=await get(route);process.send({type:`sample-${part}`,id:message.id,serverId,memoryProfile,[part]:value});
+            const value=await get(route);process.send({type:`sample-${part}`,id:message.id,serverId,memoryProfile,residency:residencyVerification.residency,[part]:value});
           }));
           const calculatorHeaps=await Promise.all([...workers].filter(worker=>typeof worker.getMemoryUsage==='function').map(async worker=>{
             try {const value=await worker.getMemoryUsage();return {pid:value.pid,hostHeapUsed:value.main?.heapUsed,threadHeapUsed:value.workers?.length?value.workers.reduce((n,w)=>n+(w.memoryUsage?.heapUsed??0),0):null};}catch{return null;}
           }));
           const currentUtilization=performance.eventLoopUtilization(), utilization=performance.eventLoopUtilization(currentUtilization,lastUtilization);
           lastUtilization=currentUtilization;
-          process.send({type:'sample',id:message.id,serverId,memoryProfile,memory:process.memoryUsage(),cpu:process.cpuUsage(),
+          process.send({type:'sample',id:message.id,serverId,memoryProfile,residency:residencyVerification.residency,memory:process.memoryUsage(),cpu:process.cpuUsage(),
             eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
               utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
           loop.reset();
