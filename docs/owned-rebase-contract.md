@@ -64,9 +64,10 @@ boundary diagnostic. Guarded sparse Undo rows and indices are unchanged.
 
 Accepted limits: append-only upgrades can commit. Retirement, name changes and
 alias conflicts can be durably staged but commit refuses with its pending
-decision; explicitly abort to resume the old group. Retirement needs calculator
-filtering and names need a display consumer in slice 7; this slice does not change
-calculators. Cross-dataset/contract changes and generator versions unsupported by
+decision; explicitly abort to resume the old group. Slice 7c supplies calculator
+filtering and a current-name display consumer behind its default-off serving
+configuration; those consumers do not remove these commit gates.
+Cross-dataset/contract changes and generator versions unsupported by
 the bounded base verifier refuse. Operators must supply the trusted old/new pins
 again on reconciliation. Working trees are bounded to one complete group, with
 no new memory acceptance claim. Windows directory sync retains slice 3's documented
@@ -77,3 +78,9 @@ Slices 6–9 still own stopped-service format-1 inflation and frozen-loader repl
 50-group acceptance (7); browser negotiation (8); exclusive GC/retention-root
 verification and sweep (9). Activation, real-save upgrades and production jobs
 remain outside this slice.
+
+Slice 7c adds [default-off synthetic HTTP serving](owned-serving-contract.md)
+and the retirement/current-name consumers. It preserves the retirement,
+name-change and alias-conflict commit refusals above. These consumers do not
+authorize a rebase, dataset switch, real-save conversion or deployment
+(owner decision, 2026-11-11).

@@ -1,4 +1,5 @@
 import { isMainThread } from 'node:worker_threads';
+import { createDeltaCommandValidator } from '../core/delta-validation.mjs';
 import { pluginTestingMode, withPluginTestingMode } from '../core/plugin-testing.mjs';
 import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
@@ -27,6 +28,7 @@ import { applyResidentCommand, materializeResidentState, validateResidentState }
 import { identityValue, identityJSONParts } from '../tasks/identity-dictionary.mjs';
 import { ownedCalculatorInput } from '../tasks/owned-transport.mjs';
 import { createHash, randomBytes } from 'node:crypto';
+import { generateToken } from '../security/tokens.mjs';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
 import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, createOwnedStateValidationCache, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo, hasRandomStartChoices } from '../core/state.mjs';
@@ -37,6 +39,7 @@ import { captureProgressSnapshot, buildProgressModel } from '../core/progress-ti
 import { createGameplayFingerprint, canReuseGameplayFieldBytes } from './gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../tasks/unlock-reuse.mjs';
 import { projectPlayState, projectPlayStateSteps, PLAY_VIEW } from '../play-view.mjs';
+import { validateOwnedCatalogueMetadata } from '../tasks/owned-catalogue-view.mjs';
 import { projectBrowserState } from '../web/browser-state.mjs';
 import { readHistoryEvents } from './history-reader.mjs';
 import { computeRollStats, selectRollStatsEvent } from '../core/roll-stats.mjs';
@@ -102,11 +105,13 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, releaseCommandResponses = false } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, tokenRandomBytes, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, ownedCatalogueSemantics = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
   if (typeof releaseCommandResponses !== 'boolean') throw new TypeError('releaseCommandResponses must be boolean.');
+  if (typeof deltaValidation !== 'boolean') throw new TypeError('deltaValidation must be boolean.');
+  const deltaCommands = deltaValidation ? createDeltaCommandValidator(registry) : undefined;
   const encodeCompletions = completionCodec ? createCompletionEncoder() : document => document;
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
   if (policy) {
@@ -116,6 +121,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   const directory = path.resolve(dataDir);
   const ownedStorage = ownedFormat2 === false ? undefined : createOwnedStorage(ownedFormat2, directory, { readOnly });
+  ownedCatalogueSemantics = !!ownedStorage && ownedCatalogueSemantics === true;
   if (ownedStorage) ownedStorage.validateCapture = async (dataDir, options) => {
     const { validateOwnedHistory } = await import('../../scripts/linux/probe.mjs');
     await validateOwnedHistory(dataDir, options, { importBackup: document => importBackup(document, registry), cancelTaskClaimUndo });
@@ -124,11 +130,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Select adapters once. Format 1 retains its existing serialization loops.
   const copyState = ownedStorage ? materializeResidentState : structuredClone;
   const sameState = ownedStorage ? ownedStorage.sameState : isDeepStrictEqual;
-  const withCatalogue = ownedStorage ? ownedStorage.withLease : work => work();
+  const withCatalogue = ownedStorage ? (work, mode = 'shared') => ownedStorage.withLease(work, { mode }) : work => work();
   const writeState = ownedStorage ? (bytes, options) => ownedStorage.writeState(stateFile, bytes, options)
     : (bytes, options) => atomicWrite(stateFile, bytes, options);
-  const applyStoredCommand = ownedStorage ? applyResidentCommand : applyValidatedCommand;
+  const applyStoredCommand = deltaCommands?.apply ?? (ownedStorage ? applyResidentCommand : applyValidatedCommand);
   async function selectOwnedStartupBase(document) {
+    if (ownedFormat2.servingPin && (document.storage?.schemaVersion !== 2
+      || document.storage.base?.datasetDigest !== ownedFormat2.servingPin.dataset.digest
+      || document.storage.base?.sha256 !== ownedFormat2.servingPin.sha256)) {
+      throw Object.assign(new Error('Owned serving pin changed before store admission; reopen with verified pinned preparation.'), { code: 'OWNED_SERVING_REFUSED' });
+    }
     if (document.storage?.schemaVersion === 2) await ownedStorage.select(document.storage.base);
     // Release hooks close over catalogue/world context the pinned base cannot
     // reconstruct. Refuse before recovery, currency proofs or preparation.
@@ -190,6 +201,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   let current;
   async function publicationState(state, previous) {
+    if (ownedStorage) validateOwnedCatalogueMetadata(state);
     const original = state;
     // A preparation hook may rebuild provenance. Already committed replay
     // decisions remain authoritative even before the legacy bridge catches up.
@@ -443,6 +455,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function importStoredBackup(document, ownsDocument = false, forImport = false, retentionCache) {
     document = decodeCompletionDocument(parseSavedDocument(document), undefined);
     document = await hydrateStaticDocument(document, ownsDocument, forImport, retentionCache);
+    if (ownedStorage) validateOwnedCatalogueMetadata(document.state);
     const reconciledJournals = document?.state?.provenance?.pluginItemEvidenceReconciled === 1;
     let state = materializeOptionalSidecarEvidence(reconcileOptionalSidecarEvidence(importSavedState(document, registry, retentionCache?.validation)), document.optionalSidecarEvidence ?? document.state?.provenance?.optionalSidecarEvidence);
     if (state.provenance?.pluginItemEvidence) {
@@ -541,13 +554,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     fingerprint.seedStatic(state, digests); taskReuseFingerprint.seedStatic(state, digests);
   }
   let poolState, fullPools, playPools, calculationSnapshot;
-  const taskReuseFingerprint = createTaskReuseFingerprint();
+  const taskReuseFingerprint = createTaskReuseFingerprint({ ownedCatalogueSemantics });
   rollPoolCache ??= createRollPoolCache(world, registry, { inputKey: taskReuseFingerprint });
   const playProjections = new WeakMap();
   function playProjection(state) {
     let projection = playProjections.get(state);
     if (!projection) {
-      const display = projectPlayState(state);
+      const display = projectPlayState(state, { ownedCatalogueSemantics });
       projection = { state: display, tasksJSON: JSON.stringify(display.tasks), identityJSON: JSON.stringify(display.identityRegistry) };
       playProjections.set(state, projection);
     }
@@ -558,7 +571,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (playProjections.has(state)) return;
     if (playProjectionJobs.has(state)) return playProjectionJobs.get(state);
     const job = (async () => {
-      const steps = projectPlayStateSteps(state);
+      const steps = projectPlayStateSteps(state, { ownedCatalogueSemantics });
       let next, turn = performance.now();
       do {
         next = steps.next();
@@ -639,6 +652,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // resolved. Keep its provenance and invalidate browser/ranking caches too.
       const randomStarts = current.members.filter(member => hasRandomStartChoices(current, member)).map(member => [member.id, member.pendingRoll]);
       input.history = randomStarts.length ? history : [];
+      if (ownedStorage && provenance?.ownedCatalogue) input.provenance = { ownedCatalogue: provenance.ownedCatalogue };
       if (ownedStorage) adoptResidentState(input, residentBase(current));
       let state, stateJSON, taskInputKey, rollInputKey, residentState, ownedInput;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
@@ -764,6 +778,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       && (!migrateState || migrateState.isCurrent?.(state) === true);
   }
   async function prepared(state, operation) {
+    if (ownedStorage) validateOwnedCatalogueMetadata(state);
     // Explicit read-only proofs may repeat authorization before certifying a
     // no-op. Hooks without a proof keep their full copy/validation path.
     if (operation === 'command' && prepareState?.commandIsCurrent?.(state)
@@ -783,12 +798,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (migrateState) {
       input = await migrateState(input, context) ?? input;
       input = validateOwnedState(input, registry);
+      if (ownedStorage) validateOwnedCatalogueMetadata(input);
       if (input.revision !== state.revision) throw new TypeError('Migration must preserve the authoritative revision.');
     }
     if (!prepareState) return inheritStateMetadata(state, input);
     const history = operation === 'load' ? JSON.stringify(input.history) : undefined;
     const output = await prepareState(input, context);
     const ready = importReader ? validateOwnedState(output ?? input, registry) : validateState(output ?? input, registry);
+    if (ownedStorage) validateOwnedCatalogueMetadata(ready);
     if (operation === 'load' && (ready.revision !== state.revision || JSON.stringify(ready.history) !== history)) {
       throw new TypeError('Load preparation must preserve the authoritative revision and history.');
     }
@@ -835,7 +852,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     if (forImport) await new Promise(resolve => setImmediate(resolve));
     if (ownedStorage && isResidentState(state)) inheritStateMetadata(state, complete);
-    const validated = ownedStorage && isResidentState(complete) ? validateResidentState(complete, registry)
+    const validated = deltaCommands ? deltaCommands.validate(complete) : ownedStorage && isResidentState(complete) ? validateResidentState(complete, registry)
       : importReader || validationCache ? validateOwnedState(complete, registry, validationCache) : validateState(complete, registry);
     inheritStateMetadata(state, validated);
     return { state: validated, archived };
@@ -1053,7 +1070,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const tokenFile = path.join(directory, 'access-token');
     try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
       if (error.code !== 'ENOENT' || readOnly) throw error;
-      token = randomBytes(32).toString('base64url');
+      token = generateToken(tokenRandomBytes);
       reportDurability(await atomicWrite(tokenFile, `${token}\n`, { onPostPublishSyncError: 'warn' }));
     }
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
@@ -1185,11 +1202,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     const retentionStarted = startupDiagnostics && performance.now();
     if (!readOnly && !liveSwapStrict) await maintainRetention();
+    // Existing-base commands can enter shared admission immediately. A flat
+    // save awaiting its explicit first format-2 write retains that write's
+    // exclusive dependency-publication path.
+    if (ownedStorage && !readOnly && ownedStartupBytes
+      && parseSavedDocument(ownedStartupBytes).storage?.schemaVersion === 2) await ownedStorage.ensurePublished();
     if (startupDiagnostics) {
       startupDiagnostics.retentionMs = performance.now() - retentionStarted;
       startupDiagnostics.storeMigrateValidateMs ??= 0;
     }
-  })));
+  }), 'exclusive'));
   } catch (error) { await releaseLock(); throw error; }
 
   const cloneCurrent = () => copyState(current);
@@ -1277,8 +1299,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       !== JSON.stringify(validated.members.map(member => [member.id, member.selected, member.pendingRoll]));
     // A built-in note edit changes no saved task references. Reuse only the
     // cached catalogue and identity fields; display fields come from durable state.
+    // Owned labels/retirement are also display inputs, independent of those trees.
     const previousPlay = reuseNoteProjection && validated.tasks === current.tasks
-      && validated.identityRegistry === current.identityRegistry && playProjections.get(current);
+      && validated.identityRegistry === current.identityRegistry
+      && (!ownedCatalogueSemantics || validated.provenance?.ownedCatalogue === current.provenance?.ownedCatalogue)
+      && playProjections.get(current);
     if (previousPlay) {
       const { provenance, identityRegistry, progressSnapshots, ...display } = validated;
       playProjections.set(validated, { ...previousPlay, state: { ...display,
@@ -1390,6 +1415,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const evidence = reconcileOptionalSidecarEvidence(ready, base).provenance;
     const pluginAutoHandled = evidence?.pluginAutoHandled;
     ready.provenance = { ...(ready.provenance?.dataset ? { dataset: ready.provenance.dataset } : {}),
+      ...(ownedStorage && ready.provenance?.ownedCatalogue ? { ownedCatalogue: ready.provenance.ownedCatalogue } : {}),
       ...(evidence?.optionalSidecarEvidence ? { optionalSidecarEvidence: evidence.optionalSidecarEvidence } : {}),
       ...(evidence?.pluginItemEvidence ? { pluginItemEvidence: evidence.pluginItemEvidence, pluginItemEvidenceReconciled: 1 } : {}),
       ...(pluginAutoHandled ? { pluginAutoHandled } : {}), restore: { incomingRevision: ready.revision, incomingHistory: completeIncoming.history, previousHistory,
@@ -1519,6 +1545,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const { undo, ...event } = found;
     return { stateRevision: captured.revision, event: structuredClone({ ...event, hasUndo: Boolean(undo) }) };
   }
+  try { if (deltaCommands) current = inheritStateMetadata(current, deltaCommands.validate(current)); }
+  catch (error) { await releaseLock(); throw error; }
   const store = {
     async prepareImportPublication(next, operation, { validateBackup, currencySource } = {}) {
       if (!importReader) throw new TypeError('Import publication must be prepared in the isolated reader.');
@@ -1772,14 +1800,21 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           const ready = await prepareLoadedState(latest);
           if (!sameState(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
           reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
-          if (closing) throw new Error('Standby activation was cancelled by shutdown.');
+          const checkShutdown = () => {
+            if (closing) throw new Error('Standby activation was cancelled by shutdown.');
+          };
+          checkShutdown();
+          if (ownedStorage) {
+            await ownedStorage.activate(document.storage?.base, checkShutdown);
+            checkShutdown();
+          }
           const previous = current;
           current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
           releaseObsoleteResponses(previous);
           pluginCurrency = document.pluginCurrency === undefined ? undefined : loadPluginCurrency(document.pluginCurrency);
           receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
           releaseGuard = guard; releaseFileLock = fileLock;
-          readOnly = false; ownedStorage?.activate(); frozen = false; liveSwapStrict = true;
+          readOnly = false; frozen = false; liveSwapStrict = true;
           unregisterArtifacts ??= ownedStorage?.registerArtifacts();
           phaseStarted = performance.now();
           for (const listener of listeners) { try { listener({ revision: current.revision, ownershipChanged: true }); } catch {} }
@@ -1834,7 +1869,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const checkpoint = currentDiskSerialized;
       const result = await runImportJob({ kind: 'transfer', dataDir: directory, input, options: { ...options, now: timestamp() },
         rules: registryMetadata(registry), baseRevision: revision, retention: policy, progressQuestPoints, completionCodec,
-        ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions } : {}) }, { budget: options.importBudget, userId: options.importUserId,
+        ...(ownedStorage ? { ownedFormat2: ownedStorage.readerOptions, ownedCatalogueSemantics } : {}) }, { budget: options.importBudget, userId: options.importUserId,
         prepareHook: prepareImportState && ((state, context) => prepareImportState(state, { ...context, world, registry })) });
       const ticket = {};
       importTickets.set(ticket, { publication: result.publication, operation: result.operation, revision, checkpoint });

@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { mkdir, realpath, lstat } from 'node:fs/promises';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { gzipSync } from 'node:zlib';
@@ -12,8 +11,10 @@ import { syncDirectory } from './publication.mjs';
 import { acquireProcessGuard } from './process-guard.mjs';
 import { withStoreWrite } from './snapshot.mjs';
 import { registerOwnedCalculatorBase } from '../tasks/owned-transport.mjs';
+import { createCatalogueLease, catalogueLeaseMode } from './catalogue-lease.mjs';
 
-const bases = new Map(), verifiedRoots = new Map(), admissions = new Map(), durableRoots = new Set(), lease = new AsyncLocalStorage();
+const bases = new Map(), verifiedRoots = new Map(), admissions = new Map(), durableRoots = new Set();
+const newlyCreatedRoots = new Set();
 const artifactSources = new Map();
 export function ownedArtifactSource(dataDir) { return artifactSources.get(path.resolve(dataDir)); }
 // Bigint stats: NTFS file IDs exceed 2^53 and ms timestamps lose precision. ctime
@@ -21,6 +22,22 @@ export function ownedArtifactSource(dataDir) { return artifactSources.get(path.r
 const fingerprint = stat => `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
 const lstatExact = file => lstat(file, { bigint: true });
 const contains = (parent, child) => { const relative = path.relative(parent, child); return !relative || !relative.startsWith('..') && !path.isAbsolute(relative); };
+function rootAdmission(root) {
+  const key = process.platform === 'win32' ? root.toLowerCase() : root;
+  // Keep root coordination independent of a group's codec/release-byte scope.
+  if (!admissions.has(key)) admissions.set(key, createCatalogueLease(async () => {
+    if (await mkdir(root, { recursive: true })) newlyCreatedRoots.add(key);
+    if (!durableRoots.has(key)) {
+      for (let directory = root; ; directory = path.dirname(directory)) {
+        await syncDirectory(directory);
+        if (directory === path.dirname(directory)) break;
+      }
+      durableRoots.add(key);
+    }
+    return acquireProcessGuard(root);
+  }));
+  return { key, admission: admissions.get(key) };
+}
 /** Inert unless explicitly injected by a caller. No environment/startup flag. */
 export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) {
   // Trust comes from retained release manifests, never from a saved document.
@@ -41,14 +58,37 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
     }
     throw new TypeError('Owned base reference has no matching retained release pin.');
   }
+  async function selectBase(reference, beforeEnable = () => {}) {
+    const previous = active;
+    try {
+      if (reference) {
+        const selected = reader(reference); await selected.read(reference); active = selected;
+        await options.crash?.('catalogue-base-selected');
+      }
+      beforeEnable();
+    } catch (error) { active = previous; throw error; }
+  }
   const storage = {
     read: reference => reader(reference).read(reference),
-    async select(reference) { const selected = reader(reference); await selected.read(reference); active = selected; },
+    select: reference => release.withLease(() => selectBase(reference), { mode: 'exclusive' }),
     codec: () => active.codec(), ensurePublished: () => active.ensurePublished(),
-    withLease: work => release.withLease(work), writeState: (...args) => active.writeState(...args),
+    async withLease(work, { mode = 'exclusive', ...admission } = {}) {
+      // A first-publication command keeps its original preimage -> dependency
+      // -> state order, entirely exclusive. Never upgrade at a rename boundary.
+      const selectedMode = mode === 'shared' && !readOnly && !active.published ? 'exclusive' : mode;
+      return release.withLease(async () => {
+        if (selectedMode === 'shared' && !readOnly) await active.assertPublished();
+        return work();
+      }, { ...admission, mode: selectedMode });
+    }, writeState: (...args) => active.writeState(...args),
     sameState: (a, b) => active.sameState(a, b), crash: options.crash,
     readerOptions: { ...release.readerOptions, retainedManifests: structuredClone(options.retainedManifests ?? []) },
-    activate() { readOnly = false; release.activate(); for (const value of readers.values()) value.activate(); },
+    activate: (reference, beforeEnable = () => {}) => release.withLease(async () => {
+      // Standby verification may bypass writer admission; choosing the writer's
+      // authoritative base and enabling publication may not.
+      await selectBase(reference, beforeEnable);
+      readOnly = false; release.activate(); for (const value of readers.values()) value.activate();
+    }, { mode: 'exclusive', writerAdmission: true }),
     get base() { return active.base; },
     registerArtifacts() {
       artifactSources.set(path.resolve(dataDir), storage);
@@ -57,7 +97,7 @@ export function createOwnedStorage(options, dataDir, { readOnly = false } = {}) 
   };
   return storage;
 }
-function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
+export function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
   if (!options || typeof options !== 'object' || !options.pickerId || options.pickerId === 'legacy-shared'
     || typeof options.catalogueRoot !== 'string') throw new TypeError('Owned storage requires an owned picker and external catalogueRoot.');
   const pin = resolveOwnedBasePin(options.manifest, options.dataset), root = path.resolve(options.catalogueRoot);
@@ -67,6 +107,7 @@ function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
   const crash = options.crash;
   let base, compressed, verifiedIdentity, durableIdentity;
   const filename = path.join(root, `catalogue-${pin.sha256}.json.gz`);
+  const { key, admission } = rootAdmission(root);
   // Retain one parsed/encoded base per hash, not a release Buffer per group.
   function remember(value, bytes) {
     if (!bases.has(pin.sha256)) bases.set(pin.sha256, { base: value, compressed: bytes && gzipSync(bytes) });
@@ -115,7 +156,7 @@ function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
     const encoder = ownedCodec(base, pin), one = encoder.encode(a).storage.delta, two = encoder.encode(b).storage.delta;
     return isDeepStrictEqual(one.tasks, two.tasks) && isDeepStrictEqual(one.identityRegistry, two.identityRegistry);
   }
-  async function ensurePublished() {
+  async function publish() {
     try {
       await read(reference);
     } catch (error) {
@@ -135,32 +176,26 @@ function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
     await syncDirectory(root);
     durableIdentity = verifiedIdentity;
   }
-  async function withLease(work) {
+  async function assertPublished() {
+    await read(reference);
+    if (!durableIdentity || durableIdentity !== verifiedIdentity) throw new Error('Owned catalogue requires exclusive publication before a shared save.');
+  }
+  function ensurePublished() {
+    if (catalogueLeaseMode(admission) === 'shared') return assertPublished();
+    return withLease(publish, { mode: 'exclusive' });
+  }
+  async function withLease(work, { mode = 'exclusive', signal, onQueued, writerAdmission = false } = {}) {
     // Isolated readers run under the writer/capture admission; they never
     // publish a dependency. Standby activation switches to writer admission.
-    if (readOnly || lease.getStore() === root) return work();
-    const previous = admissions.get(root) ?? Promise.resolve();
-    const result = previous.catch(() => {}).then(() => withStoreWrite(root, async () => {
-      const first = readOnly ? undefined : await mkdir(root, { recursive: true });
-      if (!readOnly && !durableRoots.has(root)) {
-        // Sync the ancestry even when a prior process left partially created
-        // directories. Existence after a failed sync is not a durability proof.
-        for (let directory = root; ; directory = path.dirname(directory)) {
-          await syncDirectory(directory);
-          if (directory === path.dirname(directory)) break;
-        }
-        durableRoots.add(root);
-      }
-      if (first) await crash?.('catalogue-root-durable');
+    if (readOnly && !writerAdmission) return work();
+    return withStoreWrite(root, () => admission(async () => {
+      if (newlyCreatedRoots.delete(key)) await crash?.('catalogue-root-durable');
+      await crash?.(`catalogue-${mode}-admitted`);
       const canonical = await realpath(root), group = await realpath(dataDir);
       if (contains(group, canonical) || contains(canonical, group)) throw new TypeError('Owned catalogueRoot overlaps the picker tree.');
-      // Kernel lease dies with a crashed publisher. A concurrent process refuses
-      // safely; in-isolate publishers queue and deduplicate verified content.
-      const release = await acquireProcessGuard(canonical);
-      try { return await lease.run(root, work); } finally { await release(); }
-    }));
-    admissions.set(root, result);
-    try { return await result; } finally { if (admissions.get(root) === result) admissions.delete(root); }
+      try { return await work(); }
+      finally { await crash?.(`catalogue-${mode}-releasing`); }
+    }, { mode, signal, onQueued }));
   }
   async function writeState(file, bytes, options = {}) {
     return withLease(() => atomicWrite(file, bytes, { ...options,
@@ -170,11 +205,12 @@ function createPinnedStorage(options, dataDir, { readOnly = false } = {}) {
         await crash?.('commit-hook-complete');
         await ensurePublished();
         await crash?.('dependencies-durable');
-      }, afterRename: () => crash?.('state-renamed'), afterDirectorySync: () => crash?.('state-directory-synced') }));
+      }, afterRename: () => crash?.('state-renamed'), afterDirectorySync: () => crash?.('state-directory-synced') }),
+    { mode: durableIdentity ? 'shared' : 'exclusive' });
   }
-  const storage = { codec, read, withLease, writeState, sameState, crash, ensurePublished,
+  const storage = { codec, read, withLease, writeState, sameState, crash, ensurePublished, assertPublished,
     readerOptions: { pickerId: options.pickerId, catalogueRoot: root, ...trust, manifest: structuredClone(options.manifest) },
-    activate() { readOnly = false; }, get base() { return base; } };
+    activate() { readOnly = false; }, get base() { return base; }, get published() { return !!durableIdentity; } };
   storage.registerArtifacts = () => {
     artifactSources.set(path.resolve(dataDir), storage);
     return () => { if (artifactSources.get(path.resolve(dataDir)) === storage) artifactSources.delete(path.resolve(dataDir)); };

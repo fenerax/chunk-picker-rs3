@@ -64,7 +64,7 @@ export async function prepareFixtures({ root, mode, shape, data, registry, onPub
   if (mode === 'format2') {
     await mkdir(path.join(root, 'publisher'), { recursive: true });
     const publisher = createOwnedStorage(owned(999), path.join(root, 'publisher'));
-    await publisher.withLease(() => publisher.ensurePublished());
+    await publisher.withLease(() => publisher.ensurePublished(), { mode: 'exclusive' });
     onPublished();
     // Reuse storage's verified singleton. Do not retain the fixture builder's
     // second parsed tree in addition to the one used by all live stores.

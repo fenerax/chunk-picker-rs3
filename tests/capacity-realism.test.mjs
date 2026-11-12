@@ -20,6 +20,7 @@ import { createServer } from '../app/server.mjs';
 import { catalogue, syntheticWorld, planFixture } from '../scripts/perf/capacity/model.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
+import { observeServerIdentity, SERVER_ID_HEADER } from '../scripts/perf/capacity/evidence.mjs';
 
 test('production-sized profiles keep steady cohorts; churn explicitly rotates', async () => {
   const fixture={groups:Array.from({length:4},(_,index)=>({index,members:[{memberId:'owner',cookie:`synthetic-${index}`}]}))};
@@ -216,9 +217,10 @@ test('tiny fixture first owned server open keeps its revision and emits every ph
   const definitions=catalogue(profile.catalogue);
   app=await createServer({dataDir:path.join(directory,'legacy'),definitions,taskMap:{},world:syntheticWorld(definitions,buildWorld),port:0,predictionPrewarm:false,
     multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row)}});
+  const serverId=observeServerIdentity(app.server);
   await app.listen();
   const response=await fetch(`http://127.0.0.1:${app.address().port}/api/state?view=play-v1`,{headers:{Cookie:group.members[0].cookie}});
-  assert.equal(response.status,200);const value=await response.json();
+  assert.equal(response.status,200);assert.equal(response.headers.get(SERVER_ID_HEADER),serverId);const value=await response.json();
   assert.equal(value.state.revision,group.revision,'first serving open must not publish a catalogue refresh');
   assert.equal(opens.length,1);assert.equal(opens[0].status,'completed');
   for(const field of ['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'])assert.equal(typeof opens[0].timingMs[field],'number',field);

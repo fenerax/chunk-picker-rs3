@@ -1,6 +1,7 @@
 import { fixtureDataset, emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { settlePredictionLane, predictionLaneWork } from './helpers/prediction-lane.mjs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { SURFACE_GRID } from '../app/data/surface-grid.mjs';
+
+const guard = AbortSignal.timeout(60_000);
 
 const ids = Array.from({ length: 3 }, (_, index) => String(fixtureDataset.capabilities.independent ? SURFACE_GRID.startId - index : 12850 + index));
 const definitions = { chunks: Object.fromEntries(ids.map((id, index) => [id, { Nickname: `Place ${index}`, Spawn: { [`Supply ${index}`]: 1 } }])),
@@ -28,28 +31,21 @@ test('HTTP reads use the picker prediction cache and retained completion history
   }
   const { key } = await request('/api/game-plugin/keys', admin, { memberId: 'a', label: 'Synthetic HTTP test' });
   const plugin = { Authorization: `Bearer ${key}` };
-  const before = await request('/api/diagnostics');
+  const settle = () => settlePredictionLane(() => request('/api/diagnostics'), guard);
+  const before = await settle();
   assert.equal((await request('/api/plugin/v1/status', plugin)).pendingRoll[0].summary, null);
-  await delay(10);
-  assert.deepEqual((await request('/api/diagnostics')).predictionLane, before.predictionLane);
+  assert.deepEqual(predictionLaneWork((await request('/api/diagnostics')).predictionLane), predictionLaneWork(before.predictionLane));
   const baseline = await request('/api/tasks?memberId=a');
   const prediction = await request(`/api/predict?memberId=a&chunkId=${ids[1]}`);
   // Preview can answer before its producer finishes preparing the partner reply.
   // Let that requested work settle so the snapshot below measures reads alone.
-  let ready;
-  for (const deadline = Date.now() + 10000; ; await delay(20)) {
-    ready = await request('/api/diagnostics');
-    const lane = ready.predictionLane;
-    if (!lane.queue.active && !lane.queue.depth && !lane.retainedWork.pending) break;
-    assert.ok(Date.now() < deadline, `Preview producer did not settle: ${JSON.stringify(lane.queue)}`);
-  }
+  const ready = await settle();
   const status = await request('/api/plugin/v1/status', plugin);
   const summary = status.pendingRoll[0].summary;
   assert.ok(summary); assert.equal(Object.values(summary.newTasks).reduce((a, b) => a + b, 0), prediction.delta.tasksAdded.length);
   assert.equal(summary.newTasks.other, prediction.delta.tasksAdded.length);
   assert.ok(prediction.delta.tasksAdded.length > 0, JSON.stringify({ rows: baseline.tasks.map(row => ({ label: row.label, status: row.status, blockers: row.blockers, hiddenReasons: row.hiddenReasons })), access: baseline.access, member: app.store.getState().members[0], delta: prediction.delta }));
-  await delay(10);
-  assert.deepEqual((await request('/api/diagnostics')).predictionLane, ready.predictionLane, 'Summary reads start no prediction work');
+  assert.deepEqual(predictionLaneWork((await request('/api/diagnostics')).predictionLane), predictionLaneWork(ready.predictionLane), 'Summary reads start no prediction work');
   const calculated = await request('/api/tasks?memberId=a&view=play-v1');
   const active = await request('/api/plugin/v1/tasks', plugin);
   const id = active.all.find(row => calculated.tasks.some(task => task.id === row.id))?.id; assert.ok(id, JSON.stringify({ tasks: calculated.tasks.map(row => ({ id: row.id, status: row.status, hidden: row.hidden })), presentation: calculated.presentation, active })); assert.ok(calculated.tasks.some(row => row.id === id));

@@ -6,6 +6,9 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { openRegistry, REGISTRY_PROVISION_POINTS } from '../app/storage/registry.mjs';
 import { readLegacyAccounts } from '../app/storage/registry-legacy.mjs';
 
@@ -35,6 +38,29 @@ async function child(source) {
 const childOpen = options => `import { openRegistry } from ${JSON.stringify(moduleUrl)}; const options = ${JSON.stringify(options)};`;
 const purge = (f, id) => rm(path.join(f.options.pickerRoot, id), { recursive: true, force: true });
 const capability = (login, kind = 'plugin-key', value = 'synthetic-key') => ({ kind, hash: hash(value), pickerId: login.picker.id, accountId: login.account.id, memberId: 'owner' });
+
+async function crashCheckpoint(t, options, step) {
+  const worker = spawn(process.execPath, [fileURLToPath(new URL('./fixtures/registry-provision-crash.mjs', import.meta.url)), JSON.stringify(options), step],
+    { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  let stderr = '', stopped;
+  worker.stderr.setEncoding('utf8').on('data', text => { stderr += text; });
+  const exited = once(worker, 'exit');
+  const checkpoint = once(worker, 'message');
+  // Register ownership before waiting for any event. Waiting for process exit
+  // rather than stdio close cannot be held up by an inherited output pipe.
+  const stop = () => stopped ??= (async () => {
+    if (worker.exitCode === null && worker.signalCode === null) worker.kill('SIGKILL');
+    try { return await exited; } finally { worker.stderr.destroy(); }
+  })();
+  t.after(stop);
+  try {
+    const [message] = await Promise.race([checkpoint, exited.then(([code, signal]) => {
+      throw new Error(`Crash child exited before ${step}: ${code ?? signal}; ${stderr}`);
+    })]);
+    assert.equal(message.step, step);
+  } catch (failure) { await stop(); throw failure; }
+  return { worker, stop };
+}
 
 test('parallel first login allocates one durable default with an ID-derived directory', async t => {
   const f = await fixture(t); await f.open();
@@ -66,12 +92,17 @@ test('linked providers share a default and conflicting identities never merge ac
   assert.equal(f.registry.findIdentity('google', 'synthetic-linked').id, first.account.id);
 });
 
-for (const step of REGISTRY_PROVISION_POINTS) test(`process crash at ${step} resumes one default`, { timeout: 30000 }, async t => {
+// Checkpoint/process handshakes establish ordering. This is a recovery contract,
+// not a 30-second budget for process startup, filesystem sync and two restarts.
+for (const step of REGISTRY_PROVISION_POINTS) test(`process crash at ${step} resumes one default`, async t => {
   const f = await fixture(t);
-  const result = await child(childOpen(f.options) + `
-    const registry = await openRegistry({ ...options, crashPoint(name) { if (name === ${JSON.stringify(step)}) process.exit(86); } });
-    await registry.firstLogin('discord', 'synthetic-crash'); process.exit(1);`);
-  assert.equal(result.code, 86, result.stderr);
+  const crash = await crashCheckpoint(t, f.options, step);
+  // At the acknowledged seam both kernel guards are still owned. Recovery must
+  // refuse until this exact process has died, then reclaim its stale records.
+  try {
+    await assert.rejects(openRegistry(f.options), { code: 'REGISTRY_LOCKED' });
+    for (const directory of [f.options.registryDir, f.options.tombstoneDir]) assert.equal((await json(path.join(directory, 'registry.lock'))).pid, crash.worker.pid);
+  } finally { const [, signal] = await crash.stop(); assert.equal(signal, 'SIGKILL'); }
   const before = await json(f.file), issued = (await json(f.ledger)).issuedPickerIds;
   assert.equal(before.accounts.length, 1); assert.equal(issued.length, step === 'account-recorded' ? 0 : 1);
   const pendingId = before.accounts[0].defaultPickerId; await f.open();
@@ -81,6 +112,36 @@ for (const step of REGISTRY_PROVISION_POINTS) test(`process crash at ${step} res
   assert.deepEqual(await readdir(f.options.pickerRoot), [login.picker.id]);
   assert.deepEqual(await readdir(f.registry.pickerDirectory(login.picker.id)), []);
   await f.restart(); assert.equal((await f.registry.firstLogin('discord', 'synthetic-crash')).picker.id, login.picker.id);
+});
+
+test('recovery holds reserved state while directory metadata is blocked, then resumes on explicit release', async t => {
+  const f = await fixture(t), interrupted = new Error('Synthetic provisioning interruption');
+  await f.open({ crashPoint(name) { if (name === 'directory-created') throw interrupted; } });
+  await assert.rejects(f.registry.firstLogin('discord', 'synthetic-crash'), error => error === interrupted);
+  await f.close();
+  const before = await json(f.file), id = before.pickers[0].id, directory = path.join(f.options.pickerRoot, id);
+  const reached = Promise.withResolvers(), release = Promise.withResolvers(), original = fs.promises.lstat;
+  let visits = 0, settled = false;
+  t.mock.method(fs.promises, 'lstat', async (target, ...args) => {
+    if (target === directory) { visits++; reached.resolve(); await release.promise; }
+    return original(target, ...args);
+  });
+  syncBuiltinESMExports();
+  const opening = f.open().then(value => { settled = true; return value; });
+  try {
+    await Promise.race([reached.promise, opening.then(() => { throw new Error('Recovery skipped the metadata gate.'); })]);
+    assert.equal(settled, false);
+    assert.equal((await json(f.file)).pickers[0].provisioning, 'reserved');
+    assert.deepEqual((await json(f.ledger)).issuedPickerIds, [id]);
+  } finally {
+    release.resolve();
+    try { await opening; } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
+  }
+  assert.equal(visits, 1);
+  const login = await f.registry.firstLogin('discord', 'synthetic-crash');
+  assert.equal(login.picker.id, id); assert.equal(login.picker.provisioning, 'ready');
+  assert.equal(f.registry.listAccounts().length, 1); assert.equal(f.registry.listPickers().length, 1);
+  await f.restart(); assert.equal(f.registry.getPicker(id).provisioning, 'ready');
 });
 
 test('two first-login processes serialize writers and select the same picker', { timeout: 30000 }, async t => {

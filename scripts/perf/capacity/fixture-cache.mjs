@@ -9,10 +9,10 @@ import { digest } from './model.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const sealName = 'fixture-complete.json';
-const managed = name => ['registry', 'pickers', 'tombstones', 'legacy', 'legacy.dataset.json', 'fixture.json'].includes(name);
+const managed = name => ['registry', 'pickers', 'tombstones', 'legacy', 'legacy.dataset.json', 'fixture.json', 'catalogue'].includes(name);
 
 export const fixtureConfigDigest = (profile, datasetDigest) => digest({ seed: profile.seed, catalogue: profile.catalogue,
-  fixture: profile.fixture, entityCaps: profile.entityCaps, datasetDigest });
+  fixture: profile.fixture, entityCaps: profile.entityCaps, datasetDigest, storageFormat: profile.storageFormat ?? 'format1' });
 export const logicalFixtureDigest = manifest => digest({ config: manifest.configDigest, plan: manifest.planDigest,
   catalogue: manifest.catalogueDigest, groups: manifest.groups.map(group => ({ index: group.index,
     state: group.logicalStateDigest, revision: group.revision, snapshots: group.retainedSnapshots, retention: group.retention })) });
@@ -54,29 +54,45 @@ export async function fixtureImplementationDigest() {
   return hash.digest('hex');
 }
 export async function sealFixture(directory, manifest) {
+  await assertFixtureStorageFormat(directory, manifest);
   const inventory = await fixtureInventory(directory);
   for (const entry of inventory) entry.digest = await fileDigest(path.join(directory, entry.path));
-  const seal = { schemaVersion: 1, complete: true, configDigest: manifest.configDigest,
+  const seal = { schemaVersion: 1, complete: true, storageFormat: manifest.storageFormat ?? 'format1',
+    ...(manifest.ownedBasePin ? { ownedBasePin: manifest.ownedBasePin } : {}), configDigest: manifest.configDigest,
     fixtureDigest: manifest.fixtureDigest, implementationDigest: await fixtureImplementationDigest(), files: inventory };
   seal.inventoryDigest = digest(seal.files);
   await writeFile(path.join(directory, sealName), JSON.stringify(seal), { flag: 'wx', mode: 0o600 });
   return seal;
 }
+async function assertFixtureStorageFormat(directory, manifest) {
+  const format = manifest.storageFormat ?? 'format1';
+  if (!['format1', 'format2'].includes(format)) throw new TypeError('Invalid fixture storage format.');
+  for (const group of manifest.groups) {
+    if (typeof group.pickerId !== 'string' || path.basename(group.pickerId) !== group.pickerId) throw new TypeError('Invalid fixture picker path.');
+    const document = JSON.parse(await readFile(path.join(directory, 'pickers', group.pickerId, 'state.json'), 'utf8'));
+    if ((document.storage?.schemaVersion === 2) !== (format === 'format2')) throw new Error('Fixture physical storage format mismatch; a fixture cannot be relabelled.');
+    if (format === 'format2' && (document.storage.base.datasetDigest !== manifest.ownedBasePin?.dataset.digest
+      || document.storage.base.sha256 !== manifest.ownedBasePin?.sha256)) throw new Error('Fixture owned base pin mismatch.');
+  }
+}
 async function inspect(directory, profile, datasetDigest) {
   const seal = JSON.parse(await readFile(path.join(directory, sealName), 'utf8'));
   if (seal.schemaVersion !== 1 || seal.complete !== true || seal.configDigest !== fixtureConfigDigest(profile, datasetDigest)
+    || seal.storageFormat !== (profile.storageFormat ?? 'format1')
     || seal.implementationDigest !== await fixtureImplementationDigest() || seal.inventoryDigest !== digest(seal.files)) throw new Error('Fixture completion/configuration/code digest mismatch.');
   // Compare with an actual directory walk before trusting paths from the seal.
   const inventory = await fixtureInventory(directory);
   if (JSON.stringify(inventory) !== JSON.stringify(seal.files.map(({ path, bytes, modifiedMs }) => ({ path, bytes, modifiedMs })))) throw new Error('Fixture file inventory mismatch.');
   const manifest = JSON.parse(await readFile(path.join(directory, 'fixture.json'), 'utf8'));
-  if (manifest.configDigest !== seal.configDigest || manifest.fixtureDigest !== seal.fixtureDigest
+  if (manifest.storageFormat !== seal.storageFormat || JSON.stringify(manifest.ownedBasePin) !== JSON.stringify(seal.ownedBasePin)
+    || manifest.configDigest !== seal.configDigest || manifest.fixtureDigest !== seal.fixtureDigest
     || logicalFixtureDigest(manifest) !== seal.fixtureDigest) throw new Error('Fixture logical digest mismatch.');
   return { seal, manifest };
 }
 export async function verifyFixture(directory, profile, datasetDigest) {
   const result = await inspect(directory, profile, datasetDigest);
   for (const entry of result.seal.files) if (await fileDigest(path.join(directory, entry.path)) !== entry.digest) throw new Error(`Fixture file digest mismatch: ${entry.path}`);
+  await assertFixtureStorageFormat(directory, result.manifest);
   return result.manifest;
 }
 export async function copyFixture(source, destination, profile, datasetDigest) {
@@ -108,6 +124,9 @@ export async function copyFixture(source, destination, profile, datasetDigest) {
       await progress({ phase: 'copying', completedFiles, totalFiles: seal.files.length, copiedBytes, groups: 0 }); lastAt = Date.now();
     }
   }
+  // Parse group documents only after every copied byte passed verification.
+  // Corrupt inputs retain the established checksum refusal before decoding.
+  await assertFixtureStorageFormat(destination, manifest);
   // Publish completion only after every copied byte has passed verification.
   await writeFile(path.join(destination, sealName), JSON.stringify(seal), { flag: 'wx', mode: 0o600 });
   await progress({ phase: 'reused', groups: manifest.groups.length,

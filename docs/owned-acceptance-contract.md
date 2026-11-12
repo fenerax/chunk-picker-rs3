@@ -423,18 +423,19 @@ The full worst case is unbounded at both 100 and 500 groups in both profiles.
 
 ### Sustained load harness forwarding
 
-The inspected `perf/sustained-load` harness cannot yet forward either selector.
+The sustained-load harness, now included from main, cannot yet forward either selector.
 `scripts/perf/capacity/run.mjs` constructs an OS-only child environment, and
 `scripts/perf/capacity/server.mjs` deletes every `RS3_` key before importing the
-server. That branch needs to allowlist `RS3_MEMORY_PROFILE`,
+server. The harness needs to allowlist `RS3_MEMORY_PROFILE`,
 `RS3_SERVICE_CACHE_BYTES` and optional `RS3_RESPONSE_CACHE_BYTES` in **both**
 places. Preserve only those values through sanitization and restore them before
 the first application import. Use the same values on initial server launch and
 restart, and record the selected profile/effective budget in the receipt.
 Keep the remaining synthetic-only environment filtering intact. Then the harness
 can compare no overrides against `RS3_MEMORY_PROFILE=budget-672` (or the byte
-selector above). No harness branch is edited by this change. Its current
-format-2 HTTP refusal remains separate from profile forwarding.
+selector above). No harness implementation is edited by this change. Owned
+format-2 HTTP serving is now available through the explicit pinned configuration;
+that activation remains separate from memory-profile forwarding.
 
 The warm-up preflight stops with these blockers instead of running an unbounded
 loop or inventing limits. Resolving them requires source ownership/budget work;
@@ -549,8 +550,20 @@ reports and raw snapshots. Its name and directory are outside the aggregate's
 ordinary `owned-acceptance-*` receipt selection. Locally use `--spot-check`
 for the same reduced shape; it always implies smoke/no acceptance claim.
 
-7c still owns synthetic activation, pinned-dataset preparation, retirement
-filtering and current-name display, plus investigation/fixes for any failed
-measurement and the later full load/restart/speed proof. Browser negotiation
-and catalogue GC remain slices 8 and 9. This change authorizes no production
-activation or real-save migration.
+The [slice-7c serving contract](owned-serving-contract.md) adds default-off
+synthetic HTTP serving, pinned preparation, retirement filtering and current-name
+display with a tiny HTTP/process-restart proof. Investigation of failed
+measurements and full sustained load/speed evidence remain required. Browser
+negotiation and catalogue GC remain slices 8 and 9. Neither proof authorizes
+production activation or real-save migration (owner decision, 2026-11-11).
+
+Catalogue metadata in input states, hashed eligibility/reuse keys, and overlaid
+serialized task/play replies use the existing input, proof and response ledgers.
+Owned serving also introduces shared migration preparation and controller
+catalogue/lease roots outside that census. The named gaps
+`owned-serving-migration-inputs-unledgered` and
+`owned-serving-controller-catalogue-roots-unledgered` are detailed in
+[the residency gaps](f2-memory-residency-gaps.md). This serving path cannot claim
+a whole-service certificate. Default worker startup data retains main's exact
+shape: `ownedCatalogueSemantics` appears only for owned serving, and
+`memoryBudget` appears only for an explicitly enforced memory profile.

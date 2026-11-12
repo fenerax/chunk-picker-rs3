@@ -69,6 +69,29 @@ enforce byte admission and establish release with the variant/world lifetime.
 Until then, the managed subtotal excludes these unknown bytes and automatic
 travel cannot receive a complete engine or service certificate.
 
+## Owned-serving preparation and controller catalogue roots: named gaps
+
+Default-off owned serving adds the shared `preparationInputs` WeakMap in
+`owned-preparation.mjs`, keyed by base and calculator. Its filtered challenges,
+catalogue/registry references and migration input objects have no enforced byte
+ledger. Per-context migration also retains catalogue membership Sets. Record
+`owned-serving-migration-inputs-unledgered` whenever this serving path is used;
+weak keys alone do not prove a bound while their owners remain live.
+
+The controller's verified serving configuration, release bytes, retained manifests
+and storage catalogue roots (`bases`, `verifiedRoots`, and root admission leases)
+also lie outside the calculator input census. The root admission Map now retains
+reader/writer coordinators and their pending closures. Record
+`owned-serving-controller-catalogue-roots-unledgered`; do not add calculator
+copies as a substitute for counting these controller roots. These gaps deny any
+whole-service completeness claim with owned serving enabled. The acceptance
+fixture does not instantiate this serving path.
+
+The added `provenance.ownedCatalogue` payload is traversed by input graph
+accounting. Eligibility and task-reuse keys hash it into fixed-size digests.
+Overlaid labels/retirement rows in retained proofs and replies enter their
+existing serialized/backing-byte ledgers; no separate overlay cache is added.
+
 ## Scope of the current evidence
 
 Pending gzip/Brotli encodings now reserve output bytes and pin their admitted

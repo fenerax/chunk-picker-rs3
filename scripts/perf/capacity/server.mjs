@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
+import { observeServerIdentity } from './evidence.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
 const [directory,profileFile,mode,workers,fixtureFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
@@ -50,7 +51,9 @@ if(mode==='fixture') {
     const data=catalogue(profile.catalogue);
     const {buildWorld}=await import('../../../app/data/world.mjs');
     const {createGroupState}=await import('../../../app/core/state.mjs');
+    const ownedFormat2=profile.storageFormat==='format2'?await (await import('./owned-release.mjs')).loadCapacityOwnedRelease(directory):false;
     app=await createServer({dataDir:path.join(directory,'legacy'),host:'127.0.0.1',port:profile.port,
+      ownedFormat2,
       loopbackPort:undefined,publicOrigin:undefined,definitions:data,world:syntheticWorld(data,buildWorld),taskMap:{},
       initialState:createGroupState([{id:'legacy1',name:'Synthetic legacy 1'},{id:'legacy2',name:'Synthetic legacy 2'}]),
       packsDir:path.join(directory,'no-packs'),packSelection:undefined,gameDataDir:path.join(directory,'no-game-data'),mapAssetsDir:path.join(directory,'no-assets'),
@@ -65,24 +68,29 @@ if(mode==='fixture') {
           process.send({type:'admission',atMs:performance.now(),...event});
           coldQueue={pending:event.pending,active:event.active,accounts:event.accounts,waitMs:event.waitMs,serviceMs:event.serviceMs};}},
     });
+    const serverId=observeServerIdentity(app.server);
     await app.listen();
     const base=loopback(`http://127.0.0.1:${app.address().port}`,{assigned:profile.port===0});
-    process.send({type:'ready',base});
+    process.send({type:'ready',base,serverId});
     process.on('message',async message=>{
       try {
         if(message.type==='stop') return await stop();
         if(message.type==='sample') {
           const headers={Authorization:'Bearer '+app.store.getAccessToken()};
           const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw new Error('Telemetry HTTP failure');return res.json();};
-          const [health,diagnostics]=await Promise.all([get('/api/health'),get('/api/diagnostics')]);
+          // Send each HTTP observation immediately; calculator heap probes must
+          // not make an earlier health/residency result look fresh.
+          await Promise.all([['health','/api/health'],['diagnostics','/api/diagnostics']].map(async([part,route])=>{
+            const value=await get(route);process.send({type:`sample-${part}`,id:message.id,serverId,[part]:value});
+          }));
           const calculatorHeaps=await Promise.all([...workers].filter(worker=>typeof worker.getMemoryUsage==='function').map(async worker=>{
             try {const value=await worker.getMemoryUsage();return {pid:value.pid,hostHeapUsed:value.main?.heapUsed,threadHeapUsed:value.workers?.length?value.workers.reduce((n,w)=>n+(w.memoryUsage?.heapUsed??0),0):null};}catch{return null;}
           }));
           const currentUtilization=performance.eventLoopUtilization(), utilization=performance.eventLoopUtilization(currentUtilization,lastUtilization);
           lastUtilization=currentUtilization;
-          process.send({type:'sample',id:message.id,memory:process.memoryUsage(),cpu:process.cpuUsage(),
+          process.send({type:'sample',id:message.id,serverId,memory:process.memoryUsage(),cpu:process.cpuUsage(),
             eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
-              utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},health,diagnostics,calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
+              utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
           loop.reset();
         }
       } catch { process.send({type:'sample-error',id:message.id}); }

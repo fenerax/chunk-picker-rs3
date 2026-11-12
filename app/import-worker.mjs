@@ -19,6 +19,7 @@ import { createHash } from 'node:crypto';
 import { gzipSync, brotliCompressSync, constants } from 'node:zlib';
 import { createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { projectPlayState, PLAY_VIEW } from './play-view.mjs';
+import { validateOwnedCatalogueMetadata } from './tasks/owned-catalogue-view.mjs';
 import { projectBrowserState } from './web/browser-state.mjs';
 import { boundedImportMessage, boundedOutput, displayText, warningOutput, rosterOutput, importMetadataOutput } from './import-output.mjs';
 import { encodeImportBytes, decodeImportBytes } from './import-bytes.mjs';
@@ -48,7 +49,9 @@ const start = performance.now();
 async function run(job) {
   const registry = job.rules ? createRuleRegistryFromDefinitions(job.rules) : undefined;
   const options = job.options ?? {};
+  const ownedCatalogueSemantics = !!job.ownedFormat2 && job.ownedCatalogueSemantics === true;
   const migrateState = options.migration ? (state, context) => {
+    if (job.ownedFormat2 && !state.identityRegistry && options.migration.identityBase) state.identityRegistry = structuredClone(options.migration.identityBase);
     const result = { ...migrateOwnedGameplay(state, options.migration), reused: false };
     if (result.state.legacy?.gameplayMigration) Object.assign(result.state.legacy.gameplayMigration, { warnings: result.warnings, report: result.report });
     context.migration = result;
@@ -74,7 +77,7 @@ async function run(job) {
   if (migrateState) migrateState.isCurrent = () => true;
   const store = await openStore({ dataDir: job.dataDir, registry, readOnly: true, importReader: true, migrateState, prepareState, now: options.now,
     retention: job.retention, progressQuestPoints: job.progressQuestPoints, completionCodec: job.completionCodec,
-    ownedFormat2: job.ownedFormat2 });
+    ownedFormat2: job.ownedFormat2, ownedCatalogueSemantics });
   try {
     if (job.kind === 'backup' || job.kind === 'export') {
       const backup = await store.backup();
@@ -108,6 +111,7 @@ async function run(job) {
     if (legacy && dataset.capabilities?.features?.originalSync === false) fail(422, 'Choose a backup from this starter game dataset.');
     const imported = legacy ? convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry }) : null;
     const incoming = materializeOptionalSidecarEvidence(pasted?.state ?? (legacy ? imported.state : importBackup(backup, registry, { owned: true })), backup?.optionalSidecarEvidence);
+    if (job.ownedFormat2) validateOwnedCatalogueMetadata(incoming);
     const sourceRoster = rosterOutput(incoming.members);
     const destinationRoster = rosterOutput(current.members);
     const knownRules = new Set(taskRuleDefinitions.map(rule => rule.id));
@@ -206,7 +210,8 @@ async function run(job) {
     if (options.responseView !== undefined) {
       const saved = publication.state, builtInRegistry = createRuleRegistry();
       const rollRegistry = createRuleRegistry((job.rules ?? []).filter(rule => !builtInRegistry.get(rule.id)));
-      const projected = options.responseView === PLAY_VIEW ? projectPlayState(saved) : projectBrowserState(saved);
+      const projected = options.responseView === PLAY_VIEW
+        ? projectPlayState(saved, { ownedCatalogueSemantics }) : projectBrowserState(saved);
       const metadata = importMetadataOutput({ ...(options.responseView === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}), warnings: warningOutput(warnings), transferReport: report });
       if (options.inlineRollPools) publication.reply = { stateBytes: Buffer.from(JSON.stringify(projected)), metadata };
       else {

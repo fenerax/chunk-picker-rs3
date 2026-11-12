@@ -10,7 +10,7 @@ import { random, digest, syntheticWorld } from './model.mjs';
 import { growthCommands, fixtureProgress } from './growth.mjs';
 import { fixtureMigration, calibrateIdentities } from './fixture-migration.mjs';
 
-export async function buildGroup({ item, dataDir }, { profile, worldData, tasks, migrationInputs, progress }) {
+export async function buildGroup({ item, dataDir, pickerId }, { profile, worldData, tasks, migrationInputs, progress, ownedServing }) {
   const started = performance.now(), rules = createRuleRegistry(), world = syntheticWorld(worldData, buildWorld);
   const step = fixtureProgress(progress);
   const update = value => step({ groupIndex: item.index, rosterSize: item.size, grown: item.grown, ...value });
@@ -33,7 +33,8 @@ export async function buildGroup({ item, dataDir }, { profile, worldData, tasks,
   await bindDatasetStorage(dataDir, selectedDataset);
   await update({ phase: 'open-store', completed: 0, total: 1 });
   const durableStarted = performance.now();
-  const store = await openStore({ dataDir, world, registry: rules, initialState: state, now, random: rng, ...hooks });
+  const store = await openStore({ dataDir, world, registry: rules, initialState: state, now, random: rng, ...hooks,
+    ownedFormat2: ownedServing ? { ...ownedServing, pickerId, releaseBytes: Buffer.from(ownedServing.releaseBytes) } : false });
   const result = { index: item.index, grown: item.grown, variant: item.variant, growthMs, growthCommands: growthCount };
   try {
     if (item.grown) {

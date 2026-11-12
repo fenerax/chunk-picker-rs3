@@ -12,11 +12,17 @@ import { createStateSnapshotCache, retainedDataBytes } from '../app/tasks/retain
 import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { engineFixture, fixtureStates } from './fixtures/task-engine.mjs';
 import { createIdentityDictionary, editIdentityDictionary } from '../app/tasks/identity-dictionary.mjs';
-import { createGroupState } from '../app/core/state.mjs';
+import { createGroupState, createResidentState } from '../app/core/state.mjs';
+import { verifyOwnedBaseBytes } from '../app/storage/owned-base.mjs';
+import { fixture as ownedFixture, first as ownedTaskId } from './helpers/owned-format2-fixture.mjs';
+import { projectPlayState } from '../app/play-view.mjs';
+import { createEligibilityBudget, createEligibilityCache, eligibilityInputKey } from '../app/tasks/eligibility-cache.mjs';
+import { createTaskReuseFingerprint } from '../app/tasks/unlock-reuse.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
 import { openStore } from '../app/storage/store.mjs';
 import { capProjection, inspectLedgers } from '../scripts/perf/owned-acceptance/steady-state.mjs';
 import { createSnapshotHotSet } from '../app/tasks/snapshot-hot-set.mjs';
+import { createSerializedSnapshotCache } from '../app/tasks/serialized-snapshot-cache.mjs';
 
 const charge = ledger => ledger.dimensions.find(d => d.unit === 'chargeBytes');
 const semantic = value => JSON.stringify(value);
@@ -116,6 +122,48 @@ test('input payload and entry caps evict and charge complete backing buffers and
   assert(charge(cache.retentionLedger()).used <= cost);
   cache.clear(); assert.equal(cache.size, 0); assert.equal(cache.bytes, 0);
   assert.equal(cache.get('b'), undefined); assert(evicted.includes('b'));
+});
+
+test('owned catalogue metadata and overlaid rows enter the input, proof and response byte ledgers', async () => {
+  const fixture = ownedFixture(), base = verifyOwnedBaseBytes(fixture.bytes, { dataset: fixture.pin.dataset, manifest: fixture.manifest });
+  const state = createResidentState(fixture.state, base);
+  const label = 'Synthetic catalogue label '.repeat(1024);
+  const changed = createResidentState({ ...fixture.state, provenance: { ownedCatalogue: {
+    retiredIds: [ownedTaskId], names: { [ownedTaskId]: label } } } }, base);
+  state.members[0].completedTasks = [ownedTaskId];
+  changed.members[0].completedTasks = [ownedTaskId];
+  const metadataBytes = retainedDataBytes([changed]) - retainedDataBytes([state]);
+  assert(metadataBytes >= label.length * 2);
+  const inputs = createStateSnapshotCache({ maxBytes: 1024 ** 2 });
+  inputs.set('before', state); const plainInputBytes = inputs.bytes;
+  inputs.clear(); inputs.set('after', changed);
+  assert(inputs.bytes >= plainInputBytes + metadataBytes - 16);
+  const fingerprint = createTaskReuseFingerprint({ ownedCatalogueSemantics: true });
+  assert.notEqual(fingerprint(state), fingerprint(changed));
+  assert.notEqual(eligibilityInputKey(state, 'member-1', undefined, true), eligibilityInputKey(changed, 'member-1', undefined, true));
+  const budget = createEligibilityBudget({ byteLimit: 1024 ** 2 });
+  const proofs = createEligibilityCache({ budget, ownedCatalogueSemantics: true });
+  const compute = state => ({ tasks: structuredClone(projectPlayState(state, { ownedCatalogueSemantics: true }).tasks), metrics: {} });
+  const expected = compute(changed);
+  proofs.evaluate(state, 'member-1', undefined, () => compute(state));
+  const beforeProof = budget.bytes;
+  const result = proofs.evaluate(changed, 'member-1', undefined, () => expected);
+  assert.equal(result.tasks.find(row => row.id === ownedTaskId).label, label);
+  assert(budget.bytes > beforeProof);
+  assert.equal(budget.bytes, proofs.bytes);
+  assert.deepEqual(proofs.evaluate(changed, 'member-1', undefined, () => assert.fail('Owned proof missed')), expected);
+  const hot = createSnapshotHotSet();
+  const snapshots = createSerializedSnapshotCache(budget, { hotSet: hot });
+  assert.equal(snapshots.set('owned', { baseline: expected, revision: 1 }, changed, 'synthetic'), true);
+  assert(charge(hot.retentionLedger()).used >= label.length * 2, 'Decoded catalogue overlay is charged in the shared hot graph');
+  const responseBudget = createResponseCacheBudget({ maxBytes: 1024 ** 2 });
+  const responses = createResponseCache({ budget: responseBudget });
+  const bytes = JSON.stringify(expected);
+  const response = responses.set('owned', createRepresentation(bytes));
+  assert.equal(charge(responseBudget.retentionLedger()).used, Buffer.byteLength(bytes));
+  assert.deepEqual((await response.encoded('identity')).bytes, Buffer.from(bytes));
+  responses.clear(); proofs.clear(); snapshots.entries.clear(); inputs.clear();
+  assert.equal(responseBudget.bytes, 0); assert.equal(budget.bytes, 0);
 });
 
 test('parsed variants and lazy indexes are evicted without changing engine answers or input bytes', () => {

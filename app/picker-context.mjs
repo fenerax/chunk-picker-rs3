@@ -63,6 +63,7 @@ import { chunkSectionsPayload } from './core/chunk-sections.mjs';
 import { projectDisplayWorld } from './display-world.mjs';
 import { projectMapLayerData } from './map-layer-data.mjs';
 import { projectPlayState, projectPlayResult, PLAY_VIEW } from './play-view.mjs';
+import { pinnedOwnedMigrationInputs } from './owned-preparation.mjs';
 import { projectBrowserState } from './web/browser-state.mjs';
 import { projectDuoPlayResult, projectDuoInspectionJSON, DUO_INSPECTION_VIEW } from './duo-play-view.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
@@ -86,6 +87,7 @@ import { MAX_BODY, NOTE_PREWARM_QUIET_MS, MIME, httpError, commandPermissions, a
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Private resources for one saved picker. The caller owns the shared runtime. */
 export async function createPickerContext({ pickerId, dataDir, runtime,
+  ownedFormat2 = false,
   initialState, prepareState, beforeCommit, now, random, retention, initialImport,
   runeMetrics = {}, progressSources = {}, originalSync = {},
   idleMemoryOptions, predictionPrewarm = true, prepareStateResponse = true,
@@ -96,8 +98,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   transport = {},
 }) {
   if (typeof pickerId !== 'string' || !pickerId) throw new TypeError('pickerId is required.');
+  if (ownedFormat2 !== false && (pickerId === 'legacy' || pickerId === 'legacy-shared' || ownedFormat2.pickerId !== pickerId)) throw new TypeError('Format 2 is owned-picker-only.');
   const { dataset, indexedWorld, ruleRegistry, taskWorker: sharedTaskWorker, taskWorkerOptions, parsedDefinitions,
-    parsedTaskMap, identityHistory, migrateState, registry, xpChoiceCatalogue, sandboxCatalogue,
+    parsedTaskMap, identityHistory, migrateState, registry, xpChoiceCatalogue, sandboxCatalogue, ownedBase,
     originalSyncIntegration: configuredOriginalSync, privateAddon, appVersion, browserDataset: sharedBrowserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
@@ -151,7 +154,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   });
   const evaluatedTasks = (...args) => trackJob(() => evaluatedTasksWork(...args));
   const rememberTaskResult = (...args) => trackJob(() => rememberTaskResultWork(...args));
-  let rollPoolCache = createRollPoolCache(indexedWorld, ruleRegistry, { inputKey: createTaskReuseFingerprint() });
+  const ownedCatalogueSemantics = ownedFormat2 !== false;
+  let rollPoolCache = createRollPoolCache(indexedWorld, ruleRegistry, { inputKey: createTaskReuseFingerprint({ ownedCatalogueSemantics }) });
   async function evaluatedRollPoolWork(state, memberId, draft, timing = {}) {
     const cached = draft === undefined && rollPoolCache.get(state, memberId);
     if (cached?.partnerConnections !== undefined) { timing.source = 'cache'; noteTiming(timing); return cached; }
@@ -188,12 +192,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   prepareState = preserveGameIdentity(dataset, prepareState);
   store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions), rollPoolCache, computeRollPool: evaluatedRollPool,
     // Only rows carrying a level need a copy without it; generated goal rows are read as they are.
-    taskCatalogue: taskWorker ? new Map([...taskWorker.catalogue, ...taskWorker.dynamicCatalogue].map(row => {
+    taskCatalogue: taskWorker ? new Map([...(ownedBase?.tasks ?? taskWorker.catalogue), ...taskWorker.dynamicCatalogue].map(row => {
       if (!Object.hasOwn(row, 'level')) return [row.id, row];
       const { level, ...task } = row; return [task.id, task];
     })) : undefined,
     readOnly: liveSwap?.standby === true, liveSwapStrict: liveSwap?.strict === true, expectedCheckpoint: liveSwap?.checkpoint, onActivationTiming: liveSwap?.onActivationTiming,
-    startupDiagnostics: openDiagnostics?.timingMs });
+    startupDiagnostics: openDiagnostics?.timingMs, ownedFormat2, ownedCatalogueSemantics });
   if (PROFILE_ENABLED) profile.wrapMethods(store, ['command', 'commandSerialized', 'getStateSnapshot'], 'store');
   try {
     startupSignal?.throwIfAborted();
@@ -370,7 +374,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   async function viewEnvelope(state, view) {
     const { values, ...envelope } = await stateEnvelope(state);
     if (view !== PLAY_VIEW) return envelope;
-    return { format: PLAY_VIEW, schemaVersion: 1, state: projectPlayState(state),
+    return { format: PLAY_VIEW, schemaVersion: 1, state: projectPlayState(state, { ownedCatalogueSemantics }),
       pools: Object.fromEntries(state.members.map(member => [member.id, { ...envelope.pools[member.id],
         partnerConnections: values.get(member.id).partnerConnections }])) };
   }
@@ -1865,8 +1869,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 world: indexedWorld,
                 responseView: !route.endsWith('/preview') ? viewFor(request) ?? 'full' : undefined,
                 inlineRollPools: !workerRollRules(ruleRegistry),
-                migration: sharedTaskWorker ? { definitions: parsedDefinitions, taskMap: parsedTaskMap, taskMapHistory: identityHistory,
-                  catalogue: sharedTaskWorker.catalogue, dynamicCatalogue: sharedTaskWorker.dynamicCatalogue } : undefined,
+                migration: sharedTaskWorker ? ownedBase ? pinnedOwnedMigrationInputs(runtime, ownedBase)
+                  : { definitions: parsedDefinitions, taskMap: parsedTaskMap, taskMapHistory: identityHistory,
+                    catalogue: sharedTaskWorker.catalogue, dynamicCatalogue: sharedTaskWorker.dynamicCatalogue } : undefined,
                 requiredMemberIds: pickerRouting?.requiredMemberIds?.(), actor: identity.actor,
                 now: typeof now === 'function' ? now() : now,
               });

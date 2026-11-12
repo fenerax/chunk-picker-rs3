@@ -2,6 +2,7 @@ import { withStoreWrite } from './snapshot.mjs';
 import { open, readFile, rm } from 'node:fs/promises';
 import { publishFile, warnDurability } from './publication.mjs';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import { generateToken } from '../security/tokens.mjs';
 import path from 'node:path';
 import { loadGameDefaults } from '../game-defaults.mjs';
 
@@ -117,7 +118,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
     const remove = new Set(same.slice(0, Math.max(0, same.length - 31)).map(session => session.tokenHash));
     next.sessions = next.sessions.filter(session => !remove.has(session.tokenHash));
     if (next.sessions.length >= 10000) throw error(429, 'Please try again later.');
-    const token = randomBytes(32).toString('base64url');
+    const token = generateToken();
     next.sessions.push({ tokenHash: hash(token), ...source, expiresAt: new Date(now() + SESSION_MS).toISOString() });
     return token;
   }
@@ -201,7 +202,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const name = label(safeText(label(input.label))), player = memberId(input.memberId);
       return mutate(next => {
         if (next.invites.length >= 1000) throw error(409, 'The invite limit has been reached.');
-        const token = randomBytes(32).toString('base64url');
+        const token = generateToken();
         const invite = { id: randomUUID(), label: name, admin: input.admin ?? false, viewer: input.viewer ?? false, ...(player ? { memberId: player } : {}), createdAt: new Date(now()).toISOString(), lastUsedAt: null, revoked: false, tokenHash: hash(token) };
         next.invites.push(invite);
         return { invite: publicInvite(invite), token };
