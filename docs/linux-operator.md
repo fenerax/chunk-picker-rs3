@@ -254,6 +254,24 @@ and restore. The local retained count is not an off-host retention policy.
 
 ## Final stopped-save compatibility and activation
 
+Evidence-only legacy dataset changes now use the same proof as owned picker
+startup. The stopped check rejects a stamped format-1 save unless the candidate
+can reconstruct its old digest with identical input records and configuration.
+Probe copies receive evidence records from the pinned current/candidate pack
+manifests. Source saves stay untouched during compatibility checks. Before
+activation the operator durably retains those records in `dataset-evidence.json`;
+multi-picker deployment retains them for every active, non-quarantined store
+after all stores pass. The former blanket service pack-change refusal allows
+only this proven transition; art and addon changes still use sequential recovery.
+
+Keep historical manifests for pickers whose stamp predates the current release.
+Unknown stamps fail closed. The first deployment of this support has a rollback
+boundary: once a picker is re-stamped, an older receiver without this support
+cannot open it. The reverse stopped check detects that case and leaves the
+service stopped instead of starting an incompatible writer. Plan a compatible
+rollback receiver before approving production activation. Ordinary backup
+restore authorization and the explicit format-2 rebase procedure are unchanged.
+
 `checkStoppedCompatibility()` in `scripts/linux/recovery.mjs` is the deployer
 interface. Call it under the shared operation lock **after** graceful stop and
 ownership verification, immediately before changing binding/pointer. Supply

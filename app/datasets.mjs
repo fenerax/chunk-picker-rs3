@@ -366,6 +366,7 @@ export async function resolveDataset(options = {}) {
       ...(installed ? { capabilities: Object.freeze({ ...capabilities, features: Object.freeze({ originalSync: false, gallery: false, projectUpdates: false }) }),
         materializeValues: () => encodeDatasetValue(values) } : {}),
       files: Object.freeze(files),
+      digestWithEvidence: evidence => datasetDigest([...files.filter(row => row.kind === 'input'), ...evidence], capabilities, catalogue.definitionOverlays),
       status: () => ({ id: DATASET_CONTRACT.datasetId, kind: 'data', version, health: 'healthy', digest, contractVersion: DATASET_CONTRACT.datasetContractVersion }),
       async metadataBytes(key) {
         if (!metadataKeys.includes(key)) return null;

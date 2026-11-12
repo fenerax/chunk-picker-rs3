@@ -2,6 +2,7 @@ import path from 'node:path';
 import { readFile, mkdir, writeFile, link, unlink, rename, lstat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { safeArtFile } from './packs.mjs';
+import { provesEvidenceOnly, readDatasetEvidence } from './dataset-evidence.mjs';
 
 export const bindingPath = dataDir => `${path.resolve(dataDir)}.dataset.json`;
 function mismatch() { const error = new Error('This storage directory needs its bound data pack.'); error.code = 'DATASET_BINDING_MISMATCH'; return error; }
@@ -13,7 +14,7 @@ function expected(dataset) {
   return receipt;
 }
 /** Pre-open check only; this never reads or prepares gameplay storage. */
-export async function verifyDatasetBinding(dataDir, dataset) {
+export async function verifyDatasetBinding(dataDir, dataset, { evidenceOnly = false } = {}) {
   const target = bindingPath(dataDir), receipt = expected(dataset);
   try {
     // A lexical sibling receipt must not be bypassed through a junction or
@@ -27,7 +28,10 @@ export async function verifyDatasetBinding(dataDir, dataset) {
     const existing = JSON.parse(await readFile(target, 'utf8'));
     const fields = ['schemaVersion', 'datasetId', 'datasetContractVersion', 'digest'];
     if (!existing || typeof existing !== 'object' || Array.isArray(existing) || Object.keys(existing).some(key => ![...fields, 'requiresPack'].includes(key))
-      || fields.some(key => existing[key] !== receipt[key])
+      || fields.some(key => key !== 'digest' && existing[key] !== receipt[key])
+      || (existing.digest !== receipt.digest && !(evidenceOnly && provesEvidenceOnly(dataset,
+        { id: existing.datasetId, contractVersion: existing.datasetContractVersion, digest: existing.digest },
+        [...(dataset.evidenceHistory ?? []), ...await readDatasetEvidence(dataDir)])))
       || (Object.hasOwn(existing, 'requiresPack') && existing.requiresPack !== true)
       || (existing.requiresPack === true && dataset.packed !== true)) throw mismatch();
     return { bound: true, ...existing };

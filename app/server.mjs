@@ -17,6 +17,7 @@ import { openRegistry } from './storage/registry.mjs';
 import { readLegacyAccounts } from './storage/registry-legacy.mjs';
 import { startupPhase } from './startup-timing.mjs';
 import { resolveDataset } from './datasets.mjs';
+import { datasetWithEvidenceHistory } from './dataset-evidence.mjs';
 import { verifyDatasetBinding, bindDatasetStorage } from './dataset-binding.mjs';
 import { defaultGameDirectory, prepareGameStorage, gameArtOptions, datasetFeature, prepareOwnedPickerState } from './game-profile.mjs';
 import { prepareServerDefinitions, preparedDefinitionStages } from './dataset-pipeline.mjs';
@@ -138,6 +139,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Refuse a broken executable installation before opening or preparing saves.
   const originalSyncIntegration = await loadOriginalSyncIntegration(dataset, undefined, privateAddon);
   dataDir ??= defaultGameDirectory(ROOT, dataset);
+  dataset = await datasetWithEvidenceHistory(dataDir, dataset);
   const ownedServing = ownedFormat2 === false ? undefined : await verifyOwnedServingConfiguration(ownedFormat2, {
     dataset, deletionRoots: [dataDir, multiPicker?.pickerRoot, multiPicker?.tombstoneDir, multiPicker?.registryDir].filter(Boolean),
   });
@@ -463,10 +465,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           let opened;
           try {
             const pinned = ownedServing ? await selectOwnedServingPicker(ownedServing, pickerId, directory) : undefined;
-            const pickerDataset = pinned ? { ...dataset, datasetId: pinned.base.dataset.id,
-              datasetContractVersion: pinned.base.dataset.contractVersion, digest: pinned.base.dataset.digest } : dataset;
-            const pickerRuntime = pinned ? { ...runtime, dataset: pickerDataset, ownedBase: pinned.base, migrateState: createPinnedOwnedMigration(runtime, pinned.base) } : runtime;
-            const binding = await verifyDatasetBinding(directory, dataset);
+            const pickerDataset = await datasetWithEvidenceHistory(directory, pinned ? { ...dataset, datasetId: pinned.base.dataset.id,
+              datasetContractVersion: pinned.base.dataset.contractVersion, digest: pinned.base.dataset.digest } : dataset);
+            const pickerRuntime = { ...runtime, dataset: pickerDataset, ...(pinned ? { ownedBase: pinned.base, migrateState: createPinnedOwnedMigration(runtime, pinned.base) } : {}) };
+            const binding = await verifyDatasetBinding(directory, dataset, { evidenceOnly: true });
             if (!binding.bound) {
               if ((await readdir(directory)).length) throw httpError(503, 'Picker dataset binding is missing.');
               await bindDatasetStorage(directory, dataset);

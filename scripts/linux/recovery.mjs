@@ -10,6 +10,7 @@ import { assertCompatibleStep } from '../private-companion/release-compatibility
 import { STORE_IDENTITY_EXCLUSIONS } from '../../app/storage/store-identity-policy.mjs';
 import { recordStatus } from './ops-status.mjs';
 import { inPhase } from './phases.mjs';
+import { checkSavedDatasetEvidence, retainReleaseDatasetEvidence } from './dataset-evidence.mjs';
 import { recoverySources, withRecoveryLeases, captureOwnedClosure, copyOwnedClosure, verifyOwnedClosure, installOwnedClosure } from './owned-recovery.mjs';
 
 export async function runProbe(release, dataDir, output) {
@@ -151,6 +152,7 @@ export async function checkStoppedCompatibility({ dataDir, scratchRoot, current,
   await assertStopped();
   const before = await inPhase(timings, phase + ':hash', () => storeIdentity(dataDir));
   const binding = await readFile(bindingPath(dataDir));
+  await checkSavedDatasetEvidence(dataDir, current, candidate);
   outside(dataDir, scratchRoot); await directory(scratchRoot);
   await headroom(scratchRoot, before.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0) * 6, minFreeBytes);
   const scratch = await mkdtemp(path.join(scratchRoot, 'compatibility-'));
@@ -160,6 +162,7 @@ export async function checkStoppedCompatibility({ dataDir, scratchRoot, current,
     for (const [index, release] of [current, candidate, current, candidate].entries()) {
       const copy = path.join(scratch, String(index));
       await inPhase(timings, phase + ':copy-' + index, () => snapshot(source, copy, index % 2 ? candidateBinding ?? binding : binding));
+      await retainReleaseDatasetEvidence(copy, current, candidate);
       const report = await inPhase(timings, phase + ':probe-' + index, () => probe(release, copy, path.join(scratch, index + '.json')));
       const derived = assertCompatibleStep(reports.at(-1), report, { forward: index === 1,
         ...(index === 1 ? { declaredAdditions: savedIdentityAdditions } : {}) });
