@@ -254,6 +254,19 @@ test('budget profile gates require HTTP proof in both generations and never labe
   assert.equal(evaluateSustained(defaults).memoryProfile.availability,'unavailable');
   defaults.samples[0].server.health.memoryBudget={profile:'budget-672',enforced:true,totalBytes:704643072};
   assert.equal(evaluateSustained(defaults).memoryProfile.status,'fail');
+  // A default run is verified only by received health and diagnostics from every server generation.
+  for(const change of [
+    result=>{result.samples=[];},
+    result=>result.samples.filter(row=>row.generation===1).forEach(row=>{row.server.health=null;delete row.server.healthObservation;}),
+    result=>result.samples.filter(row=>row.generation===0).forEach(row=>{row.server.diagnostics=null;delete row.server.diagnosticsObservation;}),
+    result=>result.samples.filter(row=>row.generation===1).forEach(row=>{row.server.diagnosticsObservation.serverId='old-process';}),
+  ]) {
+    const result=reportFixture();change(result);
+    const gates=evaluateSustained(result),report=sustainedMarkdown(result);
+    assert.equal(gates.memoryProfile.status,'fail');assert.equal(gates.memoryProfile.reason,'memory-profile-unverified');
+    assert.ok(Object.values(gates).every(gate=>gate.memoryProfile===null&&gate.status!=='pass'));
+    assert.match(report,/Memory profile: \*\*unverified\*\*/);assert.doesNotMatch(report,/Memory profile: \*\*default\*\*/);
+  }
 });
 
 test('verdicts and reports refuse stitched profiles, contradictory labels and unlabelled historical data',()=>{
@@ -263,6 +276,9 @@ test('verdicts and reports refuse stitched profiles, contradictory labels and un
     result=>{result.profile.memoryProfile='budget-672';},
     result=>{result.load.memoryProfile='budget-672';},
     result=>{result.manifest={memoryProfile:'budget-672'};},
+    result=>{result.requestedMemoryProfile='budget-672';result.profile.requestedMemoryProfile='budget-672';},
+    result=>{result.profile.requestedMemoryProfile='budget-672';},
+    result=>{result.manifest={memoryProfile:'default',requestedMemoryProfile:'budget-672'};},
     result=>{result.samples[0].server.memoryProfile='budget-672';},
     result=>{result.samples[0].server.healthObservation.memoryProfile='budget-672';},
     result=>{result.load.restarts[0].memoryProfile='budget-672';},

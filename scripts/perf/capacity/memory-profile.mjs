@@ -68,6 +68,12 @@ export function evaluateMemoryProfile(result) {
   const selected = memoryProfile(result.memoryProfile), generations = new Map();
   const failure = evidence => ({ ...verifyMemoryProfile(selected), status: 'fail', memoryProfile: null,
     reason: 'memory-profile-unverified', evidence });
+  // An absent summary means "unavailable" only when this server generation's
+  // health and diagnostics were both actually received; no receipt, no verdict.
+  const observed = (server, generation) => ['health', 'diagnostics'].every(name => {
+    const receipt = server[`${name}Observation`];
+    return server[name] && typeof server[name] === 'object' && receipt?.serverId === server.serverId && receipt.generation === generation;
+  });
   for (const row of result.samples ?? []) if (row.server) {
     const server = row.server, verification = verifyMemoryProfile(selected, server.health, server.diagnostics);
     const evidence = { generation: row.generation, serverId: server.serverId,
@@ -77,10 +83,11 @@ export function evaluateMemoryProfile(result) {
       const receipt = source.startsWith('health.') ? server.healthObservation : server.diagnosticsObservation;
       if (!receipt || receipt.serverId !== server.serverId || receipt.generation !== row.generation) return failure([evidence]);
     }
+    if (verification.availability !== 'available' && !observed(server, row.generation)) continue;
     if (!generations.has(server.serverId) || verification.availability === 'available') generations.set(server.serverId, evidence);
   }
   const expected = [result.load?.initialServerId, ...(result.load?.restarts ?? []).map(row => row.serverId)];
-  if (selected === 'budget-672' && expected.some(id => !id || !generations.has(id))) return failure([...generations.values()]);
+  if (expected.some(id => !id || !generations.has(id))) return failure([...generations.values()]);
   return { status: 'pass', requestedMemoryProfile: selected, memoryProfile: selected,
     availability: [...generations.values()].some(row => row.availability === 'available') ? 'available' : 'unavailable',
     evidence: [...generations.values()] };
@@ -107,8 +114,13 @@ export function assertMemoryProfile(result) {
   const check = (row, where) => {
     if (row?.memoryProfile !== selected) throw new Error(`Memory profile mismatch at ${where}: expected ${selected}, got ${row?.memoryProfile ?? 'unlabelled'}. Cannot combine memory profiles into one verdict.`);
   };
+  // The requested selection must agree with the applied label wherever it is recorded.
+  const requested = (row, where) => {
+    if (row?.requestedMemoryProfile !== undefined && row.requestedMemoryProfile !== selected) throw new Error(`Memory profile mismatch at ${where}: requested ${row.requestedMemoryProfile}, applied ${selected}. Cannot combine memory profiles into one verdict.`);
+  };
   check(result, 'result'); check(result.profile, 'profile'); check(result.load, 'load');
-  if (result.manifest) check(result.manifest, 'manifest');
+  requested(result, 'result'); requested(result.profile, 'profile');
+  if (result.manifest) { check(result.manifest, 'manifest'); requested(result.manifest, 'manifest'); }
   for (const key of ['operations', 'offeredOperations', 'coldOpens', 'restarts', 'streamHandshakes', 'commands', 'stageStreams'])
     for (const row of result.load[key] ?? []) check(row, `load.${key}`);
   if (result.load.tailStreams) check(result.load.tailStreams, 'load.tailStreams');
