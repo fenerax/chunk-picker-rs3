@@ -72,25 +72,27 @@ test('saved decode admission shares limits and keeps in-flight invalidations cha
 test('peer-pinned global pressure preserves saved evidence without retaining a decoded fallback', async t => {
   const entry = makeEntry(), raw = entry.fullGzip.readUInt32LE(entry.fullGzip.length - 4);
   const charge = savedWhyCharge(raw, entry.fullGzip.buffer.byteLength);
-  const budget = createResponseCacheBudget({ maxBytes: charge, maxEntries: 1 });
-  const peer = createResponseCache({ budget, maxBytes: charge });
-  const reservation = { retainedBytes: charge, pinned: true };
+  const budget = createResponseCacheBudget({ maxBytes: charge + 65536, maxEntries: 1 });
+  const peer = createResponseCache({ budget, maxBytes: charge + 65536 });
+  const reservation = { retainedBytes: 65536, pinned: true };
   peer.set('peer', reservation);
   const cache = createResponseCache({ budget }), clock = timers();
   const owner = createSavedWhyEvidence({ cache, clock }); t.after(() => owner.close());
-  const first = owner.read(entry, 7);
-  const shared = owner.read(entry, 7);
+  const first = owner.acquire(entry, 7);
+  const shared = owner.acquire(entry, 7);
   assert.equal(owner.stats().pending, 1); assert.equal(cache.bytes, 0);
-  const decoded = await first;
-  assert.equal(await shared, decoded, 'refused same-evidence callers share one bounded decode');
-  assert.deepEqual(decoded, { tasks: [{ id: 'fixture', record: {} }] });
+  const decoded = await first, second = await shared;
+  assert.equal(second.value, decoded.value, 'refused same-evidence callers share one bounded decode');
+  assert.deepEqual(decoded.value, { tasks: [{ id: 'fixture', record: {} }] });
+  assert.equal(owner.stats().bytes, charge);
+  decoded.release(); second.release();
   assert.deepEqual(owner.stats(), { entries: 0, pending: 0, bytes: 0, maxRawBytes: 1024 ** 2 });
-  assert.equal(clock.active.size, 0); assert.equal(budget.bytes, charge);
-  const cancelled = owner.read(entry, 7); forgetSavedWhyChain(entry);
-  assert.equal(await cancelled, undefined);
+  assert.equal(clock.active.size, 0); assert.equal(budget.bytes, 65536);
+  const cancelled = owner.acquire(entry, 7); forgetSavedWhyChain(entry);
+  await assert.rejects(cancelled, { name: 'AbortError' });
   reservation.pinned = false; peer.clear();
-  const retained = await owner.read(entry, 7);
-  assert.equal(await owner.read(entry, 7), retained);
+  const retained = await owner.acquire(entry, 7), again = await owner.acquire(entry, 7);
+  assert.equal(again.value, retained.value); retained.release(); again.release();
 });
 
 test('invalidated saved graphs and entries collect while the owning context remains reachable', async () => {
@@ -105,31 +107,33 @@ test('successful saved-Why unpin wakes a queued encoding without idle eviction o
   const budget = createResponseCacheBudget({ maxBytes: charge + 32 * 1024 });
   const cache = createResponseCache({ budget }), clock = timers(), owner = createSavedWhyEvidence({ cache, clock });
   t.after(() => owner.close());
-  const decoding = owner.read(entry, 7);
+  const decoding = owner.acquire(entry, 7);
   const replies = createResponseCache({ budget, maxBytes: 0 });
   const row = replies.set('reply', createRepresentation('synthetic reply')), encoding = row.encoded('gzip');
   const queued = () => budget.retentionLedger().dimensions.find(d => d.unit === 'queuedEncodings').used;
   assert.equal(queued(), 1); assert.equal(budget.retentionLedger().encodingStarts, 0);
-  assert(await decoding);
+  const lease = await decoding; assert(lease.value); lease.release();
   assert.deepEqual(await encoding, await createRepresentation('synthetic reply').encoded('gzip'));
   assert.equal(queued(), 0); assert.equal(budget.retentionLedger().encodingStarts, 1);
   assert.equal(owner.stats().pending, 0);
   assert(clock.active.size <= 1, 'no idle callback or close is needed to wake the live head');
 });
 
-test('every saved-Why decode settlement notifies unpin, including failure, abort and uncached fallback', async t => {
+test('every saved-Why decode settlement releases charges, including failure, abort and uncached fallback', async () => {
   for (const mode of ['success', 'invalid-json', 'forgotten', 'closed', 'uncached']) {
-    const budget = createResponseCacheBudget({ maxBytes: 256 * 1024 });
-    const peer = createResponseCache({ budget }), reservation = { retainedBytes: 256 * 1024, pinned: true };
+    const budget = createResponseCacheBudget({ maxBytes: 256 * 1024, maxEntries: 1 });
+    const peer = createResponseCache({ budget }), reservation = { retainedBytes: 128 * 1024, pinned: true };
     if (mode === 'uncached') peer.set('peer', reservation);
-    const cache = createResponseCache({ budget }), notify = t.mock.method(cache, 'notifyUnpinned');
+    const cache = createResponseCache({ budget });
     const owner = createSavedWhyEvidence({ cache, clock: timers() }), entry = makeEntry();
     if (mode === 'invalid-json') entry.fullGzip = gzipSync('not json');
-    const decoding = owner.read(entry, 7);
+    const decoding = owner.acquire(entry, 7);
+    const result = decoding.catch(error => { assert.equal(error.name, 'AbortError', mode); });
     if (mode === 'forgotten') forgetSavedWhyChain(entry);
     const closing = mode === 'closed' ? owner.close() : undefined;
-    await decoding; await closing;
-    assert.equal(notify.mock.callCount(), 1, mode);
+    const lease = await result; lease?.release(); await closing;
     await owner.close(); reservation.pinned = false; peer.clear();
+    assert.equal(budget.bytes, 0, mode);
+    assert.equal(budget.retentionLedger().dimensions.find(d => d.unit === 'pendingDecodes').used, 0, mode);
   }
 });

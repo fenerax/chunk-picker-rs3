@@ -1041,13 +1041,22 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await json(request, response, 200, { ...ranking, pickerId: identity.pickerId ?? (pickerRouting?.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id) ?? pickerId, datasetDigest: dataset.digest }); return;
           }
           if (route === '/api/task-why') {
+            const evidenceRequest = savedWhyEvidence.enforced ? new AbortController() : undefined;
+            const disconnectEvidence = () => evidenceRequest?.abort();
+            const shutdown = request[RESPONSE_ENCODING_SIGNAL];
+            if (evidenceRequest) {
+              request.once('aborted', disconnectEvidence); response.once('close', disconnectEvidence);
+              shutdown?.addEventListener('abort', disconnectEvidence, { once: true });
+              if (request.aborted || response.destroyed || shutdown?.aborted) disconnectEvidence();
+            }
+            try {
             noteTiming({ source: 'computed' });
             const query = new URL(request.url, 'http://localhost').searchParams;
             if (query.has('view')) {
               const revision = store.getInfo().revision;
               validateWhyDisplay(query, { revision, members: knownTaskMembers });
               let display = await savedWhyDisplay(query, { revision, entry: savedTaskResults.get(query.get('memberId')),
-                currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence });
+                currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence, signal: evidenceRequest?.signal });
               if (!display && !identity.readOnly && taskWorker?.supports('why-task')) {
                 const captured = calculationState(), controller = new AbortController();
                 const disconnected = () => { if (!response.writableEnded) controller.abort(); };
@@ -1066,7 +1075,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               await json(request, response, 200, display); return;
             }
             await json(request, response, 200, await savedWhyChain(query, { revision: store.getInfo().revision, members: knownTaskMembers,
-              entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision, evidence: savedWhyEvidence })); return;
+              entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision,
+              evidence: savedWhyEvidence, signal: evidenceRequest?.signal })); return;
+            } catch (error) {
+              if (evidenceRequest?.signal.aborted) { response.destroy(); return; }
+              throw error;
+            } finally {
+              if (evidenceRequest) {
+                request.off('aborted', disconnectEvidence); response.off('close', disconnectEvidence);
+                shutdown?.removeEventListener('abort', disconnectEvidence);
+              }
+            }
           }
           if (route === '/api/tasks' && identity.readOnly) { await readSavedTasks(request, response); return; }
           if (route === '/api/backlog-search') {
@@ -2074,7 +2093,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         return;
       }
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),

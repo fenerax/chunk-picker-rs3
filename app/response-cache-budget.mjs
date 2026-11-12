@@ -7,14 +7,16 @@ import { BUDGET_RESPONSE_CACHE_BYTES, serviceMemoryBudget } from './service-memo
 
 export function createResponseCacheBudget({ maxBytes = BUDGET_RESPONSE_CACHE_BYTES, maxEntries = 4096,
   groupFloorBytes = 64 * 1024, maxQueuedEncodings = 32,
+  maxPendingDecodes = 4, maxDecodeBytes = Math.min(64 * 1024 ** 2, maxBytes ?? 128 * 1024 ** 2),
   maxQueuedBytes = Math.min(32 * 1024 ** 2, Math.floor((maxBytes ?? 128 * 1024 ** 2) / 4)) } = {}) {
   if (![maxBytes, maxEntries].every(n => n === null || Number.isSafeInteger(n) && n >= 0)
-    || ![groupFloorBytes, maxQueuedEncodings, maxQueuedBytes].every(n => Number.isSafeInteger(n) && n >= 0)) throw new TypeError('Invalid service response cache budget.');
+    || ![groupFloorBytes, maxQueuedEncodings, maxQueuedBytes, maxPendingDecodes, maxDecodeBytes].every(n => Number.isSafeInteger(n) && n >= 0)) throw new TypeError('Invalid service response cache budget.');
   const byteCeiling = maxBytes ?? Infinity, entryCeiling = maxEntries ?? Infinity;
   const rows = new Map(), groups = new Map();
   const entries = () => [...rows.values()].filter(row => row.entry).length;
   const encodingWaiters = new Map();
   let bytes = 0, queuedBytes = 0, overflowBytes = 0, oversizedEncodingObserved = false, scheduled = false, closed = false, encodingStarts = 0;
+  let activeEncodings = 0, activeDecodes = 0, decodeBytes = 0, decodeStarts = 0;
   const changed = () => {
     if (!encodingWaiters.size || scheduled) return;
     scheduled = true; queueMicrotask(pump);
@@ -39,6 +41,7 @@ export function createResponseCacheBudget({ maxBytes = BUDGET_RESPONSE_CACHE_BYT
     }
   }
   const busy = () => Object.assign(new Error('Response encoding admission is full. Retry shortly.'), { status: 503, code: 'RESPONSE_ENCODING_BUSY', retryAfter: 1 });
+  const decodeBusy = () => Object.assign(new Error('Saved explanation capacity is full. Retry shortly.'), { status: 503, code: 'SAVED_WHY_BUSY', retryAfter: 1 });
   function dequeue(waiter) {
     if (!encodingWaiters.delete(waiter.token)) return;
     queuedBytes -= waiter.inputBytes;
@@ -51,6 +54,9 @@ export function createResponseCacheBudget({ maxBytes = BUDGET_RESPONSE_CACHE_BYT
     if (waiter.signal?.aborted) { cancel(waiter, waiter.signal.reason); return true; }
     waiter.pin();
     let charge = waiter.cost();
+    if (waiter.kind === 'decode' && (activeDecodes >= maxPendingDecodes || decodeBytes + charge > maxDecodeBytes)) {
+      waiter.unpin(); return false;
+    }
     if (charge > byteCeiling || waiter.uncachedCost() > byteCeiling) {
       if (encodingWaiters.has(waiter.token)) { waiter.unpin(); cancel(waiter, busy()); return true; }
       waiter.unpin(); waiter.detach?.();
@@ -67,8 +73,15 @@ export function createResponseCacheBudget({ maxBytes = BUDGET_RESPONSE_CACHE_BYT
     if (!budget.admit(waiter.activeToken, { group: waiter.group, cost: charge, pinned: () => true, evict() {}, entry: false }, waiter.token)) {
       waiter.unpin(); return false;
     }
-    dequeue(waiter); encodingStarts++;
-    waiter.resolve(() => { forget(waiter.activeToken); waiter.unpin(); changed(); });
+    dequeue(waiter);
+    if (waiter.kind === 'decode') { activeDecodes++; decodeBytes += charge; decodeStarts++; }
+    else { activeEncodings++; encodingStarts++; }
+    let released = false;
+    waiter.resolve(() => {
+      if (released) return; released = true;
+      if (waiter.kind === 'decode') { activeDecodes--; decodeBytes -= charge; } else activeEncodings--;
+      forget(waiter.activeToken); waiter.unpin(); changed();
+    });
     return true;
   }
   function pump() {
@@ -78,6 +91,28 @@ export function createResponseCacheBudget({ maxBytes = BUDGET_RESPONSE_CACHE_BYT
       const waiter = encodingWaiters.values().next().value;
       if (!start(waiter)) break;
     }
+  }
+  function reserve({ kind = 'encoding', cost, uncachedCost, inputBytes, inputCost, detach, pin = () => {}, unpin = () => {}, signal }) {
+    if (!budget.enforced) return Promise.resolve(() => {});
+    return new Promise((resolve, reject) => {
+      const refusal = kind === 'decode' ? decodeBusy : busy;
+      const waiter = { token: {}, activeToken: {}, group: Symbol(kind), kind, cost, uncachedCost, detach, pin, unpin, signal, resolve, reject };
+      if (closed || signal?.aborted) { reject(signal?.reason ?? refusal()); return; }
+      if (kind === 'decode' && (!maxPendingDecodes || cost() > maxDecodeBytes || cost() > byteCeiling)) { reject(refusal()); return; }
+      if (!encodingWaiters.size && start(waiter)) return;
+      if (uncachedCost() > byteCeiling) { reject(refusal()); return; }
+      waiter.inputBytes = inputBytes() + 16 * 1024;
+      if (encodingWaiters.size >= maxQueuedEncodings || queuedBytes + waiter.inputBytes > maxQueuedBytes) { reject(refusal()); return; }
+      waiter.abort = () => cancel(waiter, signal.reason);
+      signal?.addEventListener('abort', waiter.abort, { once: true });
+      pin();
+      const admitted = budget.admit(waiter.token, { group: waiter.group, cost: inputCost() + 16 * 1024,
+        pinned: () => true, evict() {}, entry: false });
+      unpin();
+      if (!admitted) { signal?.removeEventListener('abort', waiter.abort); reject(refusal()); return; }
+      encodingWaiters.set(waiter.token, waiter); queuedBytes += waiter.inputBytes;
+      changed();
+    });
   }
   const budget = Object.freeze({
     enforced: maxBytes !== null || maxEntries !== null,
@@ -105,32 +140,14 @@ export function createResponseCacheBudget({ maxBytes = BUDGET_RESPONSE_CACHE_BYT
     },
     // Reserve before entering native compression, including for a cache miss
     // whose reusable admission was declined. Waiting callers do no native work.
-    reserveEncoding({ cost, uncachedCost, inputBytes, inputCost, detach, pin, unpin, signal }) {
-      if (!budget.enforced) return Promise.resolve(() => {});
-      return new Promise((resolve, reject) => {
-        const waiter = { token: {}, activeToken: {}, group: Symbol('encoding'), cost, uncachedCost, detach, pin, unpin, signal, resolve, reject };
-        if (closed || signal?.aborted) { reject(signal?.reason ?? busy()); return; }
-        if (!encodingWaiters.size && start(waiter)) return;
-        if (uncachedCost() > byteCeiling) { reject(busy()); return; }
-        // Queue metadata and every uncached backing allocation enter the same
-        // byte budget. Cached input aliases already have a charge; eviction
-        // cancels their waiter before releasing that backing.
-        waiter.inputBytes = inputBytes() + 16 * 1024;
-        if (encodingWaiters.size >= maxQueuedEncodings || queuedBytes + waiter.inputBytes > maxQueuedBytes) { reject(busy()); return; }
-        waiter.abort = () => cancel(waiter, signal.reason);
-        signal?.addEventListener('abort', waiter.abort, { once: true });
-        pin();
-        const admitted = budget.admit(waiter.token, { group: waiter.group, cost: inputCost() + 16 * 1024,
-          pinned: () => true, evict() {}, entry: false });
-        unpin();
-        if (!admitted) { signal?.removeEventListener('abort', waiter.abort); reject(busy()); return; }
-        encodingWaiters.set(waiter.token, waiter); queuedBytes += waiter.inputBytes;
-        changed();
-      });
+    reserveEncoding: reserve,
+    reserveDecode({ cost, inputBytes, signal }) {
+      return reserve({ kind: 'decode', cost: () => cost, uncachedCost: () => cost,
+        inputBytes: () => inputBytes, inputCost: () => inputBytes, signal });
     },
     close() {
       closed = true;
-      for (const waiter of [...encodingWaiters.values()]) cancel(waiter, busy());
+      for (const waiter of [...encodingWaiters.values()]) cancel(waiter, waiter.kind === 'decode' ? decodeBusy() : busy());
     },
     get bytes() { return bytes + overflowBytes; }, get size() { return entries(); },
     retentionLedger() {
@@ -139,10 +156,13 @@ export function createResponseCacheBudget({ maxBytes = BUDGET_RESPONSE_CACHE_BYT
         blockers: oversizedEncodingObserved ? ['uncacheable-encoding-exceeds-response-quota'] : [], dimensions: [
         { unit: 'entries', used: budget.size, cap: maxEntries, enforced: maxEntries !== null },
         { unit: 'chargeBytes', used: bytes + overflowBytes, cap: maxBytes, enforced: maxBytes !== null },
-        { unit: 'pendingEncodings', used: rows.size - entries() - encodingWaiters.size + (overflowBytes ? 1 : 0),
+        { unit: 'pendingEncodings', used: activeEncodings + (overflowBytes ? 1 : 0),
           cap: maxBytes === null ? null : Math.floor(maxBytes / 65536), enforced: maxBytes !== null },
         { unit: 'queuedEncodings', used: encodingWaiters.size, cap: maxQueuedEncodings, enforced: true },
-        { unit: 'queuedInputBytes', used: queuedBytes, cap: maxQueuedBytes, enforced: true }], encodingStarts,
+        { unit: 'queuedInputBytes', used: queuedBytes, cap: maxQueuedBytes, enforced: true },
+        { unit: 'queuedDecodes', used: [...encodingWaiters.values()].filter(row => row.kind === 'decode').length, cap: maxQueuedEncodings, enforced: true },
+        { unit: 'pendingDecodes', used: activeDecodes, cap: maxPendingDecodes, enforced: true },
+        { unit: 'decodeBytes', used: decodeBytes, cap: maxDecodeBytes, enforced: true }], encodingStarts, decodeStarts,
       accounting: 'Service response charge includes backing, saved-Why pins, active encoding reservations, and queued input/metadata. Cached queued inputs alias their existing charge and are cancelled on eviction. Queue dimensions are subsets of chargeBytes.' };
     },
   });

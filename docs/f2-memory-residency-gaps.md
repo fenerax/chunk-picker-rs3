@@ -75,8 +75,13 @@ Pending gzip/Brotli encodings now reserve output bytes and pin their admitted
 input before native work. Refused reusable inputs wait for the same native-work
 quota and include their input in its charge. This prevents group cycling from
 evicting running encodings and multiplying uncharged compression. Saved-Why
-reservations likewise pin before gunzip; a refused same-evidence decode is
-bounded by its raw limit, coalesced and released after the request.
+reservations likewise pin before gunzip. Refused reusable decodes now acquire
+service-wide transient leases before gunzip/JSON parsing, capped at four jobs
+and 64 MiB within the response partition. Identical in-flight bytes coalesce.
+The charge survives settlement until the final consumer releases its graph;
+routes first detach the narrow projection. Queued compressed inputs and metadata
+are charged in the shared bounded FIFO. Full admission returns 503 with
+`SAVED_WHY_BUSY` and `Retry-After`, rather than decoding without a charge.
 
 Queued encoding inputs now enter the response ledger: uncached backing and
 16 KiB of metadata per operation are charged, while cached backing aliases its

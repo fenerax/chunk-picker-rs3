@@ -16,9 +16,23 @@ const { createGroupState } = await import('../app/core/state.mjs');
 const { createResponseCache } = await import('../app/http-response.mjs');
 const { serviceResponseCacheBudget: budget } = await import('../app/response-cache-budget.mjs');
 
-test('saved Why stays HTTP 200 with identical bytes when peers pin the entire budget-672 response quota', async t => {
+test('saved Why queues under pressure, cancels disconnected readers, and returns explicit 503 when full', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'why-pressure-'));
-  let app, events;
+  let app, events, handler;
+  const waiting = new Map(); let sequence = 0;
+  const server = http.createServer((request, response) => {
+    const row = waiting.get(request.headers['x-synthetic-waiter']);
+    if (row) {
+      response.once('close', () => row.closed.resolve());
+      const once = response.once;
+      response.once = function(event, listener) {
+        const result = once.call(this, event, listener);
+        if (event === 'close' && listener.name === 'disconnectEvidence') queueMicrotask(row.admitted.resolve);
+        return result;
+      };
+    }
+    Promise.resolve(handler(request, response)).then(() => row?.done.resolve(), error => row?.done.reject(error));
+  });
   const peer = createResponseCache({ budget, maxBytes: 128 * 1024 ** 2 });
   const reservation = { retainedBytes: 128 * 1024 ** 2, pinned: true };
   t.after(async () => {
@@ -33,6 +47,7 @@ test('saved Why stays HTTP 200 with identical bytes when peers pin the entire bu
     return worker;
   };
   app = await createServer({ dataDir: directory, dataset: fixtureDataset, definitions: caveDefinitions(), port: 0,
+    httpServer: server, onRequestHandler(value) { handler = value; },
     initialState: createGroupState([{ id: 'one', name: 'Synthetic Player', unlocked: ['12593'] }]),
     predictionPrewarm: false, taskWorkerOptions: { workerFactory, serializedStateInput: true } });
   await app.listen();
@@ -61,13 +76,43 @@ test('saved Why stays HTTP 200 with identical bytes when peers pin the entire bu
   const route = `/api/task-why?view=display-v1&memberId=one&taskId=${encodeURIComponent(list.tasks[0].id)}&revision=${revision}`;
   const read = async () => {
     const response = await fetch(origin + route, { headers: { cookie, 'accept-encoding': 'identity' } });
-    return { status: response.status, bytes: Buffer.from(await response.arrayBuffer()) };
+    return { status: response.status, bytes: Buffer.from(await response.arrayBuffer()), etag: response.headers.get('etag') };
   };
   const expected = await read(); assert.equal(expected.status, 200, expected.bytes.toString());
+  const diagnostics = await (await fetch(origin + '/api/diagnostics', { headers: { ...headers, 'accept-encoding': 'identity' } })).json();
+  const evidenceCharge = diagnostics.viewerTaskCache.parsedEvidence.bytes;
+  assert(evidenceCharge > Math.max(8192, diagnostics.viewerTaskCache.fullCompressedBytes) + 16 * 1024,
+    'the fixture leaves room for a charged queued input but not its decoded graph');
   const before = jobs.length;
   peer.set('peer-pinned', reservation);
   assert.equal(budget.bytes, reservation.retainedBytes);
   assert.equal(budget.retentionLedger().dimensions[1].cap, 128 * 1024 ** 2);
-  assert.deepEqual(await read(), expected);
+  const fullQueue = await fetch(origin + route, { headers: { cookie, 'accept-encoding': 'identity' } });
+  assert.equal(fullQueue.status, 503); assert.equal(fullQueue.headers.get('retry-after'), '1');
+  assert.equal((await fullQueue.json()).code, 'SAVED_WHY_BUSY');
+  assert.equal(budget.retentionLedger().decodeStarts, 0, 'full admission never decodes uncharged');
+  reservation.retainedBytes -= evidenceCharge - 1; reservation.onSizeChange();
+  function queuedRequest() {
+    const id = String(++sequence), row = { admitted: Promise.withResolvers(), closed: Promise.withResolvers(), done: Promise.withResolvers() };
+    waiting.set(id, row);
+    row.result = new Promise((resolve, reject) => {
+      row.client = http.get(origin + route, { agent: false, headers: { cookie, 'accept-encoding': 'identity', 'x-synthetic-waiter': id } }, response => {
+        const chunks = []; response.on('data', bytes => chunks.push(bytes)); response.on('error', reject);
+        response.on('end', () => resolve({ status: response.statusCode, bytes: Buffer.concat(chunks), etag: response.headers.etag }));
+      });
+      row.client.on('error', reject);
+    });
+    void row.result.catch(() => {}); return row;
+  }
+  const disconnected = queuedRequest(); await disconnected.admitted.promise;
+  assert.equal(budget.retentionLedger().dimensions.find(d => d.unit === 'queuedDecodes').used, 1);
+  disconnected.client.destroy(); await disconnected.closed.promise; await disconnected.done.promise;
+  assert.equal(budget.retentionLedger().dimensions.find(d => d.unit === 'queuedDecodes').used, 0);
+  assert.equal(budget.retentionLedger().decodeStarts, 0);
+  const live = queuedRequest(); await live.admitted.promise;
+  assert.equal(budget.retentionLedger().dimensions.find(d => d.unit === 'queuedDecodes').used, 1);
+  reservation.pinned = false; peer.clear();
+  assert.deepEqual(await live.result, expected);
+  assert.equal(budget.retentionLedger().decodeStarts, 1);
   assert.equal(jobs.length, before, 'read-only saved evidence never admits another calculator job');
 });

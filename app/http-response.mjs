@@ -316,6 +316,7 @@ export function createResponseCache({ maxEntries = RESPONSE_CACHE_DEFAULTS.gener
     },
     clear() { for (const key of rows.keys()) remove(key); },
     notifyUnpinned: () => budget.notifyUnpinned(),
+    get budget() { return budget; },
     delete: remove,
     get size() { return rows.size; },
     get bytes() { return bytes(); },

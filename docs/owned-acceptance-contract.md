@@ -375,6 +375,25 @@ space inside the 128 MiB partition, without adding to the 672 MiB allocation.
 The report-only default does not add encoding admission, queueing, cancellation
 or change cache eviction.
 
+Saved-Why fallbacks in an enforced profile use the same FIFO and response
+partition. At most four fallback decodes may hold leases, with at most 64 MiB
+of conservative decode charges (or the response quota, if smaller). The charge
+starts before gunzip/JSON parsing and lasts through the final result lease.
+Identical revision/gzip bytes coalesce across owners while in flight. Queued
+gzip backing and 16 KiB metadata per operation are charged; the shared queue
+still has 32 slots and its existing byte ceiling. Cancellation removes waiting
+work on disconnect, abort, invalidation and shutdown. Active native work keeps
+its charge until settlement, and a live result keeps it until release.
+Admission failure returns 503 with `Retry-After: 1` and `SAVED_WHY_BUSY`, never
+an unavailable-evidence 409. `pendingDecodes`, `decodeBytes` and `queuedDecodes`
+are subsets of the global response ledger. No extra service allocation is added.
+
+The enforced evidence API is `acquire()`/`release()` or `use()`; bare `read()`
+fails explicitly because its caller cannot declare the result's lifetime.
+Saved-Why routes use a lease to build a detached narrow projection, then release
+the full graph. The narrow reply enters ordinary response admission. The default
+profile retains its original parse/cache policy and reply bytes.
+
 If a single uncacheable reply exceeds an explicitly undersized response quota,
 reply preservation requires an exclusive transient encoding. Its full charge is
 reported even above the quota, and `uncacheable-encoding-exceeds-response-quota`
