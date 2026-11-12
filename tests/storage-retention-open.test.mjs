@@ -1,7 +1,7 @@
 // @test dataset=open-f2p
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { registerHooks } from 'node:module';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -10,7 +10,7 @@ import { fixture as ownedFixture, options as ownedOptions } from './helpers/owne
 const storeURL = new URL('../app/storage/store.mjs', import.meta.url).href;
 const probe = globalThis[Symbol.for('retention-open-test')] = {};
 function reset() {
-  Object.assign(probe, { imports: 0, candidates: 0, decodes: 0, indexes: 0, started: 0, completed: 0, beforeMaintenance: undefined });
+  Object.assign(probe, { imports: 0, candidates: 0, decodes: 0, parses: 0, validations: 0, indexes: 0, started: 0, completed: 0, beforeMaintenance: undefined });
 }
 reset();
 // Observe the real parsing/validation boundaries and gate the actual queue.
@@ -26,9 +26,14 @@ const hook = registerHooks({ load(url, context, next) {
   instrument('async function importStoredBackup(document, ownsDocument = false, forImport = false, retentionCache) {',
     '__probe.imports++; if (retentionCache) __probe.candidates++;');
   instrument('async function decodeStoredBytes(bytes, forImport) {', '__probe.decodes++;');
+  instrument('function parseSavedDocument(value) {', '__probe.parses++;');
+  instrument('function importSavedState(bytes, registry, validationCache) {', '__probe.validations++;');
   instrument('async function retainedArchiveIndex(forImport = false) {', '__probe.indexes++;');
   instrument('async function maintainRetention() {', '__probe.started++; await __probe.beforeMaintenance?.();');
   instrument('catch (error) { retentionFailure = error.message; }', '__probe.completed++;');
+  const scheduling = 'void enqueueMaintenance(maintainRetention, { defer: true })';
+  assert.equal(source.split(scheduling).length, 2);
+  source = source.replace(scheduling, '(__probe.startup = enqueueMaintenance(maintainRetention, { defer: true }))');
   return { ...result, source: `const __probe = globalThis[Symbol.for('retention-open-test')];\n${source}` };
 } });
 const { openStore } = await import(storeURL);
@@ -78,8 +83,137 @@ async function standaloneRevisions(dataDir) {
   return (await readdir(path.join(dataDir, 'backups'))).filter(id => /^\d{16}-[a-f0-9]{16}\.json(?:\.gz)?$/.test(id))
     .map(id => Number(id.slice(0, 16))).sort((a, b) => a - b);
 }
+function noBackupWork() {
+  assert.equal(probe.decodes, 0);
+  assert.equal(probe.parses, 0);
+  assert.equal(probe.imports, 0);
+  assert.equal(probe.validations, 0);
+  assert.equal(probe.indexes, 0);
+}
+async function archive(dataDir) {
+  const directory = path.join(dataDir, 'backups', 'archives'), [id] = await readdir(directory);
+  const file = path.join(directory, id), bytes = await readFile(file);
+  return { file, bytes, document: JSON.parse(gunzipSync(bytes)) };
+}
 
 for (const format of [1, 2]) {
+  test(`format ${format}: clean-close reopen and unchanged passes do zero backup decoding or validation`, async t => {
+    const f = await fixture(t, format), packed = await f.open();
+    await probe.startup;
+    await packed.close();
+    assert.deepEqual(await standaloneRevisions(f.dataDir), [0, 5]);
+    const reopened = await f.open();
+    reset(); // Count only the deferred pass, excluding required current-save load.
+    await probe.startup;
+    noBackupWork();
+    assert.equal(probe.completed, 1);
+    reset();
+    await reopened.prepareSnapshot();
+    noBackupWork();
+    assert.equal(probe.completed, 1);
+    reset();
+    await reopened.close();
+    noBackupWork();
+    assert.equal(probe.completed, 1);
+    // A real historical read still indexes and validates the selected backup.
+    const row = f.snapshots.find(row => row.revision === 2);
+    assert.equal((await reopened.readBackup(row.id)).state.revision, 2);
+    assert(probe.decodes > 0);
+    assert.equal(probe.imports, 1);
+    assert.equal(probe.validations, 1);
+  });
+
+  test(`format ${format}: metadata-only selection does not inspect unrelated archives`, async t => {
+    const f = await fixture(t, format, Array(6).fill(now())), directory = path.join(f.dataDir, 'backups', 'archives');
+    await mkdir(directory);
+    await writeFile(path.join(directory, 'archive-aaaaaaaaaaaaaaaa.json.gz'), 'incomplete archive');
+    const store = await f.open();
+    reset(); await probe.startup;
+    noBackupWork();
+    reset(); await store.prepareSnapshot();
+    noBackupWork();
+    assert.equal(store.getInfo().retention.failure, undefined);
+    assert.deepEqual(await standaloneRevisions(f.dataDir), [0, 1, 2, 3, 4, 5]);
+    await assert.rejects(store.listBackups(), /header|gzip|incorrect/i);
+  });
+
+  test(`format ${format}: verified pack indexes are reused until disk metadata changes`, async t => {
+    const f = await fixture(t, format), store = await f.open();
+    await probe.startup;
+    reset(); const rows = await store.listBackups();
+    assert.equal(probe.decodes, 0, 'the published pack already passed exact reread/comparison');
+    assert.equal(probe.parses, 0);
+    const pack = await archive(f.dataDir);
+    await utimes(pack.file, new Date('2026-01-01T00:00:00.000Z'), new Date('2026-01-01T00:00:00.000Z'));
+    reset(); assert.deepEqual(await store.listBackups(), rows);
+    assert.equal(probe.decodes, 1, 'changed mtime invalidates only this pack');
+    assert.equal(probe.parses, 4);
+    assert.equal(probe.imports, 0);
+    reset(); assert.deepEqual(await store.listBackups(), rows);
+    assert.equal(probe.decodes, 0);
+    assert.equal(probe.parses, 0);
+    const renamed = pack.file.replace(/archive-([a-f0-9])/, (_match, first) => `archive-${first === 'a' ? 'b' : 'a'}`);
+    await rename(pack.file, renamed);
+    reset(); assert.deepEqual(await store.listBackups(), rows);
+    assert.equal(probe.decodes, 1, 'a changed name cannot use the old pack receipt');
+  });
+
+  test(`format ${format}: unchanged pins survive reopen without decoding; changed bytes are rechecked`, async t => {
+    const f = await fixture(t, format), row = f.snapshots.find(row => row.revision === 2), file = path.join(f.dataDir, 'backups', row.id);
+    const document = JSON.parse(gunzipSync(f.sources.get(row.id)));
+    document.retentionPinned = true;
+    await writeFile(file, gzipSync(JSON.stringify(document)));
+    await utimes(file, new Date(row.at), new Date(row.at));
+    const store = await f.open(); await probe.startup;
+    assert.deepEqual(await standaloneRevisions(f.dataDir), [0, 2, 5]);
+    reset(); await store.prepareSnapshot(); noBackupWork();
+    await store.close();
+    const reopened = await f.open();
+    reset(); await probe.startup; noBackupWork();
+    // An identical replacement preserves size and mtime. Its new inode still
+    // forces the pin flag to be checked again, without trusting old validation.
+    const pinnedBytes = await readFile(file);
+    const replacement = `${file}.replacement`;
+    await writeFile(replacement, pinnedBytes);
+    await rename(replacement, file);
+    await utimes(file, new Date(row.at), new Date(row.at));
+    reset(); await reopened.prepareSnapshot();
+    assert.equal(probe.decodes, 1);
+    assert.equal(probe.parses, 1);
+    assert.equal(probe.indexes, 0, 'rediscovering a pin needs no archive index');
+    assert.equal(probe.imports, 0);
+    document.retentionPinned = false;
+    await writeFile(file, gzipSync(JSON.stringify(document)));
+    await utimes(file, new Date(row.at), new Date(row.at));
+    reset(); await reopened.prepareSnapshot();
+    assert.equal(probe.candidates, 1);
+    assert.equal(probe.validations, 1);
+    await assert.rejects(stat(file), { code: 'ENOENT' });
+    assert.equal((await reopened.readBackup(row.id, { forImport: true })).state.revision, 2);
+  });
+
+  test(`format ${format}: a cached archive never authorizes removal of a changed duplicate`, async t => {
+    const f = await fixture(t, format), store = await f.open(); await probe.startup;
+    const pack = await archive(f.dataDir), row = f.snapshots.find(row => row.revision === 2);
+    const source = path.join(f.dataDir, 'backups', row.id), info = await stat(pack.file);
+    await writeFile(source, f.sources.get(row.id));
+    await utimes(source, new Date(row.at), new Date(row.at));
+    const snapshot = pack.document.snapshots.find(snapshot => snapshot.id === row.id);
+    snapshot.document += ' ';
+    await writeFile(pack.file, gzipSync(JSON.stringify(pack.document)));
+    await utimes(pack.file, info.atime, info.mtime);
+    reset(); await store.prepareSnapshot();
+    assert.equal(probe.candidates, 1, 'the duplicate crosses full validation again');
+    assert.match(store.getInfo().retention.failure, /differs from its preserved standalone/);
+    assert.deepEqual(await readFile(source), f.sources.get(row.id));
+    await writeFile(pack.file, pack.bytes);
+    await utimes(pack.file, info.atime, info.mtime);
+    reset(); await store.prepareSnapshot();
+    assert.equal(probe.candidates, 1, 'a previous validation cannot authorize another removal attempt');
+    assert.equal(store.getInfo().retention.failure, undefined);
+    await assert.rejects(stat(source), { code: 'ENOENT' });
+  });
+
   test(`format ${format}: open resolves before retained decoding; reads and close drain the reserved pass`, async t => {
     const f = await fixture(t, format), startupDiagnostics = {};
     reset();

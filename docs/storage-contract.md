@@ -407,9 +407,21 @@ source/dependency validation and archive reread/comparison before unlinking.
 Open can serve the authoritative current save while duplicates remain. Temporary
 unpublished siblings and orphan dependencies are ignored, as before; retention
 does not clean them up. Standalone selection uses filename revision, stat size
-and mtime, with optional label sidecars. Full candidate decoding is required for
-pin checks and validation before source removal; archive indexing remains lazy
-under maintenance ownership. No backup or save bytes/formats change.
+and mtime, with optional label sidecars. A pass with no eligible work returns
+before reading any archive or retained document. It does not audit unrelated
+archive corruption; listing and restore still refuse that corruption on use.
+Unknown pins are discovered by decoding their source. A bounded process-local
+cache remembers only pin flags across context closes, matched by path, device,
+inode, size and nanosecond mtime/ctime. Changed or uncached files are checked
+again; process restart or cache eviction may require rediscovering a pin.
+Archive index metadata is cached per pack for the store lifetime with the same
+file-version checks. Successful exact publication/reread/comparison seeds that
+metadata directly. Changed or renamed packs are reindexed, and removed packs
+leave the index. Caches retain no document/state bytes or dependency-validation
+results. Every removal still validates the source and its dependencies in that
+pass and rereads/compares its archive, even when an index receipt is cached.
+Archive indexing remains lazy under maintenance ownership. No backup or save
+bytes/formats change.
 Reads initialize archive index and retrieve historical backups under maintenance
 ownership. No directory fsync: this is not proven power-loss-safe copy-before-delete.
 Evidence: `tests/storage-reliability.test.mjs:235`, `:263`, `:296`;

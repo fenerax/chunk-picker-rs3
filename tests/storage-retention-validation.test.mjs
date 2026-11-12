@@ -27,6 +27,8 @@ registerHooks({ load(url, context, next) {
   if (url === storeURL) {
     const anchor = 'async function importStoredBackup(document, ownsDocument = false, forImport = false, retentionCache) {';
     replace(anchor, `${anchor}\n __retentionProbe.imports++; if (retentionCache) __retentionProbe.candidates++;`);
+    replace('void enqueueMaintenance(maintainRetention, { defer: true })',
+      '(__retentionProbe.startup = enqueueMaintenance(maintainRetention, { defer: true }))');
   } else {
     const anchor = 'function validateTask(task, memberIds) {';
     replace(anchor, `${anchor}\n if (task?.id === 'rs3:task:retention-probe') __retentionProbe.taskChecks++;`);
@@ -64,10 +66,9 @@ async function seed(t, { staticFields = false, count = 6, compactHistory = false
 async function writable(t, dataDir, extra = {}) {
   const store = await openStore({ dataDir, retention: { backupDays: 1 }, now, ...extra });
   t.after(() => store.close());
-  // Drain the startup pass without running a second pass (fault injection may
-  // deliberately corrupt its published pack). A malformed index can also
-  // refuse listing; it must report exactly the maintenance failure under test.
-  await store.listBackups().catch(error => assert.equal(error.message, store.getInfo().retention.failure));
+  // Drain the actual startup pass without retrying fault-injected work or
+  // eagerly indexing archives that metadata-only maintenance need not read.
+  if (extra.retention !== false) await stats.startup;
   return store;
 }
 async function packs(dataDir) {
@@ -391,7 +392,7 @@ for (const representation of ['text', 'object']) test(`invalid ${representation}
 for (const fault of ['format', 'schema', 'id', 'revision']) test(`shallow archive indexing still refuses a bad ${fault}`, async t => {
   const fixture = await seed(t), retained = await writable(t, fixture.dataDir);
   await retained.close();
-  const [pack] = await packs(fixture.dataDir), target = pack.document.snapshots[0];
+  const [pack] = await packs(fixture.dataDir), target = pack.document.snapshots[0], targetId = target.id;
   const document = JSON.parse(target.document);
   if (fault === 'format') document.format = 'invalid';
   if (fault === 'schema') document.schemaVersion = 99;
@@ -401,7 +402,9 @@ for (const fault of ['format', 'schema', 'id', 'revision']) test(`shallow archiv
   await fs.writeFile(pack.file, gzipSync(JSON.stringify(pack.document)));
   reset();
   const store = await writable(t, fixture.dataDir);
-  assert.match(store.getInfo().retention.failure, /Unsupported backup|Invalid archived backup ID|revision does not match/);
+  assert.equal(store.getInfo().retention.failure, undefined, 'no removal needs an archive index');
+  await assert.rejects(store.listBackups(), /Unsupported backup|Invalid archived backup ID|revision does not match/);
+  for (const forImport of [false, true]) await assert.rejects(store.readBackup(targetId, { forImport }), /Unsupported backup|Invalid archived backup ID|revision does not match/);
   assert.equal(stats.imports, 1, 'structural refusal does not semantically import the archive');
 });
 
