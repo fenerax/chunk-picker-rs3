@@ -1,5 +1,6 @@
 import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
+import { EventEmitter } from 'node:events';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -132,6 +133,28 @@ async function fixture(t, options = {}) {
   }
   return { application, origin, cookie, api, directory };
 }
+
+test('a pending tasks read receives Retry-After when its scheduler stops', async t => {
+  const dispatched = Promise.withResolvers(); let scheduler;
+  const { api } = await fixture(t, { definitions: { ...definitions, challenges: { Extra: {} } }, predictionPrewarm: false,
+    taskWorkerOptions: { onCreated: value => { scheduler = value; }, workerFactory() {
+      const worker = new EventEmitter();
+      worker.postMessage = message => {
+        if (message.type === 'evaluate') dispatched.resolve();
+        else if (message.id && message.type === 'prepare-rules') queueMicrotask(() => worker.emit('message', { id: message.id, result: {} }));
+      };
+      worker.terminate = async () => { worker.emit('exit', 0); };
+      queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [], supports: ['evaluate'] }));
+      return worker;
+    } } });
+  const pending = api('/api/tasks?memberId=player1');
+  await dispatched.promise;
+  await scheduler.close();
+  const response = await pending;
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('retry-after'), '1');
+  assert.match((await response.json()).message, /closing/);
+});
 
 test('private invitation authenticates the authored app and APIs without health-token disclosure', async t => {
   const { application, origin, api } = await fixture(t);
