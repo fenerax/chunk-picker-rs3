@@ -10,7 +10,8 @@ import { createAdmissionCorrelation, observeAdmissionCorrelation, REQUEST_ID_HEA
 import { prepareCohorts, consumeStream, distribution, prepareRollSnapshot, sessionArrivals, drive } from '../scripts/perf/capacity/driver.mjs';
 import { beginOpenDiagnostics } from '../app/open-diagnostics.mjs';
 import { createPickerAdmission } from '../app/picker-admission.mjs';
-import { diagnosticMarkdown } from '../scripts/perf/capacity/report.mjs';
+import { contextPhaseSummary, diagnosticMarkdown } from '../scripts/perf/capacity/report.mjs';
+import { contextOpenReceipt, factoryReceipts } from '../scripts/perf/capacity/context-receipts.mjs';
 import { fixtureMigration, calibrateIdentities } from '../scripts/perf/capacity/fixture-migration.mjs';
 import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { createRuleRegistry, evaluateRollPool } from '../app/core/rules.mjs';
@@ -265,7 +266,57 @@ test('diagnostics are opt-in, observer failures are isolated, and summary expose
   assert.equal(rows[0].memory.delta.rss,0);
   const text=diagnosticMarkdown({contextOpens:rows,admissionTransitions:[{transition:'deadline',reason:'deadline'}],samples:[],
     load:{commands:[{command:'set-note',status:200,latency:distribution([1,2,3])}]}});
-  for(const field of ['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs','Heap used','set-note','deadline / deadline'])assert.ok(text.includes(field),field);
+  for(const field of ['factoryMs','datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','prepare','close','Heap used','set-note','deadline / deadline'])assert.ok(text.includes(field),field);
+});
+
+test('context IPC receipts preserve lifecycle phase separately from workload phase and correlation', () => {
+  const profile={memoryProfile:'default',residency:'trial',stages:[{seconds:1}],sustained:{restartAtSeconds:2,recoveryDeadlineSeconds:1}};
+  for(const [phase,status] of [['factory','completed'],['prepare','prepared'],['close','closed']]) {
+    const source={type:'context-open',pickerId:'synthetic',openId:7,phase,status,totalMs:10,timingMs:{[`${phase}Ms`]:10}};
+    const receipt=contextOpenReceipt(source,{profile,generation:1,receivedAt:5000,elapsedMs:1500});
+    assert.deepEqual(receipt,{...source,workloadPhase:'before-restart',memoryProfile:'default',residency:'trial',generation:1,receivedAt:5000,elapsedMs:1500});
+    assert.equal(source.workloadPhase,undefined);
+    assert.equal(source.phase,phase);
+  }
+  const legacy=contextOpenReceipt({status:'completed'},{profile,generation:0,receivedAt:1000,elapsedMs:500});
+  assert.equal(legacy.phase,'factory');assert.equal(legacy.workloadPhase,'cold-open');
+});
+
+test('mixed context receipts count factories only and summarize failed phases without memory or timing snapshots', () => {
+  const rows=[
+    {phase:'factory',pickerId:'p_factory',status:'completed',totalMs:10,timingMs:{factoryMs:10},memory:{before:{rss:1048576,heapUsed:2097152}}},
+    {phase:'factory',pickerId:'p_failed',status:'failed',totalMs:30},
+    {pickerId:'p_legacy',status:'completed',totalMs:20},
+    {phase:'before-restart',pickerId:'p_old_workload',status:'completed',totalMs:40},
+    {phase:'factory',pickerId:'p_missing_duration',status:'completed'},
+    {phase:'prepare',pickerId:'p_prepare',status:'prepared',totalMs:100,timingMs:{factoryMs:9999}},
+    {phase:'prepare',pickerId:'p_prepare_failed',status:'prepare-failed',totalMs:300},
+    {phase:'close',pickerId:'p_close',status:'closed',totalMs:40},
+    {phase:'close',pickerId:'p_close_failed',status:'close-failed',totalMs:80},
+    {phase:'close',pickerId:'p_close_fallback',status:'closed',timingMs:{closeMs:60}},
+    {phase:'future-phase',pickerId:'p_future',status:'completed',totalMs:9999},
+  ];
+  assert.deepEqual(factoryReceipts(rows),rows.slice(0,5));
+  assert.deepEqual(contextPhaseSummary(rows).map(({phase,count,latency,failedStatuses})=>
+    ({phase,count,timed:latency.count,p50Ms:latency.p50Ms,p95Ms:latency.p95Ms,maxMs:latency.maxMs,failedStatuses})),[
+    {phase:'factory',count:5,timed:4,p50Ms:20,p95Ms:40,maxMs:40,failedStatuses:{failed:1}},
+    {phase:'prepare',count:2,timed:2,p50Ms:100,p95Ms:300,maxMs:300,failedStatuses:{'prepare-failed':1}},
+    {phase:'close',count:3,timed:3,p50Ms:60,p95Ms:80,maxMs:80,failedStatuses:{'close-failed':1}},
+  ]);
+  const text=diagnosticMarkdown({contextOpens:rows,load:{commands:[]}});
+  assert.match(text,/\| factory \| 5 \| 4 \| 20\.00 \/ 40\.00 \/ 40\.00 \| failed: 1 \|/);
+  assert.match(text,/\| prepare \| 2 \| 2 \| 100\.00 \/ 300\.00 \/ 300\.00 \| prepare-failed: 1 \|/);
+  assert.match(text,/\| close \| 3 \| 3 \| 60\.00 \/ 80\.00 \/ 80\.00 \| close-failed: 1 \|/);
+  const tables=text.split('## Owned context opens')[1].split('## Command HTTP latency')[0];
+  assert.match(tables,/Factory opens: \*\*5\*\*/);
+  assert.doesNotMatch(tables,/p_prepare|p_close|p_future|9999/);
+  assert.equal((tables.match(/^\| \d+ \/ p_/gm)??[]).length,5);
+  assert.equal((tables.match(/^\| \d+ \|/gm)??[]).length,5);
+  assert.match(tables,/1\.00 \/ n\/a \/ n\/a/);
+  assert.match(tables,/n\/a \/ n\/a \/ n\/a/);
+  const empty=diagnosticMarkdown({load:{commands:[]}});
+  assert.match(empty,/Factory opens: \*\*0\*\*/);
+  for(const phase of ['factory','prepare','close'])assert.ok(empty.includes(`| ${phase} | 0 | 0 | n/a / n/a / n/a | none |`));
 });
 
 test('retained stream disconnects count in the stage where they happen', async () => {
@@ -313,20 +364,25 @@ test('tiny fixture first owned server open keeps its revision and emits every ph
   t.after(async()=>{await app?.close();await rm(directory,{recursive:true,force:true});});
   const profile={name:'smoke',seed:'synthetic-realism',catalogue:{chunks:4,tasks:4,dependencyDepth:2,crossLinks:1},
     fixture:{groups:1,rosterMix:[0,1,0,0,0],freshFraction:0,unlockFraction:.5,historyEvents:1,snapshots:1,keysPerMember:0}};
-  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[],admissions=[],correlation=createAdmissionCorrelation();
+  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[],admissions=[],correlation=createAdmissionCorrelation(),prepared=Promise.withResolvers();
   const definitions=catalogue(profile.catalogue);
   app=await createServer({dataDir:path.join(directory,'legacy'),definitions,taskMap:{},world:syntheticWorld(definitions,buildWorld),port:0,predictionPrewarm:false,
-    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row),onAdmission:row=>admissions.push(correlation.observe(row))}});
+    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>{opens.push(row);if(row.phase==='prepare')prepared.resolve(row);},onAdmission:row=>admissions.push(correlation.observe(row))}});
   observeAdmissionCorrelation(app.server,correlation);
   const serverId=observeServerIdentity(app.server);
   await app.listen();
   const response=await fetch(`http://127.0.0.1:${app.address().port}/api/state?view=play-v1`,{headers:{Cookie:group.members[0].cookie,[REQUEST_ID_HEADER]:'action:7:request:1'}});
   assert.equal(response.status,200);assert.equal(response.headers.get(SERVER_ID_HEADER),serverId);const value=await response.json();
   assert.equal(value.state.revision,group.revision,'first serving open must not publish a catalogue refresh');
-  assert.equal(opens.length,1);assert.equal(opens[0].status,'completed');
   const queued=admissions.find(row=>row.transition==='queued');
   assert.equal(queued.requestId,'action:7:request:1');
   assert.equal(response.headers.get(ADMISSION_ID_HEADER),String(queued.admissionId));
-  for(const field of ['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'])assert.equal(typeof opens[0].timingMs[field],'number',field);
-  assert.equal(typeof opens[0].memory.after.heapUsed,'number');
+  const preparation=await prepared.promise,factories=opens.filter(row=>row.phase==='factory');
+  assert.equal(factories.length,1);assert.equal(factories[0].status,'completed');
+  for(const field of ['factoryMs','datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs'])assert.equal(typeof factories[0].timingMs[field],'number',field);
+  for(const field of ['prepareMs','rulePrepMs'])assert.equal(typeof preparation.timingMs[field],'number',field);
+  assert.equal(typeof factories[0].memory.after.heapUsed,'number');
+  await app.close();const closed=opens.find(row=>row.phase==='close');
+  assert.equal(closed.status,'closed');assert.equal(closed.openId,factories[0].openId);
+  assert.equal(typeof closed.timingMs.closeMs,'number');
 });

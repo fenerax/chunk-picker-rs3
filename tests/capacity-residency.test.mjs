@@ -140,6 +140,8 @@ test('manifest results and summary retain requested and observed residency per g
   const directory = await mkdtemp(new URL('../.local/residency-artifacts-', import.meta.url));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const result = artifactFixture(), verification = { status: 'pass', memoryProfile: 'default' };
+  result.contextOpens = ['factory', 'prepare', 'close'].map(phase => ({ phase, pickerId: 'synthetic', openId: 1,
+    residency: 'trial', memoryProfile: 'default', totalMs: 10, status: phase === 'factory' ? 'completed' : phase === 'prepare' ? 'prepared' : 'closed' }));
   result.manifest = runManifest({ profile: result.profile, format: 'format1', verification,
     residencyVerification: verifyResidency('trial', { residency: trial }) });
   Object.assign(result, result.manifest);
@@ -151,9 +153,32 @@ test('manifest results and summary retain requested and observed residency per g
     assert.deepEqual(stored.residencyVerification.observed ?? stored.residencyVerification.evidence[0].observed, trial);
   }
   const summary = await readFile(path.join(directory, 'summary.md'), 'utf8');
+  const stored = JSON.parse(await readFile(path.join(directory, 'results.json'), 'utf8'));
+  assert.deepEqual(stored.contextOpens, result.contextOpens, 'all phases survive without memory snapshots');
+  assert.match(summary, /Factory opens: \*\*1\*\*/);
+  for (const phase of ['factory', 'prepare', 'close']) assert.ok(summary.includes(`| ${phase} | 1 | 1 | 10.00 / 10.00 / 10.00 | none |`));
   assert.match(summary, /Residency: \*\*trial\*\*; requested `trial`/);
   assert.match(summary, /"maxOpenContexts": 128/); assert.match(summary, /"deadlineMs": 30000/);
   assert.match(summary, /synthetic-generation-0/); assert.match(summary, /synthetic-generation-1/);
+});
+
+test('every context phase validates residency and memory labels independently of memory snapshots', async () => {
+  const { assertResidency } = await import('../scripts/perf/capacity/residency.mjs');
+  const { assertMemoryProfile } = await import('../scripts/perf/capacity/memory-profile.mjs');
+  for (const phase of [undefined, 'before-restart', 'factory', 'prepare', 'close']) {
+    const result = artifactFixture(), row = { phase, residency: 'trial', memoryProfile: 'default' };
+    result.contextOpens = [row];
+    assert.equal(assertResidency(result), 'trial');assert.equal(assertMemoryProfile(result), 'default');
+    for (const value of ['default', undefined]) {
+      row.residency = value;
+      assert.throws(() => assertResidency(result), /Cannot combine residency settings/);
+    }
+    row.residency = 'trial';
+    for (const value of ['budget-672', undefined]) {
+      row.memoryProfile = value;
+      assert.throws(() => assertMemoryProfile(result), /Cannot combine memory profiles/);
+    }
+  }
 });
 
 test('periodic samples retain missing diagnostics and HTTP evidence for both memory selections', () => {

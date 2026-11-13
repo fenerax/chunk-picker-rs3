@@ -44,6 +44,91 @@ test('queued cancellation removes work; retry takes a fresh bounded slot and nev
   const already=new AbortController();already.abort();await rejects(run(a,'b',async()=>calls++,already.signal),'cancelled');assert.equal(calls,0);
 });
 
+test('shared queued cancellation starts the surviving waiter callback under one cold lease', async t => {
+  const gate = Promise.withResolvers(), entered = Promise.withResolvers(), abort = new AbortController(), calls = [];
+  const admission = createPickerAdmission({ limits: createPickerLimits(),
+    clock: { setTimeout: () => Symbol(), clearTimeout() {} } });
+  t.after(async () => { gate.resolve(); await admission.close(); });
+  const busy = run(admission, 'busy', () => { entered.resolve(); return gate.promise; }); await entered.promise;
+  const first = admission.run(owner('first'), () => calls.push('cancelled'), abort.signal, { sharedKey: 'picker' });
+  const rejected = rejects(first, 'cancelled');
+  const survivor = admission.run(owner('survivor'), () => { calls.push('survivor'); return 'ready'; }, undefined, { sharedKey: 'picker' });
+  abort.abort(); await rejected; gate.resolve(); await busy;
+  assert.equal(await survivor, 'ready'); assert.deepEqual(calls, ['survivor']);
+});
+
+test('a newly enqueued shared generation cannot attach to a completed operation awaiting permit release', async t => {
+  const admission = createPickerAdmission({ limits: createPickerLimits(),
+    clock: { setTimeout: () => Symbol(), clearTimeout() {} } });
+  t.after(() => admission.close());
+  const first = admission.run(owner('a'), () => 'first', undefined, { sharedKey: 'picker' });
+  assert.equal(await first, 'first');
+  const next = admission.run(owner('b'), () => 'next', undefined, { sharedKey: 'picker' });
+  assert.equal(await next, 'next');
+});
+
+for (const boundary of ['deadline', 'cancelled', 'shutdown']) test(`${boundary} still bounds each final pin after the shared cold permit is released`, async t => {
+  const factory = Promise.withResolvers(), pin = Promise.withResolvers(), entered = Promise.withResolvers();
+  const firstReleased = Promise.withResolvers(), secondReleased = Promise.withResolvers(), abort = new AbortController();
+  const timers = new Map(), events = []; let sequence = 0, calls = 0;
+  const limits = createPickerLimits(), admission = createPickerAdmission({ limits, bounds: { ...COLD_OPEN_ADMISSION, perAccount: 1 },
+    clock: { setTimeout(fn) { const id = ++sequence; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); } },
+    onEvent(row) {
+      events.push(row);
+      if (row.event === 'released') (row.admissionId === 1 ? firstReleased : secondReleased).resolve(row);
+    } });
+  t.after(async () => { factory.resolve('ready'); pin.resolve(); await admission.close(); });
+  const first = admission.run(owner('synthetic-first'), () => { calls++; return factory.promise; }, abort.signal,
+    { sharedKey: 'synthetic-picker', finish: async (value, signal) => {
+      entered.resolve(signal); await pin.promise; signal.throwIfAborted(); return value;
+    } });
+  const second = admission.run(owner('synthetic-second'), () => assert.fail('one shared factory'), undefined,
+    { sharedKey: 'synthetic-picker', finish: value => value });
+  factory.resolve('ready');
+  assert.equal(await second, 'ready'); const signal = await entered.promise;
+  const released = await secondReleased.promise;
+  assert.equal(calls, 1); assert.equal(released.active, 0); assert.equal(released.pending, 1);
+  assert.equal(timers.size, 1, 'only the unfinished pin retains its deadline');
+  const release = limits.coldStart(owner('synthetic-probe')); release();
+  await rejects(admission.run(owner('synthetic-first'), () => assert.fail('pending quota must remain charged')), 'account-full');
+  const rejected = rejects(first, boundary);
+  let closing;
+  if (boundary === 'deadline') { const expire = timers.get(1); assert.ok(expire); expire(); }
+  else if (boundary === 'cancelled') abort.abort();
+  else closing = admission.close();
+  await rejected;
+  assert.equal(signal.aborted, true, 'the waiter signal fences a late pin');
+  assert.equal(events.some(row => row.admissionId === 1 && row.event === 'completed'), false);
+  assert.equal(events.some(row => row.admissionId === 1 && row.event === 'released'), false, 'the accepted final pin still drains');
+  pin.resolve(); assert.equal((await firstReleased.promise).pending, 0); await closing;
+  assert.equal(events.some(row => row.admissionId === 1 && row.event === 'completed'), false);
+});
+
+test('factory rejection cannot pin and finalizer rejection cannot discard a value already accepted atomically', async t => {
+  const events = [], releases = [Promise.withResolvers(), Promise.withResolvers()];
+  const admission = createPickerAdmission({ limits: createPickerLimits(),
+    clock: { setTimeout: () => Symbol(), clearTimeout() {} }, onEvent(row) {
+      events.push(row); if (row.event === 'released') releases[row.admissionId - 1].resolve(row);
+    } });
+  t.after(() => admission.close());
+  await assert.rejects(admission.run(owner('synthetic-failed'), () => { throw new Error('Synthetic factory failure'); }, undefined,
+    { finish: () => assert.fail('a failed factory cannot allocate a pin') }), /Synthetic factory failure/);
+  await releases[0].promise;
+  let pins = 0, handled = 0, released = 0;
+  const entry = {}, abort = new AbortController();
+  const acquired = await admission.run(owner('synthetic-accepted'), () => entry, abort.signal,
+    { finish(value, signal, accept) {
+      signal.throwIfAborted(); pins++; accept(value);
+      queueMicrotask(() => abort.abort());
+      throw new Error('Synthetic failure after pin acceptance');
+    } });
+  try { assert.equal(acquired, entry); handled++; } finally { released++; }
+  assert.equal((await releases[1].promise).pending, 0);
+  assert.deepEqual({ pins, handled, released }, { pins: 1, handled: 1, released: 1 });
+  assert.equal(events.filter(row => row.admissionId === 2 && row.event === 'completed').length, 1);
+  assert.equal(events.some(row => row.admissionId === 2 && ['error', 'cancelled'].includes(row.event)), false);
+});
+
 test('active cancellation and deadline keep the real lease and slots until work settles', async t => {
   for(const boundary of ['cancelled','deadline']){
     const {admission:a,limits,events}=fixture(t,{deadlineMs:30,perAccount:1}), gate=Promise.withResolvers(),entered=Promise.withResolvers(),controller=new AbortController();t.after(()=>gate.resolve());

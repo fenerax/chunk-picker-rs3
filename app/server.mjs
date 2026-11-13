@@ -490,7 +490,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);
             if (actual.some(id => !pickerRegistry.getPicker(pickerId).memberIds.includes(id))) throw httpError(503, 'Picker membership does not match its registry.');
-            await opened.prepare(); opened.startBackground(); openDiagnostics?.finish('completed'); return opened;
+            openDiagnostics?.finish('completed'); return opened;
           } catch (error) { openDiagnostics?.finish('failed', error.code ?? error.name); await opened?.close(); throw error; }
         } });
     }

@@ -6,6 +6,7 @@ import { mkdtemp, rm, readFile, writeFile, cp, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
+import { Gzip } from 'node:zlib';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { createUsageRateLimit } from '../app/usage-route.mjs';
 import { usageEvents } from '../app/web/usage-catalogue.mjs';
@@ -18,6 +19,7 @@ import { createRateLimits, createStreamLimits, requestContext } from '../app/sec
 import { createRepresentation, createResponseCache } from '../app/http-response.mjs';
 import { EventEmitter } from 'node:events';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
+import { beginOpenDiagnostics } from '../app/open-diagnostics.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 beforeEach(t => blockUnmockedFetch(t));
@@ -620,12 +622,45 @@ test('owned readiness can defer the play body while retaining variant preparatio
   const ready=await send(eager,'/api/state?view=play-v1');assert.equal(ready.status,200);assert.equal(ready.body.format,'play-v1');assert.deepEqual(ready.body,lazy.body);
 });
 
+test('held optional rule preparation preserves reads and writes, and close retains its writer lock through a preparation failure', async t => {
+  const release = Promise.withResolvers(), entered = Promise.withResolvers(), cancelled = Promise.withResolvers(), rows = [];
+  // Register release before the fixture's cleanup, including assertion failures.
+  t.after(() => release.resolve());
+  const { b, open, root, runtime } = await fixture(t, {
+    runtimeOptions: { taskWorkerOptions: { workerFactory() {}, serializedStateInput: true } },
+  });
+  const diagnostic = beginOpenDiagnostics(row => rows.push(row), 'c');
+  const c = await open('c', { prepareStateResponse: false, openDiagnostics: diagnostic });
+  diagnostic.finish('completed');
+  runtime.taskWorker.prepareRules = () => { entered.resolve(); return release.promise; };
+  runtime.taskWorker.cancelPicker = () => cancelled.resolve();
+  const preparing = c.prepare(); await entered.promise;
+  await command(c, note('during preparation'));
+  assert.equal((await send(c, '/api/state?view=play-v1')).status, 200);
+  const store = c.store, closing = c.close(); await cancelled.promise;
+  await assert.rejects(store.command(note('late'), 1), /The store is closed/);
+  assert.equal((await readdir(path.join(root, 'c'))).includes('store.lock'), true);
+  await command(b, note('another picker still writes'));
+  release.reject(null); // Even a non-Error optional rejection must preserve close/save recovery.
+  await preparing; await closing;
+  assert.equal((await readdir(path.join(root, 'c'))).includes('store.lock'), false);
+  const reopened = await open('c');
+  assert.equal(reopened.store.getState().members[0].notes['12341'], 'during preparation');
+  assert.deepEqual(rows.map(row => [row.phase, row.status]), [['factory', 'completed'], ['prepare', 'prepare-failed'], ['close', 'closed']]);
+  assert.equal(new Set(rows.map(row => row.openId)).size, 1);
+  assert.equal(rows[1].reason, 'Error');
+  for (const [row, fields] of [[rows[0], ['factoryMs']], [rows[1], ['prepareMs', 'rulePrepMs']],
+    [rows[2], ['closeMs', 'closeStoreMs', 'closeStoreDrainMs', 'closeRequestsMs', 'closeMutationsMs', 'closePreparationMs', 'closeSidecarsMs', 'closeJobsMs']]]) {
+    for (const field of fields) assert.equal(typeof row.timingMs[field], 'number', field);
+  }
+});
+
 // These calls enter the real authenticated picker route, with controllable
 // sockets. The snapshot substitute contains only synthetic oversized JSON.
-async function gzipFixture(t) {
+async function gzipFixture(t, options) {
   const previous = process.env.RS3_FULL_STATE_GZIP_PARTS;
   process.env.RS3_FULL_STATE_GZIP_PARTS = '1';
-  try { return await fixture(t); }
+  try { return await fixture(t, options); }
   finally { if (previous === undefined) delete process.env.RS3_FULL_STATE_GZIP_PARTS; else process.env.RS3_FULL_STATE_GZIP_PARTS = previous; }
 }
 function oversizedSnapshots(context, { beforeSnapshot, payload = 'Z'.repeat(49 * 1024 * 1024) } = {}) {
@@ -663,23 +698,44 @@ function gzipCall(context, { method = 'GET', headers: extraHeaders = {}, onWrite
   };
   return { done, body, response, headers, chunks };
 }
-function observeCompression(t) {
-  const started = Promise.withResolvers(), from = Buffer.from;
-  t.mock.method(Buffer, 'from', function(value, ...args) {
-    if (typeof value === 'string' && value.length === 32768 && value[0] === 'Z') started.resolve();
-    return from.call(this, value, ...args);
-  });
-  return started.promise;
+function holdCompression(t) {
+  const started = Promise.withResolvers(), transform = Gzip.prototype._transform;
+  let resume;
+  // Observing the first input chunk does not keep compression admission held.
+  // Withhold its transform callback until the test releases it (or it closes).
+  t.mock.method(Gzip.prototype, '_transform', function(chunk, encoding, done) {
+    resume = () => {
+      if (!resume) return;
+      resume = undefined;
+      this.off('close', release);
+      if (this.destroyed) done(); else transform.call(this, chunk, encoding, done);
+    };
+    this.once('close', release);
+    started.resolve();
+  }, { times: 1 });
+  function release() { resume?.(); }
+  t.after(release);
+  return { started: started.promise, release };
 }
 
-test('oversized route coalesces callers and keeps one captured revision through concurrent commits', { timeout: 10000 }, async t => {
-  const { a } = await gzipFixture(t), captures = oversizedSnapshots(a), started = observeCompression(t);
+test('oversized route coalesces callers and keeps one captured revision through concurrent commits', async t => {
+  const compression = holdCompression(t);
+  const { a } = await gzipFixture(t), captures = oversizedSnapshots(a);
   const first = gzipCall(a);
-  await started;
+  await compression.started;
+  const joined = Promise.withResolvers(), getInfo = a.store.getInfo;
+  t.mock.method(a.store, 'getInfo', function(...args) {
+    const info = getInfo.apply(this, args);
+    joined.resolve(info.revision); return info;
+  }, { times: 1 });
   const second = gzipCall(a);
+  // The state route enters the shared build synchronously after reading info.
+  // Wait for that boundary before changing the revision it joins.
+  assert.equal(await joined.promise, 0);
   await command(a, note('commit during compression'));
   const busy = gzipCall(a); await busy.done;
   assert.equal(busy.response.statusCode, 503); assert.equal(busy.headers.get('retry-after'), 1);
+  compression.release();
   const [left, right] = await Promise.all([first.body(), second.body()]);
   assert.equal(captures(), 1); assert.equal(left.state.revision, 0); assert.equal(left.store.revision, 0);
   assert.deepEqual(left.pools, right.pools); assert.equal(first.headers.get('etag'), second.headers.get('etag'));
@@ -690,6 +746,25 @@ test('oversized route coalesces callers and keeps one captured revision through 
   assert.equal(captures(), 2);
   const cached = gzipCall(a, { method: 'HEAD' }); await cached.done;
   assert.equal(cached.response.statusCode, 200); assert.equal(cached.chunks.length, 0); assert.equal(captures(), 2);
+});
+
+test('oversized route admits a new revision when compression finishes before a held commit', async t => {
+  const compression = holdCompression(t), entered = Promise.withResolvers(), release = Promise.withResolvers();
+  t.after(() => release.resolve());
+  const { a } = await gzipFixture(t, { beforeCommit: async () => { entered.resolve(); await release.promise; } });
+  const captures = oversizedSnapshots(a);
+  const first = gzipCall(a); await compression.started;
+  const committing = command(a, note('commit after compression'));
+  await entered.promise;
+  // Force the ordering that the coalescing test used to leave to machine speed:
+  // its awaited durable command can finish after compression releases admission.
+  compression.release(); await first.done;
+  assert.equal(first.response.statusCode, 200); assert.equal(a.store.getInfo().revision, 0);
+  release.resolve(); await committing;
+  const next = gzipCall(a); await next.done;
+  assert.equal(next.response.statusCode, 200); assert.equal(captures(), 2);
+  assert.equal(a.store.getInfo().revision, 1);
+  assert.notEqual(first.headers.get('etag'), next.headers.get('etag'));
 });
 
 test('oversized route retries pool-preparation revision races and failed builds', { timeout: 10000 }, async t => {
@@ -708,11 +783,13 @@ test('oversized route retries pool-preparation revision races and failed builds'
   const retry = await gzipCall(a).body(); assert.equal(retry.store.revision, 2); assert.equal(captures(), 4);
 });
 
-test('separate pickers share bounded gzip admission without sharing bytes or validators', { timeout: 10000 }, async t => {
+test('separate pickers share bounded gzip admission without sharing bytes or validators', async t => {
+  const compression = holdCompression(t);
   const { a, b } = await gzipFixture(t);
   oversizedSnapshots(a); oversizedSnapshots(b);
-  const started = observeCompression(t), first = gzipCall(a); await started;
+  const first = gzipCall(a); await compression.started;
   const busy = gzipCall(b); await busy.done; assert.equal(busy.response.statusCode, 503);
+  compression.release();
   const left = await first.body(), second = gzipCall(b), right = await second.body();
   assert.equal(left.state.tasks[0].label, 'a'); assert.equal(right.state.tasks[0].label, 'b');
   assert.notEqual(first.headers.get('etag'), second.headers.get('etag'));
@@ -733,9 +810,10 @@ test('oversized-route close after collection and during send releases finish wai
   const retry = gzipCall(a, { method: 'HEAD' }); await retry.done; assert.equal(retry.response.statusCode, 200);
 });
 
-test('picker shutdown cancels an oversized gzip build and drains its route', { timeout: 10000 }, async t => {
+test('picker shutdown cancels an oversized gzip build and drains its route', async t => {
+  const compression = holdCompression(t);
   const { a } = await gzipFixture(t); oversizedSnapshots(a);
-  const started = observeCompression(t), pending = gzipCall(a); await started;
+  const pending = gzipCall(a); await compression.started;
   await a.close(); await pending.done;
   assert.equal(pending.response.destroyed, true);
 });
