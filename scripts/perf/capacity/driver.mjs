@@ -2,7 +2,8 @@ import { openSync, writeSync, closeSync } from 'node:fs';
 import path from 'node:path';
 import { arrivals, dispatch } from './scheduler.mjs';
 import { loopback, random } from './model.mjs';
-import { createBrowserClient, reconnectStream, pause, retryAfterMs, retryRead } from './client.mjs';
+import { createBrowserClient, createSessionChecks, reconnectStream, pause, retryAfterMs, retryRead } from './client.mjs';
+import { errorReceipt, failureOutcome } from './failures.mjs';
 import { sustainedArrivals, sustainedAction, sustainedBrowserAction, sustainedPhase } from './sustained.mjs';
 import { SERVER_ID_HEADER, clientIdentity, plannedOperations, readinessProof } from './evidence.mjs';
 import { observation } from './sampling.mjs';
@@ -146,21 +147,22 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
     .sort((a,b)=>a.atMs-b.atMs).map((event,i)=>({...event,id:i+1}));
   const log=openSync(path.join(directory,'events.jsonl'),'wx',0o600), records={}, stats={offered:events.length,completed:0,httpRequests:0,httpBytes:0,httpErrors:0,
     rejects:0,timeouts:0,conflicts:0,intentionalConflicts:0,unsupported:0,clientDrops:0,recoveryProbesSkipped:0,streamOpened:0,streamRejected:0,streamUnexpectedEnds:0,streamEstablishmentFailures:0},
-    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(profiledStreamCounters),tailStreams=profiledStreamCounters(),seq=new Map(),readers=new Map(),sessions=new Map(),commands=new Map();
+    streams=new Map(),streamJobs=new Set(),stageStreams=profile.stages.map(profiledStreamCounters),tailStreams=profiledStreamCounters(),seq=new Map(),readers=new Map(),sessions=createSessionChecks(),commands=new Map();
   const streamAttempts=new Map(),recovered=new Map(),restarts=[],streamHandshakes=[],streamLifetimes=[],coldOpens=[];
   let streamShutdown=false, active=0, maxActive=0,restart,workloadCompletedAt,streamShutdownAt;
   const request=async(client,route,body,extra={})=>{
     stats.httpRequests++;
     const requestStart=now();
-    const observation={memoryProfile,residency,route:route.split('?')[0],status:'pending',...(route.startsWith('/api/command')?{command:body?.command?.type}: {})};client.observations?.push(observation);
+    const requestId=`action:${client.actionId}:request:${client.observations.length+1}`;
+    const observation={requestId,actionId:client.actionId,memoryProfile,residency,route:route.split('?')[0],status:'pending',...(route.startsWith('/api/command')?{command:body?.command?.type}: {})};client.observations?.push(observation);
     let res;
     try {res=await fetchRequest(base+route,{method:body===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.timeout(profile.requestDeadlineMs),
       headers:{...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),
         ...(!extra.plugin&&route!=='/api/session'&&client.pickerId?{'X-Picker-Id':client.pickerId}:{}),...(body===undefined?{}:{'Content-Type':'application/json',Origin:base})},
       ...(body===undefined?{}:{body:JSON.stringify(body)})});
-    } catch(error) {observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
+    } catch(error) {observation.status=failureOutcome(error).status;observation.error=errorReceipt(error);error.requestId=requestId;observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
     let text;
-    try {text=await res.text();}catch(error){observation.status=error.name==='TimeoutError'?'timeout':'network-error';observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
+    try {text=await res.text();}catch(error){observation.status=failureOutcome(error).status;observation.error=errorReceipt(error);error.requestId=requestId;observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
     const receivedAt=now();
     stats.httpBytes+=Buffer.byteLength(text);
     let value;try{value=JSON.parse(text);}catch{value=null;}
@@ -175,7 +177,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
       observation.intentionalConflict=res.status===409&&extra.intentionalConflict===true&&observation.route==='/api/command';
       stats.httpErrors++; if([429,503].includes(res.status)) stats.rejects++;if(res.status===409)stats.conflicts++;
     }
-    return {ok:res.ok,status:res.status,headers:res.headers,json:async()=>value};
+    return {requestId,ok:res.ok,status:res.status,headers:res.headers,json:async()=>value};
   };
   const callOnce=async(client,route,body,extra={})=>{
     const identity=extra.plugin?client.key:client.cookie;
@@ -187,15 +189,9 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
     }
     const options={...extra,client};
     if(!extra.plugin) {
-      let check=sessions.get(identity),coalesced=!!check;
-      if(!check) {
-        check={observations:client.observations};
-        check.promise=reader('/api/session',undefined,options).finally(()=>sessions.delete(identity));
-        sessions.set(identity,check);
-      }
-      const session=await check.promise;
+      const {value:session,coalesced}=await sessions(identity,client,()=>reader('/api/session',undefined,options));
       if(route==='/api/session') {
-        if(coalesced&&check.observations.findLast(row=>row.route==='/api/session')?.status===200)
+        if(coalesced)
           client.coalescedSessionChecks=(client.coalescedSessionChecks??0)+1;
         return session;
       }
@@ -270,7 +266,7 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
       if(!profile.sustained||event.stage>0)openStreams(pool);
     }
     const clientIndex=event.clientIndex??(profile.sustained&&event.kind==='heavy'?(event.ordinal%profile.stages[event.stage].activeGroups):event.kind==='browser'?Math.floor(rng()*pool.length):(event.ordinal??0)%pool.length);
-    const client={...pool[clientIndex],observations:[]},start=now();
+    const client={...pool[clientIndex],actionId:event.id,observations:[]},start=now();
     if(event.kind==='recovery-open'&&recovered.has(client.group)){stats.recoveryProbesSkipped=(stats.recoveryProbesSkipped??0)+1;return;}
     let action=profile.sustained?sustainedAction(event):event.kind,intentional=false;active++;maxActive=Math.max(maxActive,active);
     try {
@@ -353,14 +349,13 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
           }
         } else {action='lifecycle';throw Object.assign(new Error('Unsupported'),{status:'unsupported'});}
       }
-      record(action,event,start,now(),{status:200,requests:client.observations,coalescedSessionChecks:client.coalescedSessionChecks??0});
+      record(action,event,start,now(),{status:200,requests:client.observations,sharedPreflights:client.sharedPreflights??[],coalescedSessionChecks:client.coalescedSessionChecks??0});
     } catch(error) {
-      const lastStatus=client.observations.at(-1)?.status;
-      const status=error.status??(error.name==='TimeoutError'||lastStatus==='timeout'?'timeout':'network-error');
+      const failure=failureOutcome(error),status=failure.status;
       if(status==='timeout')stats.timeouts++;if(status==='unsupported')stats.unsupported++;
       const intentionalConflict=status===409&&client.observations.at(-1)?.intentionalConflict===true;
       if(intentionalConflict)stats.intentionalConflicts++;
-      record(action,event,start,now(),{status,intentionalConflict,retryAfter:error.retryAfter??null,requests:client.observations});
+      record(action,event,start,now(),{...failure,intentionalConflict,retryAfter:error.retryAfter??null,requests:client.observations,sharedPreflights:client.sharedPreflights??[]});
       if(['memory-profile-unverified','residency-unverified'].includes(error.code))throw error;
     } finally { active--; }
   };

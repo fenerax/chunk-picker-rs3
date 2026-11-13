@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBrowserClient, reconnectStream, reconnectDelay } from '../scripts/perf/capacity/client.mjs';
+import { createBrowserClient, createSessionChecks, reconnectStream, reconnectDelay } from '../scripts/perf/capacity/client.mjs';
+import { failureOutcome } from '../scripts/perf/capacity/failures.mjs';
 import { prepareCohorts, consumeStream, distribution, prepareRollSnapshot, sessionArrivals, drive } from '../scripts/perf/capacity/driver.mjs';
 import { beginOpenDiagnostics } from '../app/open-diagnostics.mjs';
 import { createPickerAdmission } from '../app/picker-admission.mjs';
@@ -21,6 +22,42 @@ import { catalogue, syntheticWorld, planFixture } from '../scripts/perf/capacity
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { observeServerIdentity, SERVER_ID_HEADER } from '../scripts/perf/capacity/evidence.mjs';
+
+test('shared preflight followers inherit the originating timeout, refusal or transport cause', async () => {
+  for (const cause of [Object.assign(new DOMException('Synthetic timeout', 'TimeoutError'), { requestId: 'r1' }),
+    Object.assign(new Error('Synthetic busy'), { status: 503, requestId: 'r1' }),
+    Object.assign(new TypeError('Synthetic transport', { cause: Object.assign(new Error('reset'), { code: 'ECONNRESET' }) }), { requestId: 'r1' })]) {
+    const pending = Promise.withResolvers(), checks = createSessionChecks(), owner = { actionId: 1 }, follower = { actionId: 2 };
+    const first = checks('login', owner, () => pending.promise), second = checks('login', follower, () => assert.fail('follower dispatched'));
+    const results = Promise.allSettled([first, second]); pending.reject(new Error('Recovery guidance', { cause }));
+    for (const result of await results) {
+      assert.equal(result.status, 'rejected');
+      const failure = failureOutcome(result.reason);
+      assert.equal(failure.status, cause.status ?? (cause.name === 'TimeoutError' ? 'timeout' : 'network-error'));
+      assert.equal(failure.inheritedPreflightId, 'preflight:1'); assert.equal(failure.inheritedRequestId, 'r1');
+      assert.equal(failure.error.cause.cause.name, cause.name);
+    }
+    assert.deepEqual(follower.sharedPreflights, [{ id: 'preflight:1', ownerActionId: 1, coalesced: true }]);
+    assert.equal((await checks('login', follower, async () => 'recovered')).value, 'recovered');
+  }
+});
+
+test('route cooldown followers retain the original refusal request identity without dispatch', async () => {
+  let calls = 0, clock = Date.now();
+  const client = createBrowserClient({ now: () => clock, maxReadAttempts: 1, request: async () => {
+    calls++;
+    return { requestId: 'r503', ok: false, status: 503, headers: new Headers({ 'Retry-After': '1' }), json: async () => ({}) };
+  } });
+  await assert.rejects(client('/api/tasks?memberId=a'), { status: 503, requestId: 'r503' });
+  await assert.rejects(client('/api/tasks?memberId=b'), error => {
+    const failure = failureOutcome(error);
+    assert.equal(failure.status, 503); assert.equal(failure.inheritedCooldownId, 'cooldown:r503');
+    assert.equal(failure.inheritedRequestId, 'r503'); return true;
+  });
+  assert.equal(calls, 1);
+  clock += 1000;
+  await assert.rejects(client('/api/tasks'), { status: 503 }); assert.equal(calls, 2);
+});
 
 test('production-sized profiles keep steady cohorts; churn explicitly rotates', async () => {
   const fixture={groups:Array.from({length:4},(_,index)=>({index,members:[{memberId:'owner',cookie:`synthetic-${index}`}]}))};

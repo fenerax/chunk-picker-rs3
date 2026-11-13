@@ -371,7 +371,7 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
     try { response = await fetch(path, options); }
     catch (error) {
       if (error.name === 'AbortError' || error.status) throw error;
-      throw new Error('Could not reach the picker. Check your internet connection, then try again.');
+      throw new Error('Could not reach the picker. Check your internet connection, then try again.', { cause: error });
     }
     const delay = retryAfterMs(response, now());
     if ([429, 503].includes(response.status) && delay > 0) cooldowns.set(key, { response: { status: response.status }, until: now() + delay });
@@ -379,7 +379,7 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
     try { value = await (readJSON ? readJSON(response) : response.json()); }
     catch (error) {
       if (error.name === 'AbortError') throw error;
-      if (response.ok) throw new Error('The response was interrupted or unreadable. Try again.');
+      if (response.ok) throw new Error('The response was interrupted or unreadable. Try again.', { cause: error });
       value = {};
     }
     if (!value || typeof value !== 'object') {
