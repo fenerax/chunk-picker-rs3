@@ -29,8 +29,12 @@ export function createTrace(root){
       s=replace(s,'const requestHandler = (request, response, listener = { host, ingressRole }) => {',`const requestHandler = (request, response, listener = { host, ingressRole }) => ${g}.run(request, () => {`);
       s=replace(s,'  };\n  const headerOptions =','  });\n  const headerOptions =');
     }else if(name==='app/picker-router.mjs'){
+      // Support the historical comparison revision and shared-open admission.
+      // Binding belongs to the submitted work, even when another request pumps it.
       if(s.includes('admission.run(owner, open, signal)'))s=replace(s,'admission.run(owner, open, signal)',`admission.run(owner, ${g}.bind(open), signal)`);
-      s=replace(s,'await evict(victim);',`await ${g}.measure('eviction', () => evict(victim));`);
+      else s=replace(s,'admission.run(owner, work, signal, { onCancel: detach, sharedKey: id })',`admission.run(owner, ${g}.bind(work), signal, { onCancel: detach, sharedKey: id })`);
+      if(s.includes('await evict(victim);'))s=replace(s,'await evict(victim);',`await ${g}.measure('eviction', () => evict(victim));`);
+      else s=replace(s,'await evict(selected.victim);',`await ${g}.measure('eviction', () => evict(selected.victim));`);
     }else if(name==='app/security/picker-limits.mjs'){
       s=replace(s,'return { entry, limit };',"return { entry, limit, scope: key.split(':')[1], kind: key.split(':')[0] };");
       s=replace(s,"for (const { entry, limit } of selected) if (entry.count + amount > limit) throw refusal(message, Math.max(1, Math.ceil((entry.until - at) / 1000)));",`for (const { entry, limit, scope, kind } of selected) if (entry.count + amount > limit) { ${g}.refusal({kind:'rate',budget:kind,scope,count:entry.count,limit,amount,scopeCounts:selected.map(x=>({scope:x.scope,count:x.entry.count,limit:x.limit}))}); throw refusal(message, Math.max(1, Math.ceil((entry.until - at) / 1000))); }`);
@@ -38,6 +42,7 @@ export function createTrace(root){
       const retire=s.includes('function retire(error = superseded()) {')?'function retire(error = superseded()) {':'function retire() {';
       s=replace(s,retire,`${retire} ${g}.lifecycle('retire',active);`);
       if(s.includes('if (!cancelledGrace) {'))s=replace(s,'if (!cancelledGrace) {',`if (!cancelledGrace) { ${g}.lifecycle('grace',active);`);
+      else s=replace(s,'timer?.unref?.(); cancelledGrace = { entry, timer };',`timer?.unref?.(); cancelledGrace = { entry, timer }; ${g}.lifecycle('grace',entry);`);
 
       s=replace(s,'if (count >= maxOutstandingJobsPerPicker) return;',`if (count >= maxOutstandingJobsPerPicker) { ${g}.refusal({kind:'picker-outstanding',count,limit:maxOutstandingJobsPerPicker}); return; }`);
       s=replace(s,'if (count() >= limit) return;',`if (count() >= limit) { ${g}.refusal({kind:'picker-lane',count:count(),limit}); return; }`);

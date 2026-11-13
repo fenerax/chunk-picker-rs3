@@ -113,6 +113,80 @@ test('existing y06 trace loader still imports all of its app seams',()=>{
   assert.equal(result.status,0,result.stderr);
 });
 
+test('y06 trace binds queued shared opens to their request and measures its capacity eviction',()=>{
+  const result=spawnSync(process.execPath,['--input-type=module','-e',`
+    import assert from 'node:assert/strict';import {Readable,Writable} from 'node:stream';
+    import {createTrace} from './scripts/perf/y06/trace.mjs';
+    const trace=createTrace(process.cwd());
+    const {createPickerRouter}=await import('./app/picker-router.mjs');
+    const {createPickerLimits}=await import('./app/security/picker-limits.mjs');
+    const firstFactory=Promise.withResolvers(),factoryEntered=Promise.withResolvers(),queued=Promise.withResolvers();
+    const victimReleased=Promise.withResolvers(),closeEntered=Promise.withResolvers(),closeDrain=Promise.withResolvers();
+    const factories=[];
+    const router=createPickerRouter({maxOpenContexts:3,pickerLimits:createPickerLimits({coldStartsGlobal:1}),
+      registry:{getPicker:id=>({id,lifecycle:'active',provisioning:'ready'}),pickerDirectory:id=>'/synthetic-y06/'+id},
+      legacy:{authenticate:request=>({kind:'account',accountId:'synthetic-'+request.headers.picker,pickerId:request.headers.picker,role:'owner'})},
+      admissionClock:{setTimeout:()=>0,clearTimeout(){}},
+      onAdmission:row=>{
+        if(row.pickerId==='second'&&row.event==='queued')queued.resolve();
+        if(row.pickerId==='victim'&&row.event==='released')victimReleased.resolve();
+      },
+      openContext:id=>trace.measure('factory',async()=>{
+        factories.push({picker:id,request:trace.current()});
+        if(id==='first'){factoryEntered.resolve();await firstFactory.promise;}
+        return {handle:async(_request,response)=>{response.writeHead(200);response.end('{}');},
+          close:async()=>{if(id==='victim'){closeEntered.resolve({request:trace.current(),stage:trace.stage()});await closeDrain.promise;}}};
+      }),
+    });
+    function send(picker,id){
+      const request=Readable.from([]);Object.assign(request,{headers:{host:'localhost',picker,'x-y06-trace':String(id)},
+        method:'GET',url:'/api/state',complete:true,socket:{remoteAddress:'127.0.0.1'}});
+      const response=new Writable({write(_chunk,_encoding,done){done();}}),headers=new Map();
+      response.setHeader=(name,value)=>headers.set(name.toLowerCase(),value);response.getHeader=name=>headers.get(name.toLowerCase());
+      response.writeHead=status=>{response.statusCode=status;response.headersSent=true;};
+      return trace.run(request,async()=>{await router.handle(request,response,{host:'127.0.0.1'});assert.equal(response.statusCode,200);});
+    }
+    const requests=[];
+    try{
+      await send('victim',0);await victimReleased.promise;
+      requests.push(send('first',1));await factoryEntered.promise;
+      requests.push(send('second',2));await queued.promise;
+      firstFactory.resolve();
+      const closing=await closeEntered.promise;
+      // The second open is pumped by the first request's admission completion.
+      assert.deepEqual(closing,{request:2,stage:'eviction'});
+      closeDrain.resolve();await Promise.all(requests);
+      assert.deepEqual(factories,[{picker:'victim',request:undefined},{picker:'first',request:1},{picker:'second',request:2}]);
+      const rows=trace.metrics().requests;
+      assert.equal(rows.find(row=>row.id===1).stages.filter(stage=>stage.name==='eviction').length,0);
+      assert.equal(rows.find(row=>row.id===2).stages.filter(stage=>stage.name==='eviction').length,1);
+      assert.ok(rows.every(row=>row.stages.filter(stage=>stage.name==='factory').length===1));
+      assert.equal(trace.current(),undefined);
+    }finally{firstFactory.resolve();closeDrain.resolve();await Promise.allSettled(requests);await router.close();}
+  `],{cwd:root,env:syntheticEnvironment(process.env,'/tmp/unused-profile-test',root.pathname,false),encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
+});
+
+test('y06 trace fails closed when admission, eviction or cancellation-grace seams disappear',()=>{
+  for(const [file,needle,changed] of [
+    ['app/picker-router.mjs','admission.run(owner, work, signal, { onCancel: detach, sharedKey: id })','admission .run(owner, work, signal, { onCancel: detach, sharedKey: id })'],
+    ['app/picker-router.mjs','await evict(selected.victim);','await evict( selected.victim );'],
+    ['app/tasks/scheduler.mjs','timer?.unref?.(); cancelledGrace = { entry, timer };','timer?.unref?.(); cancelledGrace = { entry, timer, };'],
+  ]){
+    const result=spawnSync(process.execPath,['--input-type=module','-e',`
+      import assert from 'node:assert/strict';import {registerHooks} from 'node:module';import {readFileSync} from 'node:fs';
+      const [file,needle,changed]=${JSON.stringify([file,needle,changed])};
+      registerHooks({load(url,context,next){const result=next(url,context);if(url===new URL(file,import.meta.url).href){
+        const source=String(result.source??readFileSync(new URL(url),'utf8'));assert.ok(source.includes(needle));
+        return {...result,source:source.replace(needle,changed)};
+      }return result;}});
+      const {createTrace}=await import('./scripts/perf/y06/trace.mjs');createTrace(process.cwd());
+      await assert.rejects(import('./app/server.mjs'),/Trace seam missing:/);
+    `],{cwd:root,env:syntheticEnvironment(process.env,'/tmp/unused-profile-test',root.pathname,false),encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr);
+  }
+});
+
 
 test('harness records actual awaited operations and leaves unobserved intervals uncovered',async()=>{
  const h=harness({evaluate:async()=>7,send:async()=>8},'test');
