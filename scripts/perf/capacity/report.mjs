@@ -1,5 +1,7 @@
 import { memoryProfileMarkdown } from './memory-profile.mjs';
 import { assertResidency, evaluateResidency, residencyMarkdown } from './residency.mjs';
+import { contextOpenPhase, factoryReceipts } from './context-receipts.mjs';
+import { distribution } from './driver.mjs';
 
 const cheap=['state','history','edit','session'];
 const expensive=['task-view','group-task-view','how','why','task-miss','preview','roll-accept','pool-undo'];
@@ -13,19 +15,31 @@ export function fixtureReuseMarkdown(result) {
     `Fixture source commit: ${reuse.sourceCommit?`\`${reuse.sourceCommit}\``:'not recorded'}.\n\n`+
     (reuse.datasetTransition?`Dataset transition: \`${reuse.datasetTransition.oldDigest}\` → \`${reuse.datasetTransition.newDigest}\`; applied: ${reuse.datasetTransition.applied}; refreshed pickers: ${reuse.datasetTransition.refreshedPickers}.\n\n`:'');
 }
+export function contextPhaseSummary(rows = []) {
+  return ['factory','prepare','close'].map(phase => {
+    const receipts=rows.filter(row=>contextOpenPhase(row)===phase),failedStatuses={};
+    for(const row of receipts)if(row.status==='failed'||row.status===`${phase}-failed`)
+      failedStatuses[row.status]=(failedStatuses[row.status]??0)+1;
+    const durations=receipts.map(row=>row.totalMs??row.timingMs?.[`${phase}Ms`]).filter(value=>Number.isFinite(value)&&value>=0);
+    return {phase,count:receipts.length,latency:distribution(durations),failedStatuses};
+  });
+}
 export function diagnosticMarkdown(result) {
-  const opens=result.contextOpens??[], transitions=result.admissionTransitions??[], samples=result.samples??[];
-  const phases=['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'];
+  const receipts=result.contextOpens??[], opens=factoryReceipts(receipts), transitions=result.admissionTransitions??[], samples=result.samples??[];
+  const phases=['factoryMs','datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs'];
   const admission=new Map();
   for(const row of transitions) {
     const key=`${row.transition} / ${row.reason??'none'}`;admission.set(key,(admission.get(key)??0)+1);
   }
-  return `## Owned context opens\n\nHydration includes decoding and validation; migration includes hook validation. Store total also includes locking, recovery and publication. Failed opens retain completed phases.\n\n`+
+  return `## Context lifecycle phases\n\nDurations include successful and failed receipts across server generations. Timed counts exclude missing durations. Older receipts without a context phase count as factories.\n\n`+
+    `| Phase | Count | Timed | p50 / p95 / max ms | Failed status counts |\n| --- | --- | --- | --- | --- |\n`+
+    contextPhaseSummary(receipts).map(row=>`| ${row.phase} | ${row.count} | ${row.latency.count} | ${['p50Ms','p95Ms','maxMs'].map(key=>number(row.latency[key])).join(' / ')} | ${Object.entries(row.failedStatuses).map(([status,count])=>`${status}: ${count}`).join(', ')||'none'} |`).join('\n')+'\n\n'+
+    `## Owned context opens\n\nFactory opens: **${opens.length}**. Open and memory tables contain factory receipts only. Hydration includes decoding and validation; migration includes hook validation. Store total also includes locking, recovery and publication. Failed opens retain completed subphases.\n\n`+
     `| Open / picker / status | Total ms | ${phases.join(' | ')} |\n| --- | --- | ${phases.map(()=> '---').join(' | ')} |\n`+
-    opens.map((row,i)=>`| ${i+1} / ${row.pickerId} / ${row.status} | ${number(row.totalMs)} | ${phases.map(key=>number(row.timingMs[key])).join(' | ')} |`).join('\n')+'\n\n'+
+    opens.map((row,i)=>`| ${i+1} / ${row.pickerId} / ${row.status} | ${number(row.totalMs)} | ${phases.map(key=>number(row.timingMs?.[key])).join(' | ')} |`).join('\n')+'\n\n'+
     `RSS/heap are shared server process snapshots per group open, not attributable group allocations. Overlapping opens, other requests and GC affect deltas; independent calculator heaps are retained in telemetry.jsonl and telemetryObservations.\n\n`+
     `| Open | RSS before / after / delta MiB | Heap used before / after / delta MiB |\n| --- | --- | --- |\n`+
-    opens.map((row,i)=>`| ${i+1} | ${['before','after','delta'].map(key=>number(row.memory[key].rss/1048576)).join(' / ')} | ${['before','after','delta'].map(key=>number(row.memory[key].heapUsed/1048576)).join(' / ')} |`).join('\n')+'\n\n'+
+    opens.map((row,i)=>`| ${i+1} | ${['before','after','delta'].map(key=>number(row.memory?.[key]?.rss/1048576)).join(' / ')} | ${['before','after','delta'].map(key=>number(row.memory?.[key]?.heapUsed/1048576)).join(' / ')} |`).join('\n')+'\n\n'+
     `## Command HTTP latency\n\nIncludes failed attempts; client cooldown and restart waits remain in action latency. Each request's command, status and latency is in events.jsonl.\n\n`+
     `| Command / status | Count | p50 / p95 / p99 / max ms |\n| --- | --- | --- |\n`+
     (result.load.commands??[]).map(row=>`| ${row.command} / ${row.status} | ${row.latency.count} | ${['p50Ms','p95Ms','p99Ms','maxMs'].map(key=>number(row.latency[key])).join(' / ')} |`).join('\n')+'\n\n'+

@@ -3,6 +3,7 @@ import { digest } from './model.mjs';
 import { residency, residencyManifest } from './residency.mjs';
 import { sampleCounts, countSample, sampleReceiptStatus, sampleCountsMarkdown } from './sample-verification.mjs';
 import { cpuProfileManifest } from './cpu-profile.mjs';
+import { contextOpenPhase } from './context-receipts.mjs';
 
 export function memoryProfile(value = 'default') {
   if (!['default', 'budget-672'].includes(value)) throw new TypeError('Use --memory-profile default or budget-672.');
@@ -147,7 +148,9 @@ export function assertMemoryProfile(result) {
         if (row.server[key]) check(row.server[key], `sample.server.${key}`);
     }
   }
-  for (const key of ['contextOpens', 'admissionTransitions']) for (const row of result[key] ?? []) check(row, key);
+  // Profile labels apply to every phase; a memory snapshot is optional evidence.
+  for (const row of result.contextOpens ?? []) check(row, `contextOpens.${contextOpenPhase(row)}`);
+  for (const row of result.admissionTransitions ?? []) check(row, 'admissionTransitions');
   return selected;
 }
 
