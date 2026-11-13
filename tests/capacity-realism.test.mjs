@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBrowserClient, createSessionChecks, reconnectStream, reconnectDelay } from '../scripts/perf/capacity/client.mjs';
 import { failureOutcome } from '../scripts/perf/capacity/failures.mjs';
+import { createAdmissionCorrelation, observeAdmissionCorrelation, REQUEST_ID_HEADER, ADMISSION_ID_HEADER } from '../scripts/perf/capacity/admission-correlation.mjs';
 import { prepareCohorts, consumeStream, distribution, prepareRollSnapshot, sessionArrivals, drive } from '../scripts/perf/capacity/driver.mjs';
 import { beginOpenDiagnostics } from '../app/open-diagnostics.mjs';
 import { createPickerAdmission } from '../app/picker-admission.mjs';
@@ -22,6 +23,27 @@ import { catalogue, syntheticWorld, planFixture } from '../scripts/perf/capacity
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { observeServerIdentity, SERVER_ID_HEADER } from '../scripts/perf/capacity/evidence.mjs';
+
+test('admission transitions retain their request identity when another request releases the queue', async () => {
+  const correlation = createAdmissionCorrelation(), first = Promise.withResolvers(), second = Promise.withResolvers(), rows = [], headers = [];
+  const run = (requestId, admissionId, release) => correlation.handle({ headers: { [REQUEST_ID_HEADER]: requestId } },
+    { setHeader: (name, value) => headers.push([requestId, name, value]) }, async () => {
+      rows.push(correlation.observe({ admissionId, transition: 'queued' }));
+      await release.promise;
+      // Completing this request may pump another request's queued admission.
+      rows.push(correlation.observe({ admissionId: admissionId === 1 ? 2 : 1, transition: 'started' }));
+    });
+  const a = run('action:1:request:1', 1, first), b = run('action:2:request:1', 2, second);
+  first.resolve(); await a; second.resolve(); await b;
+  assert.deepEqual(rows.map(row => row.requestId), ['action:1:request:1', 'action:2:request:1', 'action:2:request:1', 'action:1:request:1']);
+  assert.deepEqual(headers.map(row => row.slice(1)), [[ADMISSION_ID_HEADER, '1'], [ADMISSION_ID_HEADER, '2']]);
+  assert.equal(correlation.observe({ admissionId: 2, transition: 'released' }).requestId, 'action:2:request:1');
+  correlation.handle({ headers: { [REQUEST_ID_HEADER]: 'action:3:request:1' } }, { setHeader() {} }, () => {
+    correlation.observe({ admissionId: 3, transition: 'queued' });
+    assert.equal(correlation.observe({ admissionId: 3, transition: 'deadline' }).requestId, 'action:3:request:1');
+  });
+  assert.equal(correlation.observe({ admissionId: 3, transition: 'released' }).requestId, null, 'an unstarted expired admission retains no correlation entry');
+});
 
 test('shared preflight followers inherit the originating timeout, refusal or transport cause', async () => {
   for (const cause of [Object.assign(new DOMException('Synthetic timeout', 'TimeoutError'), { requestId: 'r1' }),
@@ -43,10 +65,11 @@ test('shared preflight followers inherit the originating timeout, refusal or tra
 });
 
 test('route cooldown followers retain the original refusal request identity without dispatch', async () => {
-  let calls = 0, clock = Date.now();
+  for (const retryAfter of ['1', new Date(11000).toUTCString()]) {
+  let calls = 0, clock = 10000;
   const client = createBrowserClient({ now: () => clock, maxReadAttempts: 1, request: async () => {
     calls++;
-    return { requestId: 'r503', ok: false, status: 503, headers: new Headers({ 'Retry-After': '1' }), json: async () => ({}) };
+    return { requestId: 'r503', ok: false, status: 503, headers: new Headers({ 'Retry-After': retryAfter }), json: async () => ({}) };
   } });
   await assert.rejects(client('/api/tasks?memberId=a'), { status: 503, requestId: 'r503' });
   await assert.rejects(client('/api/tasks?memberId=b'), error => {
@@ -57,6 +80,7 @@ test('route cooldown followers retain the original refusal request identity with
   assert.equal(calls, 1);
   clock += 1000;
   await assert.rejects(client('/api/tasks'), { status: 503 }); assert.equal(calls, 2);
+  }
 });
 
 test('production-sized profiles keep steady cohorts; churn explicitly rotates', async () => {
@@ -250,16 +274,20 @@ test('tiny fixture first owned server open keeps its revision and emits every ph
   t.after(async()=>{await app?.close();await rm(directory,{recursive:true,force:true});});
   const profile={name:'smoke',seed:'synthetic-realism',catalogue:{chunks:4,tasks:4,dependencyDepth:2,crossLinks:1},
     fixture:{groups:1,rosterMix:[0,1,0,0,0],freshFraction:0,unlockFraction:.5,historyEvents:1,snapshots:1,keysPerMember:0}};
-  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[];
+  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[],admissions=[],correlation=createAdmissionCorrelation();
   const definitions=catalogue(profile.catalogue);
   app=await createServer({dataDir:path.join(directory,'legacy'),definitions,taskMap:{},world:syntheticWorld(definitions,buildWorld),port:0,predictionPrewarm:false,
-    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row)}});
+    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row),onAdmission:row=>admissions.push(correlation.observe(row))}});
+  observeAdmissionCorrelation(app.server,correlation);
   const serverId=observeServerIdentity(app.server);
   await app.listen();
-  const response=await fetch(`http://127.0.0.1:${app.address().port}/api/state?view=play-v1`,{headers:{Cookie:group.members[0].cookie}});
+  const response=await fetch(`http://127.0.0.1:${app.address().port}/api/state?view=play-v1`,{headers:{Cookie:group.members[0].cookie,[REQUEST_ID_HEADER]:'action:7:request:1'}});
   assert.equal(response.status,200);assert.equal(response.headers.get(SERVER_ID_HEADER),serverId);const value=await response.json();
   assert.equal(value.state.revision,group.revision,'first serving open must not publish a catalogue refresh');
   assert.equal(opens.length,1);assert.equal(opens[0].status,'completed');
+  const queued=admissions.find(row=>row.transition==='queued');
+  assert.equal(queued.requestId,'action:7:request:1');
+  assert.equal(response.headers.get(ADMISSION_ID_HEADER),String(queued.admissionId));
   for(const field of ['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'])assert.equal(typeof opens[0].timingMs[field],'number',field);
   assert.equal(typeof opens[0].memory.after.heapUsed,'number');
 });

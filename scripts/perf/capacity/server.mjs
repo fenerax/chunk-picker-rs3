@@ -7,6 +7,7 @@ import { observeServerIdentity } from './evidence.mjs';
 import { configureMemoryProfile, verifyServerMemoryProfile } from './memory-profile.mjs';
 import { residency as selectResidency, residencyOptions, verifyServerResidency } from './residency.mjs';
 import { createSampleEmitter } from './sample-server.mjs';
+import { createAdmissionCorrelation, observeAdmissionCorrelation } from './admission-correlation.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
 const [directory,profileFile,mode,workers,fixtureFrom,fixtureEvidenceFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
@@ -66,6 +67,7 @@ if(mode==='fixture') {
     const {buildWorld}=await import('../../../app/data/world.mjs');
     const {createGroupState}=await import('../../../app/core/state.mjs');
     const ownedFormat2=profile.storageFormat==='format2'?await (await import('./owned-release.mjs')).loadCapacityOwnedRelease(directory):false;
+    const correlation=createAdmissionCorrelation();
     app=await createServer({dataDir:path.join(directory,'legacy'),host:'127.0.0.1',port:profile.port,
       ownedFormat2,
       loopbackPort:undefined,publicOrigin:undefined,definitions:data,world:syntheticWorld(data,buildWorld),taskMap:{},
@@ -79,9 +81,10 @@ if(mode==='fixture') {
         caps:profile.entityCaps,...residencyOptions(residency),
         onContextOpen:event=>process.send({type:'context-open',atMs:performance.now(),...event}),
         onAdmission:event=>{const kind=event.kind??event.type??event.event??'event';admission[kind]=(admission[kind]??0)+1;
-          process.send({type:'admission',atMs:performance.now(),...event});
+          process.send({type:'admission',atMs:performance.now(),...correlation.observe(event)});
           coldQueue={pending:event.pending,active:event.active,accounts:event.accounts,waitMs:event.waitMs,serviceMs:event.serviceMs};}},
     });
+    observeAdmissionCorrelation(app.server,correlation);
     const serverId=observeServerIdentity(app.server);
     await app.listen();
     const base=loopback(`http://127.0.0.1:${app.address().port}`,{assigned:profile.port===0});

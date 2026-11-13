@@ -38,7 +38,36 @@ async function fixture(t, options = {}) {
 }
 
 // One generous deadlock guard for this file; all application time is injected.
+test('initial scheduler cancellation retains the same retryable unavailability metadata', async () => {
+  const controller = new AbortController(), created = Promise.withResolvers();
+  const pending = createTaskScheduler({ signal: controller.signal, workerFactory() {
+    const worker = new EventEmitter(); worker.postMessage = () => {};
+    worker.terminate = async () => { worker.emit('exit', 0); };
+    created.resolve(); return worker;
+  } });
+  const rejected = assert.rejects(pending, { name: 'AbortError', status: 503, retryAfter: 1 });
+  await created.promise; controller.abort(); await rejected;
+});
+
 test('bounded calculator admission', { timeout: 60000 }, async t => {
+  for (const [reason, options, request] of [
+    ['byte-cap', { maxQueuedInputBytes: 1024 }, f => f.request(2, 'large', { value: { ...state(), marker: 'x'.repeat(2048) } })],
+    ['per-picker-outstanding', { fairness: { maxOutstandingJobsPerPicker: 1 } }, f => f.request(1, 'second', { member: 'two' })],
+    ['waiters', { fairness: { maxWaitersPerJob: 1 } }, f => f.request(1, 'blocker')],
+    ['job-count', { maxQueue: 1 }, async f => {
+      const queued = f.request(2, 'queued'); f.extra = queued;
+      return f.request(3, 'overflow');
+    }],
+  ]) await t.test(`${reason} refusals count their job kind without changing admission`, async t => {
+    const f = await fixture(t, options), active = f.request(1, 'blocker'), job = await f.next();
+    const before = f.scheduler.getDiagnostics().rejections;
+    await assert.rejects(request(f), { status: 429 });
+    assert.deepEqual(f.scheduler.getDiagnostics().rejections, { byReason: { [reason]: 1 }, byKind: { evaluate: 1 }, byReasonAndKind: { [`${reason}:evaluate`]: 1 } });
+    assert.deepEqual(before.byReason, {}, 'previous diagnostic receipts are immutable');
+    f.finish(job); await active;
+    if (f.extra) { f.finish(await f.next()); await f.extra; }
+  });
+
   for (const pooled of [false, true]) await t.test(`50 distinct groups finish with zero refusals (${pooled ? 'one physical calculator' : 'one worker'})`, async t => {
     const f = await fixture(t, pooled ? { maxCalculators: 1 } : {});
     const requests = Array.from({ length: 50 }, (_, n) => f.request(n + 1, 'same-key', { value: state(0, `group-${n}`) }));

@@ -8,7 +8,7 @@ export function createBrowserClient({ request, now, sleep, maxReadAttempts, maxR
   const read = createRequestReader({ fetch: async (route, options) => {
     options.trace.dispatched = true;
     const response = await request(route, options);
-    if ([429, 503].includes(response.status) && retryAfterMs(response) > 0)
+    if ([429, 503].includes(response.status) && retryAfterMs(response, now?.() ?? Date.now()) > 0)
       cooldowns.set(route.split('?')[0], { inheritedCooldownId: `cooldown:${response.requestId}`, inheritedRequestId: response.requestId });
     return response;
   }, now, sleep, maxReadAttempts, maxReadRetryMs });

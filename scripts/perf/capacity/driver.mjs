@@ -4,6 +4,7 @@ import { arrivals, dispatch } from './scheduler.mjs';
 import { loopback, random } from './model.mjs';
 import { createBrowserClient, createSessionChecks, reconnectStream, pause, retryAfterMs, retryRead } from './client.mjs';
 import { errorReceipt, failureOutcome } from './failures.mjs';
+import { REQUEST_ID_HEADER, ADMISSION_ID_HEADER } from './admission-correlation.mjs';
 import { sustainedArrivals, sustainedAction, sustainedBrowserAction, sustainedPhase } from './sustained.mjs';
 import { SERVER_ID_HEADER, clientIdentity, plannedOperations, readinessProof } from './evidence.mjs';
 import { observation } from './sampling.mjs';
@@ -157,16 +158,17 @@ export async function drive({base,initialServerId,profile,fixture,directory,onSa
     const observation={requestId,actionId:client.actionId,memoryProfile,residency,route:route.split('?')[0],status:'pending',...(route.startsWith('/api/command')?{command:body?.command?.type}: {})};client.observations?.push(observation);
     let res;
     try {res=await fetchRequest(base+route,{method:body===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.timeout(profile.requestDeadlineMs),
-      headers:{...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),
+      headers:{[REQUEST_ID_HEADER]:requestId,...(extra.plugin?{Authorization:'Bearer '+client.key}:{Cookie:client.cookie}),
         ...(!extra.plugin&&route!=='/api/session'&&client.pickerId?{'X-Picker-Id':client.pickerId}:{}),...(body===undefined?{}:{'Content-Type':'application/json',Origin:base})},
       ...(body===undefined?{}:{body:JSON.stringify(body)})});
     } catch(error) {observation.status=failureOutcome(error).status;observation.error=errorReceipt(error);error.requestId=requestId;observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
+    Object.assign(observation,{responseStatus:res.status,serverId:res.headers.get(SERVER_ID_HEADER),admissionId:res.headers.get(ADMISSION_ID_HEADER),retryAfter:res.headers.get('retry-after')});
     let text;
     try {text=await res.text();}catch(error){observation.status=failureOutcome(error).status;observation.error=errorReceipt(error);error.requestId=requestId;observation.receivedAt=now();observation.wallMs=observation.receivedAt-requestStart;stats.httpErrors++;throw error;}
     const receivedAt=now();
     stats.httpBytes+=Buffer.byteLength(text);
     let value;try{value=JSON.parse(text);}catch{value=null;}
-    Object.assign(observation,{receivedAt,status:res.status,serverId:res.headers.get(SERVER_ID_HEADER),retryAfter:res.headers.get('retry-after'),wallMs:receivedAt-requestStart,
+    Object.assign(observation,{receivedAt,status:res.status,serverId:res.headers.get(SERVER_ID_HEADER),admissionId:res.headers.get(ADMISSION_ID_HEADER),retryAfter:res.headers.get('retry-after'),wallMs:receivedAt-requestStart,
       cacheHit:typeof value?.cache?.hit==='boolean'?value.cache.hit:null,evaluationMs:value?.cache?.evaluationMs??null,timingMs:value?.cache?.timingMs??null});
     const revision=body?.expectedRevision??new URL(route,base).searchParams.get('revision');
     if(revision!==null&&revision!==undefined&&Number.isSafeInteger(Number(revision)))observation.requestRevision=Number(revision);
