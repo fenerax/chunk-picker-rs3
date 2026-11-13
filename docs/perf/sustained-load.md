@@ -153,7 +153,47 @@ SSE teardown/drain; their cleanup duration cannot extend the workload horizon.
 Concurrent same-group edits may naturally return 409; those appear
 separately in statuses and fail the relevant speed bar rather than being hidden.
 
+`streamRecovery.rawReplacementCoverage` always reports distinct replacement
+clients live at the recovery deadline and ever connected, plus both client-ID
+lists. These raw observations do not depend on residency confirmation. The
+existing `reopened`, continuity checks and pass/fail gate retain their meaning.
+
 ## Measurements and verdicts
+
+Action receipts retain bounded `error` name/code/cause chains. Each HTTP attempt
+has `requestId` and `actionId`; `sharedPreflights` records shared preflight IDs,
+the owner action and coalescing. Failed actions can carry
+`inheritedPreflightId`, `inheritedCooldownId` and `inheritedRequestId`, including
+followers with no HTTP attempt of their own. A terminal timeout or inherited
+503 remains that failure; it does not become an extra network-error attempt.
+The scratch wrapper joins request IDs to `admissionTransitions[].requestId`
+and returns the local admission ID in `requests[].admissionId`. Combine that
+admission ID with the serving process identity/generation. Scheduler diagnostics
+add `rejections.byReason`, `byKind` and `byReasonAndKind` on each lane; reasons
+include `byte-cap`, `per-picker-outstanding`, `waiters`, `job-count` and
+`kind-outstanding`. These counters do not alter admission.
+
+`telemetry.jsonl` and `results.telemetryObservations` retain each IPC part with
+its own receipt timestamp and sample ID, including late calculator heaps.
+Main-isolate metrics, health and diagnostics no longer await heap probes.
+`samples[].server.memoryObservation` identifies the main-isolate receipt;
+health and diagnostics keep their existing independent observation fields.
+Partial samples retain their available parts and `errorReasons`.
+`telemetryErrorReasons` records collection errors and optional heap errors;
+missing or failed optional heap observations do not increment
+`telemetryErrors`. Heap data is now in `sample-heap` receipts' `calculatorHeaps`,
+rather than being required on `samples[].server`. Only one heap collection runs
+at a time; `HeapProbeBusy` records a skipped overlapping probe. Required receipt
+coverage, gap rules and every acceptance bar are unchanged.
+
+`--cpu-profile` opts the measured server children into Node's `--cpu-prof`,
+writing profiles under the output's `cpu-profiles/`. Calculator host processes
+inherit the flag; fixture children do not. The manifest's `cpuProfile` records
+that scope. Calculator Worker isolates are **not** captured by this option:
+their explicit heap-probe imports filter process-only flags. Retaining isolate
+profiles across Worker retirement needs separate lifecycle-owned start/stop and
+rotation; no product profiling lifecycle is added here. Profiling is off by
+default and changes no acceptance threshold.
 
 `--memory-profile default|budget-672` selects server memory caps independently
 of the workload `--profile` and storage `--format`; omission means `default`.
@@ -408,6 +448,37 @@ fixtures can supply that commit from their original `run-manifest.json`; absent
 provenance is explicitly unknown. `fixtureDigest`, the fixture-content digest,
 remains the comparison key between runs. The current run's source commit/tree
 digest continues to identify the measured server code.
+
+Fixture content version 2 adds a final production retention pass at the serving
+wall clock, after generation or verified copying and any evidence-only refresh.
+Version-1 sources remain accepted and immutable; only the working copy is opened
+and receives its own manifest and seal. `retentionNormalization` in `fixture.json`
+and, for reuse, `fixtureReuse.retentionNormalization` records the pass timestamp,
+per-store metadata-selection candidates before/after, validated standalone
+removals (`packedSnapshots`) and archive pack counts. Candidates precede document
+pin checks, so pinned candidates can correctly remain. Normalization can change
+physical retention layout and the logical fixture digest. Compare the recorded
+digest and normalization receipt when attributing results. The deterministic
+format-1/format-2 aged-store regressions still require actual validation/packing;
+the unchanged-clock pass then has zero candidates. Original version-1 goldens
+remain the historical definition; the tiny version-2 goldens retain that same
+output because none of their backups age beyond the policy.
+
+Progress JSON is informational and written in place, serialized by the builder.
+A concurrent reader can see an incomplete progress write; the completion seal,
+inventory and checksums are the authority for reuse.
+
+Fixture workers prepare their process-lock identity before announcing readiness,
+and the pool waits for every worker's readiness before starting any store work.
+On Linux, the identity lookup forks `ps`; until exec, that child can retain a
+sibling's listening guard even after the sibling closes it. Completing all such
+lookups first prevents false catalogue-lock refusals during release/reacquisition.
+Group builds and their separate catalogue roots still run concurrently.
+If a build or its awaited close fails, the fixture worker reports the failure
+and exits its isolate with a nonzero code, including during cooperative STOP.
+This fails generation and releases worker-local native handles without changing
+the production store's fail-closed ownership policy. Successful and cancelled
+builds with successful cleanup still use cooperative shutdown.
 
 Keep the sealed source immutable. The harness verifies and streams copies into
 the new output directory, preserves file mtimes, then runs the measured server

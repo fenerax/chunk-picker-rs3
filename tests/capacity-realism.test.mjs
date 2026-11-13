@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBrowserClient, reconnectStream, reconnectDelay } from '../scripts/perf/capacity/client.mjs';
+import { createBrowserClient, createSessionChecks, reconnectStream, reconnectDelay, retryRead } from '../scripts/perf/capacity/client.mjs';
+import { failureOutcome } from '../scripts/perf/capacity/failures.mjs';
+import { createAdmissionCorrelation, observeAdmissionCorrelation, REQUEST_ID_HEADER, ADMISSION_ID_HEADER } from '../scripts/perf/capacity/admission-correlation.mjs';
 import { prepareCohorts, consumeStream, distribution, prepareRollSnapshot, sessionArrivals, drive } from '../scripts/perf/capacity/driver.mjs';
 import { beginOpenDiagnostics } from '../app/open-diagnostics.mjs';
 import { createPickerAdmission } from '../app/picker-admission.mjs';
@@ -21,6 +23,104 @@ import { catalogue, syntheticWorld, planFixture } from '../scripts/perf/capacity
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { observeServerIdentity, SERVER_ID_HEADER } from '../scripts/perf/capacity/evidence.mjs';
+
+test('admission transitions retain their request identity when another request releases the queue', async () => {
+  const correlation = createAdmissionCorrelation(), first = Promise.withResolvers(), second = Promise.withResolvers(), rows = [], headers = [];
+  const run = (requestId, admissionId, release) => correlation.handle({ headers: { [REQUEST_ID_HEADER]: requestId } },
+    { setHeader: (name, value) => headers.push([requestId, name, value]) }, async () => {
+      rows.push(correlation.observe({ admissionId, transition: 'queued' }));
+      await release.promise;
+      // Completing this request may pump another request's queued admission.
+      rows.push(correlation.observe({ admissionId: admissionId === 1 ? 2 : 1, transition: 'started' }));
+    });
+  const a = run('action:1:request:1', 1, first), b = run('action:2:request:1', 2, second);
+  first.resolve(); await a; second.resolve(); await b;
+  assert.deepEqual(rows.map(row => row.requestId), ['action:1:request:1', 'action:2:request:1', 'action:2:request:1', 'action:1:request:1']);
+  assert.deepEqual(headers.map(row => row.slice(1)), [[ADMISSION_ID_HEADER, '1'], [ADMISSION_ID_HEADER, '2']]);
+  assert.equal(correlation.observe({ admissionId: 2, transition: 'released' }).requestId, 'action:2:request:1');
+  correlation.handle({ headers: { [REQUEST_ID_HEADER]: 'action:3:request:1' } }, { setHeader() {} }, () => {
+    correlation.observe({ admissionId: 3, transition: 'queued' });
+    assert.equal(correlation.observe({ admissionId: 3, transition: 'deadline' }).requestId, 'action:3:request:1');
+  });
+  assert.equal(correlation.observe({ admissionId: 3, transition: 'released' }).requestId, null, 'an unstarted expired admission retains no correlation entry');
+});
+
+test('shared preflight followers inherit the originating timeout, refusal or transport cause', async () => {
+  for (const cause of [Object.assign(new DOMException('Synthetic timeout', 'TimeoutError'), { requestId: 'r1' }),
+    Object.assign(new Error('Synthetic busy'), { status: 503, requestId: 'r1' }),
+    Object.assign(new TypeError('Synthetic transport', { cause: Object.assign(new Error('reset'), { code: 'ECONNRESET' }) }), { requestId: 'r1' })]) {
+    const pending = Promise.withResolvers(), checks = createSessionChecks(), owner = { actionId: 1 }, follower = { actionId: 2 };
+    const first = checks('login', owner, () => pending.promise), second = checks('login', follower, () => assert.fail('follower dispatched'));
+    const results = Promise.allSettled([first, second]); pending.reject(new Error('Recovery guidance', { cause }));
+    for (const result of await results) {
+      assert.equal(result.status, 'rejected');
+      const failure = failureOutcome(result.reason);
+      assert.equal(failure.status, cause.status ?? (cause.name === 'TimeoutError' ? 'timeout' : 'network-error'));
+      assert.equal(failure.inheritedPreflightId, 'preflight:1'); assert.equal(failure.inheritedRequestId, 'r1');
+      assert.equal(failure.error.cause.cause.name, cause.name);
+    }
+    assert.deepEqual(follower.sharedPreflights, [{ id: 'preflight:1', ownerActionId: 1, coalesced: true }]);
+    assert.equal((await checks('login', follower, async () => 'recovered')).value, 'recovered');
+  }
+});
+
+test('sustained safe reads recover on attempt two after a session preflight transport failure or timeout', async () => {
+  for (const cause of [
+    Object.assign(new TypeError('Synthetic transport', { cause: Object.assign(new Error('reset'), { code: 'ECONNRESET' }) }), { requestId: 'r1' }),
+    Object.assign(new DOMException('Synthetic timeout', 'TimeoutError'), { requestId: 'r1' }),
+  ]) {
+    let clock = 0, attempts = 0, preflights = 0;
+    const routes = [], waits = [], failures = [], checks = createSessionChecks(), client = { actionId: 1 };
+    const browser = createBrowserClient({ now: () => clock, maxReadAttempts: 1, request: async route => {
+      routes.push(route);
+      if (route === '/api/session' && ++preflights === 1) throw cause;
+      return Response.json(route === '/api/session' ? { authenticated: true } : { ready: true });
+    } });
+    const result = await retryRead(async () => {
+      attempts++;
+      try {
+        await checks('login', client, () => browser('/api/session'));
+        return await browser('/api/state');
+      } catch (error) {
+        failures.push(failureOutcome(error));
+        throw error;
+      }
+    }, { safe: true, deadlineMs: 10000, now: () => clock, rng: () => 0,
+      sleep: async ms => { waits.push(ms); clock += ms; } });
+    assert.deepEqual(result, { ready: true });
+    assert.equal(attempts, 2);
+    assert.deepEqual(routes, ['/api/session', '/api/session', '/api/state']);
+    assert.deepEqual(waits, [250]);
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].status, cause.name === 'TimeoutError' ? 'timeout' : 'network-error');
+    assert.equal(failures[0].inheritedPreflightId, 'preflight:1');
+    assert.equal(failures[0].inheritedRequestId, 'r1');
+    assert.equal(failures[0].error.cause.cause.name, cause.name);
+    assert.deepEqual(client.sharedPreflights, [
+      { id: 'preflight:1', ownerActionId: 1, coalesced: false },
+      { id: 'preflight:2', ownerActionId: 1, coalesced: false },
+    ]);
+  }
+});
+
+test('route cooldown followers retain the original refusal request identity without dispatch', async () => {
+  for (const retryAfter of ['1', new Date(11000).toUTCString()]) {
+  let calls = 0, clock = 10000;
+  const client = createBrowserClient({ now: () => clock, maxReadAttempts: 1, request: async () => {
+    calls++;
+    return { requestId: 'r503', ok: false, status: 503, headers: new Headers({ 'Retry-After': retryAfter }), json: async () => ({}) };
+  } });
+  await assert.rejects(client('/api/tasks?memberId=a'), { status: 503, requestId: 'r503' });
+  await assert.rejects(client('/api/tasks?memberId=b'), error => {
+    const failure = failureOutcome(error);
+    assert.equal(failure.status, 503); assert.equal(failure.inheritedCooldownId, 'cooldown:r503');
+    assert.equal(failure.inheritedRequestId, 'r503'); return true;
+  });
+  assert.equal(calls, 1);
+  clock += 1000;
+  await assert.rejects(client('/api/tasks'), { status: 503 }); assert.equal(calls, 2);
+  }
+});
 
 test('production-sized profiles keep steady cohorts; churn explicitly rotates', async () => {
   const fixture={groups:Array.from({length:4},(_,index)=>({index,members:[{memberId:'owner',cookie:`synthetic-${index}`}]}))};
@@ -213,16 +313,20 @@ test('tiny fixture first owned server open keeps its revision and emits every ph
   t.after(async()=>{await app?.close();await rm(directory,{recursive:true,force:true});});
   const profile={name:'smoke',seed:'synthetic-realism',catalogue:{chunks:4,tasks:4,dependencyDepth:2,crossLinks:1},
     fixture:{groups:1,rosterMix:[0,1,0,0,0],freshFraction:0,unlockFraction:.5,historyEvents:1,snapshots:1,keysPerMember:0}};
-  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[];
+  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[],admissions=[],correlation=createAdmissionCorrelation();
   const definitions=catalogue(profile.catalogue);
   app=await createServer({dataDir:path.join(directory,'legacy'),definitions,taskMap:{},world:syntheticWorld(definitions,buildWorld),port:0,predictionPrewarm:false,
-    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row)}});
+    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row),onAdmission:row=>admissions.push(correlation.observe(row))}});
+  observeAdmissionCorrelation(app.server,correlation);
   const serverId=observeServerIdentity(app.server);
   await app.listen();
-  const response=await fetch(`http://127.0.0.1:${app.address().port}/api/state?view=play-v1`,{headers:{Cookie:group.members[0].cookie}});
+  const response=await fetch(`http://127.0.0.1:${app.address().port}/api/state?view=play-v1`,{headers:{Cookie:group.members[0].cookie,[REQUEST_ID_HEADER]:'action:7:request:1'}});
   assert.equal(response.status,200);assert.equal(response.headers.get(SERVER_ID_HEADER),serverId);const value=await response.json();
   assert.equal(value.state.revision,group.revision,'first serving open must not publish a catalogue refresh');
   assert.equal(opens.length,1);assert.equal(opens[0].status,'completed');
+  const queued=admissions.find(row=>row.transition==='queued');
+  assert.equal(queued.requestId,'action:7:request:1');
+  assert.equal(response.headers.get(ADMISSION_ID_HEADER),String(queued.admissionId));
   for(const field of ['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'])assert.equal(typeof opens[0].timingMs[field],'number',field);
   assert.equal(typeof opens[0].memory.after.heapUsed,'number');
 });

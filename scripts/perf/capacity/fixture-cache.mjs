@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { lstat, readdir, readFile, writeFile, mkdir, utimes, rename } from 'node:fs/promises';
+import { lstat, readdir, readFile, writeFile, mkdir, utimes } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -94,7 +94,7 @@ async function inspect(directory, profile, targetDataset, { evidenceRecords = []
     || seal.storageFormat !== (profile.storageFormat ?? 'format1')
     || typeof seal.implementationDigest !== 'string' || !/^[a-f0-9]{64}$/.test(seal.implementationDigest)
     || seal.inventoryDigest !== digest(seal.files)) throw new Error('Fixture completion/configuration digest mismatch.');
-  if ((Object.hasOwn(seal, 'fixtureContentVersion') ? seal.fixtureContentVersion : 1) !== fixtureContentVersion) throw new Error('Fixture content version mismatch; rebuild required.');
+  if (![1, fixtureContentVersion].includes(Object.hasOwn(seal, 'fixtureContentVersion') ? seal.fixtureContentVersion : 1)) throw new Error('Fixture content version mismatch; rebuild required.');
   if (!isDeepStrictEqual(Object.hasOwn(seal, 'storageSchema') ? seal.storageSchema : legacyFixtureStorageSchema(seal.storageFormat), fixtureStorageSchema(seal.storageFormat))) {
     throw new Error('Fixture writer storage schema mismatch; rebuild required.');
   }
@@ -147,8 +147,7 @@ export async function copyFixture(source, destination, profile, datasetDigest, o
   await mkdir(destination, { recursive: true, mode: 0o700 });
   const progress = async update => {
     const filename = path.join(destination, 'fixture-progress.json');
-    await writeFile(filename + '.tmp', JSON.stringify({ ...update, updatedAt: new Date().toISOString() }));
-    await rename(filename + '.tmp', filename);
+    await writeFile(filename, JSON.stringify({ ...update, updatedAt: new Date().toISOString() }));
   };
   await progress({ phase: 'verifying-reuse', groups: 0 });
   const { seal, manifest, dataset, records } = await inspect(source, profile, datasetDigest, options);
@@ -179,16 +178,17 @@ export async function copyFixture(source, destination, profile, datasetDigest, o
     fixtureReuse.datasetTransition = await refreshFixtureEvidence(destination, profile, manifest, dataset, records);
     manifest.datasetDigest = dataset.digest; manifest.datasetEvidence = datasetEvidenceRecord(dataset);
     manifest.configDigest = fixtureConfigDigest(profile, dataset.digest);
-    manifest.fixtureDigest = logicalFixtureDigest(manifest);
-    fixtureReuse.datasetTransition.upgradedFixtureDigest = manifest.fixtureDigest;
     manifest.datasetTransition = fixtureReuse.datasetTransition;
-    await writeFile(path.join(destination, 'fixture.json'), JSON.stringify(manifest));
-    await sealFixture(destination, manifest, { sourceCommit: fixtureReuse.sourceCommit });
   } else {
     fixtureReuse.datasetTransition = { oldDigest: manifest.datasetDigest, newDigest: manifest.datasetDigest, applied: 'none', refreshedPickers: 0 };
-    // Publish completion only after every copied byte has passed verification.
-    await writeFile(path.join(destination, sealName), JSON.stringify(seal), { flag: 'wx', mode: 0o600 });
   }
+  const { normalizeFixtureRetention } = await import('./fixture-retention.mjs');
+  await progress({ phase: 'normalizing-retention', groups: 0 });
+  fixtureReuse.retentionNormalization = await normalizeFixtureRetention(destination, profile, manifest, options);
+  manifest.fixtureDigest = logicalFixtureDigest(manifest);
+  if (dataset) fixtureReuse.datasetTransition.upgradedFixtureDigest = manifest.fixtureDigest;
+  await writeFile(path.join(destination, 'fixture.json'), JSON.stringify(manifest));
+  await sealFixture(destination, manifest, { sourceCommit: fixtureReuse.sourceCommit });
   await progress({ phase: 'reused', groups: manifest.groups.length,
     characters: manifest.characters, fixtureDigest: manifest.fixtureDigest, completedFiles, copiedBytes });
   return { ...manifest, fixtureReuse };

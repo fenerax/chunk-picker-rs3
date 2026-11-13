@@ -29,7 +29,7 @@ const pickerKey = (pickerId, key) => JSON.stringify([pickerId, key]);
 const pickerArguments = { peekPrediction: 4, cancelRankingPrewarm: 1, preparedEvaluation: 3, prepareRules: 2,
   evaluate: 12, supersede: 3, supersedeDisplay: 2, setRevision: 2, prewarm: 4, prewarmTasks: 4,
   cancelPrewarm: 1, retireWarmPrediction: 0, noteActivity: 0, openSession: 0, getDiagnostics: 0, getClientHealth: 0 };
-const unavailable = message => Object.assign(new Error(message), { status: 503 });
+const unavailable = message => Object.assign(new Error(message), { status: 503, retryAfter: 1 });
 const queueFull = () => Object.assign(new Error('Task calculation budget is full. Wait for pending tasks and retry.'), { status: 429, retryAfter: 1 });
 const positive = (value, name, minimum = 1) => {
   if (!Number.isSafeInteger(value) || value < minimum) throw new TypeError(`${name} must be an integer of at least ${minimum}.`);
@@ -666,6 +666,13 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
   const counts = { requested: 0, coalesced: 0, cacheHits: 0, completed: 0, errors: 0, expired: 0, cancelled: 0, superseded: 0, rejected: 0, promoted: 0, retired: 0 };
+  const rejectionReasons = {}, rejectionKinds = {}, rejectionReasonKinds = {};
+  function rejected(reason, type) {
+    counts.rejected++;
+    const kind = ['evaluate', 'predict', 'prepare-rules', 'roll-pool', 'how-task', 'why-task', 'chunk-planning',
+      'sandbox', 'area-check', 'death-estimates', 'eligibility-proof-export'].includes(type) ? type : 'other';
+    for (const [target, key] of [[rejectionReasons, reason], [rejectionKinds, kind], [rejectionReasonKinds, `${reason}:${kind}`]]) target[key] = (target[key] ?? 0) + 1;
+  }
   const timings = {};
   let lastTimingMs = {};
   const residentPickers = new Set();
@@ -707,7 +714,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
   }
   function abortInitial() {
     initialAborted = true;
-    initialReject(Object.assign(new Error('Task worker initialization cancelled.'), { name: 'AbortError', status: 503 }));
+    initialReject(Object.assign(unavailable('Task worker initialization cancelled.'), { name: 'AbortError' }));
     void scheduler.close();
   }
   function touch() {
@@ -1383,7 +1390,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         const value = cache.get(key); cache.delete(key); cache.set(key, value);
         return Promise.resolve(evaluationWith(value.value, { hit: true }));
       }
-      if (type === 'how-task' && [...pending.values()].some(entry => entry.type === type && entry.pickerId === pickerId && entry.memberId === memberId && entry.key !== key)) return Promise.reject(queueFull());
+      if (type === 'how-task' && [...pending.values()].some(entry => entry.type === type && entry.pickerId === pickerId && entry.memberId === memberId && entry.key !== key)) { rejected('kind-outstanding', type); return Promise.reject(queueFull()); }
       let entry = pending.get(key);
       // A caller's response-cache key can differ for the same calculation. One
       // queued slot per picker/member/kind/arguments joins equivalent inputs;
@@ -1398,13 +1405,13 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       const hit = !!entry;
       let releaseJoined;
       if (entry) {
-        if (fairness && entry.waiters.size >= fairness.maxWaitersPerJob) { counts.rejected++; return Promise.reject(queueFull()); }
+        if (fairness && entry.waiters.size >= fairness.maxWaitersPerJob) { rejected('waiters', type); return Promise.reject(queueFull()); }
         // Equivalent work shares a calculator slot, but a different response
         // key still represents independently admitted demand from this picker.
         // Exact-key followers retain their existing bounded waiter allowance.
         if (entry.key !== key) {
           releaseJoined = admitFair(pickerId, { interactive: !residentOnly });
-          if (!releaseJoined) { counts.rejected++; return Promise.reject(queueFull()); }
+          if (!releaseJoined) { rejected('per-picker-outstanding', type); return Promise.reject(queueFull()); }
         }
         counts.coalesced++; entry.revision = Math.max(entry.revision, state.revision);
         if (entry.purpose === 'ranking') {
@@ -1419,18 +1426,18 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         entry.duoSidebarProjection ||= duoSidebarProjection;
         const position = warmQueue.indexOf(entry);
         if (position >= 0) {
-          if (queue.length >= maxQueue) { releaseJoined?.(); counts.rejected++; return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
+          if (queue.length >= maxQueue) { releaseJoined?.(); rejected('job-count', type); return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
           warmQueue.splice(position, 1); queue.push(entry); waitDeadline(entry);
         }
       }
       else {
         // A ready pooled lane can still be queued behind another lane's lease.
         if (queue.length >= maxQueue && (calculatorPool || active || status !== 'ready')) {
-          counts.rejected++;
+          rejected('job-count', type);
           return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 }));
         }
         const releaseFair = admitFair(pickerId, { interactive: !residentOnly });
-        if (!releaseFair) { if (residentOnly) return Promise.reject(residentPlanningUnavailable()); counts.rejected++; return Promise.reject(queueFull()); }
+        if (!releaseFair) { if (residentOnly) return Promise.reject(residentPlanningUnavailable()); rejected('per-picker-outstanding', type); return Promise.reject(queueFull()); }
         entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, residentOnly, sourceDrain, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
         entry.admissionSlot = JSON.stringify([memberId, type, resultView, chunkId, chunkIds]);
         entry.calculatorStarted = !calculatorPool && (!worker || ['starting', 'waking', 'sleeping'].includes(status));
@@ -1462,7 +1469,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         // Idle requests take the original fast path. Only jobs still waiting
         // after the synchronous dispatch attempt need a parked representation.
         if (queue.includes(entry)) {
-          try { if (!parkInput(entry)) { counts.rejected++; cancel(entry, queueFull()); pump(); } }
+          try { if (!parkInput(entry)) { rejected('byte-cap', type); cancel(entry, queueFull()); pump(); } }
           catch (error) { cancel(entry, error); pump(); }
         }
       }
@@ -1668,6 +1675,7 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
       return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, waitDeadlineMs, deadlineMs, firstCalculationDeadlineMs,
         inputBytes: queuedInputBytes, inputByteLimit: maxQueuedInputBytes,
         oldestWaitMs: queue.length ? idleClock.now() - queue[0].queuedAt : 0 }, counts: { ...counts },
+      rejections: { byReason: { ...rejectionReasons }, byKind: { ...rejectionKinds }, byReasonAndKind: { ...rejectionReasonKinds } },
       retainedWork: { pending: pending.size, cancellationGrace: cancelledGrace ? 1 : 0,
         stateInputs: [...pending.values()].filter(entry => entry.state || entry.stateInput).length },
       cache: { entries: cache.size, limit: cacheLimit, byteLimit: cacheByteLimit, bytes: [...cache.values()].reduce((sum, value) => sum + value.bytes, 0) },

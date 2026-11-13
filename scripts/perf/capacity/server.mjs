@@ -6,6 +6,8 @@ import { catalogue, random, loopback, syntheticWorld } from './model.mjs';
 import { observeServerIdentity } from './evidence.mjs';
 import { configureMemoryProfile, verifyServerMemoryProfile } from './memory-profile.mjs';
 import { residency as selectResidency, residencyOptions, verifyServerResidency } from './residency.mjs';
+import { createSampleEmitter } from './sample-server.mjs';
+import { createAdmissionCorrelation, observeAdmissionCorrelation } from './admission-correlation.mjs';
 if(!process.send) throw new Error('Use run.mjs.');
 const [directory,profileFile,mode,workers,fixtureFrom,fixtureEvidenceFrom]=process.argv.slice(2);
 const profile=JSON.parse(await readFile(profileFile,'utf8'));
@@ -65,6 +67,7 @@ if(mode==='fixture') {
     const {buildWorld}=await import('../../../app/data/world.mjs');
     const {createGroupState}=await import('../../../app/core/state.mjs');
     const ownedFormat2=profile.storageFormat==='format2'?await (await import('./owned-release.mjs')).loadCapacityOwnedRelease(directory):false;
+    const correlation=createAdmissionCorrelation();
     app=await createServer({dataDir:path.join(directory,'legacy'),host:'127.0.0.1',port:profile.port,
       ownedFormat2,
       loopbackPort:undefined,publicOrigin:undefined,definitions:data,world:syntheticWorld(data,buildWorld),taskMap:{},
@@ -78,38 +81,35 @@ if(mode==='fixture') {
         caps:profile.entityCaps,...residencyOptions(residency),
         onContextOpen:event=>process.send({type:'context-open',atMs:performance.now(),...event}),
         onAdmission:event=>{const kind=event.kind??event.type??event.event??'event';admission[kind]=(admission[kind]??0)+1;
-          process.send({type:'admission',atMs:performance.now(),...event});
+          process.send({type:'admission',atMs:performance.now(),...correlation.observe(event)});
           coldQueue={pending:event.pending,active:event.active,accounts:event.accounts,waitMs:event.waitMs,serviceMs:event.serviceMs};}},
     });
+    observeAdmissionCorrelation(app.server,correlation);
     const serverId=observeServerIdentity(app.server);
     await app.listen();
     const base=loopback(`http://127.0.0.1:${app.address().port}`,{assigned:profile.port===0});
     const headers={Authorization:'Bearer '+app.store.getAccessToken()};
-    const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw new Error('Telemetry HTTP failure');return res.json();};
+    const get=async route=>{const res=await fetch(base+route,{headers,signal:AbortSignal.timeout(5000),redirect:'error'});if(!res.ok)throw Object.assign(new Error(`Telemetry HTTP failure: ${route}`),{status:res.status});return res.json();};
     // Verify the running app before announcing ready, on every process generation.
     const memoryProfileVerification=await verifyServerMemoryProfile(memoryProfile,get);
     const residencyVerification=await verifyServerResidency(residency,get);
     process.send({type:'ready',base,serverId,memoryProfile,memoryProfileVerification,residency:residencyVerification.residency,residencyVerification});
+    const emitSample=createSampleEmitter({get,workers,send:message=>{if(process.connected)process.send(message);},
+      identity:{serverId,memoryProfile,residency:residencyVerification.residency},snapshot:()=>{
+        const current=performance.eventLoopUtilization(),utilization=performance.eventLoopUtilization(current,lastUtilization);
+        lastUtilization=current;
+        const value={memory:process.memoryUsage(),cpu:process.cpuUsage(),
+          eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
+            utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}};
+        loop.reset();return value;
+      }});
     process.on('message',async message=>{
       try {
         if(message.type==='stop') return await stop();
         if(message.type==='sample') {
-          // Send each HTTP observation immediately; calculator heap probes must
-          // not make an earlier health/residency result look fresh.
-          await Promise.all([['health','/api/health'],['diagnostics','/api/diagnostics']].map(async([part,route])=>{
-            const value=await get(route);process.send({type:`sample-${part}`,id:message.id,serverId,memoryProfile,residency:residencyVerification.residency,[part]:value});
-          }));
-          const calculatorHeaps=await Promise.all([...workers].filter(worker=>typeof worker.getMemoryUsage==='function').map(async worker=>{
-            try {const value=await worker.getMemoryUsage();return {pid:value.pid,hostHeapUsed:value.main?.heapUsed,threadHeapUsed:value.workers?.length?value.workers.reduce((n,w)=>n+(w.memoryUsage?.heapUsed??0),0):null};}catch{return null;}
-          }));
-          const currentUtilization=performance.eventLoopUtilization(), utilization=performance.eventLoopUtilization(currentUtilization,lastUtilization);
-          lastUtilization=currentUtilization;
-          process.send({type:'sample',id:message.id,serverId,memoryProfile,residency:residencyVerification.residency,memory:process.memoryUsage(),cpu:process.cpuUsage(),
-            eventLoop:{p50Ms:loop.percentile(50)/1e6,p95Ms:loop.percentile(95)/1e6,p99Ms:loop.percentile(99)/1e6,maxMs:loop.max/1e6,
-              utilization:utilization.utilization,activeMs:utilization.active,idleMs:utilization.idle},calculatorHeaps,coldQueue,admission:{...admission},upstreamCounts:{...upstreamCounts}});
-          loop.reset();
+          await emitSample(message.id).required;
         }
-      } catch { process.send({type:'sample-error',id:message.id}); }
+      } catch(error) { if(process.connected)process.send({type:'sample-error',id:message.id,part:'snapshot',error:{name:error.name,message:error.message}}); }
     });
     process.once('disconnect',()=>{void stop();});
     process.once('SIGTERM',()=>{void stop();});

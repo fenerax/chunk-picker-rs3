@@ -26,8 +26,11 @@ export async function buildGroups(jobs, { workers, workerData, onProgress = asyn
         onProgress: value => observe(() => onProgress(value, slot, signal), signal),
         onFailure: error => controller.abort(error),
       }));
+    // A fast worker must not start store I/O while a sibling still forks its
+    // process-identity child. That child can inherit the fast worker's guard
+    // and keep its abstract socket bound beyond the worker's close callback.
+    await observe(() => Promise.all(threads.map(thread => thread.ready)), signal);
     tasks.push(...threads.map(async (thread, slot) => {
-      await thread.ready;
       for (;;) {
         signal.throwIfAborted();
         const index = cursor++;

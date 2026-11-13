@@ -55,6 +55,17 @@ test('an aborted read stays silent and an unreadable success gives recovery guid
   await assert.rejects(read('/api/tasks'), /interrupted or unreadable/);
 });
 
+test('plain recovery messages retain timeout and interrupted-body causes', async () => {
+  const timeout = new DOMException('Synthetic deadline', 'TimeoutError');
+  const transport = new TypeError('fetch failed', { cause: Object.assign(new Error('Synthetic reset'), { code: 'ECONNRESET' }) });
+  for (const cause of [timeout, transport]) {
+    const read = createRequestReader({ fetch: async () => { throw cause; } });
+    await assert.rejects(read('/api/tasks'), error => error.cause === cause && /Check your internet/.test(error.message));
+    const body = createRequestReader({ fetch: async () => ({ ok: true, status: 200, json: async () => { throw cause; } }) });
+    await assert.rejects(body('/api/tasks'), error => error.cause === cause && /interrupted or unreadable/.test(error.message));
+  }
+});
+
 test('startup can own read retries without losing a session preflight Retry-After', async () => {
   const error = Object.assign(new Error('Updating'), { status: 503, code: 'PICKER_UPDATING', retryAfterMs: 60000 });
   const read = createRequestReader({ fetch: async () => { throw error; }, sleep: async () => assert.fail('startup owns the delay') });
