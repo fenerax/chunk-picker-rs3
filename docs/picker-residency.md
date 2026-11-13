@@ -11,6 +11,11 @@ consume another factory permit. The shared permit is released when factory work
 and abandonment drains settle, independently of pins still waiting on a
 checkpoint. Those waiters retain pending charges and cancellation hooks through
 their acquisition/drain; expiry returns 503 and fences any late pin.
+Pinning and admission acceptance are synchronous: once pinned, exactly one
+request receives ownership and releases it in its handler's `finally`, even if
+disconnect or shutdown prevents dispatch. A deadline that runs before pinning
+rejects acquisition; a queued deadline callback after acceptance cannot revoke
+the pin or discard its owner.
 
 A cancelled or expired request detaches from the opening. Other waiters keep it
 alive. When an unpublished opening's last waiter leaves, that generation is

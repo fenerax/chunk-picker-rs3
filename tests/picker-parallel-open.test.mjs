@@ -335,6 +335,104 @@ test('a checkpoint at the cold admission handoff retains the waiter deadline and
   assert.deepEqual(f.calls, ['a', 'b']);
 });
 
+test('disconnect after a successful cold pin releases it once and leaves the resident idle-closable', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = await fixture(t), original = f.router.checkpoint.open;
+  let opens = 0, pinned;
+  f.router.checkpoint.open = (id, work) => {
+    const finalPin = id === 'a' && ++opens === 3;
+    return original(id, () => {
+      const result = work();
+      if (finalPin) { pinned = result; queueMicrotask(() => a.disconnect()); }
+      return result;
+    });
+  };
+  const a = f.send('a'); await a.done; const released = await f.wait('released', 'a');
+  assert.equal(released.pending, 0); assert.equal(f.timers.size, 0);
+  assert.equal(f.events.rows.filter(row => row.event === 'handle' && row.pickerId === 'a').length, 0);
+  assert.equal(pinned.active, 0, 'the disconnected request cannot lose its successful pin');
+  assert.equal((await f.send('a').done).status, 200);
+  assert.equal(pinned.active, 0, 'a later warm request does not inherit a leaked pin');
+  t.mock.timers.tick(600000); await f.wait('closed', 'a');
+  assert.equal(f.events.rows.filter(row => row.event === 'closed' && row.pickerId === 'a').length, 1);
+  assert.equal(f.owners.has('a'), false);
+});
+
+for (const boundary of ['deadline', 'disconnect-shared', 'shutdown']) test(`${boundary} in the pin handoff preserves exactly one owner per accepted pin`, async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = await fixture(t), factory = f.hold('factory', 'a'), original = f.router.checkpoint.open;
+  let opens = 0, pinned, stopping, dispatched = 0;
+  f.router.checkpoint.open = (id, work) => {
+    const finalPin = id === 'a' && ++opens === 3;
+    return original(id, () => {
+      // Retain an already queued timer callback, even if acceptance clears it.
+      const expire = finalPin && boundary === 'deadline' ? f.timers.get(1) : undefined;
+      if (finalPin && boundary === 'deadline') assert.equal(typeof expire, 'function');
+      const result = work();
+      if (finalPin) {
+        pinned = result;
+        const handle = pinned.context.handle;
+        pinned.context.handle = (...args) => { dispatched++; return handle(...args); };
+        queueMicrotask(() => {
+          if (boundary === 'deadline') expire();
+          else if (boundary === 'shutdown') stopping = f.router.close();
+          else a.disconnect();
+        });
+      }
+      return result;
+    });
+  };
+  const a = f.send('a'); await f.wait('factory', 'a');
+  let follower;
+  if (boundary === 'disconnect-shared') {
+    follower = f.send('a', { account: 'synthetic-survivor' });
+    await f.events.wait(row => row.event === 'started' && row.admissionId === 2);
+  }
+  factory.resolve();
+  const result = await a.done; await f.wait('released', 'a');
+  if (follower) {
+    assert.equal((await follower.done).status, 200);
+    await f.events.wait(row => row.event === 'released' && row.admissionId === 2);
+  }
+  await stopping;
+  if (boundary === 'deadline') assert.equal(result.status, 200, 'pin acceptance precedes the queued deadline');
+  if (boundary === 'shutdown') assert.equal(result.status, 503, 'shutdown prevents dispatch after accepting ownership');
+  assert.equal(dispatched, boundary === 'shutdown' ? 0 : 1);
+  assert.equal(pinned.active, 0, 'every accepted pin has one release, including the disconnected shared waiter');
+  assert.equal(f.timers.size, 0);
+  assert.equal(f.events.rows.filter(row => row.event === 'released').at(-1).pending, 0);
+  assert.equal(f.events.rows.filter(row => row.event === 'completed' && row.admissionId === 1).length, 1);
+  assert.deepEqual(f.calls, ['a']);
+  if (boundary !== 'shutdown') {
+    assert.equal((await f.send('a').done).status, 200); assert.equal(pinned.active, 0);
+    t.mock.timers.tick(600000); await f.wait('closed', 'a');
+  }
+  assert.equal(f.events.rows.filter(row => row.event === 'closed' && row.pickerId === 'a').length, 1);
+  assert.equal(f.owners.has('a'), false);
+});
+
+test('shared factory failure never creates a pin and its successful retry remains idle-closable', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = await fixture(t), factory = f.hold('factory', 'a'), original = f.router.checkpoint.open;
+  const pins = [];
+  f.router.checkpoint.open = (id, work) => original(id, () => {
+    const result = work(); if (result?.id === 'a' && result.active) pins.push(result); return result;
+  });
+  const first = f.send('a'); await f.wait('factory', 'a');
+  const follower = f.send('a', { account: 'synthetic-failed-follower' });
+  await f.events.wait(row => row.event === 'started' && row.admissionId === 2);
+  factory.reject(new Error('Synthetic factory rejection'));
+  assert.equal((await first.done).status, 503); assert.equal((await follower.done).status, 503);
+  await f.events.wait(row => row.event === 'released' && row.admissionId === 2);
+  assert.equal(pins.length, 0); assert.equal(f.timers.size, 0); assert.equal(f.owners.has('a'), false);
+  assert.equal(f.events.rows.some(row => row.event === 'handle' && row.pickerId === 'a'), false);
+  f.hold('factory', 'a').resolve(); assert.equal((await f.send('a').done).status, 200);
+  assert.equal(pins.length, 1); assert.equal(pins[0].active, 0);
+  t.mock.timers.tick(600000); await f.wait('closed', 'a');
+  assert.equal(f.events.rows.filter(row => row.event === 'closed' && row.pickerId === 'a').length, 1);
+  assert.equal(f.owners.has('a'), false);
+});
+
 test('deletion during opening waits for its late close before revocation and directory purge', async t => {
   const f = await fixture(t), factory = f.hold('factory', 'a'), close = f.hold('close', 'a');
   await mkdir(f.registry.pickerDirectory('a')); const sentinel = path.join(f.registry.pickerDirectory('a'), 'synthetic');

@@ -44,7 +44,10 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
     item.finishing = true;
     void Promise.resolve().then(() => {
       item.controller.signal.throwIfAborted();
-      return item.finish(value, item.controller.signal);
+      // A resource-owning finalizer accepts in the same synchronous step as
+      // pinning. Later cancellation or finalizer failure cannot discard that
+      // ownership before the request receives it and performs its cleanup.
+      return item.finish(value, item.controller.signal, pinned => { settle(item, pinned); return pinned; });
     }).then(value => settle(item, value), error => settle(item, error, true))
       .finally(() => { item.finishing = false; releaseWaiter(item); });
   }

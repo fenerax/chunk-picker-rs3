@@ -207,10 +207,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       }
     };
     const work = PROFILE_ENABLED ? profile.bind(signal => profile.span('context.open', () => open(signal))) : open;
-    const finish = (entry, waiterSignal) => checkpoint.open(id, () => {
+    const finish = (entry, waiterSignal, accept) => checkpoint.open(id, () => {
       const pinned = pin(entry, waiterSignal);
       if (!pinned) throw retry();
-      return pinned;
+      return accept ? accept(pinned) : pinned;
     });
     const disconnected = () => { void detach()?.catch(() => {}); };
     if (!admission) signal?.addEventListener('abort', disconnected, { once: true });
@@ -382,6 +382,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
         };
         const selected = await contextFor(request, security, bindBody, receiveBackup, controller.signal); entry = selected.entry;
+        // Keep the received pin for finally even if shutdown won the handoff.
+        if (closed) throw retry();
         controller.signal.throwIfAborted();
         // Match the route exactly as the sign-in handler decodes it, after any
         // /pickers/<id> prefix is rewritten away.

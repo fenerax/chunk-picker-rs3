@@ -104,6 +104,31 @@ for (const boundary of ['deadline', 'cancelled', 'shutdown']) test(`${boundary} 
   assert.equal(events.some(row => row.admissionId === 1 && row.event === 'completed'), false);
 });
 
+test('factory rejection cannot pin and finalizer rejection cannot discard a value already accepted atomically', async t => {
+  const events = [], releases = [Promise.withResolvers(), Promise.withResolvers()];
+  const admission = createPickerAdmission({ limits: createPickerLimits(),
+    clock: { setTimeout: () => Symbol(), clearTimeout() {} }, onEvent(row) {
+      events.push(row); if (row.event === 'released') releases[row.admissionId - 1].resolve(row);
+    } });
+  t.after(() => admission.close());
+  await assert.rejects(admission.run(owner('synthetic-failed'), () => { throw new Error('Synthetic factory failure'); }, undefined,
+    { finish: () => assert.fail('a failed factory cannot allocate a pin') }), /Synthetic factory failure/);
+  await releases[0].promise;
+  let pins = 0, handled = 0, released = 0;
+  const entry = {}, abort = new AbortController();
+  const acquired = await admission.run(owner('synthetic-accepted'), () => entry, abort.signal,
+    { finish(value, signal, accept) {
+      signal.throwIfAborted(); pins++; accept(value);
+      queueMicrotask(() => abort.abort());
+      throw new Error('Synthetic failure after pin acceptance');
+    } });
+  try { assert.equal(acquired, entry); handled++; } finally { released++; }
+  assert.equal((await releases[1].promise).pending, 0);
+  assert.deepEqual({ pins, handled, released }, { pins: 1, handled: 1, released: 1 });
+  assert.equal(events.filter(row => row.admissionId === 2 && row.event === 'completed').length, 1);
+  assert.equal(events.some(row => row.admissionId === 2 && ['error', 'cancelled'].includes(row.event)), false);
+});
+
 test('active cancellation and deadline keep the real lease and slots until work settles', async t => {
   for(const boundary of ['cancelled','deadline']){
     const {admission:a,limits,events}=fixture(t,{deadlineMs:30,perAccount:1}), gate=Promise.withResolvers(),entered=Promise.withResolvers(),controller=new AbortController();t.after(()=>gate.resolve());
