@@ -16,11 +16,13 @@ export class FixtureThread {
     worker.on('message', message => {
       if (this.closed) return;
       if (message.type === 'stopped') { this.stopped = true; return; }
+      // A close can fail while STOP is draining a cancelled build. Preserve
+      // that failure even after normal progress/result messages are disabled.
+      if (message.type === 'failure') { this.fail(new Error(message.message)); return; }
       if (this.stopping) return;
       if (message.type === 'ready') this.initialized.resolve();
       else if (message.type === 'progress') void this.progress(message);
       else if (message.type === 'result') this.pending?.resolve(message.value);
-      else if (message.type === 'failure') this.fail(new Error(message.message));
     });
   }
   fail(error) {
