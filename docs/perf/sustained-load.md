@@ -409,6 +409,25 @@ provenance is explicitly unknown. `fixtureDigest`, the fixture-content digest,
 remains the comparison key between runs. The current run's source commit/tree
 digest continues to identify the measured server code.
 
+Fixture content version 2 adds a final production retention pass at the serving
+wall clock, after generation or verified copying and any evidence-only refresh.
+Version-1 sources remain accepted and immutable; only the working copy is opened
+and receives its own manifest and seal. `retentionNormalization` in `fixture.json`
+and, for reuse, `fixtureReuse.retentionNormalization` records the pass timestamp,
+per-store metadata-selection candidates before/after, validated standalone
+removals (`packedSnapshots`) and archive pack counts. Candidates precede document
+pin checks, so pinned candidates can correctly remain. Normalization can change
+physical retention layout and the logical fixture digest. Compare the recorded
+digest and normalization receipt when attributing results. The deterministic
+format-1/format-2 aged-store regressions still require actual validation/packing;
+the unchanged-clock pass then has zero candidates. Original version-1 goldens
+remain the historical definition; the tiny version-2 goldens retain that same
+output because none of their backups age beyond the policy.
+
+Progress JSON is informational and written in place, serialized by the builder.
+A concurrent reader can see an incomplete progress write; the completion seal,
+inventory and checksums are the authority for reuse.
+
 Keep the sealed source immutable. The harness verifies and streams copies into
 the new output directory, preserves file mtimes, then runs the measured server
 only on that copy. It never opens a source store or reseals the source. Output

@@ -38,6 +38,7 @@ const hook = registerHooks({ load(url, context, next) {
 } });
 const { openStore } = await import(storeURL);
 hook.deregister();
+const { normalizeStoreRetention } = await import('../scripts/perf/capacity/fixture-retention.mjs');
 const now = () => '2026-10-07T00:00:00.000Z';
 const command = revision => ({ type: 'set-rule', ruleId: 'access.shared', value: Boolean(revision % 2) });
 
@@ -97,6 +98,22 @@ async function archive(dataDir) {
 }
 
 for (const format of [1, 2]) {
+  test(`format ${format}: fixture normalization validates aged candidates and leaves the serving-clock pass settled`, async t => {
+    const f = await fixture(t, format);
+    reset();
+    const receipt = await normalizeStoreRetention({ ...f.config, retention: { backupDays: 1 } }, { at: now(), open: f.open });
+    assert.equal(receipt.candidatesBefore, 4); assert.equal(receipt.packedSnapshots, 4);
+    assert.equal(receipt.packsAdded, 1); assert.equal(receipt.candidatesAfter, 0);
+    assert.equal(probe.candidates, 4, 'all four removed sources crossed production import/validation');
+    assert.ok(probe.validations >= 4);
+    assert.deepEqual(await standaloneRevisions(f.dataDir), [0, 5]);
+    reset();
+    const settled = await f.open(); await settled.prepareSnapshot(); await settled.close();
+    assert.equal(probe.candidates, 0); assert.equal(probe.indexes, 0);
+    const portable = await settled.readBackup(f.snapshots.find(row => row.revision === 2).id, { forImport: true });
+    assert.equal(portable.state.revision, 2);
+  });
+
   test(`format ${format}: clean-close reopen and unchanged passes do zero backup decoding or validation`, async t => {
     const f = await fixture(t, format), packed = await f.open();
     await probe.startup;

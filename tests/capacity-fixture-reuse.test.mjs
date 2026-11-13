@@ -52,10 +52,32 @@ test('sealed fixture reuse compatibility and source isolation', async t => {
     return { ...fixture, directory };
   };
 
+  for (const format of ['format1', 'format2']) await t.test(`${format} normalizes only an aged working copy and seals candidate/pack receipts`, async () => {
+    const f = await clone(format), oldAt = new Date('2026-01-01T00:00:00.000Z');
+    for (const entry of await cache.fixtureInventory(f.directory)) if (/\/backups\/\d{16}-[a-f0-9]{16}\.json(?:\.gz)?$/.test(entry.path))
+      await utimes(path.join(f.directory, entry.path), oldAt, oldAt);
+    await rm(sealFile(f.directory)); await cache.sealFixture(f.directory, f.manifest);
+    const before = await readFile(sealFile(f.directory)), inventory = await cache.fixtureInventory(f.directory);
+    const copied = await cache.copyFixture(f.directory, path.join(root, `normalized-${++next}`), f.profile, selectedDataset.digest,
+      { servingNow: () => Date.parse('2026-11-12T00:00:00.000Z') });
+    assert.equal(copied.retentionNormalization.at, '2026-11-12T00:00:00.000Z');
+    assert.ok(copied.retentionNormalization.candidatesBefore > 0);
+    assert.ok(copied.retentionNormalization.packedSnapshots > 0);
+    assert.ok(copied.retentionNormalization.packsAdded > 0);
+    assert.equal(copied.retentionNormalization.candidatesAfter, 0);
+    assert.deepEqual(copied.fixtureReuse.retentionNormalization, copied.retentionNormalization);
+    assert.deepEqual(await readFile(sealFile(f.directory)), before);
+    assert.deepEqual(await cache.fixtureInventory(f.directory), inventory);
+    await cache.verifyFixture(f.directory, f.profile, selectedDataset.digest);
+  });
+
   for (const format of ['format1', 'format2']) await t.test(`${format} tiny generated output is pinned to the fixture content version`, async () => {
     // Advance the version and add a new golden when builder semantics change.
     // Retain version 1: old seals without a content version mean version 1.
     const golden = { 1: {
+      format1: '0f1f9260b897485a8b65df0eac7449359e0242d490dcf7fd4753c6b9a77d9886',
+      format2: '6ddc4a47e758dc6720ac705089591f2482097faf2108f170e8d8f6656caeb88f',
+    }, 2: {
       format1: '0f1f9260b897485a8b65df0eac7449359e0242d490dcf7fd4753c6b9a77d9886',
       format2: '6ddc4a47e758dc6720ac705089591f2482097faf2108f170e8d8f6656caeb88f',
     } };
@@ -214,7 +236,9 @@ test('sealed fixture reuse compatibility and source isolation', async t => {
     const sourceProgress = await readFile(path.join(f.directory, 'fixture-progress.json'));
     const directory = path.join(root, `measured-copy-${++next}`);
     const manifest = await cache.copyFixture(f.directory, directory, f.profile, selectedDataset.digest);
-    assert.deepEqual(await cache.fixtureInventory(directory), inventory, 'copy preserves every modifiedMs');
+    assert.deepEqual((await cache.fixtureInventory(directory)).filter(row => row.path !== 'fixture.json'),
+      inventory.filter(row => row.path !== 'fixture.json'), 'settled copy preserves every serving-file modifiedMs; its own manifest records normalization');
+    await cache.verifyFixture(directory, f.profile, selectedDataset.digest);
     const before = await readFile(path.join(directory, 'pickers', manifest.groups[0].pickerId, 'state.json'));
     const app = await servingServer({ ...f, directory, manifest });
     try {

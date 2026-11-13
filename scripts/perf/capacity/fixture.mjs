@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { mkdir, writeFile, rename } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { normalizeFixtureRetention } from './fixture-retention.mjs';
 import { planFixture, digest, knownGaps, integer, syntheticWorld } from './model.mjs';
 import { fixtureWorkers, buildGroups } from './fixture-pool.mjs';
 import { fixtureConfigDigest, logicalFixtureDigest, sealFixture } from './fixture-cache.mjs';
@@ -10,7 +11,7 @@ import { datasetEvidenceRecord } from '../../../app/dataset-evidence.mjs';
 
 // The parent alone owns registry/invites/keys. Workers exclusively own the
 // disjoint picker stores between provisioning and ordered capability indexing.
-export async function generate(profile, directory, { workers: requestedWorkers, sourceCommit } = {}) {
+export async function generate(profile, directory, { workers: requestedWorkers, sourceCommit, servingNow } = {}) {
   const started = performance.now(), plan = planFixture(profile), workers = fixtureWorkers(requestedWorkers, { groups: plan.length });
   const active = new Map();
   let groups = 0, characters = 0, builtGroups = 0, sequence = 0, writes = Promise.resolve();
@@ -20,7 +21,9 @@ export async function generate(profile, directory, { workers: requestedWorkers, 
       sequence: ++sequence, updatedAt: new Date().toISOString(), elapsedMs: performance.now() - started };
     return writes = writes.then(async () => {
       const filename = path.join(directory, 'fixture-progress.json');
-      await writeFile(filename + '.tmp', JSON.stringify(snapshot)); await rename(filename + '.tmp', filename);
+      // Informational progress is never a completion receipt. In-place writes
+      // avoid Windows replacement failures while a reader has the file open.
+      await writeFile(filename, JSON.stringify(snapshot));
     });
   };
   await progress({ phase: 'catalogue' });
@@ -103,6 +106,8 @@ export async function generate(profile, directory, { workers: requestedWorkers, 
       }
     } finally { await invites?.close(); await legacyStore.close(); }
   } finally { await registry.close(); }
+  await progress({ phase: 'normalizing-retention' });
+  await normalizeFixtureRetention(directory, profile, manifest, { servingNow });
   manifest.fixtureDigest = logicalFixtureDigest(manifest);
   await progress({ phase: 'verifying' });
   await writeFile(path.join(directory, 'fixture.json'), JSON.stringify(manifest), { mode: 0o600, flag: 'wx' });

@@ -51,6 +51,8 @@ test('fixture copy uses production evidence migration and keeps the source bytes
   await t.test('copy commits one backup, revision and event per picker and records the applied transition', async () => {
     const output = path.join(root, 'upgraded'), copied = await copyFixture(source, output, profile, current);
     const transition = copied.fixtureReuse.datasetTransition;
+    assert.equal(copied.fixtureReuse.retentionNormalization.clock, 'serving-wall-clock');
+    assert.equal(copied.retentionNormalization.candidatesAfter, 0);
     assert.deepEqual({ oldDigest: transition.oldDigest, newDigest: transition.newDigest, applied: transition.applied,
       refreshedPickers: transition.refreshedPickers, backupsAdded: transition.backupsAdded },
     { oldDigest: previous.digest, newDigest: current.digest, applied: 'evidence-only catalogue-refresh', refreshedPickers: 1, backupsAdded: 1 });
