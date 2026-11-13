@@ -6,7 +6,11 @@ alone count as open contexts in service health. The context factory runs outside
 that global queue under the existing cold-start admission permits. Authorized
 requests for the same picker share its factory and one cold permit, including
 requests from other accounts. Each request keeps its existing pending charge
-and deadline. Joining does not consume another factory permit.
+and deadline through its own checkpoint-protected final pin. Joining does not
+consume another factory permit. The shared permit is released when factory work
+and abandonment drains settle, independently of pins still waiting on a
+checkpoint. Those waiters retain pending charges and cancellation hooks through
+their acquisition/drain; expiry returns 503 and fences any late pin.
 
 A cancelled or expired request detaches from the opening. Other waiters keep it
 alive. When an unpublished opening's last waiter leaves, that generation is

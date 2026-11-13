@@ -5,7 +5,7 @@ const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefine
 export const COLD_OPEN_ADMISSION = Object.freeze({ maxPending: 64, perAccount: 2, deadlineMs: 2000, retryMs: 25, maxRetries: 80 });
 const refused = reason => Object.assign(new Error(`Picker admission ${reason}. Wait a moment and retry.`), { status: 503, retryAfter: 1 });
 export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMISSION, clock = { setTimeout, clearTimeout } }) {
-  const groups = new Map(), active = new Set(), shared = new Map();
+  const groups = new Map(), active = new Set(), shared = new Map(), items = new Set();
   let pending = 0, closed = false, pumping = false, sequence = 0;
   const drained = new Set();
   function observe(event, item, extra = {}) {
@@ -17,19 +17,48 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
       pending, active: active.size, accounts: groups.size, ...extra }); } catch { /* Diagnostics cannot change admission. */ }
   }
   function remove(item) {
+    if (item.removed) return;
+    item.removed = true; items.delete(item);
     clock.clearTimeout(item.timer); item.signal?.removeEventListener('abort', item.abort);
     const group = groups.get(item.account); group.count--;
     if (!group.count) groups.delete(item.account);
     pending--; if (!pending) { for (const resolve of drained) resolve(); drained.clear(); }
+  }
+  function releaseWaiter(item) {
+    if (item.removed || !item.job.drained || !item.settled || item.finishing || item.cancelDrain && !item.cancelDrained) return;
+    remove(item); observe('released', item);
+  }
+  function settle(item, value, failed = false) {
+    if (item.settled) return;
+    item.settled = true; clock.clearTimeout(item.timer);
+    item.signal?.removeEventListener('abort', item.abort);
+    if (failed) { item.reject(value); observe('error', item, { failureCode: value?.code ?? value?.name }); }
+    else { item.resolve(value); observe('completed', item); }
+    releaseWaiter(item);
+  }
+  function finish(item, value) {
+    if (item.settled) return;
+    if (!item.finish) { settle(item, value); return; }
+    // The factory's lease and each waiter's acquisition have separate lifetimes.
+    // A checkpoint may block one final pin after the shared work has drained.
+    item.finishing = true;
+    void Promise.resolve().then(() => {
+      item.controller.signal.throwIfAborted();
+      return item.finish(value, item.controller.signal);
+    }).then(value => settle(item, value), error => settle(item, error, true))
+      .finally(() => { item.finishing = false; releaseWaiter(item); });
   }
   function cancel(item, reason) {
     if (item.settled) return;
     item.settled = true; clock.clearTimeout(item.timer);
     item.signal?.removeEventListener('abort', item.abort);
     const error = refused(reason), job = item.job;
+    item.controller.abort(error);
     // A shared factory may outlive this waiter. Its last waiter can also own a
     // late close; keep a started lease until that cancellation drain settles.
-    item.cancelDrain = Promise.resolve(item.onCancel?.()).catch(() => {});
+    item.cancelDrain = Promise.resolve(item.onCancel?.()).catch(() => {}).then(() => {
+      item.cancelDrained = true; releaseWaiter(item);
+    });
     item.reject(error);
     if (item.startedAt === undefined) {
       const group = groups.get(item.account); group.queue.splice(group.queue.indexOf(item), 1);
@@ -73,17 +102,17 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
         void Promise.resolve().then(() => { job.controller.signal.throwIfAborted(); return job.work(job.controller.signal); }).then(
           value => {
             if (shared.get(job.key) === job) shared.delete(job.key);
-            for (const member of job.members) if (!member.settled) { member.settled = true; member.resolve(value); observe('completed', member); }
+            for (const member of job.members) finish(member, value);
           },
           error => {
             if (shared.get(job.key) === job) shared.delete(job.key);
-            for (const member of job.members) if (!member.settled) { member.settled = true; member.reject(error); observe('error', member, { failureCode: error?.code ?? error?.name }); }
+            for (const member of job.members) settle(member, error, true);
           },
         ).finally(async () => {
           await Promise.all([...job.members].map(member => member.cancelDrain));
           if (shared.get(job.key) === job) shared.delete(job.key);
-          release(); active.delete(job); group.active--;
-          for (const member of job.members) { remove(member); observe('released', member); }
+          release(); active.delete(job); group.active--; job.drained = true;
+          for (const member of job.members) releaseWaiter(member);
           // Keep an account with repeat work behind accounts that arrived during
           // its turn, including two independently replenishing flooders.
           if (groups.get(account) === group) { groups.delete(account); groups.set(account, group); }
@@ -92,12 +121,12 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
     } finally { pumping = false; }
   }
   return {
-    run(owner, work, signal, { onCancel, sharedKey } = {}) {
+    run(owner, work, signal, { onCancel, sharedKey, finish } = {}) {
       const item = { id: ++sequence, owner, queuedAt: performance.now() };
       if (closed) { observe('shutdown', item); return Promise.reject(refused('shutdown')); }
       if (signal?.aborted) { observe('cancelled', item); return Promise.reject(refused('cancelled')); }
       const account = owner.accountId, group = groups.get(account);
-      Object.assign(item, { account, work, signal, onCancel });
+      Object.assign(item, { account, work, signal, onCancel, finish, controller: new AbortController() });
       if (PROFILE_ENABLED) { item._profile = profile.capture(); item._profileAt = profile.now(); }
       if ((group?.count ?? 0) >= bounds.perAccount || pending >= bounds.maxPending) {
         const reason = (group?.count ?? 0) >= bounds.perAccount ? 'account-full' : 'queue-full';
@@ -113,7 +142,7 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
       item.job = job; job.members.add(item);
       if (!group) groups.set(account, { queue: [item], count: 1, active: 0 });
       else { group.queue.push(item); group.count++; }
-      pending++; item.abort = () => cancel(item, 'cancelled');
+      pending++; items.add(item); item.abort = () => cancel(item, 'cancelled');
       signal?.addEventListener('abort', item.abort, { once: true });
       item.timer = clock.setTimeout(() => cancel(item, 'deadline'), bounds.deadlineMs);
       observe('queued', item);
@@ -122,8 +151,8 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
     },
     close() {
       closed = true;
-      for (const group of [...groups.values()]) for (const item of [...group.queue]) cancel(item, 'shutdown');
-      for (const job of active) for (const item of job.members) cancel(item, 'shutdown');
+      // Include final pins whose factory permit has already been released.
+      for (const item of items) cancel(item, 'shutdown');
       return pending ? new Promise(resolve => drained.add(resolve)) : Promise.resolve();
     },
   };

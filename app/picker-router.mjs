@@ -207,17 +207,19 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       }
     };
     const work = PROFILE_ENABLED ? profile.bind(signal => profile.span('context.open', () => open(signal))) : open;
+    const finish = (entry, waiterSignal) => checkpoint.open(id, () => {
+      const pinned = pin(entry, waiterSignal);
+      if (!pinned) throw retry();
+      return pinned;
+    });
     const disconnected = () => { void detach()?.catch(() => {}); };
     if (!admission) signal?.addEventListener('abort', disconnected, { once: true });
     try {
-      const entry = await (admission ? admission.run(owner, work, signal, { onCancel: detach, sharedKey: id }) : work(signal));
-      const pinned = await checkpoint.open(id, () => pin(entry, signal));
-      if (!pinned) throw retry();
-      return pinned;
+      return await (admission ? admission.run(owner, work, signal, { onCancel: detach, sharedKey: id, finish }) : finish(await work(signal), signal));
     } finally {
       signal?.removeEventListener('abort', disconnected);
       // Successful pins belong to handle() now. Failed/cancelled acquisition
-      // can leave a drain running, but admission keeps its started lease for it.
+      // can leave a drain running; admission tracks factory and pin lifetimes.
       void detach()?.catch(() => {});
     }
   }

@@ -116,7 +116,7 @@ async function fixture(t, { coldStartsGlobal = 4, maxOpenContexts = 8, observeAd
   }
   const wait = (event, id) => events.wait(row => row.event === event && row.pickerId === id);
   const expire = admissionId => { const callback = timers.get(admissionId); assert.ok(callback, 'live deadline'); timers.delete(admissionId); callback(); };
-  return { root, router, limits, registry, events, calls, contexts, owners, defer, hold, send, wait, expire };
+  return { root, router, limits, registry, events, calls, contexts, owners, timers, defer, hold, send, wait, expire };
 }
 
 test('held factories consume only the configured permits while unrelated warm and cold requests progress', async t => {
@@ -300,6 +300,39 @@ test('checkpoint before a factory holds its initialization without blocking anot
   const a = f.send('a'); await f.wait('started', 'a');
   assert.equal((await f.send('b').done).status, 200); assert.deepEqual(f.calls, ['b']);
   gate.resolve(); await checkpoint; assert.equal((await a.done).status, 200); assert.deepEqual(f.calls, ['b', 'a']);
+});
+
+test('a checkpoint at the cold admission handoff retains the waiter deadline and pending charge through its final pin', async t => {
+  const f = await fixture(t, { coldStartsGlobal: 1 }), gate = f.defer(), captured = f.defer();
+  const original = f.router.checkpoint.open;
+  let opens = 0, checkpoint;
+  f.router.checkpoint.open = (id, work) => {
+    // Initialization and publication have finished. Start the checkpoint at
+    // the final pin, which used to occur after admission completed/released.
+    if (id === 'a' && ++opens === 3) checkpoint = withDirectoryBarriers([f.registry.pickerDirectory(id)], async () => {
+      captured.resolve(); await gate.promise;
+    });
+    return original(id, work);
+  };
+  const a = f.send('a'); await captured.promise;
+  assert.equal(f.events.rows.some(row => row.pickerId === 'a' && ['completed', 'released'].includes(row.event)), false,
+    'acquisition has not finished at its checkpoint-protected pin');
+  assert.equal(f.timers.size, 1, 'the cold waiter still owns its original deadline');
+  assert.equal((await f.send('b').done).status, 200, 'the factory permit is independent of the blocked pin');
+  const released = await f.wait('released', 'b');
+  assert.equal(released.pending, 1, 'the blocked acquisition still consumes its pending charge');
+  assert.equal(f.timers.size, 1);
+  f.expire(1);
+  const result = await a.done;
+  assert.equal(result.status, 503); assert.match(result.text, /admission deadline/);
+  assert.equal(result.headers.get('retry-after'), 1);
+  assert.equal(f.events.rows.some(row => row.event === 'handle' && row.pickerId === 'a'), false);
+  gate.resolve(); await checkpoint; await f.wait('released', 'a');
+  assert.equal(f.events.rows.some(row => row.event === 'completed' && row.pickerId === 'a'), false);
+  assert.equal(f.events.rows.some(row => row.event === 'handle' && row.pickerId === 'a'), false, 'the expired waiter cannot pin after checkpoint release');
+  assert.equal(f.events.rows.at(-1).pending, 0);
+  assert.equal((await f.send('a').done).status, 200, 'expiry leaves the published save usable');
+  assert.deepEqual(f.calls, ['a', 'b']);
 });
 
 test('deletion during opening waits for its late close before revocation and directory purge', async t => {

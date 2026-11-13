@@ -169,7 +169,7 @@ test('y06 trace binds queued shared opens to their request and measures its capa
 
 test('y06 trace fails closed when admission, eviction or cancellation-grace seams disappear',()=>{
   for(const [file,needle,changed] of [
-    ['app/picker-router.mjs','admission.run(owner, work, signal, { onCancel: detach, sharedKey: id })','admission .run(owner, work, signal, { onCancel: detach, sharedKey: id })'],
+    ['app/picker-router.mjs','admission.run(owner, work, signal, { onCancel: detach, sharedKey: id, finish })','admission .run(owner, work, signal, { onCancel: detach, sharedKey: id, finish })'],
     ['app/picker-router.mjs','await evict(selected.victim);','await evict( selected.victim );'],
     ['app/tasks/scheduler.mjs','timer?.unref?.(); cancelledGrace = { entry, timer };','timer?.unref?.(); cancelledGrace = { entry, timer, };'],
   ]){

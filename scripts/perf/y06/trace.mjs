@@ -32,7 +32,12 @@ export function createTrace(root){
       // Support the historical comparison revision and shared-open admission.
       // Binding belongs to the submitted work, even when another request pumps it.
       if(s.includes('admission.run(owner, open, signal)'))s=replace(s,'admission.run(owner, open, signal)',`admission.run(owner, ${g}.bind(open), signal)`);
-      else s=replace(s,'admission.run(owner, work, signal, { onCancel: detach, sharedKey: id })',`admission.run(owner, ${g}.bind(work), signal, { onCancel: detach, sharedKey: id })`);
+      else {
+        const shared=s.includes('admission.run(owner, work, signal, { onCancel: detach, sharedKey: id })')
+          ? 'admission.run(owner, work, signal, { onCancel: detach, sharedKey: id })'
+          : 'admission.run(owner, work, signal, { onCancel: detach, sharedKey: id, finish })';
+        s=replace(s,shared,shared.replace(', work,',`, ${g}.bind(work),`));
+      }
       if(s.includes('await evict(victim);'))s=replace(s,'await evict(victim);',`await ${g}.measure('eviction', () => evict(victim));`);
       else s=replace(s,'await evict(selected.victim);',`await ${g}.measure('eviction', () => evict(selected.victim));`);
     }else if(name==='app/security/picker-limits.mjs'){
