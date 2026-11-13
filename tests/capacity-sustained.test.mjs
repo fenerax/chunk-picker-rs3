@@ -17,6 +17,7 @@ import { SERVER_ID_HEADER, readinessProof } from '../scripts/perf/capacity/evide
 import { observation, createSampleInbox, createSampleCollector } from '../scripts/perf/capacity/sampling.mjs';
 import { createSampleEmitter } from '../scripts/perf/capacity/sample-server.mjs';
 import { evaluate } from '../scripts/perf/capacity/report.mjs';
+import { cpuProfileExecArgv } from '../scripts/perf/capacity/cpu-profile.mjs';
 
 const profile = JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained.json',import.meta.url)));
 
@@ -30,6 +31,16 @@ test('memory profile option defaults explicitly and rejects unknown or missing v
   assert.equal(parseRunOptions(['--fixture-from','synthetic-fixture','--fixture-evidence-from','synthetic-history'])['fixture-evidence-from'],'synthetic-history');
   for(const selected of ['other','', 'DEFAULT'])assert.throws(()=>parseRunOptions(['--memory-profile',selected]),/--memory-profile default or budget-672/);
   assert.throws(()=>parseRunOptions(['--memory-profile']),/argument missing|requires an argument/i);
+});
+
+test('CPU profiling is explicit, confined to measured server children and labelled by isolate scope', () => {
+  assert.equal(parseRunOptions([])['cpu-profile'], false);
+  assert.equal(parseRunOptions(['--cpu-profile'])['cpu-profile'], true);
+  assert.deepEqual(cpuProfileExecArgv(false, 'synthetic', 'server'), []);
+  assert.deepEqual(cpuProfileExecArgv(true, 'synthetic', 'fixture'), []);
+  assert.deepEqual(cpuProfileExecArgv(true, 'synthetic', 'server'), ['--cpu-prof', `--cpu-prof-dir=${path.join('synthetic', 'cpu-profiles')}`]);
+  const manifest = runManifest({ profile: { cpuProfile: true } });
+  assert.match(manifest.cpuProfile.scope, /Worker isolates are not captured/);
 });
 
 test('child environment stays OS-only and the server sets only the explicit opt-in after its purge',()=>{
@@ -656,6 +667,10 @@ test('busy calculator probes cannot withhold HTTP/main-isolate receipts and late
   const packet = await pending;
   assert.equal(packet.health.data.health, server.health); assert.equal(packet.snapshot.receivedAt, 100);
   assert.equal(receipts.some(row => row.type === 'sample-heap'), false);
+  const collector = createSampleCollector({ profile: reportFixture().profile, directory: 'synthetic', now: () => clock,
+    requestSnapshot: async () => packet, readTree: async () => ({ supported: false, cpuSeconds: null }), readDisk: async () => ({ bytes: 0 }) });
+  assert.equal((await collector.collect({ start: 0, generation: 0, pid: 0, client: {} })).errors, 0,
+    'missing optional heap evidence does not invalidate the other observations');
   clock = 6100; await emit(2).required;
   assert.equal(receipts.find(row => row.id === 2 && row.type === 'sample-error').error.name, 'HeapProbeBusy');
   clock = 15100; probe.resolve({ pid: 42, main: { heapUsed: 10 }, workers: [{ memoryUsage: { heapUsed: 20 } }] });

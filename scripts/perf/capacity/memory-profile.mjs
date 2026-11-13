@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { digest } from './model.mjs';
 import { residency, residencyManifest } from './residency.mjs';
 import { sampleCounts, countSample, sampleReceiptStatus, sampleCountsMarkdown } from './sample-verification.mjs';
+import { cpuProfileManifest } from './cpu-profile.mjs';
 
 export function memoryProfile(value = 'default') {
   if (!['default', 'budget-672'].includes(value)) throw new TypeError('Use --memory-profile default or budget-672.');
@@ -15,6 +16,7 @@ export function parseRunOptions(args = process.argv.slice(2)) {
     'fixture-evidence-from': { type: 'string' },
     format: { type: 'string', default: 'format1' }, 'memory-profile': { type: 'string', default: 'default' },
     residency: { type: 'string', default: 'default' },
+    'cpu-profile': { type: 'boolean', default: false },
   } });
   memoryProfile(values['memory-profile']);
   residency(values.residency);
@@ -36,6 +38,7 @@ export const runManifest = ({ profile, format, sourceCommit, sourceTreeDigest, n
   fixtureReuse = null, fixtureDigest = null }) => ({
   schemaVersion: 1, sourceCommit, sourceTreeDigest, node, format,
   fixtureReuse, fixtureDigest,
+  cpuProfile: cpuProfileManifest(profile.cpuProfile),
   requestedMemoryProfile: memoryProfile(profile.requestedMemoryProfile ?? profile.memoryProfile),
   memoryProfile: verification?.status === 'pass' ? verification.memoryProfile : null,
   memoryProfileVerification: verification ?? { status: 'unverified', availability: 'unavailable' },

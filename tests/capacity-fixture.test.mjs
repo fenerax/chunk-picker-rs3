@@ -62,7 +62,13 @@ test('a sealed serial fixture reuses exact bytes and refuses mutations, mismatch
   const reused = await copyFixture(source, copy, { ...profile, name: 'step-up', stages: [{ seconds: 1 }] }, selectedDataset.digest);
   assert.equal(reused.fixtureDigest, manifest.fixtureDigest);
   await verifyFixture(copy, profile, selectedDataset.digest);
-  assert.equal(await readFile(path.join(copy, 'fixture.json'), 'utf8'), await readFile(path.join(source, 'fixture.json'), 'utf8'));
+  const copiedManifest = JSON.parse(await readFile(path.join(copy, 'fixture.json'), 'utf8'));
+  const sourceManifest = JSON.parse(await readFile(path.join(source, 'fixture.json'), 'utf8'));
+  const withoutNormalization = ({ retentionNormalization, groups, ...value }) => ({ ...value,
+    groups: groups.map(({ retentionNormalization, ...group }) => group) });
+  assert.deepEqual(withoutNormalization(copiedManifest), withoutNormalization(sourceManifest));
+  assert.equal(copiedManifest.retentionNormalization.candidatesAfter, 0);
+  assert.equal(sourceManifest.retentionNormalization.at, manifest.retentionNormalization.at);
   await assert.rejects(copyFixture(source, source, profile, selectedDataset.digest), /outside/);
   await assert.rejects(verifyFixture(source, { ...profile, seed: 'synthetic-other' }, selectedDataset.digest), /digest mismatch/);
   const incomplete = path.join(directory, 'incomplete'); await mkdir(incomplete);

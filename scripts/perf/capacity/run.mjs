@@ -14,6 +14,7 @@ import { parseRunOptions, childEnvironment, runManifest, requireMemoryProfile } 
 import { writeRunManifest, writeRunResults } from './run-artifacts.mjs';
 import { assertFixtureCopyDestination } from './fixture-paths.mjs';
 import { requireResidency } from './residency.mjs';
+import { cpuProfileExecArgv } from './cpu-profile.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const args=parseRunOptions();
@@ -23,6 +24,7 @@ const profilePath=['smoke','nominal','step-up','churn','sustained','sustained-sm
 const profile=JSON.parse(await readFile(profilePath,'utf8'));
 validateSustained(profile,args.format);
 profile.storageFormat=args.format;
+profile.cpuProfile=args['cpu-profile'];
 profile.requestedMemoryProfile=args['memory-profile'];
 delete profile.memoryProfile;
 profile.requestedResidency=args.residency;
@@ -61,7 +63,8 @@ await mkdir(directory,{mode:0o700});
 const profileFile=path.join(directory,'profile.json');await writeFile(profileFile,JSON.stringify(profile,null,2),{flag:'wx'});
 const env=childEnvironment();
 let memoryProfileFailure,residencyFailure;
-const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom,fixtureEvidenceFrom],{cwd:root,env,execArgv:[],stdio:['ignore','pipe','pipe','ipc']});
+if(profile.cpuProfile)await mkdir(path.join(directory,'cpu-profiles'),{recursive:true});
+const launch=mode=>fork(fileURLToPath(new URL('./server.mjs',import.meta.url)),[directory,profileFile,mode,String(workers),fixtureFrom,fixtureEvidenceFrom],{cwd:root,env,execArgv:cpuProfileExecArgv(profile.cpuProfile,directory,mode),stdio:['ignore','pipe','pipe','ipc']});
 const childLogs=child=>{
   // Synthetic-only child output, bounded independently of the run length.
   let bytes=0;for(const stream of [child.stdout,child.stderr])stream.on('data',chunk=>{if((bytes+=chunk.length)<=1024*1024)void appendFile(path.join(directory,'server.log'),chunk);});
@@ -103,7 +106,7 @@ try {
   setup=launch('fixture');childLogs(setup);const prepared=await until(setup,'generated');await new Promise(resolve=>setup.exitCode!==null?resolve():setup.once('exit',resolve));
   const fixture=JSON.parse(await readFile(path.join(directory,'fixture.json'),'utf8'));
   const fixtureReuse=prepared.fixtureReuse;
-  Object.assign(manifest,{fixtureDigest:fixture.fixtureDigest,fixtureReuse});
+  Object.assign(manifest,{fixtureDigest:fixture.fixtureDigest,fixtureReuse,retentionNormalization:fixture.retentionNormalization});
   await writeRunManifest(directory,manifest);
   const setupSeconds=(Date.now()-started)/1000;
   if(args['fixture-only']) {

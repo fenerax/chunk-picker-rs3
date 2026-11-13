@@ -23,7 +23,7 @@ export function diagnosticMarkdown(result) {
   return `## Owned context opens\n\nHydration includes decoding and validation; migration includes hook validation. Store total also includes locking, recovery and publication. Failed opens retain completed phases.\n\n`+
     `| Open / picker / status | Total ms | ${phases.join(' | ')} |\n| --- | --- | ${phases.map(()=> '---').join(' | ')} |\n`+
     opens.map((row,i)=>`| ${i+1} / ${row.pickerId} / ${row.status} | ${number(row.totalMs)} | ${phases.map(key=>number(row.timingMs[key])).join(' | ')} |`).join('\n')+'\n\n'+
-    `RSS/heap are shared server process snapshots per group open, not attributable group allocations. Overlapping opens, other requests and GC affect deltas; calculator heaps remain in samples.\n\n`+
+    `RSS/heap are shared server process snapshots per group open, not attributable group allocations. Overlapping opens, other requests and GC affect deltas; independent calculator heaps are retained in telemetry.jsonl and telemetryObservations.\n\n`+
     `| Open | RSS before / after / delta MiB | Heap used before / after / delta MiB |\n| --- | --- | --- |\n`+
     opens.map((row,i)=>`| ${i+1} | ${['before','after','delta'].map(key=>number(row.memory[key].rss/1048576)).join(' / ')} | ${['before','after','delta'].map(key=>number(row.memory[key].heapUsed/1048576)).join(' / ')} |`).join('\n')+'\n\n'+
     `## Command HTTP latency\n\nIncludes failed attempts; client cooldown and restart waits remain in action latency. Each request's command, status and latency is in events.jsonl.\n\n`+
@@ -66,7 +66,7 @@ export function evaluate(result) {
   const treeSamples=result.samples.filter(row=>nominal(row.tree?.window));
   const cpu=treeSamples.map(row=>row.tree.cpuPercent).filter(Number.isFinite);
   const rss=[...result.samples.filter(row=>nominal(row.tree)).map(row=>row.tree.rssBytes),
-    ...result.samples.filter(row=>nominal(row.server)).map(row=>row.server.memory?.rss)].filter(Number.isFinite);
+    ...result.samples.filter(row=>nominal(row.server?.memoryObservation??row.server)).map(row=>row.server.memory?.rss)].filter(Number.isFinite);
   const peak=rss.reduce((n,value)=>Math.max(n,value),0),loop=serverSamples.reduce((n,row)=>Math.max(n,row.server.eventLoop?.p99Ms??0),0);
   const treeUnavailable=result.samples.some(row=>nominal(row.tree)&&row.tree.availability==='unavailable');
   const gates={

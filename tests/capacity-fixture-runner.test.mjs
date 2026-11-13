@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm, readdir } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -24,7 +24,7 @@ test('fixture-only CLI carries old-seal reuse provenance through IPC and protect
   const profileFile = path.join(root, 'profile.json'); await writeFile(profileFile, JSON.stringify(profile));
   const source = path.join(root, 'source'), output = path.join(root, 'output'), evidence = path.join(root, 'evidence');
   const run = (destination, reuse = false) => execute(process.execPath, [runner, '--profile', profileFile, '--format', 'format2',
-    '--fixture-workers', '1', '--fixture-only', '--output', destination, ...(reuse ? ['--residency', 'trial', '--fixture-from', source, '--fixture-evidence-from', evidence] : [])],
+    '--fixture-workers', '1', '--fixture-only', '--cpu-profile', '--output', destination, ...(reuse ? ['--residency', 'trial', '--fixture-from', source, '--fixture-evidence-from', evidence] : [])],
   { windowsHide: true, maxBuffer: 1024 * 1024 });
   // This prepares tiny data only. No measured server or arrival driver runs.
   await run(source);
@@ -42,12 +42,18 @@ test('fixture-only CLI carries old-seal reuse provenance through IPC and protect
   const sourceProgress = await readFile(path.join(source, 'fixture-progress.json')), inventory = await fixtureInventory(source);
   await run(output, true);
   const reused = await json(path.join(output, 'run-manifest.json'));
+  const normalized = await json(path.join(output, 'fixture.json'));
   const datasetDigest = (await json(path.join(source, 'fixture.json'))).datasetDigest;
   assert.equal(reused.fixtureDigest, seal.fixtureDigest);
   assert.deepEqual(reused.fixtureReuse, { reused: true, acrossVersions: true,
     fixtureImplementationDigest: seal.implementationDigest,
     currentImplementationDigest: originalRun.fixtureReuse.currentImplementationDigest, sourceCommit: originalRun.sourceCommit,
-    datasetTransition: { oldDigest: datasetDigest, newDigest: datasetDigest, applied: 'none', refreshedPickers: 0 } });
+    datasetTransition: { oldDigest: datasetDigest, newDigest: datasetDigest, applied: 'none', refreshedPickers: 0 },
+    retentionNormalization: normalized.retentionNormalization });
+  assert.deepEqual(reused.retentionNormalization, normalized.retentionNormalization);
+  assert.equal(reused.retentionNormalization.candidatesAfter, 0);
+  assert.equal(reused.cpuProfile.enabled, true);
+  assert.deepEqual(await readdir(path.join(output, 'cpu-profiles')), [], 'fixture-only children are never CPU-profiled');
   assert.deepEqual((await json(path.join(output, 'setup-summary.json'))).fixtureReuse, reused.fixtureReuse);
   assert.equal(reused.memoryProfile, null, 'fixture-only setup makes no measured-memory claim');
   assert.equal(originalRun.requestedResidency, 'default');

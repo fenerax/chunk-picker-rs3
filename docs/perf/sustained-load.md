@@ -160,6 +160,41 @@ existing `reopened`, continuity checks and pass/fail gate retain their meaning.
 
 ## Measurements and verdicts
 
+Action receipts retain bounded `error` name/code/cause chains. Each HTTP attempt
+has `requestId` and `actionId`; `sharedPreflights` records shared preflight IDs,
+the owner action and coalescing. Failed actions can carry
+`inheritedPreflightId`, `inheritedCooldownId` and `inheritedRequestId`, including
+followers with no HTTP attempt of their own. A terminal timeout or inherited
+503 remains that failure; it does not become an extra network-error attempt.
+The scratch wrapper joins request IDs to `admissionTransitions[].requestId`
+and returns the local admission ID in `requests[].admissionId`. Combine that
+admission ID with the serving process identity/generation. Scheduler diagnostics
+add `rejections.byReason`, `byKind` and `byReasonAndKind` on each lane; reasons
+include `byte-cap`, `per-picker-outstanding`, `waiters`, `job-count` and
+`kind-outstanding`. These counters do not alter admission.
+
+`telemetry.jsonl` and `results.telemetryObservations` retain each IPC part with
+its own receipt timestamp and sample ID, including late calculator heaps.
+Main-isolate metrics, health and diagnostics no longer await heap probes.
+`samples[].server.memoryObservation` identifies the main-isolate receipt;
+health and diagnostics keep their existing independent observation fields.
+Partial samples retain their available parts and `errorReasons`.
+`telemetryErrorReasons` records collection errors and optional heap errors;
+missing or failed optional heap observations do not increment
+`telemetryErrors`. Heap data is now in `sample-heap` receipts' `calculatorHeaps`,
+rather than being required on `samples[].server`. Only one heap collection runs
+at a time; `HeapProbeBusy` records a skipped overlapping probe. Required receipt
+coverage, gap rules and every acceptance bar are unchanged.
+
+`--cpu-profile` opts the measured server children into Node's `--cpu-prof`,
+writing profiles under the output's `cpu-profiles/`. Calculator host processes
+inherit the flag; fixture children do not. The manifest's `cpuProfile` records
+that scope. Calculator Worker isolates are **not** captured by this option:
+their explicit heap-probe imports filter process-only flags. Retaining isolate
+profiles across Worker retirement needs separate lifecycle-owned start/stop and
+rotation; no product profiling lifecycle is added here. Profiling is off by
+default and changes no acceptance threshold.
+
 `--memory-profile default|budget-672` selects server memory caps independently
 of the workload `--profile` and storage `--format`; omission means `default`.
 The runner still forwards only its OS-variable allowlist. The child purges every
