@@ -41,7 +41,10 @@ export function createSessionChecks() {
       return { value, coalesced };
     } catch (error) {
       const inherited = failureOutcome(error);
-      throw Object.assign(new Error(error.message, { cause: error }), { status: inherited.status,
+      // Retry eligibility uses HTTP status only; diagnostic labels are recovered
+      // from the cause chain when recording the terminal failure.
+      throw Object.assign(new Error(error.message, { cause: error }), {
+        ...(typeof inherited.status === 'number' ? { status: inherited.status } : {}),
         retryAfterMs: error.retryAfterMs, inheritedPreflightId: check.id, inheritedRequestId: inherited.inheritedRequestId ?? inherited.requestId });
     }
   };

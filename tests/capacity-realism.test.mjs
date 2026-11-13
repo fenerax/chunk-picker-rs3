@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBrowserClient, createSessionChecks, reconnectStream, reconnectDelay } from '../scripts/perf/capacity/client.mjs';
+import { createBrowserClient, createSessionChecks, reconnectStream, reconnectDelay, retryRead } from '../scripts/perf/capacity/client.mjs';
 import { failureOutcome } from '../scripts/perf/capacity/failures.mjs';
 import { createAdmissionCorrelation, observeAdmissionCorrelation, REQUEST_ID_HEADER, ADMISSION_ID_HEADER } from '../scripts/perf/capacity/admission-correlation.mjs';
 import { prepareCohorts, consumeStream, distribution, prepareRollSnapshot, sessionArrivals, drive } from '../scripts/perf/capacity/driver.mjs';
@@ -61,6 +61,45 @@ test('shared preflight followers inherit the originating timeout, refusal or tra
     }
     assert.deepEqual(follower.sharedPreflights, [{ id: 'preflight:1', ownerActionId: 1, coalesced: true }]);
     assert.equal((await checks('login', follower, async () => 'recovered')).value, 'recovered');
+  }
+});
+
+test('sustained safe reads recover on attempt two after a session preflight transport failure or timeout', async () => {
+  for (const cause of [
+    Object.assign(new TypeError('Synthetic transport', { cause: Object.assign(new Error('reset'), { code: 'ECONNRESET' }) }), { requestId: 'r1' }),
+    Object.assign(new DOMException('Synthetic timeout', 'TimeoutError'), { requestId: 'r1' }),
+  ]) {
+    let clock = 0, attempts = 0, preflights = 0;
+    const routes = [], waits = [], failures = [], checks = createSessionChecks(), client = { actionId: 1 };
+    const browser = createBrowserClient({ now: () => clock, maxReadAttempts: 1, request: async route => {
+      routes.push(route);
+      if (route === '/api/session' && ++preflights === 1) throw cause;
+      return Response.json(route === '/api/session' ? { authenticated: true } : { ready: true });
+    } });
+    const result = await retryRead(async () => {
+      attempts++;
+      try {
+        await checks('login', client, () => browser('/api/session'));
+        return await browser('/api/state');
+      } catch (error) {
+        failures.push(failureOutcome(error));
+        throw error;
+      }
+    }, { safe: true, deadlineMs: 10000, now: () => clock, rng: () => 0,
+      sleep: async ms => { waits.push(ms); clock += ms; } });
+    assert.deepEqual(result, { ready: true });
+    assert.equal(attempts, 2);
+    assert.deepEqual(routes, ['/api/session', '/api/session', '/api/state']);
+    assert.deepEqual(waits, [250]);
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].status, cause.name === 'TimeoutError' ? 'timeout' : 'network-error');
+    assert.equal(failures[0].inheritedPreflightId, 'preflight:1');
+    assert.equal(failures[0].inheritedRequestId, 'r1');
+    assert.equal(failures[0].error.cause.cause.name, cause.name);
+    assert.deepEqual(client.sharedPreflights, [
+      { id: 'preflight:1', ownerActionId: 1, coalesced: false },
+      { id: 'preflight:2', ownerActionId: 1, coalesced: false },
+    ]);
   }
 });
 
