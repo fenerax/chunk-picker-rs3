@@ -2235,34 +2235,50 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     async prepare() {
       if (closed) throw new Error('Picker context is closed.');
       readinessPrepared ??= (async () => {
-        if (taskWorker && nativeForegroundState) {
-          const rules = store.getRules(), revision = store.getInfo().revision, started = performance.now();
-          try {
-            await taskWorker.prepareRules(rules, revision);
-            startupPrepared.variant = true;
-          } catch {
-            // Optional preparation must preserve saves and the normal
-            // worker recovery path when calculation is unavailable.
-          } finally { startupTimingMs.variantMs = performance.now() - started;
-            if (openDiagnostics) openDiagnostics.timingMs.rulePrepMs = startupTimingMs.variantMs; }
-        }
-        if (openDiagnostics) openDiagnostics.timingMs.rulePrepMs ??= 0;
-        // Owned contexts can admit task/draft reads without preparing an
-        // unrelated play body. The authenticated state route builds the same
-        // revision-keyed representation on demand.
-        if (!prepareStateResponse) return;
-        const info = store.getInfo(), started = performance.now();
-        // Only the existing play representation is prepared. Backups, full
-        // state and optional reference data remain demand loaded. All HTTP
-        // reads still authenticate before entering their cached route.
+        const prepareStarted = performance.now();
+        let preparationFailure;
         try {
-          const playState = await stateRepresentation(PLAY_VIEW, info);
-          await Promise.all([playState.encoded('br'), playState.encoded('gzip')]);
-          startupPrepared.stateResponse = true;
-        } catch {
-          // Failed encoding slots are cleared by the representation helper;
-          // an authenticated route can retry without stopping the server.
-        } finally { startupTimingMs.stateResponseMs = performance.now() - started; }
+          if (taskWorker && nativeForegroundState) {
+            const rules = store.getRules(), revision = store.getInfo().revision, started = performance.now();
+            try {
+              await taskWorker.prepareRules(rules, revision);
+              startupPrepared.variant = true;
+            } catch (error) {
+              preparationFailure = error?.code ?? error?.name ?? 'Error';
+              // Optional preparation must preserve saves and the normal
+              // worker recovery path when calculation is unavailable.
+            } finally {
+              startupTimingMs.variantMs = performance.now() - started;
+              if (openDiagnostics) openDiagnostics.timingMs.rulePrepMs = startupTimingMs.variantMs;
+            }
+          }
+          if (openDiagnostics) openDiagnostics.timingMs.rulePrepMs ??= 0;
+          // Owned contexts can admit task/draft reads without preparing an
+          // unrelated play body. The authenticated state route builds the same
+          // revision-keyed representation on demand.
+          if (!prepareStateResponse) return;
+          const info = store.getInfo(), started = performance.now();
+          // Only the existing play representation is prepared. Backups, full
+          // state and optional reference data remain demand loaded. All HTTP
+          // reads still authenticate before entering their cached route.
+          try {
+            const playState = await stateRepresentation(PLAY_VIEW, info);
+            await Promise.all([playState.encoded('br'), playState.encoded('gzip')]);
+            startupPrepared.stateResponse = true;
+          } catch (error) {
+            preparationFailure = error?.code ?? error?.name ?? 'Error';
+            // Failed encoding slots are cleared by the representation helper;
+            // an authenticated route can retry without stopping the server.
+          } finally {
+            startupTimingMs.stateResponseMs = performance.now() - started;
+            if (openDiagnostics) openDiagnostics.timingMs.stateResponsePrepMs = startupTimingMs.stateResponseMs;
+          }
+        } finally {
+          if (openDiagnostics) {
+            openDiagnostics.timingMs.prepareMs = performance.now() - prepareStarted;
+            openDiagnostics.finish(preparationFailure ? 'prepare-failed' : 'prepared', preparationFailure, 'prepare');
+          }
+        }
       })();
       await readinessPrepared;
     },
@@ -2275,6 +2291,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     },
     close() {
       if (closePromise) return closePromise;
+      const closeStarted = performance.now();
+      let beforeUnlockMs = 0;
+      const closeTiming = (name, started) => { if (openDiagnostics) openDiagnostics.timingMs[name] = performance.now() - started; };
       closed = true;
       evidenceShutdown.abort();
       const evidenceClosed = savedWhyEvidence.close();
@@ -2292,18 +2311,26 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       // Close direct store admission before the first asynchronous drain. The
       // store commits its accepted queue before invoking this unlock barrier.
       closePromise = store.close({ beforeUnlock: async () => {
+        const beforeUnlockStarted = performance.now();
+        closeTiming('closeStoreDrainMs', closeStarted);
+        let phaseStarted = performance.now();
         await activationPending?.catch(() => {});
         while (requests.size) await Promise.allSettled([...requests]);
+        closeTiming('closeRequestsMs', phaseStarted); phaseStarted = performance.now();
         await mutationQueue;
         await claimCleanupRun;
+        closeTiming('closeMutationsMs', phaseStarted); phaseStarted = performance.now();
         await readinessPrepared; readinessPrepared = undefined;
+        closeTiming('closePreparationMs', phaseStarted); phaseStarted = performance.now();
         startupWarmup = undefined;
         unsubscribe(); unsubscribeWorker?.(); unsubscribeResidency?.(); unsubscribePredictions?.(); unsubscribePrepared?.();
         await overlays.close();
         await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), gamePlugin.close()]);
+        closeTiming('closeSidecarsMs', phaseStarted); phaseStarted = performance.now();
         progressClient.close(); originalSyncClient?.close();
         while (jobs.size) await Promise.allSettled([...jobs]);
         await evidenceClosed;
+        closeTiming('closeJobsMs', phaseStarted);
         stateResponseBuilds.clear(); responseCache.clear(); sandboxPools.clear(); rollPoolCache = undefined;
         poolRanking.clear(); rankingPools.clear(); clearSavedTaskResults(); preparedOffers.clear();
         runeMetricsPreviews.clear(); originalSyncPreviews.clear();
@@ -2316,7 +2343,16 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         feedbackOwnerId = refreshMemberId = undefined;
         invites = accounts = signInFlow = feedback = usage = usageStorage = overlays = gamePlugin = undefined;
         context.store = undefined; store = undefined;
-      } });
+        beforeUnlockMs = performance.now() - beforeUnlockStarted;
+      } }).then(() => {
+        closeTiming('closeMs', closeStarted);
+        if (openDiagnostics) {
+          openDiagnostics.timingMs.closeStoreMs = openDiagnostics.timingMs.closeMs - beforeUnlockMs;
+          openDiagnostics.finish('closed', undefined, 'close');
+        }
+      }, error => {
+        closeTiming('closeMs', closeStarted); openDiagnostics?.finish('close-failed', error?.code ?? error?.name ?? 'Error', 'close'); throw error;
+      });
       return closePromise;
     },
   };

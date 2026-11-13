@@ -44,6 +44,29 @@ test('queued cancellation removes work; retry takes a fresh bounded slot and nev
   const already=new AbortController();already.abort();await rejects(run(a,'b',async()=>calls++,already.signal),'cancelled');assert.equal(calls,0);
 });
 
+test('shared queued cancellation starts the surviving waiter callback under one cold lease', async t => {
+  const gate = Promise.withResolvers(), entered = Promise.withResolvers(), abort = new AbortController(), calls = [];
+  const admission = createPickerAdmission({ limits: createPickerLimits(),
+    clock: { setTimeout: () => Symbol(), clearTimeout() {} } });
+  t.after(async () => { gate.resolve(); await admission.close(); });
+  const busy = run(admission, 'busy', () => { entered.resolve(); return gate.promise; }); await entered.promise;
+  const first = admission.run(owner('first'), () => calls.push('cancelled'), abort.signal, { sharedKey: 'picker' });
+  const rejected = rejects(first, 'cancelled');
+  const survivor = admission.run(owner('survivor'), () => { calls.push('survivor'); return 'ready'; }, undefined, { sharedKey: 'picker' });
+  abort.abort(); await rejected; gate.resolve(); await busy;
+  assert.equal(await survivor, 'ready'); assert.deepEqual(calls, ['survivor']);
+});
+
+test('a newly enqueued shared generation cannot attach to a completed operation awaiting permit release', async t => {
+  const admission = createPickerAdmission({ limits: createPickerLimits(),
+    clock: { setTimeout: () => Symbol(), clearTimeout() {} } });
+  t.after(() => admission.close());
+  const first = admission.run(owner('a'), () => 'first', undefined, { sharedKey: 'picker' });
+  assert.equal(await first, 'first');
+  const next = admission.run(owner('b'), () => 'next', undefined, { sharedKey: 'picker' });
+  assert.equal(await next, 'next');
+});
+
 test('active cancellation and deadline keep the real lease and slots until work settles', async t => {
   for(const boundary of ['cancelled','deadline']){
     const {admission:a,limits,events}=fixture(t,{deadlineMs:30,perAccount:1}), gate=Promise.withResolvers(),entered=Promise.withResolvers(),controller=new AbortController();t.after(()=>gate.resolve());

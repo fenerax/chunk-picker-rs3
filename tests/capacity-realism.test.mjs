@@ -313,20 +313,25 @@ test('tiny fixture first owned server open keeps its revision and emits every ph
   t.after(async()=>{await app?.close();await rm(directory,{recursive:true,force:true});});
   const profile={name:'smoke',seed:'synthetic-realism',catalogue:{chunks:4,tasks:4,dependencyDepth:2,crossLinks:1},
     fixture:{groups:1,rosterMix:[0,1,0,0,0],freshFraction:0,unlockFraction:.5,historyEvents:1,snapshots:1,keysPerMember:0}};
-  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[],admissions=[],correlation=createAdmissionCorrelation();
+  const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[],admissions=[],correlation=createAdmissionCorrelation(),prepared=Promise.withResolvers();
   const definitions=catalogue(profile.catalogue);
   app=await createServer({dataDir:path.join(directory,'legacy'),definitions,taskMap:{},world:syntheticWorld(definitions,buildWorld),port:0,predictionPrewarm:false,
-    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row),onAdmission:row=>admissions.push(correlation.observe(row))}});
+    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>{opens.push(row);if(row.phase==='prepare')prepared.resolve(row);},onAdmission:row=>admissions.push(correlation.observe(row))}});
   observeAdmissionCorrelation(app.server,correlation);
   const serverId=observeServerIdentity(app.server);
   await app.listen();
   const response=await fetch(`http://127.0.0.1:${app.address().port}/api/state?view=play-v1`,{headers:{Cookie:group.members[0].cookie,[REQUEST_ID_HEADER]:'action:7:request:1'}});
   assert.equal(response.status,200);assert.equal(response.headers.get(SERVER_ID_HEADER),serverId);const value=await response.json();
   assert.equal(value.state.revision,group.revision,'first serving open must not publish a catalogue refresh');
-  assert.equal(opens.length,1);assert.equal(opens[0].status,'completed');
   const queued=admissions.find(row=>row.transition==='queued');
   assert.equal(queued.requestId,'action:7:request:1');
   assert.equal(response.headers.get(ADMISSION_ID_HEADER),String(queued.admissionId));
-  for(const field of ['datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs','rulePrepMs'])assert.equal(typeof opens[0].timingMs[field],'number',field);
-  assert.equal(typeof opens[0].memory.after.heapUsed,'number');
+  const preparation=await prepared.promise,factories=opens.filter(row=>row.phase==='factory');
+  assert.equal(factories.length,1);assert.equal(factories[0].status,'completed');
+  for(const field of ['factoryMs','datasetVerifyMs','storeHydrateValidateMs','storeMigrateValidateMs','retentionMs','sidecarsMs','fingerprintsMs'])assert.equal(typeof factories[0].timingMs[field],'number',field);
+  for(const field of ['prepareMs','rulePrepMs'])assert.equal(typeof preparation.timingMs[field],'number',field);
+  assert.equal(typeof factories[0].memory.after.heapUsed,'number');
+  await app.close();const closed=opens.find(row=>row.phase==='close');
+  assert.equal(closed.status,'closed');assert.equal(closed.openId,factories[0].openId);
+  assert.equal(typeof closed.timingMs.closeMs,'number');
 });

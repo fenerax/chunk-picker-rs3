@@ -18,6 +18,7 @@ import { createRateLimits, createStreamLimits, requestContext } from '../app/sec
 import { createRepresentation, createResponseCache } from '../app/http-response.mjs';
 import { EventEmitter } from 'node:events';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
+import { beginOpenDiagnostics } from '../app/open-diagnostics.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 beforeEach(t => blockUnmockedFetch(t));
@@ -618,6 +619,39 @@ test('owned readiness can defer the play body while retaining variant preparatio
   assert.ok(Number.isFinite(eagerTiming.stateResponseMs));assert.equal(variants,2);
   // Deferred and eager preparation serve the same complete play envelope.
   const ready=await send(eager,'/api/state?view=play-v1');assert.equal(ready.status,200);assert.equal(ready.body.format,'play-v1');assert.deepEqual(ready.body,lazy.body);
+});
+
+test('held optional rule preparation preserves reads and writes, and close retains its writer lock through a preparation failure', async t => {
+  const release = Promise.withResolvers(), entered = Promise.withResolvers(), cancelled = Promise.withResolvers(), rows = [];
+  // Register release before the fixture's cleanup, including assertion failures.
+  t.after(() => release.resolve());
+  const { b, open, root, runtime } = await fixture(t, {
+    runtimeOptions: { taskWorkerOptions: { workerFactory() {}, serializedStateInput: true } },
+  });
+  const diagnostic = beginOpenDiagnostics(row => rows.push(row), 'c');
+  const c = await open('c', { prepareStateResponse: false, openDiagnostics: diagnostic });
+  diagnostic.finish('completed');
+  runtime.taskWorker.prepareRules = () => { entered.resolve(); return release.promise; };
+  runtime.taskWorker.cancelPicker = () => cancelled.resolve();
+  const preparing = c.prepare(); await entered.promise;
+  await command(c, note('during preparation'));
+  assert.equal((await send(c, '/api/state?view=play-v1')).status, 200);
+  const store = c.store, closing = c.close(); await cancelled.promise;
+  await assert.rejects(store.command(note('late'), 1), /The store is closed/);
+  assert.equal((await readdir(path.join(root, 'c'))).includes('store.lock'), true);
+  await command(b, note('another picker still writes'));
+  release.reject(null); // Even a non-Error optional rejection must preserve close/save recovery.
+  await preparing; await closing;
+  assert.equal((await readdir(path.join(root, 'c'))).includes('store.lock'), false);
+  const reopened = await open('c');
+  assert.equal(reopened.store.getState().members[0].notes['12341'], 'during preparation');
+  assert.deepEqual(rows.map(row => [row.phase, row.status]), [['factory', 'completed'], ['prepare', 'prepare-failed'], ['close', 'closed']]);
+  assert.equal(new Set(rows.map(row => row.openId)).size, 1);
+  assert.equal(rows[1].reason, 'Error');
+  for (const [row, fields] of [[rows[0], ['factoryMs']], [rows[1], ['prepareMs', 'rulePrepMs']],
+    [rows[2], ['closeMs', 'closeStoreMs', 'closeStoreDrainMs', 'closeRequestsMs', 'closeMutationsMs', 'closePreparationMs', 'closeSidecarsMs', 'closeJobsMs']]]) {
+    for (const field of fields) assert.equal(typeof row.timingMs[field], 'number', field);
+  }
 });
 
 // These calls enter the real authenticated picker route, with controllable

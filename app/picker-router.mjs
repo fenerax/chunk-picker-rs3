@@ -25,7 +25,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const admissionBounds = Object.freeze({ ...COLD_OPEN_ADMISSION, ...coldOpenAdmission });
   for (const key of Object.keys(COLD_OPEN_ADMISSION)) if (!Number.isSafeInteger(admissionBounds[key]) || admissionBounds[key] < 1) throw new TypeError(`Invalid cold admission ${key}.`);
-  const entries = new Map();
+  const entries = new Map(), waiters = new Map();
   const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission, bounds: admissionBounds, clock: admissionClock });
   // Process-wide budget for owned backup parsers, on top of each context's own
   // single-import guard, so many owners cannot each materialize a large backup
@@ -37,18 +37,23 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   const receiving = new Map();
   let queue = Promise.resolve(), closed = false, closing;
   const deletion = createPickerDeletion({ registry, legacy, backupRetentionMs, afterPurge: () => pickerLimits?.forgetDeleted(),
-    fencePicker: id => { const pending = receiving.get(id); if (pending && !pending.complete) pending.destroy(); const entry = entries.get(id); if (entry && !entry.closing) entry.context.fenceDeletion(); },
+    fencePicker: id => { const pending = receiving.get(id); if (pending && !pending.complete) pending.destroy(); const entry = entries.get(id); if (entry) { entry.deleting = true; if (!entry.closing) entry.context?.fenceDeletion(); } },
     fenceSessions: () => {
       legacy.fenceRevokedSessions();
-      for (const entry of entries.values()) if (!entry.closing) entry.context.fenceRevokedSessions();
+      for (const entry of entries.values()) if (!entry.closing) entry.context?.fenceRevokedSessions();
     },
     drainPicker: (id, phase) => drainPicker(id, phase),
   });
   function drainPicker(id, phase) {
       if (phase === 'revoke') {
         const entry = entries.get(id);
-        if (entry && !entry.closing) { clearTimeout(entry.timer); return entry.revoking ??= entry.context.revokeDeletion(); }
-        return;
+        if (!entry) return;
+        entry.deleting = true; clearTimeout(entry.timer);
+        // An opening owns its directory until the factory and late close drain.
+        // It must not race deletion's sidecar revocation or directory removal.
+        if (!entry.published) return evict(entry);
+        if (entry.closing) return;
+        return entry.revoking ??= entry.context.revokeDeletion();
       }
       // Reserve the closing entry under the queue, then drain only this picker
       // outside it. Closing entries cannot be selected as capacity victims.
@@ -56,84 +61,165 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const entry = entries.get(id);
         if (entry) { clearTimeout(entry.timer); entry.closing = true; }
         return entry;
-      }).then(async entry => { if (entry) { await entry.revoking; await evict(entry); } });
+      }).then(async entry => { if (entry) await evict(entry); });
   }
   function serialize(operation) {
     const pending = queue.then(operation); queue = pending.catch(() => {}); return pending;
   }
   const checkpoint = createPickerCheckpoint({ serialize, entries, registry, legacy });
-  async function evict(entry) {
+  function evict(entry) {
     clearTimeout(entry.timer);
     entry.closing = true;
-    // Keep the entry until close drains, so no writer can reopen alongside it.
-    try { await entry.context.close(); } finally { entries.delete(entry.id); }
+    return entry.draining ??= (async () => {
+      await entry.opening?.catch(() => {});
+      await closeContext(entry);
+    })();
+  }
+  async function closeContext(entry) {
+    entry.closing = true;
+    await entry.revoking;
+    // Keep even a failed close fenced. Only a fully drained context may give up
+    // residency/storage ownership. All callers share this one close operation.
+    if (entry.context) await (entry.contextClose ??= entry.context.close());
+    if (entries.get(entry.id) === entry) entries.delete(entry.id);
   }
   const checkpointBlocked = entry => storeWriteBlocked(registry.pickerDirectory(entry.id));
+  const waiting = entry => waiters.get(entry.id)?.size;
+  const available = entry => entry?.published && !entry.closing && !entry.deleting;
+  function checkOpen(id) {
+    if (closed) throw retry();
+    if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
+  }
+  function pin(entry, signal) {
+    signal?.throwIfAborted(); checkOpen(entry.id);
+    if (entries.get(entry.id) !== entry || !available(entry)) return null;
+    clearTimeout(entry.timer);
+    entries.delete(entry.id); entries.set(entry.id, entry); entry.active++;
+    return entry;
+  }
+  function startOpen(entry) {
+    entry.opening = (async () => {
+      try {
+        // Initialization participates in the directory's snapshot barrier. If a
+        // checkpoint arrives during it, release this write before re-entering
+        // for publication, so neither publication nor delivery bypasses it.
+        await checkpoint.open(entry.id, async () => {
+          checkOpen(entry.id);
+          if (!entry.closing && !entry.deleting && waiting(entry)) entry.context = await openContext(entry.id);
+        });
+        if (!entry.context) return entry;
+        const published = await checkpoint.open(entry.id, () => serialize(() => {
+          if (closed || entry.closing || entry.deleting || !waiting(entry)
+            || entries.get(entry.id) !== entry || registry.getPicker(entry.id)?.lifecycle !== 'active') return false;
+          entry.published = true; return true;
+        }));
+        if (!published) {
+          if (entry.deleting) { entry.context.fenceDeletion(); entry.revoking ??= entry.context.revokeDeletion(); }
+          await closeContext(entry);
+        }
+      } catch (error) {
+        await closeContext(entry); throw error;
+      } finally {
+        if (!entry.context && entries.get(entry.id) === entry) entries.delete(entry.id);
+      }
+      // Optional work starts only after the factory's storage barrier is gone.
+      // The context tracks preparation so its own close still drains it.
+      if (available(entry)) {
+        void Promise.resolve().then(() => {
+          if (!available(entry)) return;
+          entry.context.startBackground?.(); return entry.context.prepare?.();
+        }).catch(() => {});
+      }
+      return entry;
+    })();
+  }
   function idle(entry) {
     clearTimeout(entry.timer);
-    if (closed || entry.closing || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
+    if (closed || !available(entry) || entries.get(entry.id) !== entry || entry.active || waiting(entry) || entry.streams.size) return;
     entry.timer = setTimeout(() => {
-      void serialize(async () => {
-        if (closed || entry.closing || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
+      void serialize(() => {
+        if (closed || !available(entry) || entries.get(entry.id) !== entry || entry.active || waiting(entry) || entry.streams.size) return;
         // A checkpoint holds this directory: closing now would hold the queue behind the copy.
         if (checkpointBlocked(entry)) return idle(entry);
-        await evict(entry);
-      }).catch(() => {});
+        entry.closing = true; return entry;
+      }).then(victim => victim && evict(victim)).catch(() => {});
     }, idleCloseMs);
     entry.timer.unref();
   }
   async function acquire(id, owner, signal) {
-    const attempt = () => checkpoint.open(id, () => serialize(async () => {
-      signal?.throwIfAborted();
-      if (closed) throw retry();
-      if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
-      let entry = entries.get(id);
-      if (entry?.closing) return null;
-      if (!entry) {
-        if (maxOpenContexts === 1) throw retry();
-        if (entries.size >= maxOpenContexts - 1) {
-          // Only idle contexts may be evicted. Wait outside the residency queue
-          // if every context is busy or held by a checkpoint.
-          const victim = [...entries.values()].find(candidate => !candidate.active && !candidate.closing && !checkpointBlocked(candidate));
-          if (!victim) return null;
-          await evict(victim);
-          signal?.throwIfAborted();
-        }
-        const context = await openContext(id);
-        if (closed || signal?.aborted || registry.getPicker(id)?.lifecycle !== 'active') { await context.close(); signal?.throwIfAborted(); throw retry(); }
-        entry = { id, context, active: 0, streams: new Set() };
-      }
-      clearTimeout(entry.timer);
-      entries.delete(id); entries.set(id, entry); entry.active++;
-      return entry;
-    }));
     // Warm acquisition has no await between checking closing/active and pinning
     // the entry. That is atomic with victim selection on the event loop, so an
     // unrelated cold factory must not hold it behind the residency queue. The
     // per-directory checkpoint barrier still applies; recheck after that wait.
-    if (entries.has(id)) {
+    if (available(entries.get(id))) {
       const entry = await checkpoint.open(id, () => {
-        signal?.throwIfAborted();
-        if (closed) throw retry();
-        if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
         const warm = entries.get(id);
-        if (!warm || warm.closing) return null;
-        clearTimeout(warm.timer); entries.delete(id); entries.set(id, warm); warm.active++; return warm;
+        signal?.throwIfAborted(); checkOpen(id);
+        return warm && pin(warm, signal);
       });
       if (entry) return entry;
     }
+    const waiter = {}, group = waiters.get(id) ?? new Set();
+    group.add(waiter); waiters.set(id, group);
+    const detach = () => {
+      if (!group.delete(waiter)) return;
+      if (group.size) return;
+      if (waiters.get(id) === group) waiters.delete(id);
+      const entry = entries.get(id);
+      if (!entry || entry.active) return;
+      // Publication already made this a usable resident. A disconnect during
+      // the handoff can leave it idle, just as a completed warm request does.
+      if (available(entry)) { idle(entry); return; }
+      // Once abandoned, fence the generation until its late factory and close
+      // finish; a retry cannot attach to a context already being torn down.
+      return evict(entry);
+    };
     const open = async admittedSignal => {
-      signal = admittedSignal ?? signal;
+      const workSignal = admittedSignal ?? signal;
       for (let retries = 0; ; retries++) {
-        signal?.throwIfAborted();
-        const entry = await attempt();
-        if (entry) return entry;
+        workSignal?.throwIfAborted();
+        const selected = await serialize(() => {
+          workSignal?.throwIfAborted(); checkOpen(id);
+          let entry = entries.get(id);
+          if (entry?.closing || entry?.deleting) return {};
+          if (!entry) {
+            if (maxOpenContexts === 1) throw retry();
+            if (entries.size >= maxOpenContexts - 1) {
+              const victim = [...entries.values()].find(candidate => available(candidate) && !candidate.active && !waiting(candidate) && !checkpointBlocked(candidate));
+              if (victim) { victim.closing = true; return { victim }; }
+              return {};
+            }
+            entry = { id, active: 0, streams: new Set(), published: false };
+            entries.set(id, entry);
+            startOpen(entry);
+          }
+          return { entry };
+        });
+        if (selected.victim) { await evict(selected.victim); workSignal?.throwIfAborted(); continue; }
+        if (selected.entry) {
+          const entry = await selected.entry.opening;
+          if (entry.closing) await evict(entry);
+          workSignal?.throwIfAborted(); checkOpen(id);
+          if (available(entry)) return entry;
+        }
         if (!admission || retries >= admissionBounds.maxRetries) throw retry();
-        await admissionDelay(admissionBounds.retryMs, undefined, { signal });
+        await admissionDelay(admissionBounds.retryMs, undefined, { signal: workSignal });
       }
     };
     const work = PROFILE_ENABLED ? profile.bind(signal => profile.span('context.open', () => open(signal))) : open;
-    return admission ? admission.run(owner, work, signal) : work(signal);
+    const disconnected = () => { void detach()?.catch(() => {}); };
+    if (!admission) signal?.addEventListener('abort', disconnected, { once: true });
+    try {
+      const entry = await (admission ? admission.run(owner, work, signal, { onCancel: detach, sharedKey: id }) : work(signal));
+      const pinned = await checkpoint.open(id, () => pin(entry, signal));
+      if (!pinned) throw retry();
+      return pinned;
+    } finally {
+      signal?.removeEventListener('abort', disconnected);
+      // Successful pins belong to handle() now. Failed/cancelled acquisition
+      // can leave a drain running, but admission keeps its started lease for it.
+      void detach()?.catch(() => {});
+    }
   }
   function authenticate(request, security, pickerId) {
     const identity = legacy.authenticate(request, security);
@@ -329,7 +415,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (closing) return closing;
       closed = true;
       for (const entry of entries.values()) clearTimeout(entry.timer);
-      closing = Promise.all([admission?.close(), deletion.drain()]).then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
+      const draining = serialize(() => [...entries.values()].map(entry => { entry.closing = true; return entry; }))
+        .then(reserved => Promise.all(reserved.map(evict)));
+      closing = Promise.all([admission?.close(), deletion.drain(), draining]).then(() => {});
       return closing;
     },
   };
