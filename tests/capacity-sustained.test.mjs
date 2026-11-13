@@ -15,6 +15,7 @@ import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { SERVER_ID_HEADER, readinessProof } from '../scripts/perf/capacity/evidence.mjs';
 import { observation, createSampleInbox, createSampleCollector } from '../scripts/perf/capacity/sampling.mjs';
+import { createSampleEmitter } from '../scripts/perf/capacity/sample-server.mjs';
 import { evaluate } from '../scripts/perf/capacity/report.mjs';
 
 const profile = JSON.parse(await readFile(new URL('../scripts/perf/capacity/profiles/sustained.json',import.meta.url)));
@@ -626,6 +627,47 @@ function sampleTransport({now,server,onPart=()=>{}}) {
     return pending;
   };
 }
+
+test('busy calculator probes cannot withhold HTTP/main-isolate receipts and late heaps retain their own identity', async () => {
+  let clock = 100; const receipts = [], probe = Promise.withResolvers();
+  // A logical deadline callback is retained, never a wall-clock sleep.
+  let deadline;
+  const timedInbox = createSampleInbox({ now: () => clock, timer: fn => { deadline = fn; return 1; }, cancelTimer() {} });
+  const pending = timedInbox.expect(1, 0), server = reportFixture().samples[0].server;
+  const emit = createSampleEmitter({ get: async route => server[route.slice(5)], workers: [{ getMemoryUsage: () => probe.promise }],
+    identity: { serverId: server.serverId, memoryProfile: server.memoryProfile }, snapshot: () => ({ memory: server.memory, eventLoop: server.eventLoop }),
+    send: message => { receipts.push({ ...message, receivedAt: clock }); timedInbox.receive(message, 0); } });
+  const job = emit(1); await job.required;
+  const packet = await pending;
+  assert.equal(packet.health.data.health, server.health); assert.equal(packet.snapshot.receivedAt, 100);
+  assert.equal(receipts.some(row => row.type === 'sample-heap'), false);
+  clock = 6100; await emit(2).required;
+  assert.equal(receipts.find(row => row.id === 2 && row.type === 'sample-error').error.name, 'HeapProbeBusy');
+  clock = 15100; probe.resolve({ pid: 42, main: { heapUsed: 10 }, workers: [{ memoryUsage: { heapUsed: 20 } }] });
+  await job.heap;
+  const heap = receipts.find(row => row.type === 'sample-heap');
+  assert.equal(heap.id, 1); assert.equal(heap.receivedAt, 15100); assert.equal(heap.calculatorHeaps[0].threadHeapUsed, 20);
+  assert.equal(packet.health.receivedAt, 100, 'late heaps never move HTTP receipt times');
+  assert.equal(typeof deadline, 'function');
+});
+
+test('partial telemetry retains health and diagnoses missing snapshot, failed diagnostics and process tree independently', async () => {
+  const result = reportFixture(), source = result.samples[0].server;
+  let deadline, clock = 100;
+  const inbox = createSampleInbox({ now: () => clock, timer: fn => { deadline = fn; return 1; }, cancelTimer() {} });
+  const collector = createSampleCollector({ profile: result.profile, directory: 'synthetic', now: () => clock,
+    requestSnapshot: () => {
+      const pending = inbox.expect(1, 0);
+      inbox.receive({ type: 'sample-health', id: 1, serverId: source.serverId, memoryProfile: source.memoryProfile, health: source.health }, 0);
+      inbox.receive({ type: 'sample-error', part: 'diagnostics', id: 1, serverId: source.serverId, error: { name: 'TimeoutError', message: 'Synthetic HTTP deadline' } }, 0);
+      clock = 5100; deadline(); return pending;
+    }, readTree: async () => { throw Object.assign(new Error('Synthetic tree read'), { code: 'EACCES' }); }, readDisk: async () => ({ bytes: 0 }) });
+  const { row, errors } = await collector.collect({ start: 0, generation: 0, serverId: source.serverId, pid: 0, client: {} });
+  assert.equal(errors, 3); assert.equal(row.server.health, source.health); assert.equal(row.server.healthObservation.receivedAt, 100);
+  assert.equal(row.server.diagnostics, null); assert.equal(row.server.memoryObservation, null);
+  assert.deepEqual(row.errorReasons.map(reason => reason.part), ['snapshot', 'diagnostics', 'process-tree']);
+  assert.equal(row.errorReasons[1].error.name, 'TimeoutError'); assert.equal(row.errorReasons[2].error.code, 'EACCES');
+});
 test('P2: a pre-deadline healthy receipt delayed by tree/disk collection cannot confirm recovery',async()=>{
   const result=reportFixture(),server=structuredClone(result.samples[2].server);
   for(const row of result.samples)if(row.server.healthObservation.elapsedMs>1320000)row.server.health.ready=false;

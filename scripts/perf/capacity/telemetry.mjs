@@ -1,13 +1,14 @@
 import { readFile, readdir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { errorReceipt } from './failures.mjs';
 
 let ticks;
 const cpuSeen=new Map();
 export async function processTree(pid,{platform=process.platform,read=readFile,ticksPerSecond}={}) {
   if(platform!=='linux') return {supported:false,availability:'unavailable',rssBytes:null,cpuSeconds:null,readBytes:null,writeBytes:null};
   const clockTicks=ticksPerSecond??(ticks??=Number(execFileSync('getconf',['CLK_TCK'],{encoding:'utf8'}).trim()));
-  const seen=new Set(), rows=[];let complete=true;
+  const seen=new Set(), rows=[], errors=[];let complete=true;
   async function visit(id) {
     if(seen.has(id)) return; seen.add(id);
     try {
@@ -22,19 +23,19 @@ export async function processTree(pid,{platform=process.platform,read=readFile,t
         readBytes:number(io,'read_bytes'),writeBytes:number(io,'write_bytes'),swapBytes:number(status,'VmSwap')*1024});
     } catch(error) {
       // An exited descendant can disappear between discovery and its stat read.
-      if(id===pid||error.code!=='ENOENT')complete=false;
+      if(id===pid||error.code!=='ENOENT'){complete=false;errors.push({pid:id,part:'process-read',error:errorReceipt(error)});}
       return;
     }
     // Discovery failure must not discard the readings collected above.
     try {
       const children=await read(`/proc/${id}/task/${id}/children`,'utf8');
       await Promise.all(children.trim().split(/\s+/).filter(Boolean).map(n=>visit(Number(n))));
-    } catch {complete=false;}
+    } catch(error) {complete=false;errors.push({pid:id,part:'children-read',error:errorReceipt(error)});}
   }
   await visit(pid);
   const cgroup={};
   for(const name of ['memory.current','memory.peak','memory.max','cpu.max'])try{cgroup[name]=String(await read(`/sys/fs/cgroup/${name}`,'utf8')).trim();}catch{}
-  return {supported:true,availability:complete?'available':'unavailable',processes:complete?rows.length:null,
+  return {supported:true,availability:complete?'available':'unavailable',processes:complete?rows.length:null,errors,
     root:rows.find(row=>row.pid===pid)??null,observedProcesses:rows.length,cgroup,
     ...Object.fromEntries(['rssBytes','readBytes','writeBytes','swapBytes'].map(k=>[k,complete?rows.reduce((n,r)=>n+r[k],0):null])),
     pssBytes:complete&&rows.every(row=>row.pssBytes!==null)?rows.reduce((n,r)=>n+r.pssBytes,0):null,

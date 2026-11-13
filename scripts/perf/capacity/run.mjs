@@ -7,6 +7,7 @@ import { planFixture, integer, digest } from './model.mjs';
 import { createHash } from 'node:crypto';
 import { drive, rotationInterval } from './driver.mjs';
 import { createSampleInbox, createSampleCollector, verifySampleProfiles } from './sampling.mjs';
+import { errorReceipt } from './failures.mjs';
 import { fixtureWorkers } from './fixture-pool.mjs';
 import { validateSustained, sustainedPhase } from './sustained.mjs';
 import { parseRunOptions, childEnvironment, runManifest, requireMemoryProfile } from './memory-profile.mjs';
@@ -120,12 +121,19 @@ try {
   await writeFile(profileFile,JSON.stringify(profile,null,2));
   await writeRunManifest(directory,manifest);
   let id=0,busy=false,telemetryErrors=0,runStart;
-  const samples=[],contextOpens=[],admissionTransitions=[],inbox=createSampleInbox();
+  const samples=[],contextOpens=[],admissionTransitions=[],telemetryObservations=[],telemetryErrorReasons=[],inbox=createSampleInbox();
+  let telemetryWrites=Promise.resolve(),currentServerId=ready.serverId;
   let generation=0,restarting=false;
   const attach=(child,childGeneration=generation)=>child.on('message',m=>{
     const receivedAt=performance.now(),elapsedMs=runStart===undefined?null:receivedAt-runStart;
     if(m.type==='context-open')contextOpens.push({...m,memoryProfile:profile.memoryProfile,residency:profile.residency,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
     if(m.type==='admission')admissionTransitions.push({...m,memoryProfile:profile.memoryProfile,residency:profile.residency,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    if(['sample','sample-health','sample-diagnostics','sample-heap','sample-error'].includes(m.type)) {
+      const receipt={...m,generation:childGeneration,receivedAt,elapsedMs};
+      telemetryObservations.push(receipt);
+      telemetryWrites=telemetryWrites.then(()=>appendFile(path.join(directory,'telemetry.jsonl'),JSON.stringify(receipt)+'\n'));
+      if(m.type==='sample-error'&&m.part==='heap')telemetryErrorReasons.push({...receipt,optional:true});
+    }
     inbox.receive(m,childGeneration,receivedAt);});
   attach(server);
   const collector=createSampleCollector({profile,directory,requestSnapshot:childGeneration=>{
@@ -136,7 +144,8 @@ try {
     if(busy)return;busy=true;
     try {
       if(restarting){const receivedAt=performance.now(),row={memoryProfile:profile.memoryProfile,residency:profile.residency,receivedAt,elapsedMs:receivedAt-runStart,generation,restarting:true,client};samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');return;}
-      const {row,errors}=await collector.collect({start:runStart,generation,pid:server.pid,client});telemetryErrors+=errors;
+      const {row,errors}=await collector.collect({start:runStart,generation,pid:server.pid,serverId:currentServerId,client});telemetryErrors+=errors;
+      telemetryErrorReasons.push(...row.errorReasons.map(reason=>({...reason,generation,receivedAt:row.collectedAt,optional:false})));
       try { verifySampleProfiles(profile,row); }
       catch(error) {
         if(error.code==='memory-profile-unverified')memoryProfileFailure=error;
@@ -144,7 +153,7 @@ try {
         throw error;
       }
       samples.push(row);await appendFile(path.join(directory,'samples.jsonl'),JSON.stringify(row)+'\n');
-    } catch(error) {telemetryErrors++;throw error;} finally {busy=false;}
+    } catch(error) {telemetryErrors++;telemetryErrorReasons.push({part:'collection',generation,error:errorReceipt(error),receivedAt:performance.now(),optional:false});throw error;} finally {busy=false;}
   };
   await sample({phase:'before'});
   const restartServer=async()=>{
@@ -155,6 +164,7 @@ try {
       generation++;collector.reset();
       server=launch('server');childLogs(server);attach(server);
       const ready=await until(server,'ready');
+      currentServerId=ready.serverId;
       requireMemoryProfile(ready.memoryProfileVerification);
       requireResidency(ready.residencyVerification);
       return {memoryProfile:ready.memoryProfile,residency:ready.residency,base:ready.base,serverId:ready.serverId,readyReceivedAt:ready.receivedAt,shutdown,generation};
@@ -166,6 +176,7 @@ try {
   if(residencyFailure)throw residencyFailure;
   await sample({phase:'after'});
   const shutdown=await stop(server);server=undefined;
+  await telemetryWrites;
   const result={...manifest,manifest,platform:process.platform,hardware:{cpuModel:cpus()[0].model,logicalCpus:cpus().length,ramBytes:totalmem()},
     profile,format:args.format,profileDigest:digest(profile),setupSeconds,elapsedSeconds:(Date.now()-started)/1000,
     fixture:{storageFormat:fixture.storageFormat,ownedBasePin:fixture.ownedBasePin,groups:fixture.groups.length,characters:fixture.characters,logins:fixture.logins,keys:fixture.keys,gaps:fixture.gaps,planDigest:fixture.planDigest,
@@ -174,7 +185,7 @@ try {
       fixtureDigest:fixture.fixtureDigest,workers:fixture.workers,reused:Boolean(fixtureFrom),
       setup:fixture.groups.map(({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})=>({index,grown,setupMs,growthMs,durableMs,registryMs,capabilitiesMs,growthCommands,stateBytes,taskRows,aliases})),
       datasetDigest:fixture.datasetDigest,retention:fixture.groups.map(g=>({index:g.index,stateDigest:g.stateDigest,...g.retention,snapshots:g.retainedSnapshots}))},
-    load,samples,contextOpens,admissionTransitions,telemetryErrors,shutdown};
+    load,samples,contextOpens,admissionTransitions,telemetryErrors,telemetryErrorReasons,telemetryObservations,shutdown};
   await writeRunResults(directory,result);
   console.log(`Results: ${path.join(directory,'summary.md')}; ${load.stats.offered} arrivals, ${load.stats.rejects} rejects, ${load.stats.timeouts} timeouts.`);
   }

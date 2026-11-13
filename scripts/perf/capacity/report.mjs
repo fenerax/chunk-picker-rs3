@@ -30,7 +30,7 @@ export function diagnosticMarkdown(result) {
     `| Command / status | Count | p50 / p95 / p99 / max ms |\n| --- | --- | --- |\n`+
     (result.load.commands??[]).map(row=>`| ${row.command} / ${row.status} | ${row.latency.count} | ${['p50Ms','p95Ms','p99Ms','maxMs'].map(key=>number(row.latency[key])).join(' / ')} |`).join('\n')+'\n\n'+
     `## Event loop and admission\n\n| Sample | Utilisation | Active / idle ms | Delay p50 / p95 / p99 / max ms |\n| --- | --- | --- | --- |\n`+
-    samples.filter(row=>row.server).map((row,i)=>{const loop=row.server.eventLoop;return `| ${i+1} | ${number(loop.utilization)} | ${number(loop.activeMs)} / ${number(loop.idleMs)} | ${['p50Ms','p95Ms','p99Ms','maxMs'].map(key=>number(loop[key])).join(' / ')} |`;}).join('\n')+'\n\n'+
+    samples.filter(row=>row.server?.eventLoop).map((row,i)=>{const loop=row.server.eventLoop;return `| ${i+1} | ${number(loop.utilization)} | ${number(loop.activeMs)} / ${number(loop.idleMs)} | ${['p50Ms','p95Ms','p99Ms','maxMs'].map(key=>number(loop[key])).join(' / ')} |`;}).join('\n')+'\n\n'+
     `| Admission transition / reason | Count |\n| --- | --- |\n${[...admission].map(([key,count])=>`| ${key} | ${count} |`).join('\n')}\n\n`+
     `Every admission transition (correlation ID, reason, queue/service duration, pending/active counts) and owned open is retained in results.json.\n\n`;
 }
@@ -67,7 +67,7 @@ export function evaluate(result) {
   const cpu=treeSamples.map(row=>row.tree.cpuPercent).filter(Number.isFinite);
   const rss=[...result.samples.filter(row=>nominal(row.tree)).map(row=>row.tree.rssBytes),
     ...result.samples.filter(row=>nominal(row.server)).map(row=>row.server.memory?.rss)].filter(Number.isFinite);
-  const peak=rss.reduce((n,value)=>Math.max(n,value),0),loop=serverSamples.reduce((n,row)=>Math.max(n,row.server.eventLoop.p99Ms??0),0);
+  const peak=rss.reduce((n,value)=>Math.max(n,value),0),loop=serverSamples.reduce((n,row)=>Math.max(n,row.server.eventLoop?.p99Ms??0),0);
   const treeUnavailable=result.samples.some(row=>nominal(row.tree)&&row.tree.availability==='unavailable');
   const gates={
     cheapWarm:latency(ops,cheap,1000,2000),
