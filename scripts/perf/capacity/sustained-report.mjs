@@ -158,6 +158,12 @@ export function evaluateSustained(result) {
     samples.some(row=>row.generation===0&&sampleValid(row))&&samples.some(row=>row.generation===1&&sampleValid(row))&&
     samples.every(row=>row.restarting===true?row.elapsedMs>=restartElapsedMs&&row.elapsedMs<=restartElapsedMs+restart.serverReadyMs:sampleValid(row));
   const clients=cohort.clients??[],lifetimes=load.recovery.streams??[];
+  const replacementStreams=lifetimes.filter(row=>typeof restart?.serverId==='string'&&restart.serverId!==load.initialServerId&&
+    row.serverId===restart.serverId&&typeof row.clientId==='string'&&time(row.openedAt)&&row.openedAt>=restart.startedAt&&
+    (row.closedAt===null||time(row.closedAt)&&row.closedAt>=row.openedAt));
+  const distinct=rows=>[...new Set(rows.map(row=>row.clientId))].sort();
+  const rawLive=distinct(replacementStreams.filter(row=>row.openedAt<=deadlineAt&&(row.closedAt===null||row.closedAt>deadlineAt))),
+    rawEver=distinct(replacementStreams);
   const live=cohortValid&&replacement&&confirmed?clients.map(client=>liveRecoveryStream(lifetimes,client,{serverId:restart.serverId,
     startedAt:restart.startedAt,deadlineAt,confirmedAt:load.workloadStart+confirmation.elapsedMs,throughAt:load.streamShutdownAt,completedAt:load.completedAt,sampleMs:profile.sampleSeconds*1000})):[];
   const configuredPlugin=profile.stages.some(row=>row.measured&&row.pluginPerSecond>0),configuredSync=profile.stages.some(row=>row.measured&&row.syncPerMinute>0);
@@ -172,6 +178,8 @@ export function evaluateSustained(result) {
       healthyThroughElapsedMs:finalHealth?.elapsedMs??null,
       scope:'Distinct active groups must return current replacement-process state/tasks before the deadline and remain healthy/resident through the final post-workload health receipt. Post-deadline confirmation uses its own health receipt; later unhealthy observations invalidate recovery.'},
     streamRecovery:{status:live.length===users&&live.every(Boolean)?'pass':'fail',reopened:live.filter(Boolean).length,expected:users,
+      rawReplacementCoverage:{serverId:restart?.serverId??null,deadlineAt,liveAtDeadline:rawLive.length,everConnected:rawEver.length,
+        liveAtDeadlineClientIds:rawLive,everConnectedClientIds:rawEver},
       latency:distribution(live.filter(Boolean).map(row=>row.openedAt-restart.startedAt)),scope:'Expected clients must hold established replacement-process SSE streams at the deadline and confirmation, maintained through workload stop. Bounded planned reconnect handoffs require live replacements; later unexpected ends invalidate recovery.'},
     generator:{status:validGenerator?'pass':'fail',droppedArrivals:drops,telemetryErrors:result.telemetryErrors,shutdownClean:cleanExit(result.shutdown),restartShutdownClean:cleanExit(restart?.shutdown)},
     calculationMissCoverage:{status:completion(measured,['task-miss'],measuredOffered).status==='pass'&&heavyCount>0&&missRows.every(row=>row.successfulTaskMisses===row.latency.count)?'pass':'fail',misses,offeredTaskMisses:heavyCount},
@@ -202,6 +210,7 @@ export function sustainedMarkdown(result) {
     `| Phase / action | Count | p50 / p95 / p99 ms | Terminal statuses | HTTP attempts by status | Refusal Retry-After counts | Cache hit / miss |\n| --- | --- | --- | --- | --- | --- | --- |\n`+
     load.operations.map(row=>`| ${row.phase??profile.stages[row.stage].name} / ${row.action} | ${row.latency.count} | ${['p50Ms','p95Ms','p99Ms'].map(key=>n(row.latency[key])).join(' / ')} | ${JSON.stringify(row.statuses)} | ${JSON.stringify(row.httpStatuses)} | ${JSON.stringify(row.retryAfterValues)} | ${row.cacheHits} / ${row.cacheMisses} |`).join('\n')+'\n\n'+
     `## SSE handshakes\n\nHandshake timing starts at the connection attempt; reconnect backoff remains in restart-to-reconnect timing. Long-lived bodies are consumed until closure, never counted as an unfinished HTTP action.\n\n`+
+    `Raw replacement-stream coverage: ${gates.streamRecovery.rawReplacementCoverage.liveAtDeadline}/${gates.streamRecovery.expected} distinct clients live at the recovery deadline; ${gates.streamRecovery.rawReplacementCoverage.everConnected} ever connected. This observation is independent of the recovery gate's residency and continuity requirements.\n\n`+
     `${JSON.stringify({latency:distribution((load.streamHandshakes??[]).map(row=>row.latencyMs)),stages:load.stageStreams,outsideStages:load.tailStreams},null,2)}\n\n`+
     `## Restart and recovery\n\n${JSON.stringify({restarts:load.restarts,recovery:gates.restartRecovery,streams:gates.streamRecovery},null,2)}\n\n`+
     `## Time series\n\nEvery sample in samples.jsonl includes server RSS, heapUsed, heapTotal, external and arrayBuffers; event-loop delay/utilization; diagnostics (calculator queues and routing residency); cold-open queue depth; process-tree memory/CPU on Linux; and generator active requests/CPU/memory. Each source retains its own receivedAt/elapsedMs and phase/window; health and diagnostics have independent IPC receipts before heap probes. collectedAt is assembly time, never readiness or phase evidence. Admission transitions and open phases are also retained in results.json with server generation and run-relative receipt time. Missing/restart samples are explicit.\n\n`+

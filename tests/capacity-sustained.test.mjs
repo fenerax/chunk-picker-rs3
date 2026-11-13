@@ -390,6 +390,21 @@ test('speed verdicts cannot pass fast refusals, missing classes, dropped work or
   result.load.stats.clientDrops=1;assert.equal(evaluateSustained(result).generator.status,'fail');
   result.load.operations.find(row=>row.action==='task-miss').successfulTaskMisses=0;assert.equal(evaluateSustained(result).calculationMissCoverage.status,'fail');
 });
+
+test('raw replacement stream coverage is counted when residency confirmation fails', () => {
+  const result = reportFixture();
+  for (const row of result.samples) row.server.health.service.openContexts = 1;
+  const streams = result.load.recovery.streams;
+  streams[0].closedAt = 1200000;
+  streams[1].openedAt = 1400000;
+  streams.push({ ...streams[2] }); // Duplicate connections never double-count a client.
+  streams.push({ ...streams[2], clientId: 'old-only', serverId: 'old-process' });
+  const gate = evaluateSustained(result).streamRecovery;
+  assert.equal(gate.status, 'fail'); assert.equal(gate.reopened, 0);
+  assert.equal(gate.rawReplacementCoverage.liveAtDeadline, 2);
+  assert.equal(gate.rawReplacementCoverage.everConnected, 4);
+  assert.match(sustainedMarkdown(result), /2\/4 distinct clients live at the recovery deadline; 4 ever connected/);
+});
 test('format-2 coverage retains distinct cohort, process and receipt proofs',()=>{
   for (const corrupt of [
     result=>{result.load.recovery.groups[1]={...result.load.recovery.groups[0]};},

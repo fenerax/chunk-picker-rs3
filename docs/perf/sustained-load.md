@@ -153,6 +153,11 @@ SSE teardown/drain; their cleanup duration cannot extend the workload horizon.
 Concurrent same-group edits may naturally return 409; those appear
 separately in statuses and fail the relevant speed bar rather than being hidden.
 
+`streamRecovery.rawReplacementCoverage` always reports distinct replacement
+clients live at the recovery deadline and ever connected, plus both client-ID
+lists. These raw observations do not depend on residency confirmation. The
+existing `reopened`, continuity checks and pass/fail gate retain their meaning.
+
 ## Measurements and verdicts
 
 `--memory-profile default|budget-672` selects server memory caps independently
