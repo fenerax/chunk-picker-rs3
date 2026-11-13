@@ -468,6 +468,18 @@ Progress JSON is informational and written in place, serialized by the builder.
 A concurrent reader can see an incomplete progress write; the completion seal,
 inventory and checksums are the authority for reuse.
 
+Fixture workers prepare their process-lock identity before announcing readiness,
+and the pool waits for every worker's readiness before starting any store work.
+On Linux, the identity lookup forks `ps`; until exec, that child can retain a
+sibling's listening guard even after the sibling closes it. Completing all such
+lookups first prevents false catalogue-lock refusals during release/reacquisition.
+Group builds and their separate catalogue roots still run concurrently.
+If a build or its awaited close fails, the fixture worker reports the failure
+and exits its isolate with a nonzero code, including during cooperative STOP.
+This fails generation and releases worker-local native handles without changing
+the production store's fail-closed ownership policy. Successful and cancelled
+builds with successful cleanup still use cooperative shutdown.
+
 Keep the sealed source immutable. The harness verifies and streams copies into
 the new output directory, preserves file mtimes, then runs the measured server
 only on that copy. It never opens a source store or reseals the source. Output
