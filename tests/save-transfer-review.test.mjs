@@ -12,6 +12,35 @@ import { transferDigest } from '../app/save-transfer.mjs';
 import { createScreenDialogs } from '../app/web/screen-dialogs.mjs';
 import { createGameplayFingerprint } from '../app/storage/gameplay-fingerprint.mjs';
 import { taskReuseInputKey } from '../app/tasks/unlock-reuse.mjs';
+import { migrateOwnedGameplay } from '../app/tasks/migration.mjs';
+
+for (const format of ['legacy', 'backup']) test(`${format} forced-task warnings appear before Apply and survive the report and backup`, async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'synthetic-forced-task-import-'));
+  const roster = [{ id: 'one', name: 'Synthetic player' }];
+  const migration = { definitions: { challenges: {} }, taskMap: {}, catalogue: [] };
+  const store = await openStore({ dataDir, initialState: createGroupState(roster), retention: false,
+    migrateState: state => migrateOwnedGameplay(state, migration).state });
+  t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const state = createGroupState(roster);
+  state.members[0].sourceMapId = 'synthetic-map';
+  const manualTasks = { Mining: { 'Mine-_-20~|Synthetic-_-20ore|~': 42 } };
+  state.legacy = { maps: { 'synthetic-map': { chunks: { unlocked: {}, selected: {} }, chunkinfo: { manualTasks } } } };
+  const before = await readFile(path.join(dataDir, 'state.json'));
+  const body = format === 'legacy' ? { document: { maps: state.legacy.maps }, members: [{ ...roster[0], mapId: 'synthetic-map' }] }
+    : { backup: { format: 'rs3-chunk-picker', schemaVersion: 1, state } };
+  const prepared = await store.prepareTransfer(serialize(body),
+    { route: '/api/restore/preview', dataset: { datasetId: 'duo-legacy', capabilities: {} }, world: { chunks: new Map() }, migration });
+  assert.ok(prepared.response.warnings.some(text => text.includes('1 unsupported forced-task override')));
+  assert.ok(prepared.response.warnings.some(text => /Mine Synthetic ore.*will not make.*available/.test(text)));
+  assert.ok(prepared.response.transferReport.records.some(row => row.reason.includes('Mine Synthetic ore')));
+  assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), before, 'Preview does not apply the import');
+  await store.applyTransfer(prepared.ticket, store.getInfo().revision);
+  const saved = (await store.backup()).state;
+  assert.deepEqual(saved.legacy.maps['synthetic-map'].chunkinfo.manualTasks, manualTasks);
+  assert.ok(saved.legacy.gameplayMigration.warnings.some(text => text.includes('Mine Synthetic ore')));
+  assert.deepEqual(saved.members[0].taskStatus ?? {}, {});
+  assert.deepEqual(saved.members[0].completedTasks, []);
+});
 
 test('apply seeds worker fingerprints before subscribers without trusting uploaded digest metadata', async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'synthetic-import-fingerprint-'));
