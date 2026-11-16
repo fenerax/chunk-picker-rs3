@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { CANARY, planStability, windowsSlice } from '../scripts/ci/stability-plan.mjs';
+import { CANARY, planStability, readTestSource, stabilityRisk, windowsSlice } from '../scripts/ci/stability-plan.mjs';
 import { executeShard, diagnostic } from '../scripts/ci/stability-run.mjs';
 import { summarizeStability } from '../scripts/ci/stability-summary.mjs';
 import { runAdaptive } from '../scripts/adaptive-test-runner.mjs';
@@ -34,6 +34,36 @@ test('direct entry selection ignores deleted files, nested helpers and unrelated
   for (const file of ['scripts/ci/stability-plan.mjs', 'scripts/ci/stability-run.mjs', 'scripts/ci/stability-summary.mjs', '.github/workflows/stability.yml']) {
     assert.deepEqual(plan({ changed: [file] }).targets, [{ file: CANARY, os: 'linux', requested: 5, repetitions: 5 }]);
   }
+});
+
+test('PR loop leaves plain logic tests to ordinary CI; Windows slice files and manual dispatch always run', () => {
+  const pr = plan({ changed: ['tests/a.test.mjs', 'tests/win.test.mjs'], risk: () => null });
+  assert.deepEqual(pr.skipped, ['tests/a.test.mjs']);
+  assert.deepEqual(pr.targets.map(({ file, os }) => [file, os]), [['tests/win.test.mjs', 'linux'], ['tests/win.test.mjs', 'windows']]);
+  assert.deepEqual(plan({ files: 'tests/a.test.mjs', risk: () => null }).targets.map(t => t.file), ['tests/a.test.mjs']);
+  assert.deepEqual(plan({ changed: ['tests/a.test.mjs'], risk: () => 'clock' }).skipped, []);
+  for (const [source, reason] of [
+    ["import { spawn } from 'node:child_process';", 'process'],
+    ["import { startServer } from '../app/server.mjs';", 'network'],
+    ['await new Promise(r => setTimeout(r, 5));', 'clock'],
+    ['const port = await launchChrome();', 'browser'],
+    ["run('pwsh', ['-File', 'x.ps1']);", 'shell'],
+    ["import { createState } from '../app/core/state.mjs'; assert.equal(1, 1);", null],
+    ['const settings = { timeout: 5 }; // not a timer', null],
+  ]) assert.equal(stabilityRisk(source), reason, source);
+});
+
+test('risk reading follows relative helpers inside tests/ only', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'rs3-stability-risk-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, 'tests', 'helpers'), { recursive: true });
+  await mkdir(path.join(root, 'app'), { recursive: true });
+  await writeFile(path.join(root, 'tests', 'helpers', 'clock.mjs'), 'export const wait = ms => new Promise(r => setTimeout(r, ms));\n');
+  await writeFile(path.join(root, 'app', 'timer.mjs'), 'export const later = f => setTimeout(f, 1);\n');
+  await writeFile(path.join(root, 'tests', 'helped.test.mjs'), "import { wait } from './helpers/clock.mjs';\n");
+  await writeFile(path.join(root, 'tests', 'plain.test.mjs'), "import { later } from '../app/timer.mjs';\n");
+  assert.equal(stabilityRisk(readTestSource(root, 'tests/helped.test.mjs')), 'clock');
+  assert.equal(stabilityRisk(readTestSource(root, 'tests/plain.test.mjs')), null);
 });
 
 test('review reproduction: every discovery-accepted basename is planned or visibly refused, including _rebuilt', async t => {

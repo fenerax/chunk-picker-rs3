@@ -1,6 +1,6 @@
 # Chunk Picker agents
 
-Read `README.md` for the current runtime and `PRODUCT.md` for product decisions. For tests, use `docs/testing.md`; for a PR review, use `docs/pr-review.md`.
+Read `README.md` for the current runtime and `PRODUCT.md` for product decisions. Choose work by its "Current work priority" section: user-visible fixes first, from open GitHub issues. For tests, use `docs/testing.md`; for a PR review, use `docs/pr-review.md`.
 
 ## Public history
 

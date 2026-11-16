@@ -8,6 +8,13 @@ Recreate the RS3 Chunk Picker from scratch, one for one as closely as practical.
 
 The first users are Player 1 and Player 2. Public multi-user use remains the destination; the initial duo deployment does not limit the product to two people. Keep each player's maps and progress separate while supporting shared groups. [Sharing](docs/sharing.md) documents invitations; deployment-specific setup belongs to the operator's private runbook.
 
+## Current work priority (owner decision, 2026-11-15)
+
+1. User-visible bug fixes, then user-visible features and usability, then parity gaps. Performance work qualifies when a player can feel the slowness and the issue states a measured number.
+2. Work comes from open GitHub issues, one small PR per issue. Agents pick the top open issue rather than inventing infrastructure work; a new kind of work starts as an issue.
+3. Scale and infrastructure work is paused at the staged-beta envelope (about 100 active groups): the 2,000-player capacity proof, further Format 2 slices, new acceptance harnesses and new evidence ledgers. Keep the existing code and its CI passing. Resume only when beta usage measures a need or the owner reopens it.
+4. Real users find bugs faster than harnesses. Prefer shipping a small change to the beta and fixing what players report over proving rare cases ahead of time. Saves, backups and restore keep their current safety gates.
+
 ## Required outcomes
 
 - Match map navigation, chunk states, rolling, task views, search, quest/achievement tracking, equipment/BiS views, drops, notes, filters, history, sandbox and settings wherever practical. Track each feature against the reference rather than treating a matching screenshot as completion.
@@ -100,4 +107,4 @@ Map first is the permanent layout direction, including the phone home view; disp
 
 Every available task should have a real, explainable route. Preserve full prerequisite alternatives in Why not? and plain-language How? evidence; verify routes against source evidence and turn demonstrated errors into regression cases.
 
-Development priority remains speed/performance, then usability, then accuracy. The update target is 15–20 minutes end to end, with new gates charged against that budget. Usability ideas from 2026-11-02 remain proposals: remove internal IDs, repeated steps and jargon from How?; decide inline versus popup presentation; consider a backlog reason dialog, modifier-click quick backlog, and forwarding “task is wrong” reasons to feedback. These ideas are not an implementation grant.
+The update target is 15–20 minutes end to end, with new gates charged against that budget. Work priority is set in [Current work priority](#current-work-priority-owner-decision-2026-11-15). The 2026-11-02 usability ideas (remove internal IDs, repeated steps and jargon from How?; decide inline versus popup presentation; a backlog reason dialog; modifier-click quick backlog; forwarding “task is wrong” reasons to feedback) enter the issue backlog like other work: an open issue that states the change is the grant for that change.

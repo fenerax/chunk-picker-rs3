@@ -138,13 +138,23 @@ recovery. No full suite is needed to run that test.
 ### Hosted stability proof
 
 A flaky test is a bad test: delete and rebuild it; never retry it or raise its
-timeout to obtain a pass. New and rebuilt entry files must pass 50 first attempts
-per relevant OS before landing, alongside normal full CI and the old-to-new
-assertion/coverage map for replacements. A failure invalidates the proof for that
-SHA; repair the test and start a new proof. This loop supplements full coverage.
+timeout to obtain a pass. New and rebuilt entry files that can be
+timing-sensitive must pass 50 first attempts per relevant OS before landing,
+alongside normal full CI and the old-to-new assertion/coverage map for
+replacements. A failure invalidates the proof for that SHA; repair the test and
+start a new proof. This loop supplements full coverage.
 
-The **Stability** workflow selects directly added/modified top-level
-`tests/*.test.mjs` files against the PR merge base and tests the CI merge checkout.
+A test can be timing-sensitive when the entry file or a helper it imports from
+`tests/` uses child processes or workers, sockets, HTTP or `app/server.mjs`,
+timers or wall-clock reads, a browser, or PowerShell; `RISK_PATTERNS` in
+`scripts/ci/stability-plan.mjs` holds the exact list. Other entry files are plain
+logic tests: they land on normal full CI without the loop. Files in the Windows
+slice always count as timing-sensitive. When a plain-looking test depends on
+timing through application code, dispatch the loop for it manually.
+
+The **Stability** workflow selects directly added/modified timing-sensitive
+top-level `tests/*.test.mjs` files against the PR merge base and tests the CI
+merge checkout; its summary lists the plain files it left to ordinary CI.
 Helper-only changes require manual file selection. Linux always runs; files in
 `.github/windows-slice/run.mjs` also run on Windows with that lane's environment
 and ownership setup. Each repetition uses the existing adaptive runner and
