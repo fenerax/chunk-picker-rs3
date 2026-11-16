@@ -21,16 +21,19 @@ import { registerHooks } from 'node:module';
 import { parentPort } from 'node:worker_threads';
 const measures = [];
 let ledger;
-globalThis.__cacheAccounting = { measures, setLedger: value => { ledger = value; } };
+globalThis.__cacheAccounting = { measures, encodes: 0, setLedger: value => { ledger = value; } };
 registerHooks({ load(url, context, next) {
   const result = next(url, context);
   let source = String(result.source), anchor, replacement;
   if (url.endsWith('/tasks/serialized-snapshot-cache.mjs')) {
+    const wire = 'const wire = (value, checkpoint = noCheckpoint) => {';
+    if (!source.includes(wire)) throw new Error('Snapshot wire probe anchor changed.');
+    source = source.replace(wire, wire + ' globalThis.__cacheAccounting.encodes++;');
     anchor = 'const stage = (key, value, _state, owner) => {';
     replacement = \`
   globalThis.__cacheAccounting.measures.push(() => [...entries].map(([key, record]) => {
       if (Object.keys(record).some(key => !['bytes', 'owner', 'cost', 'value', 'heapCost'].includes(key))) throw new Error('Unknown retained representation.');
-      const { snapshot, deferred } = record.value ? { snapshot: record.value, deferred: context(record.value.baseline) } : decode(record.bytes);
+      const { snapshot, deferred, mapLocations } = record.value ? { snapshot: record.value, deferred: context(record.value.baseline), mapLocations: locations(record.value.baseline) } : decode(record.bytes);
       let minimum;
       if (record.value) {
         const meter = createSnapshotHeapMeter();
@@ -40,7 +43,7 @@ registerHooks({ load(url, context, next) {
       if (record.cost < minimum) throw new Error('Retained snapshot is undercharged.');
       return { projectionOnly: !snapshot.baseline && !!snapshot.playResult, sandbox: !!snapshot.playResult,
         ownsState: !!deferred?.state, owner: 'picker:' + record.owner,
-        cost: record.cost };
+        cost: record.cost, mapLocations };
     }));\` + anchor;
   } else if (url.endsWith('/tasks/eligibility-cache.mjs')) {
     anchor = 'const retained = new Map();';
@@ -53,14 +56,15 @@ registerHooks({ load(url, context, next) {
 const post = parentPort.postMessage.bind(parentPort);
 parentPort.postMessage = (message, ...rest) => {
   if (message.id !== undefined) message = { ...message,
-    accounting: { measured: measures.flatMap(measure => measure()), charged: ledger() } };
+    accounting: { measured: measures.flatMap(measure => measure()), charged: ledger(), encodes: globalThis.__cacheAccounting.encodes } };
   return post(message, ...rest);
 };
 `;
-async function fixture(t, cacheBytes, accounting = false) {
+async function fixture(t, cacheBytes, accounting = false, hotSnapshots) {
   const world = buildWorld(definitions);
   const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), {
-    env: { ...process.env, ...(cacheBytes ? { RS3_CALCULATOR_CACHE_BYTES: String(cacheBytes) } : {}) },
+    env: { ...process.env, ...(cacheBytes ? { RS3_CALCULATOR_CACHE_BYTES: String(cacheBytes) } : {}),
+      ...(hotSnapshots !== undefined ? { RS3_CALCULATOR_HOT_SNAPSHOTS: String(hotSnapshots) } : {}) },
     workerData: genericWorkerData({ definitions, world: { chunks: world.chunks, surface: world.surface } }),
     ...(accounting ? { execArgv: ['--import', 'data:text/javascript,' + encodeURIComponent(accountingProbe)] } : {}),
   });
@@ -74,9 +78,24 @@ async function fixture(t, cacheBytes, accounting = false) {
     worker.postMessage({ id: ++sequence, pickerId: `picker-${picker}`, state: state(picker), memberId, input: 'same', ...parameters });
     const message = (await response)[0];
     assert.equal(message.error, undefined);
+    if (parameters.resultTransport === 'json-shared-v1') return message;
     return accounting ? { ...message.result, accounting: message.accounting } : message.result;
   };
 }
+
+test('compact evaluations charge and encode their map locations in one snapshot admission', async t => {
+  const send = await fixture(t, 1024 * 1024, true, 0);
+  const request = { type: 'evaluate', resultTransport: 'json-shared-v1', resultView: 'play-v1' };
+  const cold = await send(0, 'one', request);
+  const play = JSON.parse(Buffer.from(cold.playJSON).toString());
+  assert.ok(Object.keys(play.taskLocations).length > 0, 'exercise a nonempty location projection');
+  assert.equal(cold.accounting.encodes, 1, 'the baseline must not be encoded before locations are ready');
+  assert.equal(cold.accounting.measured.length, 1);
+  assert.deepEqual(cold.accounting.measured[0].mapLocations, play.taskLocations);
+  const warm = await send(0, 'one', request);
+  assert.equal(warm.accounting.encodes, 1, 'an unchanged evaluation reuses its charged bytes');
+  assert.deepEqual(normalize(JSON.parse(Buffer.from(warm.playJSON).toString())), normalize(play));
+});
 const normalize = result => {
   const copy = structuredClone(result);
   delete copy.cache;

@@ -7,6 +7,7 @@ export function releaseSnapshotScratch(bytes) {
 }
 export function encodeSnapshotBytes(raw) {
   const output = Buffer.allocUnsafeSlow(raw.length + Math.ceil(raw.length / 255) + 16);
+  const words = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
   const positions = new Int32Array(65536).fill(-1);
   let cursor = 0, anchor = 0, written = 0;
   const length = value => {
@@ -14,10 +15,13 @@ export function encodeSnapshotBytes(raw) {
     output[written++] = value;
   };
   while (cursor + 12 < raw.length) {
-    const word = raw.readUInt32LE(cursor), hash = Math.imul(word, 0x9e3779b1) >>> 16;
+    const word = words.getUint32(cursor, true), hash = Math.imul(word, 0x9e3779b1) >>> 16;
     const previous = positions[hash]; positions[hash] = cursor;
-    if (previous < 0 || cursor - previous > 65535 || raw.readUInt32LE(previous) !== word) { cursor++; continue; }
+    if (previous < 0 || cursor - previous > 65535 || words.getUint32(previous, true) !== word) { cursor++; continue; }
     let end = cursor + 4, source = previous + 4;
+    // Skip equal words, then find the exact byte boundary. This preserves the
+    // existing LZ4 tokens while avoiding four repeated checks per match word.
+    while (end + 4 <= raw.length - 5 && words.getUint32(end, true) === words.getUint32(source, true)) { end += 4; source += 4; }
     while (end < raw.length - 5 && raw[end] === raw[source]) { end++; source++; }
     const literals = cursor - anchor, match = end - cursor - 4;
     output[written++] = (Math.min(literals, 15) << 4) | Math.min(match, 15);

@@ -150,6 +150,38 @@ test('heap charges share internalized property names while string values and met
   assert.equal(strings.bytes - empty.bytes, 4000, 'equal string values still pay both UTF-16 charges');
 });
 
+test('heap admission stops at the hot bound while fitting graphs keep their complete charge', () => {
+  const graph = Array.from({ length: 1000 }, () => ({ detail: '雪'.repeat(100) }));
+  const full = createSnapshotHeapMeter();
+  let fullVisits = 0, boundedVisits = 0;
+  full.visit(graph, false, () => fullVisits++);
+  const fitting = createSnapshotHeapMeter({ byteLimit: full.bytes });
+  fitting.visit(graph);
+  assert.equal(fitting.bytes, full.bytes);
+  const bounded = createSnapshotHeapMeter({ byteLimit: 32 * 1024 });
+  bounded.visit(graph, false, () => boundedVisits++);
+  assert.ok(bounded.bytes > 32 * 1024, 'a partial walk proves hot admission must fail');
+  assert.ok(bounded.bytes < full.bytes);
+  assert.ok(boundedVisits < fullVisits / 2, 'do not traverse the unchanged remainder');
+
+  const hotSet = createSnapshotHotSet({ entryLimit: 1, byteLimit: 8192 });
+  const budget = createWorkerCacheBudget(64 * 1024);
+  const cache = createSerializedSnapshotCache(budget, { hotSet });
+  const snapshot = { baseline: { tasks: graph, metrics: {} } };
+  assert.equal(cache.set('large', snapshot, undefined, 'one'), true);
+  const record = Map.prototype.get.call(cache.entries, 'large');
+  assert.equal(hotSet.size, 0);
+  assert.ok(record.heapCost > hotSet.byteLimit);
+  assert.equal(budget.bytes, serializedSnapshotBytes('large', 'one', record.bytes));
+  assert.deepEqual(cache.entries.get('large').baseline, snapshot.baseline);
+  assert.equal(hotSet.size, 0, 'the lower bound must never permit promotion');
+  snapshot.whyIndex = { tasks: graph };
+  cache.refresh(snapshot);
+  assert.deepEqual(cache.entries.get('large').whyIndex, snapshot.whyIndex);
+  cache.entries.clear();
+  assert.equal(budget.bytes, 0);
+});
+
 test('refreshing a demoted snapshot re-admits its decoded graph to both budgets', () => {
   const hotSet = createSnapshotHotSet({ entryLimit: 1, byteLimit: 128 * 1024 });
   const { cache, budget, snapshot: a } = fixture(1024 * 1024, hotSet);
@@ -256,8 +288,8 @@ test('each cold content revision is measured, serialized and compressed once, in
     return { ...result, source: source + `
 const serialize = value => { globalThis.__snapshotPasses.serialize++; return rawSerialize(value); };
 const encodeSnapshotBytes = value => { globalThis.__snapshotPasses.compress++; return rawEncode(value); };
-function createSnapshotHeapMeter() {
-  const meter = rawMeter();
+function createSnapshotHeapMeter(options) {
+  const meter = rawMeter(options);
   return { visit: meter.visit, get bytes() { globalThis.__snapshotPasses.measure++; return meter.bytes; } };
 }
 ` };
