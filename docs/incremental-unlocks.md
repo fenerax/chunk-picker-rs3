@@ -89,3 +89,28 @@ PR #295 is useful independent snapshot work. Any reused changes must be folded
 into this branch and verified here; this implementation cannot require its
 merge. The PR remains a draft with `Refs #296` until the complete result and
 latency evidence establish the acceptance target.
+
+## Verified prototype boundary
+
+The opt-in implementation at `334ed2c` passes 102 focused cases and 78
+complete-result comparisons on the full game provider. The latter cover 20
+personal unlocks and eight each for disconnected partner and alternating
+ownership, evaluating both members after every step. A synthetic no-XP recipe
+within that full catalogue is eligible initially and becomes excluded when
+the first unlock supplies its output independently. Processing counters are
+compared explicitly as well as the complete enumerable result.
+
+The unchanged Q2 supervisor compared `841de02b` with `334ed2c`: 1,548 pairs,
+1,247 successful results, 301 matching error pairs, zero differences and verified
+inputs. It completed in 148.23 seconds with 1,306 MiB sampled peak process-group
+RSS on Linux under WSL, Node 24.20.0, within the existing memory bounds. The
+candidate-only activation patch changes the constructor default to `true` so
+this comparison exercises the opt-in implementation. Its SHA-256 is
+`daf11d6a6949731ce16f0e1923fa89aaf5b9dbdee9e4d8cfec3eb46fe33372bf`.
+The patch is an isolated supervisor input; it changes neither published source
+nor the comparator, exclusions, harvest floors or input contract.
+
+This proves the tested results, not the latency target or complete dependency
+propagation through access and processing. Predicate validation still visits
+the existing task-check frontier. Further work must reduce the collectors and
+publication/projection work before this can replace the default calculation.
