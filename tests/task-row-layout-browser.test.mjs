@@ -107,7 +107,7 @@ test('task rows fit their list container and keep actions reachable', { timeout:
             whyOpacity:getComputedStyle(row.querySelector('.task-why')).opacity,
             overflow:[...document.querySelectorAll('.task-row')].filter(node => node.scrollWidth > node.clientWidth + 1).map(node => node.id),
             expanded:box(document.querySelector('#open .task-how-panel')), openBody:box(document.querySelector('#open .task-body')),
-            form:box(document.querySelector('.backlog-form')), backlogBody:box(document.querySelector('#backlogged .task-body')),
+            backlogReason:box(document.querySelector('#backlogged .backlog-reason')), backlogLabel:box(document.querySelector('#backlogged .task-label-button')),
             checkbox:box(row.querySelector('input')), howHeight:row.querySelector('.task-how').getBoundingClientRect().height,
             wordWrap:getComputedStyle(label).overflowWrap,
             splitWords:[...label.textContent.matchAll(/\\S+/g)].filter(word => { const range = document.createRange(); range.setStart(label.firstChild, word.index); range.setEnd(label.firstChild, word.index + word[0].length); return range.getClientRects().length > 1; }).map(word => word[0]),
@@ -135,7 +135,7 @@ test('task rows fit their list container and keep actions reachable', { timeout:
           assert.equal(metrics.whyOpacity, hoverFineDesktop ? '0' : '1', 'resting icons follow the matched hover/pointer media');
           assert.ok(metrics.expanded.y >= metrics.openBody.bottom, 'expanded How follows the body');
           assert.ok(metrics.expanded.width >= metrics.openBody.width - 1, 'expanded How keeps the full body width');
-          assert.ok(metrics.form.y >= metrics.backlogBody.bottom, 'backlog form follows the body');
+          assert.ok(metrics.backlogReason.y >= metrics.backlogLabel.bottom, 'saved backlog reason follows the task label');
           for (const row of metrics.rows) {
             assert.ok(row.body.width > listWidth - (largeTargets ? 60 : 35), row.id + ' body gets the width');
             assert.equal(row.body.x, metrics.body.x, row.id + ' keeps the task body aligned');

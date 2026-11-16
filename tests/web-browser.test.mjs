@@ -1384,8 +1384,10 @@ test('a partner task popup uses the reviewed player status and saves without swi
   await h.click('Restore from backlog');
   assert.deepEqual(h.calls.at(-1).body.command, { type: 'set-task-status', memberId: 'reed', taskId: task.id, backlogged: false });
   h.run("showTask(partnerResult.tasks[0], true, {memberId:'reed', result:partnerResult})"); await h.click('Backlog…');
-  const reason = h.all().find(node => node.attributes['aria-label'] === 'Why backlog Test task?'); reason.value = 'Partner-specific reason';
-  const form = h.all().find(node => node.className === 'backlog-form'); await form.emit('submit', { preventDefault() {} });
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Backlog task'); assert.equal(h.nodes.get('tool-dialog').open, true);
+  const details = dialogNodes(h).find(node => node.tagName === 'LABEL' && node.textContent === 'Details (optional)');
+  assert.ok(details, 'The reason dialog offers optional details'); details.querySelector('input').value = 'Partner-specific reason';
+  const form = h.nodes.get('dialog-content').querySelector('form'); await form.emit('submit', { preventDefault() {} });
   assert.deepEqual(h.calls.at(-1).body.command, { type: 'set-task-status', memberId: 'reed', taskId: task.id, backlogged: true, backlogReason: 'Partner-specific reason' });
   assert.equal(h.run('memberId'), 'actor1'); assert.equal(h.snapshot().members[0].taskStatus[task.id].challengeCompleted, false);
 });
