@@ -2,6 +2,68 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-16",
+      "title": "Backlog tasks your way",
+      "items": [
+        "Click Backlog to choose a reason, or Shift-click it to defer a task straight away without a reason.",
+        "Edit a backlog reason later without restoring the task.",
+        "Choosing Task looks wrong offers to open a problem report with the task details filled in."
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "title": "Clearer task details and chunk previews",
+      "items": [
+        "Open How? from an available task's details, or use Details on a generated goal to see its sources and equipment information.",
+        "Report a problem with a task directly from its details.",
+        "Planning views now distinguish tasks that could become available from tasks you can do now.",
+        "Clue steps are grouped together in the chunk unlock Preview.",
+        "The chunk unlock Preview no longer shows a death-chunk time estimate."
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "title": "Bring more of your old picker with you",
+      "items": [
+        "Random-loot items from the original picker become manual item sources while keeping the original map data and your existing manual choices.",
+        "Imported custom tasks keep their skill requirements.",
+        "Import warns you about forced-task choices that this picker cannot carry over."
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "title": "Keep your searches, notes and feedback",
+      "items": [
+        "Find training methods by name in Search, and keep searching after another player saves.",
+        "Unsaved task notes stay with you when you move between task details.",
+        "Chunk notes you have not edited refresh when another player saves a change.",
+        "Feedback keeps the context where you opened it and preserves unfinished drafts during the session.",
+        "Feedback type choices now work with screen readers and keyboard controls."
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "title": "Smoother setup and update notices",
+      "items": [
+        "Retry loading starting banks in the setup guide if the first attempt fails.",
+        "The setup guide restores your choices after a failed save.",
+        "Solo players can now use Ready for members to preview and start their members map.",
+        "What's new refreshes after an update, marks entries read only after they appear and lets you retry a failed load.",
+        "Temporary sign-in and session overload messages explain when to try again."
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "title": "Quicker groups and fewer interruptions",
+      "items": [
+        "Groups with many saved backups open faster.",
+        "Repeated task lists and task explanations load faster when several groups are using the picker.",
+        "Task calculations wait their turn during busy periods instead of immediately refusing requests from other groups.",
+        "Updates to task calculations no longer stop an existing group from opening.",
+        "New sign-in sessions and invite links avoid a rare error that could prevent them from opening the picker."
+      ]
+    },
+    {
       "date": "2026-11-05",
       "title": "Ready for the RuneMetrics shutdown",
       "items": [
