@@ -24,6 +24,84 @@ function baseState(map, member = {}) {
     legacy: { maps: { old: map } } };
 }
 
+test('original custom skill levels survive import, backup and repeated migration', () => {
+  const raw = { userTasks: { Mining: { 'Mine-_-20synthetic-_-20ore~||~': '50' } } };
+  const input = baseState(raw);
+  const options = { definitions: { challenges: {} }, taskMap: {} };
+  const result = migrateGameplay(input, options);
+  const [task] = result.state.tasks;
+  assert.match(task.id, /^rs3:task:custom:/);
+  assert.deepEqual(task, { id: task.id, label: 'Mine synthetic ore', category: 'Mining', skill: 'Mining', level: 50 });
+  assert.deepEqual(result.state.legacy.maps.old, raw);
+  assert.deepEqual(input, baseState(raw));
+  assert.deepEqual(result.warnings, []);
+  const restored = importBackup(exportBackup(result.state));
+  assert.deepEqual(restored.tasks, [task]);
+  assert.deepEqual(migrateGameplay(result.state, options).state, result.state);
+  const repeated = migrateGameplay(restored, options).state;
+  assert.deepEqual(repeated.tasks, [task]);
+  assert.deepEqual(repeated.legacy.maps.old, raw);
+  assert.deepEqual(migrateGameplay(repeated, options).state, repeated);
+  const edited = applyCommand(restored, { type: 'update-task', taskId: task.id, task: { label: task.label, skill: 'Mining', level: 60 } });
+  assert.equal(migrateGameplay(edited, options).state.tasks[0].level, 60, 'Re-import keeps saved edits');
+  const deleted = applyCommand(restored, { type: 'delete-task', taskId: task.id });
+  assert.deepEqual(migrateGameplay(deleted, options).state.tasks, [], 'Re-import does not revive deleted tasks');
+});
+
+test('unsupported original custom requirements remain exact and warn in preview and backup', () => {
+  const raw = { userTasks: {
+    Mining: { 'Unboosted-_-20ore~||~': '50~', 'Malformed-_-20ore': { Level: 60 }, 'Too high': '121', 'Fraction': 1.5 },
+    Combat: { 'Synthetic combat': '126' }, Extra: { 'Simple task': true, 'Unknown task': { skill: 'Mining', level: 50 } },
+  } };
+  const input = baseState(raw), options = { definitions: { challenges: {} }, taskMap: {} };
+  const result = migrateGameplay(input, options);
+  const byLabel = new Map(result.state.tasks.map(task => [task.label, task]));
+  assert.equal(byLabel.get('Unboosted ore').level, 50);
+  assert.equal(byLabel.get('Unboosted ore').skill, 'Mining');
+  for (const label of ['Malformed ore', 'Too high', 'Fraction', 'Synthetic combat', 'Unknown task']) {
+    assert.equal(byLabel.get(label).level, undefined);
+    assert.ok(result.warnings.some(text => text.includes(label) && text.includes('cannot be represented')));
+  }
+  assert.ok(result.warnings.some(text => text.includes('Unboosted ore') && text.includes('NoBoost')));
+  assert.ok(result.warnings.every(text => !text.includes('Simple task') && !text.includes('-_-20')));
+  assert.deepEqual(migrationSummary(input).warnings, result.warnings);
+  assert.deepEqual(migrationSummary(result.state).warnings, result.warnings);
+  const restored = importBackup(exportBackup(result.state));
+  assert.deepEqual(restored.legacy.maps.old, raw);
+  assert.deepEqual(restored.legacy.gameplayMigration.warnings, result.warnings);
+  assert.deepEqual(migrateGameplay(result.state, options).state, result.state);
+});
+
+test('different custom requirements across maps are flagged without selecting a shared level', () => {
+  const options = { definitions: { challenges: {} }, taskMap: {} };
+  for (const second of ['60', '50~', { Level: 50 }]) {
+    const input = baseState({ userTasks: { Mining: { 'Shared ore': 50 } } });
+    input.members.push({ ...structuredClone(input.members[0]), id: 'actor2', sourceMapId: 'other' });
+    input.legacy.maps.other = { userTasks: { Mining: { 'Shared ore': second } } };
+    const result = migrateGameplay(input, options);
+    assert.equal(result.state.tasks.length, 1);
+    assert.equal(result.state.tasks[0].level, undefined);
+    assert.ok(result.warnings.some(text => /conflicting custom-task requirements/.test(text) && text.includes('old and other')));
+    assert.deepEqual(migrationSummary(input).warnings, result.warnings);
+    assert.deepEqual(result.state.legacy.maps, input.legacy.maps);
+    assert.deepEqual(migrateGameplay(result.state, options).state, result.state);
+  }
+  const input = baseState({ userTasks: { Mining: { 'Shared ore': 50 } } });
+  input.legacy.maps.other = { userTasks: { Mining: { 'Shared ore': '50' } } };
+  input.members.push({ ...structuredClone(input.members[0]), id: 'actor2', sourceMapId: 'other' });
+  const matching = migrateGameplay(input, options);
+  assert.equal(matching.state.tasks.length, 1);
+  assert.equal(matching.state.tasks[0].level, 50);
+  assert.deepEqual(matching.warnings, []);
+  const converted = migrateGameplay(baseState(input.legacy.maps.old), options).state;
+  converted.members.push({ ...structuredClone(converted.members[0]), id: 'actor2', sourceMapId: 'other' });
+  converted.legacy.maps.other = { userTasks: { Mining: { 'Shared ore': '60' } } };
+  const addedMap = migrateGameplay(converted, options);
+  assert.deepEqual(addedMap.state.tasks, converted.tasks, 'A new map cannot duplicate or overwrite a saved custom row');
+  assert.ok(addedMap.warnings.some(text => text.includes('conflicting custom-task requirements')));
+  assert.deepEqual(addedMap.state.legacy.maps, converted.legacy.maps);
+});
+
 test('forced-task overrides warn with a count and readable names without changing gameplay', () => {
   const manualTasks = { Mining: { 'Mine-_-20~|Synthetic-_-20ore|~': 42, 'Synthetic-_-20rock': true }, Empty: {} };
   const input = baseState({ chunkinfo: { manualTasks } });

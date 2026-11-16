@@ -53,7 +53,13 @@ Portable backup/restore includes the identity registry and migration provenance 
 an external decoder file to preserve a discovered alias.
 
 Imported custom `userTasks` are allocated permanent custom tokens once; their old label IDs remain
-saved aliases. Legacy alternative choices are decoded once per owner, preserving their raw map
+saved aliases. The original `userTasks[skill][name]` numeric value (number or digit string, 1–120)
+maps to native `skill` and `level` for supported skills. The `~` NoBoost suffix retains its numeric
+level but warns that boost policy cannot be represented. Combat/unknown skills, out-of-range or
+malformed values, and unknown record shapes warn rather than guessing; `Extra: true` remains
+level-free. Different requirements for the same task across maps warn for review and do not choose
+a shared level. Originals and warnings survive backups. Repeated migration preserves saved edits
+and deletions. Legacy alternative choices are decoded once per owner, preserving their raw map
 records and respecting explicit authored choices, including null. Category renames move known
 alternative preferences into the current category and retain conflicting values in the archive.
 

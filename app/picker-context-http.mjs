@@ -6,7 +6,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
 import { importLegacyMaps } from './core/state.mjs';
-import { forcedTaskWarnings } from './tasks/migration.mjs';
+import { customTaskRequirementWarnings, forcedTaskWarnings } from './tasks/migration.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
 import { TICK_ACTIVE_TASKS } from './core/tick-active-tasks.mjs';
 import { PLAY_VIEW } from './play-view.mjs';
@@ -235,7 +235,7 @@ export function migrationSummary(state) {
   for (const member of state.members) if (!maps.has(member.sourceMapId)) maps.set(member.sourceMapId, member);
   const migration = state.legacy?.gameplayMigration;
   const savedWarnings = new Set(migration?.warnings ?? []);
-  const forcedWarnings = forcedTaskWarnings(state).filter(warning => !savedWarnings.has(warning));
+  const forcedWarnings = [...forcedTaskWarnings(state), ...customTaskRequirementWarnings(state)].filter(warning => !savedWarnings.has(warning));
   const unresolved = migration?.unresolved ?? [];
   const identities = state.provenance?.taskIdentityMigration;
   const warnings = [...(migration?.warnings?.slice(0, REPORT_RECORDS) ?? unresolved.slice(0, REPORT_RECORDS).map(item => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${members.get(item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`))].map(warning => readableMigrationWarning(warning, { tasks: tasks, members: members, maps: maps })

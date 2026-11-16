@@ -5,6 +5,7 @@ import { selectTaskFilters } from '../app/web/task-filters-model.mjs';
 import { selectDuoTasks } from '../app/web/duo-tasks.mjs';
 import { createScreenCustomTasks } from '../app/web/screen-custom-tasks.mjs';
 import { createDuoTaskView } from '../app/web/duo-task-view.mjs';
+import { migrateGameplay } from '../app/tasks/migration.mjs';
 
 const members = () => [{ id: 'actor1', name: 'Player', runescapeName: 'DemoExplorer', completedTasks: [], taskStatus: {}, skillProgress: { Mining: { level: 40, source: 'runemetrics', runescapeName: 'DemoExplorer' } } },
   { id: 'reed', name: 'Reed', runescapeName: 'SecondActor1', completedTasks: [], taskStatus: {}, skillProgress: { Mining: { level: 60, source: 'runemetrics', runescapeName: 'SecondActor1' } } }];
@@ -67,6 +68,24 @@ function ui(task, writable = true) {
   c.find = text => walk(c.stack).find(node => node.textContent === text);
   return c;
 }
+
+test('imported numeric custom requirements appear in the editor and row and gate Doable now', () => {
+  const input = { tasks: [], members: members().map(member => ({ ...member, sourceMapId: 'old' })),
+    legacy: { maps: { old: { userTasks: { Mining: { 'Synthetic ore~||~': '50' } } } } } };
+  const state = migrateGameplay(input, { definitions: { challenges: {} }, taskMap: {} }).state;
+  const task = state.tasks[0], c = ui(task);
+  c.customTaskDialog(task);
+  assert.equal(c.control('Skill (optional)').value, 'Mining');
+  assert.equal(c.control('Level (optional)').value, '50');
+  const view = createDuoTaskView({ document: { createElement: tag => new Node(tag) }, getState: () => state,
+    getSelectedMember: () => 'actor1', command() {}, backlog() {}, showTask() {}, showError() {} });
+  const presented = customTaskForMember(task, state.members[0]);
+  const row = view.row({ id: task.id, task: presented, memberIds: ['actor1'], label: 'Player', facts: { group: false, completedBy: [] } });
+  assert.ok(walk(row).some(node => node.textContent === 'Level 50'));
+  const doable = member => selectTaskFilters([customTaskForMember(task, member)], { state, memberId: member.id, filters: { doable: true } }).rows;
+  assert.equal(doable(state.members[0]).length, 0, 'Saved Mining 40 does not pass level 50');
+  assert.equal(doable(state.members[1]).length, 1, 'Saved Mining 60 passes level 50');
+});
 
 test('add/edit form saves optional requirements and assignment through a reviewed command', async () => {
   const c = ui(); c.customTaskDialog();
