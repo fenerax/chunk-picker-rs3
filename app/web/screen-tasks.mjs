@@ -43,11 +43,21 @@ export function createScreenTasks(c) {
     return c.taskFactsCache.get(task.id, task.completionIds);
   }
 
-  function backlogForm(host, task, after, owner = c.memberId) {
-    if (!c.canWrite()) return;
+  const quickBacklogs = new Set();
+  async function backlogForm(host, task, after, owner = c.memberId, { quick = false } = {}) {
+    if (!c.canWrite() || c.sandbox.active) return;
+    const draftKey = JSON.stringify([owner, task.id]);
+    if (quick) {
+      if (quickBacklogs.has(draftKey)) return;
+      quickBacklogs.add(draftKey);
+      try { await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason: '' }); after?.(); }
+      catch (error) { c.showError(error); }
+      finally { quickBacklogs.delete(draftKey); }
+      return;
+    }
     const form = c.el('form', undefined, 'backlog-reason-dialog'), reason = c.input('text');
     // Retain both fields if a refused save is dismissed and reopened.
-    const backlogDrafts = c.backlogDrafts ??= new Map(), draftKey = JSON.stringify([owner, task.id]);
+    const backlogDrafts = c.backlogDrafts ??= new Map();
     const draft = backlogDrafts.get(draftKey);
     reason.value = draft?.text ?? '';
     const choices = c.el('fieldset'), radios = [];
@@ -78,7 +88,20 @@ export function createScreenTasks(c) {
       const preset = radios.find(radio => radio.checked)?.value ?? '', text = reason.value.trim();
       backlogDrafts.set(draftKey, { preset, text: reason.value });
       const backlogReason = [preset, text].filter(Boolean).join(': ');
-      try { await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason }); backlogDrafts.delete(draftKey); if (c.dialogCurrent(generation)) { c.closeDialog(generation); after?.(); } }
+      const reportContext = { dialog: 'Backlog task', taskId: task.id, task: c.plain(task.label), memberId: owner, revision: c.state.revision, sandbox: c.sandbox.active };
+      try {
+        await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason });
+        backlogDrafts.delete(draftKey);
+        if (!c.dialogCurrent(generation)) return;
+        if (preset !== 'Task looks wrong') { dismiss(); return; }
+        const report = c.button('Report a problem with this task', () => {
+          dismiss();
+          c.openFeedback({ text: `Problem with task: ${reportContext.task}\n\nWhat looks wrong: ${text}`, context: reportContext });
+        });
+        const reportActions = c.el('div', undefined, 'form-actions'); reportActions.append(report, c.button('Done', dismiss));
+        form.replaceChildren(c.el('p', c.plain(task.label)), c.el('p', 'Task backlogged. You can report what looks wrong; your backlog is already saved.'), reportActions);
+        report.focus();
+      }
       catch (error) { save.disabled = false; c.showError(error); }
     });
     const generation = c.openDialog('Backlog task', form); radios.find(radio => radio.checked)?.focus();
@@ -113,7 +136,12 @@ export function createScreenTasks(c) {
     if (task.wiki) row.append(c.iconLink(task.wiki, `Open ${c.plain(task.label)} on the RuneScape Wiki`, 'wiki'));
     const backlogAction = taskState.backlogged
       ? c.iconButton(`Restore ${c.plain(task.label)} from the backlog`, 'restore', () => c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, backlogged: false }).catch(c.showError))
-      : c.iconButton(`Backlog ${c.plain(task.label)}…`, 'backlog', () => c.backlogForm(row, task));
+      : c.iconButton(`Backlog ${c.plain(task.label)}…`, 'backlog');
+    if (!taskState.backlogged) {
+      backlogAction.title = 'Backlog task. Shift-click to backlog immediately without a reason.';
+      // Read the native event; the shared icon button wrapper drops arguments.
+      backlogAction.addEventListener('click', event => c.backlogForm(row, task, undefined, c.memberId, { quick: event.shiftKey === true && event.detail > 0 }).catch(c.showError));
+    }
     backlogAction.classList?.add('task-backlog'); backlogAction.dataset.taskControl = 'backlog'; row.append(backlogAction);
     backlogAction.hidden = !c.canWrite(); backlogAction.disabled = !c.canWrite() || c.sandbox.active;
     c.hoverTasks().attach(row, label, task);

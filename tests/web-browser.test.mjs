@@ -1360,6 +1360,58 @@ test('active, completed and backlog views exclude preserved partner-only goals',
   assert.ok(!h.find('button', 'Partner goal')); assert.equal(h.nodes.get('task-count').textContent, '1');
 });
 
+test('Shift-click backlogs once without a reason and Undo restores the personal task', async () => {
+  const h = harness();
+  h.run('state.tasks = state.tasks.map(({ status, ...row }) => row)');
+  h.route((path, body) => path.startsWith('/api/tasks') ? taskResult(h.run('state.revision')) : {
+    state: applyCommand(h.snapshot(), body.command, { world: h.context.initialWorld }), pools: {},
+  });
+  h.run("document.getElementById('active-tasks').replaceChildren(taskRow(state.tasks[0]))");
+  const control = h.all().find(node => node.dataset.taskControl === 'backlog'); assert.ok(control);
+  const before = h.snapshot();
+  await control.emit('click', { shiftKey: true, detail: 1 });
+  const commands = h.calls.filter(call => call.body?.command);
+  assert.equal(commands.length, 1); const command = commands[0].body.command;
+  assert.equal(command.backlogged, true); assert.equal(command.backlogReason, '');
+  assert.ok(!h.nodes.get('tool-dialog')?.open);
+  assert.equal(h.snapshot().members[0].taskStatus[command.taskId].backlogged, true);
+  await h.run("command({ type: 'undo' })");
+  assert.deepEqual(h.snapshot().members[0].taskStatus, before.members[0].taskStatus);
+  assert.equal(h.calls.some(call => call.path.startsWith('/api/feedback')), false);
+});
+
+test('a saved wrong-task backlog offers an editable report; closing sends nothing and explicit submit keeps its context', async () => {
+  const h = harness(); h.run('state.tasks = state.tasks.map(({ status, ...row }) => row)');
+  h.context.backlogFeedback = createFeedback({ api: h.context.api, el: h.context.el, button: h.context.button, input: h.context.input, field: h.context.field,
+    openDialog: h.context.openDialog, dialogCurrent: h.context.dialogCurrent });
+  h.run('openFeedback = backlogFeedback.open');
+  h.route((path, body) => {
+    if (path === '/api/command') return { state: applyCommand(h.snapshot(), body.command, { world: h.context.initialWorld }), pools: {} };
+    if (path.startsWith('/api/feedback')) return { items: [], unread: 0 };
+    return taskResult(h.run('state.revision'));
+  });
+  h.run("backlogForm(document.getElementById('active-tasks'), state.tasks[0], undefined, 'reed')");
+  for (const node of dialogNodes(h).filter(node => node.type === 'radio')) node.checked = node.value === 'Task looks wrong';
+  dialogNodes(h).find(node => node.type === 'text').value = 'Synthetic method mismatch';
+  await h.nodes.get('dialog-content').querySelector('form').emit('submit', { preventDefault() {} });
+  const saved = h.snapshot().members[1].taskStatus[task.id];
+  assert.equal(saved.backlogReason, 'Task looks wrong: Synthetic method mismatch');
+  const sent = () => h.calls.filter(call => call.path === '/api/feedback' && call.body);
+  assert.equal(sent().length, 0); assert.equal(h.nodes.get('dialog-title').textContent, 'Backlog task');
+  await h.click('Report a problem with this task');
+  const draft = h.nodes.get('dialog-content').querySelector('textarea');
+  assert.match(draft.value, /Problem with task: Test task/); assert.match(draft.value, /Synthetic method mismatch/);
+  h.run('closeDialog()'); assert.equal(sent().length, 0);
+  assert.deepEqual(h.snapshot().members[1].taskStatus[task.id], saved);
+  h.run('openFeedback()');
+  const editable = h.nodes.get('dialog-content').querySelector('textarea'); editable.value += ' (checked again)'; await editable.emit('input');
+  await h.nodes.get('dialog-content').querySelector('form').emit('submit', { preventDefault() {} });
+  assert.equal(sent().length, 1); assert.match(sent()[0].body.text, /checked again/);
+  assert.equal(sent()[0].body.context.taskId, task.id); assert.equal(sent()[0].body.context.memberId, 'reed');
+  assert.equal(sent()[0].body.context.revision, 7);
+  assert.deepEqual(h.snapshot().members[1].taskStatus[task.id], saved);
+});
+
 test('task details and info sources display the raw unknown label', () => {
   const h = harness(); h.context.opaqueTask = { ...task, sources: [{ kind: 'drop', source: 'Rat', probability: null, unknownRate: true, rawRate: 'Very rare', rate: 'Very rare' }] };
   h.run('showTask(opaqueTask)');
