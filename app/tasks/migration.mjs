@@ -1,8 +1,8 @@
 import { displayText, replaceDelimited, trimTaskStars } from '../import-output.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './gameplay-compat.mjs';
 import { projectMemberTaskFacts as projectFacts } from './fact-projection.mjs';
-import { playerControlSkills } from '../core/player-controls.mjs';
 import { buildIdentityIndex, legacyTaskId, permanentTaskId, isPermanentId, resolveIdentity, resolveTaskAlias, lookupPermanentId, isVerifiedProgressAlias } from './identity.mjs';
+import { datasetValue } from '../dataset-runtime.mjs';
 export { decodeLegacyText, hasGameplayMigration };
 
 /** Startup readiness is separate from ownership conversion: an alias upgrade
@@ -182,7 +182,8 @@ function customTaskRequirements(state) {
       let signature = JSON.stringify(requirement);
       if (category !== 'Extra' || requirement !== true) {
         const match = /^(\d+)(~?)$/.exec(typeof requirement === 'number' || typeof requirement === 'string' ? String(requirement) : '');
-        if (playerControlSkills.includes(category)) fields.skill = category;
+        // Read lazily: importing migration must preserve dataset snapshot order.
+        if (datasetValue('app/core/player-controls.mjs#playerControlSkills').includes(category)) fields.skill = category;
         else warn('skill cannot be represented');
         if (match && Number.isSafeInteger(Number(match[1])) && Number(match[1]) >= 1 && Number(match[1]) <= 120) {
           if (fields.skill) fields.level = Number(match[1]);

@@ -21,7 +21,7 @@ import { openOverlays } from '../../app/overlays.mjs';
 import { openLiveTimings } from '../../app/live-timings.mjs';
 import { createDeepProfiles } from '../../app/deep-profiles.mjs';
 import { createWarmStore, warmHash } from '../../app/tasks/warm-store.mjs';
-import { migrateTaskIdentities } from '../../app/tasks/migration.mjs';
+import { migrateGameplay } from '../../app/tasks/migration.mjs';
 import { preserveGameIdentity } from '../../app/game-profile.mjs';
 import { checkStart } from '../../scripts/linux/start-check.mjs';
 import { inventory } from '../../scripts/linux/files.mjs';
@@ -318,7 +318,17 @@ export async function buildSaveCorpus(t) {
   const migrationDir = await scratch(t, 'identity');
   const migrationInput = seed(); migrationInput.members[0].taskRules.Boosting = 'Synthetic invalid retained value';
   migrationInput.members[0].unlocked.push('99999');
-  const migrated = quarantineTransferChunks(migrateTaskIdentities(migrationInput, { catalogue: tasks }).state, world);
+  migrationInput.members[0].sourceMapId = 'synthetic';
+  const userTasks = { Mining: { 'Synthetic imported ore~||~': '50', 'Synthetic unsupported ore': { Level: 60 } } };
+  migrationInput.legacy.maps.synthetic.userTasks = userTasks;
+  // A real identity conversion writes the archive; an unchanged custom row must
+  // no longer create one merely because it has an assignment or requirement.
+  const imported = migrateGameplay(migrationInput, { catalogue: tasks });
+  assert.equal(imported.state.tasks.find(task => task.label === 'Synthetic imported ore').level, 50);
+  assert.ok(imported.warnings.some(warning => warning.includes('Synthetic unsupported ore') && warning.includes('cannot be represented')));
+  assert.deepEqual(imported.state.legacy.maps.synthetic.userTasks, userTasks);
+  assert.ok(imported.state.provenance.taskIdentityMigration.archives.length > 0);
+  const migrated = quarantineTransferChunks(imported.state, world);
   const migration = await openStore({ ...storeOptions, dataDir: migrationDir, initialState: migrated,
     prepareState: preserveGameIdentity({ datasetId: 'synthetic-dataset', datasetContractVersion: 1, digest: 'synthetic', capabilities: { independent: true } }) });
   try { features.add('identity-migration'); snapshots.push({ feature: 'identity-migration', ...await diskSnapshot(migrationDir), state: migration.getState() }); }
