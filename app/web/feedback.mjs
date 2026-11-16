@@ -109,7 +109,7 @@ export function createFeedback({ api, el, button, input, field, openDialog, dial
     };
     const remember = () => {
       if (captured !== epoch || !current()) return;
-      draft = { text: text.value, kind: choices.find(choice => choice.checked).value, include: include.checked };
+      draft = { text: text.value, kind: choices.find(choice => choice.checked).value, include: include.checked, context: origin, taskDraft: draft?.taskDraft };
     };
     text.addEventListener('input', remember);
     choices.forEach(choice => choice.addEventListener('change', remember));
@@ -190,11 +190,22 @@ export function createFeedback({ api, el, button, input, field, openDialog, dial
   function open(options = {}) {
     if (readOnly()) return;
     // Snapshot before Feedback replaces the tool, including task-supplied context.
-    const origin = structuredClone(options.context ?? context());
+    const requestedOrigin = structuredClone(options.context ?? context());
+    const conflict = options.text && draft?.text.trim();
+    if (options.text && !conflict) draft = { text: options.text, kind: 'bug', include: true, context: requestedOrigin, taskDraft: true };
+    const origin = (conflict || draft?.taskDraft) ? draft.context : requestedOrigin;
     const content = el('div', undefined, 'form-stack');
     content.append(el('p', 'Found a bug or want something added? Send it here; the owner sees it in this same window.', 'section-intro'));
-    let generation;
+    let generation; const openedEpoch = epoch;
     const current = () => dialogCurrent(generation);
+    if (conflict) {
+      content.append(el('p', 'Your unsent feedback draft is still here. Replace it to start this task report, or keep working on it.', 'field-help'));
+      const replace = button('Replace draft with task report', () => {
+        if (!current() || openedEpoch !== epoch) return;
+        clearDraft(); open({ ...options, context: requestedOrigin });
+      });
+      replace.type = 'button'; content.append(replace);
+    }
     content.append(sendForm(current, origin));
     content.append(receivedList(current));
     generation = openDialog('Feedback', content);

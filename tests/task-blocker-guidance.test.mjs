@@ -3,12 +3,16 @@ import { appendTaskWhy, catalogued, createRuleDescriber } from '../app/web/task-
 import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { taskBlockerGuidance, renderTaskBlockerGuidance } from '../app/web/screen-task-guidance.mjs';
 import { createDuoTaskView } from '../app/web/duo-task-view.mjs';
 import { createNoteEditor } from '../app/web/info-panels.mjs';
 import { appendTaskHow } from '../app/web/task-how.mjs';
+import { createFeedback } from '../app/web/feedback.mjs';
+import { openFeedbackStore } from '../app/storage/feedback.mjs';
 
 // Screen imports use served /core routes. Exercise its actual factory with inert
 // equipment/map collaborators, as the broader screen harness does.
@@ -30,6 +34,7 @@ const walk = node => [node, ...node.children.flatMap(walk)];
 function harness() {
   const actions = [], c = {
     memberId: 'owner',
+    openFeedback() {},
     el: (tag, text, cls) => new Node(tag, text, cls), plain: value => value, icon: name => new Node('span', name),
     button(text, action) { const node = new Node('button', text); node.action = action; return node; },
     details(text, body) { const node = new Node('details', text); node.append(body); return node; },
@@ -40,6 +45,55 @@ function harness() {
   };
   return { c, actions };
 }
+
+test('task details open an editable report with captured task context and only send explicitly', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'task-report-'));
+  const store = await openFeedbackStore({ dataDir: directory });
+  t.after(async () => { await store.close(); await rm(directory, { recursive: true, force: true }); });
+  const { c } = harness();
+  const task = { id: 'custom:synthetic', label: 'Gather synthetic supplies', category: 'Custom', status: 'available' };
+  const owner = { id: 'owner', name: 'Player A', completedTasks: [], taskStatus: {} };
+  let dialog, generation = 0;
+  Object.assign(c, { state: { revision: 7, members: [owner] }, duoDetails: new Map(),
+    result: { memberId: 'owner', stateRevision: 7, tasks: [task] }, sandbox: { active: false }, definitions: {},
+    canWrite: () => true, advanced: () => false, preferences: () => ({}), supportsFeature: () => false,
+    openDialog(title, content) { dialog = content; return ++generation; }, dialogCurrent: value => value === generation,
+    check: text => new Node('label', text),
+    field(text, control) { const label = new Node('label', text); label.append(control); return label; },
+    input(type) { const input = new Node('input'); input.type = type; return input; },
+    api: async (path, body) => {
+      if (path === '/api/feedback' && body) return { item: await store.add(body, { kind: 'master', label: 'Synthetic reporter' }) };
+      return { items: store.list() };
+    },
+  });
+  c.panelContext = c;
+  const feedback = createFeedback({ ...c, document: {} }); c.openFeedback = feedback.open;
+  createScreenTaskDialogs(c);
+  const report = async () => {
+    await c.showTask(task);
+    const button = walk(dialog).find(node => node.textContent === 'Report a problem with this task');
+    assert.ok(button); button.action();
+  };
+  await report();
+  let text = dialog.querySelector('textarea');
+  assert.match(text.value, /Gather synthetic supplies/);
+  generation++; // Closing Feedback sends nothing, even from a detached submit.
+  await dialog.querySelector('form').events.submit({ preventDefault() {} });
+  assert.equal(store.list().length, 0);
+  await report();
+  text = dialog.querySelector('textarea'); text.value += '\nThe synthetic location is incorrect.';
+  text.events.input();
+  c.state.revision = 8; c.memberId = 'other'; task.label = 'Changed after opening';
+  await dialog.querySelector('form').events.submit({ preventDefault() {} });
+  const received = store.list();
+  assert.equal(received.length, 1);
+  assert.match(received[0].text, /Gather synthetic supplies/);
+  assert.match(received[0].text, /The synthetic location is incorrect/);
+  assert.equal(received[0].context.taskId, 'custom:synthetic');
+  assert.equal(received[0].context.task, 'Gather synthetic supplies');
+  assert.equal(received[0].context.revision, 7);
+  assert.equal(received[0].context.memberId, 'owner');
+});
 
 test('blocking rule routes to its exact rule and dialog owner without writing a command', () => {
   const { c, actions } = harness();
@@ -141,6 +195,7 @@ test('task dialog explains both completion controls beside their distinct existi
     createScreenTaskDialogs(c); await c.showTask(task);
     const nodes = walk(dialog), challenge = nodes.find(node => node.textContent === 'Counts for our chunk challenge · Player')?.children[0];
     const personal = nodes.find(node => node.textContent === 'Player did this in-game personally')?.children[0];
+    assert.equal(nodes.some(node => node.textContent === 'Report a problem with this task'), writable);
     assert.equal(challenge.disabled, !writable); assert.equal(personal.disabled, !writable);
     assert.equal(challenge.attributes['aria-describedby'], 'task-challenge-completion-help');
     assert.equal(personal.attributes['aria-describedby'], 'task-personal-completion-help');

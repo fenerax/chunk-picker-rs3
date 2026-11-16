@@ -44,7 +44,8 @@ export function createScreenStartup(c) {
     const feedbackPanel = createFeedback({ api: c.api, el: c.el, button: c.button, input: c.input, field: c.field, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, notice: c.notice, isAdmin: () => c.sessionAdmin, advanced: () => Boolean(c.state) && c.advanced(),
       entryButton: c.$('feedback-open'), isReadOnly: () => !feedbackSessionReady || !c.canWrite(), streamSafe: c.streamSafe,
       context: () => c.state ? ({ player: c.member()?.name ?? '', chunk: c.chunkId && !c.$('chunk-info').hidden ? `${c.chunkId}${c.world.chunks.get(c.chunkId)?.name ? ` ${c.plain(c.world.chunks.get(c.chunkId).name)}` : ''}` : '', tab: c.chunkId && !c.$('chunk-info').hidden ? (c.chunkTab ?? c.defaultChunkTab()) : '', dialog: c.$('tool-dialog').open ? c.$('dialog-title').textContent : '', screen: `${innerWidth}x${innerHeight}`, revision: c.state?.revision ?? 0 }) : ({ screen: `${innerWidth}x${innerHeight}` }) });
-    c.$('feedback-open')?.addEventListener('click', () => { if (c.canWrite()) feedbackPanel.open(); });
+    c.openFeedback = feedbackPanel.open;
+    c.$('feedback-open')?.addEventListener('click', () => { if (c.canWrite()) c.openFeedback(); });
     c.updates = createUpdates({ el: c.el, button: c.button, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, api: c.api, banner: c.$('update-banner') });
     c.$('whats-new-open')?.addEventListener('click', () => c.updates.openList());
     c.$('roadmap-open')?.addEventListener('click', () => c.updates.openRoadmap());

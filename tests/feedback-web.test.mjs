@@ -85,6 +85,31 @@ test('task reporting can supply a captured origin while the checkbox stays autho
   assert.equal(Object.hasOwn(submissions(h)[1].body, 'context'), false);
 });
 
+test('task draft replacement is explicit and preserves the existing draft and its origin until chosen', async () => {
+  const h = harness({ context: () => ({ dialog: 'Synthetic original tool', revision: 3 }) });
+  h.ui.open(); let form = composer(h);
+  form.text.value = 'Synthetic unrelated idea'; await form.text.emit('input');
+  form.choices.forEach(choice => { choice.checked = choice.value === 'idea'; }); await form.choices[1].emit('change');
+  const task = { text: 'Problem with task: Synthetic task\n\n', context: { taskId: 'fixture', revision: 7 } };
+  h.close(); h.ui.open(task); form = composer(h);
+  assert.equal(form.text.value, 'Synthetic unrelated idea');
+  assert.equal(form.choices.find(choice => choice.checked).value, 'idea');
+  const replace = h.find('Replace draft with task report'); assert.equal(replace.type, 'button');
+  await form.form.emit('submit');
+  assert.deepEqual(submissions(h)[0].body.context, { dialog: 'Synthetic original tool', revision: 3 });
+  h.close(); h.ui.open(); form = composer(h);
+  form.text.value = 'Another synthetic draft'; await form.text.emit('input');
+  form.include.checked = false; await form.include.emit('change');
+  h.close(); h.ui.open(task); await h.find('Replace draft with task report').emit('click');
+  form = composer(h); assert.equal(form.text.value, task.text);
+  assert.equal(form.choices.find(choice => choice.checked).value, 'bug');
+  assert.equal(form.include.checked, true);
+  h.close(); h.ui.open(); form = composer(h);
+  assert.equal(form.text.value, task.text);
+  form.text.value += 'Synthetic reason'; await form.form.emit('submit');
+  assert.deepEqual(submissions(h)[1].body.context, task.context);
+});
+
 test('failed sends retain the draft and confirmed sends clear every draft field', async () => {
   let fail = true;
   const h = harness({ route: (path, body) => { if (path === '/api/feedback' && body?.text && fail) throw new Error('Synthetic failure'); } });
