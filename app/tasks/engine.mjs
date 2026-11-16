@@ -868,6 +868,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     markBaseSources();
     let items = new Set(base.items), sources = new Map(base.sources);
     const manualItems = [...Object.entries(legacy.manualMonsters?.Items ?? {}).map(([name, primary]) => [decodeLegacyText(name), primary, 'manual']), ...Object.keys(legacy.manualEquipment ?? {}).map(name => [decodeLegacyText(name), false, 'drop'])];
+    const declaredNames = new Set(manualItems.map(([name]) => name));
+    for (const [name, primary] of Object.entries(state.legacy?.gameplayMigration?.randomLootSources?.[member.sourceMapId]?.Items ?? {})) {
+      if (!declaredNames.has(name)) manualItems.push([name, primary, 'manual']);
+    }
     const membershipDiagnostics = [];
     for (const [name, primary, kind] of manualItems) if (!access.backloggedSources?.items?.[name]) {
       const membership = itemMembershipBlocker(name, f2p, definitions);

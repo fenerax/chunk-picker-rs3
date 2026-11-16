@@ -321,12 +321,18 @@ export async function buildSaveCorpus(t) {
   migrationInput.members[0].sourceMapId = 'synthetic';
   const userTasks = { Mining: { 'Synthetic imported ore~||~': '50', 'Synthetic unsupported ore': { Level: 60 } } };
   migrationInput.legacy.maps.synthetic.userTasks = userTasks;
+  const randomLoot = { 'Synthetic-_-20loot': true, '': true };
+  migrationInput.legacy.maps.synthetic.randomLoot = randomLoot;
   // A real identity conversion writes the archive; an unchanged custom row must
   // no longer create one merely because it has an assignment or requirement.
   const imported = migrateGameplay(migrationInput, { catalogue: tasks });
   assert.equal(imported.state.tasks.find(task => task.label === 'Synthetic imported ore').level, 50);
   assert.ok(imported.warnings.some(warning => warning.includes('Synthetic unsupported ore') && warning.includes('cannot be represented')));
   assert.deepEqual(imported.state.legacy.maps.synthetic.userTasks, userTasks);
+  assert.deepEqual(imported.state.legacy.maps.synthetic.randomLoot, randomLoot);
+  assert.deepEqual(imported.state.legacy.gameplayMigration.randomLootSources.synthetic.Items, { 'Synthetic loot': false });
+  assert.equal(imported.report.imported.randomLootSources, 1);
+  assert.ok(imported.warnings.some(warning => warning.includes('random-loot')));
   assert.ok(imported.state.provenance.taskIdentityMigration.archives.length > 0);
   const migrated = quarantineTransferChunks(imported.state, world);
   const migration = await openStore({ ...storeOptions, dataDir: migrationDir, initialState: migrated,

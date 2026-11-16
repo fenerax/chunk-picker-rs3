@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeLegacyText, hasGameplayMigration, migrateGameplay, stableTaskId, stripTaskMarkup } from '../app/tasks/migration.mjs';
+import { decodeLegacyText, hasGameplayMigration, hasCurrentRandomLootMigration, migrateGameplay, stableTaskId, stripTaskMarkup } from '../app/tasks/migration.mjs';
 import { applyCommand, exportBackup, importBackup, validateState } from '../app/core/state.mjs';
 import { reachableSections } from '../app/core/rules.mjs';
 import { buildAccessIndex, calculateAccess } from '../app/tasks/access.mjs';
 import { transferReport } from '../app/save-transfer.mjs';
 import { migrationSummary } from '../app/picker-context-http.mjs';
+import { createTaskEngine } from '../app/tasks/engine.mjs';
 
 const flower = 'Construct ~|stacked ceramic flower pots (level 16)|~';
 const elder = 'Fletch an ~|elder stock|~';
@@ -23,6 +24,75 @@ function baseState(map, member = {}) {
       pendingRoll: [], blacklisted: [], completedTasks: [], teleports: [], ...member }],
     legacy: { maps: { old: map } } };
 }
+
+test('legacy random loot declares removable secondary sources without personal obtains', () => {
+  const raw = { randomLoot: { 'Synthetic-_-20ore': true, 'Synthetic shield': { rolls: [1] }, 'Existing-_-20item': false },
+    chunkinfo: { manualMonsters: { Items: { 'Existing-_-20item': true } } } };
+  const input = baseState(raw), before = structuredClone(input);
+  const options = { definitions: { chunks: {}, challenges: { Extra: { 'Use ore': { Items: ['Synthetic ore'] } } } }, taskMap: {} };
+  const engine = createTaskEngine(options.definitions);
+  const status = state => engine.evaluate(state, 'actor1').tasks.find(task => task.label === 'Use ore').status;
+  assert.equal(status(input), 'blocked');
+  const result = migrateGameplay(input, options), state = result.state;
+  assert.equal(status(state), 'available');
+  assert.deepEqual(state.legacy.gameplayMigration.randomLootSources.old.Items, { 'Synthetic ore': false, 'Synthetic shield': false });
+  assert.equal(result.report.imported.randomLootSources, 2);
+  assert.deepEqual(state.legacy.maps.old, raw);
+  assert.deepEqual(input, before);
+  assert.deepEqual(state.members[0].completedTasks, []);
+  assert.deepEqual(state.members[0].obtainedEquipment ?? [], []);
+  assert.deepEqual(state.members[0].itemProgress ?? {}, {});
+  const supplies = engine.evaluate(state, 'actor1').items;
+  assert.equal(supplies.find(item => item.name === 'Synthetic shield').sources[0].primary, false);
+  assert.deepEqual(supplies.find(item => item.name === 'Existing item').sources,
+    [{ kind: 'manual', source: 'Manually declared item', primary: true, own: true }]);
+  assert.deepEqual(migrateGameplay(state, options).state, state);
+  const restored = importBackup(exportBackup(state));
+  assert.equal(status(restored), 'available');
+  const backlogged = applyCommand(restored, { type: 'set-source-backlog', memberId: 'actor1', kind: 'items', name: 'Synthetic ore', backlogged: true });
+  assert.equal(status(migrateGameplay(backlogged, options).state), 'blocked');
+  restored.legacy.gameplayMigration.randomLootSources.old.Items['Synthetic ore'] = true;
+  assert.equal(migrateGameplay(restored, options).state.legacy.gameplayMigration.randomLootSources.old.Items['Synthetic ore'], true);
+  delete restored.legacy.gameplayMigration.randomLootSources.old.Items['Synthetic ore'];
+  assert.equal(status(migrateGameplay(restored, options).state), 'blocked');
+  assert.deepEqual(restored.legacy.maps.old.randomLoot, raw.randomLoot);
+});
+
+test('random loot warnings identify unsupported entries before migration and survive backup', () => {
+  const input = baseState({ randomLoot: { '': true, '123': true, '-_-20': true, constructor: true, 'Valid-_-20item': false } });
+  const options = { definitions: { challenges: {} }, taskMap: {} };
+  const result = migrateGameplay(input, options);
+  assert.equal(result.warnings.length, 4);
+  assert.ok(result.warnings.every(warning => /random-loot/.test(warning) && /retained/.test(warning)));
+  assert.deepEqual(migrationSummary(input).warnings, result.warnings);
+  assert.deepEqual(migrationSummary(result.state).warnings, result.warnings);
+  assert.deepEqual(result.state.legacy.gameplayMigration.randomLootSources.old.Items, { 'Valid item': false });
+  const restored = importBackup(exportBackup(result.state));
+  assert.deepEqual(restored.legacy.maps, input.legacy.maps);
+  assert.deepEqual(restored.legacy.gameplayMigration.warnings, result.warnings);
+  for (const randomLoot of [[], 'Unknown shape', 7]) {
+    const unsupported = baseState({ randomLoot });
+    const migrated = migrateGameplay(unsupported, options);
+    assert.ok(migrated.warnings.some(warning => /random-loot.*container/.test(warning)));
+    assert.deepEqual(migrationSummary(unsupported).warnings, migrated.warnings);
+    assert.deepEqual(migrated.state.legacy.maps, unsupported.legacy.maps);
+  }
+});
+
+test('already migrated saves project random loot once without replaying other gameplay', () => {
+  const options = { definitions: { challenges: {} }, taskMap: {} };
+  const old = migrateGameplay(baseState({ chunkNotes: 'Old journal' }), options).state;
+  old.legacy.maps.old.randomLoot = { 'Synthetic ore': true };
+  old.members[0].journal = '';
+  assert.equal(hasCurrentRandomLootMigration(old), false);
+  const upgraded = migrateGameplay(old, options).state;
+  assert.equal(hasCurrentRandomLootMigration(upgraded), true);
+  assert.equal(upgraded.members[0].journal, '');
+  assert.deepEqual(upgraded.legacy.gameplayMigration.randomLootSources.old.Items, { 'Synthetic ore': false });
+  delete upgraded.legacy.gameplayMigration.randomLootSources.old.Items;
+  assert.equal(hasCurrentRandomLootMigration(upgraded), true);
+  assert.deepEqual(migrateGameplay(upgraded, options).state, upgraded);
+});
 
 test('original custom skill levels survive import, backup and repeated migration', () => {
   const raw = { userTasks: { Mining: { 'Mine-_-20synthetic-_-20ore~||~': '50' } } };
