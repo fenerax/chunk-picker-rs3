@@ -38,6 +38,19 @@ test('feedback kinds expose a named radio group and submit the keyboard selectio
       await browser.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode, modifiers, ...(key === 'Enter' ? { text: '\r' } : {}) });
       await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode, modifiers });
     };
+    await browser.send('Input.insertText', { text: 'Synthetic navigation draft' });
+    await browser.evaluate(`document.querySelector('.feedback-kind input[value="idea"]').click();
+      document.querySelector('.feedback-form input[type="checkbox"]').click();
+      document.querySelector('#tool-dialog .close-button').click();`);
+    await browser.evaluate("document.querySelector('#history-open').click()");
+    await until(() => browser.evaluate("document.querySelector('#dialog-title')?.textContent === 'History'"));
+    await browser.evaluate("document.querySelector('#feedback-open').click()");
+    await selection('Idea');
+    assert.equal(await browser.evaluate("document.querySelector('.feedback-text').value"), 'Synthetic navigation draft');
+    assert.equal(await browser.evaluate("document.querySelector('.feedback-form input[type=checkbox]').checked"), false);
+    await browser.evaluate("[...document.querySelectorAll('.feedback-form button')].find(node => node.textContent === 'Discard draft').click()");
+    assert.equal(await browser.evaluate("document.querySelector('.feedback-text').value"), '');
+    assert.equal(await browser.evaluate("document.querySelector('.feedback-form input[type=checkbox]').checked"), true);
     await selection('Bug');
     for (const [width, height] of [[1920, 1080], [390, 844]]) {
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -73,6 +86,10 @@ test('feedback kinds expose a named radio group and submit the keyboard selectio
     assert.equal(items.length, 1);
     assert.equal(items[0].kind, 'other');
     assert.equal(items[0].text, 'Synthetic keyboard feedback');
+    assert.equal(items[0].context.dialog, 'History');
+    await browser.evaluate("document.querySelector('#tool-dialog .close-button').click(); document.querySelector('#feedback-open').click()");
+    assert.equal(await browser.evaluate("document.querySelector('.feedback-text').value"), '');
+    await selection('Bug');
   } finally {
     await browser?.close();
     await app?.close();
