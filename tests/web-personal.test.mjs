@@ -25,7 +25,7 @@ function dialogHarness() {
   const node = (tag, textContent) => { const value = { tag, textContent, value: '', dataset: {}, children: [],
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
     addEventListener() {}, setAttribute() {} }; nodes.push(value); return value; };
-  const context = createContext({ appendTaskClaim, createTaskClaimClock,
+  const context = createContext({ appendTaskClaim, createTaskClaimClock, openFeedback() {},
     supportsFeature: feature => supportsDatasetFeature({ capabilities: { features: {} } }, feature),
     canWrite: () => true, advanced: () => false, createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createDuoCoordination, sandbox: { active: false }, duoEnabled: () => false, state, memberId: 'reed', result: undefined, shownResult: undefined, fullResult: undefined, definitions: {}, document: { createElement: node }, itemIcon: () => null,
     createNoteEditor, noteDrafts: new Map(), renderTaskEquipment, renderTaskBlockerGuidance, taskExplanation, createTaskFilters, appendTaskPin, isTaskPinned, createTaskPinChecker, dialogCurrent: () => true,

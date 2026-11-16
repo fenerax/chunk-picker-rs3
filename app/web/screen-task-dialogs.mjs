@@ -41,6 +41,7 @@ export function createScreenTaskDialogs(c) {
     const detailResult = loadedFull ?? ownerResult;
     const commandTaskId = duoEntry?.id ?? task.id;
     const dialogMemberId = ownerId, dialogRevision = c.state.revision, status = owner.taskStatus?.[commandTaskId] ?? owner.taskStatus?.[task.id] ?? {}, name = owner.name;
+    const reportContext = { dialog: 'Task details', taskId: task.id, task: task.label, memberId: dialogMemberId, player: name, revision: detailResult?.stateRevision ?? dialogRevision, sandbox: c.sandbox.active };
     let generation;
     const stack = c.el('div', undefined, 'form-stack');
     stack.dataset.usage = 'tasks:detail';
@@ -101,7 +102,11 @@ export function createScreenTaskDialogs(c) {
     }));
     if (task.wiki && c.supportsFeature?.('rsCatalogues') !== false) { const link = c.el('a', 'Open RuneScape Wiki', 'standalone-link'); link.href = task.wiki; link.target = '_blank'; link.rel = 'noopener noreferrer'; stack.append(link); }
     stack.append(bottomSlot);
+    if (c.canWrite()) stack.append(c.button('Report a problem with this task', () => c.openFeedback({
+      text: `Problem with task: ${reportContext.task}\n\nWhat looks wrong: `, context: reportContext,
+    }), 'task-report'));
     const fillDetails = (full, fullResultValue) => {
+      Object.assign(reportContext, { task: full.label, revision: fullResultValue?.stateRevision ?? dialogRevision });
       updating.hidden = true;
       if (full.category === 'Quest' && c.supportsFeature?.('quests') !== false) mapSlot.replaceChildren(c.questMap.controls({ task: full, guard: () => c.dialogCurrent(generation) }));
       const equipment = c.supportsFeature?.('equipment') === false ? null : renderTaskEquipment(full, fullResultValue, c.definitions.equipment, { document, iconLookup: itemIcon, advanced: c.advanced() });

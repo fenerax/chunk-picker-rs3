@@ -46,6 +46,7 @@ export function createScreenContext() {
     duoTaskView: undefined,
     fieldSequence: undefined,
     foregroundTaskLoad: undefined,
+    openFeedback: undefined,
     pendingGameplayAttempt: undefined,
     earlyTaskLoad: undefined,
     gameplayAttemptSequence: 0,
