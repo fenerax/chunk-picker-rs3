@@ -153,10 +153,15 @@ export function createSearchDialog(c) {
           entries = (!filtered ? rows : selectActivityRows(rows, { sort: questFilters.preferences().sort })).filter(task => !query || `${task.label} ${task.category}`.toLowerCase().includes(query))
             .map(task => ({ task, taskId: task.id, label: task.label, subtitle: `${task.category} · ${task.status}`, locations: searchLocations(task), action: () => c.showTask(task) }));
         } else if (renderedMode === 'Training methods') {
-          entries = Object.entries(sourceResult?.training ?? {}).filter(([skill]) => !query || skill.toLowerCase().includes(query))
-            .map(([skill, value]) => ({ label: skill, subtitle: `Can train to level ${value.level} · Main method ${value.primary ? 'available' : 'unavailable'}`,
-              locations: (sourceResult.tasks ?? []).filter(task => task.category === skill && task.status === 'available').flatMap(searchLocations),
-              action: () => { c.$('task-filter').value = skill; c.renderTasks(); c.closeDialog(generation); } }));
+          entries = Object.entries(sourceResult?.training ?? {}).flatMap(([skill, value]) => {
+            const methods = (sourceResult.tasks ?? []).filter(task => task.category === skill && task.status === 'available');
+            if (methods.length) return methods.filter(task => !query || `${skill} ${task.label}`.toLowerCase().includes(query))
+              .map(task => ({ task, label: task.label, subtitle: `${skill} · Level ${task.level} · Can train to level ${value.level}`,
+                locations: searchLocations(task), action: () => c.showTask(task) }));
+            return !query || skill.toLowerCase().includes(query) ? [{ label: skill,
+              subtitle: `Can train to level ${value.level} · Main method ${value.primary ? 'available' : 'unavailable'}`, locations: [],
+              action: () => { c.$('task-filter').value = skill; c.renderTasks(); c.closeDialog(generation); } }] : [];
+          });
         } else {
           entries = (renderedMode === 'Equipment' ? sourceResult?.equipment ?? [] : sourceResult?.items ?? [])
             .filter(item => !query || item.name.toLowerCase().includes(query)).map(item => {
