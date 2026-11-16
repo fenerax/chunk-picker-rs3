@@ -1,6 +1,7 @@
 import { memberDisplay } from './screen-ui.mjs';
 import { taskExplanation } from '../tasks/task-provenance.mjs';
 import { appendTaskWhy, catalogued, createRuleDescriber } from './task-why.mjs';
+import { appendTaskHow } from './task-how.mjs';
 import { createWhyChainDisclosure } from './task-why-chain.mjs';
 import { createNoteEditor } from './info-panels.mjs';
 import { renderTaskEquipment } from './task-equipment.mjs';
@@ -153,6 +154,23 @@ export function createScreenTaskDialogs(c) {
             locationName: id => c.plain((place(String(id)) ?? place(String(id).replace(/-\d+$/, '')))?.name ?? '') };
         } });
       nodes.push(why);
+      const how = c.el('div', undefined, 'task-detail-how');
+      appendTaskHow(how, task, { cache: c.viewCache, cacheKey: JSON.stringify([dialogMemberId, task.id]), revision: () => c.state.revision,
+        document, button: c.button, readOnly: !c.canWrite(), enabled: c.preferences().showTaskHow !== false,
+        scope: () => JSON.stringify([c.memberId, c.state.revision, c.viewCache?.token(), c.sandbox.signature(), c.preferences().showTaskHow !== false, c.dialogCurrent(currentGeneration())]),
+        advanced: c.advanced, locationName: id => {
+          const place = key => c.world?.chunks.get(key) ?? c.world?.areas.get(key);
+          return c.plain((place(String(id)) ?? place(String(id).replace(/-\d+$/, '')))?.name ?? '');
+        },
+        load: async (value, signal) => {
+          if (c.preferences().showTaskHow === false) throw new Error('How is off in Settings > Tasks.');
+          if (c.sandbox.active) throw new Error('How is available for the saved map. Leave Sandbox to open it.');
+          if (c.memberId !== selectedMember || c.state.revision !== dialogRevision || !c.dialogCurrent(currentGeneration())) throw new Error('The saved map changed. Open the task again.');
+          const proof = await c.api(`/api/task-how?memberId=${encodeURIComponent(dialogMemberId)}&taskId=${encodeURIComponent(value.id)}&revision=${dialogRevision}`, undefined, signal);
+          if (proof.context?.stateRevision !== dialogRevision || proof.context?.memberId !== dialogMemberId || proof.subject?.id !== value.id) throw new Error('The saved map changed. Open How again.');
+          return proof;
+        } });
+      if (how.children.length) nodes.push(how);
     }
     const openTask = row => c.showTask(row, true, { ...review, memberId: dialogMemberId, result: detailResult });
     if (task.sources?.length) nodes.push(c.details('Sources and locations', c.sourceView(task.sources, detailResult, openTask)));
