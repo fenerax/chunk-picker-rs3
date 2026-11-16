@@ -8,13 +8,14 @@ import { runInNewContext } from 'node:vm';
 import { taskBlockerGuidance, renderTaskBlockerGuidance } from '../app/web/screen-task-guidance.mjs';
 import { createDuoTaskView } from '../app/web/duo-task-view.mjs';
 import { createNoteEditor } from '../app/web/info-panels.mjs';
+import { appendTaskHow } from '../app/web/task-how.mjs';
 
 // Screen imports use served /core routes. Exercise its actual factory with inert
 // equipment/map collaborators, as the broader screen harness does.
 const dialogsSource = await readFile(new URL('../app/web/screen-task-dialogs.mjs', import.meta.url), 'utf8');
 const createScreenTaskDialogs = runInNewContext(`${dialogsSource.replace(/^import .+\r?\n/gm, '').replace(/^export /gm, '')}\ncreateScreenTaskDialogs`, {
   taskExplanation, appendTaskWhy, catalogued, createRuleDescriber, document: { createElement: tag => new Node(tag) },
-  createWhyChainDisclosure, createQuestMap: () => ({}), renderTaskEquipment: () => null, createNoteEditor, renderTaskBlockerGuidance,
+  createWhyChainDisclosure, createQuestMap: () => ({}), renderTaskEquipment: () => null, createNoteEditor, renderTaskBlockerGuidance, appendTaskHow,
 });
 
 class Node {
@@ -132,7 +133,7 @@ test('task dialog explains both completion controls beside their distinct existi
     const owner = { id: 'owner', name: 'Player', completedTasks: [], taskStatus: {} };
     let dialog;
     Object.assign(c, { memberId: 'owner', state: { revision: 1, members: [owner] }, result: { memberId: 'owner', stateRevision: 1, tasks: [task] }, duoDetails: new Map(),
-      sandbox: { active: false }, definitions: {}, canWrite: () => writable, advanced: () => false, supportsFeature: () => false,
+      sandbox: { active: false }, definitions: {}, canWrite: () => writable, advanced: () => false, supportsFeature: () => false, preferences: () => ({}),
       command: async payload => commands.push(structuredClone(payload)), openDialog: (title, content) => { dialog = content; return 1; },
       check(text, checked, action) { const label = new Node('label', text), input = new Node('input'); input.checked = checked; input.disabled = !writable; input.action = action; label.append(input); return label; },
     });
