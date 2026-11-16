@@ -91,14 +91,27 @@ export function renderTaskHow(proof, { document, advanced = false, locationName 
     if (advanced) step.append(el('small', ` ${node.subjectId ?? id} · ${node.rule ?? node.gap ?? node.kind}`, 'task-meta'));
     steps.append(step);
   }
-  card.append(steps);
+  if (steps.children.length) card.append(steps);
+  else card.append(el('p', 'No step-by-step route is available. Check the task details for source information.', 'status-detail'));
   if (soft && !advanced) card.append(el('p', "Places come from the chunk data. The picker hasn't checked the exact walking route to each one.", 'status-detail'));
   return card;
 }
 
 /** Closure-local request state: no new screen-context/VM globals. */
-export function appendTaskHow(row, task, { document, button, load, scope, advanced = () => false, locationName, readOnly = false, enabled = true, cache, cacheKey = task.id, revision = () => 0 }) {
+export function appendTaskHow(row, task, { document, button, load, scope, openDetails, advanced = () => false, locationName, readOnly = false, enabled = true, cache, cacheKey = task.id, revision = () => 0 }) {
   if (!enabled || task.status !== 'available') return;
+  // Generated goals have sources/details, but no supported How proof subject.
+  // Guard here so rows, dialogs and cached proofs all avoid the proof request.
+  if (task.generated) {
+    if (openDetails) {
+      const details = button('Details', () => openDetails(task), 'task-how task-why-link');
+      details.type = 'button'; details.title = 'View sources and goal details';
+      row.append(details); return details;
+    }
+    row.append(Object.assign(document.createElement('p'), { className: 'status-detail',
+      textContent: 'Step-by-step routes are not available for generated goals yet. Check the sources and other details in this task for acquisition and ranking information.' }));
+    return;
+  }
   const panel = document.createElement('div'); panel.className = 'task-why-panel task-how-panel'; panel.hidden = true;
   panel.id = `task-how-${++sequence}`; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', `How to do ${task.label}`);
   const toggle = button('How?', () => open(), 'task-how task-why-link');

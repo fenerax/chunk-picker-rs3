@@ -311,6 +311,7 @@ export function createScreenTasks(c) {
     const cacheOptions = { cache: c.viewCache, cacheKey: JSON.stringify([ownerId, task.id]), revision: () => c.state.revision,
       scope: () => JSON.stringify([c.state.revision, c.memberId, c.viewCache?.token(), c.sandbox.signature()]) };
     appendTaskHow(row, task, { ...cacheOptions, document, button: c.button, readOnly: !c.canWrite(), enabled: c.preferences().showTaskHow !== false,
+      openDetails: value => Promise.resolve(c.showTask(value, false, { memberId: ownerId })).catch(c.showError),
       scope: () => JSON.stringify([c.state.revision, c.memberId, ownerId, c.sandbox.signature(), c.viewCache?.token(), c.preferences().showTaskHow !== false]),
       advanced: () => c.preferences().advanced, locationName: placeName,
       load: async (value, signal) => {

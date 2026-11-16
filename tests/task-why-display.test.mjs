@@ -9,6 +9,7 @@ import { explainTask } from '../app/tasks/task-provenance.mjs';
 import { savedWhyDisplay, validateWhyDisplay, createSavedWhyEvidence } from '../app/task-why-http.mjs';
 import { createViewCache } from '../app/web/browser-state.mjs';
 import { appendTaskWhy, loadTaskWhyEvidence, renderTaskWhy } from '../app/web/task-why.mjs';
+import { appendTaskHow } from '../app/web/task-how.mjs';
 
 const wire = value => JSON.parse(JSON.stringify(value));
 const locationName = id => `Place ${id}`;
@@ -146,6 +147,31 @@ test('Why labels cached revisions as updating until the live answer replaces the
   assert.equal(JSON.stringify(row).includes('Updating…'), cachedRevision <= 7);
   resolve({ task: { id: 'missing', label: 'Current goal' }, result: { tasks: [] } }); await pending;
   assert.ok(!JSON.stringify(row).includes('Cached answer'));
+  }
+});
+
+test('generated equipment row Details opens the displayed owner without a proof request', async () => {
+  const source = (await readFile(new URL('../app/web/screen-tasks.mjs', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
+  for (const ownerId of ['one', 'two']) {
+    let duoOptions, opened;
+    const task = { id: 'bis:fixture-sword', label: 'Obtain fixture sword', category: 'BiS', generated: true, status: 'available' };
+    const row = new Node('div');
+    const c = { state: { revision: 7 }, memberId: 'one', sandbox: { active: false, signature: () => '' },
+      canWrite: () => true, preferences: () => ({}),
+      $: () => ({ parentElement: { after() {} } }), el: () => ({}),
+      showTask: async (...args) => { opened = args; }, showError: error => { throw error; },
+      button: (label, click) => ({ label, click }), api: () => assert.fail('must not request a proof'),
+    };
+    runInContext(source + '\ncreateScreenTasks(c);', createContext({ c, document: { ...document, head: { append() {} } },
+      createTaskClaimClock: () => ({}), createTaskIconPainter: () => ({}),
+      createDuoTaskView: options => { duoOptions = options; return { controls() {} }; },
+      appendTaskHow, appendTaskWhy() {}, isCustomTask: () => false,
+    }));
+    c.duoView(); duoOptions.appendWhy(row, task, ownerId);
+    assert.equal(row.children[0].label, 'Details');
+    await row.children[0].click();
+    assert.equal(opened[0], task);
+    assert.equal(opened[2].memberId, ownerId);
   }
 });
 

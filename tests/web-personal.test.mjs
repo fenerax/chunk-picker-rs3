@@ -150,9 +150,9 @@ test('backlog reason editor cancels without saving and keeps a refused draft for
   await form.events.submit({ preventDefault() {} });
   assert.equal(backlogEditor('Later', false).edit, undefined);
 });
-function howDialog({ ownerId = 'reed', status = 'available', enabled = true } = {}) {
+function howDialog({ ownerId = 'reed', status = 'available', enabled = true, generated = false } = {}) {
   const harness = dialogHarness(), { context, state } = harness;
-  const task = { id: 'Extra:Gather', label: 'Gather supplies', category: 'Extra', status };
+  const task = { id: 'Extra:Gather', label: 'Gather supplies', category: generated ? 'BiS' : 'Extra', status, generated };
   const result = { memberId: ownerId, stateRevision: state.revision, tasks: [task] };
   const calls = [], preferences = { showTaskHow: enabled };
   context.preferences = () => preferences;
@@ -189,6 +189,15 @@ test('task detail How respects the preference and task availability', () => {
     assert.equal(harness.toggle, undefined);
     assert.equal(harness.calls.length, 0);
   }
+});
+
+test('generated equipment task dialog explains the route limit without requesting How', () => {
+  const h = howDialog({ generated: true });
+  assert.equal(h.toggle, undefined);
+  assert.equal(h.calls.length, 0);
+  assert.match(dialogText(h.context.dialog), /Step-by-step routes.*generated goals/);
+  assert.match(dialogText(h.context.dialog), /sources.*details/i);
+  assert.equal(h.nodes.some(node => node.tag === 'ol'), false);
 });
 
 test('task detail How rejects late proofs after the dialog or saved context changes', async () => {
