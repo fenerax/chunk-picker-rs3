@@ -25,14 +25,15 @@ export function createSearchDialog(c) {
     highlightLabel.append(highlight, c.el('span', 'Highlight matches on map'));
     const mapCount = c.el('small', '', 'search-map-count');
     search.placeholder = c.sandbox.active ? 'Name, chunk ID, note or task…' : 'Name, chunk ID, note, item or task…';
-    const revision = c.state.revision, requestedMember = c.memberId;
-    const notes = chunkNotesForSearch(c.state.members);
+    const requestedMember = c.memberId;
+    let revision = c.state.revision, notes = chunkNotesForSearch(c.state.members);
     let requestId = 0, timer, closed = false, entries = [], page = 0, matchIds = [], query = '', requestedMode = 'Chunks', chunkEntries = false;
     const iconPainter = createTaskIconPainter({ resolveIcon: task => taskIcon(task, { itemIcon, skillIcon }),
       createImage: () => c.el('img'), refreshOnSettle: true });
     void loadIcons().then(loaded => iconPainter.settle(loaded));
     let taskLocations, taskLocationRequest, needsTaskLocations = false, taskLocationStatus = '';
-    const scopeCurrent = () => !closed && revision === c.state.revision && requestedMember === c.memberId && c.dialogCurrent(generation);
+    const dialogCurrent = () => !closed && requestedMember === c.memberId && c.dialogCurrent(generation);
+    const scopeCurrent = () => dialogCurrent() && revision === c.state.revision;
     const current = () => scopeCurrent() && mode.value === requestedMode && search.value.toLowerCase().trim() === query;
     const setMatches = () => {
       const ids = current() && highlight.checked && query ? matchIds : [];
@@ -52,11 +53,13 @@ export function createSearchDialog(c) {
       taskLocationStatus = 'Finding matching task locations…'; setMatches();
       try {
         if (!taskLocations && !taskLocationRequest) {
-          taskLocationRequest = c.ensureFullResult().then(value => {
+          const requestedRevision = revision;
+          const pending = c.ensureFullResult().then(value => {
             const locations = new Map((value.tasks ?? []).map(task => [task.id, searchLocations(task)]));
-            if (scopeCurrent()) taskLocations = locations;
+            if (scopeCurrent() && requestedRevision === revision) taskLocations = locations;
             return locations;
-          }).finally(() => { taskLocationRequest = undefined; });
+          }).finally(() => { if (taskLocationRequest === pending) taskLocationRequest = undefined; });
+          taskLocationRequest = pending;
         }
         const locations = taskLocations ?? await taskLocationRequest;
         if (!ready()) return;
@@ -118,6 +121,11 @@ export function createSearchDialog(c) {
     }
 
     async function render() {
+      if (!dialogCurrent()) return;
+      if (revision !== c.state.revision) {
+        revision = c.state.revision; notes = chunkNotesForSearch(c.state.members);
+        taskLocations = undefined; taskLocationRequest = undefined;
+      }
       const request = ++requestId;
       query = search.value.toLowerCase().trim(); requestedMode = mode.value;
       needsTaskLocations = false; taskLocationStatus = '';
@@ -128,6 +136,7 @@ export function createSearchDialog(c) {
         let sourceResult = c.result;
         if (!results.children.length) results.append(c.el('p', 'Loading search…', 'status-detail'));
         if (['Items & drops', 'Equipment', 'Training methods'].includes(renderedMode) || !c.sandbox.active && renderedMode === 'Quests') sourceResult = await c.ensureFullResult();
+        if (renderedMode === 'Tasks') sourceResult = await c.ensureResult();
         if (renderedMode === 'Chunks') await c.ensureChunkSearch();
         if (!ready()) return;
         chunkEntries = renderedMode === 'Chunks';
@@ -173,7 +182,7 @@ export function createSearchDialog(c) {
     }
 
     const invalidate = () => { requestId++; clearTimeout(timer); matchIds = []; taskLocationStatus = ''; c.map?.setSearchMatches?.([]); results.setAttribute('aria-busy', 'true'); count.textContent = 'Searching…'; };
-    search.addEventListener('input', () => { invalidate(); timer = setTimeout(() => { if (scopeCurrent()) void render(); }, 120); });
+    search.addEventListener('input', () => { invalidate(); timer = setTimeout(() => { if (dialogCurrent()) void render(); }, 120); });
     const questFilters = createActivityFilterControls(c, { tab: 'Quest search', quests: true, activity: false, onChange: () => { invalidate(); return render(); } });
     const showQuestFilters = () => { questFilters.element.hidden = c.sandbox.active || mode.value !== 'Quests'; };
     mode.addEventListener('change', () => { invalidate(); showQuestFilters(); return render(); });
