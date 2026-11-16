@@ -20,6 +20,9 @@ import { taskRuleDefinitions } from '../app/data/settings.mjs';
 
 const questVisibilityRule = taskRuleDefinitions.some(row => row.id === 'Show Quest Tasks') ? 'Show Quest Tasks' : 'Quests';
 const fixtureRules = createRuleRegistry();
+const membersRules = fixtureRules.get('content.f2p') ? fixtureRules : createRuleRegistry([
+  { id: 'content.f2p', type: 'boolean', default: true, label: 'Free-to-play content' },
+]);
 const geometricMode = fixtureRules.get('roll.neighborMode').options.find(value => value === 'frontier' || value === 'geometric');
 
 // Four adjacent synthetic cells ending at the northern edge fit either grid.
@@ -94,6 +97,69 @@ test('authenticated sandbox computes multi-chunk tasks, saved-baseline delta, po
   const empty = await (await post(body())).json();
   assert.deepEqual(empty.delta.tasksAdded, []); assert.deepEqual(empty.delta.tasksRemoved, []);
   assert.equal(empty.cache.timingMs.engineMs, 0, 'Empty drafts reuse the saved advisory baseline');
+});
+
+test('members preview compares the same synthetic map without saving, history or a members transition', async t => {
+  const membersDefinitions = {
+    ...definitions,
+    chunks: { ...definitions.chunks, [chunkId(0)]: { Object: { 'Members tree': 1 }, Clue: { elite: 1 } } },
+    taskUnlocks: { Objects: { 'Members tree': { [chunkId(0)]: { 'Members addition': 'Quest' } } } },
+    challenges: { Quest: { Present: { Chunks: [chunkId(0)] },
+      'Members addition': { Chunks: [chunkId(0)], 'Not F2P': true },
+      'Unclaimed members goal': { Chunks: [chunkId(2)], 'Not F2P': true } },
+    Nonskill: { 'Members scan': { Chunks: [chunkId(0)], 'Not F2P': true, ClueTier: 'elite', ClueType: 'Scan' } } },
+  };
+  const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: [chunkId(0)] }, { id: 'two', name: 'Two', unlocked: [chunkId(3)] }]);
+  initialState.members[0].taskRules = { 'Show Nonskill Tasks': true };
+  initialState.rules['roll.neighborMode'] = geometricMode;
+  const { app, dataDir, request, post, body } = await fixture(t, { definitions: membersDefinitions, initialState, registry: membersRules });
+  const saved = app.store.getState(), disk = await readFile(path.join(dataDir, 'state.json'));
+  const baseline = await (await request('/api/tasks?memberId=one&view=play-v1')).json();
+  const ordinary = await (await post(body())).json();
+  const response = await post(body({ members: true }));
+  assert.equal(response.status, 200, response.status === 200 ? undefined : await response.text());
+  const value = await response.json();
+  assert.equal(value.delta.tasksAdded.length, 2);
+  assert.ok(value.delta.tasksAdded.some(row => row.label === 'Members addition'));
+  assert.deepEqual(value.delta.tasksAdded.find(row => row.category === 'Nonskill').record, { ClueTier: 'elite', ClueType: 'Scan' });
+  assert.ok(value.delta.objectsAdded.includes('Members tree'));
+  assert.deepEqual(value.result.access.bases, baseline.access.bases, 'No new chunks are unlocked');
+  assert.deepEqual(ordinary.delta.tasksAdded, []);
+  const cached = await (await post(body({ members: true }))).json();
+  assert.equal(cached.cache.hit, true);
+  assert.deepEqual(cached.delta, value.delta);
+  const emptyAgain = await (await post(body())).json();
+  assert.deepEqual(emptyAgain.delta.tasksAdded, [], 'The members result cannot contaminate the F2P sandbox cache');
+  assert.deepEqual(app.store.getState(), saved);
+  assert.deepEqual(app.store.getState().history, saved.history);
+  assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), disk);
+  const after = await (await request('/api/tasks?memberId=one&view=play-v1')).json();
+  assert.deepEqual(after.tasks, baseline.tasks);
+  assert.deepEqual(after.access, baseline.access);
+});
+
+test('an already members synthetic map has no membership additions', async t => {
+  const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: [chunkId(0)] }]);
+  initialState.rules['content.f2p'] = false;
+  initialState.rules['roll.neighborMode'] = geometricMode;
+  const { app, post, body } = await fixture(t, { initialState, registry: membersRules });
+  const saved = app.store.getState();
+  const response = await post(body({ members: true }));
+  assert.equal(response.status, 200, response.status === 200 ? undefined : await response.text());
+  const value = await response.json();
+  for (const [key, rows] of Object.entries(value.delta)) assert.deepEqual(rows, [], key);
+  assert.deepEqual(app.store.getState(), saved);
+});
+
+test('a dataset without a membership rule rejects the comparison without changing the save', async t => {
+  if (fixtureRules.get('content.f2p')) { t.skip('This dataset supports membership.'); return; }
+  const { app, dataDir, post, body } = await fixture(t);
+  const saved = app.store.getState(), disk = await readFile(path.join(dataDir, 'state.json'));
+  const response = await post(body({ members: true }));
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).message, /dataset does not support membership comparisons/);
+  assert.deepEqual(app.store.getState(), saved);
+  assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), disk);
 });
 
 test('normalized drafts share bounded worker cache, rule changes and Preview variants remain distinct', async t => {

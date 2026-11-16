@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { replaceView } from '../app/web/browser-state.mjs';
 import { compactSandboxPrediction } from '../app/sandbox.mjs';
+import { appendPreviewTasks } from '../app/web/preview-additions.mjs';
 
 const source = (await readFile(new URL('../app/web/screen-chunks.mjs', import.meta.url), 'utf8'))
   .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
@@ -32,7 +33,7 @@ function fixture() {
     $: id => ({ 'map-menu': menu, 'map-hover': map })[id],
   };
   runInContext(source + '\ncreateScreenChunks(c);', createContext({
-    c, document, replaceView, createScreenChunkNotes() {}, createScreenChunkColours() {},
+    c, document, replaceView, appendPreviewTasks, createScreenChunkNotes() {}, createScreenChunkColours() {},
   }));
   const changes = [], renders = [];
   const tabs = ['contents', 'tasks', 'note'].map(id => ({ id, label: id === 'note' ? 'Note ●' : id,

@@ -66,6 +66,20 @@ test('sandbox edits affect only the target and never actual completion, history 
   assert.deepEqual(reset, state, 'Removing hypothetical checks returns to saved checks');
 });
 
+test('members projection changes only the hypothetical shared membership rule', () => {
+  const { state, body } = fixture(), before = structuredClone(state);
+  const draft = normalizeSandboxRequest({ ...body, changes: { members: true } }, { state, world });
+  const projected = applySandboxChanges(state, 'one', draft.changes);
+  assert.equal(projected.rules['content.f2p'], false);
+  assert.deepEqual(projected.members, state.members);
+  assert.deepEqual(projected.history, state.history);
+  assert.deepEqual(projected, { ...state, rules: { ...state.rules, 'content.f2p': false } });
+  assert.deepEqual(state, before);
+  for (const members of [false, null, 'true', 1]) assert.throws(() => normalizeSandboxRequest({ ...body, changes: { members } }, { state, world }));
+  state.rules['content.f2p'] = false;
+  assert.deepEqual(applySandboxChanges(state, 'one', draft.changes), state);
+});
+
 test('sandbox delta counts presented active goals and projects tasks/items without source graphs', () => {
   const task = id => ({ id, label: id, category: 'Quest', status: 'available', sources: ['private evidence'], record: { Output: 'large graph' } });
   const a = task('a'), b = task('b'), hidden = task('other-method');

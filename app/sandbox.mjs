@@ -34,7 +34,7 @@ export function normalizeSandboxRequest(body, { state, world, catalogue = [], ta
   object(body, 'sandbox request', ['memberId', 'baseRevision', 'changes', 'previewChunkId', 'planningChunkId']);
   if (typeof body.memberId !== 'string' || body.memberId.length > 256 || !state.members.some(row => row.id === body.memberId)) throw new TypeError('Choose a known sandbox member.');
   if (!Number.isSafeInteger(body.baseRevision) || body.baseRevision < 0) throw new TypeError('baseRevision must be a nonnegative safe integer.');
-  object(body.changes, 'changes', ['unlockChunks', 'lockChunks', 'doneTasks', 'taskRules']);
+  object(body.changes, 'changes', ['unlockChunks', 'lockChunks', 'doneTasks', 'taskRules', 'members']);
   const baseChunk = id => /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))
     && world.chunks.has(id) && (!world.surface || world.surface.has(id));
   const values = key => Object.hasOwn(body.changes, key) ? body.changes[key] : [];
@@ -45,6 +45,10 @@ export function normalizeSandboxRequest(body, { state, world, catalogue = [], ta
   const tasks = taskIndex ?? sandboxTaskCatalogue(state, catalogue);
   const doneTasks = ids(values('doneTasks'), 'doneTasks', SANDBOX_MAX_DONE_TASKS, id => tasks.has(id));
   const changes = { unlockChunks, lockChunks, doneTasks };
+  if (Object.hasOwn(body.changes, 'members')) {
+    if (body.changes.members !== true) throw new TypeError('The members preview flag must be true.');
+    changes.members = true;
+  }
   if (body.changes.taskRules !== undefined) {
     object(body.changes.taskRules, 'taskRules');
     const entries = Object.entries(body.changes.taskRules).sort(([a], [b]) => compare(a, b));
@@ -89,7 +93,8 @@ export function applySandboxChanges(state, memberId, changes, catalogue = [], ta
     if (!row) throw new TypeError('Unknown sandbox task.');
     return { id: row.id, label: row.label, category: row.category };
   });
-  return { ...state, members: state.members.map(row => row.id === memberId ? member : row), tasks: extra.length ? [...state.tasks, ...extra] : state.tasks };
+  return { ...state, ...(changes.members ? { rules: { ...state.rules, 'content.f2p': false } } : {}),
+    members: state.members.map(row => row.id === memberId ? member : row), tasks: extra.length ? [...state.tasks, ...extra] : state.tasks };
 }
 
 const difference = (before, after, key) => {
@@ -114,7 +119,7 @@ export function sandboxDelta(before, after, { beforeState, afterState, memberId,
   };
   const beforeTasks = active(before, beforeState), afterTasks = active(after, afterState);
   const delta = {
-    tasksAdded: difference(beforeTasks, afterTasks, 'id').map(row => projectPlayTask(row)),
+    tasksAdded: difference(beforeTasks, afterTasks, 'id').map(previewTask),
     tasksRemoved: difference(afterTasks, beforeTasks, 'id').map(row => projectPlayTask(row)),
     itemsAdded: difference(before.items ?? [], after.items ?? [], 'name').map(({ name }) => ({ name })),
     itemsRemoved: difference(after.items ?? [], before.items ?? [], 'name').map(({ name }) => ({ name })),
@@ -126,15 +131,16 @@ export function sandboxDelta(before, after, { beforeState, afterState, memberId,
   return delta;
 }
 
+function previewTask(row) {
+  return { ...projectPlayTask(row), ...(row.record?.ClueTier && row.record?.ClueType
+    ? { record: { ClueTier: row.record.ClueTier, ClueType: row.record.ClueType } } : {}) };
+}
+
 /** Keep the established Preview delta shape without copying source graphs. */
 export function compactSandboxPrediction(prediction) {
   const delta = { ...prediction.delta };
-  for (const key of ['tasksAdded', 'tasksRemoved']) delta[key] = (delta[key] ?? []).map(row => ({
-    ...projectPlayTask(row),
-    // Unlock Preview groups added clue steps without needing their source graphs.
-    ...(key === 'tasksAdded' && row.record?.ClueTier && row.record?.ClueType
-      ? { record: { ClueTier: row.record.ClueTier, ClueType: row.record.ClueType } } : {}),
-  }));
+  delta.tasksAdded = (delta.tasksAdded ?? []).map(previewTask);
+  delta.tasksRemoved = (delta.tasksRemoved ?? []).map(row => projectPlayTask(row));
   for (const key of ['itemsAdded', 'itemsRemoved', 'equipmentAdded', 'equipmentRemoved']) delta[key] = (delta[key] ?? []).map(({ name }) => ({ name }));
   return { delta, coverage: prediction.result.coverage, metrics: prediction.result.metrics };
 }
