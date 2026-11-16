@@ -90,6 +90,30 @@ test('feedback kinds expose a named radio group and submit the keyboard selectio
     await browser.evaluate("document.querySelector('#tool-dialog .close-button').click(); document.querySelector('#feedback-open').click()");
     assert.equal(await browser.evaluate("document.querySelector('.feedback-text').value"), '');
     await selection('Bug');
+    // Explore the reviewer handoff on this isolated synthetic server. Inspect
+    // the external URL without navigating to GitHub or creating an issue.
+    const click = label => browser.evaluate(`[...document.querySelectorAll('#tool-dialog button')].find(node => node.textContent === ${JSON.stringify(label)}).click()`);
+    await until(() => browser.evaluate("Boolean(document.querySelector('.feedback-item'))"));
+    await click('Prepare GitHub issue');
+    for (const [width, height] of [[2560, 1440], [1920, 1080], [390, 844]]) {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+      assert.equal(await browser.evaluate(`(() => {
+        const input = document.querySelector('.feedback-issue-title'), rect = input.getBoundingClientRect();
+        return rect.width > 0 && rect.left >= 0 && rect.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth;
+      })()`), true, `review controls fit at ${width}px`);
+    }
+    await browser.evaluate(`for (const [selector, value] of [['.feedback-issue-title', 'Reviewed synthetic title'], ['.feedback-issue-body', 'Reviewed synthetic body']]) {
+      const node = document.querySelector(selector); node.value = value; node.dispatchEvent(new Event('input', { bubbles: true }));
+    }`);
+    await click('Preview public draft');
+    const href = await browser.evaluate("[...document.querySelectorAll('#tool-dialog a')].find(node => node.textContent === 'Open GitHub issue form').href");
+    assert.equal(new URL(href).searchParams.get('body'), 'Reviewed synthetic body');
+    assert.equal(new URL(href).searchParams.get('title'), 'Reviewed synthetic title');
+    await browser.evaluate("document.querySelector('.feedback-issue-url').value = 'https://github.com/fenerax/chunk-picker-rs3/issues/123'");
+    await click('Record issue link');
+    await until(() => browser.evaluate("[...document.querySelectorAll('.feedback-item a')].some(node => node.textContent === 'GitHub issue')"));
+    const recorded = await browser.evaluate("fetch('/api/feedback').then(response => response.json()).then(value => value.items[0])");
+    assert.equal(recorded.issueUrl, 'https://github.com/fenerax/chunk-picker-rs3/issues/123'); assert.equal(recorded.status, 'new');
   } finally {
     await browser?.close();
     await app?.close();

@@ -9,6 +9,7 @@ import path from 'node:path';
 const KINDS = new Set(['bug', 'idea', 'other']);
 const MAX_ITEMS = 2000, MAX_TEXT = 4000, MAX_CONTEXT_VALUE = 200, MAX_CONTEXT_KEYS = 12;
 const error = (status, message) => Object.assign(new Error(message), { status });
+const validIssueUrl = value => typeof value === 'string' && /^https:\/\/github\.com\/fenerax\/chunk-picker-rs3\/issues\/[1-9]\d*$/.test(value) && !/\s/.test(value);
 
 function cleanContext(value) {
   if (value === undefined || value === null) return null;
@@ -23,6 +24,7 @@ function validate(document) {
   if (!document || document.schemaVersion !== 1 || !Array.isArray(document.items)) throw new TypeError('Invalid feedback store.');
   for (const item of document.items) {
     if (typeof item.id !== 'string' || !KINDS.has(item.kind) || typeof item.text !== 'string' || !['new', 'done'].includes(item.status)) throw new TypeError('Invalid feedback item.');
+    if (item.issueUrl !== undefined && !validIssueUrl(item.issueUrl)) throw new TypeError('Invalid feedback issue URL.');
   }
   if (document.seen !== undefined && (!document.seen || typeof document.seen !== 'object' || Array.isArray(document.seen)
     || Object.values(document.seen).some(ids => !Array.isArray(ids) || ids.some(id => typeof id !== 'string')))) throw new TypeError('Invalid feedback seen state.');
@@ -122,6 +124,15 @@ export async function openFeedbackStore({ dataDir, now = Date.now, hourlyLimit =
           from: { label: String(from?.label ?? 'Unknown').slice(0, 80), ...(from?.kind ? { kind: from.kind } : {}),
             ...(from?.inviteId ? { inviteId: from.inviteId } : {}), ...(from?.memberId ? { memberId: from.memberId } : {}) }, status: 'new' };
         next.items.push(item);
+        return structuredClone(item);
+      });
+    },
+    setIssueUrl(id, issueUrl) {
+      if (!validIssueUrl(issueUrl)) throw error(400, 'Use an https://github.com/fenerax/chunk-picker-rs3/issues/<number> URL.');
+      return mutate(next => {
+        const item = next.items.find(value => value.id === id);
+        if (!item) throw error(404, 'Feedback not found.');
+        item.issueUrl = issueUrl;
         return structuredClone(item);
       });
     },

@@ -413,6 +413,14 @@ test('feedback: players send their own notes; only admins read all or handle the
   assert.equal((await f.request('/api/feedback', { cookie: joined.cookie })).status, 403, 'invites cannot read feedback');
   const listed = await (await f.admin('/api/feedback')).json();
   assert.equal(listed.items.length, 1); assert.equal(listed.open, 1);
+  const issueRoute = `/api/feedback/${item.id}/issue`, issueUrl = 'https://github.com/fenerax/chunk-picker-rs3/issues/123';
+  assert.equal((await reed(issueRoute, { issueUrl })).status, 403);
+  assert.equal((await f.request(issueRoute, { body: { issueUrl } })).status, 401);
+  assert.equal((await f.admin(issueRoute, { issueUrl: 'https://example.com/issues/123' })).status, 400);
+  const recorded = await f.admin(issueRoute, { issueUrl }); assert.equal(recorded.status, 200);
+  assert.equal((await recorded.json()).item.status, 'new');
+  assert.equal((await (await reed('/api/feedback/own')).json()).items[0].issueUrl, issueUrl);
+  assert.equal((await (await f.admin('/api/feedback')).json()).items[0].issueUrl, issueUrl);
   assert.equal((await reed(`/api/feedback/${item.id}/status`, { status: 'done' })).status, 403);
   assert.equal((await f.admin(`/api/feedback/${item.id}/status`, { status: 'done' })).status, 200);
   assert.equal((await (await f.admin('/api/feedback')).json()).open, 0);
@@ -458,7 +466,7 @@ test('feedback authors see only their handled notes across linked player devices
   assert.equal((await request(first.cookie, `/api/feedback/${item.id}/status`, { status: 'new' })).status, 403);
   assert.deepEqual(await (await request(linked.cookie, '/api/feedback/summary')).json(), { unread: 0 });
   for (const route of ['/api/feedback', '/api/feedback/summary', '/api/feedback/own']) assert.equal((await request(viewer.cookie, route)).status, 403);
-  for (const [route, body] of [['/api/feedback', { kind: 'bug', text: 'Denied' }], ['/api/feedback/seen', { ids: [item.id] }], [`/api/feedback/${item.id}/status`, { status: 'done' }]]) assert.equal((await request(viewer.cookie, route, body)).status, 403);
+  for (const [route, body] of [['/api/feedback', { kind: 'bug', text: 'Denied' }], ['/api/feedback/seen', { ids: [item.id] }], [`/api/feedback/${item.id}/status`, { status: 'done' }], [`/api/feedback/${item.id}/issue`, { issueUrl: 'https://github.com/fenerax/chunk-picker-rs3/issues/123' }]]) assert.equal((await request(viewer.cookie, route, body)).status, 403);
   await f.restart();
   assert.equal((await (await request(linked.cookie, '/api/feedback/own')).json()).items[0].status, 'done');
 });

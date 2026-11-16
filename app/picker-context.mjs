@@ -1670,6 +1670,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if (route === '/api/feedback/seen') { await json(request, response, 200, await feedback.markSeen(body.ids, feedbackActor(identity), identity.admin)); return; }
             const feedbackStatus = /^\/api\/feedback\/([a-f0-9-]{36})\/status$/.exec(route);
             if (feedbackStatus) { requireAdmin(); await json(request, response, 200, { item: redactInviteFields(await feedback.setStatus(feedbackStatus[1], body.status)) }); return; }
+            const feedbackIssue = /^\/api\/feedback\/([a-f0-9-]{36})\/issue$/.exec(route);
+            if (feedbackIssue) { requireAdmin(); await json(request, response, 200, { item: redactInviteFields(await feedback.setIssueUrl(feedbackIssue[1], body.issueUrl)) }); return; }
             const accountAction = /^\/api\/accounts\/([a-f0-9-]{36})\/(unlink|revoke-sessions|delete)$/.exec(route);
             if (accountAction) {
               requireAdmin();
