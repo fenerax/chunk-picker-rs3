@@ -21,6 +21,7 @@ class Node {
   setAttribute(key, value) { this.attributes[key] = value; }
   addEventListener(key, callback) { this.events[key] = callback; }
   querySelector(tag) { return walk(this).find(node => node.tag === tag); }
+  querySelectorAll(tag) { return walk(this).filter(node => node.tag === tag); }
   focus() { this.ownerDocument.activeElement = this; }
   contains(node) { return this === node || this.children.some(child => child instanceof Node && child.contains(node)); }
 }
@@ -51,7 +52,11 @@ function harness({ writable = true, sandbox = false, admin = false, data = { opt
   const nodes = () => walk(content);
   const button = label => nodes().find(node => node.tag === 'button' && node.textContent === label);
   const choice = label => nodes().find(node => node.tag === 'label' && walk(node).some(child => child.tag === 'strong' && child.textContent === label))?.children[0];
-  const pick = async label => { const control = choice(label); control.checked = true; await control.events.change(); };
+  const pick = async label => {
+    const control = choice(label);
+    for (const node of nodes().filter(node => node.type === 'radio' && node.name === control.name)) node.checked = node === control;
+    await control.events.change();
+  };
   const commands = () => calls.filter(call => typeof call === 'object');
   const userClose = () => { open = false; dialog.events.close(); };
   return { guide, ctx, calls, errors, centred, dialog, document, userClose, nodes, button, choice, pick, commands, step: () => content?.dataset.step, title: () => title,
@@ -104,6 +109,37 @@ test('roll style and theme write through set-preference so History and Undo appl
   assert.equal(undone.members[0].preferences.theme, undefined);
   await h.pick('Light');
   assert.equal(h.commands().filter(command => command.preferenceId === 'theme').length, 1, 'choosing the saved value writes nothing');
+});
+
+for (const [preferenceId, saved, attempted, labels] of [
+  ['roll2', true, false, ['Roll 1 or Roll 2', 'Roll 1']],
+  ['theme', 'gray', 'light', ['Gray', 'Light']],
+]) test(`a failed ${preferenceId} save restores the saved choice and allows retry`, async () => {
+  const h = harness();
+  h.state().members[0].preferences = { [preferenceId]: saved };
+  h.guide.open();
+  if (preferenceId === 'theme') await h.button('Next').events.click();
+  const controls = h.nodes().filter(node => node.type === 'radio');
+  const status = h.nodes().find(node => node.attributes.role === 'status');
+  const command = h.ctx.command;
+  let reject;
+  h.ctx.command = () => new Promise((resolve, fail) => { reject = fail; });
+  await h.pick(labels[1]);
+  assert.equal(h.choice(labels[0]).checked, false, 'native selection deselects the saved radio');
+  assert.equal(h.choice(labels[1]).checked, true);
+  assert.ok(controls.every(node => node.disabled), 'choices are disabled while saving');
+  reject(new Error('Could not save choice')); await settle();
+  assert.equal(h.state().members[0].preferences[preferenceId], saved);
+  assert.equal(h.choice(labels[0]).checked, true, 'the saved choice is selected after failure');
+  assert.equal(controls.filter(node => node.checked).length, 1);
+  assert.equal(status.textContent, 'Could not save choice', 'the group retains its error');
+  assert.ok(controls.every(node => !node.disabled), 'choices are enabled for retry');
+  h.ctx.command = command;
+  await h.pick(labels[1]); await settle();
+  assert.equal(h.state().members[0].preferences[preferenceId], attempted);
+  assert.equal(h.choice(labels[1]).checked, true);
+  assert.equal(controls.filter(node => node.checked).length, 1);
+  assert.equal(status.textContent, 'Saved.');
 });
 
 test('the starting step rolls a reviewed bank for each empty map in one setup-start command', async () => {
