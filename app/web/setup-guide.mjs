@@ -102,38 +102,52 @@ export function createSetupGuide(ctx) {
       return;
     }
     const status = el('p', 'Loading starting banks…', 'setup-guide-status'); status.setAttribute('role', 'status'); body.append(status);
-    let data;
-    try { data = ctx.supportsFeature?.('rsCatalogues') === false ? {} : (await ctx.api('/api/members-start')).data; }
-    catch { data = {}; }
-    if (!current()) return;
-    const pools = setupStartPools(data, state), banks = pools[0]?.banks ?? [];
-    if (!banks.length) { status.textContent = 'This game has no starting-bank list yet, so there is nothing to roll. You can skip this step.'; return; }
-    status.textContent = '';
-    body.append(el('p', `Rolls for: ${waiting.map(owner => owner.name).join(' and ')}.`));
-    const list = el('details', undefined, 'setup-guide-banks'), names = el('ul');
-    list.append(el('summary', `${banks.length} ${banks.length === 1 ? 'bank' : 'banks'} in the pool`));
-    for (const bank of banks) names.append(el('li', bankName(bank)));
-    list.append(names); body.append(list);
-    const roll = button(waiting.length === 1 ? 'Roll a starting bank' : 'Roll starting banks', async () => {
-      if (!allowed() || !current()) return;
-      const latest = ctx.state(), latestPools = setupStartPools(data, latest);
-      if (latestPools.map(pool => pool.memberId).join() !== pools.map(pool => pool.memberId).join()) { status.textContent = 'The maps changed. Go Back and open this step again.'; roll.disabled = true; return; }
-      roll.disabled = true; status.textContent = 'Saving your start…';
-      try {
-        // One setup-start command rolls every waiting map on the server: one History entry, one Undo.
-        const response = await ctx.command({ type: SETUP_START }, latest.revision);
+    const retry = button('Retry', loadBanks);
+    retry.hidden = true; body.append(retry);
+    return loadBanks();
+
+    async function loadBanks() {
+      if (!allowed() || !current() || retry.disabled) return;
+      retry.disabled = true; retry.hidden = true;
+      status.textContent = 'Loading starting banks…';
+      let data;
+      try { data = ctx.supportsFeature?.('rsCatalogues') === false ? {} : (await ctx.api('/api/members-start')).data; }
+      catch (error) {
         if (!current()) return;
-        const saved = response?.state ?? ctx.state(), event = [...(saved.history ?? [])].reverse().find(row => row.type === SETUP_START);
-        const starts = event?.command?.starts ?? [];
-        if (!starts.length) throw new Error('The starts were saved, but could not be shown. Check History.');
-        const shown = starts.find(start => start.memberId === memberId) ?? starts[0];
-        ctx.centerOnChunk?.(shown.chunkId);
-        status.textContent = 'Saved. Use Undo or History to change it.';
-        startResults(body, starts.map(start => ({ name: latest.members.find(owner => owner.id === start.memberId)?.name ?? start.memberId,
-          place: bankName(banks.find(bank => bank.chunkId === start.chunkId) ?? { place: start.place, chunkId: start.chunkId }) })));
-      } catch (error) { if (current()) { status.textContent = error.message; roll.disabled = false; } }
-    }, 'primary-action');
-    body.append(roll);
+        status.textContent = `Could not load starting banks: ${error?.message || 'Please try again.'}`;
+        retry.hidden = false; retry.disabled = false;
+        return;
+      }
+      if (!current()) return;
+      const pools = setupStartPools(data, state), banks = pools[0]?.banks ?? [];
+      if (!banks.length) { status.textContent = 'This game has no starting-bank list yet, so there is nothing to roll. You can skip this step.'; return; }
+      status.textContent = '';
+      body.append(el('p', `Rolls for: ${waiting.map(owner => owner.name).join(' and ')}.`));
+      const list = el('details', undefined, 'setup-guide-banks'), names = el('ul');
+      list.append(el('summary', `${banks.length} ${banks.length === 1 ? 'bank' : 'banks'} in the pool`));
+      for (const bank of banks) names.append(el('li', bankName(bank)));
+      list.append(names); body.append(list);
+      const roll = button(waiting.length === 1 ? 'Roll a starting bank' : 'Roll starting banks', async () => {
+        if (!allowed() || !current()) return;
+        const latest = ctx.state(), latestPools = setupStartPools(data, latest);
+        if (latestPools.map(pool => pool.memberId).join() !== pools.map(pool => pool.memberId).join()) { status.textContent = 'The maps changed. Go Back and open this step again.'; roll.disabled = true; return; }
+        roll.disabled = true; status.textContent = 'Saving your start…';
+        try {
+          // One setup-start command rolls every waiting map on the server: one History entry, one Undo.
+          const response = await ctx.command({ type: SETUP_START }, latest.revision);
+          if (!current()) return;
+          const saved = response?.state ?? ctx.state(), event = [...(saved.history ?? [])].reverse().find(row => row.type === SETUP_START);
+          const starts = event?.command?.starts ?? [];
+          if (!starts.length) throw new Error('The starts were saved, but could not be shown. Check History.');
+          const shown = starts.find(start => start.memberId === memberId) ?? starts[0];
+          ctx.centerOnChunk?.(shown.chunkId);
+          status.textContent = 'Saved. Use Undo or History to change it.';
+          startResults(body, starts.map(start => ({ name: latest.members.find(owner => owner.id === start.memberId)?.name ?? start.memberId,
+            place: bankName(banks.find(bank => bank.chunkId === start.chunkId) ?? { place: start.place, chunkId: start.chunkId }) })));
+        } catch (error) { if (current()) { status.textContent = error.message; roll.disabled = false; } }
+      }, 'primary-action');
+      body.append(roll);
+    }
   }
 
   function tourStep(body) {
