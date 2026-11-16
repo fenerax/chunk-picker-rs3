@@ -63,12 +63,13 @@ function harness(t, { size = 241, evidence, delayed = false } = {}) {
     result: evidence ?? { tasks: [] },
     map: { setSearchMatches: ids => matches.push([...ids]), centerOnChunk: id => opens.push(id) },
     $: id => id === 'tool-dialog' ? dialog : content,
-    member: () => state.members.find(member => member.id === c.memberId), advanced: () => false,
+    member: () => c.state.members.find(member => member.id === c.memberId), advanced: () => false,
     el: (tag, text, cls) => { const node = new Node(tag, text); node.className = cls; return node; },
     input: type => { const node = new Node('input'); node.type = type; return node; },
     select: (choices, value) => { const node = new Node('select'); node.value = value; return node; },
     button: (label, action) => { const node = new Node('button', label); node.addEventListener('click', action); return node; },
     field: (label, node) => node,
+    ensureResult: async () => c.result,
     ensureChunkSearch: async () => { chunkLoads++; }, ensureFullResult: () => { fullLoads++; return pending ?? Promise.resolve(c.result); },
     showChunk: id => opens.push(id), showItem: item => items.push(item), showTask: task => opens.push(task.id), renderTasks() {},
   };
@@ -147,6 +148,77 @@ test('input coalesces, clears map immediately, and rejects stale visible result 
   await assert.rejects(oldView.emit('click'), /search changed/);
   await h.type(''); assert.deepEqual(h.matches.at(-1), []);
   h.search.clear(); assert.deepEqual(h.matches.at(-1), []);
+});
+
+test('typing after a shared save refreshes chunk notes and ownership without reopening Search', async t => {
+  const h = harness(t); h.search.open(); await h.settle(); await h.type('ore');
+  const oldView = h.find('View'), generation = h.c.dialogGeneration;
+  h.c.state = structuredClone(h.c.state); h.c.state.revision++;
+  h.c.state.members[1].notes = { '10001': 'New beacon' };
+  h.c.state.members[1].unlocked = ['10001'];
+  await assert.rejects(oldView.emit('click'), /Saved state or search changed/);
+  await h.type('beacon');
+  assert.ok(h.find('Chunk 10001'));
+  assert.ok(h.find('Reed’s note: New beacon'));
+  assert.ok(h.find('Surface chunk · Unlocked by Reed'));
+  assert.deepEqual(h.matches.at(-1), ['10001']);
+  assert.equal(h.query().value, 'beacon'); assert.equal(h.mode().value, 'Chunks');
+  assert.equal(h.c.dialogGeneration, generation);
+  await assert.rejects(oldView.emit('click'), /Saved state or search changed/);
+  await h.find('View').emit('click'); assert.deepEqual(h.opens, ['10001', '10001']);
+});
+
+for (const oldFirst of [true, false]) test(`Task search recovers across saves with the old locations resolving ${oldFirst ? 'first' : 'last'}`, async t => {
+  const task = location => ({ id: 'ore', label: 'Mine ore', category: 'Mining', status: 'available', sources: [{ location }] });
+  const h = harness(t, { evidence: { format: 'play-v1', tasks: [projectPlayTask(task('10000'))] } });
+  const requests = [];
+  h.c.ensureFullResult = () => new Promise(resolve => requests.push(resolve));
+  h.search.open(); await h.settle(); await h.type('ore');
+  h.mode().value = 'Tasks'; await h.mode().emit('change'); await h.settle();
+  assert.equal(requests.length, 1);
+  h.c.state.revision++; h.c.result = undefined;
+  let resolveTasks;
+  h.c.ensureResult = () => new Promise(resolve => { resolveTasks = resolve; });
+  await h.type('mine ore');
+  assert.deepEqual(h.matches.at(-1), []);
+  assert.equal(typeof resolveTasks, 'function', 'refresh waits for the new foreground tasks');
+  h.c.result = { format: 'play-v1', tasks: [projectPlayTask(task('10001'))] };
+  resolveTasks(h.c.result); await h.settle();
+  assert.ok(h.find('Mine ore')); assert.equal(h.mode().value, 'Tasks');
+  assert.equal(requests.length, 2, 'the old revision request is not reused');
+  if (oldFirst) {
+    requests[0]({ tasks: [task('10000')] }); await h.settle();
+    assert.deepEqual(h.matches.at(-1), []);
+  }
+  requests[1]({ tasks: [task('10001')] }); await h.settle();
+  if (!oldFirst) { requests[0]({ tasks: [task('10000')] }); await h.settle(); }
+  assert.deepEqual(h.matches.at(-1), ['10001']);
+  h.c.ensureResult = async () => h.c.result;
+  await h.type('ore');
+  assert.equal(requests.length, 2, 'only current locations are cached');
+  assert.deepEqual(h.matches.at(-1), ['10001']);
+  h.c.state.revision++;
+  h.c.result = { format: 'play-v1', tasks: [projectPlayTask(task('10002'))] };
+  await h.type('mine');
+  assert.equal(requests.length, 3, 'a later save also invalidates completed location caches');
+  assert.deepEqual(h.matches.at(-1), []);
+  requests[2]({ tasks: [task('10002')] }); await h.settle();
+  assert.deepEqual(h.matches.at(-1), ['10002']);
+});
+
+test('an earlier full search response cannot replace results after revision recovery', async t => {
+  const h = harness(t); h.search.open(); await h.settle(); await h.type('ore');
+  const requests = [];
+  h.c.ensureFullResult = () => new Promise(resolve => requests.push(resolve));
+  h.mode().value = 'Items & drops'; const oldRender = h.mode().emit('change');
+  h.c.state.revision++; await h.type('ore');
+  assert.equal(requests.length, 2);
+  requests[1]({ items: [{ name: 'Current ore', sources: [{ location: '10001' }] }] }); await h.settle();
+  const view = h.find('View'); assert.ok(h.find('Current ore'));
+  requests[0]({ items: [{ name: 'Old ore', sources: [{ location: '10000' }] }] }); await oldRender; await h.settle();
+  assert.ok(!h.find('Old ore')); assert.equal(h.find('View'), view);
+  assert.deepEqual(h.matches.at(-1), ['10001']);
+  await view.emit('click'); assert.equal(h.items[0].name, 'Current ore');
 });
 
 test('viewers can toggle local highlights and item details receive sorted copies', async t => {
