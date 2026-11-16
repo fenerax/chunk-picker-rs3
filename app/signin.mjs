@@ -31,6 +31,25 @@ function redirect(response, destination = '/') {
   response.writeHead(303, { Location: destination, 'Cache-Control': 'private, no-store' });
   response.end();
 }
+// Check decoded forms too: URL parsing normalizes dot segments and browsers
+// treat backslashes as slashes. Never let a return visit start another auth flow.
+function returnTarget(value, origin) {
+  if (typeof value !== 'string' || value.length > 4096) return '/';
+  let decoded = value, destination;
+  for (let depth = 0; depth < 8; depth++) {
+    if (!/^\/(?!\/)/.test(decoded) || /[\\\u0000-\u001f\u007f-\u009f]/.test(decoded)) return '/';
+    try {
+      const url = new URL(decoded, origin);
+      if (url.origin !== origin || url.pathname.startsWith('//') ||
+        /^(?:\/pickers\/[^/]+)?\/(?:auth|join)(?:\/|$)/i.test(url.pathname)) return '/';
+      destination ??= url.pathname + url.search + url.hash;
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) return destination;
+      decoded = next;
+    } catch { return '/'; }
+  }
+  return '/';
+}
 // Pages send Referrer-Policy: no-referrer, so browsers serialise a plain form
 // POST's Origin as "null". Fetch Metadata still proves a same-origin submission;
 // browsers forbid scripts from setting it, so a cross-site page cannot forge it.
@@ -99,8 +118,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       continuing--; reserved = false;
       if (error.code === 'SESSION_BUSY' || error.status === 502 && (entry.inviteId || entry.reclaimCode)) {
         // Restart provider consent with fresh state; never replay a consumed code.
-        const { inviteId, reclaimCode, accountId, sessionId } = entry;
-        error.signInContinuation = put(request, response, { inviteId, reclaimCode, accountId, sessionId });
+        const { inviteId, reclaimCode, accountId, sessionId, returnTo } = entry;
+        error.signInContinuation = put(request, response, { inviteId, reclaimCode, accountId, sessionId, returnTo });
       }
       throw error;
     } finally { if (reserved) continuing--; }
@@ -151,7 +170,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       return invite && !invite.revoked && !invite.admin && !invite.viewer && invite.memberId === membership.memberId && invite.claimedAccountId === account.id;
     });
   }
-  async function issue(response, account, security, name, membership) {
+  async function issue(response, account, security, name, membership, returnTo) {
     const selected = membership ?? availableMembership(account);
     if (!selected) {
       inviteRequired(response);
@@ -159,7 +178,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     }
     const token = await invites.issueAccountSession(account.id, selected.id, name);
     addCookie(response, invites.cookie(token, security));
-    redirect(response);
+    redirect(response, returnTo);
   }
   async function jsonFromProvider(url, options) {
     const controller = new AbortController();
@@ -249,7 +268,9 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       }
       if (request.method === 'GET' && route === '/auth/signin') {
         take(request, response);
-        page(response, { providers, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' }); return true;
+        const query = new URL(request.url, publicOrigin).searchParams;
+        const returnTo = returnTarget(query.getAll('returnTo').length === 1 ? query.get('returnTo') : null, publicOrigin);
+        page(response, { providers, returnTo, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' }); return true;
       }
       if (request.method === 'POST' && route === '/auth/signout') {
         take(request, response); request.resume();
@@ -283,7 +304,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         const query = new URL(request.url, publicOrigin).searchParams;
         if (!configured.has(name) || !entry || entry.provider !== name || query.getAll('state').length !== 1 || !equal(query.get('state'), entry.state)) throw failure(400, 'This sign-in request has expired. Start again; if you were joining, reopen the invite link.');
         if (query.has('error')) {
-          if (entry.inviteId || entry.reclaimCode) put(request, response, entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : { inviteId: entry.inviteId });
+          put(request, response, entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : entry.inviteId ? { inviteId: entry.inviteId } : { returnTo: entry.returnTo });
           const invite = entry.inviteId ? invites.get(entry.inviteId) : undefined;
           page(response, { providers, heading: 'Sign-in cancelled', message: 'You can try signing in again.',
             continueInvite: canContinueInvite(invite, identity) }, 400); return true;
@@ -314,7 +335,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
                 ? { account: await pickerRegistry.linkIdentity(entry.accountId, name, subject), picker: await pickerRegistry.ensureDefaultPicker(entry.accountId) }
                 : await pickerRegistry.firstLogin(name, subject);
               const token = await invites.issuePickerSession(result.account.id, result.picker.id, name);
-              addCookie(response, invites.cookie(token, security)); redirect(response); return;
+              addCookie(response, invites.cookie(token, security)); redirect(response, entry.returnTo); return;
             }
             let account, claimed = false;
             if (entry.accountId) {
@@ -332,7 +353,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
             }
             if (entry.inviteId && !claimed) account = await claim(account, entry.inviteId);
             await syncLegacy?.();
-            await issue(response, account, security, name, entry.inviteId ? account.memberships.find(item => item.id === entry.inviteId) : undefined);
+            await issue(response, account, security, name, entry.inviteId ? account.memberships.find(item => item.id === entry.inviteId) : undefined, entry.returnTo);
           });
         });
         return true;
@@ -343,6 +364,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         if (!config) throw failure(404, 'This sign-in provider is unavailable.');
         prune();
         const previous = pending.get(cookie(request));
+        const query = new URL(request.url, publicOrigin).searchParams;
+        const returnTo = returnTarget(query.has('returnTo') ? (query.getAll('returnTo').length === 1 ? query.get('returnTo') : null) : previous?.returnTo, publicOrigin);
         if (previous?.reclaimCode && start[1]) throw failure(409, 'Use the sign-in buttons on the claim page.');
         let accountId, sessionId;
         if (start[1]) {
@@ -351,7 +374,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         }
         const inviteId = previous?.inviteId ?? (identity?.kind === 'invite' && !identity.admin && !identity.readOnly && identity.memberId ? identity.inviteId : undefined);
         const entry = put(request, response, { provider: name, state: generateToken(), verifier: generateToken(), ...(name === 'google' ? { nonce: generateToken() } : {}),
-          ...(previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : {}) });
+          ...(previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : { returnTo }) });
         const destination = new URL(SIGN_IN_ENDPOINTS[name].authorize);
         destination.search = new URLSearchParams({ client_id: config.clientId, redirect_uri: `${publicOrigin}/auth/${name}/callback`, response_type: 'code',
           scope: name === 'discord' ? 'identify' : 'openid', state: entry.state, code_challenge: createHash('sha256').update(entry.verifier).digest('base64url'), code_challenge_method: 'S256',
@@ -379,7 +402,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
           claim: identity?.kind === 'account', continueInvite: canContinueInvite(invite, identity) });
       } else {
         take(request, response);
-        page(response, { providers, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' });
+        page(response, { providers, returnTo: returnTarget(request.url, publicOrigin), heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' });
       }
       return true;
     },

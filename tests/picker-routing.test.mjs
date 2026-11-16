@@ -72,7 +72,7 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, ...limits } =
   async function begin(subject, cookie, route = '/auth/discord') {
     const response = await send(route, cookie); assert.equal(response.status, 303);
     const auth = new URL(response.headers.location), code = String(++codeId);
-    const name = route.endsWith('/google') ? 'google' : 'discord';
+    const name = new URL(route, origin).pathname.endsWith('/google') ? 'google' : 'discord';
     grants.set(code, { subject, name, nonce: auth.searchParams.get('nonce'), challenge: auth.searchParams.get('code_challenge') });
     return () => send(`/auth/${name}/callback?state=${auth.searchParams.get('state')}&code=${code}`, [response.headers['set-cookie'][0].split(';')[0], ...(cookie ?? '').split(';').filter(part => part.trim() && !part.trim().startsWith('__Host-rs3_preauth='))].join('; '));
   }
@@ -143,6 +143,32 @@ test('URL, header and body selectors cannot redirect command, reads, history, ex
   await f.restart();
   assert.equal((await f.send('/api/plugin/v1/status', null, { headers: { Authorization: 'Bearer ' + key } })).status, 200);
   assert.equal((await f.send('/api/game-plugin', b)).json().keys.length, 0);
+});
+
+test('signed-out deep links survive both providers and still enforce picker access', async t => {
+  const f = await fixture(t);
+  const owner = await f.login('101'); await f.login('102');
+  assert.equal((await (await f.begin('201', owner, '/auth/link/google'))()).status, 303);
+  const own = await f.picker('101'), other = await f.picker('102');
+  for (const provider of ['discord', 'google']) {
+    for (const target of [`/pickers/${own}/?view=tasks&chunk=12341`, `/pickers/${own}?view=chunk&chunk=12341`, `/?pickerId=${own}&view=chunk&chunk=12341`, `/pickers/${other}/?view=tasks`, '/pickers/missing/?view=tasks']) {
+      const page = await f.send(target);
+      assert.equal(page.status, 200); assert.match(page.text, /Sign in/);
+      const link = page.text.match(new RegExp(`href="(/auth/${provider}[^\"]*)"`))[1].replaceAll('&amp;', '&');
+      assert.equal(new URL(link, origin).searchParams.get('returnTo'), target);
+      assert.ok(page.headers['set-cookie'].every(value => /Max-Age=0/.test(value)), 'Page rendering creates no attempt');
+      const asset = await f.send('/favicon.ico');
+      assert.equal(asset.status, 401); assert.equal(asset.headers['set-cookie'], undefined);
+      const completed = await (await f.begin(provider === 'discord' ? '101' : '201', undefined, link))();
+      assert.equal(completed.status, 303, completed.text); assert.equal(completed.headers.location, target);
+      const cookie = completed.headers['set-cookie'].find(value => value.startsWith('duo_access=')).split(';')[0];
+      const returned = await f.send(completed.headers.location, cookie);
+      const allowed = target.includes(own);
+      assert.equal(returned.status, allowed ? 200 : 403, returned.text);
+      if (!allowed) assert.match(returned.text, /Picker access denied/);
+    }
+  }
+  assert.equal((await f.send('/api/state')).status, 401, 'API requests keep their access refusal');
 });
 
 test('racing OAuth callbacks create exactly one account and owned picker without changing shared ownership', async t => {

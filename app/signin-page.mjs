@@ -3,9 +3,10 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ 
 
 // A server-rendered form in the picker's established warm charcoal and gold palette.
 // Provider destinations are fixed locally; no provider scripts, images or fonts load here.
-export function renderSignInPage({ providers = [], heading = 'Sign in', message, continueInvite = false, claim = false, help = true, home = false, linkAccount = false } = {}) {
+export function renderSignInPage({ providers = [], heading = 'Sign in', message, continueInvite = false, claim = false, help = true, home = false, linkAccount = false, returnTo } = {}) {
   const available = [...new Set(providers.map(provider => typeof provider === 'string' ? provider : provider?.id ?? provider?.provider))].filter(provider => Object.hasOwn(providerNames, provider));
-  const links = available.map(provider => `<a class="signin-provider" href="/auth/${linkAccount ? 'link/' : ''}${provider}">Sign in with ${providerNames[provider]}</a>`).join('\n');
+  const query = !linkAccount && returnTo && returnTo !== '/' ? `?${new URLSearchParams({ returnTo })}` : '';
+  const links = available.map(provider => `<a class="signin-provider" href="${escape(`/auth/${linkAccount ? 'link/' : ''}${provider}${query}`)}">Sign in with ${providerNames[provider]}</a>`).join('\n');
   return `<!doctype html>
 <html lang="en">
 <head>
