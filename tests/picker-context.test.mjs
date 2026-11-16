@@ -673,13 +673,30 @@ function observeCompression(t) {
 }
 
 test('oversized route coalesces callers and keeps one captured revision through concurrent commits', { timeout: 10000 }, async t => {
-  const { a } = await gzipFixture(t), captures = oversizedSnapshots(a), started = observeCompression(t);
+  const entered = Promise.withResolvers(), release = Promise.withResolvers();
+  t.after(() => release.resolve());
+  const { Gzip } = await import('node:zlib');
+  const transform = Gzip.prototype._transform;
+  let held = false;
+  t.mock.method(Gzip.prototype, '_transform', function(chunk, encoding, done) {
+    if (held) return transform.call(this, chunk, encoding, done);
+    held = true;
+    transform.call(this, chunk, encoding, (...args) => {
+      // Keep the real compression pipeline open until the concurrent caller
+      // has been refused, even when native gzip finishes this chunk immediately.
+      entered.resolve();
+      release.promise.then(() => done(...args));
+    });
+  });
+  const { a } = await gzipFixture(t), captures = oversizedSnapshots(a);
   const first = gzipCall(a);
-  await started;
+  await entered.promise;
   const second = gzipCall(a);
-  await command(a, note('commit during compression'));
-  const busy = gzipCall(a); await busy.done;
-  assert.equal(busy.response.statusCode, 503); assert.equal(busy.headers.get('retry-after'), 1);
+  try {
+    await command(a, note('commit during compression'));
+    const busy = gzipCall(a); await busy.done;
+    assert.equal(busy.response.statusCode, 503); assert.equal(busy.headers.get('retry-after'), 1);
+  } finally { release.resolve(); }
   const [left, right] = await Promise.all([first.body(), second.body()]);
   assert.equal(captures(), 1); assert.equal(left.state.revision, 0); assert.equal(left.store.revision, 0);
   assert.deepEqual(left.pools, right.pools); assert.equal(first.headers.get('etag'), second.headers.get('etag'));
