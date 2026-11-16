@@ -22,9 +22,9 @@ function dialogHarness() {
     { id: 'reed', name: 'Reed', completedTasks: [], taskStatus: {} },
     { id: 'actor1', name: 'Player', completedTasks: [], taskStatus: {} },
   ] };
-  const node = (tag, textContent) => { const value = { tag, textContent, value: '', dataset: {}, children: [],
+  const node = (tag, textContent) => { const value = { tag, textContent, value: '', dataset: {}, children: [], events: {},
     append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; },
-    addEventListener() {}, setAttribute() {} }; nodes.push(value); return value; };
+    addEventListener(type, action) { this.events[type] = action; }, setAttribute() {}, focus() {} }; nodes.push(value); return value; };
   const context = createContext({ appendTaskClaim, createTaskClaimClock, openFeedback() {},
     supportsFeature: feature => supportsDatasetFeature({ capabilities: { features: {} } }, feature),
     canWrite: () => true, advanced: () => false, createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createDuoCoordination, sandbox: { active: false }, duoEnabled: () => false, state, memberId: 'reed', result: undefined, shownResult: undefined, fullResult: undefined, definitions: {}, document: { createElement: node }, itemIcon: () => null,
@@ -32,6 +32,8 @@ function dialogHarness() {
     appendTaskHow, appendTaskWhy() {}, preferences: () => ({}), viewCache: undefined, icon: () => null,
     createWhyChainDisclosure: () => node('div'),
     el: node, field: () => node('label'), openDialog(title, content) { context.dialog = content; return 1; },
+    input(type) { const input = node('input'); input.type = type; return input; }, plain: value => String(value),
+    closeDialog() { context.closed = true; }, showError(error) { context.error = error; },
     check(label, checked, action) { controls.push({ label, checked, action }); return node('checkbox'); },
     button(label, action) { buttons.push({ label, action }); return node('button'); },
     member: () => state.members.find(owner => owner.id === context.memberId),
@@ -50,6 +52,64 @@ function dialogHarness() {
 }
 
 const dialogText = node => [node.textContent ?? '', ...node.children.map(dialogText)].join(' ');
+
+function backlogEditor(reason = 'Later: Gather supplies', writable = true) {
+  const h = dialogHarness(), task = { id: 'custom:wait', label: 'Gather supplies', category: 'Custom', status: 'available' };
+  h.context.memberId = 'actor1'; h.context.canWrite = () => writable;
+  h.state.members[1].taskStatus[task.id] = { backlogged: true, backlogReason: reason };
+  h.context.showTask(task);
+  const edit = h.buttons.find(button => button.label === 'Edit reason');
+  if (writable) { assert.ok(edit, 'backlogged task details offer Edit reason'); edit.action(); }
+  const form = h.nodes.findLast(node => node.tag === 'form');
+  const input = h.nodes.findLast(node => node.tag === 'textarea');
+  const radios = h.nodes.filter(node => node.tag === 'input' && node.type === 'radio');
+  const choose = value => radios.forEach(radio => { radio.checked = radio.value === value; });
+  return { ...h, task, edit, form, input, radios, choose, submit: () => form.events.submit({ preventDefault() {} }) };
+}
+
+test('backlog reason editor saves only the reason for the captured owner and task', async () => {
+  const h = backlogEditor();
+  assert.deepEqual(h.radios.map(radio => radio.value), ['', 'Later', 'Need progress', 'Task looks wrong', 'Other']);
+  assert.equal(h.radios.find(radio => radio.checked).value, 'Later');
+  assert.equal(h.input.value, 'Gather supplies');
+  h.context.memberId = 'reed'; h.choose('Need progress'); h.input.value = '  Train first  ';
+  await h.submit();
+  assert.deepEqual(h.accepted, [{ type: 'set-task-status', memberId: 'actor1', taskId: h.task.id, backlogReason: 'Need progress: Train first' }]);
+  assert.equal(h.state.members[1].taskStatus[h.task.id].backlogged, true);
+  assert.equal(h.context.closed, true);
+});
+
+test('backlog reason editor clears reasons and preserves imported text beyond the usual details limit', async () => {
+  for (const original of ['Later', 'Other: ' + 'x'.repeat(400), 'Unrecognized: ' + 'x'.repeat(600), 'Imported first line\nSecond line']) {
+    const h = backlogEditor(original);
+    assert.equal([h.radios.find(radio => radio.checked).value, h.input.value].filter(Boolean).join(': '), original);
+    assert.ok(h.input.maxLength >= h.input.value.length, 'imported text remains fully editable');
+    await h.submit();
+    assert.equal(h.accepted[0].backlogReason, original, 'unchanged reasons are submitted without truncation');
+    const cleared = backlogEditor(original);
+    cleared.choose(''); cleared.input.value = '';
+    await cleared.submit();
+    assert.equal(cleared.accepted[0].backlogReason, '');
+  }
+});
+
+test('backlog reason editor cancels without saving and keeps a refused draft for retry', async () => {
+  const h = backlogEditor();
+  h.buttons.findLast(button => button.label === 'Cancel').action();
+  assert.equal(h.accepted.length, 0);
+  assert.match(dialogText(h.context.dialog), /Backlogged: Later: Gather supplies/);
+  h.buttons.findLast(button => button.label === 'Edit reason').action();
+  const form = h.nodes.findLast(node => node.tag === 'form'), input = h.nodes.findLast(node => node.tag === 'textarea');
+  input.value = 'Corrected details';
+  h.context.command = async () => { throw new Error('Save refused'); };
+  await form.events.submit({ preventDefault() {} });
+  assert.equal(input.value, 'Corrected details'); assert.match(h.context.error.message, /Save refused/);
+  assert.equal(form.children.at(-1).children[0].disabled, false);
+  h.context.dialogCurrent = () => false;
+  h.context.command = async () => assert.fail('closed editor must not save');
+  await form.events.submit({ preventDefault() {} });
+  assert.equal(backlogEditor('Later', false).edit, undefined);
+});
 function howDialog({ ownerId = 'reed', status = 'available', enabled = true } = {}) {
   const harness = dialogHarness(), { context, state } = harness;
   const task = { id: 'Extra:Gather', label: 'Gather supplies', category: 'Extra', status };

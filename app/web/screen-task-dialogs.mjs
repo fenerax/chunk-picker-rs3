@@ -74,7 +74,46 @@ export function createScreenTaskDialogs(c) {
     stack.append(taskStatus, explanation, guidanceSlot);
     if (progressive) showGuidance(task, detailResult);
     const backlogBox = c.el('div', undefined, 'task-backlog-box');
-    if (status.backlogged) backlogBox.append(c.el('p', status.backlogReason ? `Backlogged: ${status.backlogReason}` : 'Backlogged.', 'backlog-reason'), ...(c.canWrite() ? [c.button('Restore from backlog', () => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, backlogged: false }).then(() => c.closeDialog(generation)))] : []));
+    const showBacklogReason = () => {
+      backlogBox.replaceChildren(c.el('p', status.backlogReason ? `Backlogged: ${status.backlogReason}` : 'Backlogged.', 'backlog-reason'));
+      if (!c.canWrite()) return;
+      const edit = c.button('Edit reason', () => {
+        const form = c.el('form', undefined, 'backlog-reason-dialog'), reason = c.el('textarea');
+        const presets = ['Later', 'Need progress', 'Task looks wrong', 'Other'], original = status.backlogReason ?? '';
+        const initialPreset = presets.find(value => original === value || original.startsWith(`${value}: `)) ?? '';
+        const initialText = initialPreset ? original === initialPreset ? '' : original.slice(initialPreset.length + 2) : original;
+        reason.value = initialText;
+        const initialValue = reason.value;
+        // Imported reasons may exceed the usual details limit. Keep every character.
+        reason.maxLength = Math.max(200, initialText.length);
+        const choices = c.el('fieldset'), radios = [];
+        choices.append(c.el('legend', 'Reason (optional)'));
+        for (const value of ['', ...presets]) {
+          const radio = c.input('radio'), label = c.el('label', undefined, 'backlog-reason-choice');
+          radio.name = 'edit-backlog-reason'; radio.value = value; radio.checked = value === initialPreset;
+          label.append(radio, c.el('span', value || 'No reason')); choices.append(label); radios.push(radio);
+        }
+        const details = c.el('label', 'Details (optional)'); details.append(reason);
+        const save = c.el('button', 'Save reason', 'primary-action'); save.type = 'submit';
+        const cancel = () => { showBacklogReason()?.focus(); };
+        const actions = c.el('div', undefined, 'form-actions'); actions.append(save, c.button('Cancel', cancel));
+        form.append(choices, details, actions);
+        form.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
+        form.addEventListener('submit', async event => {
+          event.preventDefault(); if (save.disabled || !c.canWrite() || !c.dialogCurrent(generation)) return; save.disabled = true;
+          const preset = radios.find(radio => radio.checked)?.value ?? '';
+          const backlogReason = preset === initialPreset && reason.value === initialValue ? original : [preset, reason.value.trim()].filter(Boolean).join(': ');
+          try {
+            await c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, backlogReason }, dialogRevision);
+            if (c.dialogCurrent(generation)) c.closeDialog(generation);
+          } catch (error) { save.disabled = false; c.showError(error); }
+        });
+        backlogBox.replaceChildren(form); radios.find(radio => radio.checked)?.focus();
+      });
+      backlogBox.append(edit, c.button('Restore from backlog', () => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, backlogged: false }).then(() => c.closeDialog(generation))));
+      return edit;
+    };
+    if (status.backlogged) showBacklogReason();
     else if (c.canWrite()) backlogBox.append(c.button('Backlog…', () => c.backlogForm(backlogBox, { ...task, id: commandTaskId }, () => c.closeDialog(generation), dialogMemberId), 'backlog-open'));
     if (['blocked', 'unsupported'].includes(task.status) && !task.id.startsWith('custom:')) stack.append(createWhyChainDisclosure(c, { taskId: task.id }, {
       memberId: dialogMemberId, revision: dialogRevision, advanced: c.advanced,
