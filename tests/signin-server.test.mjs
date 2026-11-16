@@ -352,6 +352,22 @@ test('both providers claim player invitations using PKCE and restore account ses
   assert.equal(f.app.store.getInfo().revision, 0, 'Identity operations never change game History');
 });
 
+test('shared sign-in returns to the requested page and invitations replace an old return target', async t => {
+  const f = await fixture(t), invitation = await f.invite(), owner = f.browser();
+  await signIn(f, owner, 'discord', invitation);
+  const returning = f.browser(), target = '/?view=tasks&chunk=11825';
+  const page = await returning.request(target);
+  assert.equal(page.status, 200); assert.match(await page.text(), /href="\/auth\/discord"/);
+  const completed = await f.callback(returning, await f.begin(returning));
+  assert.equal(completed.response.headers.get('location'), target);
+  assert.equal((await returning.request(target)).status, 200);
+  const joining = f.browser();
+  await joining.request(`/auth/signin?${new URLSearchParams({ returnTo: target })}`);
+  const nextInvite = await f.invite({ label: 'Reed', memberId: 'reed' });
+  const joined = await f.callback(joining, await f.begin(joining, 'google', nextInvite));
+  assert.equal(joined.response.status, 303); assert.equal(joined.response.headers.get('location'), '/');
+});
+
 test('state, cookie binding, callback replay, expiry and cancellation fail before provider exchange', { timeout: 30000 }, async t => {
   const f = await fixture(t), invitation = await f.invite(), client = f.browser();
   const first = await f.begin(client, 'discord', invitation), count = f.provider.calls.length;

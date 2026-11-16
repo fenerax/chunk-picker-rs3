@@ -970,7 +970,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (await serveGallery(request, response, { route, identity, dataset, privateAddon: privateAddon?.features.gallery ? privateAddon : null })) return;
       if (!identity) {
         if (route.startsWith('/api/')) throw httpError(401, 'Access required.');
-        if (route === '/' && signIn !== 'off' && security.publicRequest && await signInFlow.join(request, response, { invite: null, security, identity: null })) return;
+        const pickerPage = route === '/' || /^\/pickers\/[^/]+\/?$/.test(route);
+        if (request.method === 'GET' && pickerPage && signIn !== 'off' && security.publicRequest && await signInFlow.join(request, response, { invite: null, security, identity: null })) return;
         response.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE });
         response.end('Access required.'); return;
       }
