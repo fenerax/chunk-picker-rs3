@@ -154,13 +154,15 @@ export function createSearchDialog(c) {
             .map(task => ({ task, taskId: task.id, label: task.label, subtitle: `${task.category} · ${task.status}`, locations: searchLocations(task), action: () => c.showTask(task) }));
         } else if (renderedMode === 'Training methods') {
           entries = Object.entries(sourceResult?.training ?? {}).flatMap(([skill, value]) => {
+            const skillRow = { label: skill, subtitle: `Can train to level ${value.level} · Main method ${value.primary ? 'available' : 'unavailable'}`, locations: [],
+              action: () => { c.$('task-filter').value = skill; c.renderTasks(); c.closeDialog(generation); } };
+            if (!query) return [skillRow];
             const methods = (sourceResult.tasks ?? []).filter(task => task.category === skill && task.status === 'available');
-            if (methods.length) return methods.filter(task => !query || `${skill} ${task.label}`.toLowerCase().includes(query))
-              .map(task => ({ task, label: task.label, subtitle: `${skill} · Level ${task.level} · Can train to level ${value.level}`,
-                locations: searchLocations(task), action: () => c.showTask(task) }));
-            return !query || skill.toLowerCase().includes(query) ? [{ label: skill,
-              subtitle: `Can train to level ${value.level} · Main method ${value.primary ? 'available' : 'unavailable'}`, locations: [],
-              action: () => { c.$('task-filter').value = skill; c.renderTasks(); c.closeDialog(generation); } }] : [];
+            if (!methods.length) return skill.toLowerCase().includes(query) ? [skillRow] : [];
+            return methods.filter(task => `${skill} ${task.label}`.toLowerCase().includes(query)).map(task => {
+              const level = task.level != null && Number.isFinite(Number(task.level)) ? ` · Level ${task.level}` : '';
+              return { task, label: task.label, subtitle: `${skill}${level} · Can train to level ${value.level}`, locations: searchLocations(task), action: () => c.showTask(task) };
+            });
           });
         } else {
           entries = (renderedMode === 'Equipment' ? sourceResult?.equipment ?? [] : sourceResult?.items ?? [])

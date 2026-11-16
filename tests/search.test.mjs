@@ -262,6 +262,7 @@ test('Training methods finds available method names and skills and opens the mat
   const before = structuredClone(h.c.state), evidence = structuredClone(h.c.result);
   h.c.canWrite = () => false;
   h.search.open(); await h.settle(); h.mode().value = 'Training methods'; await h.mode().emit('change');
+  assert.ok(h.find('Can train to level 50 · Main method available')); assert.ok(!h.find('Mine sample ore'));
   for (const query of ['  SAMPLE ORE  ', 'Mining']) {
     await h.type(query);
     assert.ok(h.find('Mine sample ore'));
