@@ -3,7 +3,7 @@ export const HOW_SCHEMA = 1;
 export const HOW_ENGINE_BASE = '977cc9e36b62d2f4e00d33fe6ceb17f5c2884b84';
 const clean = value => String(value).replace(/~\|([^|]+)\|~/g, '$1').replace(/\*+$/g, '');
 const pointer = value => String(value).replaceAll('~', '~0').replaceAll('/', '~1');
-export function createHowCapture({ state, memberId, definitions, byKey, completedTask, processingTasks, limits = {}, deadline: requestDeadline }) {
+export function createHowCapture({ state, memberId, definitions, byKey, completedTask, limits = {}, deadline: requestDeadline }) {
   const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map();
   const byId = new Map([...byKey.values()].map(task => [task.id, task]));
   const areaApproaches = new Map(), areaLocations = new Map();
@@ -180,7 +180,6 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       if (!bound) deps.push(gap('unbound-entrance', `The picker hasn't linked ${clean(task.label)} to a reachable entrance.`));
     }
     const unsupported = [];
-    if (processingTasks.has(task)) unsupported.push('processing');
     if (task.category === 'Slayer') unsupported.push('slayer-assignments');
     if (env.slayerGate?.(task)) unsupported.push('slayer-unlock');
     if (env.usefulGate?.(task)) unsupported.push('useful-unlock');

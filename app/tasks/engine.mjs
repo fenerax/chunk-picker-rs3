@@ -666,7 +666,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // is neutral in the retained proof and applied only by the final overlay.
     const challengeSatisfied = () => false;
     for (const task of compiled) if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
-    const proof = howRequest ? createHowCapture({ state, memberId, definitions, byKey, completedTask, processingTasks, limits: howRequest.limits, deadline: howRequest.deadline }) : null;
+    const proof = howRequest ? createHowCapture({ state, memberId, definitions, byKey, completedTask, limits: howRequest.limits, deadline: howRequest.deadline }) : null;
     if (proof) for (const task of compiled) if (completedTask(task)) proof.task(task);
     const discoveryRows = uniqueTaskKeys && discoveryTasks
       ? processingRowsForDiscovery.filter(task => !staticBlocked.has(task) || completedTask(task))
@@ -1524,6 +1524,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const record = task.record;
       const winner = setWinners.get(record.Set);
       if (task.category === 'Extra' && winner && winner.key !== task.key && valid.has(task.key)) blockers.push({ kind: 'outclassed', detail: `${winner.label} is the preferred reachable task in ${record.Set}.` });
+      // Processing rules may exclude a recipe's outputs from closure while the
+      // recipe itself is doable. Capture the requested activity without admitting
+      // it as a supplier, training seed or prerequisite for another task.
+      if (proof && task.id === howRequest.taskId && blockers.length === 0) proof.task(task, proofEnvironment());
       const taskSources = [];
       for (const requirement of task.requirements) {
         const names = requirement.alternatives ?? [requirement.clean];
