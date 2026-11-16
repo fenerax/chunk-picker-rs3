@@ -210,6 +210,33 @@ async function signIn(f, client, name, invitation, identity) {
   assert.ok(client.jar.has('duo_access')); return session(client);
 }
 
+test('session overload returns a retryable invitation page and keeps provider sign-in available', async t => {
+  const f = await fixture(t), invitation = await f.invite(), client = f.browser();
+  await f.app.close();
+  const file = path.join(f.dataDir, 'invites.json'), document = JSON.parse(await readFile(file, 'utf8'));
+  document.sessions = Array.from({ length: 10000 }, (_, index) => ({
+    tokenHash: index.toString(16).padStart(64, '0'), inviteId: null,
+    expiresAt: new Date(Date.now() + 3600000).toISOString(),
+  }));
+  await writeFile(file, JSON.stringify(document)); await f.restart();
+  assert.equal((await client.request(new URL(invitation.link).pathname)).status, 200);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const refused = await client.request('/auth/invite', { body: {} });
+    assert.equal(refused.status, 429); assert.equal(refused.headers.get('retry-after'), '60');
+    assert.match(refused.headers.get('content-type'), /text\/html/);
+    const html = await refused.text();
+    assert.match(html, /temporarily unable to open your game/); assert.match(html, /minute.*try again/);
+    assert.match(html, /action="\/auth\/invite"/); assert.match(html, /href="\/auth\/discord"/);
+    assert.doesNotMatch(html, /10000|allowance|Please try again later/);
+    assert.ok(client.jar.has('__Host-rs3_preauth'));
+  }
+  const refused = await f.callback(client, await f.begin(client));
+  assert.equal(refused.response.status, 429); assert.equal(refused.response.headers.get('retry-after'), '60');
+  assert.equal(client.jar.has('duo_access'), false);
+  assert.ok(client.jar.has('__Host-rs3_preauth'));
+  assert.equal((await client.request(refused.route)).status, 400);
+});
+
 test('cancelled and failed provider attempts can retry the same invitation with fresh single-use state', async t => {
   const f = await fixture(t), client = f.browser(), invitation = await f.invite();
   const first = await f.begin(client, 'discord', invitation);

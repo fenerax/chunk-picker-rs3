@@ -117,7 +117,8 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
     const same = next.sessions.filter(session => source.accountId ? session.accountId === source.accountId : !session.accountId && session.inviteId === source.inviteId);
     const remove = new Set(same.slice(0, Math.max(0, same.length - 31)).map(session => session.tokenHash));
     next.sessions = next.sessions.filter(session => !remove.has(session.tokenHash));
-    if (next.sessions.length >= 10000) throw error(429, 'Please try again later.');
+    if (next.sessions.length >= 10000) throw Object.assign(error(429,
+      'The picker is temporarily unable to open your game. Wait a minute, then try again. If it is still busy, contact the game administrator.'), { code: 'SESSION_BUSY', retryAfter: 60 });
     const token = generateToken();
     next.sessions.push({ tokenHash: hash(token), ...source, expiresAt: new Date(now() + SESSION_MS).toISOString() });
     return token;

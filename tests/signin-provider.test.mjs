@@ -36,15 +36,27 @@ test('pending sign-in attempts have a hard capacity, expire, and do not call a p
     const res = response(); await flow.handle(request('/auth/discord'), res, { route: '/auth/discord', security });
     assert.equal(res.status, 303); first ??= res;
   }
-  await assert.rejects(() => flow.handle(request('/auth/discord'), response(), { route: '/auth/discord', security }), { status: 429 });
+  await assert.rejects(() => flow.handle(request('/auth/discord'), response(), { route: '/auth/discord', security }), error => {
+    assert.equal(error.status, 429); assert.equal(error.retryAfter, 60);
+    assert.match(error.message, /Sign-in is temporarily busy/);
+    assert.match(error.message, /minute/); assert.doesNotMatch(error.message, /1000|pending|allowance/);
+    const res = response();
+    assert.equal(flow.errorPage(request('/auth/discord'), res, security, error, 429), true);
+    assert.equal(res.getHeader('retry-after'), 60); assert.match(res.body, /temporarily busy/);
+    return true;
+  });
   const preauth = first.getHeader('set-cookie')[0];
   assert.match(preauth, /^__Host-rs3_preauth=/); assert.match(preauth, /HttpOnly; Secure; SameSite=Lax; Max-Age=600$/); assert.doesNotMatch(preauth, /Domain=/);
   at += 600001;
   const state = new URL(first.getHeader('location')).searchParams.get('state');
   const callback = `/auth/discord/callback?state=${state}&code=fixture-code`;
-  await assert.rejects(() => flow.handle(request(callback, preauth.split(';')[0]), response(), { route: '/auth/discord/callback', security }), { status: 400 });
+  await assert.rejects(() => flow.handle(request(callback, preauth.split(';')[0]), response(), { route: '/auth/discord/callback', security }), { status: 400, message: /request has expired/ });
   const retry = response(); await flow.handle(request('/auth/discord'), retry, { route: '/auth/discord', security }); assert.equal(retry.status, 303);
   assert.equal(calls, 0);
+  flow.close();
+  await assert.rejects(() => flow.handle(request('/auth/discord'), response(), { route: '/auth/discord', security }), {
+    status: 503, retryAfter: 60, message: /Sign-in is temporarily unavailable/,
+  });
 });
 
 test('a failed new-account claim rolls back the account and its prepared membership', async t => {
@@ -81,6 +93,88 @@ test('a failed new-account claim rolls back the account and its prepared members
 });
 
 const pendingCookie = res => res.getHeader('set-cookie').filter(value => !value.startsWith('__Host-rs3_preauth=;')).at(-1)?.split(';')[0];
+for (const method of ['invite form', 'provider callback']) {
+  test(`session overload preserves the ${method} continuation without replaying OAuth`, async t => {
+    const invite = { id: randomUUID(), memberId: 'player', admin: false, viewer: false, revoked: false };
+    let accounts, busy = true, calls = 0;
+    const issue = async () => {
+      if (busy) {
+        for (let index = 0; index < 999; index++) await flow.handle(request('/auth/discord'), response(), { route: '/auth/discord', security });
+        await assert.rejects(() => flow.handle(request('/auth/discord'), response(), { route: '/auth/discord', security }), { status: 429 });
+        throw Object.assign(new Error('The picker is temporarily unable to open your game. Wait a minute, then try again.'), { status: 429, code: 'SESSION_BUSY', retryAfter: 60 });
+      }
+      return 'fixture-session';
+    };
+    const invites = { get: id => id === invite.id ? invite : null, joinById: issue, issueAccountSession: issue,
+      claim: async (id, accountId) => { assert.equal(id, invite.id); invite.claimedAccountId = accountId; },
+      cookie: token => `duo_access=${token}` };
+    const { flow, directory } = await fixture(t, { mode: 'optional', invites,
+      accounts: Object.fromEntries(['findIdentity', 'ensureIdentity', 'attachMembership', 'get', 'delete'].map(key => [key, (...args) => accounts[key](...args)])),
+      checkRequestOrigin: () => {}, provider: { fetch: async url => {
+        calls++;
+        return new Response(JSON.stringify(url.endsWith('/token') ? { access_token: 'fixture-access' } : { id: '123456789' }));
+      } } });
+    accounts = await openAccountStore({ dataDir: directory }); t.after(() => accounts.close());
+    const joined = response(); await flow.join(request('/join/fixture'), joined, { invite, security });
+    let current = joined, route = '/auth/invite', req;
+    if (method === 'provider callback') {
+      current = response();
+      await flow.handle(request('/auth/discord', pendingCookie(joined)), current, { route: '/auth/discord', security });
+      const state = new URL(current.getHeader('location')).searchParams.get('state');
+      route = `/auth/discord/callback?state=${state}&code=fixture-code`;
+      req = request(route, pendingCookie(current));
+    } else req = { ...request(route, pendingCookie(current)), method: 'POST', resume() {} };
+    const refused = response();
+    await assert.rejects(() => flow.handle(req, refused, { route: route.split('?')[0], security }), error => {
+      assert.equal(error.code, 'SESSION_BUSY');
+      assert.equal(flow.errorPage(req, refused, security, error, 429), true);
+      assert.match(refused.body, /temporarily unable/); assert.equal(refused.getHeader('retry-after'), 60);
+      if (method === 'invite form') assert.match(refused.body, /action="\/auth\/invite"/);
+      return true;
+    });
+    busy = false;
+    const retried = response();
+    if (method === 'invite form') {
+      await flow.handle({ ...request(route, pendingCookie(refused)), method: 'POST', resume() {} }, retried, { route, security });
+    } else {
+      await assert.rejects(() => flow.handle(req, response(), { route: '/auth/discord/callback', security }), { status: 400 });
+      assert.equal(calls, 2, 'The old callback cannot exchange its code twice');
+      const started = response();
+      await flow.handle(request('/auth/discord', pendingCookie(refused)), started, { route: '/auth/discord', security });
+      const state = new URL(started.getHeader('location')).searchParams.get('state');
+      await flow.handle(request(`/auth/discord/callback?state=${state}&code=fresh-code`, pendingCookie(started)), retried, { route: '/auth/discord/callback', security });
+      assert.equal(accounts.list().length, 1, 'Retry uses the same claimed invitation and account');
+    }
+    assert.equal(retried.status, 303); assert.match(retried.getHeader('set-cookie').join(';'), /duo_access=fixture-session/);
+  });
+}
+
+test('session overload after an account claim retries sign-in without reusing the consumed claim link', async t => {
+  let busy = true, claims = 0;
+  const account = { id: randomUUID() }, picker = { id: `p_${randomBytes(16).toString('hex')}` };
+  const { flow } = await fixture(t, { accounts: { findIdentity: () => null },
+    pickerRegistry: { ensureDefaultPicker: async () => picker, firstLogin: async () => ({ account, picker }) },
+    reclaimIdentity: async () => { assert.equal(++claims, 1); return account; },
+    invites: { issuePickerSession: async () => {
+      if (busy) throw Object.assign(new Error('Temporarily busy'), { status: 429, code: 'SESSION_BUSY', retryAfter: 60 });
+      return 'fixture-session';
+    }, cookie: token => `duo_access=${token}` },
+    provider: { fetch: async url => new Response(JSON.stringify(url.endsWith('/token') ? { access_token: 'fixture-access' } : { id: '123456789' })) } });
+  const joined = response();
+  await flow.handle(request(`/auth/reclaim?code=${randomBytes(32).toString('base64url')}`), joined, { route: '/auth/reclaim', security });
+  let current = joined;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const started = response();
+    await flow.handle(request('/auth/discord', pendingCookie(current)), started, { route: '/auth/discord', security });
+    const state = new URL(started.getHeader('location')).searchParams.get('state');
+    current = response();
+    const complete = () => flow.handle(request(`/auth/discord/callback?state=${state}&code=fixture-code`, pendingCookie(started)), current, { route: '/auth/discord/callback', security });
+    if (busy) { await assert.rejects(complete, { code: 'SESSION_BUSY' }); busy = false; }
+    else { await complete(); assert.equal(current.status, 303); }
+  }
+  assert.equal(claims, 1);
+});
+
 for (const scenario of ['unclaimed', 'unassigned', 'claimed', 'revoked', 'removed', 'admin', 'viewer', 'account', 'picker', 'no invite']) {
   test(`optional cancellation rechecks live invite eligibility: ${scenario}`, async t => {
     let invite = { id: randomUUID(), memberId: 'player', admin: false, viewer: false, revoked: false };

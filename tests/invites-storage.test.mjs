@@ -144,6 +144,35 @@ test('session cap evicts exactly the eldest session and expiry occurs at the fak
   assert.equal(saved.sessions.some(session => session.tokenHash === digest(sessions[1])), false);
 });
 
+test('a full session store explains temporary unavailability and keeps a valid invite usable on retry', async t => {
+  let at = Date.parse('2026-10-08T00:00:00Z');
+  const f = await fixture(t, { now: () => at });
+  const { token } = await f.store.create({ label: 'Synthetic player' });
+  await f.store.close();
+  const file = path.join(f.dataDir, 'invites.json');
+  const document = JSON.parse(await readFile(file, 'utf8'));
+  document.sessions = Array.from({ length: 10000 }, (_, index) => ({
+    tokenHash: index.toString(16).padStart(64, '0'), inviteId: null,
+    expiresAt: new Date(at + (index === 0 ? 60000 : 3600000)).toISOString(),
+  }));
+  await writeFile(file, JSON.stringify(document)); await f.restart();
+  const before = await readFile(file, 'utf8');
+  await assert.rejects(() => f.store.join(token, publicContext), error => {
+    assert.equal(error.status, 429); assert.equal(error.retryAfter, 60);
+    assert.equal(error.code, 'SESSION_BUSY');
+    assert.match(error.message, /temporarily unable to open your game/);
+    assert.match(error.message, /minute.*try again/);
+    assert.doesNotMatch(error.message, /10000|session|allowance|limit/);
+    return true;
+  });
+  assert.equal(await readFile(file, 'utf8'), before, 'Refusal does not change the invite or sessions');
+  assert.equal(await f.store.join('invalid-invite', publicContext), null);
+  assert.equal(await f.store.join('x'.repeat(43), publicContext), null);
+  at += 60000;
+  const session = await f.store.join(token, publicContext);
+  assert.equal(f.store.authenticate(cookieRequest(session), publicContext).kind, 'invite');
+});
+
 test('malformed invite inputs and sidecar fail closed without replacing valid records', async t => {
   const f = await fixture(t);
   await f.store.create({ label: 'Reed' });
