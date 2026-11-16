@@ -2433,10 +2433,54 @@ test('a read-only journal visit keeps the saved text separate from a retained ed
   h.run('sessionReadOnly = false; journal.open()'); assert.equal(h.find('textarea').value, 'Keep unfinished draft');
 });
 
+test('task note drafts survive following a prerequisite and clear after saving', async () => {
+  const h = harness(), prerequisite = { ...task, id: 'custom:prerequisite', label: 'Synthetic prerequisite' };
+  h.context.noteGoal = { ...task, blockers: [{ kind: 'tasks', detail: 'Complete the prerequisite.' }], dependencyTaskIds: [prerequisite.id] };
+  h.context.noteResult = { ...taskResult(7), tasks: [h.context.noteGoal, prerequisite] };
+  h.run('showTask(noteGoal, true, { result: noteResult })');
+  h.find('textarea').value = 'Bring synthetic supplies'; await h.find('textarea').emit('input');
+  await h.click('View prerequisite: Synthetic prerequisite');
+  assert.equal(h.nodes.get('dialog-title').textContent, prerequisite.label);
+  assert.equal(h.find('textarea').value, '');
+  h.run('showTask(noteGoal, true, { result: noteResult })');
+  assert.equal(h.find('textarea').value, 'Bring synthetic supplies'); assert.equal(h.calls.length, 0);
+  await h.click('Save note');
+  assert.equal(h.snapshot().members[0].taskStatus[task.id].note, 'Bring synthetic supplies');
+  h.run('closeDialog()');
+  const remote = h.snapshot(); remote.revision++; remote.members[0].taskStatus[task.id].note = 'Later saved note'; h.adopt(remote);
+  h.run('showTask(noteGoal)'); assert.equal(h.find('textarea').value, 'Later saved note');
+});
+
+test('task note drafts stay with their player and read-only visits show saved text', async () => {
+  const h = harness(); h.context.task = task; h.run('showTask(task)');
+  const oldSave = h.find('button', 'Save note');
+  h.find('textarea').value = 'First player draft'; await h.find('textarea').emit('input');
+  h.run("showTask(task, false, { memberId: 'reed' })"); assert.equal(h.find('textarea').value, '');
+  h.find('textarea').value = 'Second player draft'; await h.find('textarea').emit('input');
+  await oldSave.emit('click'); assert.equal(h.calls.length, 0);
+  h.run('sessionReadOnly = true; showTask(task)');
+  assert.equal(h.find('textarea').value, 'Original task note'); assert.equal(h.find('button', 'Save note'), undefined);
+  h.run('sessionReadOnly = false; showTask(task)'); assert.equal(h.find('textarea').value, 'First player draft');
+  h.run("showTask(task, false, { memberId: 'reed' })"); assert.equal(h.find('textarea').value, 'Second player draft');
+});
+
+test('failed task note saves keep drafts through navigation; accepting remote clears them', async () => {
+  const h = harness(); h.context.task = task; h.run('showTask(task)');
+  h.find('textarea').value = ''; await h.find('textarea').emit('input');
+  h.route(() => ({ ok: false, status: 400, value: { error: 'Synthetic save refusal' } })); await h.click('Save note');
+  h.run('closeDialog(); showTask(task)'); assert.equal(h.find('textarea').value, '');
+  const remote = h.snapshot(); remote.revision++; remote.members[0].taskStatus[task.id].note = 'Remote task note'; h.adopt(remote);
+  await h.click('Save note'); await h.click('Use remote note');
+  assert.equal(h.find('textarea').value, 'Remote task note'); h.run('closeDialog()');
+  remote.revision++; remote.members[0].taskStatus[task.id].note = 'Newer remote note'; h.adopt(remote);
+  h.run('showTask(task)'); assert.equal(h.find('textarea').value, 'Newer remote note');
+});
+
 test('task notes keep the stale draft, show remote edits, and require an explicit overwrite', async () => {
   const h = harness(); h.context.task = task; h.run('showTask(task)');
   const draft = h.find('textarea'); draft.value = 'My task draft'; await draft.emit('input');
   const remote = h.snapshot(); remote.revision = 8; remote.members[0].taskStatus[task.id].note = 'Reed’s newer task note'; h.adopt(remote);
+  h.run('closeDialog(); showTask(task)'); assert.equal(h.find('textarea').value, 'My task draft');
   await h.click('Save note'); assert.equal(h.calls.length, 0); assert.equal(draft.value, 'My task draft');
   assert.equal(h.all().find(node => node.attributes['aria-label'] === 'Remote note').value, 'Reed’s newer task note');
   await h.click('Save my draft instead'); assert.equal(h.calls[0].body.expectedRevision, 8); assert.equal(h.calls[0].body.command.note, 'My task draft');

@@ -12,6 +12,7 @@ import { renderTaskBlockerGuidance } from './screen-task-guidance.mjs';
 
 // Main-screen taskDialogs; shared values and callbacks live in the explicit screen context.
 export function createScreenTaskDialogs(c) {
+  const noteDrafts = new Map();
   c.questMap = createQuestMap(c);
   function showTask(task, detailed = false, review = {}) {
     const ownerId = review.memberId ?? c.memberId;
@@ -89,7 +90,14 @@ export function createScreenTaskDialogs(c) {
     personalCheck.querySelector?.('input')?.setAttribute('aria-describedby', personalHelp.id);
     completion.append(challengeCheck, challengeHelp, personalCheck, personalHelp);
     stack.append(completion, ...(c.canWrite() ? [c.check('Pin to the top of the list', !!status.favorite, value => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, favorite: value }))] : []));
-    stack.append(createNoteEditor(c.panelContext, { label: 'Task note', saveLabel: 'Save note', payload: { type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId }, review: { revision: dialogRevision, original: owner.taskStatus?.[commandTaskId]?.note ?? '', value: status.note ?? '' }, isCurrent: () => c.dialogCurrent(generation) }));
+    const draftKey = JSON.stringify([dialogMemberId, commandTaskId]);
+    const noteReview = (c.canWrite() ? noteDrafts.get(draftKey) : undefined) ?? { revision: dialogRevision, original: owner.taskStatus?.[commandTaskId]?.note ?? '', value: status.note ?? '' };
+    stack.append(createNoteEditor(c.panelContext, {
+      label: 'Task note', saveLabel: 'Save note', payload: { type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId },
+      review: noteReview, isCurrent: () => c.dialogCurrent(generation),
+      onChange: () => noteDrafts.set(draftKey, noteReview),
+      onSaved: value => { if (noteDrafts.get(draftKey)?.value === value) noteDrafts.delete(draftKey); },
+    }));
     if (task.wiki && c.supportsFeature?.('rsCatalogues') !== false) { const link = c.el('a', 'Open RuneScape Wiki', 'standalone-link'); link.href = task.wiki; link.target = '_blank'; link.rel = 'noopener noreferrer'; stack.append(link); }
     stack.append(bottomSlot);
     const fillDetails = (full, fullResultValue) => {
