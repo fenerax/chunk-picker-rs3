@@ -84,7 +84,7 @@ export function createScreenTaskDialogs(c) {
         const initialText = initialPreset ? original === initialPreset ? '' : original.slice(initialPreset.length + 2) : original;
         reason.value = initialText;
         const initialValue = reason.value;
-        // Imported reasons may exceed the usual details limit. Keep every character.
+        // Match new backlog details while keeping longer imported text editable.
         reason.maxLength = Math.max(200, initialText.length);
         const choices = c.el('fieldset'), radios = [];
         choices.append(c.el('legend', 'Reason (optional)'));
@@ -94,15 +94,26 @@ export function createScreenTaskDialogs(c) {
           label.append(radio, c.el('span', value || 'No reason')); choices.append(label); radios.push(radio);
         }
         const details = c.el('label', 'Details (optional)'); details.append(reason);
+        const lengthError = c.el('p', '', 'error field-help'); lengthError.hidden = true;
+        lengthError.id = 'backlog-reason-length-error'; lengthError.setAttribute('role', 'alert');
+        reason.setAttribute('aria-describedby', lengthError.id);
         const save = c.el('button', 'Save reason', 'primary-action'); save.type = 'submit';
         const cancel = () => { showBacklogReason()?.focus(); };
         const actions = c.el('div', undefined, 'form-actions'); actions.append(save, c.button('Cancel', cancel));
-        form.append(choices, details, actions);
+        form.append(choices, details, lengthError, actions);
         form.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
         form.addEventListener('submit', async event => {
-          event.preventDefault(); if (save.disabled || !c.canWrite() || !c.dialogCurrent(generation)) return; save.disabled = true;
+          event.preventDefault(); if (save.disabled || !c.canWrite() || !c.dialogCurrent(generation)) return;
           const preset = radios.find(radio => radio.checked)?.value ?? '';
           const backlogReason = preset === initialPreset && reason.value === initialValue ? original : [preset, reason.value.trim()].filter(Boolean).join(': ');
+          if (backlogReason === original) { c.closeDialog(generation); return; }
+          const excess = backlogReason.length - 500;
+          lengthError.hidden = excess <= 0; reason.setAttribute('aria-invalid', String(excess > 0));
+          if (excess > 0) {
+            lengthError.textContent = `Reasons can be at most 500 characters. Remove ${excess} character${excess === 1 ? '' : 's'}.`;
+            reason.focus(); return;
+          }
+          save.disabled = true;
           try {
             await c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, backlogReason }, dialogRevision);
             if (c.dialogCurrent(generation)) c.closeDialog(generation);

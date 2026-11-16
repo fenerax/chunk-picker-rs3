@@ -12,6 +12,7 @@ import { supportsDatasetFeature } from '../app/web/dataset-features.mjs';
 import { renderTaskBlockerGuidance } from '../app/web/screen-task-guidance.mjs';
 import { taskExplanation } from '../app/tasks/task-provenance.mjs';
 import { appendTaskHow } from '../app/web/task-how.mjs';
+import { applyCommand, createGroupState, validateState } from '../app/core/state.mjs';
 
 const graph = await readScreenGraph();
 const taskDialogSource = ['showTask', 'taskDetailSections'].map(name => screenFunctionSource(graph, name)).join('\n');
@@ -85,12 +86,51 @@ test('backlog reason editor clears reasons and preserves imported text beyond th
     assert.equal([h.radios.find(radio => radio.checked).value, h.input.value].filter(Boolean).join(': '), original);
     assert.ok(h.input.maxLength >= h.input.value.length, 'imported text remains fully editable');
     await h.submit();
-    assert.equal(h.accepted[0].backlogReason, original, 'unchanged reasons are submitted without truncation');
+    assert.equal(h.accepted.length, 0, 'unchanged reasons do not need a command');
+    assert.equal(h.context.closed, true);
     const cleared = backlogEditor(original);
     cleared.choose(''); cleared.input.value = '';
     await cleared.submit();
     assert.equal(cleared.accepted[0].backlogReason, '');
   }
+});
+
+test('a 614-character imported reason skips unchanged saves and validates edits before the real command', async () => {
+  const original = 'Unrecognized: ' + 'x'.repeat(600), h = backlogEditor(original);
+  assert.equal(original.length, 614);
+  let state = createGroupState([{ id: 'actor1', name: 'Player' }]);
+  state.tasks.push({ id: h.task.id, label: h.task.label, category: h.task.category });
+  state.members[0].taskStatus = { [h.task.id]: { backlogged: true, backlogReason: original } };
+  state = validateState(state);
+  const sent = [];
+  h.context.command = async payload => {
+    const command = JSON.parse(JSON.stringify(payload)); sent.push(command);
+    state = applyCommand(state, command);
+  };
+  await h.submit();
+  assert.equal(sent.length, 0);
+  assert.equal(h.context.closed, true);
+  assert.equal(state.members[0].taskStatus[h.task.id].backlogReason, original);
+
+  h.context.closed = false; h.edit.action();
+  const form = h.nodes.findLast(node => node.tag === 'form'), input = h.nodes.findLast(node => node.tag === 'textarea');
+  const submit = () => form.events.submit({ preventDefault() {} });
+  assert.equal(input.maxLength, original.length);
+  input.value = original.slice(0, -1) + 'y';
+  await submit();
+  assert.equal(sent.length, 0);
+  assert.equal(h.context.closed, false);
+  assert.equal(input.value.length, 614);
+  assert.match(dialogText(form), /at most 500 characters.*Remove 114 characters/);
+  assert.equal(state.members[0].taskStatus[h.task.id].backlogReason, original);
+  assert.equal(h.context.error, undefined, 'length feedback stays inline');
+
+  input.value = original.slice(0, 500);
+  await submit();
+  assert.equal(sent.length, 1);
+  assert.deepEqual(state.members[0].taskStatus[h.task.id], { backlogged: true, backlogReason: input.value });
+  assert.equal(h.context.closed, true);
+  assert.equal(h.context.error, undefined);
 });
 
 test('backlog reason editor cancels without saving and keeps a refused draft for retry', async () => {
