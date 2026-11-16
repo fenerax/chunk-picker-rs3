@@ -48,6 +48,13 @@ export function createScreenChunkNotes(c) {
       const owners = c.state.members.filter(owner => owner.id !== noteMember && owner.notes?.[id]?.trim());
       const next = JSON.stringify(owners.map(owner => [owner.id, owner.name, owner.notes[id]]));
       if (c.canWrite() === false) { text.value = c.member().notes?.[id] ?? ''; ownExpansion.paint(); }
+      else if (text.value === review.original) {
+        const saved = c.member().notes?.[id] ?? '';
+        if (text.value !== saved) text.value = saved;
+        review.original = review.value = saved; review.revision = c.state.revision;
+        c.chunkDrafts.delete(draftKey);
+        ownExpansion.paint();
+      }
       if (signature === next) return;
       signature = next;
       partnerExpansions.forEach(view => view.dispose()); partnerExpansions = [];

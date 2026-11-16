@@ -2455,6 +2455,56 @@ test('chunk draft review survives re-opening and remote rendering; choosing the 
   await h.click('Save chunk note'); const saved = h.calls.find(call => call.body?.command); assert.equal(saved.body.expectedRevision, 8); assert.equal(saved.body.command.note, 'Remote chunk note');
 });
 
+for (const reverted of [false, true]) test(`clean focused chunk notes refresh through SSE (${reverted ? 'reverted edit' : 'untouched'})`, async () => {
+  const h = harness(); h.run("chunkTab = 'note'; showChunk('12341'); connectEvents()");
+  const editor = h.find('textarea'), original = editor.value;
+  if (reverted) {
+    editor.value = 'Temporary edit'; await editor.emit('input');
+    editor.value = original; await editor.emit('input');
+  }
+  editor.focus();
+  for (const note of ['Shared chunk note', '']) {
+    const next = h.snapshot(); next.revision++; next.members[0].notes['12341'] = note;
+    h.route(() => ({ state: next, pools: {} }));
+    await h.eventSources[0].emit('revision', { data: JSON.stringify({ revision: next.revision, taskResultsUnchanged: true }) });
+    assert.strictEqual(h.find('textarea'), editor);
+    assert.strictEqual(h.context.document.activeElement, editor);
+    assert.equal(editor.value, note);
+    assert.equal(h.run("chunkDrafts.has('actor1:12341')"), false);
+  }
+  assert.equal(h.calls.filter(call => call.body?.command).length, 0, 'refresh never writes a note');
+  editor.value = 'Edit after refresh'; await editor.emit('input');
+  await h.click('Save chunk note');
+  const saved = h.calls.find(call => call.body?.command);
+  assert.ok(saved, 'the refreshed review allows a later edit without a false conflict');
+  assert.equal(saved.body.expectedRevision, h.snapshot().revision);
+  assert.equal(saved.body.command.note, 'Edit after refresh');
+});
+
+test('shared own-note updates preserve a focused dirty draft and its conflict review', async () => {
+  const h = harness(); h.run("chunkTab = 'note'; showChunk('12341'); connectEvents()");
+  const editor = h.find('textarea'); editor.value = 'My unfinished draft'; await editor.emit('input'); editor.focus();
+  const originalReview = JSON.parse(h.run("JSON.stringify(chunkDrafts.get('actor1:12341'))"));
+  const next = h.snapshot(); next.revision++; next.members[0].notes['12341'] = 'Shared chunk note';
+  h.route(() => ({ state: next, pools: {} }));
+  await h.eventSources[0].emit('revision', { data: JSON.stringify({ revision: next.revision, taskResultsUnchanged: true }) });
+  assert.strictEqual(h.find('textarea'), editor);
+  assert.strictEqual(h.context.document.activeElement, editor);
+  assert.equal(editor.value, 'My unfinished draft');
+  assert.deepEqual(JSON.parse(h.run("JSON.stringify(chunkDrafts.get('actor1:12341'))")), originalReview);
+  await h.click('Save chunk note');
+  assert.equal(h.calls.filter(call => call.body?.command).length, 0);
+  const choice = h.find('button', 'Save my draft instead'); assert.ok(choice);
+  assert.equal(h.all().find(node => node.attributes['aria-label'] === 'Remote note').value, 'Shared chunk note');
+  const unrelated = h.snapshot(); unrelated.revision++; h.adopt(unrelated);
+  assert.strictEqual(h.find('button', 'Save my draft instead'), choice);
+  assert.equal(editor.value, 'My unfinished draft');
+  await choice.emit('click');
+  const saved = h.calls.find(call => call.body?.command);
+  assert.equal(saved.body.expectedRevision, unrelated.revision);
+  assert.equal(saved.body.command.note, 'My unfinished draft');
+});
+
 test('partner chunk notes update through SSE while the own draft stays focused', async () => {
   const h = harness(); h.run("chunkTab = 'note'; showChunk('12341'); connectEvents()");
   const draft = h.find('textarea'); draft.value = 'My unfinished draft'; await draft.emit('input'); draft.focus();
