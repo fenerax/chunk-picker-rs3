@@ -226,7 +226,7 @@ export function createCompletedView(context) {
     const ownerName = members().find(value => value.id === owner)?.name ?? owner;
     const backlog = button(backlogged ? 'Restore backlog' : 'Backlog', async () => {
       if (backlogged) { await context.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: false }); await refresh(true); }
-      else context.backlogForm(host, task, () => refresh(true), owner);
+      else context.backlogForm(host, task, () => { generation = context.openDialog('Completed Tasks', root); return refresh(true); }, owner);
     });
     backlog.setAttribute('aria-label', `${backlogged ? 'Restore' : 'Backlog'} ${labelText} for ${ownerName}…`); backlog.disabled = busy || context.isSandbox?.(); actions.append(backlog);
     host.append(actions); return host;
