@@ -19,7 +19,7 @@ Settings are sparse overrides in `member.preferences`, validated through the exi
 | `monsterSecondsPerKill` | `{}` | Exact source monster names, including variants, mapped to effective seconds per kill |
 | `showDeathChunks` | `false` | Opt in to advisory skulls on the current personal candidates |
 
-Owner decision, 2026-11-03: the death estimate is parked as a future feature. “Show time warnings” defaults off when no preference is saved; explicit opt-ins stay on. The application overrides the frozen dataset default in `app/core/death-settings.mjs`, leaving dated, hash-verified inputs unchanged. With warnings off, the browser schedules no background death-estimate batch and hides the death legend, while on-demand details remain available. Server Preview predictions do not compute death estimates.
+Owner decision, 2026-11-03, clarified by #279: the death estimate is parked as a future feature. “Show time warnings” defaults off when no preference is saved; explicit opt-ins stay on. The application overrides the frozen dataset default in `app/core/death-settings.mjs`, leaving dated, hash-verified inputs unchanged. With warnings off, the browser schedules no background death-estimate batch and hides the death legend. Opening a chunk's Preview no longer shows death-chunk details or requests an on-demand death estimate, regardless of the warning preference. Server Preview predictions do not compute death estimates. The setting, saved preferences, opt-in map skulls and estimator code remain available for future work.
 
 Effective seconds per kill include fighting, respawns, movement, looting, banking and resupply. They are not an intrinsic monster speed. The app does not infer unknown drop chances from rarity labels.
 
@@ -43,7 +43,7 @@ Quoted gathering rates depend on the guide's gear, level and interaction assumpt
 
 Death estimates run through the reliability scheduler in a separate worker started on first demand. The lane admits one active request and at most two queued snapshots, with a 120-second request deadline including compilation/queue time, independent restart backoff and request-ID cancellation after disconnect or supersession. The ordinary task lane retains its eight-slot queue and 30-second deadline. Full cold batches cannot block its worker. The worker yields after baseline computation and between candidates; an already-running synchronous stage finishes before cooperative cancellation. A hung stage remains subject to the lane deadline. Cancelled partial results never enter the scheduler cache. Duplicated resident definitions and per-lane caches are the memory cost of this isolation.
 
-The map draws skulls on the pin canvas above imported icons when pins are present, and on the state canvas otherwise. Hover text keeps death estimates alongside personal annotations, partner travel and pin labels. The chunk panel shows the largest priced duty, obligation breakdown, drop 95% points, training routes, provenance and unknown work. Hiding markers leaves on-demand details available.
+The map draws skulls on the pin canvas above imported icons when pins are present, and on the state canvas otherwise. Hover text keeps death estimates alongside personal annotations, partner travel and pin labels. The retained detail renderer supports the largest priced duty, obligation breakdown, drop 95% points, training routes, provenance and unknown work, but is no longer mounted in the chunk Preview.
 
 ## Verification and later versions
 

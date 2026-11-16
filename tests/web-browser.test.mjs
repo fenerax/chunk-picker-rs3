@@ -4422,6 +4422,27 @@ for (const anywhere of [false, true]) test(`count labels: ordinary pool and roll
   assert.equal(h.nodes.get('pick').disabled, true);
 });
 
+for (const showDeathChunks of [false, true]) test(`locked chunk Preview omits death estimates with time warnings ${showDeathChunks ? 'on' : 'off'}`, async () => {
+  const h = harness(), response = deferred();
+  h.context.previewBaseline = taskResult(7);
+  h.run('result = previewBaseline');
+  assert.equal(h.run('foregroundSettled()'), true, 'death requests could dispatch if Preview requested one');
+  h.route(() => response.promise);
+  h.run(`member().preferences.showDeathChunks = ${showDeathChunks}; chunkTab = 'unlock'; showChunk('12341')`);
+  assert.equal(h.run("member().unlocked.includes('12341')"), false);
+  const deathState = () => ({
+    sections: h.all().filter(node => node.isConnected && node.className === 'death-estimate').length,
+    requests: h.deathCalls.length,
+  });
+  await flush();
+  assert.deepEqual(deathState(), { sections: 0, requests: 0 });
+  response.resolve({ memberId: 'actor1', stateRevision: 7, delta: { tasksAdded: [], itemsAdded: [], areasAdded: [] } });
+  await flush();
+  assert.ok(h.find('p', 'No new possible tasks'));
+  assert.ok(h.calls.some(call => call.path.startsWith('/api/predict?')));
+  assert.deepEqual(deathState(), { sections: 0, requests: 0 });
+});
+
 test('instant screens: Preview shows old answers as updating and replaces them with a fresh empty answer', async () => {
   const h = harness(), response = deferred();
   h.run("viewCache.configure(['synthetic','actor1']); viewCache.remember('preview',JSON.stringify(['actor1','12341']),6,{memberId:'actor1',stateRevision:6,delta:{tasksAdded:[{label:'Old synthetic preview',category:'Extra'}],itemsAdded:[],areasAdded:[]}})");

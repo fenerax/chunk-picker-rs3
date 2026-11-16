@@ -191,6 +191,27 @@ const planningResult = (revision = 7, chunkId = '12341', memberId = 'player1') =
   rows: [{ task: { id: 'rs3:task:planning', label: 'Planning goal', category: 'Extra', status: 'available' }, evidence: [{ location: chunkId, reason: 'Declared location requirement' }] }],
   clueLocations: [], access: { bases: [chunkId], areas: [], sections: [] } });
 
+for (const showDeathChunks of [false, true]) test(`locked chunk Preview omits death estimates with time warnings ${showDeathChunks ? 'on' : 'off'}`, async () => {
+  const h = harness(), response = deferred();
+  h.context.previewBaseline = taskResult(7);
+  h.run('result = previewBaseline');
+  assert.equal(h.run('foregroundSettled()'), true, 'death requests could dispatch if Preview requested one');
+  h.route(() => response.promise);
+  h.run(`member().preferences.showDeathChunks = ${showDeathChunks}; chunkTab = 'unlock'; showChunk('12341')`);
+  assert.equal(h.run("member().unlocked.includes('12341')"), false);
+  const deathState = () => ({
+    sections: h.all().filter(node => node.isConnected && node.className === 'death-estimate').length,
+    requests: h.deathCalls.length,
+  });
+  await flush();
+  assert.deepEqual(deathState(), { sections: 0, requests: 0 });
+  response.resolve({ memberId: 'player1', stateRevision: 7, delta: { tasksAdded: [], itemsAdded: [], areasAdded: [] } });
+  await flush();
+  assert.ok(h.find('p', 'No new possible tasks'));
+  assert.ok(h.calls.some(call => call.path.startsWith('/api/predict?')));
+  assert.deepEqual(deathState(), { sections: 0, requests: 0 });
+});
+
 test('Group foreground defers chunk planning and explicit death requests until both players settle', async () => {
   const h = harness(), peer = deferred();
   h.run('state.members[0].preferences.showDeathChunks = true');
