@@ -63,12 +63,16 @@ export function createSetupGuide(ctx) {
     const group = el('fieldset', undefined, 'setup-guide-group'), status = el('p', undefined, 'setup-guide-status');
     status.setAttribute('role', 'status'); group.append(el('legend', legend));
     const current = ctx.preferences(memberId)[preferenceId];
-    for (const option of options) group.append(choice(name, option.label, option.help, option.value === current, async control => {
+    for (const option of options) group.append(choice(name, option.label, option.help, option.value === current, async () => {
       const controls = group.querySelectorAll?.('input') ?? [];
       for (const node of controls) node.disabled = true;
       status.textContent = 'Saving…';
       try { await savePreference(preferenceId, option.value); status.textContent = 'Saved.'; }
-      catch (error) { control.checked = false; status.textContent = error.message; }
+      catch (error) {
+        const saved = ctx.preferences(memberId)[preferenceId];
+        for (const [index, node] of [...controls].entries()) node.checked = options[index].value === saved;
+        status.textContent = error.message;
+      }
       finally { for (const node of controls) node.disabled = false; }
     }));
     group.append(status); return group;
