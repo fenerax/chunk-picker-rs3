@@ -267,9 +267,10 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         page(response, { heading: 'Account reclaimed', message: 'Your sign-in is linked to your restored account.', home: true, help: false }); return true;
       }
       if (request.method === 'GET' && route === '/auth/signin') {
+        take(request, response);
         const query = new URL(request.url, publicOrigin).searchParams;
-        put(request, response, { returnTo: returnTarget(query.getAll('returnTo').length === 1 ? query.get('returnTo') : null, publicOrigin) });
-        page(response, { providers, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' }); return true;
+        const returnTo = returnTarget(query.getAll('returnTo').length === 1 ? query.get('returnTo') : null, publicOrigin);
+        page(response, { providers, returnTo, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' }); return true;
       }
       if (request.method === 'POST' && route === '/auth/signout') {
         take(request, response); request.resume();
@@ -363,6 +364,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         if (!config) throw failure(404, 'This sign-in provider is unavailable.');
         prune();
         const previous = pending.get(cookie(request));
+        const query = new URL(request.url, publicOrigin).searchParams;
+        const returnTo = returnTarget(query.has('returnTo') ? (query.getAll('returnTo').length === 1 ? query.get('returnTo') : null) : previous?.returnTo, publicOrigin);
         if (previous?.reclaimCode && start[1]) throw failure(409, 'Use the sign-in buttons on the claim page.');
         let accountId, sessionId;
         if (start[1]) {
@@ -371,7 +374,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         }
         const inviteId = previous?.inviteId ?? (identity?.kind === 'invite' && !identity.admin && !identity.readOnly && identity.memberId ? identity.inviteId : undefined);
         const entry = put(request, response, { provider: name, state: generateToken(), verifier: generateToken(), ...(name === 'google' ? { nonce: generateToken() } : {}),
-          ...(previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : { returnTo: previous?.returnTo }) });
+          ...(previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : { returnTo }) });
         const destination = new URL(SIGN_IN_ENDPOINTS[name].authorize);
         destination.search = new URLSearchParams({ client_id: config.clientId, redirect_uri: `${publicOrigin}/auth/${name}/callback`, response_type: 'code',
           scope: name === 'discord' ? 'identify' : 'openid', state: entry.state, code_challenge: createHash('sha256').update(entry.verifier).digest('base64url'), code_challenge_method: 'S256',
@@ -398,8 +401,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
           message: identity?.kind === 'account' ? 'Claim this player invite with your signed-in account.' : 'Sign in to keep your player access on this browser and other devices.',
           claim: identity?.kind === 'account', continueInvite: canContinueInvite(invite, identity) });
       } else {
-        put(request, response, { returnTo: returnTarget(request.url, publicOrigin) });
-        page(response, { providers, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' });
+        take(request, response);
+        page(response, { providers, returnTo: returnTarget(request.url, publicOrigin), heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' });
       }
       return true;
     },

@@ -72,7 +72,7 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, ...limits } =
   async function begin(subject, cookie, route = '/auth/discord') {
     const response = await send(route, cookie); assert.equal(response.status, 303);
     const auth = new URL(response.headers.location), code = String(++codeId);
-    const name = route.endsWith('/google') ? 'google' : 'discord';
+    const name = new URL(route, origin).pathname.endsWith('/google') ? 'google' : 'discord';
     grants.set(code, { subject, name, nonce: auth.searchParams.get('nonce'), challenge: auth.searchParams.get('code_challenge') });
     return () => send(`/auth/${name}/callback?state=${auth.searchParams.get('state')}&code=${code}`, [response.headers['set-cookie'][0].split(';')[0], ...(cookie ?? '').split(';').filter(part => part.trim() && !part.trim().startsWith('__Host-rs3_preauth='))].join('; '));
   }
@@ -154,11 +154,12 @@ test('signed-out deep links survive both providers and still enforce picker acce
     for (const target of [`/pickers/${own}/?view=tasks&chunk=12341`, `/pickers/${own}?view=chunk&chunk=12341`, `/?pickerId=${own}&view=chunk&chunk=12341`, `/pickers/${other}/?view=tasks`, '/pickers/missing/?view=tasks']) {
       const page = await f.send(target);
       assert.equal(page.status, 200); assert.match(page.text, /Sign in/);
-      assert.match(page.text, new RegExp(`href="/auth/${provider}"`));
-      const pending = page.headers['set-cookie'].find(value => value.startsWith('__Host-rs3_preauth=')).split(';')[0];
-      const asset = await f.send('/favicon.ico', pending);
-      assert.equal(asset.status, 401); assert.equal(asset.headers['set-cookie'], undefined, 'Asset requests cannot replace the pending return target');
-      const completed = await (await f.begin(provider === 'discord' ? '101' : '201', pending, `/auth/${provider}`))();
+      const link = page.text.match(new RegExp(`href="(/auth/${provider}[^\"]*)"`))[1].replaceAll('&amp;', '&');
+      assert.equal(new URL(link, origin).searchParams.get('returnTo'), target);
+      assert.ok(page.headers['set-cookie'].every(value => /Max-Age=0/.test(value)), 'Page rendering creates no attempt');
+      const asset = await f.send('/favicon.ico');
+      assert.equal(asset.status, 401); assert.equal(asset.headers['set-cookie'], undefined);
+      const completed = await (await f.begin(provider === 'discord' ? '101' : '201', undefined, link))();
       assert.equal(completed.status, 303, completed.text); assert.equal(completed.headers.location, target);
       const cookie = completed.headers['set-cookie'].find(value => value.startsWith('duo_access=')).split(';')[0];
       const returned = await f.send(completed.headers.location, cookie);

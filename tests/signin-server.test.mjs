@@ -175,12 +175,12 @@ async function fixture(t, mode = 'optional', rateLimits = {}) {
       },
     };
   }
-  async function begin(client, name = 'discord', invitation) {
+  async function begin(client, name = 'discord', invitation, startRoute = `/auth/${name}`) {
     if (invitation) {
       const joined = await client.request(new URL(invitation.link).pathname); assert.equal(joined.status, 200);
       assert.match(await joined.text(), /sign.in/i);
     }
-    const response = await client.request(`/auth/${name}`); assert.equal(response.status, 303);
+    const response = await client.request(startRoute); assert.equal(response.status, 303);
     const authorization = new URL(response.headers.get('location'));
     assert.equal(authorization.origin + authorization.pathname, endpoints[name].authorize);
     assert.equal(authorization.searchParams.get('client_id'), config[name].id);
@@ -357,8 +357,9 @@ test('shared sign-in returns to the requested page and invitations replace an ol
   await signIn(f, owner, 'discord', invitation);
   const returning = f.browser(), target = '/?view=tasks&chunk=11825';
   const page = await returning.request(target);
-  assert.equal(page.status, 200); assert.match(await page.text(), /href="\/auth\/discord"/);
-  const completed = await f.callback(returning, await f.begin(returning));
+  assert.equal(page.status, 200);
+  const link = (await page.text()).match(/href="(\/auth\/discord[^\"]*)"/)[1].replaceAll('&amp;', '&');
+  const completed = await f.callback(returning, await f.begin(returning, 'discord', undefined, link));
   assert.equal(completed.response.headers.get('location'), target);
   assert.equal((await returning.request(target)).status, 200);
   const joining = f.browser();

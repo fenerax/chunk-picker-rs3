@@ -104,12 +104,13 @@ async function returnFixture(t, { legacy = false, issueSession = async () => 'fi
     provider: { fetch: async url => new Response(JSON.stringify(url.endsWith('/token') ? { access_token: 'fixture-access' } : { id: '123456789' })), ...provider },
   });
 }
-async function startReturn(flow, target) {
+async function startReturn(flow, target, direct = false) {
   const page = response();
   await flow.handle(request(`/auth/signin?${new URLSearchParams({ returnTo: target })}`), page, { route: '/auth/signin', security });
-  assert.match(page.body, /href="\/auth\/discord"/);
+  const link = page.body.match(/href="(\/auth\/discord[^\"]*)"/)[1].replaceAll('&amp;', '&');
+  assert.equal(pendingCookie(page), undefined, 'Rendering the page allocates no attempt');
   const started = response();
-  await flow.handle(request('/auth/discord', pendingCookie(page)), started, { route: '/auth/discord', security });
+  await flow.handle(request(direct ? `/auth/discord?${new URLSearchParams({ returnTo: target })}` : link), started, { route: '/auth/discord', security });
   const state = new URL(started.getHeader('location')).searchParams.get('state');
   return { started, callback: `/auth/discord/callback?state=${state}&code=fixture-code` };
 }
@@ -133,10 +134,38 @@ test('return targets reject open redirects, encoded ambiguities and auth loops',
     '/auth', '/auth/signin', '/auth/discord', '/auth/google/callback', '/auth/signout', '/auth/reclaim?code=fixture',
     '/join/fixture', '/%61uth/signin', '/%2561uth/signin', '/auth%2fsignin', '/a/%2e%2e/auth/signin',
     '/pickers/fixture/auth/discord', '/pickers/fixture/%2561uth/signin', '/%', '/' + 'a'.repeat(4096)]) {
-    const { started, callback } = await startReturn(flow, target), completed = response();
-    await flow.handle(request(callback, pendingCookie(started)), completed, { route: '/auth/discord/callback', security });
-    assert.equal(completed.getHeader('location'), '/', target);
+    for (const direct of [false, true]) {
+      const { started, callback } = await startReturn(flow, target, direct), completed = response();
+      await flow.handle(request(callback, pendingCookie(started)), completed, { route: '/auth/discord/callback', security });
+      assert.equal(completed.getHeader('location'), '/', target);
+    }
   }
+});
+test('sign-in page loads consume no pending capacity, including when all OAuth slots are full', async t => {
+  const { flow } = await returnFixture(t), target = '/?view=tasks&chunk=12341';
+  const loadPages = async cookie => {
+    const signin = response(), fallback = response();
+    await flow.handle(request(`/auth/signin?${new URLSearchParams({ returnTo: target })}`, cookie), signin, { route: '/auth/signin', security });
+    await flow.join(request(target), fallback, { security });
+    for (const page of [signin, fallback]) {
+      assert.equal(page.status, 200); assert.equal(pendingCookie(page), undefined);
+      const link = page.body.match(/href="(\/auth\/discord[^\"]*)"/)[1].replaceAll('&amp;', '&');
+      assert.equal(new URL(link, security.origin).searchParams.get('returnTo'), target);
+    }
+  };
+  for (let index = 0; index < 1100; index++) await loadPages();
+  let first;
+  for (let index = 0; index < 1000; index++) {
+    const started = response();
+    await flow.handle(request('/auth/discord'), started, { route: '/auth/discord', security });
+    assert.equal(started.status, 303); first ??= started;
+  }
+  await loadPages();
+  await assert.rejects(() => flow.handle(request('/auth/discord'), response(), { route: '/auth/discord', security }), { status: 429 });
+  await loadPages(pendingCookie(first)); // Page visits still release their browser's old attempt.
+  const { started, callback } = await startReturn(flow, target, true), completed = response();
+  await flow.handle(request(callback, pendingCookie(started)), completed, { route: '/auth/discord/callback', security });
+  assert.equal(completed.getHeader('location'), target);
 });
 test('return targets remain browser-bound, survive cancellation, and expire with OAuth', async t => {
   let at = 0;
