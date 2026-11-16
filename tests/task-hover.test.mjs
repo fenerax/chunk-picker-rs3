@@ -1,7 +1,9 @@
+// @test dataset=open-f2p
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTaskHover, renderTaskHover, taskHoverPosition, taskHoverSources } from '../app/web/task-hover.mjs';
 import { createTaskMethods } from '../app/web/task-methods.mjs';
+import { createTaskEngine } from '../app/tasks/engine.mjs';
 
 class Node {
   constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.events = {}; this.dataset = {}; this.style = {}; this.hidden = false; this.box = { left: 900, right: 1250, top: 350, bottom: 400, width: 350, height: 50 }; }
@@ -31,6 +33,24 @@ function harness(options = {}) {
   const fire = async delay => { for (const [id, timer] of [...timers]) if (timer.delay === delay) { timers.delete(id); await timer.action(); } };
   return { document, viewport, hover, row, target, timers, fire, changeScope: value => { scope = value; } };
 }
+
+for (const preview of ['hover', 'alternative methods']) test(`${preview} describes a reachable route above the recorded personal level as planning`, () => {
+  const member = { id: 'a', name: 'Player', unlocked: ['1'], completedTasks: [],
+    skillProgress: { Woodcutting: { level: 1, xp: 0, source: 'game-plugin', memberId: 'a' } } };
+  const result = createTaskEngine({ chunks: { '1': { Object: { Tree: true, Oak: true }, Spawn: { 'Bronze hatchet': 1 } } },
+    challenges: { Woodcutting: { Logs: { Level: 1, Objects: ['Tree'], Primary: true, Output: 'Logs' },
+      Oak: { Level: 15, Objects: ['Oak'], Primary: true, Output: 'Oak logs' } } },
+    codeItems: {}, sections: {}, walkableChunksF2P: ['1'] }).evaluate({ members: [member], rules: {} }, 'a');
+  const method = result.tasks.find(row => row.category === 'Woodcutting' && row.level === 15);
+  assert.equal(result.training.Woodcutting.observedLevel, 1);
+  assert.equal(method.status, 'available');
+  const { document } = harness();
+  const view = preview === 'hover' ? renderTaskHover(method, { document, result })
+    : createTaskMethods({ document, tasks: [method], activeId: method.id, canChoose: false, open() {} });
+  assert(text(view).includes('Reachable in your chunks'));
+  assert(text(view).includes('Level 15'));
+  assert(!text(view).includes('Doable now'));
+});
 
 test('hover waits, loads once shown, and restores accessible description on leave', async () => {
   let calls = 0; const h = harness({ getDetails: async row => { calls++; return { ...row, record: { Description: 'Defeat the Chaos Elemental 25 times.' } }; } });
@@ -83,7 +103,7 @@ test('late detail from a dismissed or changed member cannot reopen or replace th
 
 test('detail failure retains compact facts and gives a retry route', async () => {
   const h = harness({ getDetails: async () => { throw new Error('Offline'); } }); await h.row.emit('pointerenter', {}); await h.fire(250);
-  assert(text(h.hover.element).includes('Doable now')); assert(text(h.hover.element).includes('Open the task to retry.'));
+  assert(text(h.hover.element).includes('Reachable in your chunks')); assert(text(h.hover.element).includes('Open the task to retry.'));
   h.hover.dispose(); assert.equal(h.document.events.keydown.length, 0); assert.equal(h.viewport.events.scroll.length, 0);
 });
 
@@ -109,7 +129,7 @@ test('hover shows first blocker, useful description and at most three named sour
 test('alternative methods show active choice, level, state, direct choosing and automatic reset', async () => {
   const h = harness(), chosen = [];
   const methods = createTaskMethods({ document: h.document, tasks: [task, { ...task, id: 'task:other', label: 'Other method', status: 'blocked', blockers: [{ detail: 'Need logs' }] }], activeId: task.id, canChoose: true, automatic: false, choose: id => chosen.push(id), open() {} });
-  assert(text(methods).includes('Doable now (1)')); assert(text(methods).includes('Needs progress (1)')); assert(text(methods).includes('Level 60')); assert(text(methods).includes('Active choice')); assert(text(methods).includes('Need logs'));
+  assert(text(methods).includes('Reachable in your chunks (1)')); assert(text(methods).includes('Needs progress (1)')); assert(text(methods).includes('Level 60')); assert(text(methods).includes('Active choice')); assert(text(methods).includes('Need logs'));
   const buttons = all(methods).filter(node => node.tagName === 'button');
   await buttons.find(node => node.children.some(child => child.textContent === 'Other method')).emit('click');
   await buttons.find(node => node.textContent === 'Choose automatically').emit('click'); assert.deepEqual(chosen, ['task:other', null]);
@@ -132,7 +152,7 @@ test('long alternative lists start compact, keep the active method visible and r
 
 test('generated equipment alternatives do not display their synthetic goal level as an equip requirement', () => {
   const h = harness(); const methods = createTaskMethods({ document: h.document, tasks: [{ ...task, category: 'BiS', generated: true, level: 1 }], activeId: task.id, canChoose: false, open() {} });
-  assert(!text(methods).includes('Level 1')); assert(text(methods).includes('Doable now'));
+  assert(!text(methods).includes('Level 1')); assert(text(methods).includes('Reachable in your chunks'));
 });
 
 test('Extra tasks name the group that added them; other categories do not', () => {
