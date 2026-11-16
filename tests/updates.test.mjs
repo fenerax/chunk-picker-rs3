@@ -14,6 +14,86 @@ const el = (tag, text, cls) => { const node = new Node(tag, text); node.classNam
 const button = (text, action) => { const node = el('button', text); node.addEventListener('click', action); return node; };
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
+function dialogFixture(t, api) {
+  let generation = 0, open = false, content;
+  const seen = new Map(), dot = new Set(), previous = globalThis.document;
+  globalThis.document = { getElementById: () => ({ classList: { toggle: (name, enabled) => enabled ? dot.add(name) : dot.delete(name) } }) };
+  t.after(() => { globalThis.document = previous; });
+  const updates = createUpdates({ el, button, api, banner: new Node('div'),
+    openDialog: (title, node) => { content = node; open = true; return ++generation; },
+    dialogCurrent: token => open && token === generation,
+    storage: { getItem: key => seen.get(key), setItem: (key, value) => seen.set(key, value) } });
+  return { updates, seen, dot, content: () => content,
+    close: () => { open = false; }, replace: () => { generation++; content = el('div', 'Other dialog'); } };
+}
+const release = { entries: [{ date: '2026-10-02', title: 'Synthetic release', items: ['A change'] }] };
+const roadmap = { updated: '2026-10-02', themes: [] };
+
+for (const leave of ['close', 'replace', 'reopen']) test(`late What's new response after ${leave} keeps entries unread`, async t => {
+  const request = Promise.withResolvers(), fixture = dialogFixture(t, () => request.promise);
+  const loading = fixture.updates.openList(), oldContent = fixture.content();
+  let reopened;
+  if (leave === 'reopen') reopened = fixture.updates.openList(); else fixture[leave]();
+  request.resolve(release); await loading;
+  assert.equal(oldContent.children[0].textContent, 'Loading…', 'a stale view is not rendered');
+  if (reopened) await reopened;
+  else {
+    assert.equal(fixture.seen.size, 0, 'unseen entries must not be acknowledged');
+    assert(fixture.dot.has('has-news'));
+    await fixture.updates.openList();
+  }
+  assert.equal(fixture.content().children[0].children[0].textContent, 'Synthetic release');
+  assert.equal(fixture.seen.get('picker.changelogSeen'), '2026-10-02|Synthetic release');
+  assert.equal(fixture.dot.has('has-news'), false);
+});
+
+for (const [method, route, value] of [['openList', '/api/changelog', release], ['openRoadmap', '/api/roadmap', roadmap]]) {
+  test(`${method} retries in place with one busy request`, async t => {
+    const retry = Promise.withResolvers(); let requests = 0;
+    const fixture = dialogFixture(t, async path => {
+      if (path !== route) return { entries: [] };
+      if (++requests === 1) throw new Error('Synthetic failure');
+      return retry.promise;
+    });
+    await fixture.updates[method]();
+    const content = fixture.content(), action = content.children.find(node => node.textContent === 'Retry');
+    assert(action, 'failed view has a Retry action');
+    assert.equal(content.children[0].textContent, 'Synthetic failure');
+    assert.equal(content.attributes['aria-busy'], 'false');
+    const loading = action.events.click();
+    action.events.click(); action.events.click();
+    assert.equal(requests, 2, 'repeated clicks cannot start overlapping requests');
+    assert.equal(action.disabled, true);
+    assert.equal(content.attributes['aria-busy'], 'true');
+    assert.equal(content.children[0].textContent, 'Loading…');
+    retry.resolve(value); await loading;
+    assert.equal(fixture.content(), content, 'retry stays inside the same dialog');
+    assert.equal(content.attributes['aria-busy'], 'false');
+    assert.equal(content.children.some(node => node.className === 'error'), false);
+    if (method === 'openList') assert.equal(fixture.dot.has('has-news'), false);
+    else assert.equal(content.children[0].className, 'roadmap-intro');
+  });
+
+  for (const outcome of ['success', 'failure']) test(`${method} ignores late retry ${outcome} after dialog replacement`, async t => {
+    const retry = Promise.withResolvers(); let requests = 0;
+    const fixture = dialogFixture(t, async path => {
+      if (path !== route) return { entries: [] };
+      if (++requests === 1) throw new Error('Synthetic failure');
+      return retry.promise;
+    });
+    await fixture.updates[method]();
+    const content = fixture.content(), action = content.children.find(node => node.textContent === 'Retry');
+    assert(action, 'failed view has a Retry action');
+    const loading = action.events.click(); fixture.replace();
+    if (outcome === 'success') retry.resolve(value); else retry.reject(new Error('Late failure'));
+    await loading;
+    assert.equal(fixture.content().textContent, 'Other dialog');
+    assert.equal(content.children[0].textContent, 'Loading…', 'stale content is untouched');
+    assert.equal(fixture.seen.size, 0);
+    action.events.click(); assert.equal(requests, 2, 'stale Retry cannot load again');
+  });
+}
+
 test('changelog is valid and newest first', async () => {
   const log = JSON.parse(await readFile(new URL('../app/data/changelog.json', import.meta.url), 'utf8'));
   assert.equal(log.schemaVersion, 1); assert.ok(log.entries.length);
