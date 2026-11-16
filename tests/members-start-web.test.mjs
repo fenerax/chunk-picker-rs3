@@ -88,7 +88,7 @@ for (const havenhythe of [false, true]) test(`a solo player can preview and conf
   assert.equal(h.calls[0].payload.type, 'go-members');
   assert.equal(h.calls[0].payload.options.pool, havenhythe ? 'optionB' : 'optionA');
   assert.deepEqual(h.calls[0].payload.options.traderWoes, { player1: false });
-  assert.equal(h.title(), 'Members start');
+  assert.equal(h.title(), 'Members starts');
   assert.match(h.text(), /Your members start is saved/);
   assert.match(h.text(), /Your previous F2P map is kept as a read-only snapshot/);
   assert.match(h.text(), /Undo in History/);
