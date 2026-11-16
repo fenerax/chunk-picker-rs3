@@ -338,7 +338,24 @@ export function createScreenChunks(c) {
       const added = value.delta.tasksAdded, groups = new Map();
       for (const task of added) { if (!groups.has(task.category)) groups.set(task.category, []); groups.get(task.category).push(task); }
       outcome.replaceChildren(c.el('p', added.length ? `${added.length} new possible task${added.length === 1 ? '' : 's'}` : 'No new possible tasks', 'unlock-count'));
-      for (const [category, tasks] of groups) outcome.append(c.el('h4', `${category} (${tasks.length})`, 'content-heading'), c.list(tasks.map(task => c.plain(task.label))));
+      for (const [category, tasks] of groups) {
+        const rows = [], clues = new Map(), list = c.el('ul');
+        for (const task of tasks) {
+          const tier = String(task.record?.ClueTier ?? '').trim().toLowerCase(), type = String(task.record?.ClueType ?? '').trim().toLowerCase();
+          if (!tier || !type) { rows.push(task); continue; }
+          const key = JSON.stringify([tier, type]);
+          if (!clues.has(key)) { const group = { tier, type, tasks: [] }; clues.set(key, group); rows.push(group); }
+          clues.get(key).tasks.push(task);
+        }
+        for (const row of rows) {
+          if (!row.tasks) { list.append(c.el('li', c.plain(row.label))); continue; }
+          const entry = c.el('li'), tier = row.tier.charAt(0).toUpperCase() + row.tier.slice(1);
+          const kind = row.type === 'scan' || row.type === 'compass' ? 'spots' : 'steps';
+          entry.append(c.details(`${tier} ${row.type} clue ${kind} (${row.tasks.length})`, c.list(row.tasks.map(task => c.plain(task.label)))));
+          list.append(entry);
+        }
+        outcome.append(c.el('h4', `${category} (${tasks.length})`, 'content-heading'), list);
+      }
       if (value.delta.itemsAdded?.length || value.delta.areasAdded?.length) { const additions = c.el('div'); if (value.delta.itemsAdded?.length) additions.append(c.el('h4', 'Items'), c.list(value.delta.itemsAdded.map(item => c.plain(typeof item === 'string' ? item : item.name ?? item.label)))); if (value.delta.areasAdded?.length) additions.append(c.el('h4', 'Areas'), c.list(value.delta.areasAdded.map(area => c.plain(c.world.areas.get(typeof area === 'string' ? area : area.id)?.name ?? (typeof area === 'string' ? area : area.name ?? area.label))))); if (c.advanced()) additions.append(c.jsonPreview({ items: value.delta.itemsAdded, areas: value.delta.areasAdded })); outcome.append(c.details('New items and areas', additions)); }
     };
     const cached = !c.sandbox.active && c.viewCache?.peek('preview', key, revision);

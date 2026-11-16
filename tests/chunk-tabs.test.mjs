@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
+import { replaceView } from '../app/web/browser-state.mjs';
 
 const source = (await readFile(new URL('../app/web/screen-chunks.mjs', import.meta.url), 'utf8'))
   .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
@@ -12,6 +13,7 @@ function fixture() {
   const node = (tag, text = '', className = '') => ({
     tagName: tag.toUpperCase(), textContent: text, className, children: [], attributes: {}, dataset: {}, listeners: {},
     append(...children) { this.children.push(...children); for (const child of children) child.parentNode = this; },
+    prepend(...children) { this.children.unshift(...children); },
     replaceChildren(...children) { this.children = children; },
     setAttribute(key, value) { this.attributes[key] = String(value); },
     addEventListener(key, handler) { this.listeners[key] = handler; },
@@ -29,7 +31,7 @@ function fixture() {
     $: id => ({ 'map-menu': menu, 'map-hover': map })[id],
   };
   runInContext(source + '\ncreateScreenChunks(c);', createContext({
-    c, document, createScreenChunkNotes() {}, createScreenChunkColours() {},
+    c, document, replaceView, createScreenChunkNotes() {}, createScreenChunkColours() {},
   }));
   const changes = [], renders = [];
   const tabs = ['contents', 'tasks', 'note'].map(id => ({ id, label: id === 'note' ? 'Note ●' : id,
@@ -40,6 +42,63 @@ function fixture() {
   const [bar, panel] = wrap.children;
   return { c, tabs, wrap, bar, panel, menu, map, document, node, changes, renders, focused: () => focused };
 }
+
+function previewFixture(tasks, cached = false) {
+  const h = fixture(), { c, node } = h;
+  const value = { memberId: 'synthetic', stateRevision: 7, delta: { tasksAdded: tasks } };
+  Object.assign(c, {
+    canWrite: () => true, memberId: 'synthetic', state: { revision: 7 },
+    sandbox: { active: false, signature: () => '' }, deathChunks: { panel: () => node('aside') },
+    compatibleTaskRevision: revision => revision === 7, plain: String,
+    list: values => { const list = node('ul'); list.append(...values.map(value => node('li', value))); return list; },
+    details: (title, ...children) => { const details = node('details'); details.append(node('summary', title), ...children); return details; },
+    predictUnlock: () => Promise.resolve(value),
+    ...(cached ? { viewCache: { token() {}, peek: () => ({ value }), remember() {}, current: () => true } } : {}),
+  });
+  const box = c.unlockPreview('one'), outcome = box.children.find(child => child.className === 'unlock-preview');
+  outcome.isConnected = true;
+  return { ...h, box, outcome };
+}
+
+test('unlock Preview groups structured clues by tier and type and preserves individual tasks', async () => {
+  const clue = (id, tier, type) => ({ id, category: 'Nonskill', label: `Destination ${id}`, record: { ClueTier: tier, ClueType: type } });
+  const tasks = [clue('scan-1', 'elite', 'Scan'), { id: 'ordinary', category: 'Nonskill', label: 'Use the gate' },
+    clue('compass-1', 'elite', 'Compass'), clue('scan-2', 'elite', 'Scan'), clue('compass-2', 'elite', 'Compass'),
+    clue('hard-scan', 'hard', 'Scan'), clue('map', 'hard', 'Map'), { id: 'mine', category: 'Mining', label: 'Mine copper' }];
+  const before = structuredClone(tasks);
+  for (const cached of [false, true]) {
+    const { outcome } = previewFixture(tasks, cached);
+    await Promise.resolve();
+    assert.equal(outcome.children[0].textContent, '8 new possible tasks');
+    assert.deepEqual(outcome.children.filter(node => node.tagName === 'H4').map(node => node.textContent), ['Nonskill (7)', 'Mining (1)']);
+    const [list, mining] = outcome.children.filter(node => node.tagName === 'UL');
+    assert.equal(list.children.length, 5);
+    assert.equal(list.children[1].textContent, 'Use the gate');
+    assert.equal(mining.children[0].textContent, 'Mine copper');
+    const groups = list.children.filter(row => row.children.length).map(row => row.children[0]);
+    assert.deepEqual(groups.map(group => group.children[0].textContent), [
+      'Elite scan clue spots (2)', 'Elite compass clue spots (2)', 'Hard scan clue spots (1)', 'Hard map clue steps (1)',
+    ]);
+    assert.ok(groups.every(group => group.tagName === 'DETAILS' && !group.open));
+    assert.deepEqual(groups.map(group => group.children[1].children.map(row => row.textContent)), [
+      ['Destination scan-1', 'Destination scan-2'], ['Destination compass-1', 'Destination compass-2'], ['Destination hard-scan'], ['Destination map'],
+    ]);
+  }
+  assert.deepEqual(tasks, before, 'grouping leaves task IDs, records and order unchanged');
+});
+
+test('unlock Preview keeps incomplete metadata and clue-like non-clue labels as ordinary rows', async () => {
+  const tasks = [
+    { id: 'ordinary', category: 'Nonskill', label: 'Elite scan clue spot: example' },
+    { id: 'tier-only', category: 'Nonskill', label: 'Tier only', record: { ClueTier: 'elite' } },
+    { id: 'type-only', category: 'Nonskill', label: 'Type only', record: { ClueType: 'Scan' } },
+  ];
+  const { outcome } = previewFixture(tasks);
+  await Promise.resolve();
+  assert.deepEqual(outcome.children[2].children.map(row => row.textContent), tasks.map(task => task.label));
+  const empty = previewFixture([]); await Promise.resolve();
+  assert.equal(empty.outcome.children[0].textContent, 'No new possible tasks');
+});
 
 test('chunk tabs have a named list, one selected stop, and a labelled controlled panel', () => {
   const h = fixture();
