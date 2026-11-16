@@ -501,6 +501,27 @@ function migrateAccessControls(member, map, warnings, counts) {
   }
 }
 
+export function forcedTaskWarnings(state) {
+  const warnings = [];
+  for (const member of state.members) {
+    if (member.sourceMapId === null || member.sourceMapId === undefined) continue;
+    const manualTasks = state.legacy?.maps?.[member.sourceMapId]?.chunkinfo?.manualTasks;
+    if (!record(manualTasks)) continue;
+    const tasks = [];
+    for (const [category, overrides] of Object.entries(manualTasks)) {
+      if (!record(overrides)) continue;
+      for (const label of Object.keys(overrides)) {
+        tasks.push(`${stripTaskMarkup(category)} / ${stripTaskMarkup(label)}`);
+      }
+    }
+    if (!tasks.length) continue;
+    const owner = member.name ?? member.id;
+    warnings.push(`${tasks.length} unsupported forced-task override${tasks.length === 1 ? '' : 's'} for ${owner}. They will not make tasks available here; originals stay in the backup.`);
+    for (const task of tasks) warnings.push(`${task}: forced-task override will not make this task available here (${owner}).`);
+  }
+  return warnings;
+}
+
 /**
  * Migrate gameplay facts preserved by importLegacyMaps into the authored schema.
  * The original state and all state.legacy.maps payloads remain unchanged.
@@ -547,7 +568,7 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
   const previous = next.legacy?.gameplayMigration;
   // Diagnostics are durable migration evidence. migrationSummary prepares the
   // readable, bounded display copy without replacing the saved original text.
-  const warnings = cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []);
+  const warnings = [...cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []), ...forcedTaskWarnings(next)];
   const unresolved = cloneJson(previous?.unresolved ?? []);
   const provenance = new Map((previous?.taskStatusProvenance ?? []).map(entry => [`${entry.memberId}\u0000${entry.taskId}`, cloneJson(entry)]));
   const migratedMembers = cloneJson(Array.isArray(previous?.migratedMembers) ? previous.migratedMembers : []).filter(record);

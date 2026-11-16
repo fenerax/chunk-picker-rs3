@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
 import { importLegacyMaps } from './core/state.mjs';
+import { forcedTaskWarnings } from './tasks/migration.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
 import { TICK_ACTIVE_TASKS } from './core/tick-active-tasks.mjs';
 import { PLAY_VIEW } from './play-view.mjs';
@@ -233,6 +234,8 @@ export function migrationSummary(state) {
   const maps = new Map();
   for (const member of state.members) if (!maps.has(member.sourceMapId)) maps.set(member.sourceMapId, member);
   const migration = state.legacy?.gameplayMigration;
+  const savedWarnings = new Set(migration?.warnings ?? []);
+  const forcedWarnings = forcedTaskWarnings(state).filter(warning => !savedWarnings.has(warning));
   const unresolved = migration?.unresolved ?? [];
   const identities = state.provenance?.taskIdentityMigration;
   const warnings = [...(migration?.warnings?.slice(0, REPORT_RECORDS) ?? unresolved.slice(0, REPORT_RECORDS).map(item => `Could not import ${({ checkedAllTasks: 'task check', checkedChallenges: 'challenge check', completedChallenges: 'completed challenge', backlog: 'backlog choice', favoriteTasks: 'pinned task' })[item.source] ?? item.source} ${item.category}/${item.legacyKey} for ${members.get(item.memberId)?.name ?? item.memberId}: ${({ 'ambiguous legacy task ID': 'more than one task matches this original check', 'unknown legacy task ID': 'no task matches this original check', 'task is absent from the category catalogue': 'this task is not listed in its category' })[item.reason] ?? item.reason}.`))].map(warning => readableMigrationWarning(warning, { tasks: tasks, members: members, maps: maps })
@@ -246,9 +249,10 @@ export function migrationSummary(state) {
     .replaceAll('Task identity collisions establish a new undo boundary; the complete preceding history is retained in migration archives.', 'Different saved task records match the same task. Undo now starts after this import; all earlier History is kept in the saved import archive.')
     .replaceAll('task identity conflict(s) were preserved in migration provenance; explicit canonical fields take precedence.', 'conflicting saved task records are kept in the import details; values saved directly under the current task take precedence.')
     .replaceAll('task identity conflict(s) remain in migration provenance for review.', 'conflicting saved task records remain in the import details for review.'));
+  for (const warning of forcedWarnings) warnings.push(warning);
   for (const item of (identities?.unresolved ?? []).slice(0, REPORT_RECORDS)) warnings.push(`Saved task ${displayText(tasks.get(item.originalId)?.label ?? item.originalId)} at ${displayText(item.path)} could not be matched; the original record is kept for review.`);
   if (identities?.conflicts?.length) warnings.push(`${identities.conflicts.length} conflicting saved task records remain in the import details for review.`);
-  return boundedOutput({ stateRevision: state.revision, warnings: warningOutput(warnings, (migration?.warnings?.length ?? unresolved.length) + (identities?.unresolved?.length ?? 0) + (identities?.conflicts?.length ? 1 : 0)),
+  return boundedOutput({ stateRevision: state.revision, warnings: warningOutput(warnings, forcedWarnings.length + (migration?.warnings?.length ?? unresolved.length) + (identities?.unresolved?.length ?? 0) + (identities?.conflicts?.length ? 1 : 0)),
     report: boundedOutput({ ...(migration?.report ?? { catalogueTasks: state.tasks.length, unresolved, taskStatusProvenance: migration?.taskStatusProvenance ?? [] }),
       ...(identities ? { identities: Object.fromEntries(Object.entries(identities).filter(([key]) => key !== 'archives')) } : {}) }) });
 }

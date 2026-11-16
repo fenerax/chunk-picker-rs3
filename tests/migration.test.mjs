@@ -4,6 +4,8 @@ import { decodeLegacyText, hasGameplayMigration, migrateGameplay, stableTaskId, 
 import { applyCommand, exportBackup, importBackup, validateState } from '../app/core/state.mjs';
 import { reachableSections } from '../app/core/rules.mjs';
 import { buildAccessIndex, calculateAccess } from '../app/tasks/access.mjs';
+import { transferReport } from '../app/save-transfer.mjs';
+import { migrationSummary } from '../app/picker-context-http.mjs';
 
 const flower = 'Construct ~|stacked ceramic flower pots (level 16)|~';
 const elder = 'Fletch an ~|elder stock|~';
@@ -21,6 +23,40 @@ function baseState(map, member = {}) {
       pendingRoll: [], blacklisted: [], completedTasks: [], teleports: [], ...member }],
     legacy: { maps: { old: map } } };
 }
+
+test('forced-task overrides warn with a count and readable names without changing gameplay', () => {
+  const manualTasks = { Mining: { 'Mine-_-20~|Synthetic-_-20ore|~': 42, 'Synthetic-_-20rock': true }, Empty: {} };
+  const input = baseState({ chunkinfo: { manualTasks } });
+  const before = structuredClone(input);
+  const options = { definitions: { challenges: {} }, taskMap: {} };
+  const result = migrateGameplay(input, options);
+  assert.ok(result.warnings.some(text => /2 unsupported forced-task overrides/.test(text)));
+  for (const name of ['Mine Synthetic ore', 'Synthetic rock']) {
+    assert.ok(result.warnings.some(text => text.includes(name) && /will not make.*available/.test(text)));
+  }
+  assert.ok(result.warnings.every(text => !text.includes('-_-20') && !text.includes('~|')));
+  const report = transferReport(result.state, { warnings: result.warnings });
+  assert.ok(report.records.some(row => /2 unsupported forced-task overrides/.test(row.reason)));
+  assert.ok(report.records.some(row => row.reason.includes('Mine Synthetic ore')));
+  assert.deepEqual(migrationSummary(result.state).warnings, result.warnings);
+  assert.deepEqual(migrationSummary(input).warnings, result.warnings, 'Preview also warns before gameplay migration runs');
+  const restored = importBackup(exportBackup(result.state));
+  assert.deepEqual(restored.legacy.maps.old.chunkinfo.manualTasks, manualTasks);
+  assert.deepEqual(restored.legacy.gameplayMigration.warnings, result.warnings);
+  const withoutOverrides = migrateGameplay(baseState({ chunkinfo: {} }), options).state;
+  const gameplay = structuredClone(result.state);
+  delete gameplay.legacy.maps.old.chunkinfo.manualTasks;
+  gameplay.legacy.gameplayMigration.warnings = [];
+  assert.deepEqual(gameplay, withoutOverrides);
+  assert.deepEqual(input, before);
+  assert.deepEqual(migrateGameplay(result.state, options).state, result.state);
+});
+
+test('absent or empty forced-task records add no warning', () => {
+  for (const chunkinfo of [{}, { manualTasks: {} }, { manualTasks: { Mining: {} } }]) {
+    assert.deepEqual(migrateGameplay(baseState({ chunkinfo }), { definitions: { challenges: {} }, taskMap: {} }).warnings, []);
+  }
+});
 
 test('stable catalogue IDs use exact NFC labels and display labels strip upstream markup', () => {
   assert.equal(stableTaskId('Quest', '~|Cook\'s Assistant|~'),
