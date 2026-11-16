@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-26",
+  "updated": "2026-11-16",
   "statuses": {
     "working": "In progress",
     "next": "Up next",
@@ -19,8 +19,8 @@
   "themes": [
     {
       "id": "duo",
-      "title": "Playing as a duo",
-      "blurb": "Group Ironman: keeping two maps and two players in step.",
+      "title": "Playing together",
+      "blurb": "Separate maps, shared goals and plans for more groups. Fixes players notice come first, then useful features and gaps from the original picker.",
       "items": [
         {
           "id": "A4",
@@ -92,33 +92,34 @@
           "why": "Ends manual ticking and fills the gaps web sync can’t see, like achievements and quest steps.",
           "size": "L",
           "status": "working",
-          "note": "Works on the beta world now. Not submitted to the Plugin Hub yet; we're working through Jagex's submission checklist first. After that comes a map window in game."
+          "note": "The picker can receive progress and location updates. Plugin testing mode keeps test-world progress out of your live map. Public plugin availability and the remaining in-game features still need checking."
         },
         {
           "id": "A12",
           "title": "One shared map mode",
-          "what": "The second group mode you described: one map with split grinds.",
-          "why": "You asked for it, but it isn’t designed yet.",
+          "what": "One group map, with players sharing the grinds.",
+          "why": "An alternative to separate personal maps; the details still need deciding.",
           "size": "L",
           "status": "maybe"
         },
         {
           "id": "A13",
-          "title": "Sign-in accounts and bigger groups",
-          "what": "Real accounts and more than two players.",
-          "why": "The agreed later direction, for future groups.",
+          "title": "More characters and bigger groups",
+          "what": "Keep up to ten RuneScape characters under one login, switch between their maps, and play in groups of one to five.",
+          "why": "Solo players and every Group Ironman size should have a place.",
           "size": "L",
-          "status": "maybe"
+          "status": "later",
+          "note": "Discord and Google sign-in and separate group saves are implemented. Character switching, group invitations and moving between groups still need work."
         },
         {
           "id": "R1",
           "title": "Roadmap in the picker",
           "what": "This page: everything planned, what is being worked on, and what is done.",
-          "why": "So Player 2 and viewers can see what is coming without asking.",
+          "why": "See what is coming and what has shipped in one place.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12",
-          "note": "More → Roadmap."
+          "note": "More → Roadmap. Refreshed with shipped features and the current priorities."
         },
         {
           "id": "R2",
@@ -127,7 +128,7 @@
           "why": "The duo, and later other groups, decide the order together.",
           "size": "M",
           "status": "maybe",
-          "note": "Needs sign-in accounts first."
+          "note": "Sign-in is available; voting has not been added."
         },
         {
           "id": "R3",
@@ -136,7 +137,7 @@
           "why": "Good ideas from Feedback stop getting lost.",
           "size": "M",
           "status": "maybe",
-          "note": "Needs sign-in accounts first."
+          "note": "Feedback and task problem reports are available. Public suggestions and voting are still planned."
         },
         {
           "id": "A14",
@@ -145,16 +146,17 @@
           "why": "The gathering calculator needs real numbers to check its estimates, and nobody wants to count fish by hand.",
           "size": "L",
           "status": "later",
-          "note": "Waits for the plugin system to leave beta (public tools promised for late October)."
+          "note": "Planned after the companion plugin is ready for wider use; real gathering sessions still need to be measured."
         },
         {
           "id": "A15",
           "title": "Ready for members",
-          "what": "One button for when you both go members: keeps levels, quests and completed tasks, clears the unlocked chunks, and rolls each of you a new members starting chunk (any bank you can reach after F2P, or one of the Havenhythe banks).",
+          "what": "When you go members, keep levels, quests and completed tasks, save the F2P map, and roll new members starting chunks.",
           "why": "No relocking every chunk by hand. The F2P map is kept as a snapshot and Undo works.",
           "size": "L",
           "status": "done",
-          "done": "2026-10-13"
+          "done": "2026-10-13",
+          "note": "Solo and two-player starts work. Starts for groups of three to five are up next; the saved F2P map and Undo stay available."
         },
         {
           "id": "A16",
@@ -164,6 +166,34 @@
           "size": "M",
           "status": "done",
           "done": "2026-10-13"
+        },
+        {
+          "id": "A17",
+          "title": "Sign in with Discord or Google",
+          "what": "Use your invitation once, then sign in from another device. You can link both providers.",
+          "why": "Return to your map without keeping a secret link handy.",
+          "size": "M",
+          "status": "done",
+          "done": "2026-10-27",
+          "note": "Sign-in is optional for existing invite links."
+        },
+        {
+          "id": "A18",
+          "title": "Go members with any group size",
+          "what": "Let groups of three, four or five choose members starting banks, as solo players and duos already can.",
+          "why": "Every player needs a valid starting chunk without resetting progress by hand.",
+          "size": "M",
+          "status": "next",
+          "note": "Keep each player’s own map, the saved F2P map and Undo. Different-bank starts should share banks only when there are too few choices."
+        },
+        {
+          "id": "A19",
+          "title": "A small invite-only beta",
+          "what": "Start with roughly 25–50 groups once sign-in, invitations, group changes and recovery are ready.",
+          "why": "Let more players try the picker and report the problems they encounter.",
+          "size": "L",
+          "status": "later",
+          "note": "Check that about 100 active groups can play reliably before opening this beta. Wider sign-up waits for a separate decision; proving room for 2,000 characters comes later."
         }
       ]
     },
@@ -176,7 +206,7 @@
           "id": "B1",
           "title": "Read-only viewer link",
           "what": "A link that can see the maps and tasks but change nothing. The original picker has this.",
-          "why": "The safe base for viewers and overlays. Every invite today can edit both maps.",
+          "why": "Let viewers follow your run without changing your progress.",
           "size": "M",
           "status": "done",
           "done": "2026-10-12",
@@ -221,7 +251,7 @@
           "id": "B6",
           "title": "Roll timeline and stats",
           "what": "A graph of chunks over time and the average time between rolls. The original has this.",
-          "why": "Good stream and recap content. History is capped at 150 entries today.",
+          "why": "Recap your run and share how it has grown.",
           "size": "M",
           "status": "done",
           "done": "2026-10-12"
@@ -264,7 +294,7 @@
           "id": "C3",
           "title": "Progress page",
           "what": "Each player’s chunks, tasks per week, quest points, total level and trend.",
-          "why": "Motivation and recaps. Quest points are already calculated but never shown.",
+          "why": "Follow your progress and look back on the run.",
           "size": "M",
           "status": "done",
           "done": "2026-10-12",
@@ -274,7 +304,7 @@
           "id": "C4",
           "title": "Better custom tasks",
           "what": "Edit and delete custom tasks, set a skill and level, choose which player they belong to.",
-          "why": "Today you can only add one; it shows for both of you and only Undo removes it.",
+          "why": "Keep your own challenges alongside the built-in tasks.",
           "size": "S–M",
           "status": "done",
           "done": "2026-10-12"
@@ -283,7 +313,7 @@
           "id": "C5",
           "title": "Quest list filters",
           "what": "Not started, in progress, done, and can do now. The original has this.",
-          "why": "The quest tab only has a text box.",
+          "why": "Find quests you can work on now and keep finished quests out of the way.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
@@ -301,7 +331,7 @@
           "id": "C7",
           "title": "Lamp and quest-XP choices",
           "what": "Choose which skill a lamp or quest reward goes to. The original has this.",
-          "why": "Choices imported from the original still apply, but you can’t change them.",
+          "why": "Keep reward choices in step with your plans.",
           "size": "M",
           "status": "done",
           "done": "2026-10-13"
@@ -318,10 +348,11 @@
         {
           "id": "C9",
           "title": "Members preview",
-          "what": "“What would membership add?” without changing anything.",
-          "why": "Helps decide when F2P is done. The sandbox can’t switch F2P off today.",
+          "what": "See which tasks and chunk content membership would add to your current map, without changing your save.",
+          "why": "Decide when you are ready to leave F2P.",
           "size": "M",
-          "status": "later"
+          "status": "next",
+          "note": "A read-only comparison is planned. Opening it must leave your map, rules, progress and Undo history alone."
         },
         {
           "id": "C10",
@@ -357,7 +388,7 @@
           "why": "Mining, Woodcutting and Fishing now follow your levels and tools, with drop or bank.",
           "size": "L",
           "status": "done",
-          "note": "Missing calculator features added with explicit burn, upstairs and landing-data limits.",
+          "note": "Some activities and travel times still need manual checking.",
           "done": "2026-10-16"
         },
         {
@@ -379,11 +410,12 @@
         {
           "id": "L1",
           "title": "Tidier top bar",
-          "what": "Five buttons: Helper, Search, Info, Sync levels and More.",
-          "why": "The top bar had grown to nine buttons.",
+          "what": "Keep the main tools together in a tidier top bar.",
+          "why": "Find common actions without a crowded row of buttons.",
           "size": "S",
           "status": "done",
-          "done": "2026-10-12"
+          "done": "2026-10-12",
+          "note": "Choose which buttons stay visible in Top bar settings; hidden tools remain in More."
         },
         {
           "id": "L2",
@@ -407,7 +439,7 @@
         {
           "id": "L4",
           "title": "Settings rework",
-          "what": "A clearer Settings layout with plain wording, one theme picker, and developer options behind an Advanced switch.",
+          "what": "A clearer Settings layout with plain wording and developer options behind an Advanced switch.",
           "why": "Settings has grown option by option and is hard to scan.",
           "size": "M",
           "status": "done",
@@ -430,7 +462,7 @@
           "why": "The toolbar wrapped onto two rows and several menus and dialogs repeated themselves.",
           "size": "M",
           "status": "done",
-          "note": "The phone More tab and Controls strip come later.",
+          "note": "Phone controls and menus now fit short screens and long player names.",
           "done": "2026-10-23"
         }
       ]
@@ -453,16 +485,17 @@
           "id": "D4",
           "title": "Stronger Search",
           "what": "Light up every match on the map, include notes, sort drops by rate (the original does this), and page past 120 results.",
-          "why": "A result only centres one chunk today, and notes aren’t searched.",
+          "why": "Find tasks, places and notes without losing useful matches.",
           "size": "M",
           "status": "done",
-          "done": "2026-10-12"
+          "done": "2026-10-12",
+          "note": "Training methods can be found by name, and Search keeps working after another player saves."
         },
         {
           "id": "D5",
           "title": "Activity Info filters",
           "what": "Done, doable and blocked on every tab; sort by level.",
-          "why": "Long lists with only a text box.",
+          "why": "Narrow long activity lists to what you need.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
@@ -471,15 +504,16 @@
           "id": "D6",
           "title": "Backlog tools",
           "what": "Search the backlog, group it by reason, bring back one category at a time.",
-          "why": "It only has Restore all today.",
+          "why": "Keep deferred tasks organised and bring them back when you are ready.",
           "size": "S",
           "status": "done",
-          "done": "2026-10-12"
+          "done": "2026-10-12",
+          "note": "Choose a reason when backlogging, Shift-click to skip the reason, or edit it later without restoring the task. Task looks wrong offers a problem report."
         },
         {
           "id": "D7",
           "title": "BiS “what I still need” and side-by-side",
-          "what": "Hide gear you already have, and compare your BiS with Player 2’s.",
+          "what": "Hide gear you already have, and compare your best available gear with your partner’s.",
           "why": "Trade and upgrade planning.",
           "size": "M",
           "status": "done",
@@ -523,7 +557,7 @@
           "id": "E1",
           "title": "Record gear you got elsewhere",
           "what": "Add equipment by hand to Current BiS.",
-          "why": "The original allows it; ours only learns from ticked “Obtain” tasks.",
+          "why": "Keep gear you obtained elsewhere in your equipment plans.",
           "size": "S–M",
           "status": "done",
           "done": "2026-10-12"
@@ -539,10 +573,12 @@
         {
           "id": "E3",
           "title": "Tick all active tasks",
-          "what": "One click marks the whole active list done.",
-          "why": "Rarely needed, and risky.",
+          "what": "Mark the shown active tasks done together, with one Undo.",
+          "why": "Useful when catching up on progress you have already made in game.",
           "size": "S",
-          "status": "maybe"
+          "status": "done",
+          "done": "2026-10-19",
+          "note": "Blocked tasks and tasks needing a player choice are left alone."
         },
         {
           "id": "E4",
@@ -550,16 +586,19 @@
           "what": "A walkthrough for roll style, theme and starting chunk.",
           "why": "Only matters for new accounts.",
           "size": "S",
-          "status": "maybe",
-          "note": "Shipped with Tick all active tasks (E3) and a customisable top bar (E5)."
+          "status": "done",
+          "note": "New groups get the guide. Reopen it from Map settings; failed bank loads can be retried and failed saves keep your choices.",
+          "done": "2026-10-19"
         },
         {
           "id": "E5",
           "title": "Customise the top bar",
           "what": "Choose which top buttons show.",
-          "why": "Only one show/hide switch exists today.",
+          "why": "Keep your most-used tools within reach.",
           "size": "S",
-          "status": "maybe"
+          "status": "done",
+          "done": "2026-10-19",
+          "note": "Hidden buttons move into More."
         }
       ]
     },
@@ -572,7 +611,7 @@
           "id": "F1",
           "title": "Rewrite technical wording",
           "what": "Replace programmer words that still show on screen, like “engine-eligible”, “obligation” and “unresolved metadata”.",
-          "why": "You and Player 2 read this text constantly.",
+          "why": "Task explanations and messages should make sense while you play.",
           "size": "M",
           "status": "done",
           "note": "Settings, History, notices and error messages now use plain wording.",
@@ -591,7 +630,7 @@
         {
           "id": "F3",
           "title": "Hide switches that do nothing",
-          "what": "Chunk Rules and Settings still list 23 saved rules marked “retained only” or “Not implemented”.",
+          "what": "Hide unsupported saved rules or explain when a rule only works in part.",
           "why": "Clutter that makes you wonder if something is broken.",
           "size": "S",
           "status": "done",
@@ -599,18 +638,18 @@
         },
         {
           "id": "F4",
-          "title": "Delete the old Task rules panel",
-          "what": "Chunk Rules replaced it; only a test still opens it.",
-          "why": "Less to maintain.",
+          "title": "One place for task rules",
+          "what": "Remove the old duplicate task-rules panel.",
+          "why": "Keep rule changes in one place.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
         },
         {
           "id": "F5",
-          "title": "Break up the main screen file",
-          "what": "The main screen code is one 1,470-line file. Split it by feature.",
-          "why": "Every parallel feature collides there; both of today’s merges did.",
+          "title": "Make screen updates easier to maintain",
+          "what": "Organise the screen code by feature.",
+          "why": "Make it easier to fix one part of the picker without disturbing another.",
           "size": "M–L",
           "status": "done",
           "done": "2026-10-12"
@@ -618,8 +657,8 @@
         {
           "id": "F6",
           "title": "Archive old data versions",
-          "what": "About 41 MB of superseded data files sit in the app folder.",
-          "why": "Faster tests and less confusion.",
+          "what": "Move superseded game data out of the active picker.",
+          "why": "Keep old and current data from being confused.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
@@ -627,8 +666,8 @@
         {
           "id": "F7",
           "title": "Move the original picker’s files aside",
-          "what": "The original picker’s page and scripts sit in the project root.",
-          "why": "That page still talks to the original author’s server; serving it by mistake would be bad.",
+          "what": "Keep the original picker’s page separate from this picker.",
+          "why": "Avoid opening the wrong version by mistake.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
@@ -636,8 +675,8 @@
         {
           "id": "F8",
           "title": "Quick test run",
-          "what": "A fast subset of tests for small changes.",
-          "why": "The full suite takes about 3.5 minutes.",
+          "what": "Check small changes quickly before running the complete checks.",
+          "why": "Catch problems sooner while fixes are being made.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
@@ -655,7 +694,7 @@
           "id": "F12",
           "title": "Safer original-picker sync",
           "what": "Never offer to lock chunks you’ve unlocked here, and never re-tick tasks that were cleaned up.",
-          "why": "Syncing you now would lock 7 of your chunks and re-tick the 172 tasks we just cleaned up.",
+          "why": "Bring progress across without undoing what you have done here.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
@@ -679,9 +718,9 @@
         },
         {
           "id": "F13",
-          "title": "Delete the 4 GB old archive",
-          "what": "The pre-rebuild archive folder is no longer used.",
-          "why": "Frees disk space.",
+          "title": "Clear unused archives",
+          "what": "Remove obsolete copies left from the rebuild.",
+          "why": "Keep unused files out of the way.",
           "size": "S",
           "status": "done",
           "done": "2026-10-14"
@@ -705,17 +744,17 @@
         {
           "id": "G1",
           "title": "Every unlock within 3 seconds",
-          "what": "Rolled chunks the picker has already checked now show their tasks in under a second. Other unlocks still take about 4 to 5 seconds; speed those up too.",
-          "why": "It’s the wait you feel after an unlock that wasn’t pre-checked.",
+          "what": "Measure slower unlocks and cut the wait from rolling a chunk to seeing its tasks.",
+          "why": "Some chunks still miss the three-second goal.",
           "size": "M–L",
-          "status": "working",
-          "note": "Prepared chunks now open in about a third of a second, also in Group view. Other chunks still take 2.3 to 3.6 seconds; getting those under a second needs a deeper change to the task calculation (2 to 5 days)."
+          "status": "next",
+          "note": "Earlier checks found prepared chunks opening in about 0.3 seconds and other unlocks taking 2.3–3.6 seconds. Measure again across different chunks before choosing the next fix; these are past results, not a current speed promise."
         },
         {
           "id": "G2",
-          "title": "Watchdog notices a stuck task list",
-          "what": "Restart automatically when task calculation is stuck, not only when the picker is down.",
-          "why": "A stuck list waits for you to notice it today.",
+          "title": "Recover a stuck task list",
+          "what": "Recover automatically when task calculation gets stuck.",
+          "why": "A stuck list should not depend on a player noticing it.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12"
@@ -723,8 +762,8 @@
         {
           "id": "G3",
           "title": "Backup warnings in the picker",
-          "what": "Show “last backup: …” and warn if the nightly OneDrive backup failed or is over 2 days old.",
-          "why": "Failures only go to a local log nobody reads.",
+          "what": "Show the latest backup and warn when backups are missing or old.",
+          "why": "Know when your progress may need a fresh backup.",
           "size": "S",
           "status": "done",
           "done": "2026-10-12",
@@ -733,11 +772,12 @@
         {
           "id": "G4",
           "title": "Practise a restore",
-          "what": "Restore a OneDrive backup into a spare copy once, and write a one-page “desktop died” plan.",
-          "why": "A backup only counts once a restore has been tried.",
+          "what": "Try restoring a backup into a separate copy and check the maps, task checks, History and Undo.",
+          "why": "Check that a backup can bring progress back.",
           "size": "S",
           "status": "done",
-          "done": "2026-10-13"
+          "done": "2026-10-13",
+          "note": "The earlier restore practice passed. The invite-only beta still needs a separate recovery check for several groups."
         },
         {
           "id": "G5",
@@ -750,21 +790,21 @@
         },
         {
           "id": "G6",
-          "title": "Test on Player 2’s real phone",
-          "what": "A short checklist on his device, over the public link.",
-          "why": "Every check so far used test browsers on this PC.",
+          "title": "Try the picker on real phones",
+          "what": "Check maps, tasks, menus and saving on a real device.",
+          "why": "Test browsers cannot catch every touch or display problem.",
           "size": "S",
           "status": "soon",
-          "note": "The emulated phone sweep is complete; testing on the real phone remains open."
+          "note": "Simulated phone checks have passed; real-device testing remains open."
         },
         {
           "id": "G7",
-          "title": "“Player 1’s computer is off” screen",
-          "what": "A clear message plus the last-seen tasks, read-only.",
-          "why": "Player 2 currently sees “Reconnecting…” and save errors.",
+          "title": "Read tasks while disconnected",
+          "what": "Show the last task list read-only when the connection is lost.",
+          "why": "Keep a reference during a connection loss.",
           "size": "M",
-          "status": "later",
-          "note": "Saves now ride out a dropped connection: they retry safely and then offer Retry or Discard. The offline screen itself is still to come."
+          "status": "maybe",
+          "note": "Retired from the current plan: the picker no longer depends on a player’s computer staying on. It retries after a dropped connection or update, but a full offline task list is not promised."
         },
         {
           "id": "G8",
@@ -783,12 +823,12 @@
           "size": "M",
           "status": "done",
           "done": "2026-10-13",
-          "note": "Startup now checks the game data once instead of twice, and uses less memory."
+          "note": "Recent updates keep calculations ready while you play, prepare likely previews ahead and reuse warm-up work after a restart."
         },
         {
           "id": "G10",
           "title": "Feedback badge",
-          "what": "An unread count for you; Player 2 sees when his note was handled.",
+          "what": "Show an unread feedback count and let whoever sent a note see when it was handled.",
           "why": "Otherwise feedback sits unseen.",
           "size": "S",
           "status": "done",
@@ -797,9 +837,9 @@
         {
           "id": "G11",
           "title": "Steadier calculator startup",
-          "what": "Prevent a rare Linux calculator crash.",
+          "what": "Prevent rare crashes while task calculations start.",
           "why": "Calculator startup and viewer loading should stay reliable.",
-          "note": "Startup-order and viewer-readiness checks passed locally. Hosted Linux CI confirmation remains pending.",
+          "note": "Later fixes also address calculation crashes and let the page reconnect by itself after an update.",
           "size": "S",
           "status": "done",
           "done": "2026-10-16"
@@ -826,23 +866,31 @@
         },
         {
           "id": "G14",
-          "title": "Updates in minutes",
-          "what": "Test every update on GitHub, so the host PC only builds, checks and swaps it.",
-          "why": "Updates took hours of tests on Player 1’s computer, which held back fixes.",
-          "note": "Every test, the component screens and a practice install now run on GitHub.",
+          "title": "Shorter interruptions for updates",
+          "what": "Check an update while the picker stays open, then restart briefly.",
+          "why": "Get fixes sooner with less time away from your map.",
+          "note": "The page reloads after an update and pending changes wait to save when it returns.",
           "size": "L",
           "status": "done",
-          "done": "2026-10-21"
+          "done": "2026-10-28"
         },
         {
           "id": "G15",
           "title": "Keep levels and quests syncing after RuneMetrics closes",
           "what": "Move the picker's level and quest sync off RuneMetrics to Jagex's new web API, and use the game plugin as the main source when it's connected.",
-          "why": "Jagex turns RuneMetrics off on 10 November. The picker now uses the RuneScape Platform API.",
+          "why": "Keep your levels and completed quests in step with the game after RuneMetrics closed.",
           "size": "M",
           "status": "done",
           "done": "2026-11-05",
           "note": "Platform API supplies levels and quests. The retired RuneMetrics fallback has been removed; plugin observations keep priority and saved progress survives web outages."
+        },
+        {
+          "id": "G16",
+          "title": "Return to your link after sign-in",
+          "what": "After signing in, return to the picker page, chunk or task you originally opened.",
+          "why": "Keep your place when following a shared link.",
+          "size": "S–M",
+          "status": "next"
         }
       ]
     },
@@ -853,17 +901,18 @@
       "items": [
         {
           "id": "H1",
-          "title": "Five leftover questions about Player 2’s old ticks",
-          "what": "Perils of Ice Mountain (Farming, Hunter, Construction) and Beneath Cursed Tides (Smithing, Strength): did each tick mean “met the level” or “did the step”?",
-          "why": "Until answered, his lists may be slightly off. A 15-minute chat with Player 2.",
+          "title": "Review unclear imported task checks",
+          "what": "Ask whether an old quest-task check meant meeting a level requirement or finishing the quest step.",
+          "why": "Keep imported progress from hiding tasks that still need doing.",
           "size": "S",
-          "status": "soon"
+          "status": "later",
+          "note": "Only resolve ambiguous checks with the player who made them."
         },
         {
           "id": "H2",
           "title": "Pick up the original picker’s data updates",
           "what": "Compare and adopt new content when the original author updates their data.",
-          "why": "Our copy is frozen at the 28 September version, so new game content won’t arrive by itself.",
+          "why": "Keep new content and data corrections from being missed.",
           "size": "M",
           "status": "done",
           "done": "2026-10-13"
@@ -871,7 +920,7 @@
         {
           "id": "H3",
           "title": "Finish the F2P membership review",
-          "what": "23 items per player still have unknown membership status, 5 sources disagree, and monster membership is unchecked.",
+          "what": "Review uncertain free-to-play restrictions and conflicting source information.",
           "why": "The members-content filter is only as good as this data.",
           "size": "M",
           "status": "done",
@@ -880,8 +929,8 @@
         },
         {
           "id": "H4",
-          "title": "34 tasks the picker can’t read",
-          "what": "They’re hidden safely; list them and decide each one.",
+          "title": "Handle tasks the picker could not read",
+          "what": "Recover supported tasks and keep unsupported ones hidden with an explanation.",
           "why": "A real F2P task might be among them.",
           "size": "S–M",
           "status": "done",
@@ -916,11 +965,21 @@
         {
           "id": "H8",
           "title": "Missing task pictures",
-          "what": "About a quarter of possible tasks have no icon (348 of 1,328 for you).",
+          "what": "Use task pictures where available and category pictures when a task has no suitable icon.",
           "why": "Cosmetic.",
           "size": "S–M",
           "status": "done",
-          "done": "2026-10-13"
+          "done": "2026-10-13",
+          "note": "Some tasks still have no confirmed picture."
+        },
+        {
+          "id": "H9",
+          "title": "Make available tasks match their How? steps",
+          "what": "Find tasks shown as available whose How? steps cannot reach the required place, quest, level or item, then fix the most common cause.",
+          "why": "Trust that an available task has a route you can follow.",
+          "size": "M–L",
+          "status": "next",
+          "note": "Check free-to-play and members maps of different sizes and report the remaining gaps."
         }
       ]
     }
