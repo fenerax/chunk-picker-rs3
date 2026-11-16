@@ -97,3 +97,58 @@ test('invalid or empty pools and unbounded random values fail before producing s
   }
   assert.throws(() => rollMembersStarts(pairPools(['1']), 'unknown', () => 0), TypeError);
 });
+
+for (const length of [1, 2, 3, 4, 5]) test(`${length}-player pools retain personal eligibility and independent draws`, () => {
+  const roster = Array.from({ length }, (_, index) => ({ id: `synthetic${index}` }));
+  const pools = membersStartPools({ optionB: [bank('1')], optionBConditional: [bank('2')] }, roster,
+    { pool: 'optionB', traderWoes: { synthetic0: true } });
+  assert.deepEqual(pools.map(pool => pool.banks.map(bank => bank.chunkId)), [['1', '2'], ...roster.slice(1).map(() => ['1'])]);
+  let draws = 0;
+  const starts = rollMembersStarts(pools, 'independent', () => { draws++; return 0.75; });
+  assert.equal(draws, length);
+  assert.deepEqual(starts.map(start => start.chunkId), ['2', ...roster.slice(1).map(() => '1')]);
+  assert.deepEqual(starts.map(start => start.memberId), roster.map(member => member.id));
+});
+
+test('different pairing uniformly samples every globally minimum-overlap assignment for 1–5 players', () => {
+  const cases = [
+    ...[1, 2, 3, 4, 5].map(length => Array.from({ length }, () => ['1', '2', '3', '4', '5'])),
+    [['1'], ['1'], ['1']],
+    [['1', '2'], ['1'], ['2', '3']], // Greedy first-player selection can force an avoidable overlap.
+    [['1'], ['1'], ['1', '2'], ['1', '2']],
+    [['1', '2'], ['1', '2'], ['1', '2'], ['1', '2'], ['1', '2']],
+    [['1'], ['1'], ['1'], ['2', '3', '4', '5'], ['2', '3', '4', '5']],
+    [['1', '2'], ['1'], ['2', '3'], ['3', '4'], ['4', '5']],
+  ];
+  for (const lists of cases) {
+    let all = [[]];
+    for (const list of lists) all = all.flatMap(prefix => list.map(id => [...prefix, id]));
+    const maximum = Math.max(...all.map(assignment => new Set(assignment).size));
+    const best = all.filter(assignment => new Set(assignment).size === maximum);
+    const pools = lists.map((list, index) => ({ memberId: `synthetic${index}`, banks: list.map(bank) }));
+    const outcomes = best.map((_, index) => {
+      let draws = 0;
+      const starts = rollMembersStarts(pools, 'different', () => { draws++; return (index + 0.5) / best.length; });
+      assert.equal(draws, 1);
+      assert.deepEqual(starts.map(start => start.memberId), pools.map(pool => pool.memberId));
+      for (const [member, start] of starts.entries()) {
+        assert.ok(lists[member].includes(start.chunkId));
+        assert.equal(start.place, `Place ${start.chunkId}`);
+      }
+      return starts.map(start => start.chunkId).join(',');
+    });
+    assert.deepEqual(new Set(outcomes), new Set(best.map(assignment => assignment.join(','))), JSON.stringify(lists));
+  }
+});
+
+test('members-start helpers reject rosters outside 1–5 and invalid group draws', () => {
+  for (const length of [0, 6]) {
+    const roster = Array.from({ length }, (_, index) => `synthetic${index}`);
+    assert.throws(() => normalizeMembersStartOptions({}, roster), /one to five/);
+    assert.throws(() => rollMembersStarts(roster.map(memberId => ({ memberId, banks: [bank('1')] }))), /one to five/);
+  }
+  for (const draw of [-1, 1, NaN, Infinity, '0', undefined]) {
+    assert.throws(() => rollMembersStarts(Array.from({ length: 5 }, (_, index) => ({ memberId: `synthetic${index}`, banks: [bank('1')] })),
+      'different', () => draw), /Random must return/);
+  }
+});

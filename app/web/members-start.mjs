@@ -108,7 +108,7 @@ export function createMembersStart(ctx) {
     if (state.members.length > 1 && !banks.single) {
       const pairing = group('How to roll for the group');
       pairing.append(radio('Different banks', 'different', options.pairing, value => choices(data, { ...options, pairing: value }), 'members-start-pairing'), radio('Fully random (you might share one)', 'independent', options.pairing, value => choices(data, { ...options, pairing: value }), 'members-start-pairing')); content.append(pairing);
-    } else if (banks.single) content.append(el('p', `${solo ? 'You' : 'Both players'} start at Wendlewick. There is only one eligible bank.`, 'members-start-notice'));
+    } else if (banks.single) content.append(el('p', `${solo ? 'You' : state.members.length === 2 ? 'Both players' : 'All players'} start at Wendlewick. There is only one eligible bank.`, 'members-start-notice'));
     content.append(check('Switch the group to members rules', options.switchToMembers, value => choices(data, { ...options, switchToMembers: value }), 'Turn off the group’s F2P-only restriction. Other house rules stay as they are.'));
     const actions = el('div', undefined, 'members-start-actions');
     const review = button('Review members start', () => confirm(data, currentOptions), 'primary'); review.disabled = banks.pools.some(pool => !pool.banks.length);
@@ -152,7 +152,7 @@ export function createMembersStart(ctx) {
   }
   async function open() {
     if (!allowed()) return;
-    if (![1, 2].includes(ctx.state()?.members?.length)) { ctx.openDialog('Ready for members', el('p', 'Ready for members supports one or two players.')); return; }
+    if (![1, 2, 3, 4, 5].includes(ctx.state()?.members?.length)) { ctx.openDialog('Ready for members', el('p', 'Ready for members supports one to five players.')); return; }
     const content = el('div', undefined, 'members-start'), loading = el('p', 'Loading starting banks…'); loading.setAttribute('role', 'status'); content.append(loading);
     const generation = ctx.openDialog('Ready for members', content);
     try { const response = await ctx.api('/api/members-start'); if (!allowed() || !(ctx.dialogCurrent?.(generation) ?? true)) return; choices(response.data, normalizeMembersStartOptions({ pool: 'optionA', pairing: 'different', switchToMembers: true }, ctx.state().members.map(member => member.id))); }

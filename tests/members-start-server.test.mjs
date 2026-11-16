@@ -17,7 +17,7 @@ const command = { type: 'go-members', options: { pool: 'optionB', pairing: 'inde
 
 async function fixture(t, memberCount = 2) {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-members-start-'));
-  const initialState = createGroupState([{ id: 'player1', name: 'Player 1', unlocked: ['100'] }, { id: 'player2', name: 'Player 2', unlocked: ['200'] }].slice(0, memberCount));
+  const initialState = createGroupState(Array.from({ length: memberCount }, (_, index) => ({ id: `player${index + 1}`, name: `Player ${index + 1}`, unlocked: [index % 2 ? '200' : '100'] })));
   initialState.rules['content.f2p'] = true;
   initialState.tasks = [{ id: 'quest:retained', category: 'quest', label: 'Retained quest' }];
   initialState.members[0].completedTasks = ['quest:retained'];
@@ -92,7 +92,7 @@ test('members-start candidates and command require write access; either linked p
   assert.equal((await f.request('/api/command', partner, { expectedRevision: after.revision, command })).status, 200);
 });
 
-for (const memberCount of [1, 2]) test(`${memberCount}-player members reset keeps a labelled pinned durable backup of the full previous state; conflicts create no backup`, async t => {
+for (const memberCount of [1, 2, 3, 4, 5]) test(`${memberCount}-player members reset keeps a labelled pinned durable backup of the full previous state; conflicts create no backup`, async t => {
   const f = await fixture(t, memberCount);
   const before = await f.application.store.backup();
   const stale = await f.request('/api/command', f.admin, { expectedRevision: 999, command });
@@ -114,6 +114,8 @@ for (const memberCount of [1, 2]) test(`${memberCount}-player members reset keep
   assert.deepEqual(retained.state, before.state);
   assert.deepEqual((await f.application.store.readBackup(backups[0].id)).state, before.state);
   await f.restart();
+  assert.deepEqual(f.application.store.getState().members, changed.members, 'reopening retains every recorded start without rerolling');
+  assert.deepEqual(f.application.store.getState().history.at(-1).command.starts, changed.history.at(-1).command.starts);
   assert.equal(f.application.store.getState().rules['content.f2p'], false);
   const reopenedBackup = (await f.application.store.listBackups()).find(backup => backup.id === backups[0].id);
   assert.equal(reopenedBackup.label, 'Before going members');

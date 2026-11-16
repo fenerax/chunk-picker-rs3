@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { MEMBER_KEYS, createGroupState, validateState, applyCommand, applyValidatedCommand, exportBackup, importBackup } from '../app/core/state.mjs';
+import { describeHistoryEvent } from '../app/web/history-text.mjs';
 
 const banks = JSON.parse(await readFile(new URL('../app/data/members-start-banks.2026-10-12.v1.json', import.meta.url), 'utf8'));
 const now = () => '2026-10-12T12:00:00.000Z';
@@ -141,11 +142,33 @@ test('going members rejects forged result fields, invalid options and malformed 
   }
 });
 
-test('members starts still reject groups of three to five without drawing or changing maps', () => {
-  for (const length of [3, 4, 5]) {
-    const original = createGroupState(Array.from({ length }, (_, index) => ({ id: `player${index + 1}`, name: `Player ${index + 1}` })));
-    const before = structuredClone(original);
-    assert.throws(() => applyCommand(original, command(), { ...options, random: () => { assert.fail('No draw for unsupported groups'); } }), /supports one or two players/);
-    assert.deepEqual(original, before);
+for (const length of [1, 2, 3, 4, 5]) test(`${length}-player members starts preserve separate maps, History and Undo`, () => {
+  const original = createGroupState(Array.from({ length }, (_, index) => ({ id: `player${index + 1}`, name: `Player ${index + 1}`,
+    unlocked: [index % 2 ? '200' : '100'] })));
+  const before = structuredClone(original);
+  const syntheticBanks = { version: 'synthetic-v1', optionA: ['101', '102', '200', '201', '202'].map(chunkId => ({ chunkId, place: `Bank ${chunkId}` })) };
+  const changed = applyCommand(original, command(), { ...options, membersStartBanks: syntheticBanks });
+  assert.deepEqual(original, before);
+  const starts = changed.history.at(-1).command.starts;
+  assert.equal(starts.length, length);
+  assert.equal(new Set(starts.map(start => start.chunkId)).size, length);
+  for (const [index, member] of changed.members.entries()) {
+    assert.equal(starts[index].memberId, member.id);
+    assert.deepEqual(member.unlocked, [starts[index].chunkId]);
+    assert.equal(member.preferences.startingChunk, starts[index].chunkId);
+    assert.deepEqual(member.f2pMap.unlocked, before.members[index].unlocked);
   }
+  assert.deepEqual(importBackup(exportBackup(changed)), changed);
+  const description = describeHistoryEvent(changed.history.at(-1), { memberName: id => original.members.find(member => member.id === id).name });
+  for (const start of starts) assert.ok(description.includes(`${original.members.find(member => member.id === start.memberId).name} at ${start.place}`));
+  if (length > 2) assert.match(description, /Restarted group maps/);
+  assert.deepEqual(applyCommand(changed, { type: 'undo' }, options).members, before.members);
+});
+
+test('a five-player transition keeps personal bank eligibility when overlaps are unavoidable', () => {
+  const original = createGroupState(Array.from({ length: 5 }, (_, index) => ({ id: `player${index + 1}`, name: `Player ${index + 1}` })));
+  const syntheticBanks = { version: 'synthetic-v1', optionB: [{ chunkId: '101', place: 'First bank' }],
+    optionBConditional: [{ chunkId: '102', place: 'Second bank' }] };
+  const changed = applyCommand(original, command({ pool: 'optionB', traderWoes: { player5: true } }), { ...options, membersStartBanks: syntheticBanks });
+  assert.deepEqual(changed.members.map(member => member.unlocked), [['101'], ['101'], ['101'], ['101'], ['102']]);
 });

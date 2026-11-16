@@ -95,7 +95,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'cancel-roll': return `Cancelled the roll${forWho}`;
     case 'random-start': return `Chose ${c.count === 2 ? 'two random starting chunks' : 'a random start'}${forWho}`;
     case 'setup-start': return `Rolled starting banks${c.starts?.length ? `: ${c.starts.map(start => `${player(start.memberId)} at ${start.place || chunk(start.chunkId)}`).join(', ')}` : ''}`;
-    case 'go-members': return `Restarted both maps for members${c.starts?.length ? `: ${c.starts.map(start => `${player(start.memberId)} at ${start.place || chunk(start.chunkId)}`).join('; ')}` : ''}`;
+    case 'go-members': return `Restarted ${c.starts?.length > 2 ? 'group' : 'both'} maps for members${c.starts?.length ? `: ${c.starts.map(start => `${player(start.memberId)} at ${start.place || chunk(start.chunkId)}`).join('; ')}` : ''}`;
     case 'unpick': return `Forfeited ${c.unpicked ? chunk(c.unpicked) : 'an unlocked chunk'} at random${forWho}`;
     case 'set-starting-chunk': return c.chunkId === null ? `Cleared the starting chunk${forWho}` : `Set the starting chunk to ${chunk(c.chunkId)}${forWho}`;
     case 'set-note': return `${c.note ? 'Edited' : 'Cleared'} the note on ${chunk(c.chunkId)}${forWho}`;

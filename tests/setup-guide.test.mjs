@@ -11,7 +11,7 @@ const { describeHistoryEvent } = await import('../app/web/history-text.mjs');
 // Synthetic banks and chunks only: real starting banks come from the dataset's
 // members-start-banks file (its optionAF2PExtension list).
 const banks = [{ chunkId: '101', place: 'North Town', bank: 'North Town bank' }, { chunkId: '102', place: 'South Town', bank: 'South Town bank' }];
-const world = { chunks: new Map(['100', '101', '102', '103'].map(id => [id, { name: `Chunk ${id}` }])), surface: new Set(['100', '101', '102', '103']) };
+const world = { chunks: new Map(['100', '101', '102', '103', '104', '105'].map(id => [id, { name: `Chunk ${id}` }])), surface: new Set(['100', '101', '102', '103', '104', '105']) };
 const settingDefinitions = [{ id: 'roll2', type: 'boolean', default: true, label: 'Roll 2' },
   { id: 'theme', type: 'enum', options: ['dark', 'gray', 'light'], default: 'dark', label: 'Theme' }];
 
@@ -177,6 +177,24 @@ test('the starting step rolls only for players still without a start and explain
   assert.ok(none.nodes().some(node => /no starting-bank list yet/.test(node.textContent)));
   assert.equal(none.button('Roll starting banks'), undefined);
   assert.ok(!none.button('Retry') || none.button('Retry').hidden);
+});
+
+for (const length of [1, 2, 3, 4, 5]) test(`the setup guide rolls valid distinct starts for ${length} players`, async () => {
+  const state = createGroupState(Array.from({ length }, (_, index) => ({ id: index ? `synthetic${index}` : 'one', name: `Explorer ${index + 1}` })));
+  const syntheticBanks = ['101', '102', '103', '104', '105'].map(chunkId => ({ chunkId, place: `Bank ${chunkId}` }));
+  const h = harness({ state, data: { optionAF2PExtension: syntheticBanks } });
+  h.guide.open(); await h.button('Next').events.click(); await h.button('Next').events.click(); await settle();
+  await h.button(length === 1 ? 'Roll a starting bank' : 'Roll starting banks').events.click();
+  assert.deepEqual(h.commands(), [{ type: 'setup-start' }]);
+  assert.equal(new Set(h.state().members.map(member => member.unlocked[0])).size, length);
+  const event = h.state().history.at(-1);
+  assert.equal(event.command.starts.length, length);
+  for (const [index, member] of h.state().members.entries()) {
+    assert.equal(event.command.starts[index].memberId, member.id);
+    assert.ok(syntheticBanks.some(bank => bank.chunkId === member.unlocked[0]));
+    assert.equal(member.preferences.startingChunk, member.unlocked[0]);
+  }
+  assert.deepEqual(applyCommand(h.state(), { type: 'undo' }, { world }).members, state.members);
 });
 
 test('a failed starting-bank load can retry on the same step and show banks', async () => {
