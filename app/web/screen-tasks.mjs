@@ -45,34 +45,43 @@ export function createScreenTasks(c) {
 
   function backlogForm(host, task, after, owner = c.memberId) {
     if (!c.canWrite()) return;
-    const existing = host.querySelector?.(':scope > .backlog-form');
-    if (existing) { existing.querySelector('input')?.focus(); return; }
-    const form = c.el('form', undefined, 'backlog-form'), reason = c.input('text');
-    // The optimistic redraw replaces this row while saving; a refused save
-    // keeps the typed reason here so reopening Backlog restores it.
+    const form = c.el('form', undefined, 'backlog-reason-dialog'), reason = c.input('text');
+    // Retain both fields if a refused save is dismissed and reopened.
     const backlogDrafts = c.backlogDrafts ??= new Map(), draftKey = JSON.stringify([owner, task.id]);
-    reason.value = backlogDrafts.get(draftKey) ?? '';
+    const draft = backlogDrafts.get(draftKey);
+    reason.value = draft?.text ?? '';
+    const choices = c.el('fieldset'), radios = [];
+    choices.append(c.el('legend', 'Reason (optional)'));
+    for (const value of ['', 'Later', 'Need progress', 'Task looks wrong', 'Other']) {
+      const radio = c.input('radio'), label = c.el('label', undefined, 'backlog-reason-choice');
+      radio.name = 'backlog-reason'; radio.value = value; radio.checked = value === (draft?.preset ?? '');
+      label.append(radio, c.el('span', value || 'No reason')); choices.append(label); radios.push(radio);
+    }
     const trigger = document.activeElement;
     const dismiss = () => {
       backlogDrafts.delete(draftKey);
-      form.remove();
+      c.closeDialog(generation);
       const available = node => node && node !== document.body && typeof node.focus === 'function' && node.isConnected !== false && !node.disabled && !node.hidden && !node.closest?.('[hidden]');
       const fallback = host.querySelector?.('.task-backlog, .backlog-open, .task-label-button');
       (available(trigger) ? trigger : available(fallback) ? fallback : null)?.focus();
+      after?.();
     };
-    reason.placeholder = 'Reason (optional)'; reason.maxLength = 200; reason.setAttribute('aria-label', `Why backlog ${c.plain(task.label)}?`);
+    reason.maxLength = 200;
+    const details = c.el('label', 'Details (optional)'); details.append(reason);
     const save = c.el('button', 'Backlog', 'primary-action'); save.type = 'submit';
     const cancel = c.button('Cancel', dismiss);
-    form.append(reason, save, cancel);
+    const actions = c.el('div', undefined, 'form-actions'); actions.append(save, cancel);
+    form.append(c.el('p', c.plain(task.label)), choices, details, actions);
     form.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismiss(); } });
     form.addEventListener('submit', async event => {
-      event.preventDefault(); save.disabled = true;
-      const text = reason.value.trim();
-      backlogDrafts.set(draftKey, reason.value);
-      try { await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason: text }); backlogDrafts.delete(draftKey); after?.(); }
+      event.preventDefault(); if (save.disabled || !c.dialogCurrent(generation)) return; save.disabled = true;
+      const preset = radios.find(radio => radio.checked)?.value ?? '', text = reason.value.trim();
+      backlogDrafts.set(draftKey, { preset, text: reason.value });
+      const backlogReason = [preset, text].filter(Boolean).join(': ');
+      try { await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason }); backlogDrafts.delete(draftKey); if (c.dialogCurrent(generation)) { c.closeDialog(generation); after?.(); } }
       catch (error) { save.disabled = false; c.showError(error); }
     });
-    host.append(form); reason.focus?.();
+    const generation = c.openDialog('Backlog task', form); radios.find(radio => radio.checked)?.focus();
   }
 
   // The command identity a row's controls act on; task-focus.mjs matches it across redraws.

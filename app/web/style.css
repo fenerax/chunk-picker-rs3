@@ -1023,6 +1023,14 @@ img.skill-badge{border-radius:0;object-fit:contain;image-rendering:auto}
 .task-row>.backlog-form{grid-column:2 / -1;order:3;margin-top:0}
 .backlog-form input{flex:1 1 8rem;min-width:0;font-size:var(--type-sm);padding:var(--space-2) var(--space-4)}
 .backlog-form button{font-size:var(--type-sm);padding:var(--space-2) var(--space-4)}
+.backlog-reason-dialog{display:grid;gap:var(--space-5);max-width:30rem}
+.backlog-reason-dialog>p{margin:0;overflow-wrap:anywhere}
+.backlog-reason-dialog fieldset{margin:0;padding:0;border:0;min-width:0}
+.backlog-reason-choice{display:flex;align-items:center;gap:var(--space-4);min-height:44px;cursor:pointer}
+.backlog-reason-choice input{margin:0;flex:none}
+.backlog-reason-dialog>label{display:grid;gap:var(--space-3)}
+.backlog-reason-dialog input[type=text]{width:100%;min-width:0}
+.backlog-reason-dialog .form-actions{margin-top:0}
 .backlog-reason{color:var(--task-link,var(--panel-link,var(--link)));font-style:italic}
 .task-backlog-box{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4)}
 .task-backlog-box>p{margin:0}

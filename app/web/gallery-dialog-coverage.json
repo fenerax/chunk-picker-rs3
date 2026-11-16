@@ -1,4 +1,7 @@
 {
+  "app/web/screen-tasks.mjs :: 'Backlog task'": {
+    "reason": "Task-row action dialog with native reason choices and optional details; synthetic backlog interaction tests cover cancellation, owner selection and refused-save draft recovery."
+  },
   "app/web/account-panel.mjs :: 'Account'": {
     "reason": "Account uses the Settings layout. Provider redirects and sign-out change authentication, which the read-only gallery cannot perform; generated-account browser evidence covers these controls at desktop and phone widths."
   },

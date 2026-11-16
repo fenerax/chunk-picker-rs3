@@ -114,10 +114,12 @@ test('unticking a grouped display row changes its saved source completion', asyn
   assert.equal(h.calls[0].payload.taskId, source.id); assert.equal(h.calls[0].payload.memberId, 'actor1');
 });
 
-test('backlog delegates to the normal inline form with the selected player', async () => {
+test('backlog delegates to the reason dialog with the selected player and returns to Completed Tasks', async () => {
   const own = task('custom:oak', 'Chop oak logs'); const h = harness([own]); h.state.members[0].taskStatus[own.id] = { challengeCompleted: true };
   await h.panel.open(); await flush(); await h.click('Backlog Chop oak logs for Player…');
   assert.equal(h.backlog.length, 1); assert.equal(h.backlog[0][1].id, own.id); assert.equal(h.backlog[0][3], 'actor1'); assert.equal(typeof h.backlog[0][2], 'function');
+  h.close(); await h.backlog[0][2](); await flush();
+  assert.equal(h.opened.at(-1), 'Completed Tasks'); assert.ok(h.find('button', 'Player'));
   await h.click('Reed'); await h.click('Backlog Chop oak logs for Reed…'); assert.equal(h.backlog.at(-1)[3], 'reed');
 });
 

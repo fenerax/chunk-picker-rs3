@@ -108,7 +108,7 @@ test('closing a menu restores its opener only when it still owns focus, with map
   h.c.closeChunkMenu(); assert.equal(h.focused(), opener, 'outside pointer focus stays outside');
 });
 
-test('task names omit markup, viewers cannot write, and backlog dismissal returns focus', async () => {
+test('backlog reason dialog preserves optional reasons, owner, cancellation and refused-save drafts', async () => {
   const h = fixture(), calls = [];
   const taskSource = (await readFile(new URL('../app/web/screen-tasks.mjs', import.meta.url), 'utf8'))
     .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
@@ -120,6 +120,12 @@ test('task names omit markup, viewers cannot write, and backlog dismissal return
     iconButton: label => { const node = h.node('button'); node.setAttribute('aria-label', label); return node; },
     command: async command => calls.push(command),
   };
+  const dialog = h.node('dialog'), content = h.node('div'), errors = [];
+  let generation = 0;
+  c.openDialog = (title, form) => { dialog.title = title; dialog.open = true; content.replaceChildren(form); return ++generation; };
+  c.dialogCurrent = value => dialog.open && value === generation;
+  c.closeDialog = value => { if (c.dialogCurrent(value)) { dialog.open = false; content.replaceChildren(); } };
+  c.showError = error => errors.push(error);
   runInContext(taskSource + '\ncreateScreenTasks(c);', createContext({
     c, document: h.document, createTaskClaimClock: () => ({}),
     createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {}, appendTaskWhy() {}, appendTaskHow() {}, isCustomTask: () => false,
@@ -133,12 +139,42 @@ test('task names omit markup, viewers cannot write, and backlog dismissal return
   const host = h.node('div'), trigger = h.node('button'), fallback = h.node('button');
   host.querySelector = selector => selector.startsWith(':scope') ? undefined : fallback;
   trigger.focus(); c.backlogForm(host, { id: 'one', label: 'Mine copper' });
-  let form = host.children[0]; assert.equal(h.focused(), form.children[0]);
-  form.children[2].emit('click'); assert.equal(host.children.length, 0); assert.equal(h.focused(), trigger);
+  assert.equal(dialog.title, 'Backlog task'); assert.equal(dialog.open, true);
+  const walk = node => [node, ...node.children.flatMap(walk)];
+  const form = () => content.children[0];
+  const find = (tag, text) => walk(form()).find(node => node.tagName === tag && node.textContent === text);
+  const radios = () => walk(form()).filter(node => node.type === 'radio');
+  const reason = () => walk(form()).find(node => node.type === 'text');
+  const submit = () => form().emit('submit', { preventDefault() {} });
+  assert.deepEqual(radios().map(node => node.value), ['', 'Later', 'Need progress', 'Task looks wrong', 'Other']);
+  assert.equal(h.focused(), radios()[0]); assert.equal(radios()[0].checked, true);
+  find('BUTTON', 'Cancel').emit('click'); assert.equal(dialog.open, false); assert.equal(h.focused(), trigger);
   trigger.focus(); c.backlogForm(host, { id: 'one', label: 'Mine copper' });
-  form = host.children[0]; trigger.isConnected = false;
+  trigger.isConnected = false;
   let prevented = false, stopped = false;
-  form.emit('keydown', { key: 'Escape', preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
+  form().emit('keydown', { key: 'Escape', preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
   assert.equal(prevented, true); assert.equal(stopped, true);
-  assert.equal(host.children.length, 0); assert.equal(h.focused(), fallback); assert.equal(calls.length, 0);
+  assert.equal(dialog.open, false); assert.equal(h.focused(), fallback); assert.equal(calls.length, 0);
+  const task = { id: 'one', label: 'Mine copper' };
+  for (const preset of ['', 'Later', 'Need progress', 'Task looks wrong', 'Other']) {
+    c.backlogForm(host, task, undefined, 'actor2');
+    for (const radio of radios()) radio.checked = radio.value === preset;
+    await submit();
+    assert.equal(calls.at(-1).memberId, 'actor2'); assert.equal(calls.at(-1).taskId, 'one');
+    assert.equal(calls.at(-1).type, 'set-task-status'); assert.equal(calls.at(-1).backlogged, true);
+    assert.equal(calls.at(-1).backlogReason, preset); assert.equal(dialog.open, false);
+  }
+  c.backlogForm(host, task); reason().value = '  Wait for supplies  '; await submit();
+  assert.equal(calls.at(-1).backlogReason, 'Wait for supplies');
+  const refused = new Error('Save refused'); c.command = async () => { throw refused; };
+  c.backlogForm(host, task, undefined, 'actor2');
+  for (const radio of radios()) radio.checked = radio.value === 'Task looks wrong';
+  reason().value = 'Check this method'; await submit();
+  assert.equal(dialog.open, true); assert.equal(find('BUTTON', 'Backlog').disabled, false); assert.deepEqual(errors, [refused]);
+  c.closeDialog(generation); c.backlogForm(host, task, undefined, 'actor2');
+  assert.equal(reason().value, 'Check this method'); assert.equal(radios().find(node => node.checked).value, 'Task looks wrong');
+  c.command = async command => calls.push(command); await submit();
+  assert.equal(calls.at(-1).backlogReason, 'Task looks wrong: Check this method');
+  c.backlogForm(host, task, undefined, 'actor2'); assert.equal(reason().value, '');
+  find('BUTTON', 'Cancel').emit('click');
 });

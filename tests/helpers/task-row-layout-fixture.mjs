@@ -19,20 +19,20 @@ const appendWhyOnly = row => {
 const appendWhy = row => { appendHow(row); appendWhyOnly(row); };
 const taskIcon = body => { const node = el('img', undefined, 'task-icon'); node.src = '/placeholder-art/item.svg'; node.alt = ''; body.append(node); };
 const section = el('section'); document.querySelector('#active-tasks').append(section);
-function solo(id, { completed = false, readOnly = false, how = true, form = false, claimState = state } = {}) {
+function solo(id, { completed = false, readOnly = false, how = true, backlogged = false, claimState = state } = {}) {
   const row = el('div', undefined, 'task-row'); row.id = id; row.dataset.completed = String(completed);
   const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.checked = completed; checkbox.setAttribute('aria-label', 'Mark synthetic task done');
   const body = el('div', undefined, 'task-body'), content = el('div'); taskIcon(body);
   content.append(button(task.label, () => {}, 'task-label-button'), el('span', 'Level 1', 'task-meta'));
-  if (completed) content.append(el('span', 'Done by Player 2', 'task-meta')); else appendClaim(content, claimState);
+  if (completed) content.append(el('span', 'Done by Player 2', 'task-meta')); else if (!backlogged) appendClaim(content, claimState);
+  if (backlogged) content.append(el('span', 'Backlogged: Later', 'task-meta backlog-reason'));
   body.append(content); row.append(readOnly ? el('span', completed ? 'Done' : 'Not done', 'task-completion-status') : checkbox, body);
   if (how) appendHow(row);
   const why = button('', () => {}, 'icon-button task-why'); why.setAttribute('aria-label', 'Why is this task here?'); why.append(icon('why'));
   const wiki = el('a', undefined, 'icon-button'); wiki.href = '#wiki'; wiki.setAttribute('aria-label', 'Open RuneScape Wiki'); wiki.append(icon('wiki'));
-  const backlog = button('', () => {}, 'icon-button task-backlog'); backlog.setAttribute('aria-label', 'Backlog task'); backlog.append(icon('backlog'));
+  const backlog = button('', () => {}, 'icon-button task-backlog'); backlog.setAttribute('aria-label', backlogged ? 'Restore task from backlog' : 'Backlog task'); backlog.append(icon(backlogged ? 'restore' : 'backlog'));
   row.append(why, wiki, backlog);
   if (readOnly) backlog.hidden = true;
-  if (form) { const form = el('form', undefined, 'backlog-form'); const reason = el('input'); reason.placeholder = 'Reason for backlogging'; form.append(reason, button('Backlog', () => {}), button('Cancel', () => {})); row.append(form); }
   section.append(row); return row;
 }
 solo('solo');
@@ -45,7 +45,7 @@ const duoOptions = { document, getState: () => state, getSelectedMember: () => '
 const duo = createDuoTaskView(duoOptions);
 const duoRow = duo.row({ task, memberIds: ['one', 'two'], label: 'Player 2 and Explorer', facts: { group: false, personal: false, completedBy: [] } });
 duoRow.id = 'duo'; section.append(duoRow);
-solo('backlogged', { how: false, form: true });
+solo('backlogged', { how: false, backlogged: true });
 window.appendLayoutRegressions = () => {
   solo('solo-no-how', { how: false });
   solo('readonly-no-how', { readOnly: true, how: false });
