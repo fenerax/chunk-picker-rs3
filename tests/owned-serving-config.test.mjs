@@ -95,6 +95,17 @@ test('pinned preparation uses base catalogue membership and refuses another data
     assert.throws(() => migrate(foreign, { operation }), { status: 422 });
   }
   assert.equal(JSON.stringify(state), original);
+  const legacy = structuredClone(state);
+  legacy.members[0].sourceMapId = 'synthetic';
+  legacy.legacy = { maps: { synthetic: { randomLoot: { 'Synthetic ore': true } } } };
+  const imported = migrate(legacy, { operation: 'replace' });
+  delete imported.legacy.gameplayMigration.randomLootSources;
+  assert.equal(migrate.isCurrent(imported), false, 'Earlier migrations still need random-loot conversion');
+  const upgraded = migrate(imported, { operation: 'load' });
+  assert.deepEqual(upgraded.legacy.gameplayMigration.randomLootSources.synthetic.Items, { 'Synthetic ore': false });
+  assert.equal(migrate.isCurrent(upgraded), true);
+  delete upgraded.legacy.gameplayMigration.randomLootSources.synthetic.Items;
+  assert.equal(migrate.isCurrent(upgraded), true, 'Removing declared sources never replays the raw input');
   const stale = structuredClone(state);
   stale.legacy = { ...stale.legacy, gameplayMigration: { schemaVersion: 2, progressAliasesVersion: 1, warnings: [], report: { catalogueTasks: 0 } } };
   const context = { operation: 'load' }; assert.equal(migrate.isCurrent(stale), true);

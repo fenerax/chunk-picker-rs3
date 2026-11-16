@@ -40,7 +40,7 @@ import { loadDatasetInputs, loadOriginalSyncIntegration } from './dataset-bootst
 import { archaeologyTaskCorrections } from './data/archaeology-task-corrections.mjs';
 import { createGroupState } from './core/state.mjs';
 import { builtInRules, createRuleRegistry } from './core/rules.mjs';
-import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId, hasCompleteMigrationCatalogue } from './tasks/migration.mjs';
+import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, hasCurrentRandomLootMigration, migrateOwnedGameplay, resolveSavedTaskId, hasCompleteMigrationCatalogue } from './tasks/migration.mjs';
 const trainingCatalogue = await datasetJSON("app/data/training/methods.f2p.json");
 const membersStartBanks = await datasetJSON("app/data/members-start-banks.2026-10-12.v1.json");
 import { createIconCatalogue, ICON_BUNDLES } from './data/icons.mjs';
@@ -332,7 +332,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     const ownersReady = state.members.every(member => member.sourceMapId == null || (previous?.schemaVersion >= 2 && hasGameplayMigration(state, member)));
     const identitiesReady = state.members.every(member => [...member.completedTasks, ...Object.keys(member.taskStatus ?? {})].every(id => resolveSavedTaskId(state.identityRegistry, id) === id)
       && Object.entries(member.taskAlternatives ?? {}).every(([category, groups]) => Object.values(groups).every(id => id === null || resolveSavedTaskId(state.identityRegistry, id, category) === id)));
-    return catalogueReady && ownersReady && identitiesReady && hasCurrentProgressAliasMigration(state) && hasCurrentJournalMigration(state)
+    return catalogueReady && ownersReady && identitiesReady && hasCurrentProgressAliasMigration(state) && hasCurrentJournalMigration(state) && hasCurrentRandomLootMigration(state)
       && state.identityRegistry?.schemaVersion === 1 && (!previous || previous.schemaVersion >= 2);
   };
   const migrateState = taskWorker ? async (state, context) => {

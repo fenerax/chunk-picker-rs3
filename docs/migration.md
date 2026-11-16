@@ -93,6 +93,22 @@ conflicting records are separately visible for review.
   keys have no compatible base-chunk field, so they remain raw and produce a warning.
 - `chunkinfo.manualSections` becomes `member.sectionOverrides` with `base-section` keys.
 - primitive values from the member's source map `rules` become `member.taskRules`.
+- Named entries in an object-valued `randomLoot` become secondary manual item
+  sources (`Items[name]: false`), matching the original picker's key-only
+  conversion regardless of entry values. Existing `manualMonsters.Items`
+  declarations win. The separate projection lives at
+  `state.legacy.gameplayMigration.randomLootSources[mapId].Items`; the entire raw
+  map, including `randomLoot`, stays unchanged. `report.imported.randomLootSources`
+  counts converted sources. Backlogging an item or removing its projected entry
+  removes its contribution. The per-map projection marker stays after removal,
+  so repeated migration and backup restore preserve edits and deletions. Earlier
+  migrations receive this conversion once during preparation.
+  Sources never mark equipment obtained or add personal completion. Arrays and
+  other non-object containers, blank/numeric/unsafe names, markup and names that
+  cannot be decoded consistently remain raw and warn by map and entry in the
+  migration summary; these warnings also survive backup/restore. Names otherwise
+  stay exact; no fuzzy catalogue matching is attempted. Existing membership and
+  source-backlog gates still apply.
 
 Upstream Firebase encoding is decoded recursively, including numeric `*fb*_` keys and `-_-20`
 percent escapes. Existing authored member values win when a migrated value addresses the same field.

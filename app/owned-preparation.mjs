@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration,
+import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, hasCurrentRandomLootMigration,
   migrateOwnedGameplay, resolveSavedTaskId, hasCompleteMigrationCatalogue } from './tasks/migration.mjs';
 import { legacyTaskId } from './tasks/identity.mjs';
 
@@ -40,7 +40,7 @@ export function createPinnedOwnedMigration(runtime, base) {
       && state.members.every(member => member.sourceMapId == null || previous?.schemaVersion >= 2 && hasGameplayMigration(state, member))
       && state.members.every(member => [...member.completedTasks, ...Object.keys(member.taskStatus ?? {})].every(id => resolveSavedTaskId(state.identityRegistry, id) === id)
         && Object.entries(member.taskAlternatives ?? {}).every(([category, groups]) => Object.values(groups).every(id => id === null || resolveSavedTaskId(state.identityRegistry, id, category) === id)))
-      && hasCurrentProgressAliasMigration(state) && hasCurrentJournalMigration(state)
+      && hasCurrentProgressAliasMigration(state) && hasCurrentJournalMigration(state) && hasCurrentRandomLootMigration(state)
       && state.identityRegistry?.schemaVersion === 1 && (!previous || previous.schemaVersion >= 2);
   };
   const migrate = (state, context) => {

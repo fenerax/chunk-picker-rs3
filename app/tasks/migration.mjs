@@ -19,6 +19,12 @@ export function hasCurrentJournalMigration(state) {
     || migrated.some(entry => entry.memberId === member.id && entry.sourceMapId === member.sourceMapId));
 }
 
+export function hasCurrentRandomLootMigration(state) {
+  return state.members.every(member => member.sourceMapId == null
+    || state.legacy?.maps?.[member.sourceMapId]?.randomLoot == null
+    || Object.hasOwn(state.legacy?.gameplayMigration?.randomLootSources ?? {}, member.sourceMapId));
+}
+
 const FIREBASE_NUMBER_PREFIX = '*fb*_';
 const TASK_ID_PREFIX = 'rs3:';
 const SOURCE_KINDS = new Set(['objects', 'npcs', 'monsters', 'shops', 'spawns', 'items']);
@@ -559,6 +565,37 @@ export function forcedTaskWarnings(state) {
   return warnings;
 }
 
+// Upstream manualMonsterCombiner uses item keys only, ignoring their values,
+// and never replaces an existing manual declaration. Keep that Items shape in
+// a separate projection so even chunkinfo remains exact in the retained map.
+function randomLootProjection(state) {
+  const sources = {}, warnings = [];
+  for (const mapId of new Set(state.members.map(member => member.sourceMapId).filter(id => id != null))) {
+    const map = state.legacy?.maps?.[mapId];
+    if (map?.randomLoot == null) continue;
+    const warn = (entry, reason) => warnings.push(`${displayText(mapId)}: random-loot ${entry} ${reason}; review the original retained in the backup.`);
+    const items = {};
+    if (!record(map.randomLoot)) warn('container', 'cannot be represented');
+    else {
+      const existing = new Set(Object.keys(map.chunkinfo?.manualMonsters?.Items ?? {}).map(decodeLegacyText));
+      for (const rawName of Object.keys(map.randomLoot)) {
+        const name = decodeLegacyText(rawName);
+        if (!name.trim() || name !== name.trim() || /^\d+$/.test(name)
+          || ['__proto__', 'prototype', 'constructor'].includes(name) || /[<>]/.test(rawName)
+          || decodeLegacyText(name) !== name) {
+          warn(`item ${JSON.stringify(displayText(rawName))}`, 'has an unsupported name');
+        } else if (!existing.has(name)) items[name] = false;
+      }
+    }
+    Object.defineProperty(sources, mapId, { value: { Items: items }, enumerable: true, configurable: true, writable: true });
+  }
+  return { sources, warnings };
+}
+
+export function randomLootWarnings(state) {
+  return randomLootProjection(state).warnings;
+}
+
 /**
  * Migrate gameplay facts preserved by importLegacyMaps into the authored schema.
  * The original state and all state.legacy.maps payloads remain unchanged.
@@ -606,13 +643,22 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
   const previous = next.legacy?.gameplayMigration;
   // Diagnostics are durable migration evidence. migrationSummary prepares the
   // readable, bounded display copy without replacing the saved original text.
-  const warnings = [...cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []), ...forcedTaskWarnings(next), ...customRequirements.warnings];
+  const randomLoot = randomLootProjection(next);
+  const warnings = [...cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []), ...forcedTaskWarnings(next), ...customRequirements.warnings, ...randomLoot.warnings];
   const unresolved = cloneJson(previous?.unresolved ?? []);
   const provenance = new Map((previous?.taskStatusProvenance ?? []).map(entry => [`${entry.memberId}\u0000${entry.taskId}`, cloneJson(entry)]));
   const migratedMembers = cloneJson(Array.isArray(previous?.migratedMembers) ? previous.migratedMembers : []).filter(record);
   const journalMigratedMembers = cloneJson(Array.isArray(previous?.journalMigratedMembers) ? previous.journalMigratedMembers : []).filter(record);
   const counts = { challengeCompleted: 0, backlogged: 0, favorite: 0, notes: 0, journals: 0,
     sectionOverrides: 0, taskRules: 0, areaOverrides: 0, sourceBacklogs: 0 };
+  const randomLootSources = cloneJson(previous?.randomLootSources ?? {});
+  if (Object.keys(randomLootSources).length) counts.randomLootSources = 0;
+  for (const [mapId, sources] of Object.entries(randomLoot.sources)) {
+    // The per-map marker remains even when every projected source is removed.
+    if (Object.hasOwn(randomLootSources, mapId)) continue;
+    Object.defineProperty(randomLootSources, mapId, { value: sources, enumerable: true, configurable: true, writable: true });
+    counts.randomLootSources = (counts.randomLootSources ?? 0) + Object.keys(sources.Items).length;
+  }
   const maps = next.legacy?.maps ?? {};
 
   for (const member of next.members) {
@@ -665,6 +711,7 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
     progressAliasesVersion: 1,
     migratedMembers,
     journalMigratedMembers,
+    ...(Object.keys(randomLootSources).length ? { randomLootSources } : {}),
     imported: Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, (previous?.imported?.[key] ?? previous?.report?.imported?.[key] ?? 0) + value])),
     unresolved: cloneJson(unresolved),
     taskStatusProvenance: [...provenance.values()].map(entry => ({ ...entry, sources: [...entry.sources].sort() })),
