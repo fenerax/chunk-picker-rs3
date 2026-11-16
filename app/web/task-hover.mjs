@@ -47,7 +47,7 @@ export function renderTaskHover(task, { document, result, equipment = {}, locati
   // Extra is a catch-all; its group names the rule that added the task (for example BIS Skilling).
   const group = task.category === 'Extra' && task.record?.Label && task.record.Label !== task.category ? ` · ${plain(task.record.Label)}` : '';
   card.append(el('p', `${task.category}${group}${task.level && !(task.generated && task.category === 'BiS') ? ` · Level ${task.level}` : ''}`, 'task-hover-meta'));
-  const availability = task.status === 'available' ? 'Doable now' : plain(task.blockers?.[0]?.detail) || (task.status === 'completed' ? 'Completed' : 'Needs review');
+  const availability = task.status === 'available' ? 'Reachable in your chunks' : plain(task.blockers?.[0]?.detail) || (task.status === 'completed' ? 'Completed' : 'Needs review');
   const state = el('p', availability, 'task-hover-state'); state.dataset.doable = task.status === 'available'; card.append(state);
   const stats = renderTaskEquipment(task, result, equipment, { document, compact: true, iconLookup });
   if (stats) card.append(stats);

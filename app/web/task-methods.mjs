@@ -16,13 +16,13 @@ export function createTaskMethods({ document = globalThis.document, tasks, activ
     finally { button.disabled = false; }
   }
   const unique = [...new Map(tasks.map(task => [task.id, task])).values()].sort((left, right) => Number(right.id === activeId) - Number(left.id === activeId));
-  for (const [ready, title] of [[true, 'Doable now'], [false, 'Needs progress']]) {
+  for (const [ready, title] of [[true, 'Reachable in your chunks'], [false, 'Needs progress']]) {
     const rows = unique.filter(task => (task.status === 'available') === ready); if (!rows.length) continue;
     const group = el('div', undefined, 'task-methods-group'); group.append(el('h4', `${title} (${rows.length})`));
     const addRow = task => {
       const row = el('div', undefined, 'task-method'); row.dataset.active = task.id === activeId;
       const action = el('button', undefined, 'task-method-choice'); action.type = 'button'; action.setAttribute('aria-pressed', String(task.id === activeId));
-      action.append(el('span', task.label, 'task-method-name'), el('span', `${task.level && !(task.generated && task.category === 'BiS') ? `Level ${task.level} · ` : ''}${ready ? 'Doable now' : task.blockers?.[0]?.detail || 'Needs review'}`, 'task-method-meta'));
+      action.append(el('span', task.label, 'task-method-name'), el('span', `${task.level && !(task.generated && task.category === 'BiS') ? `Level ${task.level} · ` : ''}${ready ? 'Reachable in your chunks' : task.blockers?.[0]?.detail || 'Needs review'}`, 'task-method-meta'));
       if (task.id === activeId) action.append(el('span', 'Active choice', 'task-method-active'));
       action.addEventListener('click', () => act(action, () => canChoose ? choose(task.id) : open(task)));
       row.append(action);
