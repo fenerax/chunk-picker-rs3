@@ -2,6 +2,7 @@ import { displayText, replaceDelimited, trimTaskStars } from '../import-output.m
 import { decodeLegacyText, hasGameplayMigration } from './gameplay-compat.mjs';
 import { projectMemberTaskFacts as projectFacts } from './fact-projection.mjs';
 import { buildIdentityIndex, legacyTaskId, permanentTaskId, isPermanentId, resolveIdentity, resolveTaskAlias, lookupPermanentId, isVerifiedProgressAlias } from './identity.mjs';
+import { datasetValue } from '../dataset-runtime.mjs';
 export { decodeLegacyText, hasGameplayMigration };
 
 /** Startup readiness is separate from ownership conversion: an alias upgrade
@@ -164,9 +165,45 @@ function categoriesFromUserTasks(rawUserTasks) {
   if (!record(userTasks)) return result;
   for (const [category, tasks] of Object.entries(userTasks)) {
     if (!record(tasks)) continue;
-    for (const rawLabel of Object.keys(tasks)) result.push({ category, rawLabel });
+    for (const [rawLabel, requirement] of Object.entries(tasks)) result.push({ category, rawLabel, requirement });
   }
   return result;
+}
+
+// Upstream 98a3bdc index.js addUserTask/loadUserTasks: userTasks[skill][name]
+// is a numeric level (usually text), optionally suffixed with '~' for NoBoost.
+function customTaskRequirements(state) {
+  const tasks = new Map(), warnings = [];
+  for (const [mapId, map] of Object.entries(state.legacy?.maps ?? {})) {
+    for (const { category, rawLabel, requirement } of categoriesFromUserTasks(map?.userTasks)) {
+      const id = stableTaskId(category, rawLabel), fields = {};
+      const label = `${stripTaskMarkup(category)} / ${stripTaskMarkup(rawLabel)}`;
+      const warn = reason => warnings.push(`${label} (${displayText(mapId)}): custom-task requirement ${reason}; review the original retained in the backup.`);
+      let signature = JSON.stringify(requirement);
+      if (category !== 'Extra' || requirement !== true) {
+        const match = /^(\d+)(~?)$/.exec(typeof requirement === 'number' || typeof requirement === 'string' ? String(requirement) : '');
+        // Read lazily: importing migration must preserve dataset snapshot order.
+        if (datasetValue('app/core/player-controls.mjs#playerControlSkills').includes(category)) fields.skill = category;
+        else warn('skill cannot be represented');
+        if (match && Number.isSafeInteger(Number(match[1])) && Number(match[1]) >= 1 && Number(match[1]) <= 120) {
+          if (fields.skill) fields.level = Number(match[1]);
+          signature = `${Number(match[1])}${match[2]}`;
+          if (match[2]) warn('NoBoost flag cannot be represented (numeric level retained where supported)');
+        } else warn('level or value cannot be represented');
+      }
+      const previous = tasks.get(id);
+      if (previous && previous.signature !== signature) {
+        // One shared native row cannot choose between different map requirements.
+        delete previous.fields.level;
+        warnings.push(`${label}: conflicting custom-task requirements across original maps ${displayText(previous.mapId)} and ${displayText(mapId)} cannot be represented; review both originals retained in the backup. No shared level was imported.`);
+      } else if (!previous) tasks.set(id, { fields, signature, mapId });
+    }
+  }
+  return { tasks, warnings };
+}
+
+export function customTaskRequirementWarnings(state) {
+  return customTaskRequirements(state).warnings;
 }
 
 function reverseTaskMap(taskMap) {
@@ -201,7 +238,7 @@ function encounteredBis(map, reverse) {
   return result;
 }
 
-function catalogueIndex(state, options, getReverse) {
+function catalogueIndex(state, options, getReverse, customRequirements) {
   const tasks = new Map(), representedIds = new Set();
   const currentAliasTargets = new Map(), savedIds = new Set((state.tasks ?? []).map(task => task.id));
   const savedLegacyReferences = canonicalLegacyReferences(savedIds);
@@ -244,7 +281,7 @@ function catalogueIndex(state, options, getReverse) {
     const id = stableTaskId(category, rawLabel);
     if (tasks.has(id) || representedIds.has(id)) return;
     const task = taskRecord(category, rawLabel);
-    if (custom) task.customIdentity = true;
+    if (custom) Object.assign(task, { customIdentity: true }, customRequirements.get(id)?.fields);
     tasks.set(task.id, task);
   };
   for (const [category, definitions] of Object.entries(definitionChallenges(options.definitions))) {
@@ -552,7 +589,8 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
     }
     return reverse;
   };
-  const taskIndex = catalogueIndex(next, { definitions, catalogue, dynamicCatalogue }, getReverse);
+  const customRequirements = customTaskRequirements(next);
+  const taskIndex = catalogueIndex(next, { definitions, catalogue, dynamicCatalogue }, getReverse, customRequirements.tasks);
   const dynamicIndex = dynamicCatalogueIndex(dynamicCatalogue);
   let progressIdentityIndex;
   const getProgressIdentityIndex = () => progressIdentityIndex ??= buildIdentityIndex([
@@ -568,7 +606,7 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
   const previous = next.legacy?.gameplayMigration;
   // Diagnostics are durable migration evidence. migrationSummary prepares the
   // readable, bounded display copy without replacing the saved original text.
-  const warnings = [...cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []), ...forcedTaskWarnings(next)];
+  const warnings = [...cloneJson(Array.isArray(previous?.warnings) ? previous.warnings : []), ...forcedTaskWarnings(next), ...customRequirements.warnings];
   const unresolved = cloneJson(previous?.unresolved ?? []);
   const provenance = new Map((previous?.taskStatusProvenance ?? []).map(entry => [`${entry.memberId}\u0000${entry.taskId}`, cloneJson(entry)]));
   const migratedMembers = cloneJson(Array.isArray(previous?.migratedMembers) ? previous.migratedMembers : []).filter(record);
@@ -977,7 +1015,9 @@ function migrateOwnedTaskIdentities(next, { catalogue = [], taskMap, history, pr
       originalId: alias, originalTargets: cloneJson(targets), reason: 'unresolved alias target', candidates: targetIds.filter(target => !missingTargetIds.has(target)) });
   }
   next.identityRegistry = { schemaVersion: 1, entries, aliases, unresolved: cloneJson(unresolved) };
-  const changed = JSON.stringify(original.tasks.map(({ id, label, category }) => ({ id, label, category }))) !== JSON.stringify(next.tasks)
+  const changed = JSON.stringify(original.tasks.map(task => ({ id: task.id, label: task.label, category: task.category,
+    ...Object.fromEntries((task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') ? ['completionIds', 'skill', 'level', 'memberIds'] : [])
+      .filter(field => task[field] !== undefined).map(field => [field, task[field]])) }))) !== JSON.stringify(next.tasks)
     || JSON.stringify(original.members) !== JSON.stringify(next.members) || JSON.stringify(original.history) !== JSON.stringify(next.history);
   const originalRecords = savedRecords(original.members), activeRecords = savedRecords(next.members);
   const recordKey = record => JSON.stringify([record.memberId, record.kind, record.id, record.category ?? null, record.group ?? null]);
