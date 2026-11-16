@@ -253,6 +253,46 @@ test('Tasks and training map matches include nested requirement locations', asyn
   assert.deepEqual(h.matches.at(-1), ['10000-2', '10001']);
 });
 
+test('Training methods finds available method names and skills and opens the matching task read-only', async t => {
+  const method = { id: 'sample-ore', label: 'Mine sample ore', category: 'Mining', level: 15, status: 'available', sources: [{ location: '10000-2' }] };
+  const h = harness(t, { evidence: { training: { Mining: { level: 50, primary: true } }, tasks: [method,
+    { ...method, id: 'blocked-ore', label: 'Mine blocked ore', status: 'blocked' },
+    { ...method, id: 'unrelated', category: 'Quest', label: 'Sample quest' },
+  ] } });
+  const before = structuredClone(h.c.state), evidence = structuredClone(h.c.result);
+  h.c.canWrite = () => false;
+  h.search.open(); await h.settle(); h.mode().value = 'Training methods'; await h.mode().emit('change');
+  assert.ok(h.find('Can train to level 50 · Main method available')); assert.ok(!h.find('Mine sample ore'));
+  for (const query of ['  SAMPLE ORE  ', 'Mining']) {
+    await h.type(query);
+    assert.ok(h.find('Mine sample ore'));
+    assert.ok(h.find('Mining · Level 15 · Can train to level 50'));
+    assert.equal(h.all().filter(node => node.className === 'search-result').length, 1);
+    assert.deepEqual(h.matches.at(-1), ['10000-2']);
+    await h.find('View').emit('click'); assert.equal(h.opens.at(-1), method.id);
+  }
+  await h.type('blocked ore'); assert.ok(h.find('No results. Try another name or note.'));
+  assert.deepEqual(h.c.state, before); assert.deepEqual(h.c.result, evidence);
+});
+
+test('Training methods keeps paging and all highlights and refreshes after a shared save', async t => {
+  const tasks = Array.from({ length: 121 }, (_, i) => ({ id: `sample:${i}`, label: `Mine sample ore ${i}`, category: 'Mining', level: i + 1,
+    status: 'available', sources: [{ location: String(10000 + i) }] }));
+  const h = harness(t, { evidence: { tasks, training: { Mining: { level: 120, primary: true } } } });
+  h.search.open(); await h.settle(); h.mode().value = 'Training methods'; await h.mode().emit('change'); await h.type('sample ore');
+  assert.equal(h.all().filter(node => node.className === 'search-result').length, 120);
+  assert.equal(h.matches.at(-1).length, 121);
+  await h.find('Next').emit('click'); assert.ok(h.find('Mine sample ore 120'));
+  assert.equal(h.matches.at(-1).length, 121);
+  const oldView = h.find('View'); await oldView.emit('click'); assert.deepEqual(h.opens, ['sample:120']);
+  h.c.state = structuredClone(h.c.state); h.c.state.revision++;
+  h.c.result = { ...h.c.result, tasks: [{ ...tasks[0], id: 'new-method', label: 'Mine revised sample ore' }] };
+  await assert.rejects(oldView.emit('click'), /Saved state or search changed/);
+  await h.type('sample ore'); assert.ok(h.find('Mine revised sample ore')); assert.ok(!h.find('Next'));
+  assert.deepEqual(h.matches.at(-1), ['10000']);
+  await h.find('View').emit('click'); assert.equal(h.opens.at(-1), 'new-method');
+});
+
 test('compact Task search enriches all locations without replacing rows, actions or the current page', async t => {
   const tasks = Array.from({ length: 241 }, (_, i) => ({ id: `task:${i}`, label: `Mine ore ${i}`, category: 'Mining', status: 'available', sources: [{ locations: [String(10000 + i)] }] }));
   const h = harness(t, { delayed: true, evidence: { format: 'play-v1', tasks: tasks.map(projectPlayTask) } });
