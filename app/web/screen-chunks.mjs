@@ -328,7 +328,7 @@ export function createScreenChunks(c) {
     if (!c.canWrite()) return c.el('p', 'Unlock previews are available to players.');
     const box = c.el('div', undefined, 'form-stack'), outcome = c.el('div', undefined, 'unlock-preview'), requested = c.memberId, sandboxScope = c.sandbox.signature(), actorScope = predictionActorScope();
     outcome.append(c.el('p', 'Working out what this chunk would add…', 'status-detail'));
-    box.append(outcome, ...(c.sandbox.active ? [] : [c.deathChunks.panel(id)]));
+    box.append(outcome);
     const revision = c.state.revision, token = c.viewCache?.token(), key = JSON.stringify([requested, id]);
     const current = () => outcome.isConnected && c.chunkId === id && c.memberId === requested && c.sandbox.signature() === sandboxScope
       && predictionActorScope() === actorScope && (!c.viewCache || c.viewCache.current(token));

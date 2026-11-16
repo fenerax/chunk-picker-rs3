@@ -45,7 +45,6 @@ async function build() {
   c.map = new ChunkMap({ stage: c.$('map-stage'), baseCanvas: c.$('map-base'), stateCanvas: c.$('map-state'), pinCanvas: c.$('map-pins'), hoverCanvas: c.$('map-hover'), tooltip: c.$('map-tooltip'), deferFallback: true, onChunk: id => c.showChunk(id) });
   createScreenPanels(c); c.sandbox = sandbox;
   c.syncPredictionIntents = noOp; c.deathChunks.refresh = noOp;
-  c.deathChunks.panel = () => c.el('p', 'No death estimate in this sample.', 'status-detail');
   c.predictUnlock = async () => ({ memberId: c.memberId, stateRevision: 7, delta: { tasksAdded: [c.result.tasks[2]], itemsAdded: [], areasAdded: [] } });
   c.panelContext.predictUnlock = c.predictUnlock;
   c.pool = { eligible: ['12342', '12343'].map(id => ({ id, reasons: [] })), excluded: [], accessible: ['12341'], partnerConnections: { byChunk: {} } };
