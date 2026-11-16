@@ -1,6 +1,6 @@
 // "A new version is ready" banner and the What's new list.
 // The server sends its version on every live connection; a different one after a reconnect means the picker was updated.
-export function createUpdates({ el, button, openDialog, api, banner, storage = (() => { try { return globalThis.localStorage; } catch { return null; } })() }) {
+export function createUpdates({ el, button, openDialog, dialogCurrent = () => true, api, banner, storage = (() => { try { return globalThis.localStorage; } catch { return null; } })() }) {
   let loadedVersion, observedVersion, changelog;
   const seenKey = 'picker.changelogSeen';
 
@@ -32,12 +32,32 @@ export function createUpdates({ el, button, openDialog, api, banner, storage = (
     }).catch(() => { if (version === observedVersion) showBanner(); });
   }
 
-  async function openList() {
+  // Each view owns its generation and one in-flight load, including retries.
+  function loadDialog(content, generation, request, render) {
+    let pending = false;
+    const retry = button('Retry', run);
+    async function run() {
+      if (pending || !dialogCurrent(generation)) return;
+      pending = true; retry.disabled = true;
+      content.setAttribute('aria-busy', 'true');
+      content.replaceChildren(el('p', 'Loading…', 'status-detail'));
+      try {
+        const value = await request();
+        if (dialogCurrent(generation)) render(value);
+      } catch (error) {
+        if (dialogCurrent(generation)) content.replaceChildren(el('p', error.message || String(error), 'error'), retry);
+      } finally {
+        pending = false;
+        if (dialogCurrent(generation)) { retry.disabled = false; content.setAttribute('aria-busy', 'false'); }
+      }
+    }
+    return run();
+  }
+
+  function openList() {
     const content = el('div', undefined, 'form-stack changelog');
-    content.append(el('p', 'Loading…', 'status-detail'));
-    openDialog('What’s new', content);
-    try {
-      const value = await loadChangelog();
+    const generation = openDialog('What’s new', content);
+    return loadDialog(content, generation, loadChangelog, value => {
       content.replaceChildren(...(value.entries ?? []).map(entry => {
         const section = el('section', undefined, 'changelog-entry');
         const items = el('ul');
@@ -45,9 +65,10 @@ export function createUpdates({ el, button, openDialog, api, banner, storage = (
         section.append(el('h3', entry.title), el('p', new Date(`${entry.date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }), 'changelog-date'), items);
         return section;
       }));
+      if (!dialogCurrent(generation)) return;
       try { storage?.setItem(seenKey, value.entries?.[0]?.date + '|' + value.entries?.[0]?.title); } catch {}
       refreshDot(value);
-    } catch (error) { content.replaceChildren(el('p', error.message || String(error), 'error')); }
+    });
   }
 
   // A small dot on the What's new menu item until the newest entry has been opened.
@@ -63,12 +84,10 @@ export function createUpdates({ el, button, openDialog, api, banner, storage = (
   const statusOrder = ['working', 'next', 'soon', 'later', 'maybe', 'done'];
   const longDate = date => new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
   const shortDate = date => new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-  async function openRoadmap() {
+  function openRoadmap() {
     const content = el('div', undefined, 'roadmap');
-    content.append(el('p', 'Loading…', 'status-detail'));
-    openDialog('Roadmap', content);
-    try {
-      const value = await api('/api/roadmap');
+    const generation = openDialog('Roadmap', content);
+    return loadDialog(content, generation, () => api('/api/roadmap'), value => {
       const labels = value.statuses ?? {}, themes = value.themes ?? [];
       const all = themes.flatMap(theme => theme.items);
       const count = status => all.filter(item => item.status === status).length;
@@ -109,7 +128,7 @@ export function createUpdates({ el, button, openDialog, api, banner, storage = (
       }
       render();
       content.replaceChildren(intro, ...(now.children.length ? [now] : []), filters, body);
-    } catch (error) { content.replaceChildren(el('p', error.message || String(error), 'error')); }
+    });
   }
 
   return { seen, openList, openRoadmap };
