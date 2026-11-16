@@ -87,12 +87,12 @@ export function createFeedback({ api, el, button, input, field, openDialog, dial
     const captured = epoch;
     const form = el('form', undefined, 'form-stack feedback-form');
     const kindRow = el('div', undefined, 'feedback-kinds'); kindRow.setAttribute('role', 'radiogroup'); kindRow.setAttribute('aria-label', 'Kind of feedback');
-    let kind = 'bug';
-    const chips = kinds.map(([value, label]) => {
-      const chip = button(label, () => { kind = value; for (const other of chips) other.setAttribute('aria-pressed', String(other === chip)); text.focus?.(); }, 'filter-chip');
-      chip.type = 'button'; chip.setAttribute('aria-pressed', String(value === kind)); return chip;
+    const choices = kinds.map(([value, label]) => {
+      const choice = input('radio'); choice.name = 'feedback-kind'; choice.value = value; choice.checked = value === 'bug';
+      const chip = el('label', undefined, 'feedback-kind');
+      chip.append(choice, el('span', label, 'filter-chip')); kindRow.append(chip);
+      return choice;
     });
-    kindRow.append(...chips);
     const text = el('textarea', undefined, 'feedback-text'); text.rows = 5; text.maxLength = 4000;
     text.placeholder = 'What happened, or what would you like? For a bug, say what you clicked and what you expected.';
     const include = input('checkbox'); include.checked = true;
@@ -106,7 +106,7 @@ export function createFeedback({ api, el, button, input, field, openDialog, dial
       if (!text.value.trim()) { status.textContent = 'Write something before sending.'; text.focus?.(); return; }
       send.disabled = true; status.textContent = 'Sending…';
       try {
-        await api('/api/feedback', { kind, text: text.value.trim(), ...(include.checked ? { context: context() } : {}) });
+        await api('/api/feedback', { kind: choices.find(choice => choice.checked).value, text: text.value.trim(), ...(include.checked ? { context: context() } : {}) });
         if (!current()) return;
         text.value = ''; status.textContent = 'Thanks, it’s been sent.';
         notice?.('Feedback sent. Thank you!');

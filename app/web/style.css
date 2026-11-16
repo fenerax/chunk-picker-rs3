@@ -944,7 +944,7 @@ img.skill-badge{border-radius:0;object-fit:contain;image-rendering:auto}
 .task-filter-bar{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .filter-chip{font-size:var(--type-xs);padding:var(--space-2) var(--space-4);border-radius:var(--radius-pill);background:transparent;border:var(--border-thin) solid var(--hairline);color:var(--panel-muted,var(--muted))}
 .filter-chip:hover{color:var(--panel-text,var(--text));filter:none}
-.filter-chip[aria-pressed=true]{background:color-mix(in srgb,var(--gold) 16%,transparent);border-color:color-mix(in srgb,var(--gold) var(--border-legacy-55),transparent);color:var(--panel-text,var(--text))}
+.filter-chip[aria-pressed=true],.feedback-kind input:checked+.filter-chip{background:color-mix(in srgb,var(--gold) 16%,transparent);border-color:color-mix(in srgb,var(--gold) var(--border-legacy-55),transparent);color:var(--panel-text,var(--text))}
 /* Quick sticker picker (right-click menu and the chunk panel's Sticker button) and the undo toast. */
 .sticker-popover{position:absolute;z-index:10;width:284px;padding:var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);background:var(--panel);color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow)}
 .sticker-popover-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);font-size:var(--type-sm)}
@@ -1067,6 +1067,9 @@ img.skill-badge{border-radius:0;object-fit:contain;image-rendering:auto}
 .travel-lines-control>legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 /* Feedback */
 .feedback-kinds{display:flex;gap:var(--space-3);flex-wrap:wrap}
+.feedback-kind{display:inline-flex;position:relative;cursor:pointer}
+.feedback-kind input{position:absolute;width:1px;height:1px;opacity:0}
+.feedback-kind input:focus-visible+.filter-chip{outline:var(--border-focus) solid var(--focus);outline-offset:var(--border-focus)}
 .feedback-text{width:100%;min-height:7rem;resize:vertical}
 .feedback-received{margin-top:var(--space-6);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline)}
 .feedback-received h3{margin:0}
