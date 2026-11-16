@@ -36,6 +36,8 @@ function harness() {
     memberId: 'owner',
     openFeedback() {},
     el: (tag, text, cls) => new Node(tag, text, cls), plain: value => value, icon: name => new Node('span', name),
+    input(type) { const node = new Node('input'); node.type = type; return node; },
+    showError: error => actions.push(error),
     button(text, action) { const node = new Node('button', text); node.action = action; return node; },
     details(text, body) { const node = new Node('details', text); node.append(body); return node; },
     sourceView(sources, result, openTask) { actions.push({ sources, result, openTask }); return new Node('sources'); },

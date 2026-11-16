@@ -1,8 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyCommand, createGroupState } from '../app/core/state.mjs';
+import { selectBacklogGroups } from '../app/web/screen-backlog.mjs';
 
 const now = () => new Date('2026-10-08T12:00:00Z');
+
+test('reason-only edits and clearing regroup a task without restoring it and Undo restores each reason', () => {
+  let state = createGroupState([{ id: 'a', name: 'Player A' }]);
+  const task = { id: 'custom:wait', label: 'Gather supplies', category: 'Custom' };
+  state = applyCommand(state, { type: 'add-task', task }, { now });
+  state = applyCommand(state, { type: 'set-task-status', memberId: 'a', taskId: task.id,
+    backlogged: true, backlogReason: 'Later', favorite: true, note: 'Keep this note', challengeCompleted: true }, { now });
+  for (const backlogReason of ['Need progress: Train first', '']) {
+    const before = state;
+    state = applyCommand(state, { type: 'set-task-status', memberId: 'a', taskId: task.id, backlogReason }, { now });
+    assert.deepEqual(state.members[0].taskStatus[task.id], { ...before.members[0].taskStatus[task.id], backlogReason });
+    const groups = selectBacklogGroups([task], state.members[0].taskStatus);
+    assert.deepEqual(groups.map(group => [group.label, group.tasks.map(row => row.id)]), [[backlogReason || 'No reason given', [task.id]]]);
+    assert.deepEqual(applyCommand(state, { type: 'undo' }, { now }).members, before.members);
+  }
+});
 
 test('a backlog can carry an optional reason, validated, saved per member and undoable', () => {
   let state = createGroupState([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
