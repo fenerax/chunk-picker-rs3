@@ -109,15 +109,16 @@ test('closing a menu restores its opener only when it still owns focus, with map
 });
 
 test('backlog reason dialog preserves optional reasons, owner, cancellation and refused-save drafts', async () => {
-  const h = fixture(), calls = [];
+  const h = fixture(), calls = [], reports = [];
   const taskSource = (await readFile(new URL('../app/web/screen-tasks.mjs', import.meta.url), 'utf8'))
     .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
   const c = {
     el: h.node, button: h.c.button, input: type => { const node = h.node('input'); node.type = type; return node; },
     member: () => ({ name: 'Player', taskStatus: {} }), memberId: 'actor1', canWrite: () => false, preferences: () => ({}),
     plain: value => value.replace(/<[^>]*>/g, ''), sandbox: { isNewTask: () => false },
-    state: { members: [] }, taskPins: () => [], appendCustomTaskEdit() {},
-    iconButton: label => { const node = h.node('button'); node.setAttribute('aria-label', label); return node; },
+    state: { revision: 7, members: [] }, taskPins: () => [], appendCustomTaskEdit() {},
+    iconButton: (label, icon, action) => { const node = h.c.button(label, action); node.setAttribute('aria-label', label); return node; },
+    openFeedback: draft => reports.push(draft),
     command: async command => calls.push(command),
   };
   const dialog = h.node('dialog'), content = h.node('div'), errors = [];
@@ -162,7 +163,13 @@ test('backlog reason dialog preserves optional reasons, owner, cancellation and 
     await submit();
     assert.equal(calls.at(-1).memberId, 'actor2'); assert.equal(calls.at(-1).taskId, 'one');
     assert.equal(calls.at(-1).type, 'set-task-status'); assert.equal(calls.at(-1).backlogged, true);
-    assert.equal(calls.at(-1).backlogReason, preset); assert.equal(dialog.open, false);
+    assert.equal(calls.at(-1).backlogReason, preset);
+    if (preset === 'Task looks wrong') {
+      assert.equal(dialog.open, true); assert.equal(reports.length, 0);
+      assert.ok(find('BUTTON', 'Report a problem with this task'));
+      await find('BUTTON', 'Done').emit('click');
+    }
+    assert.equal(dialog.open, false); assert.equal(reports.length, 0);
   }
   c.backlogForm(host, task); reason().value = '  Wait for supplies  '; await submit();
   assert.equal(calls.at(-1).backlogReason, 'Wait for supplies');
@@ -175,6 +182,39 @@ test('backlog reason dialog preserves optional reasons, owner, cancellation and 
   assert.equal(reason().value, 'Check this method'); assert.equal(radios().find(node => node.checked).value, 'Task looks wrong');
   c.command = async command => calls.push(command); await submit();
   assert.equal(calls.at(-1).backlogReason, 'Task looks wrong: Check this method');
+  const savedCount = calls.length;
+  await find('BUTTON', 'Report a problem with this task').emit('click');
+  assert.equal(calls.length, savedCount, 'reporting never changes the saved backlog');
+  assert.equal(reports.length, 1); assert.equal(dialog.open, false);
+  assert.match(reports[0].text, /Problem with task: Mine copper/);
+  assert.match(reports[0].text, /What looks wrong: Check this method/);
+  assert.equal(reports[0].context.taskId, 'one'); assert.equal(reports[0].context.memberId, 'actor2');
+  assert.equal(reports[0].context.revision, 7);
   c.backlogForm(host, task, undefined, 'actor2'); assert.equal(reason().value, '');
   find('BUTTON', 'Cancel').emit('click');
+
+  const quickRow = c.taskRow({ ...task, status: 'blocked' }), quick = quickRow.children.at(-1);
+  assert.match(quick.title, /Shift-click.*without a reason/);
+  await quick.emit('click', { shiftKey: true, detail: 0 });
+  assert.equal(dialog.open, true, 'keyboard activation keeps the reason dialog even with Shift');
+  find('BUTTON', 'Cancel').emit('click');
+  await quick.emit('click', { shiftKey: false, detail: 1 });
+  assert.equal(dialog.open, true); find('BUTTON', 'Cancel').emit('click');
+  const beforeQuick = calls.length;
+  await quick.emit('click', { shiftKey: true, detail: 1 });
+  assert.equal(dialog.open, false); assert.equal(calls.length, beforeQuick + 1);
+  assert.equal(calls.at(-1).backlogReason, ''); assert.equal(calls.at(-1).memberId, 'actor1');
+  c.sandbox.active = true; await quick.emit('click', { shiftKey: true, detail: 1 });
+  c.sandbox.active = false; c.canWrite = () => false; await quick.emit('click', { shiftKey: true, detail: 1 });
+  assert.equal(calls.length, beforeQuick + 1); assert.equal(reports.length, 1);
+  c.canWrite = () => true;
+  let finish;
+  c.command = command => { calls.push(command); return new Promise(resolve => { finish = resolve; }); };
+  const saving = quick.emit('click', { shiftKey: true, detail: 1 });
+  await quick.emit('click', { shiftKey: true, detail: 1 });
+  assert.equal(calls.length, beforeQuick + 2, 'duplicate activation cannot save while pending');
+  finish(); await saving;
+  c.command = async () => { throw refused; };
+  await quick.emit('click', { shiftKey: true, detail: 1 });
+  assert.equal(errors.at(-1), refused); assert.equal(dialog.open, false);
 });

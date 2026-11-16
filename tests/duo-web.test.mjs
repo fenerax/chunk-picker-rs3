@@ -180,6 +180,26 @@ test('Both backlog chooser confirms the chosen owner before opening its reason f
   assert.equal(h.backlogs[0][3], 'reed'); assert.equal(h.commands.length, 0);
 });
 
+test('Shift-click quick backlog preserves canonical group identity and owner selection', async () => {
+  for (const owners of [['reed'], ['actor1', 'reed']]) {
+    const h = harness(), goal = entry(owners);
+    goal.id = 'canonical';
+    const row = h.view.row(goal);
+    const control = find(row, 'button', 'Backlog…');
+    assert.match(control.title, /Shift-click.*without a reason/);
+    await control.emit('click', { shiftKey: true, detail: 1 });
+    if (owners.length === 2) {
+      assert.equal(h.backlogs.length, 0);
+      find(row, 'select').value = 'reed'; await walk(row).find(node => node.type === 'submit').emit('click');
+    }
+    assert.equal(h.backlogs.length, 1); assert.equal(h.backlogs[0][3], 'reed'); assert.equal(h.backlogs[0][1].id, 'canonical');
+    assert.equal(h.backlogs[0][4].quick, true);
+  }
+  const h = harness(), row = h.view.row(entry());
+  await find(row, 'button', 'Backlog…').emit('click', { shiftKey: true, detail: 0 });
+  assert.equal(h.backlogs[0][4].quick, false, 'keyboard activation opens the reason dialog');
+});
+
 test('shared done checks use group completion and name the completing member', () => {
   const h = harness(), row = h.view.row(entry(['actor1', 'reed'], ['reed']));
   assert.equal(find(row, 'input').checked, true);
