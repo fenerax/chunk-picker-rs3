@@ -367,7 +367,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
   // A cached draft already owns its projection and delta. Do not rebuild a
   // current-state baseline merely to answer a hypothetical cache hit.
   const empty = !normalized.changes.unlockChunks.length && !normalized.changes.lockChunks.length
-    && !normalized.changes.doneTasks.length && !normalized.changes.taskRules;
+    && !normalized.changes.doneTasks.length && !normalized.changes.taskRules && !normalized.changes.members;
   const key = JSON.stringify([...calculationKey(state, memberId, input), normalized.changes]);
   let draftSnapshot = empty ? undefined : sandboxSnapshots.get(key);
   let snapshot, hit;

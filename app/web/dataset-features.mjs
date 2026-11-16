@@ -7,7 +7,7 @@ export const datasetFeatureControls = Object.freeze({
   originalSync: ['original-sync-open'], runeMetrics: ['runemetrics-open'],
   training: ['helper-open', 'area-check-toggle'], bis: ['bis-open'],
   equipment: ['partner-supply-open'],
-  rsCatalogues: ['profile-open', 'finish-line-open', 'activity-open', 'teleports-open', 'membership-overlay'],
+  rsCatalogues: ['profile-open', 'finish-line-open', 'members-preview-open', 'activity-open', 'teleports-open', 'membership-overlay'],
   mapMetadata: ['map-pins-open'],
   gallery: ['gallery-open'], projectUpdates: ['whats-new-open', 'roadmap-open'],
 });
@@ -18,7 +18,7 @@ export function applyDatasetFeatureControls(dataset, lookup) {
     for (const id of ids) { const node = lookup(id); if (node) node.hidden = node.disabled = true; }
   }
   const gameHeading = lookup('info-game-heading');
-  if (gameHeading) gameHeading.hidden = ['bis-open', 'profile-open', 'finish-line-open', 'activity-open', 'teleports-open']
+  if (gameHeading) gameHeading.hidden = ['bis-open', 'profile-open', 'finish-line-open', 'members-preview-open', 'activity-open', 'teleports-open']
     .every(id => !lookup(id) || lookup(id).hidden);
 }
 
