@@ -6,6 +6,7 @@ export function createFeedback({ api, el, button, input, field, openDialog, dial
   const safe = value => streamSafe?.safeText ? streamSafe.safeText(value) : String(value).replace(/(?:\/|%2f)join(?:\/|%2f)[^\s"'<>?#\\]*/gi, '/join/[redacted]');
   let session, unread = 0, started = false, paused = false, timer, pending, epoch = 0, panel, unsubscribe, seenVersion = 0;
   let ackQueue = Promise.resolve();
+  let draft, resetForm;
   const acknowledged = new Set();
   const admin = () => session?.admin ?? isAdmin();
   const readOnly = () => session?.readOnly ?? isReadOnly();
@@ -76,43 +77,66 @@ export function createFeedback({ api, el, button, input, field, openDialog, dial
     document?.removeEventListener?.('visibilitychange', onVisible);
     unsubscribe?.(); unsubscribe = undefined;
   }
-  function stop() { pause(); epoch++; panel = undefined; }
+  function clearDraft() { draft = undefined; resetForm?.(); }
+  function stop() { pause(); clearDraft(); resetForm = undefined; epoch++; panel = undefined; }
   function setSession(value) {
+    clearDraft(); resetForm = undefined;
     session = value; epoch++; acknowledged.clear(); unread = 0; panel = undefined; renderBadge();
     if (started) void Promise.resolve(pending).then(() => { if (started) onVisible(); });
   }
   renderBadge();
 
-  function sendForm(current) {
+  function sendForm(current, origin) {
     const captured = epoch;
     const form = el('form', undefined, 'form-stack feedback-form');
     const kindRow = el('div', undefined, 'feedback-kinds'); kindRow.setAttribute('role', 'radiogroup'); kindRow.setAttribute('aria-label', 'Kind of feedback');
     const choices = kinds.map(([value, label]) => {
-      const choice = input('radio'); choice.name = 'feedback-kind'; choice.value = value; choice.checked = value === 'bug';
+      const choice = input('radio'); choice.name = 'feedback-kind'; choice.value = value; choice.checked = value === (draft?.kind ?? 'bug');
       const chip = el('label', undefined, 'feedback-kind');
       chip.append(choice, el('span', label, 'filter-chip')); kindRow.append(chip);
       return choice;
     });
     const text = el('textarea', undefined, 'feedback-text'); text.rows = 5; text.maxLength = 4000;
+    text.value = draft?.text ?? '';
     text.placeholder = 'What happened, or what would you like? For a bug, say what you clicked and what you expected.';
-    const include = input('checkbox'); include.checked = true;
+    const include = input('checkbox'); include.checked = draft?.include ?? true;
     const includeLabel = el('label', undefined, 'checkbox-field'); includeLabel.append(include, el('span', 'Include what I’m looking at (open chunk, tab, player, screen size)'));
     const send = el('button', 'Send feedback', 'primary-action'); send.type = 'submit';
     const status = el('p', undefined, 'status-detail'); status.setAttribute('role', 'status');
-    form.append(kindRow, field('Your feedback', text), includeLabel, send, status);
+    resetForm = () => {
+      text.value = ''; choices.forEach(choice => { choice.checked = choice.value === 'bug'; });
+      include.checked = true; status.textContent = '';
+    };
+    const remember = () => {
+      if (captured !== epoch || !current()) return;
+      draft = { text: text.value, kind: choices.find(choice => choice.checked).value, include: include.checked };
+    };
+    text.addEventListener('input', remember);
+    choices.forEach(choice => choice.addEventListener('change', remember));
+    include.addEventListener('change', remember);
+    const discard = button('Discard draft', () => {
+      if (captured !== epoch || !current()) return;
+      clearDraft(); status.textContent = 'Draft discarded.'; text.focus?.();
+    });
+    discard.type = 'button';
+    form.append(kindRow, field('Your feedback', text), includeLabel, send, discard, status);
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (send.disabled || readOnly() || captured !== epoch || !current()) return;
       if (!text.value.trim()) { status.textContent = 'Write something before sending.'; text.focus?.(); return; }
+      remember(); const submitted = draft;
       send.disabled = true; status.textContent = 'Sending…';
       try {
-        await api('/api/feedback', { kind: choices.find(choice => choice.checked).value, text: text.value.trim(), ...(include.checked ? { context: context() } : {}) });
+        await api('/api/feedback', { kind: submitted.kind, text: submitted.text.trim(), ...(submitted.include ? { context: origin } : {}) });
+        if (captured !== epoch) return;
+        // Navigation keeps the draft identity; editing creates a newer draft.
+        if (draft === submitted) clearDraft();
         if (!current()) return;
-        text.value = ''; status.textContent = 'Thanks, it’s been sent.';
+        status.textContent = 'Thanks, it’s been sent.';
         notice?.('Feedback sent. Thank you!');
         void refresh();
-      } catch (error) { if (current()) status.textContent = safe(error.message || String(error)); }
-      finally { if (current()) send.disabled = false; }
+      } catch (error) { if (current() && captured === epoch) status.textContent = safe(error.message || String(error)); }
+      finally { if (current() && captured === epoch) send.disabled = false; }
     });
     return form;
   }
@@ -163,13 +187,15 @@ export function createFeedback({ api, el, button, input, field, openDialog, dial
     return box;
   }
 
-  function open() {
+  function open(options = {}) {
     if (readOnly()) return;
+    // Snapshot before Feedback replaces the tool, including task-supplied context.
+    const origin = structuredClone(options.context ?? context());
     const content = el('div', undefined, 'form-stack');
     content.append(el('p', 'Found a bug or want something added? Send it here; the owner sees it in this same window.', 'section-intro'));
     let generation;
     const current = () => dialogCurrent(generation);
-    content.append(sendForm(current));
+    content.append(sendForm(current, origin));
     content.append(receivedList(current));
     generation = openDialog('Feedback', content);
     content.querySelector?.('textarea')?.focus?.();

@@ -14,7 +14,7 @@ class Node {
   focus() {}
 }
 const note = (id, status = 'new') => ({ id, status, kind: 'bug', at: '2026-10-12T12:00:00Z', from: { label: 'Reed' }, text: `Note ${id}`, ...(status === 'done' ? { doneAt: '2026-10-12T13:00:00Z' } : {}) });
-function harness({ admin = true, readOnly = false, route } = {}) {
+function harness({ admin = true, readOnly = false, route, context } = {}) {
   const el = (tag, text, cls) => { const node = new Node(tag, text); node.className = cls; return node; };
   const button = (text, action, cls) => { const node = el('button', text, cls); node.addEventListener('click', action); return node; };
   const input = type => { const node = el('input'); node.type = type; return node; };
@@ -32,7 +32,7 @@ function harness({ admin = true, readOnly = false, route } = {}) {
     if (path.endsWith('/status')) { const id = path.split('/').at(-2); const item = items.find(item => item.id === id); item.status = body.status; return { item: structuredClone(item) }; }
     throw new Error(`Unexpected route ${path}`);
   };
-  const ui = createFeedback({ api, el, button, input, field, entryButton, document,
+  const ui = createFeedback({ api, el, button, input, field, entryButton, document, context,
     isAdmin: () => admin, isReadOnly: () => readOnly, advanced: () => true,
     setInterval: action => { callback = action; return 1; }, clearInterval: () => { cancelled = true; },
     openDialog: (title, node) => { content = node; open = true; return ++generation; }, dialogCurrent: value => open && value === generation,
@@ -42,6 +42,101 @@ function harness({ admin = true, readOnly = false, route } = {}) {
     setItems: value => { items = value; }, poll: () => callback?.(), close: () => { open = false; generation++; },
     mask: value => { masked = value; subscriber?.(); }, get cancelled() { return cancelled; }, get subscriber() { return subscriber; } };
 }
+
+const composer = h => ({
+  form: h.all().find(node => node.tagName === 'form'),
+  text: h.all().find(node => node.tagName === 'textarea'),
+  choices: h.all().filter(node => node.name === 'feedback-kind'),
+  include: h.all().find(node => node.type === 'checkbox'),
+});
+const submissions = h => h.calls.filter(call => call.path === '/api/feedback' && call.body?.text);
+
+test('feedback captures the originating tool on each open and respects context opt-out', async () => {
+  const origin = { dialog: 'Synthetic tool', chunk: '100' };
+  const h = harness({ context: () => origin });
+  h.ui.open(); origin.dialog = 'Feedback'; origin.chunk = '200';
+  let form = composer(h); form.text.value = 'Synthetic origin report'; await form.form.emit('submit');
+  assert.deepEqual(submissions(h)[0].body.context, { dialog: 'Synthetic tool', chunk: '100' });
+  h.close(); origin.dialog = 'Another synthetic tool'; h.ui.open();
+  form = composer(h); form.text.value = 'Fresh origin report'; await form.form.emit('submit');
+  assert.equal(submissions(h)[1].body.context.dialog, 'Another synthetic tool');
+  form.text.value = 'No context report'; form.include.checked = false; await form.form.emit('submit');
+  assert.equal(Object.hasOwn(submissions(h)[2].body, 'context'), false);
+});
+
+test('feedback restores unsent text, radio kind and context choice after navigating away', async () => {
+  const h = harness(); h.ui.open(); let form = composer(h);
+  form.text.value = 'Synthetic unsent report'; await form.text.emit('input');
+  form.choices.forEach(choice => { choice.checked = choice.value === 'idea'; }); await form.choices[1].emit('change');
+  form.include.checked = false; await form.include.emit('change');
+  h.close(); h.ui.open(); form = composer(h);
+  assert.equal(form.text.value, 'Synthetic unsent report');
+  assert.deepEqual(form.choices.filter(choice => choice.checked).map(choice => choice.value), ['idea']);
+  assert.equal(form.include.checked, false);
+});
+
+test('task reporting can supply a captured origin while the checkbox stays authoritative', async () => {
+  const h = harness({ context: () => ({ dialog: 'Unrelated tool' }) });
+  const origin = { dialog: 'Synthetic task', task: 'fixture-task' };
+  h.ui.open({ context: origin }); origin.task = 'changed-task';
+  const form = composer(h); form.text.value = 'Synthetic task report'; await form.form.emit('submit');
+  assert.deepEqual(submissions(h)[0].body.context, { dialog: 'Synthetic task', task: 'fixture-task' });
+  form.text.value = 'Private task report'; form.include.checked = false; await form.form.emit('submit');
+  assert.equal(Object.hasOwn(submissions(h)[1].body, 'context'), false);
+});
+
+test('failed sends retain the draft and confirmed sends clear every draft field', async () => {
+  let fail = true;
+  const h = harness({ route: (path, body) => { if (path === '/api/feedback' && body?.text && fail) throw new Error('Synthetic failure'); } });
+  h.ui.open(); let form = composer(h);
+  form.text.value = 'Synthetic retry report'; form.include.checked = false;
+  form.choices.forEach(choice => { choice.checked = choice.value === 'other'; });
+  await form.form.emit('submit'); assert.ok(h.find('Synthetic failure'));
+  h.close(); h.ui.open(); form = composer(h);
+  assert.equal(form.text.value, 'Synthetic retry report');
+  assert.equal(form.choices.find(choice => choice.checked).value, 'other'); assert.equal(form.include.checked, false);
+  fail = false; await form.form.emit('submit'); assert.ok(h.find('Thanks, it’s been sent.'));
+  h.close(); h.ui.open(); form = composer(h);
+  assert.equal(form.text.value, ''); assert.equal(form.include.checked, true);
+  assert.equal(form.choices.find(choice => choice.checked).value, 'bug');
+});
+
+test('discard clears the draft and cannot submit the form', async () => {
+  const h = harness(); h.ui.open(); let form = composer(h);
+  form.text.value = 'Synthetic discarded report'; await form.text.emit('input');
+  form.include.checked = false; await form.include.emit('change');
+  const discard = h.find('Discard draft'); assert.equal(discard.type, 'button'); await discard.emit('click');
+  assert.equal(form.text.value, ''); assert.equal(form.include.checked, true);
+  h.close(); h.ui.open(); form = composer(h);
+  assert.equal(form.text.value, ''); assert.equal(submissions(h).length, 0);
+});
+
+test('session changes and stop erase draft controls and reject stale form events', async () => {
+  const h = harness(); h.ui.setSession({ admin: false }); h.ui.open();
+  const old = composer(h); old.text.value = 'Synthetic old session'; await old.text.emit('input');
+  h.ui.setSession({ admin: false }); assert.equal(old.text.value, '');
+  old.text.value = 'Detached old input'; await old.text.emit('input'); await old.form.emit('submit');
+  h.ui.open(); let form = composer(h); assert.equal(form.text.value, '');
+  form.text.value = 'Synthetic new session'; await form.text.emit('input');
+  h.ui.stop(); assert.equal(form.text.value, ''); h.ui.open(); form = composer(h);
+  assert.equal(form.text.value, ''); assert.equal(submissions(h).length, 0);
+});
+
+test('a send completed after navigation clears only its unchanged draft', async () => {
+  let finish;
+  const h = harness({ route: (path, body) => path === '/api/feedback' && body?.text ? new Promise(resolve => { finish = resolve; }) : undefined });
+  h.ui.open(); let form = composer(h); form.text.value = 'Synthetic pending report';
+  let sending = form.form.emit('submit'); h.close(); h.ui.open();
+  finish({}); await sending; assert.equal(composer(h).text.value, '');
+  form = composer(h); form.text.value = 'Synthetic second report'; sending = form.form.emit('submit');
+  h.close(); h.ui.open(); form = composer(h);
+  form.text.value = 'Synthetic revised draft'; await form.text.emit('input');
+  finish({}); await sending; h.close(); h.ui.open(); assert.equal(composer(h).text.value, 'Synthetic revised draft');
+  form = composer(h); sending = form.form.emit('submit');
+  h.ui.setSession({ admin: false }); h.ui.open(); form = composer(h);
+  form.text.value = 'Synthetic different session'; await form.text.emit('input');
+  finish({}); await sending; h.close(); h.ui.open(); assert.equal(composer(h).text.value, 'Synthetic different session');
+});
 
 test('owner badge refreshes on visible polling and stops all listeners and timers', async () => {
   const h = harness(); h.ui.start(); await h.ui.refresh();
