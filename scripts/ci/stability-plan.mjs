@@ -1,6 +1,8 @@
 // Hosted first-attempt proof; selection deliberately covers direct entry edits only.
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { classifyTest, discoverTestEntries, discoverTests, isTestEntryFile } from '../test-selection.mjs';
 
@@ -10,6 +12,36 @@ const entryName = file => typeof file === 'string' && file.startsWith('tests/') 
 const tooling = file => /^scripts\/ci\/stability-(plan|run|summary|counts)\.mjs$/.test(file)
   || ['.github/workflows/stability.yml', '.github/windows-slice/run.ps1',
     'scripts/test-classification.mjs', 'scripts/test-discovery.mjs', 'scripts/test-selection.mjs'].includes(file);
+
+// The automatic PR loop proves only tests that can be timing-sensitive. A plain
+// logic test (no processes, sockets, clocks, browsers or shells in the entry or
+// its tests/ helpers) lands on ordinary CI. Manual dispatch still runs anything.
+export const RISK_PATTERNS = [
+  ['process', /node:(child_process|worker_threads|cluster)\b|\b(spawn|fork|execFile|execFileSync|spawnSync)\s*\(|new Worker\s*\(/],
+  ['network', /node:(net|http|https|http2|dgram|tls)\b|\.listen\s*\(|\bfetch\s*\(|app\/server\.mjs/],
+  ['clock', /\bset(Timeout|Interval|Immediate)\b|node:timers|Date\.now\s*\(|performance\.now\s*\(|process\.hrtime|mock\.timers/],
+  ['browser', /chrome|\bcdp\b|headless|puppeteer|playwright/i],
+  ['shell', /powershell|pwsh|\.ps1\b/i],
+];
+
+export function stabilityRisk(source) {
+  return RISK_PATTERNS.find(([, pattern]) => pattern.test(source))?.[0] ?? null;
+}
+
+// Entry source plus every relative import that stays inside tests/.
+export function readTestSource(root, file, seen = new Set()) {
+  const absolute = path.resolve(root, file);
+  if (seen.has(absolute) || !existsSync(absolute)) return '';
+  seen.add(absolute);
+  const text = readFileSync(absolute, 'utf8');
+  const testsDir = path.resolve(root, 'tests') + path.sep;
+  let combined = text;
+  for (const [, spec] of text.matchAll(/(?:\bfrom\s+|\bimport\s*\(?\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+    const target = path.resolve(path.dirname(absolute), spec);
+    if (target.startsWith(testsDir)) combined += '\n' + readTestSource(root, path.relative(root, target), seen);
+  }
+  return combined;
+}
 
 // Read the slice's authoritative declarative list without importing its CLI.
 export function windowsSlice(source) {
@@ -23,7 +55,7 @@ export function requireSupportedLane(file, classify = classifyTest) {
   if (!['quick', 'full-only'].includes(lane)) throw Error(`loop not supported for this lane (${lane}): ${JSON.stringify(file)}`);
 }
 
-export function planStability({ changed = [], inventory, windows = [], files, repetitions = 50, os = 'linux', classify = classifyTest }) {
+export function planStability({ changed = [], inventory, windows = [], files, repetitions = 50, os = 'linux', classify = classifyTest, risk = () => 'unclassified' }) {
   const manual = files !== undefined;
   if (!Number.isInteger(Number(repetitions)) || Number(repetitions) < 1 || Number(repetitions) > 50) throw Error('Repetitions must be 1–50');
   if (!['linux', 'windows', 'both'].includes(os)) throw Error('OS must be linux, windows or both');
@@ -39,6 +71,8 @@ export function planStability({ changed = [], inventory, windows = [], files, re
     requireSupportedLane(file, classify);
   }
   selected = [...new Set(selected)].sort();
+  const skipped = manual ? [] : selected.filter(file => !windows.includes(file) && !risk(file));
+  selected = selected.filter(file => !skipped.includes(file));
   const pairs = selected.flatMap(file => (manual
     ? os === 'both' ? ['linux', 'windows'] : [os]
     : windows.includes(file) ? ['linux', 'windows'] : ['linux']).map(os => ({ file, os, requested: Number(repetitions) })));
@@ -62,7 +96,7 @@ export function planStability({ changed = [], inventory, windows = [], files, re
     attempts.forEach((attempt, i) => shards[i % count].attempts.push(attempt));
     include.push(...shards);
   }
-  return { schema: 'rs3-stability-plan-v1', targets, reduced: targets.some(t => t.repetitions < t.requested), matrix: { include } };
+  return { schema: 'rs3-stability-plan-v1', targets, skipped, reduced: targets.some(t => t.repetitions < t.requested), matrix: { include } };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -79,9 +113,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   await discoverTests(undefined, 'full');
   const plan = planStability({ changed, inventory: (await discoverTestEntries()).map(name => 'tests/' + name),
     windows: windowsSlice(await readFile('.github/windows-slice/run.mjs', 'utf8')),
+    risk: file => stabilityRisk(readTestSource(process.cwd(), file)),
     ...(event.pull_request ? {} : { files: event.inputs?.files ?? '', repetitions: event.inputs?.repetitions ?? 50, os: event.inputs?.os ?? 'linux' }) });
   Object.assign(plan, { sha: git(['rev-parse', 'HEAD']), runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT });
   await writeFile('stability-plan.json', JSON.stringify(plan, null, 2) + '\n');
   await appendFile(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(plan.matrix)}\nhas-work=${plan.targets.length > 0}\n`);
-  await appendFile(process.env.GITHUB_STEP_SUMMARY, `### Stability plan\n\n${plan.targets.length} file/OS pairs; ${plan.reduced ? 'REDUCED proof (200-attempt PR cap); dispatch each file for 50 before landing.' : 'Full requested repetitions.'}\n\nDirectly changed entry files only; helper-only edits need manual dispatch.\n`);
+  await appendFile(process.env.GITHUB_STEP_SUMMARY, `### Stability plan\n\n${plan.targets.length} file/OS pairs; ${plan.reduced ? 'REDUCED proof (200-attempt PR cap); dispatch each file for 50 before landing.' : 'Full requested repetitions.'}\n\nDirectly changed entry files only; helper-only edits need manual dispatch.\n${plan.skipped.length ? `\nPlain logic tests left to ordinary CI (no processes, sockets, clocks, browsers or shells): ${plan.skipped.join(', ')}\n` : ''}`);
 }
