@@ -66,9 +66,9 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
   }
   const providers = [...configured.keys()];
   const pending = new Map();
-  let closed = false;
+  let closed = false, continuing = 0;
   function ingress(security) {
-    if (closed) throw failure(503, 'Please try again later.');
+    if (closed) throw Object.assign(failure(503, 'Sign-in is temporarily unavailable. Wait a minute, then try signing in again.'), { retryAfter: 60 });
     if (mode === 'off') throw failure(404, 'Not found.');
     if (security.ingressRole !== 'public' || !security.secure || security.origin !== publicOrigin) throw failure(403, 'Sign-in requires the configured public HTTPS address.');
   }
@@ -84,11 +84,26 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     prune();
     const old = cookie(request);
     if (old) pending.delete(old);
-    if (pending.size >= MAX_PENDING) throw failure(429, 'Please try again later.');
+    if (pending.size + continuing >= MAX_PENDING) throw Object.assign(failure(429, 'Sign-in is temporarily busy. Wait a minute, then try again. If you were joining, reopen the same invite link.'), { retryAfter: 60 });
     const key = generateToken(), entry = { ...input, expires: now() + PENDING_MS };
     pending.set(key, entry);
     addCookie(response, preauthCookie(key));
     return entry;
+  }
+  async function withContinuation(request, response, entry, operation) {
+    // Reserve the consumed entry's place while asynchronous work is in flight.
+    continuing++;
+    let reserved = true;
+    try { return await operation(); }
+    catch (error) {
+      continuing--; reserved = false;
+      if (error.code === 'SESSION_BUSY' || error.status === 502 && (entry.inviteId || entry.reclaimCode)) {
+        // Restart provider consent with fresh state; never replay a consumed code.
+        const { inviteId, reclaimCode, accountId, sessionId } = entry;
+        error.signInContinuation = put(request, response, { inviteId, reclaimCode, accountId, sessionId });
+      }
+      throw error;
+    } finally { if (reserved) continuing--; }
   }
   function liveInvite(id, requireMember = true) {
     const invite = invites.get(id);
@@ -248,18 +263,18 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         if (route === '/auth/invite') {
           if (mode !== 'optional') throw failure(403, 'Sign in to join this game.');
           liveInvite(entry.inviteId, false);
-          const token = await serializeMutation(() => invites.joinById(entry.inviteId, security));
+          const token = await withContinuation(request, response, entry, () => serializeMutation(() => invites.joinById(entry.inviteId, security)));
           if (!token) throw failure(409, 'This player invite is no longer available.');
           addCookie(response, invites.cookie(token, security)); redirect(response); return true;
         }
         if (identity?.kind !== 'account') throw failure(401, 'Sign in to claim this invite.');
-        await serializeMutation(async () => {
+        await withContinuation(request, response, entry, () => serializeMutation(async () => {
           const active = invites.authenticate(request, security);
           if (active?.kind !== 'account' || active.accountId !== identity.accountId) throw failure(401, 'Sign in again to claim this invite.');
           const account = await claim(accounts.get(active.accountId), entry.inviteId);
           await syncLegacy?.();
           await issue(response, account, security, active.provider, account.memberships.find(item => item.id === entry.inviteId));
-        });
+        }));
         return true;
       }
       const callback = /^\/auth\/(discord|google)\/callback$/.exec(route);
@@ -279,48 +294,46 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
           const active = invites.authenticate(request, security);
           if (active?.kind !== 'account' || active.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId)) throw failure(401, 'Sign in again before linking an account.');
         }
-        let subject;
-        try { subject = await subjectFor(name, code, entry); }
-        catch (error) {
-          if (entry.inviteId || entry.reclaimCode) put(request, response, entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : { inviteId: entry.inviteId });
-          throw error;
-        }
-        await serializeMutation(async () => {
-          if (entry.reclaimCode && pickerRegistry && reclaimIdentity) {
-            const account = await reclaimIdentity(entry.reclaimCode, name, subject);
-            const picker = await pickerRegistry.ensureDefaultPicker(account.id);
-            const token = await invites.issuePickerSession(account.id, picker.id, name);
-            addCookie(response, invites.cookie(token, security)); redirect(response, '/auth/reclaim/done'); return;
-          }
-          // Explicit duo invites and established live memberships keep the invite path.
-          // Otherwise provisioning belongs to the recoverable registry transaction.
-          const legacy = accounts.findIdentity(name, subject);
-          const active = entry.accountId ? invites.authenticate(request, security) : null;
-          if (pickerRegistry && !entry.inviteId && (active?.pickerId || !entry.accountId && !availableMembership(legacy ?? { memberships: [] }))) {
-            if (entry.accountId && (active?.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId))) throw failure(401, 'Sign in again before linking an account.');
-            const result = entry.accountId
-              ? { account: await pickerRegistry.linkIdentity(entry.accountId, name, subject), picker: await pickerRegistry.ensureDefaultPicker(entry.accountId) }
-              : await pickerRegistry.firstLogin(name, subject);
-            const token = await invites.issuePickerSession(result.account.id, result.picker.id, name);
-            addCookie(response, invites.cookie(token, security)); redirect(response); return;
-          }
-          let account, claimed = false;
-          if (entry.accountId) {
-            const active = invites.authenticate(request, security);
-            if (active?.kind !== 'account' || active.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId)) throw failure(401, 'Sign in again before linking an account.');
-            checkRegistryOwner(entry.accountId, name, subject);
-            account = await accounts.linkIdentity(entry.accountId, name, subject);
-          } else {
-            account = accounts.findIdentity(name, subject);
-            if (!account) {
-              if (!entry.inviteId) { inviteRequired(response); return; }
-              account = await createWithInvite(name, subject, entry.inviteId);
-              claimed = true;
+        await withContinuation(request, response, entry, async () => {
+          const subject = await subjectFor(name, code, entry);
+          await serializeMutation(async () => {
+            if (entry.reclaimCode && pickerRegistry && reclaimIdentity) {
+              const account = await reclaimIdentity(entry.reclaimCode, name, subject);
+              delete entry.reclaimCode; // A completed claim must not reuse its one-time link.
+              const picker = await pickerRegistry.ensureDefaultPicker(account.id);
+              const token = await invites.issuePickerSession(account.id, picker.id, name);
+              addCookie(response, invites.cookie(token, security)); redirect(response, '/auth/reclaim/done'); return;
             }
-          }
-          if (entry.inviteId && !claimed) account = await claim(account, entry.inviteId);
-          await syncLegacy?.();
-          await issue(response, account, security, name, entry.inviteId ? account.memberships.find(item => item.id === entry.inviteId) : undefined);
+            // Explicit duo invites and established live memberships keep the invite path.
+            // Otherwise provisioning belongs to the recoverable registry transaction.
+            const legacy = accounts.findIdentity(name, subject);
+            const active = entry.accountId ? invites.authenticate(request, security) : null;
+            if (pickerRegistry && !entry.inviteId && (active?.pickerId || !entry.accountId && !availableMembership(legacy ?? { memberships: [] }))) {
+              if (entry.accountId && (active?.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId))) throw failure(401, 'Sign in again before linking an account.');
+              const result = entry.accountId
+                ? { account: await pickerRegistry.linkIdentity(entry.accountId, name, subject), picker: await pickerRegistry.ensureDefaultPicker(entry.accountId) }
+                : await pickerRegistry.firstLogin(name, subject);
+              const token = await invites.issuePickerSession(result.account.id, result.picker.id, name);
+              addCookie(response, invites.cookie(token, security)); redirect(response); return;
+            }
+            let account, claimed = false;
+            if (entry.accountId) {
+              const active = invites.authenticate(request, security);
+              if (active?.kind !== 'account' || active.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId)) throw failure(401, 'Sign in again before linking an account.');
+              checkRegistryOwner(entry.accountId, name, subject);
+              account = await accounts.linkIdentity(entry.accountId, name, subject);
+            } else {
+              account = accounts.findIdentity(name, subject);
+              if (!account) {
+                if (!entry.inviteId) { inviteRequired(response); return; }
+                account = await createWithInvite(name, subject, entry.inviteId);
+                claimed = true;
+              }
+            }
+            if (entry.inviteId && !claimed) account = await claim(account, entry.inviteId);
+            await syncLegacy?.();
+            await issue(response, account, security, name, entry.inviteId ? account.memberships.find(item => item.id === entry.inviteId) : undefined);
+          });
         });
         return true;
       }
@@ -376,10 +389,19 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       return { signIn: { mode, providers }, ...(account ? { account: { id: account.id, providers: account.identities.map(item => item.provider), provider: identity.provider } } : {}) };
     },
     errorPage(request, response, security, error, status) {
-      if (mode === 'off' || request.method !== 'GET' || !(request.url ?? '').startsWith('/auth/') || security.ingressRole !== 'public' || !security.secure || security.origin !== publicOrigin) return false;
+      const busy = error.retryAfter && [429, 503].includes(status);
+      const joining = (request.url ?? '').startsWith('/join/');
+      if (mode === 'off' || !(request.method === 'GET' || busy && request.method === 'POST') ||
+        !((request.url ?? '').startsWith('/auth/') || joining && busy) || security.ingressRole !== 'public' || !security.secure || security.origin !== publicOrigin) return false;
       const message = error.status ? error.message : 'Sign-in could not be completed. Please try again.';
-      const heading = /already.*claimed/i.test(message) ? 'Invite already claimed' : /expired/i.test(message) ? 'Sign-in expired' : 'Unable to sign in';
-      page(response, { providers, heading, message }, status); return true;
+      const heading = busy ? 'Sign-in temporarily unavailable' : /already.*claimed/i.test(message) ? 'Invite already claimed' : /expired/i.test(message) ? 'Sign-in expired' : 'Unable to sign in';
+      const entry = error.signInContinuation;
+      const identity = entry ? invites.authenticate?.(request, security) : undefined;
+      const invite = entry?.inviteId ? invites.get(entry.inviteId) : undefined;
+      if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
+      page(response, { providers: joining ? [] : providers, heading, message, help: !busy,
+        linkAccount: !!entry?.accountId, claim: !!invite && identity?.kind === 'account',
+        continueInvite: canContinueInvite(invite, identity) }, status); return true;
     },
     close() { closed = true; pending.clear(); configured.clear(); },
   };
