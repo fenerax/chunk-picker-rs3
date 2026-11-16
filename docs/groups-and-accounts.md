@@ -24,6 +24,11 @@ For example, one login contains Character A, Character B and Character C. Each c
 
 ## Entities and invariants
 
+The [stage 1 registry design](character-registry-stage-1.md) proposes the
+representation, migration, provisioning recovery and rollback for issue #301.
+Implementation is paused on its question about existing deletion controls;
+the design note does not mark any launch-readiness behavior complete.
+
 | Entity | Meaning and exact relationship |
 | --- | --- |
 | Sign-in identity | A provider plus its opaque subject. Each identity belongs to exactly one login account. A login may link one Discord identity and one Google identity. Provider names, email addresses and RuneScape names never identify a login account. Linking a second provider requires an authenticated account session; identities already belonging to different logins are not automatically merged. |
