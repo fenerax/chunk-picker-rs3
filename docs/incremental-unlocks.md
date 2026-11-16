@@ -13,6 +13,12 @@ are safe seeds for a new fixed point.
 
 ## Calculation boundary
 
+The predicate-reuse slice is experimental: select it with
+`RS3_INCREMENTAL_UNLOCKS=1` or the engine constructor's `incrementalUnlocks:
+true`. The ordinary full calculation remains the default until end-to-end
+measurements establish a useful improvement. `incrementalUnlocks: false`
+provides the cold reference independently of the environment.
+
 Retain dependency information from a completed calculation, under the existing
 eligibility byte budget. An unlock may reuse a task check only when all inputs
 read by that check still agree. Sources invalidate their item consumers, item
@@ -29,6 +35,22 @@ recomputed by the existing collectors. Dependency checks observe both gains and
 losses, so processing retractions follow the same full-discovery fallback as
 the reference. Public gameplay counters, row order and explanations remain part
 of equivalence, even when a cached predicate avoids actual work.
+
+The implementation records Set membership (including false), Map lookups,
+scalar properties, ordered collection reads and item-admission predicates.
+Object observations use SHA-256 of V8 serialization, preserving undefined,
+collection order and numeric distinctions. Item predicates compare the actual
+consumer's source policy rather than invalidating on unrelated source-location
+changes. Explanations depend on the disconnected-route text only when they use
+it. Mutable source publications invalidate their fingerprints. Pass-local
+fingerprint caches reset before each access/production round.
+
+At most four predicate variants per task/check mode survive each calculation.
+Two serialized bases per compiled engine share the existing eligibility ledger,
+including complete backing bytes and key/entry overhead. They compete with
+existing proofs under the same caps and eviction callbacks. Deserialization
+creates private scratch. Cached explanations are copied before presentation
+can append blockers.
 
 Reuse requires a resident, budgeted base and an ownership-only transition with
 unchanged rules, progress, controls, overrides, catalogue and evaluation options.
