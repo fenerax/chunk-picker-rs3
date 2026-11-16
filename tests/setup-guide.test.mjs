@@ -140,10 +140,63 @@ test('the starting step rolls only for players still without a start and explain
   await none.button('Next').events.click(); await none.button('Next').events.click(); await settle();
   assert.ok(none.nodes().some(node => /no starting-bank list yet/.test(node.textContent)));
   assert.equal(none.button('Roll starting banks'), undefined);
-  const failed = harness({ data: null }); failed.guide.open();
-  await failed.button('Next').events.click(); await failed.button('Next').events.click(); await settle();
-  assert.ok(failed.nodes().some(node => /no starting-bank list yet/.test(node.textContent)));
-  assert.equal(failed.commands().length, 0);
+  assert.ok(!none.button('Retry') || none.button('Retry').hidden);
+});
+
+test('a failed starting-bank load can retry on the same step and show banks', async () => {
+  const h = harness();
+  let attempts = 0, resolve;
+  h.ctx.api = async path => {
+    assert.equal(path, '/api/members-start'); attempts++;
+    if (attempts === 1) throw new Error('Temporarily unavailable');
+    return new Promise(done => { resolve = done; });
+  };
+  h.guide.open(); await h.button('Next').events.click(); await h.button('Next').events.click();
+  const heading = h.nodes().find(node => node.tag === 'h3');
+  assert.ok(h.nodes().some(node => /Could not load starting banks.*Temporarily unavailable/.test(node.textContent)));
+  assert.equal(h.nodes().some(node => /no starting-bank list yet/.test(node.textContent)), false);
+  assert.equal(h.button('Roll starting banks'), undefined);
+  const retry = h.button('Retry');
+  assert.ok(retry && !retry.hidden && !retry.disabled);
+  const loading = retry.events.click();
+  assert.ok(retry.disabled, 'retry is disabled while the request is pending');
+  await retry.events.click();
+  assert.equal(attempts, 2, 'repeated activation cannot start another pending request');
+  assert.ok(h.nodes().some(node => node.textContent === 'Loading starting banks…'));
+  resolve({ data: { optionAF2PExtension: banks } }); await loading;
+  assert.equal(h.step(), 'start');
+  assert.equal(h.nodes().find(node => node.tag === 'h3'), heading, 'retry keeps the current step');
+  assert.ok(h.nodes().some(node => node.textContent === '2 banks in the pool'));
+  assert.ok(h.nodes().some(node => node.textContent === 'North Town bank'));
+  assert.ok(h.button('Roll starting banks'));
+  assert.ok(!h.button('Retry') || h.button('Retry').hidden);
+  assert.equal(h.commands().length, 0, 'loading banks never writes gameplay state');
+});
+
+test('a late starting-bank load failure or retry cannot change a later step', async () => {
+  for (const retrying of [false, true]) for (const fail of [false, true]) {
+    const h = harness(); let resolve, reject;
+    h.ctx.api = async () => {
+      if (retrying) throw new Error('Temporarily unavailable');
+      return new Promise((done, failed) => { resolve = done; reject = failed; });
+    };
+    h.guide.open(); await h.button('Next').events.click();
+    let loading = h.button('Next').events.click();
+    if (retrying) {
+      await loading;
+      h.ctx.api = () => new Promise((done, failed) => { resolve = done; reject = failed; });
+      loading = h.button('Retry').events.click();
+    }
+    await h.button('Next').events.click();
+    const nodes = h.nodes();
+    if (fail) reject(new Error('Temporarily unavailable'));
+    else resolve({ data: { optionAF2PExtension: banks } });
+    await loading;
+    assert.equal(h.step(), 'tour');
+    assert.deepEqual(h.nodes(), nodes);
+    assert.equal(h.button('Retry'), undefined);
+    assert.equal(h.commands().length, 0);
+  }
 });
 
 test('setup-start seeds sections, keeps other maps, and refuses when it has nothing to do', () => {
