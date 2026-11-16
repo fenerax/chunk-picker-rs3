@@ -63,6 +63,11 @@ test('risk reading follows relative helpers inside tests/ only', async t => {
   await writeFile(path.join(root, 'tests', 'helped.test.mjs'), "import { wait } from './helpers/clock.mjs';\n");
   await writeFile(path.join(root, 'tests', 'plain.test.mjs'), "import { later } from '../app/timer.mjs';\n");
   assert.equal(stabilityRisk(readTestSource(root, 'tests/helped.test.mjs')), 'clock');
+  await writeFile(path.join(root, 'tests', 'helpers', 'setup.mjs'), "import './clock.mjs';\n");
+  await writeFile(path.join(root, 'tests', 'side-effect.test.mjs'), "import './helpers/setup.mjs';\n");
+  await writeFile(path.join(root, 'tests', 'reexport.test.mjs'), "export * from './helpers/clock.mjs';\n");
+  assert.equal(stabilityRisk(readTestSource(root, 'tests/side-effect.test.mjs')), 'clock');
+  assert.equal(stabilityRisk(readTestSource(root, 'tests/reexport.test.mjs')), 'clock');
   assert.equal(stabilityRisk(readTestSource(root, 'tests/plain.test.mjs')), null);
 });
 

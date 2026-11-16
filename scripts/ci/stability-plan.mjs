@@ -36,7 +36,7 @@ export function readTestSource(root, file, seen = new Set()) {
   const text = readFileSync(absolute, 'utf8');
   const testsDir = path.resolve(root, 'tests') + path.sep;
   let combined = text;
-  for (const [, spec] of text.matchAll(/(?:from\s+|import\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+  for (const [, spec] of text.matchAll(/(?:\bfrom\s+|\bimport\s*\(?\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
     const target = path.resolve(path.dirname(absolute), spec);
     if (target.startsWith(testsDir)) combined += '\n' + readTestSource(root, path.relative(root, target), seen);
   }
