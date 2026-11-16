@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createMembersStart } from '../app/web/members-start.mjs';
 
 const data = JSON.parse(await readFile(new URL('../app/data/members-start-banks.2026-10-12.v1.json', import.meta.url)));
-function harness({ writable = true, api } = {}) {
+function harness({ writable = true, api, memberCount = 2 } = {}) {
   class Node {
     constructor(tag, text, className) { Object.assign(this, { tag, textContent: text ?? '', className, children: [], events: {}, attributes: {}, value: '' }); }
     append(...nodes) { this.children.push(...nodes); }
@@ -12,7 +12,7 @@ function harness({ writable = true, api } = {}) {
     addEventListener(key, action) { this.events[key] = action; }
     focus() {}
   }
-  let state = { revision: 4, members: ['player1', 'player2'].map(id => ({ id, name: id === 'player1' ? 'Player 1' : 'Player 2', unlocked: ['1234', '5678'], selected: ['9012'], pendingRoll: ['3456'], preferences: {} })) }, content, generation = 0, title;
+  let state = { revision: 4, members: Array.from({ length: memberCount }, (_, index) => ({ id: `player${index + 1}`, name: `Player ${index + 1}`, unlocked: ['1234', '5678'], selected: ['9012'], pendingRoll: ['3456'], preferences: {} })) }, content, generation = 0, title;
   const calls = [], el = (tag, text, cls) => new Node(tag, text, cls);
   const ctx = { el, state: () => state, canWrite: () => writable, input: type => Object.assign(el('input'), { type }), button: (text, click, cls) => { const node = el('button', text, cls); node.events.click = click; return node; },
     openDialog: (text, node) => { title = text; content = node; return ++generation; }, closeDialog: () => { generation++; }, dialogCurrent: token => token === generation,
@@ -35,11 +35,21 @@ test('bank preview uses personal Trader Woes confirmation and hides impossible p
   h.choose('Player 1: I have done Trader Woes'); assert.match(h.text(), /Player 1: 2 banks/); assert.match(h.text(), /Player 2: 1 bank/); assert.match(h.text(), /Fully random/);
 });
 
-test('review requires typed confirmation and rejects a changed saved revision', async () => {
-  const h = harness(); await h.panel.open(); h.button('Review members start').events.click();
-  const apply = h.button('Reset group maps and roll starting banks'), typed = h.nodes().find(node => node.tag === 'input');
+for (const memberCount of [1, 2]) test(`${memberCount}-player review requires typed confirmation and rejects a changed saved revision`, async () => {
+  const h = harness({ memberCount }); await h.panel.open(); h.button('Review members start').events.click();
+  const apply = h.button(memberCount === 1 ? 'Reset your map and roll a starting bank' : 'Reset group maps and roll starting banks'), typed = h.nodes().find(node => node.tag === 'input');
   assert.equal(apply.disabled, true); typed.value = 'members'; typed.events.input(); assert.equal(apply.disabled, false);
-  h.changeState(); await apply.events.click(); assert.equal(h.calls.length, 0); assert.match(h.text(), /saved maps changed/);
+  h.changeState(); await apply.events.click(); assert.equal(h.calls.length, 0); assert.match(h.text(), /saved maps? changed/);
+});
+
+test('unsupported group sizes cannot open bank selection', async () => {
+  for (const memberCount of [0, 3, 4, 5]) {
+    let requests = 0;
+    const h = harness({ memberCount, api: async () => { requests++; return { data }; } });
+    await h.panel.open();
+    assert.equal(requests, 0);
+    assert.match(h.text(), /supports one or two players/);
+  }
 });
 
 test('confirmed group start submits reviewed options and reports names and Undo', async () => {
@@ -53,4 +63,33 @@ test('closing during bank loading cannot replace another dialog', async () => {
   let resolve; const h = harness({ api: () => new Promise(done => { resolve = done; }) }), pending = h.panel.open();
   h.ctx.closeDialog(); h.ctx.openDialog('Other dialog', h.ctx.el('p', 'Other content')); resolve({ data }); await pending;
   assert.equal(h.title(), 'Other dialog');
+});
+
+for (const havenhythe of [false, true]) test(`a solo player can preview and confirm ${havenhythe ? 'Havenhythe' : 'ordinary'} members starts with singular wording`, async () => {
+  const h = harness({ memberCount: 1 }); await h.panel.open();
+  assert.match(h.text(), /Player 1: 19 banks/);
+  assert.match(h.text(), /19 banks for you/);
+  assert.match(h.text(), /What changes for you/);
+  assert.match(h.text(), /Player 1: replace 2 unlocked chunks/);
+  assert.equal(h.text().includes('Fully random'), false);
+  if (havenhythe) { h.choose('Havenhythe'); assert.match(h.text(), /You start at Wendlewick/); }
+  h.button('Review members start').events.click();
+  assert.match(h.text(), /previous F2P map is kept/);
+  assert.match(h.text(), /Before going members/);
+  assert.match(h.text(), /One Undo in History/);
+  assert.match(h.text(), /Type members to confirm resetting your map/);
+  assert.doesNotMatch(h.text(), /Different banks|players may share/);
+  const typed = h.nodes().find(node => node.tag === 'input'), apply = h.button('Reset your map and roll a starting bank');
+  assert.equal(apply.disabled, true);
+  await apply.events.click(); assert.equal(h.calls.length, 0);
+  typed.value = 'members'; typed.events.input(); await apply.events.click();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].revision, 4);
+  assert.equal(h.calls[0].payload.type, 'go-members');
+  assert.equal(h.calls[0].payload.options.pool, havenhythe ? 'optionB' : 'optionA');
+  assert.deepEqual(h.calls[0].payload.options.traderWoes, { player1: false });
+  assert.equal(h.title(), 'Members start');
+  assert.match(h.text(), /Your members start is saved/);
+  assert.match(h.text(), /Your previous F2P map is kept as a read-only snapshot/);
+  assert.match(h.text(), /Undo in History/);
 });

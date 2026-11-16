@@ -2275,7 +2275,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       break;
     }
     case 'go-members': {
-      if (next.members.length !== 2) fail('Ready for members requires both players in the group');
+      if (next.members.length < 1 || next.members.length > 2) fail('Ready for members supports one or two players');
       if (!world || !membersStartBanks?.version) fail('Members starting banks are unavailable');
       payload.options = normalizeMembersStartOptions(payload.options, next.members.map(member => member.id));
       const pools = membersStartPools(membersStartBanks, next.members, payload.options);

@@ -15,9 +15,9 @@ const ids = [...bankIds, '100', '200'];
 const definitions = { chunks: Object.fromEntries(ids.map(id => [id, {}])), walkableChunks: ids, walkableChunksF2P: ['100', '200'] };
 const command = { type: 'go-members', options: { pool: 'optionB', pairing: 'independent' } };
 
-async function fixture(t) {
+async function fixture(t, memberCount = 2) {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-members-start-'));
-  const initialState = createGroupState([{ id: 'player1', name: 'Player 1', unlocked: ['100'] }, { id: 'player2', name: 'Player 2', unlocked: ['200'] }]);
+  const initialState = createGroupState([{ id: 'player1', name: 'Player 1', unlocked: ['100'] }, { id: 'player2', name: 'Player 2', unlocked: ['200'] }].slice(0, memberCount));
   initialState.rules['content.f2p'] = true;
   initialState.tasks = [{ id: 'quest:retained', category: 'quest', label: 'Retained quest' }];
   initialState.members[0].completedTasks = ['quest:retained'];
@@ -92,8 +92,8 @@ test('members-start candidates and command require write access; either linked p
   assert.equal((await f.request('/api/command', partner, { expectedRevision: after.revision, command })).status, 200);
 });
 
-test('members reset keeps a labelled pinned durable backup of the full previous state; conflicts create no backup', async t => {
-  const f = await fixture(t);
+for (const memberCount of [1, 2]) test(`${memberCount}-player members reset keeps a labelled pinned durable backup of the full previous state; conflicts create no backup`, async t => {
+  const f = await fixture(t, memberCount);
   const before = await f.application.store.backup();
   const stale = await f.request('/api/command', f.admin, { expectedRevision: 999, command });
   assert.equal(stale.status, 409);
@@ -101,6 +101,10 @@ test('members reset keeps a labelled pinned durable backup of the full previous 
   assert.equal((await f.application.store.listBackups()).length, 0);
   const saved = await f.request('/api/command', f.admin, { expectedRevision: before.state.revision, command });
   assert.equal(saved.status, 200, saved.status === 200 ? undefined : await saved.text());
+  const changed = f.application.store.getState();
+  assert.equal(changed.members.length, memberCount);
+  assert.deepEqual(changed.members.map(member => member.unlocked), Array.from({ length: memberCount }, () => ['16692']));
+  assert.deepEqual(changed.members.map(member => member.f2pMap.unlocked), before.state.members.map(member => member.unlocked));
   const backups = await f.application.store.listBackups();
   assert.equal(backups.length, 1);
   assert.equal(backups[0].label, 'Before going members');
