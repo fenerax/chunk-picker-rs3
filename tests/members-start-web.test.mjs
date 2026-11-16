@@ -35,7 +35,7 @@ test('bank preview uses personal Trader Woes confirmation and hides impossible p
   h.choose('Player 1: I have done Trader Woes'); assert.match(h.text(), /Player 1: 2 banks/); assert.match(h.text(), /Player 2: 1 bank/); assert.match(h.text(), /Fully random/);
 });
 
-for (const memberCount of [1, 2]) test(`${memberCount}-player review requires typed confirmation and rejects a changed saved revision`, async () => {
+for (const memberCount of [1, 2, 3, 4, 5]) test(`${memberCount}-player review requires typed confirmation and rejects a changed saved revision`, async () => {
   const h = harness({ memberCount }); await h.panel.open(); h.button('Review members start').events.click();
   const apply = h.button(memberCount === 1 ? 'Reset your map and roll a starting bank' : 'Reset group maps and roll starting banks'), typed = h.nodes().find(node => node.tag === 'input');
   assert.equal(apply.disabled, true); typed.value = 'members'; typed.events.input(); assert.equal(apply.disabled, false);
@@ -43,12 +43,12 @@ for (const memberCount of [1, 2]) test(`${memberCount}-player review requires ty
 });
 
 test('unsupported group sizes cannot open bank selection', async () => {
-  for (const memberCount of [0, 3, 4, 5]) {
+  for (const memberCount of [0, 6]) {
     let requests = 0;
     const h = harness({ memberCount, api: async () => { requests++; return { data }; } });
     await h.panel.open();
     assert.equal(requests, 0);
-    assert.match(h.text(), /supports one or two players/);
+    assert.match(h.text(), /supports one to five players/);
   }
 });
 
@@ -57,6 +57,22 @@ test('confirmed group start submits reviewed options and reports names and Undo'
   const typed = h.nodes().find(node => node.tag === 'input'); typed.value = 'members'; typed.events.input(); await h.button('Reset group maps and roll starting banks').events.click();
   assert.equal(h.calls.length, 1); assert.equal(h.calls[0].revision, 4); assert.equal(h.calls[0].payload.type, 'go-members'); assert.equal(h.calls[0].payload.options.pool, 'optionB');
   assert.match(h.text(), /Player 1: Wendlewick/); assert.match(h.text(), /Player 2: Wendlewick/); assert.match(h.text(), /Undo in History/);
+});
+
+for (const memberCount of [3, 4, 5]) test(`${memberCount}-player preview and confirmation includes the full roster`, async () => {
+  const synthetic = { version: 'synthetic-v1', optionA: [{ chunkId: '1', place: 'First bank' }],
+    optionB: [{ chunkId: '16692', place: 'Wendlewick' }], optionBConditional: [{ chunkId: '2', place: 'Second bank' }] };
+  const h = harness({ memberCount, api: async () => ({ data: synthetic }) }); await h.panel.open();
+  h.choose('Havenhythe'); assert.match(h.text(), /All players start at Wendlewick/);
+  h.choose(`Player ${memberCount}: I have done Trader Woes`);
+  for (let index = 1; index <= memberCount; index++) assert.match(h.text(), new RegExp(`Player ${index}: ${index === memberCount ? 2 : 1} banks?`));
+  h.button('Review members start').events.click();
+  const typed = h.nodes().find(node => node.tag === 'input'); typed.value = 'members'; typed.events.input();
+  await h.button('Reset group maps and roll starting banks').events.click();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].payload.options.traderWoes[`player${memberCount}`], true);
+  for (let index = 1; index <= memberCount; index++) assert.match(h.text(), new RegExp(`Player ${index}: Wendlewick`));
+  assert.match(h.text(), /Undo in History/);
 });
 
 test('closing during bank loading cannot replace another dialog', async () => {

@@ -8,8 +8,8 @@ function object(value, label) {
 }
 
 function ids(values) {
-  if (!Array.isArray(values) || values.length < 1 || values.length > 2) {
-    throw new TypeError('Members starts support one or two members');
+  if (!Array.isArray(values) || values.length < 1 || values.length > 5) {
+    throw new TypeError('Members starts support one to five members');
   }
   const result = values.map(value => typeof value === 'string' ? value : value?.id);
   if (result.some(id => typeof id !== 'string' || !id.trim()) || new Set(result).size !== result.length) {
@@ -93,24 +93,71 @@ export function membersStartPools(data, members, options = {}) {
   });
 }
 
-/** Uniformly sample valid ordered assignments, including asymmetric personal pools. */
+// Count assignments by bank and remaining roster subset, rather than materializing
+// the Cartesian product. Maximizing distinct banks minimizes repeated starts.
+function minimumOverlapBanks(banks, chooseIndex) {
+  const chunks = [...new Set(banks.flat().map(bank => bank.chunkId))];
+  const byMember = banks.map(pool => new Map(pool.map(bank => [bank.chunkId, bank])));
+  const eligible = chunks.map(id => byMember.reduce((mask, pool, index) => pool.has(id) ? mask | (1 << index) : mask, 0));
+  const memo = new Map();
+  function count(index, remaining) {
+    if (!remaining) return { distinct: 0, total: 1 };
+    if (index === chunks.length) return { distinct: -Infinity, total: 0 };
+    const key = index * (1 << banks.length) + remaining;
+    if (memo.has(key)) return memo.get(key);
+    const available = eligible[index] & remaining;
+    const result = { distinct: -Infinity, total: 0, choices: [] };
+    for (let subset = available; ; subset = (subset - 1) & available) {
+      const tail = count(index + 1, remaining ^ subset);
+      const distinct = tail.distinct + (subset ? 1 : 0);
+      if (tail.total && distinct >= result.distinct) {
+        if (distinct > result.distinct) { result.distinct = distinct; result.total = 0; result.choices = []; }
+        result.total += tail.total;
+        result.choices.push({ subset, total: tail.total });
+      }
+      if (!subset) break;
+    }
+    memo.set(key, result);
+    return result;
+  }
+  let remaining = (1 << banks.length) - 1;
+  let rank = chooseIndex(count(0, remaining).total);
+  const chosen = [];
+  for (let index = 0; remaining; index++) {
+    for (const choice of count(index, remaining).choices) {
+      if (rank >= choice.total) { rank -= choice.total; continue; }
+      for (let member = 0; member < banks.length; member++) {
+        if (choice.subset & (1 << member)) chosen[member] = byMember[member].get(chunks[index]);
+      }
+      remaining ^= choice.subset;
+      break;
+    }
+  }
+  return chosen;
+}
+
+/** Uniformly sample valid minimum-overlap assignments, including personal pools. */
 export function rollMembersStarts(pools, pairing = 'different', random = Math.random) {
   if (!['different', 'independent'].includes(pairing)) throw new TypeError('Pairing must be different or independent');
   if (typeof random !== 'function') throw new TypeError('Random must be a function');
   if (!Array.isArray(pools)) throw new TypeError('Pools must be an array');
   ids(pools.map(pool => pool?.memberId));
   const banks = pools.map(pool => uniqueBanks(pool.banks));
-  function choose(values) {
+  function chooseIndex(length) {
     const draw = random();
     if (typeof draw !== 'number' || !Number.isFinite(draw) || draw < 0 || draw >= 1) {
       throw new TypeError('Random must return a number in [0, 1)');
     }
-    return values[Math.floor(draw * values.length)];
+    return Math.floor(draw * length);
   }
+  const choose = values => values[chooseIndex(values.length)];
   let chosen;
   if (pairing === 'independent' || banks.length === 1) {
     chosen = banks.map(choose);
+  } else if (banks.length > 2) {
+    chosen = minimumOverlapBanks(banks, chooseIndex);
   } else {
+    // Keep the established duo draw order for reproducible existing starts.
     const assignments = [];
     for (const first of banks[0]) {
       for (const second of banks[1]) {
