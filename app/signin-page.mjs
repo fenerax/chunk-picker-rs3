@@ -25,6 +25,7 @@ export function renderSignInPage({ providers = [], heading = 'Sign in', message,
     ${home ? '<a class="signin-provider" href="/">Open your picker</a>' : ''}${links ? `<div class="signin-providers" aria-label="Sign-in providers">${links}</div>` : ''}
     ${claim ? '<form class="signin-claim" method="post" action="/auth/claim"><button type="submit">Use this invitation with this account</button></form>' : ''}
     ${continueInvite ? '<form class="signin-invite" method="post" action="/auth/invite"><button type="submit">Continue with invite link</button></form>' : ''}
+    ${heading === 'Sign in' && !linkAccount ? '<p><a class="signin-provider" href="/guest/">Try without signing in</a></p><p class="signin-help">Guest progress stays only in this browser. Download a save to keep a copy.</p>' : ''}
     ${help && !links && !claim && !continueInvite ? '<p class="signin-help">No sign-in providers are available. Contact the picker administrator for access.</p>' : ''}
     <p class="signin-help">Use the invitation shared with you to access this picker.</p>
   </main>

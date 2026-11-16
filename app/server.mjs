@@ -8,6 +8,7 @@ import { bodyJSON, json } from './picker-context-http.mjs';
 import { httpError, redactInviteTokens, serverReadyMessage, cachedJSON } from './picker-context-http.mjs';
 export { routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult, coordinationView } from './picker-context-http.mjs';
 import { createPickerContext } from './picker-context.mjs';
+import { createGuestMode, isGuestRoute } from './guest.mjs';
 import { prepareOwnedServingRelease, verifyOwnedServingConfiguration, verifyOwnedRuntimeRelease, selectOwnedServingPicker } from './storage/owned-serving.mjs';
 import { createPinnedOwnedMigration } from './owned-preparation.mjs';
 import { createPickerLimits } from './security/picker-limits.mjs';
@@ -112,7 +113,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Optional second listener on 127.0.0.1 for Tailscale Funnel, which can only proxy to loopback.
   loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined,
   loopbackRole = process.env.RS3_LOOPBACK_ROLE ?? 'private',
-  signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider, multiPicker, backupRetentionMs,
+  signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider, multiPicker, backupRetentionMs, guestOptions,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
   // Operator capability only: no HTTP endpoint can acquire writer ownership.
   liveSwap,
@@ -360,6 +361,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const usageAdmission = createUsageRateLimit({ ...(now === undefined ? {} : { now: () => typeof now === 'function' ? now() : now }), ...usageRateLimits });
   const runtime = {
     timings, deepProfiles, dataset, indexedWorld, ruleRegistry, taskWorker, taskWorkerOptions, parsedDefinitions,
+    guestDatasetOptions: datasetOptions,
     parsedTaskMap, identityHistory, migrateState, registry, xpChoiceCatalogue, sandboxCatalogue,
     originalSyncIntegration, privateAddon, appVersion, browserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
@@ -374,6 +376,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       interiorsPending = undefined; chunkSectionsPending = undefined;
     },
   };
+  const guestMode = createGuestMode({ ...guestOptions, runtime, publicOrigin, host });
   const connections = startupConnections ?? new Set();
   const transport = { savingConnections: new Map(), connectionDeadlinePassed: false,
     inviteUrl: () => handle.inviteUrl, requestClose: () => handle.close() };
@@ -543,7 +546,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   };
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
   const timedRequestHandler = (request, response, listener) => timings.request(request, response, () => requestHandler(request, response, listener));
-  const profiledRequestHandler = PROFILE_ENABLED ? (request, response, listener) => profile.request(request, response, () => timedRequestHandler(request, response, listener)) : timedRequestHandler;
+  const recordedRequestHandler = PROFILE_ENABLED ? (request, response, listener) => profile.request(request, response, () => timedRequestHandler(request, response, listener)) : timedRequestHandler;
+  const profiledRequestHandler = (request, response, listener) => isGuestRoute(request)
+    ? guestMode.handle(request, response, listener) : recordedRequestHandler(request, response, listener);
   const server = httpServer ?? http.createServer(headerOptions, profiledRequestHandler);
   const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions,
     (request, response) => profiledRequestHandler(request, response, { host: '127.0.0.1', ingressRole: loopbackRole })));
@@ -578,6 +583,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     close() {
       if (closePromise) return closePromise;
       closed = true;
+      const guestsClosed = guestMode.close();
       const contextClosed = pickerRouter
         ? pickerRouter.close().then(() => context.close()).then(() => pickerRegistry.close())
         : context.close();
@@ -597,7 +603,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         const boundedResponses = contextClosed.then(() => {
           saveResponseTimer = setTimeout(() => { for (const socket of connections) socket.destroy(); }, shutdownDeadlineMs);
         });
-        try { await deepProfiles.close(); await Promise.all([connectionsClosed, taskWorker?.close(shutdownDeadlineMs), boundedResponses]); await timings.close(); }
+        try { await deepProfiles.close(); await Promise.all([guestsClosed, connectionsClosed, taskWorker?.close(shutdownDeadlineMs), boundedResponses]); await timings.close(); }
         finally { clearTimeout(timer); clearTimeout(saveResponseTimer); runtime.staticCache.clear(); }
       })();
       return closePromise;

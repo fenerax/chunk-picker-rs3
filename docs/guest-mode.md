@@ -35,10 +35,16 @@ An opaque admission token is sent in a header, never a URL. The process retains
 only its hash, IP rate key and expiry in memory; it carries no account authority.
 Restart invalidates tokens. Expiry never deletes the browser save: reopening
 guest mode obtains fresh admission and resumes that save.
+The current tab retains its admission in sessionStorage and reuses it on reload
+without extending its original expiry or consuming another admission slot.
 
 ## Initial limits
 
 These conservative limits protect the existing beta; they are not capacity proof.
+The disposable guest isolate has the existing calculator's 2 GiB old-generation
+heap ceiling. It receives no inherited Node flags or logging/cache environment.
+Browser writes use Web Locks plus a stored-base comparison; current browsers
+without Web Locks report that saving is unavailable instead of risking overwrite.
 
 | Budget | Per IP | Global |
 | --- | --- | --- |
@@ -84,3 +90,20 @@ worker disposal, browser reload/export/import/conflict/storage errors, and
 unchanged authenticated access. New browser/static routes also require the
 server and browser-module-graph tests and the complete CI gate. Explore the solo
 workflow on an isolated synthetic server before handoff.
+
+## Implementation verification
+
+Focused checks use Node.js 24.20.0, synthetic stores and one test worker. The
+guest HTTP workflow compares every durable filename and file hash before and
+after play, rejects account/group routes, and exercises the existing signed-in
+session afterward. Save and limit tests cover portable round trips, reloads,
+stale tabs, storage errors, fixed expiry and bounded worker disposal. The server,
+browser module graph and sign-in regressions remain part of verification.
+
+A headless browser walkthrough on the public F2P dataset exercised unlocking,
+rolling, task checks, How, settings, notes, three reloads using one admission,
+download/import and a second tab refusing stale writes. Desktop layouts at
+1920 and 2560 pixels and the 390-pixel phone layout were inspected; the page
+does not overflow horizontally, and phone map buttons retain 44-pixel targets.
+This is synthetic local evidence, not a deployment or capacity claim. The full
+hosted CI and stability gates must still pass before merge.
