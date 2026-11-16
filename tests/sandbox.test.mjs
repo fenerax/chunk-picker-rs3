@@ -93,6 +93,20 @@ test('sandbox compares task identity across label and presentation changes', () 
   assert.deepEqual(sandboxDelta(before, after).tasksRemoved.map(t => t.id), ['custom:chair']);
 });
 
+test('compact Sandbox prediction retains only clue grouping metadata on added tasks', () => {
+  const clue = { id: 'scan', label: 'Synthetic scan destination', category: 'Nonskill', status: 'available',
+    record: { ClueTier: 'elite', ClueType: 'Scan', Output: 'Unneeded graph' }, sources: ['Unneeded evidence'] };
+  const ordinary = { id: 'gate', label: 'Use the gate', category: 'Nonskill', record: { Output: 'Unneeded graph' } };
+  const prediction = { delta: { tasksAdded: [clue, ordinary], tasksRemoved: [clue] }, result: { coverage: {}, metrics: {} } };
+  const before = structuredClone(prediction), projected = compactSandboxPrediction(prediction);
+  assert.deepEqual(projected.delta.tasksAdded[0].record, { ClueTier: 'elite', ClueType: 'Scan' });
+  assert.notEqual(projected.delta.tasksAdded[0].record, clue.record);
+  assert.equal(Object.hasOwn(projected.delta.tasksAdded[0], 'sources'), false);
+  assert.equal(Object.hasOwn(projected.delta.tasksAdded[1], 'record'), false);
+  assert.equal(Object.hasOwn(projected.delta.tasksRemoved[0], 'record'), false);
+  assert.deepEqual(prediction, before);
+});
+
 test('sandbox challenge deltas follow the displayed any/all/personal completion facts without inferring game completion', () => {
   const registry = createRuleRegistry();
   for (const mode of ['any', 'all', 'personal']) {

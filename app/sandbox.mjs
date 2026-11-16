@@ -129,7 +129,12 @@ export function sandboxDelta(before, after, { beforeState, afterState, memberId,
 /** Keep the established Preview delta shape without copying source graphs. */
 export function compactSandboxPrediction(prediction) {
   const delta = { ...prediction.delta };
-  for (const key of ['tasksAdded', 'tasksRemoved']) delta[key] = (delta[key] ?? []).map(row => projectPlayTask(row));
+  for (const key of ['tasksAdded', 'tasksRemoved']) delta[key] = (delta[key] ?? []).map(row => ({
+    ...projectPlayTask(row),
+    // Unlock Preview groups added clue steps without needing their source graphs.
+    ...(key === 'tasksAdded' && row.record?.ClueTier && row.record?.ClueType
+      ? { record: { ClueTier: row.record.ClueTier, ClueType: row.record.ClueType } } : {}),
+  }));
   for (const key of ['itemsAdded', 'itemsRemoved', 'equipmentAdded', 'equipmentRemoved']) delta[key] = (delta[key] ?? []).map(({ name }) => ({ name }));
   return { delta, coverage: prediction.result.coverage, metrics: prediction.result.metrics };
 }

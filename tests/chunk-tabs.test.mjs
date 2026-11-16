@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { replaceView } from '../app/web/browser-state.mjs';
+import { compactSandboxPrediction } from '../app/sandbox.mjs';
 
 const source = (await readFile(new URL('../app/web/screen-chunks.mjs', import.meta.url), 'utf8'))
   .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
@@ -43,12 +44,12 @@ function fixture() {
   return { c, tabs, wrap, bar, panel, menu, map, document, node, changes, renders, focused: () => focused };
 }
 
-function previewFixture(tasks, cached = false) {
+function previewFixture(tasks, cached = false, sandbox = false) {
   const h = fixture(), { c, node } = h;
   const value = { memberId: 'synthetic', stateRevision: 7, delta: { tasksAdded: tasks } };
   Object.assign(c, {
     canWrite: () => true, memberId: 'synthetic', state: { revision: 7 },
-    sandbox: { active: false, signature: () => '' }, deathChunks: { panel: () => node('aside') },
+    sandbox: { active: sandbox, signature: () => '' }, deathChunks: { panel: () => node('aside') },
     compatibleTaskRevision: revision => revision === 7, plain: String,
     list: values => { const list = node('ul'); list.append(...values.map(value => node('li', value))); return list; },
     details: (title, ...children) => { const details = node('details'); details.append(node('summary', title), ...children); return details; },
@@ -98,6 +99,24 @@ test('unlock Preview keeps incomplete metadata and clue-like non-clue labels as 
   assert.deepEqual(outcome.children[2].children.map(row => row.textContent), tasks.map(task => task.label));
   const empty = previewFixture([]); await Promise.resolve();
   assert.equal(empty.outcome.children[0].textContent, 'No new possible tasks');
+});
+
+test('Sandbox unlock Preview groups the compact projected prediction response', async () => {
+  const clue = (type, index) => ({ id: `${type}-${index}`, category: 'Nonskill', label: `Destination ${type} ${index}`,
+    record: { ClueTier: 'elite', ClueType: type, Output: 'Unneeded source graph' }, sources: ['Unneeded evidence'] });
+  const tasks = [...Array.from({ length: 12 }, (_, i) => clue('Scan', i)),
+    ...Array.from({ length: 2 }, (_, i) => clue('Compass', i)), { id: 'gate', category: 'Nonskill', label: 'Use the gate' }];
+  // Use the server projection and JSON boundary, not full-record UI fixtures.
+  const projected = JSON.parse(JSON.stringify(compactSandboxPrediction({ delta: { tasksAdded: tasks }, result: { coverage: {}, metrics: {} } })));
+  const { outcome } = previewFixture(projected.delta.tasksAdded, false, true);
+  await Promise.resolve();
+  assert.equal(outcome.children[0].textContent, '15 new possible tasks');
+  const rows = outcome.children[2].children;
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows.slice(0, 2).map(row => row.children[0].children[0].textContent), ['Elite scan clue spots (12)', 'Elite compass clue spots (2)']);
+  assert.deepEqual(rows[0].children[0].children[1].children.map(row => row.textContent), tasks.slice(0, 12).map(task => task.label));
+  assert.deepEqual(rows[1].children[0].children[1].children.map(row => row.textContent), tasks.slice(12, 14).map(task => task.label));
+  assert.equal(rows[2].textContent, 'Use the gate');
 });
 
 test('chunk tabs have a named list, one selected stop, and a labelled controlled panel', () => {
