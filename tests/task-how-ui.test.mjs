@@ -18,6 +18,39 @@ const button = (text, action, cls) => { const node = document.createElement('but
 const text = node => [node.textContent ?? '', ...node.children.map(text)].join(' ');
 const proof = { proofStatus: 'partial', root: 'a', nodes: { a: { kind: 'task', label: 'Do the task.', subjectId: 'private:technical-id', rule: 'task-requirements', allOf: ['b'] }, b: { kind: 'gap', label: 'The picker cannot show the source yet.', allOf: [] } } };
 const task = { id: 'task:x', label: 'Test task', status: 'available' };
+
+test('generated goals open details without loading or painting a cached proof', async () => {
+  for (const category of ['BiS', 'Collection', 'Construction']) for (const readOnly of [false, true]) {
+    const generated = { ...task, id: `generated:${category}`, category, generated: true };
+    const cache = createViewCache({ storage: undefined }); cache.configure({ picker: 'fixture' });
+    cache.remember('how', generated.id, 0, proof);
+    const row = new Node('div'); let opened;
+    const toggle = appendTaskHow(row, generated, { document, button, cache, readOnly,
+      openDetails: value => { opened = value; }, load: () => assert.fail('generated goals must not request How') });
+    assert.equal(toggle.textContent, 'Details');
+    await toggle.events.click();
+    assert.equal(opened, generated);
+    assert.equal(row.children.length, 1, 'no cached or empty route panel');
+  }
+});
+
+test('generated goal details explain the route limit without offering How or an empty list', () => {
+  const row = new Node('div');
+  const toggle = appendTaskHow(row, { ...task, generated: true }, { document, button,
+    load: () => assert.fail('generated goals must not request How') });
+  assert.equal(toggle, undefined);
+  assert.match(text(row), /Step-by-step routes.*generated goals/);
+  assert.match(text(row), /sources.*details/i);
+  assert.equal(row.children.some(node => ['button', 'ol'].includes(node.tagName)), false);
+});
+
+test('empty proof output explains the missing route instead of rendering an empty step list', () => {
+  for (const advanced of [false, true]) {
+    const rendered = renderTaskHow({ proofStatus: 'partial', nodes: {} }, { document, advanced });
+    assert.equal(rendered.children.some(node => node.tagName === 'ol'), false);
+    assert.match(text(rendered), /No step-by-step route is available/);
+  }
+});
 test('How labels cached revisions as updating until the live answer replaces them', async () => {
   for (const cachedRevision of [6, 7, 8]) {
     const cache = createViewCache({ storage: undefined }); cache.configure({ picker: 'fixture' });
