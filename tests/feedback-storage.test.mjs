@@ -17,6 +17,26 @@ async function fixture(t, document) {
   return { dataDir, get store() { return store; }, async restart() { await store.close(); store = await openFeedbackStore({ dataDir }); } };
 }
 
+test('issue links validate before writing, survive restart and preserve handled state', async t => {
+  const f = await fixture(t), item = await f.store.add({ kind: 'bug', text: 'Synthetic handoff' }, reed);
+  const before = await readFile(path.join(f.dataDir, 'feedback.json'), 'utf8');
+  for (const issueUrl of ['http://github.com/fenerax/chunk-picker-rs3/issues/1', 'https://github.com/other/repo/issues/1',
+    'https://github.com/fenerax/chunk-picker-rs3/issues/new', 'https://github.com/fenerax/chunk-picker-rs3/issues/1?x=1',
+    'https://example.com/fenerax/chunk-picker-rs3/issues/1', 'https://github.com/fenerax/chunk-picker-rs3/issues/0',
+    'https://github.com/fenerax/chunk-picker-rs3/issues/1\n', 'https://github.com/fenerax/chunk-picker-rs3/issues/1#fragment']) {
+    assert.throws(() => f.store.setIssueUrl(item.id, issueUrl), { status: 400 });
+  }
+  assert.equal(await readFile(path.join(f.dataDir, 'feedback.json'), 'utf8'), before);
+  const issueUrl = 'https://github.com/fenerax/chunk-picker-rs3/issues/123';
+  assert.equal((await f.store.setIssueUrl(item.id, issueUrl)).status, 'new');
+  await f.store.setStatus(item.id, 'done'); await f.restart();
+  assert.equal(f.store.own(reed)[0].issueUrl, issueUrl); assert.equal(f.store.list()[0].status, 'done');
+  const handled = await f.store.setIssueUrl(item.id, issueUrl);
+  assert.equal(handled.status, 'done'); assert.equal(handled.doneAt, f.store.list()[0].doneAt);
+  await f.store.setStatus(item.id, 'new'); assert.equal(f.store.list()[0].issueUrl, issueUrl);
+  await assert.rejects(f.store.setIssueUrl('missing', issueUrl), { status: 404 });
+});
+
 test('seen state survives restart and acknowledges only displayed IDs, including handled notes', async t => {
   const f = await fixture(t);
   const first = await f.store.add({ kind: 'bug', text: 'First' }, reed);

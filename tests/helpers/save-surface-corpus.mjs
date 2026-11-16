@@ -207,7 +207,10 @@ export async function buildSaveCorpus(t) {
   const invites = await openInviteStore({ dataDir, masterToken: store.token });
   try { await invites.create({ label: 'Synthetic invitation', memberId: roster[0].id }); } finally { await invites.close(); }
   const feedback = await openFeedbackStore({ dataDir });
-  try { await feedback.add({ kind: 'idea', text: 'Synthetic feedback' }, actor); } finally { await feedback.close(); }
+  try {
+    const report = await feedback.add({ kind: 'idea', text: 'Synthetic feedback' }, actor);
+    await feedback.setIssueUrl(report.id, 'https://github.com/fenerax/chunk-picker-rs3/issues/123');
+  } finally { await feedback.close(); }
   const usage = await openUsageStore({ dataDir, actors: roster.map(row => row.id), now: () => Date.parse(at) });
   try { await usage.add({ counts: [{ id: usageEvents[0].id, actor: roster[0].id, device: 'desktop', day: at.slice(0, 10), count: 1 }] }, roster[0].id); } finally { await usage.close(); }
   await capture('sidecars');
