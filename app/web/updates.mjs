@@ -1,11 +1,17 @@
 // "A new version is ready" banner and the What's new list.
 // The server sends its version on every live connection; a different one after a reconnect means the picker was updated.
 export function createUpdates({ el, button, openDialog, api, banner, storage = (() => { try { return globalThis.localStorage; } catch { return null; } })() }) {
-  let loadedVersion, changelog;
+  let loadedVersion, observedVersion, changelog;
   const seenKey = 'picker.changelogSeen';
 
-  async function loadChangelog() {
-    changelog ??= api('/api/changelog').catch(error => { changelog = undefined; throw error; });
+  function loadChangelog() {
+    if (!changelog) {
+      const request = api('/api/changelog').then(value => {
+        if (changelog === request) refreshDot(value);
+        return value;
+      }).catch(error => { if (changelog === request) changelog = undefined; throw error; });
+      changelog = request;
+    }
     return changelog;
   }
 
@@ -19,8 +25,11 @@ export function createUpdates({ el, button, openDialog, api, banner, storage = (
   /** Called with each version the server reports. */
   function seen(version) {
     if (!version) return;
-    if (loadedVersion === undefined) { loadedVersion = version; return; }
-    if (version !== loadedVersion) loadChangelog().then(value => showBanner(value.entries?.[0])).catch(() => showBanner());
+    if (loadedVersion === undefined) { loadedVersion = observedVersion = version; return; }
+    if (version !== observedVersion) { observedVersion = version; changelog = undefined; }
+    if (version !== loadedVersion) loadChangelog().then(value => {
+      if (version === observedVersion) showBanner(value.entries?.[0]);
+    }).catch(() => { if (version === observedVersion) showBanner(); });
   }
 
   async function openList() {
@@ -48,7 +57,7 @@ export function createUpdates({ el, button, openDialog, api, banner, storage = (
     let lastSeen = null; try { lastSeen = storage?.getItem(seenKey); } catch {}
     menuItem.classList?.toggle('has-news', !!latest && lastSeen !== `${latest.date}|${latest.title}`);
   }
-  loadChangelog().then(value => refreshDot(value)).catch(() => {});
+  loadChangelog().catch(() => {});
 
   // The roadmap is fetched on every open: statuses change while the picker keeps running.
   const statusOrder = ['working', 'next', 'soon', 'later', 'maybe', 'done'];

@@ -35,6 +35,74 @@ test('banner appears only when the server version changes after the first one', 
   await updates.openList(); assert.equal(opened[0][0], 'What’s new');
 });
 
+test('a version change refreshes the banner and list with one coalesced changelog request', async () => {
+  const banner = new Node('div'), opened = [], refresh = Promise.withResolvers();
+  const old = { entries: [{ date: '2026-10-01', title: 'Old release', items: ['Old item'] }] };
+  const latest = { entries: [{ date: '2026-10-02', title: 'New release', items: ['New item'] }] };
+  let requests = 0;
+  const api = async () => ++requests === 1 ? old : refresh.promise;
+  const updates = createUpdates({ el, button, openDialog: (title, node) => opened.push(node), api, banner, storage: null });
+  updates.seen('v1'); await flush();
+  await updates.openList();
+  assert.equal(opened[0].children[0].children[0].textContent, 'Old release');
+  assert.equal(requests, 1, 'first version uses the startup request');
+
+  updates.seen('v2'); updates.seen('v2');
+  const list = updates.openList();
+  refresh.resolve(latest);
+  await list; await flush();
+  assert.match(banner.children[0].textContent, /New release/);
+  assert.equal(opened[1].children[0].children[0].textContent, 'New release');
+  assert.equal(requests, 2, 'repeated version events and the list share one refresh');
+  await updates.openList();
+  updates.seen('v2'); await flush();
+  assert.equal(requests, 2, 'the refreshed result stays cached for the observed version');
+
+  updates.seen('v3'); await flush();
+  assert.equal(requests, 3, 'each newly observed version invalidates the cache once');
+});
+
+test('a failed version refresh can retry and share its retry with the list', async () => {
+  const banner = new Node('div'), opened = [], retry = Promise.withResolvers();
+  let requests = 0;
+  const api = async () => {
+    requests++;
+    if (requests === 1) return { entries: [] };
+    if (requests === 2) throw new Error('Refresh unavailable');
+    return retry.promise;
+  };
+  const updates = createUpdates({ el, button, openDialog: (title, node) => opened.push(node), api, banner, storage: null });
+  updates.seen('v1'); await flush();
+  updates.seen('v2'); await flush();
+  assert.equal(banner.children[0].textContent, 'The picker has been updated.');
+  assert.equal(requests, 2);
+
+  updates.seen('v2');
+  const list = updates.openList();
+  retry.resolve({ entries: [{ date: '2026-10-02', title: 'Recovered release', items: ['Recovered item'] }] });
+  await list; await flush();
+  assert.equal(requests, 3);
+  assert.match(banner.children[0].textContent, /Recovered release/);
+  assert.equal(opened[0].children[0].children[0].textContent, 'Recovered release');
+});
+
+test('superseded changelog requests cannot replace the latest banner or evict its cache', async () => {
+  const banner = new Node('div'), opened = [], requests = [];
+  const api = () => { const request = Promise.withResolvers(); requests.push(request); return request.promise; };
+  const updates = createUpdates({ el, button, openDialog: (title, node) => opened.push(node), api, banner, storage: null });
+  updates.seen('v1'); updates.seen('v2'); updates.seen('v3');
+  assert.equal(requests.length, 3);
+  requests[2].resolve({ entries: [{ date: '2026-10-03', title: 'Latest release', items: ['Latest item'] }] });
+  await flush();
+  requests[1].resolve({ entries: [{ date: '2026-10-02', title: 'Superseded release', items: ['Old item'] }] });
+  requests[0].reject(new Error('Old request failed'));
+  await flush();
+  assert.match(banner.children[0].textContent, /Latest release/);
+  await updates.openList();
+  assert.equal(opened[0].children[0].children[0].textContent, 'Latest release');
+  assert.equal(requests.length, 3, 'an old failure must not clear a newer cached request');
+});
+
 test('roadmap is valid: known statuses, unique ids, dates on done items', async () => {
   const map = JSON.parse(await readFile(new URL('../app/data/roadmap.json', import.meta.url), 'utf8'));
   assert.equal(map.schemaVersion, 1); assert.match(map.updated, /^\d{4}-\d{2}-\d{2}$/);
