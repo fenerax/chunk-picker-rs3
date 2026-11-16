@@ -14,6 +14,7 @@ export const usageEvents = Object.freeze([
   Object.freeze({"id":"dom:bis-open","label":"Current BiS","kind":"use"}),
   Object.freeze({"id":"dom:profile-open","label":"Profile","kind":"use"}),
   Object.freeze({"id":"dom:finish-line-open","label":"F2P finish line","kind":"use"}),
+  Object.freeze({"id":"dom:members-preview-open","label":"What would membership add?","kind":"use"}),
   Object.freeze({"id":"dom:activity-open","label":"Activity Info","kind":"use"}),
   Object.freeze({"id":"dom:teleports-open","label":"Teleports","kind":"use"}),
   Object.freeze({"id":"dom:partner-supply-open","label":"Ask your partner","kind":"use"}),

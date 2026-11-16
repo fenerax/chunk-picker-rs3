@@ -18,7 +18,7 @@ export function applyDatasetFeatureControls(dataset, lookup) {
     for (const id of ids) { const node = lookup(id); if (node) node.hidden = node.disabled = true; }
   }
   const gameHeading = lookup('info-game-heading');
-  if (gameHeading) gameHeading.hidden = ['bis-open', 'profile-open', 'finish-line-open', 'activity-open', 'teleports-open']
+  if (gameHeading) gameHeading.hidden = ['bis-open', 'profile-open', 'finish-line-open', 'members-preview-open', 'activity-open', 'teleports-open']
     .every(id => !lookup(id) || lookup(id).hidden);
 }
 
