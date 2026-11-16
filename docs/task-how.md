@@ -44,8 +44,11 @@ actual startable seed method and its starting evidence; this is not a complete
 XP schedule or verification of repeatability.
 
 Phase 1 covers ordinary own-map walking, areas, task/quest dependencies,
-observed levels, completion roots and basic item sources/outputs. Typed travel,
-partner supplies, points/XP contributors, boosts, processing, Slayer assignments,
+observed levels, completion roots and basic item sources/outputs. Ordinary
+processing recipes use their captured ingredients, stations and skill evidence.
+A doable recipe excluded from supplies can be explained as a goal without
+admitting its outputs or training capability. Typed travel,
+partner supplies, points/XP contributors, boosts, conditional multistep supplies, Slayer assignments,
 special requirements and unresolved resource-only access produce named gaps.
 Generated subjects return `unsupported-subject`; unavailable tasks return a
 partial notice. This feature does not explain blocked-task chains.

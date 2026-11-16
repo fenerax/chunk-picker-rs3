@@ -290,3 +290,66 @@ test('snapshot replay preserves processing chains, cycle fallback and request bu
     }
   }
 });
+
+test('an ordinary processing recipe explains its ingredients and station without a processing gap', () => {
+  const definitions = { chunks: { '100': { Spawn: { Clay: 1 }, Object: { Sink: 1 } } }, challenges: {
+    Crafting: { Soften: { Level: 1, Items: ['Clay'], Objects: ['Sink'], Output: 'Soft clay', Primary: true } },
+  } };
+  const engine = createTaskEngine(definitions), state = caveState(['100']);
+  const proof = engine.how(state, 'one', taskId('Crafting', 'Soften'));
+  assert.equal(proof.availability, 'available');
+  assert.equal(proof.proofStatus, 'complete', JSON.stringify(proof.gaps));
+  assert.match(labels(proof), /Obtain Clay from/); assert.match(labels(proof), /Find Sink/); graph(proof);
+  delete definitions.chunks['100'].Object.Sink;
+  assert.notEqual(createTaskEngine(definitions).how(state, 'one', taskId('Crafting', 'Soften')).availability, 'available');
+});
+
+test('a downstream item route retains every ordinary processing recipe and input', () => {
+  const definitions = { chunks: { '100': { Spawn: { Ore: 1 }, Object: { Furnace: 1, Anvil: 1 } } }, challenges: {
+    Smithing: {
+      Smelt: { Level: 1, Items: ['Ore'], Objects: ['Furnace'], Output: 'Bar', Primary: true },
+      Forge: { Level: 1, Items: ['Bar'], Objects: ['Anvil'], Output: 'Tool', Primary: true },
+    }, Extra: { Goal: { Items: ['Tool'] } },
+  } };
+  const state = caveState(['100']); state.taskRules = { 'Highest Level': false, 'Multi Step Processing': true };
+  const engine = createTaskEngine(definitions), before = engine.evaluate(state, 'one');
+  const proof = engine.how(state, 'one', taskId('Extra', 'Goal'), { baseline: before });
+  assert.equal(proof.proofStatus, 'complete', JSON.stringify(proof.gaps));
+  for (const name of ['Ore', 'Bar', 'Tool', 'Furnace', 'Anvil', 'Smelt', 'Forge']) assert.ok(labels(proof).includes(name), name);
+  graph(proof); assert.deepEqual(engine.evaluate(state, 'one').tasks, before.tasks);
+  delete definitions.chunks['100'].Spawn.Ore;
+  assert.notEqual(createTaskEngine(definitions).how(state, 'one', taskId('Extra', 'Goal')).availability, 'available');
+});
+
+test('a doable recipe excluded from supplies gets a goal proof without publishing its output', () => {
+  const definitions = { chunks: { '100': { Spawn: { Ore: 1, Token: 1 } } }, challenges: {
+    Crafting: { Convert: { Level: 1, Items: ['Ore'], Output: 'Token', NoXp: true } },
+    Extra: { Goal: { Items: ['Token'], AllowedSources: ['Convert'] } },
+  } };
+  const engine = createTaskEngine(definitions), state = caveState(['100']);
+  const before = engine.evaluate(state, 'one'), id = taskId('Crafting', 'Convert');
+  assert.equal(before.tasks.find(row => row.id === id).sourceEligible, false);
+  for (const options of [{}, { baseline: before }]) {
+    const proof = engine.how(state, 'one', id, options);
+    assert.equal(proof.availability, 'available');
+    assert.equal(proof.proofStatus, 'complete', JSON.stringify(proof.gaps));
+    assert.match(labels(proof), /Obtain Ore from/); graph(proof);
+  }
+  assert.notEqual(engine.how(state, 'one', taskId('Extra', 'Goal')).availability, 'available');
+  assert.deepEqual(engine.evaluate(state, 'one').tasks, before.tasks);
+});
+
+test('conditional multistep supplies still report their unproved processing selection', () => {
+  const definitions = { chunks: { '100': { Spawn: { Ore: 1, Fuel: 1 }, Object: { Anvil: 1 } } }, challenges: {
+    Smithing: {
+      Low: { Level: 1, Items: ['Ore'], Output: 'Low', Primary: true },
+      High: { Level: 5, Items: ['Ore'], Output: 'High', Primary: true },
+    }, Crafting: { Use: { Level: 5, Items: ['High', 'Fuel'], Output: 'End', Primary: true } },
+  } };
+  const state = caveState(['100']); state.taskRules = { 'Highest Level': false, 'Multi Step Processing': true };
+  state.members[0].skillProgress = { Crafting: { source: 'game-plugin', memberId: 'one', level: 5, xp: 400 } };
+  const proof = createTaskEngine(definitions).how(state, 'one', taskId('Crafting', 'Use'));
+  assert.equal(proof.availability, 'available');
+  assert.equal(proof.proofStatus, 'partial');
+  assert.ok(proof.gaps.some(gap => gap.kind === 'processing')); graph(proof);
+});
