@@ -318,22 +318,35 @@ every-case-passes-somewhere rule. Cancelled, missing or incomplete shards cannot
 make coverage green. The Windows slice is unchanged.
 
 Timings in `scripts/ci/test-timings.json` come from the complete Linux measurements
-in public run `42294078968`. Regenerate from one recent complete Linux run with
+in public main Tests run `44028552302` (`cee64cd91c345bc4177cab940569035b6e939b44`,
+2026-11-17), the newest main run with all four shards successful at calibration.
+Regenerate from one recent complete Linux run with
 `node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`. The slowest passing
 measurement per file supplies its weight and the median supplies new files.
-Avoid retaining inflated maxima from older execution environments.
+Avoid retaining inflated maxima from older execution environments. Download with
+`gh run download <run-id> -p 'test-ledger-shard-*'` and pass all four JSONL files.
+Regenerate after large runtime/test changes, a material change to the longest
+files, or shard imbalance/timeout pressure; verify all four jobs succeeded and
+all selected files have passing completed receipts. Compare the resulting PR's
+four shard job times with the source run before landing.
 
-The rebuilt `linux-tools-install`, `linux-multi-picker` and new
-`linux-ops-effects` weights use focused passing Linux Node.js 24.20.0 measurements
-at `9262ab1`, recorded as a scoped `local-focused` source. The cancelled shard run
-had no completed samples for these files. Other weights and the new-file default
-retain their complete hosted-run calibration. A future complete Linux ledger
-regeneration replaces these focused measurements along with the rest of the table.
+The planner models the runner's serial solo prefix, then assigns shared files
+longest first to the earliest available of six workers. The longest shared file
+starts first in its shared phase; its shard may also contain solo work, whose
+cost is included. Six is the admission cap, not guaranteed concurrency: memory
+pressure, ramp-up, runner contention and job setup can add time.
 
-The original unsharded Linux job took about 25 minutes (22m39s in the recorded
-baseline). Fresh weights predict about 6m14s execution per shard plus setup.
-Actual wall time varies with memory admission and contention; hosted ledgers
-validate the estimates. Static test selection is deferred to a separate follow-up
+The old weights predicted about 6m14s against job times of 155/482/578/573 seconds.
+Fresh weights replayed in the source run's actual admission order predict
+134/458/553/550 seconds of execution, matching ledger spans of
+134/458/553/550 seconds; job setup/artifacts add roughly 21–25 seconds.
+The former `max(longest, shared total / 6)` approximation missed the worker
+tail (502 seconds estimated versus 550 observed on shard 4 even with fresh
+weights). Tracking worker finish times removes that optimism without a blanket
+scaling factor. The new partition predicts about 382 seconds per shard; at
+1.5× plus a 60-second setup allowance that is about 10m33s, within 15 minutes.
+These are estimates; validate against the PR's hosted run. Static test selection
+is deferred to a separate follow-up
 based on runtime traces of files each test actually loads and reads.
 
 Published pack profiles control which data overlays CI sees. Source overlays do

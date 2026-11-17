@@ -9,16 +9,20 @@ export function assertPartition(files, shards) {
 }
 
 // Longest processing time first, stable filename and shard-index tie breakers.
-// Serial weights are conservative: each runner may admit several shared files.
+// Model the runner's solo prefix followed by six shared workers. Track each
+// worker's finish time: max(longest, total / 6) misses list-scheduling tails.
+// This assumes available memory; hosted contention and setup remain additional.
 export function balanceTests(files, timings, count = 4, policy = () => ({})) {
   if (!Number.isInteger(count) || count < 1 || count > 32) throw Error('Invalid shard count');
   if (!(timings.defaultMs > 0) || Object.values(timings.files).some(ms => !Number.isFinite(ms) || ms <= 0)) throw Error('Invalid timing table');
   const weight = file => timings.files[`tests/${file}`] ?? timings.defaultMs;
   const shards = Array.from({ length: count }, () => ({ files: [], wallMs: 0, soloMs: 0, sharedMs: 0, longestMs: 0, estimatedMs: 0 }));
+  const workers = new Map(shards.map(shard => [shard, Array(6).fill(0)]));
   const estimate = (shard, file) => {
     const solo = policy(file).solo;
+    const finish = workers.get(shard);
     return shard.soloMs + (solo ? weight(file) : 0)
-      + Math.max(shard.longestMs, solo ? 0 : weight(file), (shard.sharedMs + (solo ? 0 : weight(file))) / 6);
+      + Math.max(...finish, solo ? 0 : Math.min(...finish) + weight(file));
   };
   for (const file of [...files].sort((a, b) => weight(b) - weight(a) || (a < b ? -1 : a > b ? 1 : 0))) {
     const target = shards.reduce((best, shard) => estimate(shard, file) < estimate(best, file)
@@ -26,7 +30,11 @@ export function balanceTests(files, timings, count = 4, policy = () => ({})) {
     target.estimatedMs = estimate(target, file);
     target.files.push(file); target.wallMs += weight(file);
     if (policy(file).solo) target.soloMs += weight(file);
-    else { target.sharedMs += weight(file); target.longestMs = Math.max(target.longestMs, weight(file)); }
+    else {
+      target.sharedMs += weight(file); target.longestMs = Math.max(target.longestMs, weight(file));
+      const finish = workers.get(target);
+      finish[finish.indexOf(Math.min(...finish))] += weight(file);
+    }
   }
   assertPartition(files, shards);
   return shards;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { balanceTests, assertPartition, shardTests } from '../scripts/ci/test-shards.mjs';
 import { timingTable } from '../scripts/ci/update-test-timings.mjs';
-import { discoverTests } from '../scripts/test-selection.mjs';
+import { discoverTests, testRunPolicy } from '../scripts/test-selection.mjs';
 import { mergeLinuxReports } from '../scripts/ci/coverage-gate.mjs';
 
 test('deterministic timing-balanced shards cover every discovered full-suite file exactly once', async () => {
@@ -13,14 +13,24 @@ test('deterministic timing-balanced shards cover every discovered full-suite fil
   assert.deepEqual(await shardTests([...files].reverse()), shards);
   assert.equal(shards.length, 4);
   assert.ok(shards.every(shard => shard.files.length));
-  // Calibrated against the complete Linux shard ledgers from run 42294078968.
-  // Avoid the previous solo prefix followed by the longest shared file, while
-  // retaining the full inventory and duration-based (not file-count) balance.
+  // Leave setup headroom under the 15-minute timeout even at 1.5x slowdown.
   const estimates = shards.map(shard => shard.estimatedMs);
-  assert.ok(Math.max(...estimates) < 400_000, `Predicted critical path: ${estimates}`);
+  assert.ok(Math.max(...estimates) * 1.5 + 60_000 < 12 * 60_000, `Predicted slow-runner budget: ${estimates}`);
   assert.ok(Math.max(...estimates) - Math.min(...estimates) < 15_000, `Unbalanced plan: ${estimates}`);
-  const longest = shards.find(shard => shard.files.includes('game-plugin-items.test.mjs'));
-  assert.equal(longest.soloMs, 0, 'Do not delay the indivisible critical-path file with solo work');
+  const timings = JSON.parse(await readFile(new URL('../scripts/ci/test-timings.json', import.meta.url), 'utf8'));
+  const weight = file => timings.files[`tests/${file}`] ?? timings.defaultMs;
+  const shared = files.filter(file => !testRunPolicy(file).solo);
+  const critical = shared.reduce((a, b) => weight(a) >= weight(b) ? a : b);
+  const longest = shards.find(shard => shard.files.includes(critical));
+  // The runner always executes solo work first. The balancer starts the longest
+  // shared file first in its shared phase and includes the solo prefix in cost;
+  // it does not promise a solo-free shard for that file.
+  assert.equal(longest.files.find(file => !testRunPolicy(file).solo), critical);
+  assert.ok(longest.estimatedMs >= longest.soloMs + weight(critical));
+  for (const shard of shards) {
+    const ordered = shard.files.filter(file => !testRunPolicy(file).solo).map(weight);
+    assert.deepEqual(ordered, [...ordered].sort((a, b) => b - a));
+  }
   assert.throws(() => assertPartition(files, shards.slice(1)), /incomplete/);
   assert.throws(() => assertPartition(files, [...shards, shards[0]]), /duplicate/);
   const weights = { defaultMs: 10, files: { 'tests/slow.test.mjs': 100 } };
@@ -28,6 +38,19 @@ test('deterministic timing-balanced shards cover every discovered full-suite fil
   assert.equal(sample[0].wallMs, 100);
   assert.equal(sample[1].wallMs, 20);
   assert.throws(() => balanceTests([], weights, 0), /count/);
+});
+
+test('estimates include solo prefixes and shared worker tails instead of ideal average throughput', () => {
+  // Seven equal shared files need two waves across six workers. The former
+  // max(longest, total / 6) formula incorrectly predicted only 116.7ms.
+  const files = ['solo.test.mjs', ...Array.from({ length: 7 }, (_, i) => `shared-${i}.test.mjs`)];
+  const plan = balanceTests(files, { defaultMs: 100, files: { 'tests/solo.test.mjs': 25 } }, 1,
+    file => ({ solo: file === 'solo.test.mjs' }));
+  assert.equal(plan[0].soloMs, 25);
+  assert.equal(plan[0].sharedMs, 700);
+  assert.equal(plan[0].estimatedMs, 225);
+  assert.deepEqual(balanceTests([...files].reverse(), { defaultMs: 100, files: { 'tests/solo.test.mjs': 25 } }, 1,
+    file => ({ solo: file === 'solo.test.mjs' })), plan);
 });
 
 test('timing generation uses passing completed attempts and a conservative new-file default', () => {
