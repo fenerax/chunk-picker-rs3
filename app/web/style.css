@@ -637,6 +637,8 @@ dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px
 .info-table{border-collapse:collapse;width:100%;font-size:var(--type-body)}
 .info-table th,.info-table td{padding:var(--space-4);text-align:left;border-bottom:var(--border-thin) solid var(--hairline);vertical-align:top}
 .info-table th{background:var(--surface);color:var(--surface-text,var(--text));font-weight:var(--weight-semibold)}
+.original-transfer-table{table-layout:fixed;overflow-wrap:anywhere}
+.original-transfer-table th:first-child{width:22%}
 .info-list details{margin:var(--space-3) 0}
 .info-sources{margin:var(--space-4) 0}
 .info-panel button{margin:var(--space-2) var(--space-2) var(--space-2) 0}
